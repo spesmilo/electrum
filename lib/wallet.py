@@ -912,7 +912,8 @@ class Abstract_Wallet(PrintError):
                     # make tx local
                     self.unverified_tx.pop(tx_hash, None)
                     self.verified_tx.pop(tx_hash, None)
-                    self.verifier.merkle_roots.pop(tx_hash, None)
+                    if self.verifier:
+                        self.verifier.merkle_roots.pop(tx_hash, None)
                     # but remove completely if not is_mine
                     if self.txi[tx_hash] == {}:
                         # FIXME the test here should be for "not all is_mine"; cannot detect conflict in some cases

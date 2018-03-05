@@ -63,7 +63,7 @@ HistoryScreen:
             font_size: '30dp'
             bold: True
             size_hint: 1, 0.25
-            on_release: app.is_fiat = not app.is_fiat
+            on_release: app.is_fiat = not app.is_fiat if app.fx.is_enabled() else False
         ScrollView:
             id: content
             do_scroll_x: False

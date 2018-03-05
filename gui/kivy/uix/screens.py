@@ -373,6 +373,8 @@ class ReceiveScreen(CScreen):
 
     def save_request(self):
         addr = self.screen.address
+        if not addr:
+            return
         amount = self.screen.amount
         message = self.screen.message
         amount = self.app.get_amount(amount) if amount else 0

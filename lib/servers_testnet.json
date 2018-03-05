@@ -1,4 +1,14 @@
 {
-        "electrum-ltc.bysh.me": {"t":"51001", "s":"51002"},
-        "electrum.ltc.xurious.com": {"t":"51001", "s":"51002"}
+    "electrum-ltc.bysh.me": {
+        "pruning": "-",
+        "s": "51002",
+        "t": "51001",
+        "version": "1.2"
+    },
+    "electrum.ltc.xurious.com": {
+        "pruning": "-",
+        "s": "51002",
+        "t": "51001",
+        "version": "1.2"
+    }
 }

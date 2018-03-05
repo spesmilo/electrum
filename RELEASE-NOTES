@@ -1,19 +1,30 @@
 
-# Release 3.1 - (to be released)
+# Release 3.1 - (March 5, 2018)
 
- * Memory-pool based transaction fees. Users can set dynamic fees that
-   target a desired depth in the memory pool. This feature is
-   optional, and ETA-based estimates (from Bitcoin Core) remain the
-   default. Note that miners could exploit this feature, if they
-   conspired and filled the memory pool with expensive transactions
-   that never get mined. However, since the Electrum client already
-   trusts an Electrum server with fee estimates, activating this
-   feature does not introduce any new vulnerability; the client uses a
-   hard threshold to detect unusually high fees. In practice,
-   ETA-based estimates have resulted in sticky fees, and caused many
-   users to overpay for transactions. Advanced users tend to visit
-   (and trust) websites that display memory-pool data in order to set
-   their fees.
+ * Memory-pool based fee estimation. Dynamic fees can target a desired
+   depth in the memory pool. This feature is optional, and ETA-based
+   estimates from Bitcoin Core are still available. Note that miners
+   could exploit this feature, if they conspired and filled the memory
+   pool with expensive transactions that never get mined. However,
+   since the Electrum client already trusts an Electrum server with
+   fee estimates, activating this feature does not introduce any new
+   vulnerability. In addition, the client uses a hard threshold to
+   protect itself from servers sending excessive fee estimates. In
+   practice, ETA-based estimates have resulted in sticky fees, and
+   caused many users to overpay for transactions. Advanced users tend
+   to visit (and trust) websites that display memory-pool data in
+   order to set their fees.
+ * Capital gains: For each outgoing transaction, the difference
+   between the acquisition and liquidation prices of outgoing coins is
+   displayed in the wallet history. By default, historical exchange
+   rates are used to compute acquisition and liquidation prices. These
+   values can also be entered manually, in order to match the actual
+   price realized by the user. The order of liquidation of coins is
+   the natural order defined by the blockchain; this results in
+   capital gain values that are invariant to changes in the set of
+   addresses that are in the wallet. Any other ordering strategy (such
+   as FIFO, LIFO) would result in capital gain values that depend on
+   the presence of other addresses in the wallet.
  * Local transactions: Transactions can be saved in the wallet without
    being broadcast. The inputs of local transactions are considered as
    spent, and their change outputs can be re-used in subsequent
@@ -23,7 +34,7 @@
    saved in the wallet, and can be broadcast again.
  * Checkpoints: The initial download of a headers file was replaced
    with hardcoded checkpoints. The wallet uses one checkpoint per
-   retargetting period. The headers for a retargetting period are
+   retargeting period. The headers for a retargeting period are
    downloaded only if transactions need to be verified in this period.
  * The 'privacy' and 'priority' coin selection policies have been
    merged into one. Previously, the 'privacy' policy has been unusable
@@ -39,17 +50,26 @@
  * Watching-only wallets and hardware wallets can be encrypted.
  * Semi-automated crash reporting
  * The SSL checkbox option was removed from the GUI.
- * Capital gains: For each outgoing transaction, the difference
-   between the acquisition and liquidation prices of outgoing coins is
-   displayed in the wallet history. By default, historical exchange
-   rates are used to compute acquisition and liquidation prices. These
-   value can also be entered manually, in order to match the actual
-   price realized by the user. The order of liquidation of coins is
-   the natural order defined by the blockchain; this results in
-   capital gain values that are invariant to changes in the set of
-   addresses that are in the wallet. Any other ordering strategy (such
-   as FIFO, LIFO) would result in capital gain values that depend on
-   the set of addresses in the wallet.
+ * The Trezor T hardware wallet is now supported.
+ * BIP84: native segwit p2wpkh scripts for bip39 seeds and hardware
+   wallets can now be created when specifying a BIP84 derivation
+   path. This is usable with Trezor and Ledger.
+ * Windows: the binaries now include ZBar, and QR code scanning should work.
+ * The Wallet Import Format (WIF) for private keys that was extended in 3.0
+   is changed. Keys in the previous format can be imported, compatibility
+   is maintained. Newly exported keys will be serialized as
+   "script_type:original_wif_format_key".
+ * BIP32 master keys for testnet once again have different version bytes than
+   on mainnet. For the mainnet prefixes {x,y,Y,z,Z}|{pub,prv}, the
+   corresponding testnet prefixes are   {t,u,U,v,V}|{pub,prv}.
+   More details and exact version bytes are specified at:
+   https://github.com/spesmilo/electrum-docs/blob/master/xpub_version_bytes.rst
+   Note that due to this change, testnet wallet files created with previous
+   versions of Electrum must be considered broken, and they need to be
+   recreated from seed words.
+ * A new version of the Electrum protocol is required by the client
+   (version 1.2). Servers using older versions of the protocol will
+   not be displayed in the GUI.
 
 
 # Release 3.0.6 :

@@ -65,6 +65,8 @@ class SPV(ThreadJob):
             self.undo_verifications()
 
     def verify_merkle(self, r):
+        if self.wallet.verifier is None:
+            return  # we have been killed, this was just an orphan callback
         if r.get('error'):
             self.print_error('received an error:', r)
             return
@@ -95,7 +97,8 @@ class SPV(ThreadJob):
         self.print_error("verified %s" % tx_hash)
         self.wallet.add_verified_tx(tx_hash, (tx_height, header.get('timestamp'), pos))
 
-    def hash_merkle_root(self, merkle_s, target_hash, pos):
+    @classmethod
+    def hash_merkle_root(cls, merkle_s, target_hash, pos):
         h = hash_decode(target_hash)
         for i in range(len(merkle_s)):
             item = merkle_s[i]
