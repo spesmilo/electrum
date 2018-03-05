@@ -63,8 +63,8 @@
    is maintained. Newly exported keys will be serialized as
    "script_type:original_wif_format_key".
  * BIP32 master keys for testnet once again have different version bytes than
-   on mainnet. For the mainnet prefixes {x,y,Y,z,Z}|{pub|prv}, the
-   corresponding testnet prefixes are   {t,u,U,v,V}|{pub|prv}.
+   on mainnet. For the mainnet prefixes {x,y,Y,z,Z}|{pub,prv}, the
+   corresponding testnet prefixes are   {t,u,U,v,V}|{pub,prv}.
    More details and exact version bytes are specified at:
    https://github.com/spesmilo/electrum-docs/blob/master/xpub_version_bytes.rst
    Note that due to this change, testnet wallet files created with previous
