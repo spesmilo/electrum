@@ -27,6 +27,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from electrum.i18n import _
+from electrum.seed_suggestion import SeedSuggestion
 
 from .util import *
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
@@ -100,6 +101,9 @@ class SeedLayout(QVBoxLayout):
             self.is_seed = is_seed
             self.saved_is_seed = self.is_seed
             self.seed_e.textChanged.connect(self.on_edit)
+            self.suggestion = SeedSuggestion("./lib/wordlist/english.txt")
+            self.suggestion_label = QLabel()
+            self.addWidget(self.suggestion_label)
         self.seed_e.setMaximumHeight(75)
         hbox = QHBoxLayout()
         if icon:
@@ -135,7 +139,17 @@ class SeedLayout(QVBoxLayout):
         text = self.seed_e.text()
         return ' '.join(text.split())
 
+    def display_suggestions(self):
+        suggestion_char_length = 45
+        self.suggestion_label.setText("Suggestions: ")
+        if self.seed_e.text() == "" or self.seed_e.text()[-1] == ' ':
+            return
+        for word in self.suggestion.get_suggestions(self.get_seed().split(' ')[-1],
+                                                    suggestion_char_length):
+            self.suggestion_label.setText(self.suggestion_label.text() + word + " ")
+
     def on_edit(self):
+        self.display_suggestions()
         from electrum.bitcoin import seed_type
         s = self.get_seed()
         b = self.is_seed(s)
@@ -149,6 +163,7 @@ class SeedLayout(QVBoxLayout):
             label = 'BIP39' + ' (%s)'%status
         self.seed_type_label.setText(label)
         self.parent.next_button.setEnabled(b)
+
 
 
 class KeysLayout(QVBoxLayout):
