@@ -160,6 +160,20 @@ class BitcoinVenezuela(ExchangeBase):
                              "/historical/index.php?coin=BTC")[ccy +'_BTC']
 
 
+class Bitbank(ExchangeBase):
+
+    def get_rates(self, ccy):
+        json = self.get_json('public.bitbank.cc', '/btc_jpy/ticker')
+        return {'JPY': Decimal(json['data']['last'])}
+
+
+class BitFlyer(ExchangeBase):
+
+    def get_rates(self, ccy):
+        json = self.get_json('bitflyer.jp', '/api/echo/price')
+        return {'JPY': Decimal(json['mid'])}
+
+
 class Bitmarket(ExchangeBase):
 
     def get_rates(self, ccy):
@@ -348,6 +362,12 @@ class Winkdex(ExchangeBase):
         history = json['series'][0]['results']
         return dict([(h['timestamp'][:10], h['price'] / 100.0)
                      for h in history])
+
+
+class Zaif(ExchangeBase):
+    def get_rates(self, ccy):
+        json = self.get_json('api.zaif.jp', '/api/1/last_price/btc_jpy')
+        return {'JPY': Decimal(json['last_price'])}
 
 
 def dictinvert(d):
