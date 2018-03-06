@@ -439,16 +439,16 @@ def parse_input(vds):
     d['prevout_hash'] = prevout_hash
     d['prevout_n'] = prevout_n
     d['sequence'] = sequence
+    d['x_pubkeys'] = []
+    d['pubkeys'] = []
+    d['signatures'] = {}
+    d['address'] = None
+    d['num_sig'] = 0
     if prevout_hash == '00'*32:
         d['type'] = 'coinbase'
         d['scriptSig'] = bh2u(scriptSig)
     else:
-        d['x_pubkeys'] = []
-        d['pubkeys'] = []
-        d['signatures'] = {}
-        d['address'] = None
         d['type'] = 'unknown'
-        d['num_sig'] = 0
         if scriptSig:
             d['scriptSig'] = bh2u(scriptSig)
             try:

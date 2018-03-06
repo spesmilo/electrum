@@ -229,6 +229,8 @@ class Abstract_Wallet(PrintError):
         self.invoices = InvoiceStore(self.storage)
         self.contacts = Contacts(self.storage)
 
+        self.coin_price_cache = {}
+
 
     def diagnostic_name(self):
         return self.basename()
@@ -1032,7 +1034,7 @@ class Abstract_Wallet(PrintError):
             else:
                 income += value
             # fiat computations
-            if fx is not None:
+            if fx and fx.is_enabled():
                 date = timestamp_to_datetime(timestamp)
                 fiat_value = self.get_fiat_value(tx_hash, fx.ccy)
                 fiat_default = fiat_value is None
@@ -1069,7 +1071,7 @@ class Abstract_Wallet(PrintError):
                 'income': Satoshis(income),
                 'expenditures': Satoshis(expenditures)
             }
-            if fx:
+            if fx and fx.is_enabled():
                 unrealized = self.unrealized_gains(domain, fx.timestamp_rate, fx.ccy)
                 summary['capital_gains'] = Fiat(capital_gains, fx.ccy)
                 summary['fiat_income'] = Fiat(fiat_income, fx.ccy)
@@ -1757,8 +1759,14 @@ class Abstract_Wallet(PrintError):
         Acquisition price of a coin.
         This assumes that either all inputs are mine, or no input is mine.
         """
+        cache_key = "{}:{}:{}".format(str(txid), str(ccy), str(txin_value))
+        result = self.coin_price_cache.get(cache_key, None)
+        if result is not None:
+            return result
         if self.txi.get(txid, {}) != {}:
-            return self.average_price(txid, price_func, ccy) * txin_value/Decimal(COIN)
+            result = self.average_price(txid, price_func, ccy) * txin_value/Decimal(COIN)
+            self.coin_price_cache[cache_key] = result
+            return result
         else:
             fiat_value = self.get_fiat_value(txid, ccy)
             if fiat_value is not None:
@@ -1766,6 +1774,7 @@ class Abstract_Wallet(PrintError):
             else:
                 p = self.price_at_timestamp(txid, price_func)
                 return p * txin_value/Decimal(COIN)
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
