@@ -29,7 +29,7 @@ import sys
 
 from . import bitcoin
 from . import dnssec
-from .util import export_meta, import_meta, print_error
+from .util import export_meta, import_meta, print_error, to_string
 
 
 class Contacts(dict):
@@ -104,7 +104,7 @@ class Contacts(dict):
             return None
         prefix = 'btc'
         for record in records:
-            string = record.strings[0]
+            string = to_string(record.strings[0], 'utf8')
             if string.startswith('oa1:' + prefix):
                 address = self.find_regex(string, r'recipient_address=([A-Za-z0-9]+)')
                 name = self.find_regex(string, r'recipient_name=([^;]+)')
