@@ -84,7 +84,10 @@ def hash_header(header):
     if header is None:
         return '0' * 64
     if header.get('prev_block_hash') is None:
-        header['prev_block_hash'] = '00'*64 ''' TODO 32? '''
+        header['prev_block_hash'] = '00'*64
+        '''
+        TODO 32?
+        '''
     return hash_encode(Hash(bfh(serialize_header(header))))
 
 

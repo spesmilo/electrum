@@ -37,17 +37,25 @@ def read_json(filename, default):
     return r
 
 
+
+
 class BitcoinMainnet:
 
     TESTNET = False
     WIF_PREFIX = 0x80
-    ADDRTYPE_P2PKH = 0
-    ADDRTYPE_P2SH = 5
-    SEGWIT_HRP = "bc"
-    GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+    ADDRTYPE_P2PKH = [0x1C, 0xB8] 
+    ADDRTYPE_P2SH = [0x1C, 0xBD]
+    ADDRTYPE_SHIELDED = [0x16, 0x9A]
+    SEGWIT_HRP = "bc" # (No ZCL Segwit)
+    GENESIS = "0007104ccda289427919efc39dc9e4d499804b7bebc22df55f8b834301260602"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = read_json('checkpoints.json', [])
+
+    EQUIHASH_N = 200
+    EQUIHASH_K = 9
+
+    CHUNK_SIZE = 200
 
     XPRV_HEADERS = {
         'standard':    0x0488ade4,  # xprv
@@ -69,13 +77,19 @@ class BitcoinTestnet:
 
     TESTNET = True
     WIF_PREFIX = 0xef
-    ADDRTYPE_P2PKH = 111
-    ADDRTYPE_P2SH = 196
-    SEGWIT_HRP = "tb"
+    ADDRTYPE_P2PKH = [0x1D, 0x25] 
+    ADDRTYPE_P2SH = [0x1C, 0xBA] 
+    ADDTYPE_SHIELDED = [0x16, 0xB6]
+    SEGWIT_HRP = "tb" # (ZCL has no Segwit)
     GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
     DEFAULT_PORTS = {'t': '51001', 's': '51002'}
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
     CHECKPOINTS = read_json('checkpoints_testnet.json', [])
+
+    EQUIHASH_N = 200
+    EQUIHASH_K = 9
+
+    CHUNK_SIZE = 200
 
     XPRV_HEADERS = {
         'standard':    0x04358394,  # tprv
