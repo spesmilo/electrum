@@ -1,15 +1,15 @@
 {
-    "e-1.claudiobox.com": {
+    "backup.electrum-ltc.org": {
         "pruning": "-",
-        "s": "50004",
-        "t": "50003",
-        "version": "1.1"
+        "s": "443",
+        "t": "50001",
+        "version": "1.2"
     },
-    "e-2.claudiobox.com": {
+    "btc.cihar.com": {
         "pruning": "-",
         "s": "50004",
         "t": "50003",
-        "version": "1.1"
+        "version": "1.2"
     },
     "elec.luggs.co": {
         "pruning": "-",
@@ -22,17 +22,16 @@
         "t": "50001",
         "version": "1.2"
     },
-    "electrum-ltc.ddns.net": {
+    "electrum-ltc.klippb.org": {
+        "pruning": "-",
+        "s": "50002",
+        "version": "1.2"
+    },
+    "electrum-ltc.wilv.in": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.1"
-    },
-    "electrum-ltc.petrkr.net": {
-        "pruning": "-",
-        "s": "60002",
-        "t": "60001",
-        "version": "1.1"
+        "version": "1.2"
     },
     "electrum-ltc0.snel.it": {
         "pruning": "-",
@@ -40,16 +39,10 @@
         "t": "50003",
         "version": "1.2"
     },
-    "electrum-ltc.villocq.com": {
+    "electrum.leblancnet.us": {
         "pruning": "-",
-        "s": "60002",
-        "t": "60001",
-        "version": "1.1"
-    },
-    "electrum-ltc.wilv.in": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
+        "s": "50004",
+        "t": "50003",
         "version": "1.2"
     },
     "electrum.ltc.xurious.com": {
@@ -64,10 +57,16 @@
         "t": "9433",
         "version": "1.2"
     },
+    "ltc.asis.io": {
+        "pruning": "-",
+        "s": "50004",
+        "t": "50003",
+        "version": "1.2"
+    },
     "ltc01.knas.systems": {
         "pruning": "-",
         "s": "50004",
         "t": "50003",
-        "version": "1.1"
+        "version": "1.2"
     }
 }
