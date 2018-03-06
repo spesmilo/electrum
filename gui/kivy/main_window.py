@@ -824,7 +824,6 @@ class ElectrumWindow(App):
         d = LabelDialog(_('Enter description'), text, callback)
         d.open()
 
-    @profiler
     def amount_dialog(self, screen, show_max):
         from .uix.dialogs.amount_dialog import AmountDialog
         amount = screen.amount
@@ -834,6 +833,34 @@ class ElectrumWindow(App):
         def cb(amount):
             screen.amount = amount
         popup = AmountDialog(show_max, amount, cb)
+        popup.open()
+
+    def invoices_dialog(self, screen):
+        from .uix.dialogs.invoices import InvoicesDialog
+        if len(self.wallet.invoices.sorted_list()) == 0:
+            self.show_info(' '.join([
+                _('No saved invoices.'),
+                _('Signed invoices are saved automatically when you scan them.'),
+                _('You may also save unsigned requests or contact addresses using the save button.')
+            ]))
+            return
+        popup = InvoicesDialog(self, screen, None)
+        popup.update()
+        popup.open()
+
+    def requests_dialog(self, screen):
+        from .uix.dialogs.requests import RequestsDialog
+        if len(self.wallet.get_sorted_requests(self.electrum_config)) == 0:
+            self.show_info(_('No saved requests.'))
+            return
+        popup = RequestsDialog(self, screen, None)
+        popup.update()
+        popup.open()
+
+    def addresses_dialog(self, screen):
+        from .uix.dialogs.addresses import AddressesDialog
+        popup = AddressesDialog(self, screen, None)
+        popup.update()
         popup.open()
 
     def fee_dialog(self, label, dt):
