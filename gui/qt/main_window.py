@@ -2627,7 +2627,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_type_label = HelpLabel(_('Fee estimation') + ':', msg)
         fee_type_combo = QComboBox()
         fee_type_combo.addItems([_('Static'), _('ETA'), _('Mempool')])
-        fee_type_combo.setCurrentIndex(1 if self.config.use_mempool_fees() else 0)
+        fee_type_combo.setCurrentIndex((2 if self.config.use_mempool_fees() else 1) if self.config.is_dynfee() else 0)
         def on_fee_type(x):
             self.config.set_key('mempool_fees', x==2)
             self.config.set_key('dynamic_fees', x>0)

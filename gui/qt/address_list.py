@@ -123,7 +123,7 @@ class AddressList(MyTreeWidget):
                 address_item.setText(0, _('receiving'))
                 address_item.setBackground(0, ColorScheme.GREEN.as_color(True))
             address_item.setFont(1, QFont(MONOSPACE_FONT))
-            address_item.setData(1, Qt.UserRole, address)
+            address_item.setData(0, Qt.UserRole, address)  # column 0; independent from address column
             if self.wallet.is_frozen(address):
                 address_item.setBackground(1, ColorScheme.BLUE.as_color(True))
             if self.wallet.is_beyond_limit(address):
