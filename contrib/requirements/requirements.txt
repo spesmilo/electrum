@@ -6,4 +6,4 @@ qrcode
 protobuf
 dnspython
 jsonrpclib-pelix
-PySocks>=1.6.6
+aiosocks

@@ -148,6 +148,24 @@ class PrintError(object):
     def print_msg(self, *msg):
         print_msg("[%s]" % self.diagnostic_name(), *msg)
 
+class ForeverCoroutineJob(PrintError):
+    """A job that is run from a thread's main loop.  run() is
+    called from that thread's context.
+    """
+
+    async def run(self, is_running):
+        """Called once from the thread"""
+        pass
+
+class CoroutineJob(PrintError):
+    """A job that is run periodically from a thread's main loop.  run() is
+    called from that thread's context.
+    """
+
+    async def run(self):
+        """Called periodically from the thread"""
+        pass
+
 class ThreadJob(PrintError):
     """A job that is run periodically from a thread's main loop.  run() is
     called from that thread's context.
@@ -192,6 +210,38 @@ class DaemonThread(threading.Thread, PrintError):
         self.running_lock = threading.Lock()
         self.job_lock = threading.Lock()
         self.jobs = []
+        self.coroutines = []
+        self.forever_coroutines_task = None
+
+    def add_coroutines(self, jobs):
+        for i in jobs: assert isinstance(i, CoroutineJob), i.__class__.__name__ + " does not inherit from CoroutineJob"
+        self.coroutines.extend(jobs)
+
+    def set_forever_coroutines(self, jobs):
+        for i in jobs: assert isinstance(i, ForeverCoroutineJob), i.__class__.__name__ + " does not inherit from ForeverCoroutineJob"
+        async def put():
+            await self.forever_coroutines_queue.put(jobs)
+        asyncio.run_coroutine_threadsafe(put(), self.loop)
+
+    def run_forever_coroutines(self):
+        self.forever_coroutines_queue = asyncio.Queue() # making queue here because __init__ is called from non-network thread
+        self.loop = asyncio.get_event_loop()
+        async def getFromQueueAndStart():
+            jobs = await self.forever_coroutines_queue.get()
+            await asyncio.gather(*[i.run(self.is_running) for i in jobs])
+            self.print_error("FOREVER JOBS DONE")
+        self.forever_coroutines_task = asyncio.ensure_future(getFromQueueAndStart())
+        return self.forever_coroutines_task
+
+    async def run_coroutines(self):
+        for coroutine in self.coroutines:
+            assert isinstance(coroutine, CoroutineJob)
+            await coroutine.run()
+
+    def remove_coroutines(self, jobs):
+        for i in jobs: assert isinstance(i, CoroutineJob)
+        for job in jobs:
+            self.coroutines.remove(job)
 
     def add_jobs(self, jobs):
         with self.job_lock:
@@ -203,6 +253,7 @@ class DaemonThread(threading.Thread, PrintError):
         # malformed or malicious server responses
         with self.job_lock:
             for job in self.jobs:
+                assert isinstance(job, ThreadJob)
                 try:
                     job.run()
                 except Exception as e:
