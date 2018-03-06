@@ -29,6 +29,7 @@ import traceback
 import urllib
 import threading
 import hmac
+import asyncio
 
 from .i18n import _
 
