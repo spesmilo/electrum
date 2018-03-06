@@ -39,7 +39,7 @@ Builder.load_string('''
     show_change: 0
     show_used: 0
     on_message:
-        self.parent.update()
+        self.update()
     BoxLayout:
         id:box
         padding: '12dp', '70dp', '12dp', '12dp'
@@ -83,7 +83,7 @@ Builder.load_string('''
                 AddressButton:
                     id: change
                     text: root.message if root.message else _('Search')
-                    on_release: Clock.schedule_once(lambda dt: app.description_dialog(addr_screen))
+                    on_release: Clock.schedule_once(lambda dt: app.description_dialog(popup))
         ScrollView:
             GridLayout:
                 cols: 1
@@ -95,6 +95,10 @@ Builder.load_string('''
 
 from electrum_gui.kivy.i18n import _
 from electrum_gui.kivy.uix.context_menu import ContextMenu
+
+
+class EmptyLabel(Factory.Label):
+    pass
 
 
 class AddressesDialog(Factory.Popup):
@@ -134,7 +138,7 @@ class AddressesDialog(Factory.Popup):
             _list = wallet.get_change_addresses()
         else:
             _list = wallet.get_addresses()
-        search = self.screen.message
+        search = self.message
         container = self.ids.search_container
         container.clear_widgets()
         n = 0
