@@ -204,7 +204,7 @@ class Blockchain(util.PrintError):
         target = self.get_target(index-1)
         for i in range(num):
             raw_header = data[i*bitcoin.HEADER_SIZE:(i+1) * bitcoin.HEADER_SIZE]
-            header = deserialize_header(raw_header, index*NetworkConstants.CHUNK_SIZE + i)
+            header = deserialize_header(raw_header, index*constants.net.CHUNK_SIZE + i)
             self.verify_header(header, prev_hash, target)
             prev_hash = hash_header(header)
 

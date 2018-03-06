@@ -37,8 +37,6 @@ def read_json(filename, default):
     return r
 
 
-
-
 class BitcoinMainnet:
 
     TESTNET = False
@@ -56,6 +54,8 @@ class BitcoinMainnet:
     EQUIHASH_K = 9
 
     CHUNK_SIZE = 200
+
+    HEADERS_URL = "http://headers.zcl-electrum.com/blockchain_headers"
 
     XPRV_HEADERS = {
         'standard':    0x0488ade4,  # xprv
