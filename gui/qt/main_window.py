@@ -664,7 +664,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             fiat_e.is_last_edited = (edit == fiat_e)
             amount = edit.get_amount()
             rate = self.fx.exchange_rate() if self.fx else None
-            if rate is None or amount is None:
+            if rate.is_nan() or amount is None:
                 if edit is fiat_e:
                     btc_e.setText("")
                     if fee_e:
