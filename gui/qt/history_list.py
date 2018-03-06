@@ -256,7 +256,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                 item.setIcon(3, QIcon(":icons/seal"))
             for i in range(len(entry)):
                 if i>3:
-                    item.setTextAlignment(i, Qt.AlignRight)
+                    item.setTextAlignment(i, Qt.AlignRight | Qt.AlignVCenter)
                 if i!=2:
                     item.setFont(i, QFont(MONOSPACE_FONT))
             if value and value < 0:
