@@ -1032,7 +1032,7 @@ class Abstract_Wallet(PrintError):
             else:
                 income += value
             # fiat computations
-            if fx is not None:
+            if fx and fx.is_enabled():
                 date = timestamp_to_datetime(timestamp)
                 fiat_value = self.get_fiat_value(tx_hash, fx.ccy)
                 fiat_default = fiat_value is None
@@ -1069,7 +1069,7 @@ class Abstract_Wallet(PrintError):
                 'income': Satoshis(income),
                 'expenditures': Satoshis(expenditures)
             }
-            if fx:
+            if fx and fx.is_enabled():
                 unrealized = self.unrealized_gains(domain, fx.timestamp_rate, fx.ccy)
                 summary['capital_gains'] = Fiat(capital_gains, fx.ccy)
                 summary['fiat_income'] = Fiat(fiat_income, fx.ccy)
