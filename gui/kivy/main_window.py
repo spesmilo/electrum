@@ -132,7 +132,7 @@ class ElectrumWindow(App):
         self.send_screen.set_URI(uri)
 
     def on_new_intent(self, intent):
-        if intent.getScheme() != 'bitcoin':
+        if intent.getScheme() != 'groestlcoin':
             return
         uri = intent.getDataString()
         self.set_URI(uri)
@@ -241,7 +241,7 @@ class ElectrumWindow(App):
 
         App.__init__(self)#, **kwargs)
 
-        title = _('Electrum App')
+        title = _('Electrum-GRS App')
         self.electrum_config = config = kwargs.get('config', None)
         self.language = config.get('language', 'en')
         self.network = network = kwargs.get('network', None)
@@ -488,7 +488,7 @@ class ElectrumWindow(App):
                 self.load_wallet(wallet)
                 self.on_resume()
         else:
-            Logger.debug('Electrum: Wallet not found. Launching install wizard')
+            Logger.debug('Electrum-GRS: Wallet not found. Launching install wizard')
             storage = WalletStorage(path)
             wizard = Factory.InstallWizard(self.electrum_config, storage)
             wizard.bind(on_wizard_complete=self.on_wizard_complete)
@@ -552,7 +552,7 @@ class ElectrumWindow(App):
 
     @profiler
     def init_ui(self):
-        ''' Initialize The Ux part of electrum. This function performs the basic
+        ''' Initialize The Ux part of electrum-grs. This function performs the basic
         tasks of setting up the ui.
         '''
         #from weakref import ref
@@ -670,8 +670,8 @@ class ElectrumWindow(App):
                 from plyer import notification
             icon = (os.path.dirname(os.path.realpath(__file__))
                     + '/../../' + self.icon)
-            notification.notify('Electrum', message,
-                            app_icon=icon, app_name='Electrum')
+            notification.notify('Electrum-GRS', message,
+                            app_icon=icon, app_name='Electrum-GRS')
         except ImportError:
             Logger.Error('Notification: needs plyer; `sudo pip install plyer`')
 
