@@ -128,7 +128,7 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
         long_user_id, short_id = trustedcoin.get_user_id(
             {'x1/': {'xpub': xpub1},
              'x2/': {'xpub': xpub2}})
-        xpub3 = trustedcoin.make_xpub(trustedcoin.signing_xpub, long_user_id)
+        xpub3 = trustedcoin.make_xpub(trustedcoin.get_signing_xpub(), long_user_id)
         ks3 = keystore.from_xpub(xpub3)
         self._check_xpub_keystore_sanity(ks3)
         self.assertTrue(isinstance(ks3, keystore.BIP32_KeyStore))

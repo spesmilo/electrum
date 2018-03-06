@@ -2,6 +2,7 @@
     "CoinMarketCap": [
         "USD",
         "EUR",
-        "CNY"
+        "RUB",
+        "USD"
     ]
-}
+ }

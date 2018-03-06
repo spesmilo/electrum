@@ -7,12 +7,13 @@ try:
     import electrum
     from electrum.bitcoin import TYPE_ADDRESS, push_script, var_int, msg_magic, Hash, verify_message, pubkey_from_signature, point_to_ser, public_key_to_p2pkh, EncodeAES, DecodeAES, MyVerifyingKey
     from electrum.bitcoin import serialize_xpub, deserialize_xpub
+    from electrum import constants
     from electrum.transaction import Transaction
     from electrum.i18n import _
     from electrum.keystore import Hardware_KeyStore
     from ..hw_wallet import HW_PluginBase
     from electrum.util import print_error, to_string, UserCancelled
-    from electrum.base_wizard import ScriptTypeNotSupported
+    from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 
     import time
     import hid
@@ -92,10 +93,10 @@ class DigitalBitbox_Client():
         if reply:
             xpub = reply['xpub']
             # Change type of xpub to the requested type. The firmware
-            # only ever returns the standard type, but it is agnostic
+            # only ever returns the mainnet standard type, but it is agnostic
             # to the type when signing.
-            if xtype != 'standard':
-                _, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub)
+            if xtype != 'standard' or constants.net.TESTNET:
+                _, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub, net=constants.BitcoinMainnet)
                 xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
             return xpub
         else:
@@ -421,7 +422,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
 
     def decrypt_message(self, pubkey, message, password):
-        raise RuntimeError(_('Encryption and decryption are currently not supported for %s') % self.device)
+        raise RuntimeError(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
 
     def sign_message(self, sequence, message, password):
@@ -661,7 +662,8 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
     def create_client(self, device, handler):
         if device.interface_number == 0 or device.usage_page == 0xffff:
-            self.handler = handler
+            if handler:
+                self.handler = handler
             client = self.get_dbb_device(device)
             if client is not None:
                 client = DigitalBitbox_Client(self, client)
@@ -670,12 +672,13 @@ class DigitalBitboxPlugin(HW_PluginBase):
             return None
 
 
-    def setup_device(self, device_info, wizard):
+    def setup_device(self, device_info, wizard, purpose):
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
         client.handler = self.create_handler(wizard)
-        client.setupRunning = True
+        if purpose == HWD_SETUP_NEW_WALLET:
+            client.setupRunning = True
         client.get_xpub("m/44'/0'", 'standard')
 
 

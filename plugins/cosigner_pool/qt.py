@@ -194,7 +194,7 @@ class Plugin(BasePlugin):
             return
 
         wallet = window.wallet
-        if wallet.has_password():
+        if wallet.has_keystore_encryption():
             password = window.password_dialog('An encrypted transaction was retrieved from cosigning pool.\nPlease enter your password to decrypt it.')
             if not password:
                 return

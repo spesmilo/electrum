@@ -84,11 +84,13 @@ class Synchronizer(ThreadJob):
         return bh2u(hashlib.sha256(status.encode('ascii')).digest())
 
     def on_address_status(self, response):
+        if self.wallet.synchronizer is None:
+            return  # we have been killed, this was just an orphan callback
         params, result = self.parse_response(response)
         if not params:
             return
         addr = params[0]
-        history = self.wallet.get_address_history(addr)
+        history = self.wallet.history.get(addr, [])
         if self.get_status(history) != result:
             if self.requested_histories.get(addr) is None:
                 self.requested_histories[addr] = result
@@ -98,6 +100,8 @@ class Synchronizer(ThreadJob):
             self.requested_addrs.remove(addr)
 
     def on_address_history(self, response):
+        if self.wallet.synchronizer is None:
+            return  # we have been killed, this was just an orphan callback
         params, result = self.parse_response(response)
         if not params:
             return
@@ -127,6 +131,8 @@ class Synchronizer(ThreadJob):
         self.requested_histories.pop(addr)
 
     def tx_response(self, response):
+        if self.wallet.synchronizer is None:
+            return  # we have been killed, this was just an orphan callback
         params, result = self.parse_response(response)
         if not params:
             return
