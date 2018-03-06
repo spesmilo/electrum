@@ -52,7 +52,7 @@ Builder.load_string('''
                 SettingsItem:
                     status: root.fee_status()
                     title: _('Fees') + ': ' + self.status
-                    description: _("Fees paid to the Bitcoin miners.")
+                    description: _("Fees paid to the Groestlcoin miners.")
                     action: partial(root.fee_dialog, self)
                 CardSeparator
                 SettingsItem:
