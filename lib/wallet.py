@@ -987,11 +987,11 @@ class Abstract_Wallet(PrintError):
     def get_full_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
         from .util import timestamp_to_datetime, Satoshis, Fiat
         out = []
-        capital_gains = 0
         income = 0
         expenditures = 0
-        fiat_income = 0
-        fiat_expenditures = 0
+        capital_gains = Decimal(0)
+        fiat_income = Decimal(0)
+        fiat_expenditures = Decimal(0)
         h = self.get_history(domain)
         for tx_hash, height, conf, timestamp, value, balance in h:
             if from_timestamp and (timestamp or time.time()) < from_timestamp:
