@@ -10,15 +10,11 @@ for i, x in enumerate(sys.argv):
 else:
     raise BaseException('no version')
 
-home = '/Users/voegtlin/electrum/'
+home = '../'
 block_cipher=None
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
-hiddenimports = []
-hiddenimports += collect_submodules('trezorlib')
-hiddenimports += collect_submodules('btchip')
-hiddenimports += collect_submodules('keepkeylib')
-hiddenimports += ['_scrypt']
+hiddenimports = ['_scrypt']
 
 datas = [
     (home+'lib/currencies.json', 'electrum'),
@@ -27,9 +23,6 @@ datas = [
     (home+'lib/locale', 'electrum/locale'),
     (home+'plugins', 'electrum_plugins'),
 ]
-datas += collect_data_files('trezorlib')
-datas += collect_data_files('btchip')
-datas += collect_data_files('keepkeylib')
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'electrum',
@@ -64,20 +57,19 @@ exe = EXE(pyz,
           a.scripts,
           a.binaries,
           a.datas,
-          name='Electrum',
+          name='Electrum-FTC',
           debug=False,
           strip=False,
           upx=True,
-          icon=home+'electrum.icns',
+          icon=home+'electrum/electrum.icns',
           console=False)
 
 app = BUNDLE(exe,
              version = VERSION,
-             name='Electrum.app',
-             icon=home+'electrum.icns',
+             name='Electrum-FTC.app',
+             icon=home+'electrum/electrum.icns',
              bundle_identifier=None,
              info_plist = {
                  'NSHighResolutionCapable':'True'
              }
 )
-

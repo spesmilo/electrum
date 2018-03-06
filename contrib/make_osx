@@ -1,6 +1,6 @@
 #!/bin/bash
 rm -rf dist
 export PYTHONHASHSEED=22
-VERSION=`git describe --tags`
-pyinstaller --noconfirm --ascii --name $VERSION contrib/osx.spec
-hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-$VERSION.dmg
+VERSION=`git describe --tags --dirty`
+pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx.spec
+hdiutil create -fs HFS+ -volname "Electrum-FTC" -srcfolder dist/Electrum-FTC.app dist/electrum-ftc-$VERSION.dmg
