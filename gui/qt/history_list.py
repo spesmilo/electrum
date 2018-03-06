@@ -161,6 +161,9 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
 
     def show_summary(self):
         h = self.summary
+        if not h:
+            self.parent.show_message(_("Nothing to summarize."))
+            return
         start_date = h.get('start_date')
         end_date = h.get('end_date')
         format_amount = lambda x: self.parent.format_amount(x.value) + ' ' + self.parent.base_unit()
