@@ -229,6 +229,8 @@ class Abstract_Wallet(PrintError):
         self.invoices = InvoiceStore(self.storage)
         self.contacts = Contacts(self.storage)
 
+        self.coin_price_cache = {}
+
 
     def diagnostic_name(self):
         return self.basename()
@@ -1757,15 +1759,22 @@ class Abstract_Wallet(PrintError):
         Acquisition price of a coin.
         This assumes that either all inputs are mine, or no input is mine.
         """
+        cache_key = "{}:{}:{}".format(str(txid), str(ccy), str(txin_value))
+        result = self.coin_price_cache.get(cache_key, None)
+        if result is not None:
+            return result
         if self.txi.get(txid, {}) != {}:
-            return self.average_price(txid, price_func, ccy) * txin_value/Decimal(COIN)
+            result = self.average_price(txid, price_func, ccy) * txin_value/Decimal(COIN)
         else:
             fiat_value = self.get_fiat_value(txid, ccy)
             if fiat_value is not None:
-                return fiat_value
+                result = fiat_value
             else:
                 p = self.price_at_timestamp(txid, price_func)
-                return p * txin_value/Decimal(COIN)
+                result = p * txin_value/Decimal(COIN)
+        self.coin_price_cache[cache_key] = result
+        return result
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
