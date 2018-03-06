@@ -217,7 +217,6 @@ class SendScreen(CScreen):
         pr = make_unsigned_request(req).SerializeToString()
         pr = PaymentRequest(pr)
         self.app.wallet.invoices.add(pr)
-        self.app.update_tab('invoices')
         self.app.show_info(_("Invoice saved"))
         if pr.is_pr():
             self.screen.is_pr = True
