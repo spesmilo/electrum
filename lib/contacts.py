@@ -22,6 +22,7 @@
 # SOFTWARE.
 import re
 import dns
+from dns.exception import DNSException
 import json
 import traceback
 import sys
@@ -29,6 +30,7 @@ import sys
 from .address import Address
 from . import dnssec
 from .util import FileImportFailed, FileImportFailedEncrypted
+from .util import export_meta, import_meta, print_error
 
 
 class Contacts(dict):
@@ -99,7 +101,11 @@ class Contacts(dict):
     def resolve_openalias(self, url):
         # support email-style addresses, per the OA standard
         url = url.replace('@', '.')
-        records, validated = dnssec.query(url, dns.rdatatype.TXT)
+        try:
+            records, validated = dnssec.query(url, dns.rdatatype.TXT)
+        except DNSException as e:
+            print_error('Error resolving openalias: ', str(e))
+            return None
         prefix = 'btc'
         for record in records:
             string = record.strings[0]
