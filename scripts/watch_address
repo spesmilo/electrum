@@ -8,7 +8,7 @@ from electrum_grs.util import print_msg, json_encode
 try:
     addr = sys.argv[1]
 except Exception:
-    print("usage: watch_address <bitcoin_address>")
+    print("usage: watch_address <groestlcoin_address>")
     sys.exit(1)
 
 # start network
