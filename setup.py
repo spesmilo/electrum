@@ -20,7 +20,7 @@ version = imp.load_source('version', 'lib/version.py')
 if sys.version_info[:3] < (3, 5, 0):
     sys.exit("Error: Electron Cash requires Python version >= 3.5.0...")
 
-data_files = ['contrib/requirements/' + r for r in ['requirements.txt', 'requirements-hw.txt']]
+data_files = []
 
 if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
     parser = argparse.ArgumentParser()
