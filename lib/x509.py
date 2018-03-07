@@ -284,7 +284,7 @@ class X509(object):
         return self.AKI if self.AKI else repr(self.issuer)
 
     def get_common_name(self):
-        return self.subject.get('2.5.4.3', 'unknown').decode()
+        return self.subject.get('2.5.4.3', b'unknown').decode()
 
     def get_signature(self):
         return self.cert_sig_algo, self.signature, self.data
