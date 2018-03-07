@@ -533,7 +533,13 @@ class DeviceMgr(ThreadJob, PrintError):
 
         # Let plugin handlers enumerate devices we don't know about
         for f in self.enumerate_func:
-            devices.extend(f())
+            try:
+                new_devices = f()
+            except BaseException as e:
+                self.print_error('custom device enum failed. func {}, error {}'
+                                 .format(str(f), str(e)))
+            else:
+                devices.extend(new_devices)
 
         # Now find out what was disconnected
         pairs = [(dev.path, dev.id_) for dev in devices]
