@@ -829,3 +829,16 @@ def export_meta(meta, fileName):
     except (IOError, os.error) as e:
         traceback.print_exc(file=sys.stderr)
         raise FileExportFailed(e)
+
+def get_new_wallet_name(wallet_folder):
+    i = 1
+    while True:
+        filename = "wallet_%d" % i
+        if filename in os.listdir(wallet_folder):
+            i += 1
+        else:
+            break
+    return filename
+
+def format_date(d):
+    return str(datetime.date(d)) if d else _('None')
