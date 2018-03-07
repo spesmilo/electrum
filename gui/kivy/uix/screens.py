@@ -253,7 +253,7 @@ class SendScreen(CScreen):
                 self.app.show_error(_('Recipient not specified.') + ' ' + _('Please scan a Groestlcoin address or a payment request'))
                 return
             if not bitcoin.is_address(address):
-                self.app.show_error(_('Invalid Bitcoin Address') + ':\n' + address)
+                self.app.show_error(_('Invalid Groestlcoin Address') + ':\n' + address)
                 return
             try:
                 amount = self.app.get_amount(self.screen.amount)
