@@ -6,11 +6,12 @@ import tlslite
 from electroncash.transaction import Transaction
 from electroncash import paymentrequest
 from electroncash import paymentrequest_pb2 as pb2
+from electroncash.address import Address
 
 chain_file = 'mychain.pem'
 cert_file = 'mycert.pem'
 amount = 1000000
-address = "18U5kpCAU4s8weFF8Ps5n8HAfpdUjDVF64"
+address = Address.from_string("18U5kpCAU4s8weFF8Ps5n8HAfpdUjDVF64")
 memo = "blah"
 out_file = "payreq"
 
@@ -25,7 +26,7 @@ certificates.certificate.extend(map(lambda x: str(x.bytes), chain.x509List))
 with open(cert_file, 'r') as f:
     rsakey = tlslite.utils.python_rsakey.Python_RSAKey.parsePEM(f.read())
 
-script = Transaction.pay_script('address', address).decode('hex')
+script = bytes.from_hex(Transaction.pay_script(address))
 
 pr_string = paymentrequest.make_payment_request(amount, script, memo, rsakey)
 
