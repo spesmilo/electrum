@@ -127,8 +127,28 @@ class TrezorPlugin(HW_PluginBase):
         self.device_manager().register_enumerate_func(self.enumerate)
 
     def enumerate(self):
-        from trezorlib.device import TrezorDevice
-        return [Device(d.get_path(), -1, d.get_path(), 'TREZOR', 0) for d in TrezorDevice.enumerate()]
+        try:
+            from trezorlib.transport import all_transports
+        except ImportError:
+            # compat for trezorlib < 0.9.2
+            def all_transports():
+                from trezorlib.transport_bridge import BridgeTransport
+                from trezorlib.transport_hid import HidTransport
+                from trezorlib.transport_udp import UdpTransport
+                from trezorlib.transport_webusb import WebUsbTransport
+                return (BridgeTransport, HidTransport, UdpTransport, WebUsbTransport)
+
+        devices = []
+        for transport in all_transports():
+            try:
+                new_devices = transport.enumerate()
+            except BaseException as e:
+                self.print_error('enumerate failed for {}. error {}'
+                                 .format(transport.__name__, str(e)))
+            else:
+                devices.extend(new_devices)
+
+        return [Device(d.get_path(), -1, d.get_path(), 'TREZOR', 0) for d in devices]
 
     def create_client(self, device, handler):
         from trezorlib.device import TrezorDevice
