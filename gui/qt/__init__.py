@@ -184,43 +184,43 @@ class ElectrumGui:
         return w
 
     def start_new_window(self, path, uri):
-        '''Raises the window for the wallet if it is open.  Otherwise
-        opens the wallet and creates a new window for it.'''
-        for w in self.windows:
-            if w.wallet.storage.path == path:
-                w.bring_to_top()
-                break
-        else:
+        try:
+            wallet = self.daemon.load_wallet(path, None)
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
+            d = QMessageBox(QMessageBox.Warning, _('Error'),
+                            _('Cannot load wallet:') + '\n' + str(e))
+            d.exec_()
+            return
+        if not wallet:
+            storage = WalletStorage(path, manual_upgrades=True)
+            wizard = InstallWizard(self.config, self.app, self.plugins, storage)
             try:
-                wallet = self.daemon.load_wallet(path, None)
-            except BaseException as e:
-                traceback.print_exc(file=sys.stdout)
-                d = QMessageBox(QMessageBox.Warning, _('Error'),
-                                _('Cannot load wallet:') + '\n' + str(e))
-                d.exec_()
-                return
+                wallet = wizard.run_and_get_wallet()
+            except UserCancelled:
+                pass
+            except GoBack as e:
+                print_error('[start_new_window] Exception caught (GoBack)', e)
+            wizard.terminate()
             if not wallet:
-                storage = WalletStorage(path, manual_upgrades=True)
-                wizard = InstallWizard(self.config, self.app, self.plugins, storage)
-                try:
-                    wallet = wizard.run_and_get_wallet()
-                except UserCancelled:
-                    pass
-                except GoBack as e:
-                    print_error('[start_new_window] Exception caught (GoBack)', e)
-                wizard.terminate()
-                if not wallet:
-                    return
-                wallet.start_threads(self.daemon.network)
-                self.daemon.add_wallet(wallet)
-            try:
-                w = self.create_window_for_wallet(wallet)
-            except BaseException as e:
-                traceback.print_exc(file=sys.stdout)
-                d = QMessageBox(QMessageBox.Warning, _('Error'),
-                                _('Cannot create window for wallet:') + '\n' + str(e))
-                d.exec_()
                 return
+
+            # to account for if the wallet is already open
+            for w in self.windows:
+                if w.wallet.storage.path == wallet.storage.path:
+                    w.bring_to_top()
+                    return
+
+            wallet.start_threads(self.daemon.network)
+            self.daemon.add_wallet(wallet)
+        try:
+            w = self.create_window_for_wallet(wallet)
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
+            d = QMessageBox(QMessageBox.Warning, _('Error'),
+                            _('Cannot create window for wallet:') + '\n' + str(e))
+            d.exec_()
+            return
         if uri:
             w.pay_to_URI(uri)
         w.bring_to_top()
