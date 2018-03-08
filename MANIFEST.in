@@ -4,6 +4,8 @@ include electrum-ltc.conf.sample
 include electrum-ltc.desktop
 include *.py
 include electrum-ltc
+include contrib/requirements/requirements.txt
+include contrib/requirements/requirements-hw.txt
 recursive-include lib *.py
 recursive-include gui *.py
 recursive-include plugins *.py

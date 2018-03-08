@@ -36,7 +36,7 @@ else:
 
 try:
     libzbar = ctypes.cdll.LoadLibrary(name)
-except OSError:
+except BaseException:
     libzbar = None
 
 
