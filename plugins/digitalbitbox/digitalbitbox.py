@@ -370,7 +370,7 @@ class DigitalBitbox_Client():
             else:
                 self.hid_send_frame(msg)
                 r = self.hid_read_frame()
-            r = r.rstrip(b' \t\n\0')
+            r = r.rstrip(b' \t\r\n\0')
             r = r.replace(b"\0", b'')
             r = to_string(r, 'utf8')
             reply = json.loads(r)
