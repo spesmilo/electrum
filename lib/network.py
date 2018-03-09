@@ -398,20 +398,13 @@ class Network(util.DaemonThread):
         if server:
             return await self.start_interface(server)
 
-    async def start_interfaces(self):
-        await self.start_interface(self.default_server)
-        self.print_error("started default server interface")
-        for i in range(self.num_server - 1):
-            await self.start_random_interface()
-
-    async def start_network(self, protocol, proxy):
+    def start_network(self, protocol, proxy):
         self.stopped = False
         assert not self.interface and not self.interfaces
         assert len(self.connecting) == 0
         self.print_error('starting network')
         self.protocol = protocol
         self.proxy = proxy
-        await self.start_interfaces()
 
     async def stop_network(self):
         self.stopped = True
@@ -455,7 +448,7 @@ class Network(util.DaemonThread):
                         self.print_error("STOOOOOOOOOOOOOOOOOOOOOOOOOOPPED")
                         self.default_server = server
                         self.disconnected_servers = {}
-                        await self.start_network(protocol, proxy)
+                        self.start_network(protocol, proxy)
                 except BaseException as e:
                     traceback.print_exc()
                     self.print_error("exception from restart job")
@@ -984,7 +977,6 @@ class Network(util.DaemonThread):
                 except TimeoutError:
                     asyncio.ensure_future(self.connection_down(interface.server, "couldn't send initial version"))
                     interface.future.set_result("couldn't send initial version")
-
                     return
                 if not interface.is_running():
                     interface.future.set_result("stopped after sending request")
@@ -1038,8 +1030,8 @@ class Network(util.DaemonThread):
 
 
     async def maintain_interfaces(self):
-        if self.stopped: return
-
+        if self.stopped:
+            return
         now = time.time()
         # nodes
         if len(self.interfaces) + len(self.connecting) < self.num_server:
@@ -1073,17 +1065,8 @@ class Network(util.DaemonThread):
         self.init_headers_file()
         self.pending_sends = asyncio.Queue()
         self.restartLock = asyncio.Lock()
-
-        async def job():
-            try:
-                await self.start_network(deserialize_server(self.default_server)[2],
-                                         deserialize_proxy(self.config.get('proxy')))
-                self.process_pending_sends_job = self.make_process_pending_sends_job()
-            except:
-                traceback.print_exc()
-                self.print_error("Previous exception in start_network")
-                raise
-        asyncio.ensure_future(job())
+        self.start_network(deserialize_server(self.default_server)[2], deserialize_proxy(self.config.get('proxy')))
+        self.process_pending_sends_job = self.make_process_pending_sends_job()
         run_future = asyncio.Future()
         self.run_forever_coroutines()
         asyncio.ensure_future(self.run_async(run_future))
@@ -1097,10 +1080,9 @@ class Network(util.DaemonThread):
     async def run_async(self, future):
         try:
             while self.is_running():
-                #self.print_error(len(asyncio.Task.all_tasks()))
-                await asyncio.sleep(1)
                 await self.maintain_interfaces()
                 self.run_jobs()
+                await asyncio.sleep(1)
             await self.stop_network()
             self.on_stop()
             future.set_result("run_async done")
