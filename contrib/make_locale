@@ -8,8 +8,8 @@ import requests
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 os.chdir('..')
 
-code_directories = 'lib gui plugins'
-cmd = "grep 'from electrum.i18n import _' {} -rl".format(code_directories)
+code_directories = '{gui,plugins}'
+cmd = "find {} -type f -name '*.py' -o -name '*.kv'".format(code_directories)
 
 files = subprocess.check_output(cmd, shell=True)
 
@@ -21,7 +21,7 @@ print("Found {} files to translate".format(len(files.splitlines())))
 # Generate fresh translation template
 if not os.path.exists('lib/locale'):
     os.mkdir('lib/locale')
-cmd = 'xgettext -s --from-code UTF-8 --no-wrap -f app.fil --output=lib/locale/messages.pot'
+cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=lib/locale/messages.pot'
 print('Generate template')
 os.system(cmd)
 
