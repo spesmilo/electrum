@@ -930,12 +930,6 @@ class Network(util.DaemonThread):
         # refresh network dialog
         self.notify('interfaces')
 
-    async def maintain_requests(self):
-        for interface in list(self.interfaces.values()):
-            if interface.request and time.time() - interface.request_time > 20:
-                interface.print_error("blockchain request timed out")
-                await self.connection_down(interface.server, "blockchain request timed out")
-
     def make_send_requests_job(self, interface):
         async def job():
             try:
@@ -1023,13 +1017,19 @@ class Network(util.DaemonThread):
                 await self.queue_request('blockchain.headers.subscribe', [], interface)
                 if interface.server == self.default_server:
                     await asyncio.wait_for(self.switch_to_interface(interface.server), 1)
-                interface.jobs = [asyncio.ensure_future(x) for x in [self.make_ping_job(interface), self.make_send_requests_job(interface), self.make_process_responses_job(interface)]]
+                interface.jobs = [asyncio.ensure_future(x) for x in [self.make_send_requests_job(interface), self.make_process_responses_job(interface)]]
                 gathered = asyncio.gather(*interface.jobs)
                 while interface.is_running():
                     try:
                         await asyncio.wait_for(asyncio.shield(gathered), 1)
                     except TimeoutError:
                         pass
+                    if interface.has_timed_out():
+                        self.print_error(interface.server, "timed out")
+                        await self.connection_down(interface.server, "time out in ping_job")
+                    elif interface.ping_required():
+                        params = [ELECTRUM_VERSION, PROTOCOL_VERSION]
+                        await self.queue_request('server.version', params, interface)
                 interface.future.set_result("finished")
                 return
                 #self.notify('interfaces')
@@ -1053,27 +1053,6 @@ class Network(util.DaemonThread):
                 self.print_error("Previous exception in boot_job")
         interface.boot_job.add_done_callback(boot_job_cb)
 
-    def make_ping_job(self, interface):
-        async def job():
-            try:
-                while interface.is_running():
-                    await asyncio.sleep(1)
-                    # Send pings and shut down stale interfaces
-                    # must use copy of values
-                    if interface.has_timed_out():
-                        self.print_error(interface.server, "timed out")
-                        await self.connection_down(interface.server, "time out in ping_job")
-                        return
-                    elif interface.ping_required():
-                        params = [ELECTRUM_VERSION, PROTOCOL_VERSION]
-                        await self.queue_request('server.version', params, interface)
-            except GeneratorExit:
-                pass
-            except:
-                if interface.is_running():
-                    traceback.print_exc()
-                    self.print_error("FATAL ERROR in ping_job")
-        return asyncio.ensure_future(job())
 
     async def maintain_interfaces(self):
         if self.stopped: return
@@ -1137,7 +1116,6 @@ class Network(util.DaemonThread):
             while self.is_running():
                 #self.print_error(len(asyncio.Task.all_tasks()))
                 await asyncio.sleep(1)
-                await self.maintain_requests()
                 await self.maintain_interfaces()
                 self.run_jobs()
             await self.stop_network()
