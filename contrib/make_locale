@@ -8,7 +8,7 @@ import requests
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 os.chdir('..')
 
-code_directories = '{gui,plugins}'
+code_directories = '{gui,plugins,lib}'
 cmd = "find {} -type f -name '*.py' -o -name '*.kv'".format(code_directories)
 
 files = subprocess.check_output(cmd, shell=True)
