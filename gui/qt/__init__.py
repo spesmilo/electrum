@@ -197,6 +197,8 @@ class ElectrumGui:
             wizard = InstallWizard(self.config, self.app, self.plugins, storage)
             try:
                 wallet = wizard.run_and_get_wallet()
+                if self.daemon.get_wallet(wallet.storage.path) is not None:
+                    wallet = self.daemon.get_wallet(wallet.storage.path)
             except UserCancelled:
                 pass
             except GoBack as e:
@@ -205,7 +207,7 @@ class ElectrumGui:
             if not wallet:
                 return
 
-            # to account for if the wallet is already open
+            # to account for if the wallet window is already open
             for w in self.windows:
                 if w.wallet.storage.path == wallet.storage.path:
                     w.bring_to_top()
