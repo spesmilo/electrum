@@ -68,8 +68,10 @@ class Interface(util.PrintError):
     - Member variable server.
     """
 
-    def __init__(self, server, config_path, proxy_config, is_running):
-        self.is_running = is_running
+    def __init__(self, server, config_path, proxy_config, is_running, exception_handler):
+        self.error_future = asyncio.Future()
+        self.error_future.add_done_callback(exception_handler)
+        self.is_running = lambda: is_running() and not self.error_future.done()
         self.addr = self.auth = None
         if proxy_config is not None:
             if proxy_config["mode"] == "socks5":
@@ -145,6 +147,11 @@ class Interface(util.PrintError):
                 reader, writer = await asyncio.wait_for(self.conn_coro(context), 3)
                 dercert = writer.get_extra_info('ssl_object').getpeercert(True)
                 writer.close()
+        except OSError as e: # not ConnectionError because we need socket.gaierror too
+            if self.is_running():
+                self.print_error(self.server, "Exception in _save_certificate", type(e))
+            if not self.error_future.done(): self.error_future.set_result(e)
+            return
         except TimeoutError:
             return
         assert dercert
@@ -296,6 +303,7 @@ class Interface(util.PrintError):
 
     def has_timed_out(self):
         '''Returns True if the interface has timed out.'''
+        if self.error_future.done(): return True
         if (self.unanswered_requests and time.time() - self.request_time > 10
             and self.idle_time() > 10):
             self.print_error("timeout", len(self.unanswered_requests))
