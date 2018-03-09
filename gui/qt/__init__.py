@@ -184,11 +184,8 @@ class ElectrumGui:
         return w
 
     def start_new_window(self, path, uri):
-        # to account for if the wallet window is already open
-        for w in self.windows:
-            if w.wallet.storage.path == path:
-                w.bring_to_top()
-                return
+        '''Raises the window for the wallet if it is open.  Otherwise
+        opens the wallet and creates a new window for it'''
         try:
             wallet = self.daemon.load_wallet(path, None)
         except BaseException as e:
@@ -201,9 +198,7 @@ class ElectrumGui:
             storage = WalletStorage(path, manual_upgrades=True)
             wizard = InstallWizard(self.config, self.app, self.plugins, storage)
             try:
-                wallet = wizard.run_and_get_wallet()
-                if self.daemon.get_wallet(wallet.storage.path):
-                    wallet = self.daemon.get_wallet(wallet.storage.path)
+                wallet = wizard.run_and_get_wallet(self.daemon)
             except UserCancelled:
                 pass
             except GoBack as e:

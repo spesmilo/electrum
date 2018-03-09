@@ -148,7 +148,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.raise_()
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
-    def run_and_get_wallet(self):
+    def run_and_get_wallet(self, daemon):
 
         vbox = QVBoxLayout()
         hbox = QHBoxLayout()
@@ -182,7 +182,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         def on_filename(filename):
             path = os.path.join(wallet_folder, filename)
             try:
-                self.storage = WalletStorage(path, manual_upgrades=True)
+                if daemon.get_wallet(path):
+                    self.storage = daemon.get_wallet(path).storage
+                else:
+                    self.storage = WalletStorage(path, manual_upgrades=True)
                 self.next_button.setEnabled(True)
             except IOError:
                 self.storage = None
@@ -252,7 +255,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                             _('Failed to decrypt using this hardware device.') + '\n' +
                             _('If you use a passphrase, make sure it is correct.'))
                         self.stack = []
-                        return self.run_and_get_wallet()
+                        return self.run_and_get_wallet(daemon)
                     except BaseException as e:
                         traceback.print_exc(file=sys.stdout)
                         QMessageBox.information(None, _('Error'), str(e))
@@ -299,10 +302,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.run(action)
             return self.wallet
 
-        self.wallet = Wallet(self.storage)
-        return self.wallet
-
-
+        return Wallet(self.storage) if not daemon.get_wallet(path) else daemon.get_wallet(path)
 
     def finished(self):
         """Called in hardware client wrapper, in order to close popups."""
