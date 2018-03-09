@@ -167,6 +167,7 @@ class Network(util.DaemonThread):
     """
 
     def __init__(self, config=None):
+        self.send_requests_jobs = {}
         self.disconnected_servers = {}
         self.connecting = set()
         self.stopped = True
@@ -533,8 +534,7 @@ class Network(util.DaemonThread):
             if interface.server == self.default_server:
                 self.interface = None
             if interface.jobs:
-                for i in interface.jobs:
-                    asyncio.wait_for(i, 3)
+                await asyncio.gather(*interface.jobs)
             assert interface.boot_job
             try:
                 await asyncio.wait_for(asyncio.shield(interface.boot_job), 6) # longer than any timeout while connecting
@@ -741,6 +741,8 @@ class Network(util.DaemonThread):
                 sys.exit(1)
             return
         self.print_error("connection down", server)
+        assert not self.send_requests_jobs[server].cancelled()
+        self.send_requests_jobs[server].cancel()
         self.disconnected_servers[server] = reason
         if server == self.default_server:
             self.set_status('disconnected')
@@ -933,20 +935,18 @@ class Network(util.DaemonThread):
     def make_send_requests_job(self, interface):
         async def job():
             try:
-                while interface.is_running():
-                    try:
-                        result = await asyncio.wait_for(asyncio.shield(interface.send_request()), 1)
-                    except TimeoutError:
-                        continue
-                    if not result and interface.is_running():
-                        await self.connection_down(interface.server, "send_request returned false")
-            except GeneratorExit:
-                pass
+                while True:
+                    await interface.send_request()
             except:
                 if interface.is_running():
                     traceback.print_exc()
                     self.print_error("FATAL ERROR ^^^")
-        return asyncio.ensure_future(job())
+
+        job = asyncio.ensure_future(job())
+
+        if interface.server in self.send_requests_jobs: assert self.send_requests_jobs[interface.server].done()
+        self.send_requests_jobs[interface.server] = job
+        return job
 
     def make_process_responses_job(self, interface):
         async def job():
@@ -994,10 +994,12 @@ class Network(util.DaemonThread):
     def boot_interface(self, interface):
         async def job():
             try:
-                await self.queue_request('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION], interface)
-                if not await interface.send_request():
+                send_requests_job = self.make_send_requests_job(interface)
+                try:
+                    await asyncio.wait_for(self.queue_request('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION], interface), 1)
+                except TimeoutError:
                     if interface.is_running():
-                        asyncio.ensure_future(self.connection_down(interface.server, "send_request false in boot_interface"))
+                        asyncio.ensure_future(self.connection_down(interface.server, "send_request timeout in boot_interface"))
                     interface.future.set_result("could not send request")
                     return
                 if not interface.is_running():
@@ -1017,7 +1019,7 @@ class Network(util.DaemonThread):
                 await self.queue_request('blockchain.headers.subscribe', [], interface)
                 if interface.server == self.default_server:
                     await asyncio.wait_for(self.switch_to_interface(interface.server), 1)
-                interface.jobs = [asyncio.ensure_future(x) for x in [self.make_send_requests_job(interface), self.make_process_responses_job(interface)]]
+                interface.jobs = [send_requests_job, self.make_process_responses_job(interface)]
                 gathered = asyncio.gather(*interface.jobs)
                 while interface.is_running():
                     try:

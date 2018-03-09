@@ -228,7 +228,13 @@ class DaemonThread(threading.Thread, PrintError):
         self.forever_coroutines_queue = asyncio.Queue() # making queue here because __init__ is called from non-network thread
         self.loop = asyncio.get_event_loop()
         async def getFromQueueAndStart():
-            jobs = await self.forever_coroutines_queue.get()
+            while True:
+                try:
+                    jobs = await asyncio.wait_for(self.forever_coroutines_queue.get(), 1)
+                    break
+                except asyncio.TimeoutError:
+                    if not self.is_running(): break
+                    continue
             await asyncio.gather(*[i.run(self.is_running) for i in jobs])
             self.print_error("FOREVER JOBS DONE")
         self.forever_coroutines_task = asyncio.ensure_future(getFromQueueAndStart())

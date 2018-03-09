@@ -145,10 +145,6 @@ class Interface(util.PrintError):
                 reader, writer = await asyncio.wait_for(self.conn_coro(context), 3)
                 dercert = writer.get_extra_info('ssl_object').getpeercert(True)
                 writer.close()
-        except OSError as e: # not ConnectionError because we need socket.gaierror too
-            if self.is_running():
-                self.print_error(self.server, "Exception in _save_certificate", type(e))
-            return
         except TimeoutError:
             return
         assert dercert
@@ -263,6 +259,7 @@ class Interface(util.PrintError):
         '''
         self.request_time = time.time()
         await self.unsent_requests.put((self.request_time, args))
+        await self.unsent_requests.join()
 
     def num_requests(self):
         '''Keep unanswered requests below 100'''
@@ -270,25 +267,22 @@ class Interface(util.PrintError):
         return min(n, self.unsent_requests.qsize())
 
     async def send_request(self):
-        '''Sends queued requests.  Returns False on failure.'''
+        '''Sends a queued request.'''
         make_dict = lambda m, p, i: {'method': m, 'params': p, 'id': i}
         n = self.num_requests()
-        try:
-            prio, request = await asyncio.wait_for(self.unsent_requests.get(), 1.5)
-        except TimeoutError:
-            return False
+        prio, request = await self.unsent_requests.get()
         try:
             await self.send_all([make_dict(*request)])
         except (SocksError, OSError, TimeoutError) as e:
             if type(e) is SocksError:
                 self.print_error(e)
             await self.unsent_requests.put((prio, request))
-            return False
+            return
+        self.unsent_requests.task_done()
         if self.debug:
             self.print_error("-->", request)
         self.unanswered_requests[request[2]] = request
         self.last_action = time.time()
-        return True
 
     def ping_required(self):
         '''Maintains time since last ping.  Returns True if a ping should
