@@ -184,7 +184,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             try:
                 self.storage = WalletStorage(path, manual_upgrades=True)
                 self.next_button.setEnabled(True)
-            except IOError:
+            except BaseException:
+                traceback.print_exc(file=sys.stderr)
                 self.storage = None
                 self.next_button.setEnabled(False)
             if self.storage:
