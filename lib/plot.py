@@ -1,13 +1,10 @@
 import datetime
 from collections import defaultdict
 
-from PyQt5.QtGui import *
 import matplotlib
 matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as md
-from matplotlib.patches import Ellipse
-from matplotlib.offsetbox import AnchoredOffsetbox, TextArea, DrawingArea, HPacker
 
 from .i18n import _
 from .bitcoin import COIN
