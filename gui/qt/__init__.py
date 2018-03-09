@@ -184,6 +184,11 @@ class ElectrumGui:
         return w
 
     def start_new_window(self, path, uri):
+        # to account for if the wallet window is already open
+        for w in self.windows:
+            if w.wallet.storage.path == path:
+                w.bring_to_top()
+                return
         try:
             wallet = self.daemon.load_wallet(path, None)
         except BaseException as e:
@@ -197,7 +202,7 @@ class ElectrumGui:
             wizard = InstallWizard(self.config, self.app, self.plugins, storage)
             try:
                 wallet = wizard.run_and_get_wallet()
-                if self.daemon.get_wallet(wallet.storage.path) is not None:
+                if self.daemon.get_wallet(wallet.storage.path):
                     wallet = self.daemon.get_wallet(wallet.storage.path)
             except UserCancelled:
                 pass
@@ -207,15 +212,14 @@ class ElectrumGui:
             if not wallet:
                 return
 
-            # to account for if the wallet window is already open
+            if not self.daemon.get_wallet(wallet.storage.path):
+                wallet.start_threads(self.daemon.network)
+                self.daemon.add_wallet(wallet)
+        try:
             for w in self.windows:
                 if w.wallet.storage.path == wallet.storage.path:
                     w.bring_to_top()
                     return
-
-            wallet.start_threads(self.daemon.network)
-            self.daemon.add_wallet(wallet)
-        try:
             w = self.create_window_for_wallet(wallet)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
