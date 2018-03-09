@@ -169,7 +169,6 @@ class Network(util.DaemonThread):
     def __init__(self, config=None):
         self.disconnected_servers = {}
         self.connecting = set()
-        self.servers_lock = asyncio.Lock()
         self.stopped = True
         asyncio.set_event_loop(None)
         if config is None:
@@ -386,16 +385,12 @@ class Network(util.DaemonThread):
         return out
 
     async def start_interface(self, server):
-        assert server not in self.connecting
-        async with self.servers_lock:
-            if (not server in self.interfaces):
-                if server == self.default_server:
-                    self.print_error("connecting to %s as new interface" % server)
-                    self.set_status('connecting')
-                self.connecting.add(server)
-                i = await self.new_interface(server)
-                self.connecting.remove(server)
-                return i
+        if server not in self.interfaces and server not in self.connecting:
+            self.connecting.add(server)
+            if server == self.default_server:
+                self.print_error("connecting to %s as new interface" % server)
+                self.set_status('connecting')
+            return self.new_interface(server)
 
     async def start_random_interface(self):
         exclude_set = set(self.disconnected_servers.keys()).union(set(self.interfaces.keys()))
@@ -472,8 +467,7 @@ class Network(util.DaemonThread):
                         await self.stop_network()
                         self.print_error("STOOOOOOOOOOOOOOOOOOOOOOOOOOPPED")
                         self.default_server = server
-                        async with self.servers_lock:
-                            self.disconnected_servers = {}
+                        self.disconnected_servers = {}
                         await self.start_network(protocol, proxy)
                 except BaseException as e:
                     traceback.print_exc()
@@ -739,26 +733,25 @@ class Network(util.DaemonThread):
     async def connection_down(self, server, reason=None):
         '''A connection to server either went down, or was never made.
         We distinguish by whether it is in self.interfaces.'''
-        async with self.servers_lock:
-            if server in self.disconnected_servers:
-                try:
-                    raise Exception("already disconnected " + server + " because " + repr(self.disconnected_servers[server]) + ". new reason: " + repr(reason))
-                except:
-                    traceback.print_exc()
-                    sys.exit(1)
-                return
-            self.print_error("connection down", server)
-            self.disconnected_servers[server] = reason
-            if server == self.default_server:
-                self.set_status('disconnected')
-            if server in self.interfaces:
-                await self.close_interface(self.interfaces[server])
-                self.notify('interfaces')
-            for b in self.blockchains.values():
-                if b.catch_up == server:
-                    b.catch_up = None
+        if server in self.disconnected_servers:
+            try:
+                raise Exception("already disconnected " + server + " because " + repr(self.disconnected_servers[server]) + ". new reason: " + repr(reason))
+            except:
+                traceback.print_exc()
+                sys.exit(1)
+            return
+        self.print_error("connection down", server)
+        self.disconnected_servers[server] = reason
+        if server == self.default_server:
+            self.set_status('disconnected')
+        if server in self.interfaces:
+            await self.close_interface(self.interfaces[server])
+            self.notify('interfaces')
+        for b in self.blockchains.values():
+            if b.catch_up == server:
+                b.catch_up = None
 
-    async def new_interface(self, server):
+    def new_interface(self, server):
         # todo: get tip first, then decide which checkpoint to use.
         self.add_recent_server(server)
         interface = Interface(server, self.config.path, self.proxy, lambda: not self.stopped and server in self.interfaces)
@@ -1048,6 +1041,8 @@ class Network(util.DaemonThread):
                     traceback.print_exc()
                     self.print_error("FATAL ERROR in boot_interface")
                     raise e
+            finally:
+                self.connecting.remove(interface.server)
         interface.boot_job = asyncio.ensure_future(job())
         interface.boot_job.server = interface.server
         def boot_job_cb(fut):
@@ -1089,8 +1084,7 @@ class Network(util.DaemonThread):
             await self.start_random_interface()
             if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
                 self.print_error('network: retrying connections')
-                async with self.servers_lock:
-                    self.disconnected_servers = {}
+                self.disconnected_servers = {}
                 self.nodes_retry_time = now
 
         # main interface
@@ -1101,9 +1095,8 @@ class Network(util.DaemonThread):
             else:
                 if self.default_server in self.disconnected_servers:
                     if now - self.server_retry_time > SERVER_RETRY_INTERVAL:
-                        async with self.servers_locks:
-                            del self.disconnected_servers[self.default_server]
-                            self.server_retry_time = now
+                        del self.disconnected_servers[self.default_server]
+                        self.server_retry_time = now
                 else:
                     await self.switch_to_interface(self.default_server)
         else:
