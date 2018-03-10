@@ -1939,14 +1939,15 @@ class Imported_Wallet(Simple_Wallet):
         try:
             txin_type, pubkey = self.keystore.import_privkey(sec, pw)
         except Exception:
-            raise BaseException('Invalid private key', sec)
+            neutered_privkey = str(sec)[:3] + '..' + str(sec)[-2:]
+            raise BaseException('Invalid private key', neutered_privkey)
         if txin_type in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
             if redeem_script is not None:
-                raise BaseException('Cannot use redeem script with', txin_type, sec)
+                raise BaseException('Cannot use redeem script with', txin_type)
             addr = bitcoin.pubkey_to_address(txin_type, pubkey)
         elif txin_type in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
             if redeem_script is None:
-                raise BaseException('Redeem script required for', txin_type, sec)
+                raise BaseException('Redeem script required for', txin_type)
             addr = bitcoin.redeem_script_to_address(txin_type, redeem_script)
         else:
             raise NotImplementedError(txin_type)

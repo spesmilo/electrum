@@ -481,7 +481,8 @@ def deserialize_privkey(key):
         assert txin_type in SCRIPT_TYPES
     vch = DecodeBase58Check(key)
     if not vch:
-        raise BaseException("cannot deserialize", key)
+        neutered_privkey = str(key)[:3] + '..' + str(key)[-2:]
+        raise BaseException("cannot deserialize", neutered_privkey)
 
     if txin_type is None:
         # keys exported in version 3.0.x encoded script type in first byte
