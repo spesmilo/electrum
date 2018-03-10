@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import subprocess
 import io
 import zipfile
 import requests
@@ -7,10 +8,20 @@ import requests
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 os.chdir('..')
 
+code_directories = 'gui plugins lib'
+cmd = "find {} -type f -name '*.py' -o -name '*.kv'".format(code_directories)
+
+files = subprocess.check_output(cmd, shell=True)
+
+with open("app.fil", "wb") as f:
+    f.write(files)
+
+print("Found {} files to translate".format(len(files.splitlines())))
+
 # Generate fresh translation template
 if not os.path.exists('lib/locale'):
     os.mkdir('lib/locale')
-cmd = 'xgettext -s --no-wrap -f app.fil --output=lib/locale/messages.pot'
+cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=lib/locale/messages.pot'
 print('Generate template')
 os.system(cmd)
 

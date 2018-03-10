@@ -11,7 +11,6 @@ recursive-include gui *.py
 recursive-include plugins *.py
 recursive-include packages *.py
 recursive-include packages cacert.pem
-include app.fil
 include icons.qrc
 recursive-include icons *
 recursive-include scripts *
