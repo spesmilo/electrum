@@ -198,7 +198,7 @@ class ElectrumGui:
             storage = WalletStorage(path, manual_upgrades=True)
             wizard = InstallWizard(self.config, self.app, self.plugins, storage)
             try:
-                wallet = wizard.run_and_get_wallet(self.daemon)
+                wallet = wizard.run_and_get_wallet(self.daemon.get_wallet)
             except UserCancelled:
                 pass
             except GoBack as e:
@@ -208,6 +208,7 @@ class ElectrumGui:
                 return
 
             if not self.daemon.get_wallet(wallet.storage.path):
+                # wallet was not in memory
                 wallet.start_threads(self.daemon.network)
                 self.daemon.add_wallet(wallet)
         try:
