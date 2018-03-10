@@ -246,8 +246,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     try:
                         self.run('choose_hw_device', HWD_SETUP_DECRYPT_WALLET)
                     except InvalidPassword as e:
-                        # FIXME if we get here because of mistyped passphrase
-                        # then that passphrase gets "cached"
                         QMessageBox.information(
                             None, _('Error'),
                             _('Failed to decrypt using this hardware device.') + '\n' +
