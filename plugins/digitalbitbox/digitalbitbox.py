@@ -174,12 +174,12 @@ class DigitalBitbox_Client():
                 self.password = None
                 if reply['error']['code'] == 109:
                     msg = _("Incorrect password entered.") + "\n\n" + \
-                          + reply['error']['message'] + "\n\n" + \
+                          reply['error']['message'] + "\n\n" + \
                           _("Enter your Digital Bitbox password:")
                 else:
                     # Should never occur
                     msg = _("Unexpected error occurred.") + "\n\n" + \
-                          + reply['error']['message'] + "\n\n" + \
+                          reply['error']['message'] + "\n\n" + \
                           _("Enter your Digital Bitbox password:")
 
         # Initialize device if not yet initialized
