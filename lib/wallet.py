@@ -867,7 +867,7 @@ class Abstract_Wallet(PrintError):
                     if x['type'] == 'coinbase': continue
                     addr = x.get('address')
                     if addr == None: continue
-                    input_addresses.append(addr.to_ut_string())
+                    input_addresses.append(addr.to_ui_string())
                 for addr, v in tx.get_outputs():
                     output_addresses.append(addr.to_ui_string())
                 item['input_addresses'] = input_addresses
