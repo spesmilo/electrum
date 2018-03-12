@@ -890,7 +890,7 @@ class Abstract_Wallet(PrintError):
             # undo spent_outpoints that are in pruned_txo
             for ser, hh in list(self.pruned_txo.items()):
                 if hh == tx_hash:
-                    self.spent_outpoints.pop(ser)
+                    self.spent_outpoints.pop(ser, None)
                     self.pruned_txo.pop(ser)
 
             # add tx to pruned_txo, and undo the txi addition
