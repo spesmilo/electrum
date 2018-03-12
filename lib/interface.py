@@ -108,58 +108,21 @@ class Interface(util.PrintError):
             context = get_ssl_context(cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path)
         else:
             context = get_ssl_context(cert_reqs=ssl.CERT_NONE, ca_certs=None)
-        try:
-            if self.addr is not None:
-                proto_factory = lambda: SSLProtocol(asyncio.get_event_loop(), asyncio.Protocol(), context, None)
-                socks_create_coro = aiosocks.create_connection(proto_factory, \
-                                    proxy=self.addr, \
-                                    proxy_auth=self.auth, \
-                                    dst=(self.host, self.port))
-                transport, protocol = await asyncio.wait_for(socks_create_coro, 5)
-                async def job(fut):
-                    try:
-                        if protocol._sslpipe is not None:
-                            fut.set_result(protocol._sslpipe.ssl_object.getpeercert(True))
-                    except BaseException as e:
-                        fut.set_exception(e)
-                while self.is_running():
-                    fut = asyncio.Future()
-                    asyncio.ensure_future(job(fut))
-                    try:
-                        await fut
-                    except:
-                        pass
-                    try:
-                        fut.exception()
-                        dercert = fut.result()
-                    except ValueError:
-                        await asyncio.sleep(1)
-                        continue
-                    except:
-                        if self.is_running():
-                            traceback.print_exc()
-                            print("Previous exception from _save_certificate")
-                        continue
-                    break
-                if not self.is_running(): return
-                transport.close()
-            else:
-                reader, writer = await asyncio.wait_for(self.conn_coro(context), 3)
-                dercert = writer.get_extra_info('ssl_object').getpeercert(True)
-                writer.close()
-        except OSError as e: # not ConnectionError because we need socket.gaierror too
-            if self.is_running():
-                self.print_error(self.server, "Exception in _save_certificate", type(e))
-            if not self.error_future.done(): self.error_future.set_result(e)
-            return
-        except TimeoutError:
-            return
-        assert dercert
-        if not require_ca:
-            cert = ssl.DER_cert_to_PEM_cert(dercert)
-        else:
-            # Don't pin a CA signed certificate
+        if self.addr is not None:
+            self.print_error("can't save certificate through socks!")
+            # just save the empty file to force use of PKI
+            # this will break all self-signed servers, of course
             cert = ""
+        else:
+            reader, writer = await asyncio.wait_for(self.conn_coro(context), 3)
+            dercert = writer.get_extra_info('ssl_object').getpeercert(True)
+            # an exception will be thrown by now if require_ca is True (e.g. a certificate was supplied)
+            writer.close()
+            if not require_ca:
+                cert = ssl.DER_cert_to_PEM_cert(dercert)
+            else:
+                # Don't pin a CA signed certificate
+                cert = ""
         temporary_path = cert_path + '.temp'
         with open(temporary_path, "w") as f:
             f.write(cert)
@@ -172,10 +135,26 @@ class Interface(util.PrintError):
             if self.use_ssl:
                 cert_path = os.path.join(self.config_path, 'certs', self.host)
                 if not os.path.exists(cert_path):
-                    temporary_path = await self._save_certificate(cert_path, True)
+                    temporary_path = None
+                    # first, we try to save a certificate signed through the PKI
+                    try:
+                      temporary_path = await self._save_certificate(cert_path, True)
+                    except ssl.SSLError:
+                      pass
+                    except (TimeoutError, OSError) as e:
+                      if not self.error_future.done(): self.error_future.set_result(e)
+                      raise
+                    # if the certificate verification failed, we try to save a self-signed certificate
                     if not temporary_path:
+                      try:
                         temporary_path = await self._save_certificate(cert_path, False)
+                      # we also catch SSLError here, but it shouldn't matter since no certificate is required,
+                      # so the SSLError wouldn't mean certificate validation failed
+                      except (TimeoutError, OSError) as e:
+                        if not self.error_future.done(): self.error_future.set_result(e)
+                        raise
                     if not temporary_path:
+                        if not self.error_future.done(): self.error_future.set_result(ConnectionError("Could not get certificate"))
                         raise ConnectionError("Could not get certificate on second try")
 
                     is_new = True
@@ -200,6 +179,10 @@ class Interface(util.PrintError):
                     self.reader, self.writer = await asyncio.wait_for(self.conn_coro(context), 5)
             except TimeoutError:
                 self.print_error("TimeoutError after getting certificate successfully...")
+                raise
+            except ssl.SSLError:
+                # FIXME TODO
+                assert not self_signed, "we shouldn't reject self-signed here since the certificate has been saved (has size {})".format(size)
                 raise
             except BaseException as e:
                 if self.is_running():
