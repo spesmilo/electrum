@@ -890,7 +890,7 @@ class Abstract_Wallet(PrintError):
             # undo spent_outpoints that are in pruned_txo
             for ser, hh in list(self.pruned_txo.items()):
                 if hh == tx_hash:
-                    self.spent_outpoints.pop(ser)
+                    self.spent_outpoints.pop(ser, None)
                     self.pruned_txo.pop(ser)
 
             # add tx to pruned_txo, and undo the txi addition
@@ -1628,13 +1628,14 @@ class Abstract_Wallet(PrintError):
         return True
 
     def get_sorted_requests(self, config):
-        def f(x):
+        def f(addr):
             try:
-                addr = x.get('address')
-                return self.get_address_index(addr) or addr
+                return self.get_address_index(addr)
             except:
-                return addr
-        return sorted(map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys()), key=f)
+                return
+        keys = map(lambda x: (f(x), x), self.receive_requests.keys())
+        sorted_keys = sorted(filter(lambda x: x[0] is not None, keys))
+        return [self.get_payment_request(x[1], config) for x in sorted_keys]
 
     def get_fingerprint(self):
         raise NotImplementedError()
@@ -1737,11 +1738,12 @@ class Abstract_Wallet(PrintError):
     def txin_value(self, txin):
         txid = txin['prevout_hash']
         prev_n = txin['prevout_n']
-        for address, d in self.txo[txid].items():
+        for address, d in self.txo.get(txid, {}).items():
             for n, v, cb in d:
                 if n == prev_n:
                     return v
-        raise BaseException('unknown txin value')
+        # may occur if wallet is not synchronized
+        return None
 
     def price_at_timestamp(self, txid, price_func):
         height, conf, timestamp = self.get_tx_height(txid)
@@ -1770,6 +1772,8 @@ class Abstract_Wallet(PrintError):
         Acquisition price of a coin.
         This assumes that either all inputs are mine, or no input is mine.
         """
+        if txin_value is None:
+            return Decimal('NaN')
         cache_key = "{}:{}:{}".format(str(txid), str(ccy), str(txin_value))
         result = self.coin_price_cache.get(cache_key, None)
         if result is not None:

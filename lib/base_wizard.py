@@ -164,7 +164,7 @@ class BaseWizard(object):
             k = keystore.Imported_KeyStore({})
             self.storage.put('keystore', k.dump())
             w = Imported_Wallet(self.storage)
-            for x in text.split():
+            for x in keystore.get_private_keys(text):
                 w.import_private_key(x, None)
             self.keystores.append(w.keystore)
         else:
