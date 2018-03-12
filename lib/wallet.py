@@ -1628,13 +1628,14 @@ class Abstract_Wallet(PrintError):
         return True
 
     def get_sorted_requests(self, config):
-        def f(x):
+        def f(addr):
             try:
-                addr = x.get('address')
-                return self.get_address_index(addr) or addr
+                return self.get_address_index(addr)
             except:
-                return addr
-        return sorted(map(lambda x: self.get_payment_request(x, config), self.receive_requests.keys()), key=f)
+                return
+        keys = map(lambda x: (f(x), x), self.receive_requests.keys())
+        sorted_keys = sorted(filter(lambda x: x[0] is not None, keys))
+        return [self.get_payment_request(x[1], config) for x in sorted_keys]
 
     def get_fingerprint(self):
         raise NotImplementedError()
