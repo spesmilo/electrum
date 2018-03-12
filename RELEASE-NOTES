@@ -1,5 +1,19 @@
 
-# Release 3.1 - (March 5, 2018)
+# Release 3.1.1 - (March 12, 2018)
+
+  * fix #4031: Trezor T support
+  * partial fix #4060: proxy and hardware wallet can't be used together
+  * fix #4039: can't set address labels
+  * fix crash related to coinbase transactions
+  * MacOS: use internal graphics card
+  * fix openalias related crashes
+  * speed-up capital gains calculations
+  * hw wallet encryption: re-prompt for passphrase if incorrect
+  * other minor fixes.
+
+
+
+# Release 3.1.0 - (March 5, 2018)
 
  * Memory-pool based fee estimation. Dynamic fees can target a desired
    depth in the memory pool. This feature is optional, and ETA-based
