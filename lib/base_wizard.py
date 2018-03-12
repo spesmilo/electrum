@@ -33,7 +33,7 @@ from .keystore import bip44_derivation
 from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types
 from .storage import STO_EV_USER_PW, STO_EV_XPUB_PW, get_derivation_used_for_hw_device_encryption
 from .i18n import _
-from .util import UserCancelled
+from .util import UserCancelled, InvalidPassword
 
 # hardware device setup purpose
 HWD_SETUP_NEW_WALLET, HWD_SETUP_DECRYPT_WALLET = range(0, 2)
@@ -164,7 +164,7 @@ class BaseWizard(object):
             k = keystore.Imported_KeyStore({})
             self.storage.put('keystore', k.dump())
             w = Imported_Wallet(self.storage)
-            for x in text.split():
+            for x in keystore.get_private_keys(text):
                 w.import_private_key(x, None)
             self.keystores.append(w.keystore)
         else:
@@ -259,7 +259,15 @@ class BaseWizard(object):
             derivation = get_derivation_used_for_hw_device_encryption()
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, 'standard', self)
             password = keystore.Xpub.get_pubkey_from_xpub(xpub, ())
-            self.storage.decrypt(password)
+            try:
+                self.storage.decrypt(password)
+            except InvalidPassword:
+                # try to clear session so that user can type another passphrase
+                devmgr = self.plugins.device_manager
+                client = devmgr.client_by_id(device_info.device.id_)
+                if hasattr(client, 'clear_session'):  # FIXME not all hw wallet plugins have this
+                    client.clear_session()
+                raise
         else:
             raise Exception('unknown purpose: %s' % purpose)
 

@@ -184,7 +184,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             try:
                 self.storage = WalletStorage(path, manual_upgrades=True)
                 self.next_button.setEnabled(True)
-            except IOError:
+            except BaseException:
+                traceback.print_exc(file=sys.stderr)
                 self.storage = None
                 self.next_button.setEnabled(False)
             if self.storage:
@@ -245,8 +246,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     try:
                         self.run('choose_hw_device', HWD_SETUP_DECRYPT_WALLET)
                     except InvalidPassword as e:
-                        # FIXME if we get here because of mistyped passphrase
-                        # then that passphrase gets "cached"
                         QMessageBox.information(
                             None, _('Error'),
                             _('Failed to decrypt using this hardware device.') + '\n' +

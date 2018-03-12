@@ -663,8 +663,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             edit.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
             fiat_e.is_last_edited = (edit == fiat_e)
             amount = edit.get_amount()
-            rate = self.fx.exchange_rate() if self.fx else None
-            if rate is None or amount is None:
+            rate = self.fx.exchange_rate() if self.fx else Decimal('NaN')
+            if rate.is_nan() or amount is None:
                 if edit is fiat_e:
                     btc_e.setText("")
                     if fee_e:
@@ -1182,7 +1182,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.fee_adv_controls.setVisible(False)
 
         self.preview_button = EnterButton(_("Preview"), self.do_preview)
-        self.preview_button.setToolTip(_('Display the details of your transactions before signing it.'))
+        self.preview_button.setToolTip(_('Display the details of your transaction before signing it.'))
         self.send_button = EnterButton(_("Send"), self.do_send)
         self.clear_button = EnterButton(_("Clear"), self.do_clear)
         buttons = QHBoxLayout()
@@ -1329,8 +1329,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # actual fees often differ somewhat.
             if freeze_feerate or self.fee_slider.is_active():
                 displayed_feerate = self.feerate_e.get_amount()
-                displayed_feerate = displayed_feerate // 1000 if displayed_feerate else 0
-                displayed_fee = displayed_feerate * size
+                if displayed_feerate:
+                    displayed_feerate = displayed_feerate // 1000
+                else:
+                    # fallback to actual fee
+                    displayed_feerate = fee // size if fee is not None else None
+                    self.feerate_e.setAmount(displayed_feerate)
+                displayed_fee = displayed_feerate * size if displayed_feerate is not None else None
                 self.fee_e.setAmount(displayed_fee)
             else:
                 if freeze_fee:
@@ -2627,7 +2632,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fee_type_label = HelpLabel(_('Fee estimation') + ':', msg)
         fee_type_combo = QComboBox()
         fee_type_combo.addItems([_('Static'), _('ETA'), _('Mempool')])
-        fee_type_combo.setCurrentIndex(1 if self.config.use_mempool_fees() else 0)
+        fee_type_combo.setCurrentIndex((2 if self.config.use_mempool_fees() else 1) if self.config.is_dynfee() else 0)
         def on_fee_type(x):
             self.config.set_key('mempool_fees', x==2)
             self.config.set_key('dynamic_fees', x>0)

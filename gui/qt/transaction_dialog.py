@@ -182,8 +182,8 @@ class TxDialog(QDialog, MessageBoxMixin):
             if success:
                 self.prompt_if_unsaved = True
                 self.saved = False
-            self.save_button.setDisabled(False)
-            self.save_button.setToolTip("")
+                self.save_button.setDisabled(False)
+                self.save_button.setToolTip("")
             self.update()
             self.main_window.pop_top_level_window(self)
 

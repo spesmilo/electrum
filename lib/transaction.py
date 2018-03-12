@@ -439,16 +439,16 @@ def parse_input(vds):
     d['prevout_hash'] = prevout_hash
     d['prevout_n'] = prevout_n
     d['sequence'] = sequence
+    d['x_pubkeys'] = []
+    d['pubkeys'] = []
+    d['signatures'] = {}
+    d['address'] = None
+    d['num_sig'] = 0
     if prevout_hash == '00'*32:
         d['type'] = 'coinbase'
         d['scriptSig'] = bh2u(scriptSig)
     else:
-        d['x_pubkeys'] = []
-        d['pubkeys'] = []
-        d['signatures'] = {}
-        d['address'] = None
         d['type'] = 'unknown'
-        d['num_sig'] = 0
         if scriptSig:
             d['scriptSig'] = bh2u(scriptSig)
             try:
@@ -607,6 +607,8 @@ class Transaction:
     @classmethod
     def get_sorted_pubkeys(self, txin):
         # sort pubkeys and x_pubkeys, using the order of pubkeys
+        if txin['type'] == 'coinbase':
+            return [], []
         x_pubkeys = txin['x_pubkeys']
         pubkeys = txin.get('pubkeys')
         if pubkeys is None:
@@ -707,6 +709,8 @@ class Transaction:
     def get_siglist(self, txin, estimate_size=False):
         # if we have enough signatures, we use the actual pubkeys
         # otherwise, use extended pubkeys (with bip32 derivation)
+        if txin['type'] == 'coinbase':
+            return [], []
         num_sig = txin.get('num_sig', 1)
         if estimate_size:
             pubkey_size = self.estimate_pubkey_size_for_txin(txin)
@@ -728,10 +732,12 @@ class Transaction:
 
     @classmethod
     def serialize_witness(self, txin, estimate_size=False):
-        add_w = lambda x: var_int(len(x)//2) + x
         if not self.is_segwit_input(txin):
             return '00'
+        if txin['type'] == 'coinbase':
+            return txin['witness']
         pubkeys, sig_list = self.get_siglist(txin, estimate_size)
+        add_w = lambda x: var_int(len(x) // 2) + x
         if txin['type'] in ['p2wpkh', 'p2wpkh-p2sh']:
             witness = var_int(2) + add_w(sig_list[0]) + add_w(pubkeys[0])
         elif txin['type'] in ['p2wsh', 'p2wsh-p2sh']:
@@ -790,7 +796,9 @@ class Transaction:
         return script
 
     @classmethod
-    def is_txin_complete(self, txin):
+    def is_txin_complete(cls, txin):
+        if txin['type'] == 'coinbase':
+            return True
         num_sig = txin.get('num_sig', 1)
         x_signatures = txin['signatures']
         signatures = list(filter(None, x_signatures))

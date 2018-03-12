@@ -214,26 +214,6 @@ class Wallet_2fa(Multisig_Wallet):
     def get_user_id(self):
         return get_user_id(self.storage)
 
-    def get_max_amount(self, config, inputs, recipient, fee):
-        from electrum.transaction import Transaction
-        sendable = sum(map(lambda x:x['value'], inputs))
-        for i in inputs:
-            self.add_input_info(i)
-        xf = self.extra_fee(config)
-        _type, addr = recipient
-        if xf and sendable >= xf:
-            billing_address = self.billing_info['billing_address']
-            sendable -= xf
-            outputs = [(_type, addr, sendable),
-                       (TYPE_ADDRESS, billing_address, xf)]
-        else:
-            outputs = [(_type, addr, sendable)]
-        dummy_tx = Transaction.from_io(inputs, outputs)
-        if fee is None:
-            fee = self.estimate_fee(config, dummy_tx.estimated_size())
-        amount = max(0, sendable - fee)
-        return amount, fee
-
     def min_prepay(self):
         return min(self.price_per_tx.keys())
 
@@ -348,12 +328,17 @@ class TrustedCoinPlugin(BasePlugin):
     def get_tx_extra_fee(self, wallet, tx):
         if type(wallet) != Wallet_2fa:
             return
+        if wallet.billing_info is None:
+            assert wallet.can_sign_without_server()
+            return None
         address = wallet.billing_info['billing_address']
         for _type, addr, amount in tx.outputs():
             if _type == TYPE_ADDRESS and addr == address:
                 return address, amount
 
     def request_billing_info(self, wallet):
+        if wallet.can_sign_without_server():
+            return
         self.print_error("request billing info")
         billing_info = server.get(wallet.get_user_id()[1])
         billing_address = make_billing_address(wallet, billing_info['billing_index'])

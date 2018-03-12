@@ -161,6 +161,9 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
 
     def show_summary(self):
         h = self.summary
+        if not h:
+            self.parent.show_message(_("Nothing to summarize."))
+            return
         start_date = h.get('start_date')
         end_date = h.get('end_date')
         format_amount = lambda x: self.parent.format_amount(x.value) + ' ' + self.parent.base_unit()
@@ -253,7 +256,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                 item.setIcon(3, QIcon(":icons/seal"))
             for i in range(len(entry)):
                 if i>3:
-                    item.setTextAlignment(i, Qt.AlignRight)
+                    item.setTextAlignment(i, Qt.AlignRight | Qt.AlignVCenter)
                 if i!=2:
                     item.setFont(i, QFont(MONOSPACE_FONT))
             if value and value < 0:

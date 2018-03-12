@@ -13,6 +13,7 @@ pbkdf2==1.3
 protobuf==3.5.1
 pyblake2==1.1.0
 requests==2.18.4
+rlp==0.6.0
 six==1.11.0
-trezor==0.9.0
+trezor==0.9.1
 urllib3==1.22

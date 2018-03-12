@@ -70,7 +70,7 @@ ReceiveScreen:
                     id: address_label
                     text: s.address if s.address else _('Bitcoin Address')
                     shorten: True
-                    disabled: True
+                    on_release: Clock.schedule_once(lambda dt: app.addresses_dialog(s))
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
@@ -110,16 +110,31 @@ ReceiveScreen:
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
+            IconButton:
+                icon: 'atlas://gui/kivy/theming/light/save'
+                size_hint: 0.6, None
+                height: '48dp'
+                on_release: s.parent.do_save()
+            Button:
+                text: _('Requests')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: Clock.schedule_once(lambda dt: app.requests_dialog(s))
             Button:
                 text: _('Copy')
                 size_hint: 1, None
                 height: '48dp'
                 on_release: s.parent.do_copy()
-            Button:
-                text: _('Share')
-                size_hint: 1, None
+            IconButton:
+                icon: 'atlas://gui/kivy/theming/light/share'
+                size_hint: 0.6, None
                 height: '48dp'
                 on_release: s.parent.do_share()
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Widget
+                size_hint: 2, 1
             Button:
                 text: _('New')
                 size_hint: 1, None
