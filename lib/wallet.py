@@ -1737,11 +1737,12 @@ class Abstract_Wallet(PrintError):
     def txin_value(self, txin):
         txid = txin['prevout_hash']
         prev_n = txin['prevout_n']
-        for address, d in self.txo[txid].items():
+        for address, d in self.txo.get(txid, {}).items():
             for n, v, cb in d:
                 if n == prev_n:
                     return v
-        raise BaseException('unknown txin value')
+        # may occur if wallet is not synchronized
+        return None
 
     def price_at_timestamp(self, txid, price_func):
         height, conf, timestamp = self.get_tx_height(txid)
@@ -1770,6 +1771,8 @@ class Abstract_Wallet(PrintError):
         Acquisition price of a coin.
         This assumes that either all inputs are mine, or no input is mine.
         """
+        if txin_value is None:
+            return Decimal('NaN')
         cache_key = "{}:{}:{}".format(str(txid), str(ccy), str(txin_value))
         result = self.coin_price_cache.get(cache_key, None)
         if result is not None:
