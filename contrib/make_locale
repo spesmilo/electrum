@@ -28,11 +28,11 @@ os.system(cmd)
 os.chdir('lib')
 
 crowdin_identifier = 'electrum'
-crowdin_file_name = 'electrum-client/messages.pot'
+crowdin_file_name = 'files[electrum-client/messages.pot]'
 locale_file_name = 'locale/messages.pot'
 crowdin_api_key = None
 
-filename = '~/.crowdin_api_key'
+filename = os.path.expanduser('~/.crowdin_api_key')
 if os.path.exists(filename):
     with open(filename) as f:
         crowdin_api_key = f.read().strip()
@@ -44,13 +44,14 @@ if crowdin_api_key:
     # Push to Crowdin
     print('Push to Crowdin')
     url = ('https://api.crowdin.com/api/project/' + crowdin_identifier + '/update-file?key=' + crowdin_api_key)
-    with open(locale_file_name,'rb') as f:
+    with open(locale_file_name, 'rb') as f:
         files = {crowdin_file_name: f}
-        requests.request('POST', url, files=files)
+        response = requests.request('POST', url, files=files)
+    print("", "update-file:", "-"*20, response.text, "-"*20, sep="\n")
     # Build translations
     print('Build translations')
-    response = requests.request('GET', 'https://api.crowdin.com/api/project/' + crowdin_identifier + '/export?key=' + crowdin_api_key).content
-    print(response)
+    response = requests.request('GET', 'https://api.crowdin.com/api/project/' + crowdin_identifier + '/export?key=' + crowdin_api_key)
+    print("", "export:", "-" * 20, response.text, "-" * 20, sep="\n")
 
 # Download & unzip
 print('Download translations')
