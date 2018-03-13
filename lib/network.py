@@ -1059,7 +1059,9 @@ class Network(util.DaemonThread):
         loop.run_until_complete(run_future)
         loop.run_until_complete(self.forever_coroutines_task)
         run_future.exception()
-        # we don't want to wait for the closure of all connections, the OS can do that
+        # this would provoke errors of unfinished futures
+        # since we havn't stopped network.
+        # (fast shutdown is more important)
         #loop.close()
 
     async def run_async(self, future):
@@ -1068,7 +1070,8 @@ class Network(util.DaemonThread):
                 await self.maintain_interfaces()
                 self.run_jobs()
                 await asyncio.sleep(1)
-            await self.stop_network()
+            # not shutting down network if we are going to quit anyway, the OS can clean up
+            #await self.stop_network()
             self.on_stop()
             future.set_result("run_async done")
         except BaseException as e:
