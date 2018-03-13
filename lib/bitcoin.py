@@ -144,6 +144,9 @@ def rev_hex(s):
 
 def int_to_hex(i, length=1):
     assert isinstance(i, int)
+    if i < 0:
+        # two's complement
+        i = pow(256, length) + i
     s = hex(i)[2:].rstrip('L')
     s = "0"*(2*length - len(s)) + s
     return rev_hex(s)
