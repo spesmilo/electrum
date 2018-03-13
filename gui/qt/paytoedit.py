@@ -31,6 +31,7 @@ from .qrtextedit import ScanQRTextEdit
 import re
 from decimal import Decimal
 from electrum import bitcoin
+from electrum.util import bfh
 
 from . import util
 
@@ -97,6 +98,7 @@ class PayToEdit(ScanQRTextEdit):
                 assert opcode_int < 256  # opcode is single-byte
                 script += bitcoin.int_to_hex(opcode_int)
             else:
+                bfh(word)  # to test it is hex data
                 script += push_script(word)
         return script
 
