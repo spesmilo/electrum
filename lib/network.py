@@ -543,6 +543,8 @@ class Network(util.DaemonThread):
             if error is None:
                 self.donation_address = result
         elif method == 'blockchain.estimatefee':
+            if result <= 0:
+                result = 0.01
             if error is None and result > 0:
                 i = params[0]
                 fee = int(result*COIN)
