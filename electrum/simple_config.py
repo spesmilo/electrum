@@ -483,7 +483,7 @@ class SimpleConfig(Logger):
             return self.has_fee_etas()
 
     def is_dynfee(self):
-        return bool(self.get('dynamic_fees', True))
+        return bool(self.get('dynamic_fees', False))
 
     def use_mempool_fees(self):
         return bool(self.get('mempool_fees', False))
@@ -548,7 +548,7 @@ class SimpleConfig(Logger):
         # to be consistent with what is displayed in the GUI,
         # the calculation needs to use the same precision:
         fee_per_byte = quantize_feerate(fee_per_byte)
-        return round(fee_per_byte * size)
+        return max(round(fee_per_byte * size), 1000000)
 
     def update_fee_estimates(self, key, value):
         self.fee_estimates[key] = value
