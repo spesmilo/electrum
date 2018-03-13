@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NAME_ROOT=electrum
+NAME_ROOT=electrum-ftc
 PYTHON_VERSION=3.5.4
 
 if [ "$#" -gt 0 ]; then
@@ -22,7 +22,7 @@ set -e
 
 cd tmp
 
-for repo in electrum electrum-locale electrum-icons; do
+for repo in electrum-locale electrum-icons; do
     if [ -d $repo ]; then
 	cd $repo
 	git pull
@@ -34,6 +34,8 @@ for repo in electrum electrum-locale electrum-icons; do
     fi
 done
 
+git clone /electrum
+
 pushd electrum-locale
 for i in ./locale/*; do
     dir=$i/LC_MESSAGES
@@ -44,7 +46,7 @@ popd
 
 pushd electrum
 git checkout $BRANCH
-VERSION=`git describe --tags`
+VERSION=`git describe --tags --dirty`
 echo "Last commit: $VERSION"
 find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
@@ -59,7 +61,8 @@ cp electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum/gui/qt/
 $PYTHON -m pip install -r ../../requirements.txt
 
 pushd $WINEPREFIX/drive_c/electrum
-$PYTHON setup.py install
+# byte-compiling is needed to install neoscrypt properly
+PYTHONDONTWRITEBYTECODE="" ${PYTHON/ -B/} setup.py install
 popd
 
 cd ..

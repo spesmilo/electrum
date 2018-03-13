@@ -101,6 +101,8 @@ wget -q -O nsis.exe "$NSIS_URL"
 verify_hash nsis.exe $NSIS_SHA256
 wine nsis.exe /S
 
+(cd $WINEPREFIX/drive_c && p7zip -d /tmp/mingw32.7z)
+
 # Install UPX
 #wget -O upx.zip "https://downloads.sourceforge.net/project/upx/upx/3.08/upx308w.zip"
 #unzip -o upx.zip

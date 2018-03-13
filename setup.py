@@ -37,6 +37,8 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
 
 class InstallCommand(install):
     def run(self):
+        if platform.system() is 'Windows':
+            core.run_setup('neoscrypt_module/setup.py', ['build', '--compiler=mingw32'])
         core.run_setup('neoscrypt_module/setup.py', ['install'])
         install.run(self)
 
