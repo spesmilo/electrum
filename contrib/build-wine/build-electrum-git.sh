@@ -1,12 +1,13 @@
 #!/bin/bash
 
-NAME_ROOT=electrum
+NAME_ROOT=electrum-ftc
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
 export WINEDEBUG=-all
 export PYTHONDONTWRITEBYTECODE=1
 export PYTHONHASHSEED=22
+export WINEPATH="c:\\mingw32\\bin"
 
 PYHOME=c:/python3
 PYTHON="wine $PYHOME/python.exe -OO -B"
@@ -50,7 +51,7 @@ $PYTHON -m pip install --no-warn-script-location -r "$CONTRIB"/deterministic-bui
 pushd $WINEPREFIX/drive_c/electrum
 # see https://github.com/pypa/pip/issues/2195 -- pip makes a copy of the entire directory
 info "Pip installing Electrum. This might take a long time if the project folder is large."
-$PYTHON -m pip install --no-warn-script-location .
+PYTHONDONTWRITEBYTECODE="" ${PYTHON/ -B/} -m pip install --no-warn-script-location .
 popd
 
 

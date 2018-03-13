@@ -17,6 +17,10 @@ PYINSTALLER_REPO="https://github.com/SomberNight/pyinstaller.git"
 PYINSTALLER_COMMIT=d1cdd726d6a9edc70150d5302453fb90fdd09bf2
 # ^ tag 3.4, plus a custom commit that fixes cross-compilation with MinGW
 
+MINGW32_FILENAME=mingw32.7z
+MINGW32_URL=https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win32/Personal%20Builds/mingw-builds/7.2.0/threads-posix/dwarf/i686-7.2.0-release-posix-dwarf-rt_v5-rev1.7z
+MINGW32_SHA256=8451a013ce317c72edde4c65932d6770dd98910a27714527ac27dc76bd3123f1
+
 PYTHON_VERSION=3.6.8
 
 ## These settings probably don't need change
@@ -75,6 +79,12 @@ download_if_not_exist "$CACHEDIR/$LIBUSB_FILENAME" "$LIBUSB_URL"
 verify_hash "$CACHEDIR/$LIBUSB_FILENAME" "$LIBUSB_SHA256"
 7z x -olibusb "$CACHEDIR/$LIBUSB_FILENAME" -aoa
 cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/$PYTHON_FOLDER/
+
+download_if_not_exist $MINGW32_FILENAME "$MINGW32_URL"
+verify_hash $MINGW32_FILENAME "$MINGW32_SHA256"
+7z x -o$WINEPREFIX/drive_c $MINGW32_FILENAME | grep -v Extracting
+
+cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
 
 # add .bat file that exposes host's git describe in wine
 printf '%s\n' '@echo off' '/bin/sh -c "git describe --dirty --always" > out.txt' \

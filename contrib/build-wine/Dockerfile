@@ -1,6 +1,7 @@
 FROM ubuntu:18.04@sha256:5f4bdc3467537cbbe563e80db2c3ec95d548a9145d64453b06939c4592d67b6d
 
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
+ENV WINEPREFIX="/opt/wine64" WINEPATH="c:\\mingw32\\bin"
 
 RUN dpkg --add-architecture i386 && \
     apt-get update -q && \
@@ -39,3 +40,13 @@ RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
 RUN rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
     apt-get clean
+
+ADD ./contrib /contrib
+RUN cd /contrib/build-wine && \
+    grep -v build-electrum-git.sh build.sh | bash && \
+    wine c:/python3.6.6/python.exe -m pip install \
+        -r ../deterministic-build/requirements.txt \
+        -r ../deterministic-build/requirements-hw.txt
+
+ADD . $WINEPREFIX/drive_c/electrum
+RUN cd /contrib/build-wine && ./build-electrum-git.sh

@@ -36,10 +36,9 @@ jobs:
         - TARGET_OS=Windows
       services:
         - docker
-      install:
-        - sudo docker build --no-cache -t electrum-wine-builder-img ./contrib/build-wine/
+      install: true
       script:
-        - sudo docker run --name electrum-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum --rm --workdir /opt/wine64/drive_c/electrum/contrib/build-wine electrum-wine-builder-img ./build.sh
+        - sudo docker build -t electrum-img -f ./contrib/build-wine/docker/Dockerfile .
       after_success: true
     - name: "Android build"
       language: python
