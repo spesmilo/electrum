@@ -175,6 +175,8 @@ class TcpConnection(threading.Thread, util.PrintError):
                 util.assert_datadir_available(self.config_path)
                 with open(temporary_path,"w") as f:
                     f.write(cert)
+                    f.flush()
+                    os.fsync(f.fileno())
             else:
                 is_new = False
 
