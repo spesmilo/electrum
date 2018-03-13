@@ -26,6 +26,8 @@
 from PyQt5.QtGui import *
 import re
 from decimal import Decimal
+from electrum import bitcoin
+from electrum.util import bfh
 
 from electrum import bitcoin
 from electrum.util import bfh
