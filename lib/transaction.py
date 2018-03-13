@@ -229,10 +229,10 @@ opcodes = Enumeration("Opcodes", [
     "OP_WITHIN", "OP_RIPEMD160", "OP_SHA1", "OP_SHA256", "OP_HASH160",
     "OP_HASH256", "OP_CODESEPARATOR", "OP_CHECKSIG", "OP_CHECKSIGVERIFY", "OP_CHECKMULTISIG",
     "OP_CHECKMULTISIGVERIFY",
-    ("OP_SINGLEBYTE_END", 0xF0),
-    ("OP_DOUBLEBYTE_BEGIN", 0xF000),
-    "OP_PUBKEY", "OP_PUBKEYHASH",
-    ("OP_INVALIDOPCODE", 0xFFFF),
+    ("OP_NOP1", 0xB0),
+    ("OP_CHECKLOCKTIMEVERIFY", 0xB1), ("OP_CHECKSEQUENCEVERIFY", 0xB2),
+    "OP_NOP4", "OP_NOP5", "OP_NOP6", "OP_NOP7", "OP_NOP8", "OP_NOP9", "OP_NOP10",
+    ("OP_INVALIDOPCODE", 0xFF),
 ])
 
 
@@ -242,10 +242,6 @@ def script_GetOp(_bytes):
         vch = None
         opcode = _bytes[i]
         i += 1
-        if opcode >= opcodes.OP_SINGLEBYTE_END:
-            opcode <<= 8
-            opcode |= _bytes[i]
-            i += 1
 
         if opcode <= opcodes.OP_PUSHDATA4:
             nSize = opcode
