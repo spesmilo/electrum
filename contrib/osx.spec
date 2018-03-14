@@ -1,6 +1,6 @@
 # -*- mode: python -*-
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
 
 import sys
 for i, x in enumerate(sys.argv):
@@ -24,6 +24,9 @@ datas = [
     (home+'plugins', 'electrum_plugins'),
 ]
 
+# Workaround for "Retro Look":
+binaries = [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
+
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'electrum',
               home+'gui/qt/main_window.py',
@@ -41,6 +44,7 @@ a = Analysis([home+'electrum',
               home+'plugins/keepkey/qt.py',
               home+'plugins/ledger/qt.py',
               ],
+             binaries=binaries,
              datas=datas,
              hiddenimports=hiddenimports,
              hookspath=[])
