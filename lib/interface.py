@@ -174,6 +174,8 @@ class TcpConnection(threading.Thread, util.PrintError):
                 temporary_path = cert_path + '.temp'
                 with open(temporary_path,"w") as f:
                     f.write(cert)
+                    f.flush()
+                    os.fsync(f.fileno())
             else:
                 is_new = False
 

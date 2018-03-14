@@ -380,7 +380,6 @@ class ReceiveScreen(CScreen):
         self.app.update_tab('requests')
 
     def on_amount_or_message(self):
-        self.save_request()
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def do_new(self):
