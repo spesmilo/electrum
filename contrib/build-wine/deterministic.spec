@@ -1,6 +1,6 @@
 # -*- mode: python -*-
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
 
 import sys
 for i, x in enumerate(sys.argv):
@@ -32,6 +32,9 @@ datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 
+# Workaround for "Retro Look":
+binaries = [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
+
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'electrum',
               home+'gui/qt/main_window.py',
@@ -50,6 +53,7 @@ a = Analysis([home+'electrum',
               home+'plugins/ledger/qt.py',
               #home+'packages/requests/utils.py'
               ],
+             binaries=binaries,
              datas=datas,
              #pathex=[home+'lib', home+'gui', home+'plugins'],
              hiddenimports=hiddenimports,
