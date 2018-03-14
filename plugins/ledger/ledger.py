@@ -208,6 +208,16 @@ class Ledger_KeyStore(Hardware_KeyStore):
             self.client = None
         raise Exception(message)
 
+    def set_and_unset_signing(func):
+        """Function decorator to set and unset self.signing."""
+        def wrapper(self, *args, **kwargs):
+            try:
+                self.signing = True
+                return func(self, *args, **kwargs)
+            finally:
+                self.signing = False
+        return wrapper
+
     def address_id_stripped(self, address):
         # Strip the leading "m/"
         change, index = self.get_address_index(address)
@@ -218,8 +228,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
     def decrypt_message(self, pubkey, message, password):
         raise RuntimeError(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
+    @set_and_unset_signing
     def sign_message(self, sequence, message, password):
-        self.signing = True
         message = message.encode('utf8')
         message_hash = hashlib.sha256(message).hexdigest().upper()
         # prompt for the PIN before displaying the dialog if necessary
@@ -238,16 +248,17 @@ class Ledger_KeyStore(Hardware_KeyStore):
         except BTChipException as e:
             if e.sw == 0x6a80:
                 self.give_error("Unfortunately, this message cannot be signed by the Ledger wallet. Only alphanumerical messages shorter than 140 characters are supported. Please remove any extra characters (tab, carriage return) and retry.")
+            elif e.sw == 0x6985:  # cancelled by user
+                return b''
             else:
                 self.give_error(e, True)
         except UserWarning:
             self.handler.show_error(_('Cancelled by user'))
-            return ''
+            return b''
         except Exception as e:
             self.give_error(e, True)
         finally:
             self.handler.finished()
-        self.signing = False
         # Parse the ASN.1 signature
         rLength = signature[3]
         r = signature[4 : 4 + rLength]
@@ -260,12 +271,11 @@ class Ledger_KeyStore(Hardware_KeyStore):
         # And convert it
         return bytes([27 + 4 + (signature[0] & 0x01)]) + r + s
 
-
+    @set_and_unset_signing
     def sign_transaction(self, tx, password):
         if tx.is_complete():
             return
         client = self.get_client()
-        self.signing = True
         inputs = []
         inputsPaths = []
         pubKeys = []
@@ -373,6 +383,12 @@ class Ledger_KeyStore(Hardware_KeyStore):
         except UserWarning:
             self.handler.show_error(_('Cancelled by user'))
             return
+        except BTChipException as e:
+            if e.sw == 0x6985:  # cancelled by user
+                return
+            else:
+                traceback.print_exc(file=sys.stderr)
+                self.give_error(e, True)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             self.give_error(e, True)
@@ -383,20 +399,19 @@ class Ledger_KeyStore(Hardware_KeyStore):
             signingPos = inputs[i][4]
             txin['signatures'][signingPos] = bh2u(signatures[i])
         tx.raw = tx.serialize()
-        self.signing = False
 
+    @set_and_unset_signing
     def show_address(self, sequence):
-        self.signing = True
+        client = self.get_client()
         # prompt for the PIN before displaying the dialog if necessary
-        address_path = self.get_derivation()[2:] + "/%d/%d" % sequence
+        address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
         self.handler.show_message(_("Showing address ..."))
         try:
-            self.get_client().getWalletPublicKey(address_path, showOnScreen=True)
+            client.getWalletPublicKey(address_path, showOnScreen=True)
         except:
             pass
         finally:
             self.handler.finished()
-        self.signing = False
 
 
 class LedgerPlugin(HW_PluginBase):
