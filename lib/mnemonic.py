@@ -157,28 +157,21 @@ class Mnemonic(object):
             i = i*n + k
         return i
 
-    def check_seed(self, seed, custom_entropy):
-        assert is_new_seed(seed)
-        i = self.mnemonic_decode(seed)
-        return i % custom_entropy == 0
-
-    def make_seed(self, seed_type='standard', num_bits=132, custom_entropy=1):
+    def make_seed(self, seed_type='standard', num_bits=132):
         prefix = version.seed_prefix(seed_type)
         # increase num_bits in order to obtain a uniform distibution for the last word
         bpw = math.log(len(self.wordlist), 2)
-        num_bits = int(math.ceil(num_bits/bpw) * bpw)
-        # handle custom entropy; make sure we add at least 16 bits
-        n_custom = int(math.ceil(math.log(custom_entropy, 2)))
-        n = max(16, num_bits - n_custom)
-        print_error("make_seed", prefix, "adding %d bits"%n)
-        my_entropy = 1
-        while my_entropy < pow(2, n - bpw):
+        # rounding
+        n = int(math.ceil(num_bits/bpw) * bpw)
+        print_error("make_seed. prefix: '%s'"%prefix, "entropy: %d bits"%n)
+        entropy = 1
+        while entropy < pow(2, n - bpw):
             # try again if seed would not contain enough words
-            my_entropy = ecdsa.util.randrange(pow(2, n))
+            entropy = ecdsa.util.randrange(pow(2, n))
         nonce = 0
         while True:
             nonce += 1
-            i = custom_entropy * (my_entropy + nonce)
+            i = entropy + nonce
             seed = self.mnemonic_encode(i)
             assert i == self.mnemonic_decode(seed)
             if is_old_seed(seed):

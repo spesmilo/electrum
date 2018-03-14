@@ -250,7 +250,7 @@ class QtPlugin(QtPluginBase):
             vbox.addWidget(QLabel(msg))
             vbox.addWidget(text)
             pin = QLineEdit()
-            pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,10}')))
+            pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,9}')))
             pin.setMaximumWidth(100)
             hbox_pin = QHBoxLayout()
             hbox_pin.addWidget(QLabel(_("Enter your PIN (digits 1-9):")))
