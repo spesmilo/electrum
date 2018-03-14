@@ -93,7 +93,7 @@ from electrum import constants
 from electrum import SimpleConfig, Network
 from electrum.wallet import Wallet, Imported_Wallet
 from electrum.storage import WalletStorage, get_derivation_used_for_hw_device_encryption
-from electrum.util import print_msg, print_stderr, json_encode, json_decode
+from electrum.util import print_msg, print_stderr, json_encode, json_decode, UserCancelled
 from electrum.util import set_verbosity, InvalidPassword
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
@@ -295,7 +295,10 @@ def get_password_for_hw_device_encrypted_storage(plugins):
     name, device_info = devices[0]
     plugin = plugins.get_plugin(name)
     derivation = get_derivation_used_for_hw_device_encryption()
-    xpub = plugin.get_xpub(device_info.device.id_, derivation, 'standard', plugin.handler)
+    try:
+        xpub = plugin.get_xpub(device_info.device.id_, derivation, 'standard', plugin.handler)
+    except UserCancelled:
+        sys.exit(0)
     password = keystore.Xpub.get_pubkey_from_xpub(xpub, ())
     return password
 

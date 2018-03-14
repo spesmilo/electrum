@@ -32,6 +32,9 @@ class CmdLineHandler:
     def show_message(self, msg, on_cancel=None):
         print_msg(msg)
 
+    def show_error(self, msg):
+        print_msg(msg)
+
     def update_status(self, b):
         print_error('trezor status', b)
 
