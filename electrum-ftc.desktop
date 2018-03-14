@@ -6,7 +6,7 @@ Comment=Lightweight Feathercoin Client
 Exec=sh -c "PATH=\"\\$HOME/.local/bin:\\$PATH\" electrum-ftc %u"
 GenericName[en_US]=Feathercoin Wallet
 GenericName=Feathercoin Wallet
-Icon=electrum
+Icon=electrum_light
 Name[en_US]=Electrum Feathercoin Wallet
 Name=Electrum Feathercoin Wallet
 Categories=Finance;Network;
