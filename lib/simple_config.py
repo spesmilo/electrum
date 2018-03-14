@@ -5,6 +5,7 @@ import os
 import stat
 
 from copy import deepcopy
+from pathlib import Path
 from .util import user_dir, print_error, print_stderr, PrintError
 
 from .bitcoin import MAX_FEE_RATE, FEE_TARGETS
@@ -92,7 +93,7 @@ class SimpleConfig(PrintError):
         if not os.path.exists(path):
             if os.path.islink(path):
                 raise BaseException('Dangling link: ' + path)
-            os.mkdir(path)
+            Path(path).mkdir(parents=True)
             os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
         self.print_error("electrum directory", path)

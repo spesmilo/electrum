@@ -317,7 +317,8 @@ def user_dir():
     if 'ANDROID_DATA' in os.environ:
         return android_check_data_dir()
     elif os.name == 'posix':
-        return os.path.join(os.environ["HOME"], ".electrum-ftc")
+        xdg_default = os.path.join(os.environ["HOME"], ".local", "share")
+        return os.path.join(os.getenv("XDG_DATA_HOME", xdg_default), "electrum-ftc")
     elif "APPDATA" in os.environ:
         return os.path.join(os.environ["APPDATA"], "Electrum-ftc")
     elif "LOCALAPPDATA" in os.environ:
