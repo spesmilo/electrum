@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import queue
 import sys
 import datetime
 import copy
@@ -45,6 +46,7 @@ from .storage import WalletStorage
 from . import keystore
 from .wallet import Wallet, Imported_Wallet
 from .mnemonic import Mnemonic
+from .import lightning
 
 known_commands = {}
 
@@ -731,6 +733,22 @@ class Commands:
         # for the python console
         return sorted(known_commands.keys())
 
+    @command("wn")
+    def lightning(self, lcmd, lightningargs=None):
+        q = queue.Queue()
+        class FakeQtSignal:
+            def emit(self, data):
+                q.put(data)
+        class MyConsole:
+            new_lightning_result = FakeQtSignal()
+        self.wallet.network.lightningrpc.setConsole(MyConsole())
+        if lightningargs:
+            lightningargs = json_decode(lightningargs)
+        else:
+            lightningargs = []
+        lightning.lightningCall(self.wallet.network.lightningrpc, lcmd)(*lightningargs)
+        return q.get(block=True, timeout=600)
+
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
@@ -797,6 +815,8 @@ command_options = {
     'year':        (None, "Show history for a given year"),
     'fee_method':  (None, "Fee estimation method to use"),
     'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position")
+    'lightningargs':(None, "Arguments for an lncli subcommand, encoded as a JS
+    ON array"),
 }
 
 
