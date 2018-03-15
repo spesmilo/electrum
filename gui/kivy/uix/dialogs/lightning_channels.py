@@ -31,12 +31,12 @@ class LightningChannelsDialog(Factory.Popup):
         super(LightningChannelsDialog, self).open(*args, **kwargs)
         for i in self.clocks: i.cancel()
         self.clocks.append(Clock.schedule_interval(self.fetch_channels, 10))
-        self.app.wallet.lightning.subscribe(self.rpc_result_handler)
+        self.app.wallet.network.lightningrpc.subscribe(self.rpc_result_handler)
     def dismiss(self, *args, **kwargs):
         super(LightningChannelsDialog, self).dismiss(*args, **kwargs)
-        self.app.wallet.lightning.clearSubscribers()
+        self.app.wallet.network.lightningrpc.clearSubscribers()
     def fetch_channels(self, dw):
-        lightning.lightningCall(self.app.wallet.lightning, "listchannels")()
+        lightning.lightningCall(self.app.wallet.network.lightningrpc, "listchannels")()
     def rpc_result_handler(self, res):
         if isinstance(res, Exception):
             raise res
