@@ -598,7 +598,7 @@ class LightningRPC:
         self.subscribers = []
     # overridden
     async def run(self, netAndWalLock):
-      while True:
+      while asyncio.get_event_loop().is_running():
         try:
             qitem = self.queue.get(block=False)
         except queue.Empty:
@@ -681,7 +681,7 @@ class LightningWorker:
 
         wasAlreadyUpToDate = False
 
-        while True:
+        while asyncio.get_event_loop().is_running():
             WALLET = self.wallet()
             NETWORK = self.network()
             CONFIG = self.config()
@@ -704,7 +704,7 @@ class LightningWorker:
                 writer.write(b"MAGIC")
                 writer.write(privateKeyHash[:6])
                 await asyncio.wait_for(writer.drain(), 5)
-                while True:
+                while asyncio.get_event_loop().is_running():
                     obj = await readJson(reader)
                     if not obj: continue
                     if "id" not in obj:
@@ -721,13 +721,12 @@ class LightningWorker:
 
 async def readJson(reader):
     data = b""
-    while True:
+    while asyncio.get_event_loop().is_running():
       newlines = sum(1 if x == b"\n"[0] else 0 for x in data)
       if newlines > 1: print("Too many newlines in Electrum/lightning.py!", data)
       try:
         return json.loads(data)
       except ValueError:
-        if data != b"": print("parse failed, data has", data)
         try:
             data += await asyncio.wait_for(reader.read(1), 1)
         except TimeoutError:
