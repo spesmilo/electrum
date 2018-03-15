@@ -626,7 +626,7 @@ class LightningRPC:
                     traceback.print_exc()
                     for i in self.subscribers: applyMethodName(i)(e)
                 if self.console:
-                    self.console.newResult.emit(json.dumps(toprint, indent=4))
+                    self.console.new_lightning_result.emit(json.dumps(toprint, indent=4))
             threading.Thread(target=lightningRpcNetworkRequestThreadTarget, args=(qitem, )).start()
     def setConsole(self, console):
         self.console = console
@@ -686,7 +686,9 @@ class LightningWorker:
             NETWORK = self.network()
             CONFIG = self.config()
 
+            netAndWalLock.acquire()
             synced, local, server = isSynced()
+            netAndWalLock.release()
             if not synced:
                 await asyncio.sleep(5)
                 continue
@@ -702,14 +704,14 @@ class LightningWorker:
                 writer.write(b"MAGIC")
                 writer.write(privateKeyHash[:6])
                 await asyncio.wait_for(writer.drain(), 5)
-                while is_running():
-                    obj = await readJson(reader, is_running)
+                while True:
+                    obj = await readJson(reader)
                     if not obj: continue
                     if "id" not in obj:
                         print("Invoice update?", obj)
                         for i in self.subscribers: i(obj)
                         continue
-                    await asyncio.wait_for(readReqAndReply(obj, writer), 10)
+                    await asyncio.wait_for(readReqAndReply(obj, writer, netAndWalLock), 10)
             except:
                 traceback.print_exc()
                 await asyncio.sleep(5)
@@ -717,9 +719,9 @@ class LightningWorker:
     def subscribe(self, notifyFunction):
         self.subscribers.append(functools.partial(notifyFunction, "LightningWorker"))
 
-async def readJson(reader, is_running):
+async def readJson(reader):
     data = b""
-    while is_running():
+    while True:
       newlines = sum(1 if x == b"\n"[0] else 0 for x in data)
       if newlines > 1: print("Too many newlines in Electrum/lightning.py!", data)
       try:
@@ -731,7 +733,7 @@ async def readJson(reader, is_running):
         except TimeoutError:
             continue
 
-async def readReqAndReply(obj, writer):
+async def readReqAndReply(obj, writer, netAndWalLock):
     methods = [
     # SecretKeyRing
     DerivePrivKey,
@@ -760,10 +762,12 @@ async def readReqAndReply(obj, writer):
             if method.__name__ == obj["method"]:
                 params = obj["params"][0]
                 print("calling method", obj["method"], "with", params)
+                netAndWalLock.acquire()
                 if asyncio.iscoroutinefunction(method):
                     result = await method(params)
                 else:
                     result = method(params)
+                netAndWalLock.release()
                 found = True
                 break
     except BaseException as e:

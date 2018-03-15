@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import queue
 import sys
 import datetime
 import copy
@@ -41,6 +42,7 @@ from .i18n import _
 from .transaction import Transaction, multisig_script
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .plugins import run_hook
+from .import lightning
 
 known_commands = {}
 
@@ -667,6 +669,22 @@ class Commands:
         # for the python console
         return sorted(known_commands.keys())
 
+    @command("wn")
+    def lightning(self, lcmd, lightningargs=None):
+        q = queue.Queue()
+        class FakeQtSignal:
+            def emit(self, data):
+                q.put(data)
+        class MyConsole:
+            new_lightning_result = FakeQtSignal()
+        self.wallet.network.lightningrpc.setConsole(MyConsole())
+        if lightningargs:
+            lightningargs = json_decode(lightningargs)
+        else:
+            lightningargs = []
+        lightning.lightningCall(self.wallet.network.lightningrpc, lcmd)(*lightningargs)
+        return q.get(block=True, timeout=600)
+
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',
     'destination': 'Bitcoin address, contact or alias',
@@ -719,6 +737,8 @@ command_options = {
     'show_addresses': (None, "Show input and output addresses"),
     'show_fiat':   (None, "Show fiat value of transactions"),
     'year':        (None, "Show history for a given year"),
+    'lightningargs':(None, "Arguments for an lncli subcommand, encoded as a JS
+    ON array"),
 }
 
 

@@ -18,6 +18,8 @@ else:
 
 
 class Console(QtWidgets.QPlainTextEdit):
+    new_lightning_result = QtCore.pyqtSignal(str)
+
     def __init__(self, prompt='>> ', startup_message='', parent=None):
         QtWidgets.QPlainTextEdit.__init__(self, parent)
 
@@ -34,6 +36,10 @@ class Console(QtWidgets.QPlainTextEdit):
 
         self.updateNamespace({'run':self.run_script})
         self.set_json(False)
+        self.new_lightning_result.connect(self.handle_new_lightning_result)
+
+    def handle_new_lightning_result(self, msg):
+        self.showMessage(msg)
 
     def set_json(self, b):
         self.is_json = b

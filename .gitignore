@@ -21,3 +21,10 @@ bin/
 # tox files
 .cache/
 .coverage
+
+# kivy
+gui/kivy/theming/light-0.png
+gui/kivy/theming/light.atlas
+
+# lightning
+lib/ln/
