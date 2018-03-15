@@ -20,6 +20,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import asyncio
 import time
 import queue
 import os
@@ -164,6 +165,8 @@ class Network(util.DaemonThread):
     """
 
     def __init__(self, config=None):
+        self.lightninglock = threading.Lock()
+        self.lightninglock.acquire()
         if config is None:
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
@@ -980,12 +983,27 @@ class Network(util.DaemonThread):
 
     def run(self):
         self.init_headers_file()
+        loop = asyncio.new_event_loop()
+        def asyncioThread():
+            asyncio.set_event_loop(loop)
+            self.lightninglock.acquire()
+            task = asyncio.ensure_future(asyncio.gather(self.lightningrpc.run(networkAndWalletLock), self.lightningworker.run(networkAndWalletLock)))
+            loop.run_forever()
+        threading.Thread(target=asyncioThread).start()
+        networkAndWalletLock = threading.Lock()
+        networkAndWalletLock.acquire()
         while self.is_running():
             self.maintain_sockets()
             self.wait_on_sockets()
             self.maintain_requests()
             self.run_jobs()    # Synchronizer and Verifier
             self.process_pending_sends()
+            networkAndWalletLock.release()
+            networkAndWalletLock.acquire()
+        loop.stop()
+        while loop.is_running():
+            pass
+        loop.close()
         self.stop_network()
         self.on_stop()
 

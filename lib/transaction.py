@@ -498,7 +498,10 @@ def parse_witness(vds, txin):
             txin['witnessScript'] = witnessScript
             if not txin.get('scriptSig'):  # native segwit script
                 txin['type'] = 'p2wsh'
-                txin['address'] = bitcoin.script_to_p2wsh(txin['witnessScript'])
+                try:
+                    txin['address'] = bitcoin.script_to_p2wsh(txin['witnessScript'])
+                except KeyError:
+                    pass
         elif txin['type'] == 'p2wpkh-p2sh' or n == 2:
             txin['num_sig'] = 1
             txin['x_pubkeys'] = [w[1]]
