@@ -47,11 +47,11 @@ class LightningPayerDialog(Factory.Popup):
             def emit(self2, data):
                 self.app.show_info(data)
         class MyConsole:
-            newResult = FakeQtSignal()
-        self.app.wallet.lightning.setConsole(MyConsole())
+            new_lightning_result = FakeQtSignal()
+        self.app.wallet.network.lightningrpc.setConsole(MyConsole())
     def dismiss(self, *args, **kwargs):
         super(LightningPayerDialog, self).dismiss(*args, **kwargs)
-        self.app.wallet.lightning.setConsole(None)
+        self.app.wallet.network.lightningrpc.setConsole(None)
     def do_paste_sample(self):
         self.invoice_data = "lnbc1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdpl2pkx2ctnv5sxxmmwwd5kgetjypeh2ursdae8g6twvus8g6rfwvs8qun0dfjkxaq8rkx3yf5tcsyz3d73gafnh3cax9rn449d9p5uxz9ezhhypd0elx87sjle52x86fux2ypatgddc6k63n7erqz25le42c4u4ecky03ylcqca784w"
     def do_paste(self):
@@ -63,6 +63,6 @@ class LightningPayerDialog(Factory.Popup):
     def do_clear(self):
         self.invoice_data = ""
     def do_pay(self):
-        lightning.lightningCall(self.app.wallet.lightning, "sendpayment")("--pay_req=" + self.invoice_data)
+        lightning.lightningCall(self.app.wallet.network.lightningrpc, "sendpayment")("--pay_req=" + self.invoice_data)
     def on_lightning_qr(self):
         self.app.show_info("Lightning Invoice QR scanning not implemented") #TODO

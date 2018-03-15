@@ -52,6 +52,7 @@ from electrum.logging import Logger
 
 from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
 
+from electrum.lightning import LightningUI
 
 from .util import get_default_language, read_QIcon, ColorScheme, custom_message_box
 from .main_window import ElectrumWindow
@@ -139,6 +140,11 @@ class ElectrumGui(Logger):
         # the OS/window manager/etc might set *a dark theme*.
         # Hence, try to choose colors accordingly:
         ColorScheme.update_from_widget(QWidget(), force_dark=use_dark_theme)
+        self.lightning = LightningUI(self.set_console_and_return_lightning)
+
+    def set_console_and_return_lightning(self):
+        self.windows[0].wallet.network.lightningrpc.setConsole(self.windows[0].console)
+        return self.windows[0].wallet.network.lightningrpc
 
     def build_tray_menu(self):
         # Avoid immediate GC of old menu when window closed via its action

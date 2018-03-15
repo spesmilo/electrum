@@ -88,6 +88,7 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
+from .lightning_invoice_list import LightningInvoiceList
 
 
 class StatusBarButton(QPushButton):
@@ -174,6 +175,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         tabs.addTab(self.create_history_tab(), read_QIcon("tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, read_QIcon("tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, read_QIcon("tab_receive.png"), _('Receive'))
+        self.lightning_invoices_tab = self.create_lightning_invoices_tab(wallet)
+        tabs.addTab(self.lightning_invoices_tab, _("Lightning Invoices"))
 
         def add_optional_tab(tabs, tab, icon, description, name):
             tab.tab_icon = icon
@@ -872,6 +875,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.contact_list.update()
         self.invoice_list.update()
         self.update_completions()
+
+    def create_lightning_invoices_tab(self, wallet):
+        self.lightning_invoice_list = LightningInvoiceList(self, wallet.network.lightningworker, wallet.network.lightningrpc)
+        return self.lightning_invoice_list
 
     def create_history_tab(self):
         self.history_model = HistoryModel(self)
@@ -2076,6 +2083,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             'wallet': self.wallet,
             'network': self.network,
             'plugins': self.gui_object.plugins,
+            'lightning': self.gui_object.lightning,
             'window': self,
             'config': self.config,
             'electrum': electrum,
