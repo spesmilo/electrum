@@ -58,6 +58,9 @@ from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .paymentrequest import InvoiceStore
 from .contacts import Contacts
 
+from .lightning import LightningRPC
+from .lightning import LightningWorker
+
 TX_STATUS = [
     _('Unconfirmed'),
     _('Unconfirmed parent'),
