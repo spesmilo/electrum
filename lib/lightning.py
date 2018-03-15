@@ -18,8 +18,6 @@ from . import keystore
 
 import queue
 
-from .util import ForeverCoroutineJob
-
 import threading
 import json
 import base64
@@ -481,7 +479,7 @@ async def PublishTransaction(json):
     json_format.Parse(json, req)
     global NETWORK
     tx = transaction.Transaction(binascii.hexlify(req.tx).decode("utf-8"))
-    suc, has = await NETWORK.broadcast_async(tx)
+    suc, has = NETWORK.broadcast(tx)
     m = rpc_pb2.PublishTransactionResponse()
     m.success = suc
     m.error = str(has) if not suc else ""
@@ -593,15 +591,14 @@ def computeInputScript(tx, signdesc):
 from collections import namedtuple
 QueueItem = namedtuple("QueueItem", ["methodName", "args"])
 
-class LightningRPC(ForeverCoroutineJob):
+class LightningRPC:
     def __init__(self):
         super(LightningRPC, self).__init__()
         self.queue = queue.Queue()
         self.subscribers = []
     # overridden
-    async def run(self, is_running):
-      print("RPC STARTED")
-      while is_running():
+    async def run(self, netAndWalLock):
+      while True:
         try:
             qitem = self.queue.get(block=False)
         except queue.Empty:
@@ -654,7 +651,7 @@ class LightningUI():
 
 privateKeyHash = None
 
-class LightningWorker(ForeverCoroutineJob):
+class LightningWorker:
     def __init__(self, wallet, network, config):
         global privateKeyHash
         super(LightningWorker, self).__init__()
@@ -678,13 +675,13 @@ class LightningWorker(ForeverCoroutineJob):
         assert deser[0] == "p2wpkh", deser
         self.subscribers = []
 
-    async def run(self, is_running):
+    async def run(self, netAndWalLock):
         global WALLET, NETWORK
         global CONFIG
 
         wasAlreadyUpToDate = False
 
-        while is_running():
+        while True:
             WALLET = self.wallet()
             NETWORK = self.network()
             CONFIG = self.config()
