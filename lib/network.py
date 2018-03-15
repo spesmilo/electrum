@@ -1001,9 +1001,11 @@ class Network(util.DaemonThread):
             networkAndWalletLock.release()
             networkAndWalletLock.acquire()
         loop.stop()
-        while loop.is_running():
-            pass
-        loop.close()
+        if loop.is_running(): time.sleep(0.1)
+        try:
+          loop.close()
+        except:
+          pass
         self.stop_network()
         self.on_stop()
 
