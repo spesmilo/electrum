@@ -729,7 +729,7 @@ async def readJson(reader):
       except ValueError:
         if data != b"": print("parse failed, data has", data)
         try:
-            data += await asyncio.wait_for(reader.read(2048), 1)
+            data += await asyncio.wait_for(reader.read(1), 1)
         except TimeoutError:
             continue
 
