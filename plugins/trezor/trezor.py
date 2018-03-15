@@ -132,11 +132,28 @@ class TrezorPlugin(HW_PluginBase):
         except ImportError:
             # compat for trezorlib < 0.9.2
             def all_transports():
-                from trezorlib.transport_bridge import BridgeTransport
-                from trezorlib.transport_hid import HidTransport
-                from trezorlib.transport_udp import UdpTransport
-                from trezorlib.transport_webusb import WebUsbTransport
-                return (BridgeTransport, HidTransport, UdpTransport, WebUsbTransport)
+                transports = []
+                try:
+                    from trezorlib.transport_bridge import BridgeTransport
+                    transports.append(BridgeTransport)
+                except BaseException:
+                    pass
+                try:
+                    from trezorlib.transport_hid import HidTransport
+                    transports.append(HidTransport)
+                except BaseException:
+                    pass
+                try:
+                    from trezorlib.transport_udp import UdpTransport
+                    transports.append(UdpTransport)
+                except BaseException:
+                    pass
+                try:
+                    from trezorlib.transport_webusb import WebUsbTransport
+                    transports.append(WebUsbTransport)
+                except BaseException:
+                    pass
+                return transports
 
         devices = []
         for transport in all_transports():
