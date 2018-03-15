@@ -243,6 +243,9 @@ class BaseWizard(object):
             devmgr.unpair_id(device_info.device.id_)
             self.choose_hw_device(purpose)
             return
+        except UserCancelled:
+            self.choose_hw_device(purpose)
+            return
         except BaseException as e:
             self.show_error(str(e))
             self.choose_hw_device(purpose)
