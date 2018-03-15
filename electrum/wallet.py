@@ -68,6 +68,9 @@ if TYPE_CHECKING:
     from .simple_config import SimpleConfig
 
 
+from .lightning import LightningRPC
+from .lightning import LightningWorker
+
 TX_STATUS = [
     _('Unconfirmed'),
     _('Unconfirmed parent'),
