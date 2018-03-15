@@ -202,14 +202,19 @@ class BaseWizard(object):
         # scan devices
         devices = []
         devmgr = self.plugins.device_manager
-        for name, description, plugin in support:
-            try:
-                # FIXME: side-effect: unpaired_device_info sets client.handler
-                u = devmgr.unpaired_device_infos(None, plugin)
-            except:
-                devmgr.print_error("error", name)
-                continue
-            devices += list(map(lambda x: (name, x), u))
+        try:
+            scanned_devices = devmgr.scan_devices()
+        except BaseException as e:
+            devmgr.print_error('error scanning devices: {}'.format(e))
+        else:
+            for name, description, plugin in support:
+                try:
+                    # FIXME: side-effect: unpaired_device_info sets client.handler
+                    u = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices)
+                except BaseException as e:
+                    devmgr.print_error('error getting device infos for {}: {}'.format(name, e))
+                    continue
+                devices += list(map(lambda x: (name, x), u))
         if not devices:
             msg = ''.join([
                 _('No hardware device detected.') + '\n',

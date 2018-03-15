@@ -126,20 +126,46 @@ class TrezorPlugin(HW_PluginBase):
 
         self.device_manager().register_enumerate_func(self.enumerate)
 
-    def enumerate(self):
+    @staticmethod
+    def _all_transports():
+        """Reimplemented trezorlib.transport.all_transports for old trezorlib.
+        Remove this when we start to require trezorlib 0.9.2
+        """
         try:
             from trezorlib.transport import all_transports
         except ImportError:
             # compat for trezorlib < 0.9.2
             def all_transports():
-                from trezorlib.transport_bridge import BridgeTransport
-                from trezorlib.transport_hid import HidTransport
-                from trezorlib.transport_udp import UdpTransport
-                from trezorlib.transport_webusb import WebUsbTransport
-                return (BridgeTransport, HidTransport, UdpTransport, WebUsbTransport)
+                transports = []
+                try:
+                    from trezorlib.transport_bridge import BridgeTransport
+                    transports.append(BridgeTransport)
+                except BaseException:
+                    pass
+                try:
+                    from trezorlib.transport_hid import HidTransport
+                    transports.append(HidTransport)
+                except BaseException:
+                    pass
+                try:
+                    from trezorlib.transport_udp import UdpTransport
+                    transports.append(UdpTransport)
+                except BaseException:
+                    pass
+                try:
+                    from trezorlib.transport_webusb import WebUsbTransport
+                    transports.append(WebUsbTransport)
+                except BaseException:
+                    pass
+                return transports
+        return all_transports()
 
+    def _enumerate_devices(self):
+        """Just like trezorlib.transport.enumerate_devices,
+        but with exception catching, so that transports can fail separately.
+        """
         devices = []
-        for transport in all_transports():
+        for transport in self._all_transports():
             try:
                 new_devices = transport.enumerate()
             except BaseException as e:
@@ -147,14 +173,39 @@ class TrezorPlugin(HW_PluginBase):
                                  .format(transport.__name__, str(e)))
             else:
                 devices.extend(new_devices)
+        return devices
 
+    def enumerate(self):
+        devices = self._enumerate_devices()
         return [Device(d.get_path(), -1, d.get_path(), 'TREZOR', 0) for d in devices]
 
+    def _get_transport(self, path=None):
+        """Reimplemented trezorlib.transport.get_transport for old trezorlib.
+        Remove this when we start to require trezorlib 0.9.2
+        """
+        try:
+            from trezorlib.transport import get_transport
+        except ImportError:
+            # compat for trezorlib < 0.9.2
+            def get_transport(path=None, prefix_search=False):
+                if path is None:
+                    try:
+                        return self._enumerate_devices()[0]
+                    except IndexError:
+                        raise Exception("No TREZOR device found") from None
+
+                def match_prefix(a, b):
+                    return a.startswith(b) or b.startswith(a)
+                transports = [t for t in self._all_transports() if match_prefix(path, t.PATH_PREFIX)]
+                if transports:
+                    return transports[0].find_by_path(path)
+                raise Exception("Unknown path prefix '%s'" % path)
+        return get_transport(path)
+
     def create_client(self, device, handler):
-        from trezorlib.device import TrezorDevice
         try:
             self.print_error("connecting to device at", device.path)
-            transport = TrezorDevice.find_by_path(device.path)
+            transport = self._get_transport(device.path)
         except BaseException as e:
             self.print_error("cannot connect at", device.path, str(e))
             return None
