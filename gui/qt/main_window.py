@@ -47,7 +47,7 @@ from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, PrintError,
                            format_satoshis_plain, NotEnoughFunds,
                            UserCancelled, NoDynamicFeeEstimates, profiler,
-                           export_meta, import_meta, bh2u, bfh)
+                           export_meta, import_meta, bh2u, bfh, InvalidPassword)
 from electrum import Transaction
 from electrum import util, bitcoin, commands, coinchooser
 from electrum import paymentrequest
@@ -1972,10 +1972,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         try:
             self.wallet.update_password(old_password, new_password, encrypt_file)
-        except BaseException as e:
+        except InvalidPassword as e:
             self.show_error(str(e))
             return
-        except:
+        except BaseException:
             traceback.print_exc(file=sys.stdout)
             self.show_error(_('Failed to update password'))
             return
