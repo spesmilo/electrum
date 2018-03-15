@@ -506,17 +506,15 @@ class DeviceMgr(ThreadJob, PrintError):
             handler.win.wallet.save_keystore()
         return info
 
-    def scan_devices(self):
-        # All currently supported hardware libraries use hid, so we
-        # assume it here.  This can be easily abstracted if necessary.
-        # Note this import must be local so those without hardware
-        # wallet libraries are not affected.
-        import hid
-        self.print_error("scanning devices...")
+    def _scan_devices_with_hid(self):
+        try:
+            import hid
+        except ImportError:
+            return []
+
         with self.hid_lock:
             hid_list = hid.enumerate(0, 0)
 
-        # First see what's connected that we know about
         devices = []
         for d in hid_list:
             product_key = (d['vendor_id'], d['product_id'])
@@ -530,6 +528,13 @@ class DeviceMgr(ThreadJob, PrintError):
                 id_ += str(interface_number) + str(usage_page)
                 devices.append(Device(d['path'], interface_number,
                                       id_, product_key, usage_page))
+        return devices
+
+    def scan_devices(self):
+        self.print_error("scanning devices...")
+
+        # First see what's connected that we know about
+        devices = self._scan_devices_with_hid()
 
         # Let plugin handlers enumerate devices we don't know about
         for f in self.enumerate_func:
@@ -541,7 +546,7 @@ class DeviceMgr(ThreadJob, PrintError):
             else:
                 devices.extend(new_devices)
 
-        # Now find out what was disconnected
+        # find out what was disconnected
         pairs = [(dev.path, dev.id_) for dev in devices]
         disconnected_ids = []
         with self.lock:
