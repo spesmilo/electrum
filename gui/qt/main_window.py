@@ -2308,7 +2308,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.pay_to_URI(data)
             return
         # else if the user scanned an offline signed tx
-        data = bh2u(bitcoin.base_decode(data, length=None, base=43))
+        try:
+            data = bh2u(bitcoin.base_decode(data, length=None, base=43))
+        except BaseException as e:
+            self.show_error((_('Could not decode QR code')+':\n{}').format(e))
+            return
         tx = self.tx_from_text(data)
         if not tx:
             return
