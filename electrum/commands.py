@@ -814,9 +814,8 @@ command_options = {
     'show_fiat':   (None, "Show fiat value of transactions"),
     'year':        (None, "Show history for a given year"),
     'fee_method':  (None, "Fee estimation method to use"),
-    'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position")
-    'lightningargs':(None, "Arguments for an lncli subcommand, encoded as a JS
-    ON array"),
+    'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
+    'lightningargs':(None, "Arguments for an lncli subcommand, encoded as a JSON array")
 }
 
 
