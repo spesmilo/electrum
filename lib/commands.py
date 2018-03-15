@@ -737,8 +737,7 @@ command_options = {
     'show_addresses': (None, "Show input and output addresses"),
     'show_fiat':   (None, "Show fiat value of transactions"),
     'year':        (None, "Show history for a given year"),
-    'lightningargs':(None, "Arguments for an lncli subcommand, encoded as a JS
-    ON array"),
+    'lightningargs':(None, "Arguments for an lncli subcommand, encoded as a JSON array"),
 }
 
 
