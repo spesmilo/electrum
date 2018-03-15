@@ -2083,7 +2083,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             'wallet': self.wallet,
             'network': self.network,
             'plugins': self.gui_object.plugins,
-            'lightning': self.gui_object.lightning,
+            'l': self.gui_object.lightning,
             'window': self,
             'config': self.config,
             'electrum': electrum,
