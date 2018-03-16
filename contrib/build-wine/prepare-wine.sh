@@ -76,6 +76,13 @@ verify_hash "$CACHEDIR/$LIBUSB_FILENAME" "$LIBUSB_SHA256"
 7z x -olibusb "$CACHEDIR/$LIBUSB_FILENAME" -aoa
 cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/$PYTHON_FOLDER/
 
+# add .bat file that exposes host's git describe in wine
+printf '%s\n' '@echo off' '/bin/sh -c "git describe --dirty --always" > out.txt' \
+    'ping -n2' 'type out.txt' > $WINEPREFIX/drive_c/windows/git.bat
+# make files without extension (i.e. unix binaries) executable in wine
+sed_cmd='s/^\("PATHEXT"=".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH\)"$/\1;."/'
+sed -i "$sed_cmd" $WINEPREFIX/system.reg
+
 mkdir -p $WINEPREFIX/drive_c/tmp
 cp "$CACHEDIR/secp256k1/libsecp256k1.dll" $WINEPREFIX/drive_c/tmp/
 

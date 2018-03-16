@@ -10,7 +10,7 @@ import argparse
 import subprocess
 
 from setuptools import setup, find_packages
-from setuptools.command.install import install
+from setuptools.command.build_py import build_py
 
 MIN_PYTHON_VERSION = "3.6.1"
 _min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
@@ -58,9 +58,20 @@ extras_require = {
 extras_require['full'] = [pkg for sublist in list(extras_require.values()) for pkg in sublist]
 
 
+class BuildPyCommand(build_py):
+    def run(self):
+        build_py.run(self)
+        with open('build/lib/electrum/version.py', 'r+') as fp:
+            verfile = fp.readlines()
+            verfile[0] = "ELECTRUM_FTC_VERSION = '{}'\n".format(
+                version.ELECTRUM_FTC_VERSION)
+            fp.seek(0)
+            fp.writelines(verfile)
+            fp.truncate()
+
 setup(
     name="Electrum",
-    version=version.ELECTRUM_VERSION,
+    version=version.ELECTRUM_FTC_VERSION,
     python_requires='>={}'.format(MIN_PYTHON_VERSION),
     install_requires=requirements,
     extras_require=extras_require,
@@ -91,4 +102,7 @@ setup(
     license="MIT Licence",
     url="https://electrum.org",
     long_description="""Lightweight Bitcoin Wallet""",
+    cmdclass={
+        'build_py': BuildPyCommand,
+    },
 )
