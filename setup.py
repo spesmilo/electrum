@@ -4,6 +4,7 @@
 
 from setuptools import setup
 from setuptools.command.install import install
+from setuptools.command.build_py import build_py
 from distutils import core
 import os
 import sys
@@ -35,6 +36,17 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
     ]
 
 
+class BuildPyCommand(build_py):
+    def run(self):
+        build_py.run(self)
+        with open('build/lib/electrum_ftc/version.py', 'r+') as fp:
+            verfile = fp.readlines()
+            verfile[0] = "ELECTRUM_FTC_VERSION = '{}'\n".format(
+                version.ELECTRUM_FTC_VERSION)
+            fp.seek(0)
+            fp.writelines(verfile)
+            fp.truncate()
+
 class InstallCommand(install):
     def run(self):
         if platform.system() is 'Windows':
@@ -44,8 +56,8 @@ class InstallCommand(install):
 
 setup(
     name="Electrum-FTC",
-    version=version.ELECTRUM_VERSION,
-    cmdclass={'install': InstallCommand},
+    version=version.ELECTRUM_FTC_VERSION,
+    cmdclass={'install': InstallCommand, 'build_py': BuildPyCommand},
     install_requires=[
         'pyaes>=0.1a1',
         'ecdsa>=0.9',

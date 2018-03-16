@@ -156,7 +156,7 @@ class Abstract_Wallet(PrintError):
     max_change_outputs = 3
 
     def __init__(self, storage):
-        self.electrum_version = ELECTRUM_VERSION
+        self.electrum_version = ELECTRUM_FTC_VERSION
         self.storage = storage
         self.network = None
         # verifier (SPV) and synchronizer are started in start_threads
