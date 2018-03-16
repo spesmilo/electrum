@@ -563,7 +563,7 @@ class Network(util.DaemonThread):
                 self.notify('fee')
         elif method == 'blockchain.relayfee':
             if error is None:
-                self.relay_fee = int(result * COIN)
+                self.relay_fee = int(result * COIN) if result is not None else None
                 self.print_error("relayfee", self.relay_fee)
         elif method == 'blockchain.block.get_chunk':
             self.on_get_chunk(interface, response)
