@@ -22,19 +22,7 @@ set -e
 
 cd tmp
 
-for repo in electrum-locale electrum-icons; do
-    if [ -d $repo ]; then
-	cd $repo
-	git pull
-	git checkout master
-	cd ..
-    else
-	URL=https://github.com/spesmilo/$repo.git
-	git clone -b master $URL $repo
-    fi
-done
-
-git clone /electrum
+git clone https://github.com/spesmilo/electrum-locale.git
 
 pushd electrum-locale
 for i in ./locale/*; do
@@ -44,23 +32,17 @@ for i in ./locale/*; do
 done
 popd
 
-pushd electrum
-git checkout $BRANCH
-VERSION=`git describe --tags --dirty`
-echo "Last commit: $VERSION"
-find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
-popd
-
 rm -rf $WINEPREFIX/drive_c/electrum
-cp -r electrum $WINEPREFIX/drive_c/electrum
-cp electrum/LICENCE .
+git clone /electrum $WINEPREFIX/drive_c/electrum
 cp -r electrum-locale/locale $WINEPREFIX/drive_c/electrum/lib/
-cp electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum/gui/qt/
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../requirements.txt
 
 pushd $WINEPREFIX/drive_c/electrum
+VERSION=`git describe --tags --dirty`
+echo "Last commit: $VERSION"
+find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 # byte-compiling is needed to install neoscrypt properly
 PYTHONDONTWRITEBYTECODE="" ${PYTHON/ -B/} setup.py install
 popd
