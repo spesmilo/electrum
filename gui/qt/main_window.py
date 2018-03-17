@@ -1579,13 +1579,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         cash_address.setReadOnly(True)
         legacy_address = QLineEdit()
         legacy_address.setReadOnly(True)
-        bitpay_address = QLineEdit()
-        bitpay_address.setReadOnly(True)
+        #bitpay_address = QLineEdit()
+        #bitpay_address.setReadOnly(True)
 
         widgets = [
             (cash_address, Address.FMT_CASHADDR),
             (legacy_address, Address.FMT_LEGACY),
-            (bitpay_address, Address.FMT_BITPAY),
+            #(bitpay_address, Address.FMT_BITPAY),
         ]
 
         def convert_address():
@@ -1619,8 +1619,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(cash_address, 1, 1)
         grid.addWidget(QLabel(_('Legacy address')), 2, 0)
         grid.addWidget(legacy_address, 2, 1)
-        grid.addWidget(QLabel(_('BitPay address')), 3, 0)
-        grid.addWidget(bitpay_address, 3, 1)
+        #grid.addWidget(QLabel(_('BitPay address')), 3, 0)
+        #grid.addWidget(bitpay_address, 3, 1)
         w.setLayout(grid)
 
         vbox = QVBoxLayout()
