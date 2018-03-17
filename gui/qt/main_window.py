@@ -1289,7 +1289,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def read_send_tab(self):
 
-        isInvoice= False; 
+        isInvoice= False;
 
         if self.payment_request and self.payment_request.has_expired():
             self.show_error(_('Payment request has expired'))
@@ -1579,13 +1579,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         cash_address.setReadOnly(True)
         legacy_address = QLineEdit()
         legacy_address.setReadOnly(True)
-        #bitpay_address = QLineEdit()
-        #bitpay_address.setReadOnly(True)
 
         widgets = [
             (cash_address, Address.FMT_CASHADDR),
             (legacy_address, Address.FMT_LEGACY),
-            #(bitpay_address, Address.FMT_BITPAY),
         ]
 
         def convert_address():
@@ -1602,10 +1599,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         source_address.textChanged.connect(convert_address)
 
         label = WWLabel(_(
-            "This tool helps convert between 3 address formats for Bitcoin "
+            "This tool helps convert between address formats for Bitcoin "
             "Cash addresses.\nYou are encouraged to use the 'Cash address' "
-            "format.\nThe BitPay format is deprecated and support is for "
-            "a transitional period only."
+            "format."
         ))
 
         w = QWidget()
@@ -1619,8 +1615,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(cash_address, 1, 1)
         grid.addWidget(QLabel(_('Legacy address')), 2, 0)
         grid.addWidget(legacy_address, 2, 1)
-        #grid.addWidget(QLabel(_('BitPay address')), 3, 0)
-        #grid.addWidget(bitpay_address, 3, 1)
         w.setLayout(grid)
 
         vbox = QVBoxLayout()
