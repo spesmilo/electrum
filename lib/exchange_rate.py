@@ -384,8 +384,8 @@ class FxThread(ThreadJob):
         d = get_exchanges_by_ccy(h)
         return d.get(ccy, [])
 
-    def ccy_amount_str(self, amount, commas):
-        prec = CCY_PRECISIONS.get(self.ccy, 2)
+    def ccy_amount_str(self, amount, commas,default_prec = 2):
+        prec = CCY_PRECISIONS.get(self.ccy, default_prec)
         fmt_str = "{:%s.%df}" % ("," if commas else "", max(0, prec))
         try:
             rounded_amount = round(amount, prec)
@@ -467,15 +467,18 @@ class FxThread(ThreadJob):
 
     def get_fiat_status_text(self, btc_balance, base_unit, decimal_point):
         rate = self.exchange_rate()
+        default_prec = 2
+        if (base_unit == "cash"):
+            default_prec = 4
         return _("  (No FX rate available)") if rate is None else " 1 %s~%s %s" % (base_unit,
-            self.value_str(COIN / (10**(8 - decimal_point)), rate), self.ccy)
+            self.value_str(COIN / (10**(8 - decimal_point)), rate, default_prec ), self.ccy )
 
-    def value_str(self, satoshis, rate):
+    def value_str(self, satoshis, rate, default_prec = 2 ):
         if satoshis is None:  # Can happen with incomplete history
             return _("Unknown")
         if rate:
             value = Decimal(satoshis) / COIN * Decimal(rate)
-            return "%s" % (self.ccy_amount_str(value, True))
+            return "%s" % (self.ccy_amount_str(value, True, default_prec))
         return _("No data")
 
     def history_rate(self, d_t):
