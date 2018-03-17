@@ -12,3 +12,8 @@ StartupNotify=false
 Terminal=false
 Type=Application
 MimeType=x-scheme-handler/bitcoincash;
+Actions=Testnet;
+
+[Desktop Action Testnet]
+Exec=electron-cash --testnet %u
+Name=Testnet mode
