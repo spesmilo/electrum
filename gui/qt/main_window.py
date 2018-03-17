@@ -1288,12 +1288,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return request_password
 
     def read_send_tab(self):
+
+        isInvoice= False; 
+
         if self.payment_request and self.payment_request.has_expired():
             self.show_error(_('Payment request has expired'))
             return
         label = self.message_e.text()
 
         if self.payment_request:
+            isInvoice = True;
             outputs = self.payment_request.get_outputs()
         else:
             errors = self.payto_e.get_errors()
@@ -1321,7 +1325,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         freeze_fee = self.fee_e.isVisible() and self.fee_e.isModified() and (self.fee_e.text() or self.fee_e.hasFocus())
         fee = self.fee_e.get_amount() if freeze_fee else None
-        coins = self.get_coins()
+        coins = self.get_coins(isInvoice)
         return outputs, fee, label, coins
 
     def do_preview(self):
@@ -1671,11 +1675,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.history_list.update()
             self.clear_receive_tab()
 
-    def get_coins(self):
+    def get_coins(self, isInvoice = False):
         if self.pay_from:
             return self.pay_from
         else:
-            return self.wallet.get_spendable_coins(None, self.config)
+            return self.wallet.get_spendable_coins(None, self.config,isInvoice)
 
     def spend_coins(self, coins):
         self.set_pay_from(coins)
