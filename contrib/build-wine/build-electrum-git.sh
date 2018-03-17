@@ -23,7 +23,7 @@ for repo in electrum; do
     if [ -d $repo ]; then
 	cd $repo
 	git pull
-	git checkout 3.1.5
+	git checkout 3.1.6
 	cd ..
     else
 	URL=https://github.com/fyookball/$repo.git
@@ -100,7 +100,10 @@ wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSI
 
 cd dist
 mv electrum-setup.exe $NAME_ROOT-$VERSION-setup.exe
-cd ..
+
+cd ../../..
+python3 setup.py sdist --format=zip,gztar
+
 
 echo "Done."
 md5sum dist/electrum*exe
