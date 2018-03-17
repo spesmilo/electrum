@@ -130,10 +130,6 @@ unless you reset the max fee in preferences or remove the config file.  There is
 side.  Be careful sending too low of a fee (lower than 1 satoshi/byte) or your transaction may get stuck,
 and there is no warning message.
 
-# Release 3.0
-  * upgrade to Python3 and PyQt5
-  * Build is done deterministically for windows
-  * improve fee policy
 
 # Release 2.9.2
   * force headers download if headers file is corrupted
@@ -156,3 +152,54 @@ and there is no warning message.
   * Various fixes for hardware wallets
   * Remove 2FA for new wallet creation
   * Remove feature to copy electrum wallet files
+
+# Release 3.0
+  * upgrade to Python3 and PyQt5
+  * Build is done deterministically for windows
+  * improve fee policy
+
+# Release 3.1
+
+  * Multiple address format support.  Electron Cash supports input of cashaddr
+    addresses, legacy bitcoin addresses, and BitPay addresses anywhere
+    where a legacy address used to be accepted.
+  * Only display of cashaddr and legacy addresses is supported.  You can
+    toggle the display format in the Appearance tab of the Preferences
+    dialog window; alternatively you can press the converter icon
+    button in the toolbar at the bottom of the main window.  Hardware
+    wallets will probably show the legacy format until their firmware is
+    updated.
+  * An address converter tab can convert between all 3 address formats.
+    To see it, choose to show it from the View menu.
+  * At some stage support for BitPay address format will be removed, and
+    at some later stage support for display of legacy addresses will also
+    be removed.
+  * The fee slider has been adjusted to range from 1 to 10 sats/byte.
+  * Many bug fixes and improvements
+
+
+# Release 3.1.1
+  * Requires Python 3.5 or greater
+  * Fixes JSONPRC security threat
+  * Fixes included for ledger for windows
+
+
+# Release 3.1.2
+  * Additional security improvements related to JSONRPC
+
+# Release 3.1.3 
+  * Android only release for security fixes
+
+# Release 3.1.5 
+  * Various bug fixes
+
+# Release 3.1.6
+
+  * Enable Bip70 payment requests for merchants like BitPay.
+  * Prohibit unconfirmed inputs on payment request (invoice) payments 
+    because Bitpay will reject them anyway.
+  * Remove Bitpay address format from address converter as Bitpay is
+    now fully on CashAddr.
+  * Introduce 'cash' moniker for micro bitcoin
+
+
