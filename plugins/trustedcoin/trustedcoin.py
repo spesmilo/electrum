@@ -406,7 +406,7 @@ class TrustedCoinPlugin(BasePlugin):
             xprv1, xpub1 = self.get_xkeys(seed, passphrase, "m/0'/")
             xprv2, xpub2 = self.get_xkeys(seed, passphrase, "m/1'/")
         else:
-            raise BaseException('unrecognized seed length')
+            raise BaseException('unrecognized seed length: {} words'.format(n))
         return xprv1, xpub1, xprv2, xpub2
 
     def create_keystore(self, wizard, seed, passphrase):
