@@ -1,3 +1,5 @@
+from functools import partial
+
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from .digitalbitbox import DigitalBitboxPlugin
 
@@ -30,14 +32,7 @@ class Plugin(DigitalBitboxPlugin, QtPluginBase):
 
         if len(addrs) == 1:
             def show_address():
-                change, index = wallet.get_address_index(addrs[0])
-                keypath = '%s/%d/%d' % (keystore.derivation, change, index)
-                xpub = self.get_client(keystore)._get_xpub(keypath)
-                verify_request_payload = {
-                    "type": 'p2pkh',
-                    "echo": xpub['echo'],
-                    }
-                self.comserver_post_notification(verify_request_payload)
+                keystore.thread.add(partial(self.show_address, wallet, keystore, addrs[0]))
 
             menu.addAction(_("Show on {}").format(self.device), show_address)
 

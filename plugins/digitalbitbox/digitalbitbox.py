@@ -82,6 +82,13 @@ class DigitalBitbox_Client():
     def is_paired(self):
         return self.password is not None
 
+    def has_usable_connection_with_device(self):
+        try:
+            self.dbb_has_password()
+        except BaseException:
+            return False
+        return True
+
     def _get_xpub(self, bip32_path):
         if self.check_device_dialog():
             return self.hid_send_encrypt(b'{"xpub": "%s"}' % bip32_path.encode('utf8'))
@@ -168,7 +175,7 @@ class DigitalBitbox_Client():
         msg = _("Enter your Digital Bitbox password:")
         while self.password is None:
             if not self.password_dialog(msg):
-                return False
+                raise UserCancelled()
             reply = self.hid_send_encrypt(b'{"led":"blink"}')
             if 'error' in reply:
                 self.password = None
@@ -724,3 +731,13 @@ class DigitalBitboxPlugin(HW_PluginBase):
         if client is not None:
             client.check_device_dialog()
         return client
+
+    def show_address(self, wallet, keystore, address):
+        change, index = wallet.get_address_index(address)
+        keypath = '%s/%d/%d' % (keystore.derivation, change, index)
+        xpub = self.get_client(keystore)._get_xpub(keypath)
+        verify_request_payload = {
+            "type": 'p2pkh',
+            "echo": xpub['echo'],
+        }
+        self.comserver_post_notification(verify_request_payload)
