@@ -51,6 +51,13 @@ class Ledger_Client():
     def i4b(self, x):
         return pack('>I', x)
 
+    def has_usable_connection_with_device(self):
+        try:
+            self.dongleObject.getFirmwareVersion()
+        except BaseException:
+            return False
+        return True
+
     def test_pin_unlocked(func):
         """Function decorator to test the Ledger for being unlocked, and if not,
         raise a human-readable exception.
@@ -431,13 +438,6 @@ class LedgerPlugin(HW_PluginBase):
         HW_PluginBase.__init__(self, parent, config, name)
         if self.libraries_available:
             self.device_manager().register_devices(self.DEVICE_IDS)
-
-    def btchip_is_connected(self, keystore):
-        try:
-            self.get_client(keystore).getFirmwareVersion()
-        except Exception as e:
-            return False
-        return True
 
     def get_btchip_device(self, device):
         ledger = False
