@@ -38,6 +38,8 @@ from PyQt5.QtWidgets import *
 from electrum.i18n import _
 from electrum import ELECTRUM_VERSION, bitcoin, constants
 
+from .util import MessageBoxMixin
+
 issue_template = """<h2>Traceback</h2>
 <pre>
 {traceback}
@@ -54,7 +56,7 @@ issue_template = """<h2>Traceback</h2>
 report_server = "https://crashhub.electrum.org/crash"
 
 
-class Exception_Window(QWidget):
+class Exception_Window(QWidget, MessageBoxMixin):
     _active_window = None
 
     def __init__(self, main_window, exctype, value, tb):
@@ -75,7 +77,9 @@ class Exception_Window(QWidget):
               'information:')))
 
         collapse_info = QPushButton(_("Show report contents"))
-        collapse_info.clicked.connect(lambda: QMessageBox.about(self, "Report contents", self.get_report_string()))
+        collapse_info.clicked.connect(
+            lambda: self.msg_box(QMessageBox.NoIcon,
+                                 self, "Report contents", self.get_report_string()))
         main_box.addWidget(collapse_info)
 
         main_box.addWidget(QLabel(_("Please briefly describe what led to the error (optional):")))
