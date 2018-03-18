@@ -724,3 +724,13 @@ class DigitalBitboxPlugin(HW_PluginBase):
         if client is not None:
             client.check_device_dialog()
         return client
+
+    def show_address(self, wallet, keystore, address):
+        change, index = wallet.get_address_index(address)
+        keypath = '%s/%d/%d' % (keystore.derivation, change, index)
+        xpub = self.get_client(keystore)._get_xpub(keypath)
+        verify_request_payload = {
+            "type": 'p2pkh',
+            "echo": xpub['echo'],
+        }
+        self.comserver_post_notification(verify_request_payload)
