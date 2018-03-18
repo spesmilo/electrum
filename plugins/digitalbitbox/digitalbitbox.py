@@ -168,7 +168,7 @@ class DigitalBitbox_Client():
         msg = _("Enter your Digital Bitbox password:")
         while self.password is None:
             if not self.password_dialog(msg):
-                return False
+                raise UserCancelled()
             reply = self.hid_send_encrypt(b'{"led":"blink"}')
             if 'error' in reply:
                 self.password = None
