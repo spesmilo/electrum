@@ -423,9 +423,11 @@ def get_address_from_output_script(_bytes):
         return TYPE_ADDRESS, hash160_to_p2sh(decoded[1][1])
 
     # segwit address
-    match = [ opcodes.OP_0, opcodes.OP_PUSHDATA4 ]
-    if match_decoded(decoded, match):
-        return TYPE_ADDRESS, hash_to_segwit_addr(decoded[1][1])
+    possible_witness_versions = [opcodes.OP_0] + list(range(opcodes.OP_1, opcodes.OP_16 + 1))
+    for witver, opcode in enumerate(possible_witness_versions):
+        match = [ opcode, opcodes.OP_PUSHDATA4 ]
+        if match_decoded(decoded, match):
+            return TYPE_ADDRESS, hash_to_segwit_addr(decoded[1][1], witver=witver)
 
     return TYPE_SCRIPT, bh2u(_bytes)
 
