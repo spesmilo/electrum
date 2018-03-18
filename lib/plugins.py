@@ -552,7 +552,7 @@ class DeviceMgr(ThreadJob, PrintError):
         with self.lock:
             connected = {}
             for client, pair in self.clients.items():
-                if pair in pairs:
+                if pair in pairs and client.has_usable_connection_with_device():
                     connected[client] = pair
                 else:
                     disconnected_ids.append(pair[1])
