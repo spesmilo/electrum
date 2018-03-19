@@ -25,6 +25,19 @@ Below you can find the original README from (Bitcoin) Electrum.
 Getting started
 ===============
 
+Windows
+-------
+
+Download the latest version from our `release page <https://github.com/Feathercoin-Foundation/electrum-ftc/releases>`_.
+
+Mac
+---
+
+Download the latest version from our `release page <https://github.com/Feathercoin-Foundation/electrum-ftc/releases>`_.
+
+Linux
+-----
+
 Electrum is a pure python application. If you want to use the
 Qt interface, install the Qt dependencies::
 
