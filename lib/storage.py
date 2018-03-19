@@ -33,7 +33,7 @@ import pbkdf2, hmac, hashlib
 import base64
 import zlib
 
-from .util import PrintError, profiler, InvalidPassword
+from .util import PrintError, profiler, InvalidPassword, WalletFileException
 from .plugins import run_hook, plugin_loaders
 from .keystore import bip44_derivation
 from . import bitcoin
@@ -113,7 +113,7 @@ class WalletStorage(PrintError):
 
         if not self.manual_upgrades:
             if self.requires_split():
-                raise BaseException("This wallet has multiple accounts and must be split")
+                raise WalletFileException("This wallet has multiple accounts and must be split")
             if self.requires_upgrade():
                 self.upgrade()
 
@@ -174,7 +174,7 @@ class WalletStorage(PrintError):
         elif v == STO_EV_XPUB_PW:
             return b'BIE2'
         else:
-            raise Exception('no encryption magic for version: %s' % v)
+            raise WalletFileException('no encryption magic for version: %s' % v)
 
     def decrypt(self, password):
         ec_key = self.get_key(password)
@@ -320,7 +320,7 @@ class WalletStorage(PrintError):
                 storage2.write()
                 result.append(new_path)
         else:
-            raise BaseException("This wallet has multiple accounts and must be split")
+            raise WalletFileException("This wallet has multiple accounts and must be split")
         return result
 
     def requires_upgrade(self):
@@ -419,7 +419,7 @@ class WalletStorage(PrintError):
                     d['seed'] = seed
                 self.put(key, d)
         else:
-            raise Exception('Unable to tell wallet type. Is this even a wallet file?')
+            raise WalletFileException('Unable to tell wallet type. Is this even a wallet file?')
         # remove junk
         self.put('master_public_key', None)
         self.put('master_public_keys', None)
@@ -543,7 +543,7 @@ class WalletStorage(PrintError):
             else:
                 addresses.append(addr)
         if addresses and keypairs:
-            raise BaseException('mixed addresses and privkeys')
+            raise WalletFileException('mixed addresses and privkeys')
         elif addresses:
             self.put('addresses', addresses)
             self.put('accounts', None)
@@ -553,7 +553,7 @@ class WalletStorage(PrintError):
             self.put('keypairs', keypairs)
             self.put('accounts', None)
         else:
-            raise BaseException('no addresses or privkeys')
+            raise WalletFileException('no addresses or privkeys')
 
     def convert_account(self):
         if not self._is_upgrade_method_needed(0, 13):
@@ -566,9 +566,9 @@ class WalletStorage(PrintError):
         if cur_version > max_version:
             return False
         elif cur_version < min_version:
-            raise BaseException(
-                ('storage upgrade: unexpected version %d (should be %d-%d)'
-                 % (cur_version, min_version, max_version)))
+            raise WalletFileException(
+                'storage upgrade: unexpected version {} (should be {}-{})'
+                .format(cur_version, min_version, max_version))
         else:
             return True
 
@@ -584,7 +584,9 @@ class WalletStorage(PrintError):
         if not seed_version:
             seed_version = OLD_SEED_VERSION if len(self.get('master_public_key','')) == 128 else NEW_SEED_VERSION
         if seed_version > FINAL_SEED_VERSION:
-            raise BaseException('This version of Electrum is too old to open this wallet')
+            raise WalletFileException('This version of Electrum is too old to open this wallet.\n'
+                                      '(highest supported storage version: {}, version of this file: {})'
+                                      .format(FINAL_SEED_VERSION, seed_version))
         if seed_version==14 and self.get('seed_type') == 'segwit':
             self.raise_unsupported_version(seed_version)
         if seed_version >=12:
@@ -607,4 +609,4 @@ class WalletStorage(PrintError):
             else:
                 # creation was complete if electrum was run from source
                 msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
-        raise BaseException(msg)
+        raise WalletFileException(msg)
