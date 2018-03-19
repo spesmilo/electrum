@@ -29,7 +29,7 @@ import errno
 import random
 import re
 import select
-from collections import defaultdict
+from collections import defaultdict, deque
 import threading
 import socket
 import json
@@ -150,6 +150,34 @@ def deserialize_server(server_str):
 def serialize_server(host, port, protocol):
     return str(':'.join([host, port, protocol]))
 
+class QLock:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.waiters = deque()
+        self.count = 0
+
+    def acquire(self):
+        self.lock.acquire()
+        if self.count:
+            new_lock = threading.Lock()
+            new_lock.acquire()
+            self.waiters.append(new_lock)
+            self.lock.release()
+            new_lock.acquire()
+            self.lock.acquire()
+        self.count += 1
+        self.lock.release()
+
+    def release(self):
+        with self.lock:
+            if not self.count:
+                raise ValueError("lock not acquired")
+            self.count -= 1
+            if self.waiters:
+                self.waiters.popleft().release()
+
+    def locked(self):
+        return self.count > 0
 
 class Network(util.DaemonThread):
     """The Network class manages a set of connections to remote electrum
@@ -984,13 +1012,13 @@ class Network(util.DaemonThread):
     def run(self):
         self.init_headers_file()
         loop = asyncio.new_event_loop()
+        networkAndWalletLock = QLock()
         def asyncioThread():
             asyncio.set_event_loop(loop)
             self.lightninglock.acquire()
             task = asyncio.ensure_future(asyncio.gather(self.lightningrpc.run(networkAndWalletLock), self.lightningworker.run(networkAndWalletLock)))
             loop.run_forever()
         threading.Thread(target=asyncioThread).start()
-        networkAndWalletLock = threading.Lock()
         networkAndWalletLock.acquire()
         while self.is_running():
             self.maintain_sockets()
