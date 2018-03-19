@@ -1,4 +1,5 @@
 import functools
+import datetime
 import sys
 import struct
 import traceback
@@ -602,7 +603,7 @@ class LightningRPC:
         try:
             qitem = self.queue.get(block=False)
         except queue.Empty:
-            await asyncio.sleep(1)
+            await asyncio.sleep(5)
             pass
         else:
             def lightningRpcNetworkRequestThreadTarget(qitem):
@@ -686,31 +687,22 @@ class LightningWorker:
             NETWORK = self.network()
             CONFIG = self.config()
 
-            netAndWalLock.acquire()
-            synced, local, server = isSynced()
-            netAndWalLock.release()
-            if not synced:
-                await asyncio.sleep(5)
-                continue
-            else:
-                if not wasAlreadyUpToDate:
-                    print("UP TO DATE FOR THE FIRST TIME")
-                    print(NETWORK.get_status_value("updated"))
-                wasAlreadyUpToDate = True
-
             writer = None
+            print("OPENING CONNECTION")
             try:
                 reader, writer = await asyncio.wait_for(asyncio.open_connection(machine, 1080), 5)
                 writer.write(b"MAGIC")
                 writer.write(privateKeyHash[:6])
                 await asyncio.wait_for(writer.drain(), 5)
                 while asyncio.get_event_loop().is_running():
+                    print(datetime.datetime.now(), "READING REQUEST")
                     obj = await readJson(reader)
                     if not obj: continue
                     if "id" not in obj:
                         print("Invoice update?", obj)
                         for i in self.subscribers: i(obj)
                         continue
+                    print(datetime.datetime.now(), "making reply")
                     await asyncio.wait_for(readReqAndReply(obj, writer, netAndWalLock), 10)
             except:
                 traceback.print_exc()
