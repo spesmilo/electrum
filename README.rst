@@ -81,43 +81,7 @@ Compile the icons file for Qt::
     sudo apt-get install pyqt5-dev-tools
     pyrcc5 icons.qrc -o gui/qt/icons_rc.py
 
-Compile the protobuf description file::
-
-    sudo apt-get install protobuf-compiler
-    protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
-
 Create translations (optional)::
 
     sudo apt-get install python-pycurl gettext
     ./contrib/make_locale
-
-
-
-
-Creating Binaries
-=================
-
-
-To create binaries, create the 'packages' directory::
-
-    ./contrib/make_packages
-
-This directory contains the python dependencies used by Electrum.
-
-Mac OS X / macOS
---------
-
-::
-
-    # On MacPorts installs: 
-    sudo python3 setup-release.py py2app
-    
-    # On Homebrew installs: 
-    ARCHFLAGS="-arch i386 -arch x86_64" sudo python3 setup-release.py py2app --includes sip
-    
-    sudo hdiutil create -fs HFS+ -volname "Electrum" -srcfolder dist/Electrum.app dist/electrum-VERSION-macosx.dmg
-
-Windows
--------
-
-See `contrib/build-wine/README` file.
