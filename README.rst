@@ -22,19 +22,6 @@ Relevant changes to the Bitcoin Electrum wallet:
 Below you can find the original README from (Bitcoin) Electrum.
 
 
-Electrum - Lightweight Bitcoin client
-=====================================
-
-::
-
-  Licence: MIT Licence
-  Author: Thomas Voegtlin
-  Language: Python
-  Homepage: https://electrum.org/
-
-
-
-
 Getting started
 ===============
 
