@@ -211,9 +211,14 @@ class SimpleConfig(PrintError):
             return
         path = os.path.join(self.path, "config")
         s = json.dumps(self.user_config, indent=4, sort_keys=True)
-        with open(path, "w") as f:
-            f.write(s)
-        os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+        try:
+            with open(path, "w") as f:
+                f.write(s)
+            os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+        except FileNotFoundError:
+            # datadir probably deleted while running...
+            if os.path.exists(self.path):  # or maybe not?
+                raise
 
     def get_wallet_path(self):
         """Set the path of the wallet."""
