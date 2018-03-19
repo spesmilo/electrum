@@ -478,12 +478,21 @@ def signOutputRaw(tx, signDesc):
 async def PublishTransaction(json):
     req = rpc_pb2.PublishTransactionRequest()
     json_format.Parse(json, req)
-    global NETWORK
+    global NETWORK, globLock
     tx = transaction.Transaction(binascii.hexlify(req.tx).decode("utf-8"))
-    suc, has = NETWORK.broadcast(tx)
+    def target(tx, NETWORK, globLock):
+        globLock.acquire()
+        try:
+          res = NETWORK.broadcast(tx)
+          print("PUBLISH TRANSACTION IN SEPARATE THREAD PRODUCED", res)
+        except:
+          traceback.print_exc()
+        finally:
+          globLock.release()
+    threading.Thread(target=target, args=(tx, NETWORK, globLock)).start()
     m = rpc_pb2.PublishTransactionResponse()
-    m.success = suc
-    m.error = str(has) if not suc else ""
+    m.success = True
+    m.error = ""
     if m.error:
         print("PublishTransaction", m.error)
         if "Missing inputs" in m.error:
@@ -724,7 +733,10 @@ async def readJson(reader):
         except TimeoutError:
             continue
 
+globLock = None
+
 async def readReqAndReply(obj, writer, netAndWalLock):
+    global globLock
     methods = [
     # SecretKeyRing
     DerivePrivKey,
@@ -753,6 +765,7 @@ async def readReqAndReply(obj, writer, netAndWalLock):
             if method.__name__ == obj["method"]:
                 params = obj["params"][0]
                 print("calling method", obj["method"], "with", params)
+                globLock = netAndWalLock
                 netAndWalLock.acquire()
                 if asyncio.iscoroutinefunction(method):
                     result = await method(params)
