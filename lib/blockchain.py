@@ -255,6 +255,10 @@ class Blockchain(util.PrintError):
             with open(name, 'rb') as f:
                 f.seek(delta * 80)
                 h = f.read(80)
+        elif not os.path.exists(util.get_headers_dir(self.config)):
+            raise Exception('Electrum datadir does not exist. Was it deleted while running?')
+        else:
+            raise Exception('Cannot find headers file but datadir is there. Should be at {}'.format(name))
         if h == bytes([0])*80:
             return None
         return deserialize_header(h, height)
