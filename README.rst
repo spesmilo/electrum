@@ -6,20 +6,17 @@
 electrum-ftc - Lightweight Feathercoin client
 =====================================
 
-electrum-ftc is a fork of the Bitcoin Electrum wallet (https://electrum.org/) adapted to work with Feathercoin.
-All improvements which are not related to Feathercoin itself will be made directly in the upstream Electrum repository (https://github.com/spesmilo/electrum).
+electrum-ftc is a fork of the `Bitcoin Electrum wallet <https://electrum.org/>`_ adapted to work with Feathercoin.
+All improvements which are not related to Feathercoin itself will be made directly in the
+`upstream Electrum repository <https://github.com/spesmilo/electrum>`_.
 
 Relevant changes to the Bitcoin Electrum wallet:
 
 - Works with the Feathercoin specifics (address format, difficulty adjustment, NeoScrypt)
 - All transactions are replace-by-fee transactions
-- bech32 is the only address format (all addresses start with fc1)
 - No hardware wallet support
 - No support for Trustedcoin 2FA or GreenAddress
 - No Android version
-- Pipenv for dependency management
-
-Below you can find the original README from (Bitcoin) Electrum.
 
 
 Getting started
