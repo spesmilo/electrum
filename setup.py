@@ -54,9 +54,10 @@ class BuildPyCommand(build_py):
 
 class InstallCommand(install):
     def run(self):
+        setup = core.run_setup('neoscrypt_module/setup.py', stop_after='commandline')
         if platform.system() is 'Windows':
-            core.run_setup('neoscrypt_module/setup.py', ['build', '--compiler=mingw32'])
-        core.run_setup('neoscrypt_module/setup.py', ['install'])
+            setup.command_options['build_ext'] = {'compiler': ('build_ext', 'mingw32')}
+        setup.run_command('install')
         install.run(self)
 
 setup(
