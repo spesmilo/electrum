@@ -197,12 +197,7 @@ def SendOutputs(json):
         m.resultHash = ""
         return json_format.MessageToJson(m)
 
-    suc, has = NETWORK.broadcast(tx)
-    if not suc:
-        m.success = False
-        m.error = "electrum/lightning/SendOutputs: Could not broadcast: " + str(has)
-        m.resultHash = ""
-        return json_format.MessageToJson(m)
+    publishTxThread(tx)
     m.success = True
     m.error = ""
     m.resultHash = tx.txid()
@@ -475,21 +470,21 @@ def signOutputRaw(tx, signDesc):
                                   signDesc.output.value, signDesc.witnessScript, sigHashAll, pri2)
     return sig[:len(sig) - 1]
 
-async def PublishTransaction(json):
-    req = rpc_pb2.PublishTransactionRequest()
-    json_format.Parse(json, req)
-    global NETWORK, globLock
-    tx = transaction.Transaction(binascii.hexlify(req.tx).decode("utf-8"))
-    def target(tx, NETWORK, globLock):
-        globLock.acquire()
+def publishTxThread(tx):
+    global NETWORK
+    def target(tx, NETWORK):
         try:
           res = NETWORK.broadcast(tx)
           print("PUBLISH TRANSACTION IN SEPARATE THREAD PRODUCED", res)
         except:
           traceback.print_exc()
-        finally:
-          globLock.release()
-    threading.Thread(target=target, args=(tx, NETWORK, globLock)).start()
+    threading.Thread(target=target, args=(tx, NETWORK)).start()
+
+async def PublishTransaction(json):
+    req = rpc_pb2.PublishTransactionRequest()
+    json_format.Parse(json, req)
+    tx = transaction.Transaction(binascii.hexlify(req.tx).decode("utf-8"))
+    publishTxThread(tx)
     m = rpc_pb2.PublishTransactionResponse()
     m.success = True
     m.error = ""
