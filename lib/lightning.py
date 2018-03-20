@@ -688,6 +688,7 @@ class LightningWorker:
     async def run(self, netAndWalLock):
         global WALLET, NETWORK
         global CONFIG
+        global globalIdx
 
         wasAlreadyUpToDate = False
 
@@ -695,6 +696,9 @@ class LightningWorker:
             WALLET = self.wallet()
             NETWORK = self.network()
             CONFIG = self.config()
+
+            globalIdx = WALLET.storage.get("lightning_global_key_index", 0)
+            if globalIdx != 0: print("initial lightning global key index", globalIdx)
 
             writer = None
             print("OPENING CONNECTION")
@@ -846,7 +850,7 @@ def DerivePrivKey(json):
     msg = json_format.MessageToJson(m)
     return msg
 
-globalIdx = 0
+globalIdx = None
 
 def DeriveNextKey(json):
     global globalIdx
@@ -864,6 +868,8 @@ def DeriveNextKey(json):
 
     m.keyDescriptor.pubKey = pubkFromECKEY(fetchPrivKey(None, 9000, globalIdx))
     globalIdx += 1
+    WALLET.storage.put("lightning_global_key_index", globalIdx)
+    WALLET.storage.write()
 
     msg = json_format.MessageToJson(m)
     return msg
