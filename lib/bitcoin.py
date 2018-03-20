@@ -264,7 +264,7 @@ def hash_160(public_key):
         return md.digest()
 
 
-def hash160_to_b58_address(h160, addrtype, witness_program_version=1):
+def hash160_to_b58_address(h160, addrtype):
     s = bytes([addrtype])
     s += h160
     return base_encode(s+Hash(s)[0:4], base=58)
@@ -276,17 +276,23 @@ def b58_address_to_hash160(addr):
     return _bytes[0], _bytes[1:21]
 
 
-def hash160_to_p2pkh(h160):
-    return hash160_to_b58_address(h160, constants.net.ADDRTYPE_P2PKH)
+def hash160_to_p2pkh(h160, *, net=None):
+    if net is None:
+        net = constants.net
+    return hash160_to_b58_address(h160, net.ADDRTYPE_P2PKH)
 
-def hash160_to_p2sh(h160):
-    return hash160_to_b58_address(h160, constants.net.ADDRTYPE_P2SH)
+def hash160_to_p2sh(h160, *, net=None):
+    if net is None:
+        net = constants.net
+    return hash160_to_b58_address(h160, net.ADDRTYPE_P2SH)
 
 def public_key_to_p2pkh(public_key):
     return hash160_to_p2pkh(hash_160(public_key))
 
-def hash_to_segwit_addr(h, witver):
-    return segwit_addr.encode(constants.net.SEGWIT_HRP, witver, h)
+def hash_to_segwit_addr(h, witver, *, net=None):
+    if net is None:
+        net = constants.net
+    return segwit_addr.encode(net.SEGWIT_HRP, witver, h)
 
 def public_key_to_p2wpkh(public_key):
     return hash_to_segwit_addr(hash_160(public_key), witver=0)
@@ -325,14 +331,16 @@ def redeem_script_to_address(txin_type, redeem_script):
         raise NotImplementedError(txin_type)
 
 
-def script_to_address(script):
+def script_to_address(script, *, net=None):
     from .transaction import get_address_from_output_script
-    t, addr = get_address_from_output_script(bfh(script))
+    t, addr = get_address_from_output_script(bfh(script), net=net)
     assert t == TYPE_ADDRESS
     return addr
 
-def address_to_script(addr):
-    witver, witprog = segwit_addr.decode(constants.net.SEGWIT_HRP, addr)
+def address_to_script(addr, *, net=None):
+    if net is None:
+        net = constants.net
+    witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
     if witprog is not None:
         assert (0 <= witver <= 16)
         OP_n = witver + 0x50 if witver > 0 else 0
@@ -340,11 +348,11 @@ def address_to_script(addr):
         script += push_script(bh2u(bytes(witprog)))
         return script
     addrtype, hash_160 = b58_address_to_hash160(addr)
-    if addrtype == constants.net.ADDRTYPE_P2PKH:
+    if addrtype == net.ADDRTYPE_P2PKH:
         script = '76a9'                                      # op_dup, op_hash_160
         script += push_script(bh2u(hash_160))
         script += '88ac'                                     # op_equalverify, op_checksig
-    elif addrtype == constants.net.ADDRTYPE_P2SH:
+    elif addrtype == net.ADDRTYPE_P2SH:
         script = 'a9'                                        # op_hash_160
         script += push_script(bh2u(hash_160))
         script += '87'                                       # op_equal
