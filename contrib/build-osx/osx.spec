@@ -90,6 +90,7 @@ app = BUNDLE(exe,
              icon=electrum+ICONS_FILE,
              bundle_identifier=None,
              info_plist = {
-                 'NSHighResolutionCapable':'True'
+                 'NSHighResolutionCapable':'True',
+                 'NSSupportsAutomaticGraphicsSwitching':'True'
              }
 )
