@@ -1,6 +1,7 @@
 from kivy.lang import Builder
 from kivy.factory import Factory
 from electrum_gui.kivy.i18n import _
+import electrum.lightning as lightning
 
 Builder.load_string('''
 <LightningPayerDialog@Popup>
