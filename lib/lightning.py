@@ -601,6 +601,7 @@ class LightningRPC:
         super(LightningRPC, self).__init__()
         self.queue = queue.Queue()
         self.subscribers = []
+        self.console = None
     # overridden
     async def run(self, netAndWalLock):
       while asyncio.get_event_loop().is_running():
