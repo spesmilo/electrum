@@ -193,6 +193,7 @@ class WalletStorage(PrintError):
             os.remove(self.path)
             os.rename(temp_path, self.path)
         os.chmod(self.path, mode)
+        self.raw = s
         self.print_error("saved", self.path)
         self.modified = False
 
