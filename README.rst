@@ -54,16 +54,16 @@ Development version
 
 Check out the code from Github::
 
-    git clone git://github.com/spesmilo/electrum.git
-    cd electrum
+    git clone https://github.com/Feathercoin-Foundation/electrum-ftc.git
+    cd electrum-ftc
 
 Run install (this should install dependencies)::
 
+    sudo apt-get install libssl-dev python3-pyqt5 pyqt5-dev-tools
     python3 setup.py install
 
 Compile the icons file for Qt::
 
-    sudo apt-get install pyqt5-dev-tools
     pyrcc5 icons.qrc -o gui/qt/icons_rc.py
 
 Create translations (optional)::
