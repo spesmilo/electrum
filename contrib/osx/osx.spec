@@ -112,7 +112,7 @@ a = Analysis([electrum+ MAIN_SCRIPT,
              binaries=binaries,
              datas=datas,
              hiddenimports=hiddenimports,
-             hookspath=[])
+             hookspath=['contrib/pyinstaller-hooks'])
 
 # http://stackoverflow.com/questions/19055089/pyinstaller-onefile-warning-pyconfig-h-when-importing-scipy-or-scipy-signal
 for d in a.datas:
@@ -134,6 +134,11 @@ if APP_SIGN:
     monkey_patch_pyinstaller_for_codesigning(APP_SIGN)
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+pure = []
+for module in a.pure:
+    pure.append((module[0].replace('electrum', 'electrum_ftc'), *module[1:]))
+pyz = PYZ(pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(pyz,
           a.scripts,

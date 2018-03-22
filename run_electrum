@@ -78,6 +78,15 @@ def check_imports():
 if not is_android:
     check_imports()
 
+if not is_local:
+    import pkgutil
+    loader = pkgutil.find_loader('electrum_ftc')
+    if loader.__module__ == 'pyimod03_importers':
+        loader.load_module('electrum', 'electrum_ftc')
+    else:
+        loader.name = 'electrum'
+        loader.load_module('electrum')
+
 
 from electrum.logging import get_logger, configure_logging
 from electrum import util
