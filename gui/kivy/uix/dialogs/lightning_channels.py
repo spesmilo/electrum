@@ -1,5 +1,7 @@
 from kivy.lang import Builder
 from kivy.factory import Factory
+from kivy.clock import Clock
+import electrum.lightning as lightning
 
 Builder.load_string('''
 <LightningChannelItem@CardItem>
@@ -37,13 +39,15 @@ class LightningChannelsDialog(Factory.Popup):
         self.app.wallet.network.lightningrpc.clearSubscribers()
     def fetch_channels(self, dw):
         lightning.lightningCall(self.app.wallet.network.lightningrpc, "listchannels")()
-    def rpc_result_handler(self, res):
+    def rpc_result_handler(self, methodName, res):
+        print("got result", methodName)
         if isinstance(res, Exception):
             raise res
         channel_cards = self.ids.lightning_channels_container
-        channels_cards.clear_widgets()
+        channel_cards.clear_widgets()
         for i in res["channels"]:
             item = Factory.LightningChannelItem()
             item.screen = self
-            item.channelId = i.channelId
+            print(i)
+            item.channelId = i["chan_id"]
             channel_cards.add_widget(item)
