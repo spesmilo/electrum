@@ -15,13 +15,15 @@ block_cipher=None
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = ['_scrypt']
+# FIXME: use a proper hook for this
+hiddenimports += ['electrum_ftc', 'electrum_ftc.base_wizard', 'electrum_ftc_gui', 'electrum_ftc_gui.qt', 'electrum_ftc_plugins']
 
 datas = [
-    (home+'lib/currencies.json', 'electrum'),
-    (home+'lib/servers.json', 'electrum'),
-    (home+'lib/wordlist/english.txt', 'electrum/wordlist'),
-    (home+'lib/locale', 'electrum/locale'),
-    (home+'plugins', 'electrum_plugins'),
+    (home+'lib/currencies.json', 'electrum_ftc'),
+    (home+'lib/servers.json', 'electrum_ftc'),
+    (home+'lib/wordlist/english.txt', 'electrum_ftc/wordlist'),
+    (home+'lib/locale', 'electrum_ftc/locale'),
+    (home+'plugins', 'electrum_ftc_plugins'),
 ]
 
 # Workaround for "Retro Look":

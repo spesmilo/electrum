@@ -85,6 +85,11 @@ if is_local or is_android:
     imp.load_module('electrum', *imp.find_module('lib'))
     imp.load_module('electrum_gui', *imp.find_module('gui'))
     imp.load_module('electrum_plugins', *imp.find_module('plugins'))
+else:
+    import importlib
+    sys.modules['electrum'] = importlib.import_module('electrum_ftc')
+    sys.modules['electrum_gui'] = importlib.import_module('electrum_ftc_gui')
+    sys.modules['electrum_plugins'] = importlib.import_module('electrum_ftc_plugins')
 
 
 from electrum import bitcoin
