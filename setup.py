@@ -81,6 +81,7 @@ setup(
         'jsonrpclib-pelix',
         'PySocks>=1.6.6',
         'scrypt',
+        'hidapi',
     ],
     packages=[
         'electrum_ftc',
