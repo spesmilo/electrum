@@ -143,6 +143,10 @@ class Imported_KeyStore(Software_KeyStore):
         # re-serialize the key so the internal storage format is consistent
         serialized_privkey = serialize_privkey(
             privkey, compressed, txin_type, internal_use=True)
+        # NOTE: if the same pubkey is reused for multiple addresses (script types),
+        # there will only be one pubkey-privkey pair for it in self.keypairs,
+        # and the privkey will encode a txin_type but that txin_type can not be trusted.
+        # Removing keys complicates this further.
         self.keypairs[pubkey] = pw_encode(serialized_privkey, password)
         return txin_type, pubkey
 

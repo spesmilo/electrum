@@ -465,6 +465,7 @@ def DecodeBase58Check(psz):
 
 # backwards compat
 # extended WIF for segwit (used in 3.0.x; but still used internally)
+# the keys in this dict should be a superset of what Imported Wallets can import
 SCRIPT_TYPES = {
     'p2pkh':0,
     'p2wpkh':1,

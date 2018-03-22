@@ -1929,8 +1929,18 @@ class Imported_Wallet(Simple_Wallet):
         pubkey = self.get_public_key(address)
         self.addresses.pop(address)
         if pubkey:
-            self.keystore.delete_imported_key(pubkey)
-            self.save_keystore()
+            # delete key iff no other address uses it (e.g. p2pkh and p2wpkh for same key)
+            for txin_type in bitcoin.SCRIPT_TYPES.keys():
+                try:
+                    addr2 = bitcoin.pubkey_to_address(txin_type, pubkey)
+                except NotImplementedError:
+                    pass
+                else:
+                    if addr2 in self.addresses:
+                        break
+            else:
+                self.keystore.delete_imported_key(pubkey)
+                self.save_keystore()
         self.storage.put('addresses', self.addresses)
 
         self.storage.write()
