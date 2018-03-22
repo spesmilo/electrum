@@ -521,7 +521,7 @@ def DecodeBase58Check(psz):
 # extended key export format for segwit
 
 SCRIPT_TYPES = {
-    'p2pkh':0,
+    'p2pkh':0x0E,
     'p2wpkh':1,
     'p2wpkh-p2sh':2,
     'p2sh':5,
