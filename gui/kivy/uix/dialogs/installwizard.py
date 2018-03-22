@@ -802,27 +802,17 @@ class InstallWizard(BaseWizard, Widget):
         app = App.get_running_app()
         Clock.schedule_once(lambda dt: app.show_error(msg))
 
-    def password_dialog(self, message, callback):
-        popup = PasswordDialog()
-        popup.init(message, callback)
-        popup.open()
-
     def request_password(self, run_next, force_disable_encrypt_cb=False):
-        def callback(pin):
-            if pin:
-                self.run('confirm_password', pin, run_next)
-            else:
-                run_next(None, None)
-        self.password_dialog('Choose a PIN code', callback)
-
-    def confirm_password(self, pin, run_next):
-        def callback(conf):
-            if conf == pin:
-                run_next(pin, False)
-            else:
-                self.show_error(_('PIN mismatch'))
-                self.run('request_password', run_next)
-        self.password_dialog('Confirm your PIN code', callback)
+        def on_success(old_pin, pin):
+            assert old_pin is None
+            run_next(pin, False)
+        def on_failure():
+            self.show_error(_('PIN mismatch'))
+            self.run('request_password', run_next)
+        popup = PasswordDialog()
+        app = App.get_running_app()
+        popup.init(app, None, _('Choose PIN code'), on_success, on_failure, is_change=2)
+        popup.open()
 
     def action_dialog(self, action, run_next):
         f = getattr(self, action)
