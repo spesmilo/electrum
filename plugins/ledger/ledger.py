@@ -378,7 +378,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
             for _type, address, amount in tx.outputs():
                 assert _type == TYPE_ADDRESS
                 info = tx.output_info.get(address)
-                if (info is not None) and (len(tx.outputs()) != 1):
+                if (info is not None) and len(tx.outputs()) > 1 \
+                        and info[0][0] == 1:  # "is on 'change' branch"
                     index, xpubs, m = info
                     changePath = self.get_derivation()[2:] + "/%d/%d"%index
                     changeAmount = amount

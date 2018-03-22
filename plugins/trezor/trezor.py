@@ -380,56 +380,86 @@ class TrezorPlugin(HW_PluginBase):
         return inputs
 
     def tx_outputs(self, derivation, tx, script_gen=SCRIPT_GEN_LEGACY):
+
+        def create_output_by_derivation(info):
+            index, xpubs, m = info
+            if len(xpubs) == 1:
+                if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
+                    script_type = self.types.OutputScriptType.PAYTOWITNESS
+                elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
+                    script_type = self.types.OutputScriptType.PAYTOP2SHWITNESS
+                else:
+                    script_type = self.types.OutputScriptType.PAYTOADDRESS
+                address_n = self.client_class.expand_path(derivation + "/%d/%d" % index)
+                txoutputtype = self.types.TxOutputType(
+                    amount=amount,
+                    script_type=script_type,
+                    address_n=address_n,
+                )
+            else:
+                if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
+                    script_type = self.types.OutputScriptType.PAYTOWITNESS
+                elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
+                    script_type = self.types.OutputScriptType.PAYTOP2SHWITNESS
+                else:
+                    script_type = self.types.OutputScriptType.PAYTOMULTISIG
+                address_n = self.client_class.expand_path("/%d/%d" % index)
+                nodes = map(self.ckd_public.deserialize, xpubs)
+                pubkeys = [self.types.HDNodePathType(node=node, address_n=address_n) for node in nodes]
+                multisig = self.types.MultisigRedeemScriptType(
+                    pubkeys=pubkeys,
+                    signatures=[b''] * len(pubkeys),
+                    m=m)
+                txoutputtype = self.types.TxOutputType(
+                    multisig=multisig,
+                    amount=amount,
+                    address_n=self.client_class.expand_path(derivation + "/%d/%d" % index),
+                    script_type=script_type)
+            return txoutputtype
+
+        def create_output_by_address():
+            txoutputtype = self.types.TxOutputType()
+            txoutputtype.amount = amount
+            if _type == TYPE_SCRIPT:
+                txoutputtype.script_type = self.types.OutputScriptType.PAYTOOPRETURN
+                txoutputtype.op_return_data = address[2:]
+            elif _type == TYPE_ADDRESS:
+                txoutputtype.script_type = self.types.OutputScriptType.PAYTOADDRESS
+                txoutputtype.address = address
+            return txoutputtype
+
+        def is_any_output_on_change_branch():
+            for _type, address, amount in tx.outputs():
+                info = tx.output_info.get(address)
+                if info is not None:
+                    index, xpubs, m = info
+                    if index[0] == 1:
+                        return True
+            return False
+
         outputs = []
         has_change = False
+        any_output_on_change_branch = is_any_output_on_change_branch()
 
         for _type, address, amount in tx.outputs():
+            use_create_by_derivation = False
+
             info = tx.output_info.get(address)
             if info is not None and not has_change:
-                has_change = True # no more than one change address
                 index, xpubs, m = info
-                if len(xpubs) == 1:
-                    if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
-                        script_type = self.types.OutputScriptType.PAYTOWITNESS
-                    elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
-                        script_type = self.types.OutputScriptType.PAYTOP2SHWITNESS
-                    else:
-                        script_type = self.types.OutputScriptType.PAYTOADDRESS
-                    address_n = self.client_class.expand_path(derivation + "/%d/%d"%index)
-                    txoutputtype = self.types.TxOutputType(
-                        amount = amount,
-                        script_type = script_type,
-                        address_n = address_n,
-                    )
-                else:
-                    if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
-                        script_type = self.types.OutputScriptType.PAYTOWITNESS
-                    elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
-                        script_type = self.types.OutputScriptType.PAYTOP2SHWITNESS
-                    else:
-                        script_type = self.types.OutputScriptType.PAYTOMULTISIG
-                    address_n = self.client_class.expand_path("/%d/%d"%index)
-                    nodes = map(self.ckd_public.deserialize, xpubs)
-                    pubkeys = [ self.types.HDNodePathType(node=node, address_n=address_n) for node in nodes]
-                    multisig = self.types.MultisigRedeemScriptType(
-                        pubkeys = pubkeys,
-                        signatures = [b''] * len(pubkeys),
-                        m = m)
-                    txoutputtype = self.types.TxOutputType(
-                        multisig = multisig,
-                        amount = amount,
-                        address_n = self.client_class.expand_path(derivation + "/%d/%d"%index),
-                        script_type = script_type)
-            else:
-                txoutputtype = self.types.TxOutputType()
-                txoutputtype.amount = amount
-                if _type == TYPE_SCRIPT:
-                    txoutputtype.script_type = self.types.OutputScriptType.PAYTOOPRETURN
-                    txoutputtype.op_return_data = address[2:]
-                elif _type == TYPE_ADDRESS:
-                    txoutputtype.script_type = self.types.OutputScriptType.PAYTOADDRESS
-                    txoutputtype.address = address
+                on_change_branch = index[0] == 1
+                # prioritise hiding outputs on the 'change' branch from user
+                # because no more than one change address allowed
+                # note: ^ restriction can be removed once we require fw
+                # that has https://github.com/trezor/trezor-mcu/pull/306
+                if on_change_branch == any_output_on_change_branch:
+                    use_create_by_derivation = True
+                    has_change = True
 
+            if use_create_by_derivation:
+                txoutputtype = create_output_by_derivation(info)
+            else:
+                txoutputtype = create_output_by_address()
             outputs.append(txoutputtype)
 
         return outputs

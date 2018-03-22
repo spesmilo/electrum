@@ -12,6 +12,7 @@ This assumes that the Xcode command line tools (and thus git) are already instal
 
 
 
-    ./make_osx
+    $ cd electrum-ltc
+    $ ./contrib/build-osx/make_osx
 
 ## 2. Done

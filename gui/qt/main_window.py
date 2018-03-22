@@ -396,7 +396,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_warning(msg, title=_('Information'))
 
     def open_wallet(self):
-        wallet_folder = self.get_wallet_folder()
+        try:
+            wallet_folder = self.get_wallet_folder()
+        except FileNotFoundError as e:
+            self.show_error(str(e))
+            return
         filename, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
         if not filename:
             return
@@ -440,7 +444,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return os.path.dirname(os.path.abspath(self.config.get_wallet_path()))
 
     def new_wallet(self):
-        wallet_folder = self.get_wallet_folder()
+        try:
+            wallet_folder = self.get_wallet_folder()
+        except FileNotFoundError as e:
+            self.show_error(str(e))
+            return
         i = 1
         while True:
             filename = "wallet_%d" % i
@@ -1771,8 +1779,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def remove_address(self, addr):
         if self.question(_("Do you want to remove")+" %s "%addr +_("from your wallet?")):
             self.wallet.delete_address(addr)
-            self.address_list.update()
-            self.history_list.update()
+            self.need_update.set()  # history, addresses, coins
             self.clear_receive_tab()
 
     def get_coins(self):
