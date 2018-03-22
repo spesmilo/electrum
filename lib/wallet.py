@@ -1444,7 +1444,7 @@ class Abstract_Wallet(PrintError):
         xpubs = self.get_master_public_keys()
         for txout in tx.outputs():
             _type, addr, amount = txout
-            if self.is_change(addr):
+            if self.is_mine(addr):
                 index = self.get_address_index(addr)
                 pubkeys = self.get_public_keys(addr)
                 # sort xpubs using the order of pubkeys
