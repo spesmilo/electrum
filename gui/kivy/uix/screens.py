@@ -371,13 +371,20 @@ class ReceiveScreen(CScreen):
     def save_request(self):
         addr = self.screen.address
         if not addr:
-            return
+            return False
         amount = self.screen.amount
         message = self.screen.message
         amount = self.app.get_amount(amount) if amount else 0
         req = self.app.wallet.make_payment_request(addr, amount, message, None)
-        self.app.wallet.add_payment_request(req, self.app.electrum_config)
-        self.app.update_tab('requests')
+        try:
+            self.app.wallet.add_payment_request(req, self.app.electrum_config)
+            added_request = True
+        except Exception as e:
+            self.app.show_error(_('Error adding payment request') + ':\n' + str(e))
+            added_request = False
+        finally:
+            self.app.update_tab('requests')
+        return added_request
 
     def on_amount_or_message(self):
         Clock.schedule_once(lambda dt: self.update_qr())
@@ -388,8 +395,8 @@ class ReceiveScreen(CScreen):
             self.app.show_info(_('Please use the existing requests first.'))
 
     def do_save(self):
-        self.save_request()
-        self.app.show_info(_('Request was saved.'))
+        if self.save_request():
+            self.app.show_info(_('Request was saved.'))
 
 
 class TabbedCarousel(Factory.TabbedPanel):

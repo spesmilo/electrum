@@ -1,5 +1,5 @@
 # If you want electrum to appear in a linux app launcher ("start menu"), install this by doing:
-# sudo desktop-file-install electrum.desktop
+# sudo desktop-file-install electrum-ltc.desktop
 
 [Desktop Entry]
 Comment=Lightweight Litecoin Client
@@ -14,4 +14,8 @@ StartupNotify=false
 Terminal=false
 Type=Application
 MimeType=x-scheme-handler/litecoin;
+Actions=Testnet;
 
+[Desktop Action Testnet]
+Exec=electrum-ltc --testnet %u
+Name=Testnet mode
