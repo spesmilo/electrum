@@ -3,7 +3,7 @@ include README.rst
 include electrum.conf.sample
 include electrum-ftc.desktop
 include *.py
-include electrum
+include electrum-ftc
 recursive-include lib *.py
 recursive-include gui *.py
 recursive-include plugins *.py

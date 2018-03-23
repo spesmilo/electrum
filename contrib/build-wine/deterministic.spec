@@ -38,7 +38,7 @@ datas += collect_data_files('keepkeylib')
 binaries = [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
-a = Analysis([home+'electrum',
+a = Analysis([home+'electrum-ftc',
               home+'gui/qt/main_window.py',
               home+'gui/text.py',
               home+'lib/util.py',
@@ -82,7 +82,7 @@ exe_standalone = EXE(
     a.scripts,
     a.binaries,
     a.datas, 
-    name=os.path.join('build\\pyi.win32\\electrum', cmdline_name + ".exe"),
+    name=os.path.join('build\\pyi.win32\\electrum-ftc', cmdline_name + ".exe"),
     debug=False,
     strip=None,
     upx=False,
@@ -95,7 +95,7 @@ exe_portable = EXE(
     a.scripts,
     a.binaries,
     a.datas + [ ('is_portable', 'README.md', 'DATA' ) ],
-    name=os.path.join('build\\pyi.win32\\electrum', cmdline_name + "-portable.exe"),
+    name=os.path.join('build\\pyi.win32\\electrum-ftc', cmdline_name + "-portable.exe"),
     debug=False,
     strip=None,
     upx=False,
@@ -109,7 +109,7 @@ exe_dependent = EXE(
     pyz,
     a.scripts,
     exclude_binaries=True,
-    name=os.path.join('build\\pyi.win32\\electrum', cmdline_name),
+    name=os.path.join('build\\pyi.win32\\electrum-ftc', cmdline_name),
     debug=False,
     strip=None,
     upx=False,

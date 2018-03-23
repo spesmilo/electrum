@@ -30,7 +30,7 @@ datas = [
 binaries = [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
-a = Analysis([home+'electrum',
+a = Analysis([home+'electrum-ftc',
               home+'gui/qt/main_window.py',
               home+'gui/text.py',
               home+'lib/util.py',
