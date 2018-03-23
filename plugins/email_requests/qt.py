@@ -87,7 +87,7 @@ class Processor(threading.Thread, PrintError):
             try:
                 self.M = imaplib.IMAP4_SSL(self.imap_server)
                 self.M.login(self.username, self.password)
-            except imaplib.IMAP4.error as e:
+            except BaseException as e:
                 self.print_error(e)
                 self.connect_wait *= 2
             # Reconnect when host changes
@@ -111,7 +111,7 @@ class Processor(threading.Thread, PrintError):
             s.login(self.username, self.password)
             s.sendmail(self.username, [recipient], msg.as_string())
             s.quit()
-        except smtplib.SMTPException as e:
+        except BaseException as e:
             self.print_error(e)
 
 
