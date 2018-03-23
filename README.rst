@@ -57,7 +57,7 @@ First the dependencies need to be installed. For Ubuntu/Debian::
 
 Then, install the current release of electrum-ftc::
 
-    pip3 install git+https://https://github.com/Feathercoin-Foundation/electrum-ftc.git@current_release
+    pip3 install git+https://github.com/Feathercoin-Foundation/electrum-ftc.git@current_release
 
 Prepend ``sudo`` if you want to install electrum-ftc system-wide (not recommended).
 
