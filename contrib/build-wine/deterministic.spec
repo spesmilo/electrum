@@ -82,7 +82,7 @@ exe_standalone = EXE(
     a.scripts,
     a.binaries,
     a.datas, 
-    name=os.path.join('build\\pyi.win32\\electrum-ftc', cmdline_name + ".exe"),
+    name=os.path.join('build\\pyi.win32\\electrum-ftc', cmdline_name + "-standalone.exe"),
     debug=False,
     strip=None,
     upx=False,
