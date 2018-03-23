@@ -25,6 +25,22 @@ Getting started
 Windows
 -------
 
+The Windows builds come in three flavors:
+
+1. *setup* - this will properly install Electrum-FTC on Windows including
+   adding icons to the Desktop and Start Menu. The installed exe has the
+   fastest startup time of all three flavors. Most users want to use this flavor.
+
+2. *standalone* - this is an exe that does not need any installation. It
+   will use the ``%APPDATA%`` folder to store settings and wallet data.
+
+3. *portable* - this is an exe that does not need any installation. It will
+   use the folder where the exe is located to store settings and wallet
+   data. Therefore, it can be used on an USB pen drive to use Electrum-FTC
+   on multiple computers - hence portable. This flavor is most interesting
+   for testers who don't want to interfere with their existing installation
+   of Electrum-FTC.
+
 Download the latest version from our `release page <https://github.com/Feathercoin-Foundation/electrum-ftc/releases>`_.
 
 Mac
