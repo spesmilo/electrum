@@ -100,7 +100,7 @@ setup(
             'icons/*',
         ],
     },
-    scripts=['electrum/electrum'],
+    scripts=['electrum/electrum-ftc'],
     data_files=data_files,
     description="Lightweight Feathercoin Wallet",
     author="Thomas Voegtlin; Feathercoin Development Foundation",
