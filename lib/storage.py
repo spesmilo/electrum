@@ -77,7 +77,7 @@ class WalletStorage(PrintError):
         self.modified = False
         self.pubkey = None
         if self.file_exists():
-            with open(self.path, "r") as f:
+            with open(self.path, "r", encoding='utf-8') as f:
                 self.raw = f.read()
             self._encryption_version = self._init_encryption_version()
             if not self.is_encrypted():
@@ -257,7 +257,7 @@ class WalletStorage(PrintError):
             s = s.decode('utf8')
 
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
-        with open(temp_path, "w") as f:
+        with open(temp_path, "w", encoding='utf-8') as f:
             f.write(s)
             f.flush()
             os.fsync(f.fileno())

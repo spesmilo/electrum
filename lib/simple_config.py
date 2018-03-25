@@ -212,7 +212,7 @@ class SimpleConfig(PrintError):
         path = os.path.join(self.path, "config")
         s = json.dumps(self.user_config, indent=4, sort_keys=True)
         try:
-            with open(path, "w") as f:
+            with open(path, "w", encoding='utf-8') as f:
                 f.write(s)
             os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
         except FileNotFoundError:
@@ -498,7 +498,7 @@ def read_user_config(path):
     if not os.path.exists(config_path):
         return {}
     try:
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding='utf-8') as f:
             data = f.read()
         result = json.loads(data)
     except:
