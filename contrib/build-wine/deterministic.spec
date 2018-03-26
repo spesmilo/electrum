@@ -20,7 +20,7 @@ hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += ['_scrypt']
 # FIXME: use a proper hook for this
-hiddenimports += ['electrum_ftc', 'electrum_ftc.base_wizard', 'electrum_ftc_gui', 'electrum_ftc_gui.qt', 'electrum_ftc_plugins']
+hiddenimports += ['electrum_ftc', 'electrum_ftc.base_wizard', 'electrum_ftc_gui', 'electrum_ftc_gui.qt', 'electrum_ftc_plugins', 'electrum_ftc.qrscanner']
 
 datas = [
     (home+'lib/currencies.json', 'electrum_ftc'),
