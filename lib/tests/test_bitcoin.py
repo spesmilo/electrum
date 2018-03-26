@@ -63,17 +63,17 @@ class Test_bitcoin(unittest.TestCase):
             return key.sign_message(msg, compressed)
 
         sig1 = sign_message_with_wif_privkey(
-            'Q7a3yVcJ161XRNc21bsDBE9sCmW6pFy7J7mySNEhugfvG7rm1khy', msg1)
-        addr1 = '6ibhYNEmExkwHk3dvEs4hgRfB1D314JDam'
+            'N5acUJ3Bpizm13gSq8jV5CwZUgfrjs53RuBASsT9AtuwjAgetARW', msg1)
+        addr1 = '6iRgFB4Fi922TqJHD7KaFn8Y1DJRHNy9BL'
         sig2 = sign_message_with_wif_privkey(
-            'QCtnLHF3qBN86MMT5rerWXoAsbyX69Ugc7Hqji4m19hkW431TkZk', msg2)
-        addr2 = '6qZT4TjEqz9GqpJVuqNMuKxxeHLnQJECr9'
+            '5mBCYSLtLsBez8Dtr83svFzHU1buS7WA6rYGHBfNPFacPfYWwuT', msg2)
+        addr2 = '6u7jGyiAQje3RAhBiwZ3pDMKkYCRXuLu76'
 
         sig1_b64 = base64.b64encode(sig1)
         sig2_b64 = base64.b64encode(sig2)
 
-        self.assertEqual(sig1_b64, b'IJfBfgRZosTw53PR9qeVUd18hwQL6EvJRN75i39RUQKIdewOZu8aDPAdsYWr19g4MolX5VFTSfy12gXbTRwpbmc=')
-        self.assertEqual(sig2_b64, b'IIZsygcU6/rC/4jiiHabrJ7bDure+wX/XKzZ5vlBoo8oAWQksB57ReI5lVV6nNU9dclBebP3x6Dk4FPHJsTIk80=')
+        self.assertEqual(sig1_b64, b'IMJ177QE+PonT9RcqHL5/aFjo635kMmE6sDi9PAtvqm1PaqCVU16L0Mb3d64z7nNnrDpVWa+2UqaQ1r2oqEkgsE=')
+        self.assertEqual(sig2_b64, b'HOrxiXh8D4ddJSG2x3oV7OVYSOC45DuLst/uS+G3tc70OZyuqet67q1r+7fKDXEBkhTSXbt+gl+iC7/okXLXYec=')
 
         self.assertTrue(verify_message(addr1, sig1, msg1))
         self.assertTrue(verify_message(addr2, sig2, msg2))
@@ -272,22 +272,22 @@ class Test_xprv_xpub(unittest.TestCase):
 class Test_keyImport(unittest.TestCase):
 
     priv_pub_addr = (
-           {'priv': 'Q7a3yVcJ161XRNc21bsDBE9sCmW6pFy7J7mySNEhugfvG7rm1khy',
-            'pub': '0318b5c02b90c2da97d4c34ebf0fa43628840cf04958e9a814661c5c57f275b394',
-            'address': '6ibhYNEmExkwHk3dvEs4hgRfB1D314JDam',
+           {'priv': 'N77oHMwqXeMvcq4N7PGBiuD1QJBjHD2L2sRRNmmYyJWWaPhLzuQn',
+            'pub': '023a081e220b983d8418899c354defdd644575581913dad327aa205d129fb3f519',
+            'address': '6oLWMBechqxE98A7opVvPe1HkTaxCkANip',
             'minikey' : False,
             'txin_type': 'p2pkh',
             'compressed': True,
             'addr_encoding': 'base58',
-            'scripthash': 'b20ca23704bd6efd82cd74faad0d88dae871d27356e21e16284b041b25778607'},
-           {'priv': '6FvsbjCLg1Y4sbyHnWNiaReeafjiFm4Z5nNwYRiBRWAEUtcW84V',
-            'pub': '0400082a7e5ce5fc175bdea64798388402d14e39e58d77c80b6ebd49e7329ccd1afcd014dc46ba893a3f5034605c5eef88aefe1b40dfeea2cb13f70fa9770270ac',
-            'address': '6mEdK8i3R8tuHXN8e7V4KXtECNaSWek4qZ',
+            'scripthash': 'b961469efb2ada5cafd2b2911e4341f7f263b917bf6fbf446ca80eca1558f35b'},
+           {'priv': '5mtucV3Ey9rVFBhSqpLJ3ZYHjXJP2kgMNXaEiAC6Mo2PaqgN3t9',
+            'pub': '04d4febb2ae001a037360ebb6d202614769e39a3bcb36e3d87f031a35b06effe81729e92d18aded783ecee9ca315231614e067a8540b7197de0555265145be1d03',
+            'address': '6sgmAodqVZrFACLBBsxx67f33Ze8KDJrJd',
             'minikey': False,
             'txin_type': 'p2pkh',
             'compressed': False,
             'addr_encoding': 'base58',
-            'scripthash': '040cff7afeb3b2f71c165625d8da4dcfbf07501f402e9b6e78fd174021be0a8b'},
+            'scripthash': '322092a15881322cc38db6b5c0a354a7bfbbb2fe26c414d3903b0da7f5a1756c'},
         # TODO
            # {'priv': 'LHJnnvRzsdrTX2j5QeWVsaBkabK7gfMNqNNqxnbBVRaJYfk24iJz',
            #  'pub': '0279ad237ca0d812fb503ab86f25e15ebd5fa5dd95c193639a8a738dcd1acbad81',
