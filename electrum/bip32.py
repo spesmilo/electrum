@@ -138,6 +138,15 @@ class BIP32Node(NamedTuple):
         elif header in net.XPUB_HEADERS_INV:
             headers_inv = net.XPUB_HEADERS_INV
             is_private = False
+        # Some hardware wallets only return Bitcoin XPUBs. We need to convert them
+        elif header == 0x0488ade4:
+            # btc xprv
+            headers_inv = { 0x0488ade4: 'standard' }
+            is_private = True
+        elif header == 0x0488b21e:
+            # btc xpub
+            headers_inv = { 0x0488b21e: 'standard' }
+            is_private = False
         else:
             raise InvalidMasterKeyVersionBytes(f'Invalid extended key format: {hex(header)}')
         xtype = headers_inv[header]
