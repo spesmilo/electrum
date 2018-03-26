@@ -8,6 +8,7 @@ install:
     - pip install tox-travis
     - pip install python-coveralls
     - pip install pyqt5
+    - sudo apt-get install python-dev libudev-dev libusb-1.0-0-dev
 script:
     - tox
 after_success:
