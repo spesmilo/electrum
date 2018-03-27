@@ -675,7 +675,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
         client = devmgr.client_by_id(device_id)
         client.handler = self.create_handler(wizard)
         client.setupRunning = True
-        client.get_xpub("m/44'/0'", 'standard')
+        client.get_xpub("m/44'/8'", 'standard')
 
 
     def is_mobile_paired(self):
