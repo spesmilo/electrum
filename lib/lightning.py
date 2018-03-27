@@ -726,7 +726,7 @@ async def readJson(reader):
       newlines = sum(1 if x == b"\n"[0] else 0 for x in data)
       if newlines > 1: print("Too many newlines in Electrum/lightning.py!", data)
       try:
-        return json.loads(data)
+        return json.loads(data.decode("ascii")) # decoding for python3.5 compat
       except ValueError:
         try:
             data += await asyncio.wait_for(reader.read(1), 1)
