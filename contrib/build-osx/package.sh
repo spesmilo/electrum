@@ -55,6 +55,11 @@ fi
 ${genisoimage} -version || fail "Unable to install genisoimage"
 dmg -|| fail "Unable to install libdmg"
 
+plist=$1/Contents/Info.plist
+test -f "$plist" || fail "Info.plist not found"
+VERSION=$(grep -1 ShortVersionString $plist |tail -1|gawk 'match($0, /<string>(.*)<\/string>/, a) {print a[1]}')
+echo $VERSION
+
 rm -rf /tmp/electrum-macos/image > /dev/null 2>&1
 mkdir /tmp/electrum-macos/image/
 cp -r $1 /tmp/electrum-macos/image/
@@ -76,4 +81,8 @@ ${genisoimage} \
     -o Electrum_uncompressed.dmg \
     /tmp/electrum-macos/image || fail "Unable to create uncompressed dmg"
 
-dmg dmg Electrum_uncompressed.dmg Electrum.dmg || fail "Unable to create compressed dmg"
+dmg dmg Electrum_uncompressed.dmg electrum-$VERSION.dmg || fail "Unable to create compressed dmg"
+rm Electrum_uncompressed.dmg
+
+echo "Done."
+md5sum electrum-$VERSION.dmg
