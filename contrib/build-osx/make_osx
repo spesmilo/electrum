@@ -7,7 +7,9 @@ PACKAGE=Electrum
 GIT_REPO=https://github.com/spesmilo/electrum
 
 . $(dirname "$0")/base.sh
-cd $build_dir/../..
+
+src_dir=$(dirname "$0")
+cd $src_dir/../..
 
 export PYTHONHASHSEED=22
 VERSION=`git describe --tags`

@@ -10,6 +10,3 @@ function fail {
     printf "\r🗯 ${RED}ERROR:${NC} ${1}\n"
     exit 1
 }
-
-build_dir=$(dirname "$1")
-test -n "$build_dir" -a -d "$build_dir" || exit

@@ -59,6 +59,8 @@ rm -rf /tmp/electrum-macos/image > /dev/null 2>&1
 mkdir /tmp/electrum-macos/image/
 cp -r $1 /tmp/electrum-macos/image/
 
+build_dir=$(dirname "$1")
+test -n "$build_dir" -a -d "$build_dir" || exit
 cd $build_dir
 
 ${genisoimage} \
