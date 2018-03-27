@@ -538,7 +538,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&About"), self.show_about)
-        help_menu.addAction(_("&Official website"), lambda: webbrowser.open("http://electrum-ltc.org"))
+        help_menu.addAction(_("&Official website"), lambda: webbrowser.open("https://electrum-ltc.org"))
         help_menu.addSeparator()
         help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("http://docs.electrum.org/")).setShortcut(QKeySequence.HelpContents)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
@@ -2673,7 +2673,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         msg = _('OpenAlias record, used to receive coins and to sign payment requests.') + '\n\n'\
               + _('The following alias providers are available:') + '\n'\
               + '\n'.join(['https://cryptoname.co/', 'http://xmr.link']) + '\n\n'\
-              + 'For more information, see http://openalias.org'
+              + 'For more information, see https://openalias.org'
         alias_label = HelpLabel(_('OpenAlias') + ':', msg)
         alias = self.config.get('alias','')
         alias_e = QLineEdit(alias)
