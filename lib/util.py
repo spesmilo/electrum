@@ -710,6 +710,9 @@ class SocketPipe:
                 continue
             except OSError as e:
                 print_error("OSError", e)
+                # Raise on broken pipe.
+                if e.errno == 32:
+                    raise
                 time.sleep(0.1)
                 continue
 
