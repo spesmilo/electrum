@@ -625,6 +625,7 @@ class LightningRPC:
                     raise
                 toprint = result
                 try:
+                    assert type(result) is not str, result
                     assert result["stderr"] == "" and result["returncode"] == 0, "LightningRPC detected error: " + result["stderr"]
                     toprint = json.loads(result["stdout"])
                     for i in self.subscribers: applyMethodName(i)(toprint)
