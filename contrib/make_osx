@@ -1,6 +1,12 @@
 #!/bin/bash
-rm -rf dist
+rm -rf dist && mkdir dist
 export PYTHONHASHSEED=22
 VERSION=`git describe --tags --dirty`
+
+
+echo "Downloading libusb..."
+curl https://homebrew.bintray.com/bottles/libusb-1.0.21.el_capitan.bottle.tar.gz | tar xz --directory dist
+cp dist/libusb/1.0.21/lib/libusb-1.0.dylib dist/
+
 pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx.spec
 hdiutil create -fs HFS+ -volname "Electrum-FTC" -srcfolder dist/Electrum-FTC.app dist/electrum-ftc-$VERSION.dmg
