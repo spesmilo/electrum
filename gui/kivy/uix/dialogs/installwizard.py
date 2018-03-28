@@ -135,7 +135,7 @@ Builder.load_string('''
         height: self.minimum_height
         Label:
             color: root.text_color
-            text: _('From %d cosigners')%n.value
+            text: _('From {} cosigners').format(n.value)
         Slider:
             id: n
             range: 2, 5
@@ -143,7 +143,7 @@ Builder.load_string('''
             value: 2
         Label:
             color: root.text_color
-            text: _('Require %d signatures')%m.value
+            text: _('Require {} signatures').format(m.value)
         Slider:
             id: m
             range: 1, n.value
@@ -702,6 +702,7 @@ class AddXpubDialog(WizardDialog):
         self.is_valid = kwargs['is_valid']
         self.title = kwargs['title']
         self.message = kwargs['message']
+        self.allow_multi = kwargs.get('allow_multi', False)
 
     def check_text(self, dt):
         self.ids.next.disabled = not bool(self.is_valid(self.get_text()))
@@ -715,7 +716,10 @@ class AddXpubDialog(WizardDialog):
 
     def scan_xpub(self):
         def on_complete(text):
-            self.ids.text_input.text = text
+            if self.allow_multi:
+                self.ids.text_input.text += text + '\n'
+            else:
+                self.ids.text_input.text = text
         self.app.scan_qr(on_complete)
 
     def do_paste(self):
@@ -803,7 +807,7 @@ class InstallWizard(BaseWizard, Widget):
         popup.init(message, callback)
         popup.open()
 
-    def request_password(self, run_next):
+    def request_password(self, run_next, force_disable_encrypt_cb=False):
         def callback(pin):
             if pin:
                 self.run('confirm_password', pin, run_next)

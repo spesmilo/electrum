@@ -32,6 +32,8 @@ from .util import print_error, profiler
 from . import bitcoin
 from .bitcoin import *
 import struct
+import traceback
+import sys
 
 #
 # Workalike python implementation of Bitcoin's CDataStream class.
@@ -303,7 +305,8 @@ def parse_scriptSig(d, _bytes):
         decoded = [ x for x in script_GetOp(_bytes) ]
     except Exception as e:
         # coinbase transactions raise an exception
-        print_error("cannot find address in input script", bh2u(_bytes))
+        print_error("parse_scriptSig: cannot find address in input script (coinbase?)",
+                    bh2u(_bytes))
         return
 
     match = [ opcodes.OP_PUSHDATA4 ]
@@ -312,7 +315,6 @@ def parse_scriptSig(d, _bytes):
         if item[0] == 0:
             # segwit embedded into p2sh
             # witness version 0
-            # segwit embedded into p2sh
             d['address'] = bitcoin.hash160_to_p2sh(bitcoin.hash_160(item))
             if len(item) == 22:
                 d['type'] = 'p2wpkh-p2sh'
@@ -335,9 +337,9 @@ def parse_scriptSig(d, _bytes):
             d['pubkeys'] = ["(pubkey)"]
         return
 
-    # non-generated TxIn transactions push a signature
-    # (seventy-something bytes) and then their public key
-    # (65 bytes) onto the stack:
+    # p2pkh TxIn transactions push a signature
+    # (71-73 bytes) and then their public key
+    # (33 or 65 bytes) onto the stack:
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_PUSHDATA4 ]
     if match_decoded(decoded, match):
         sig = bh2u(decoded[0][1])
@@ -346,7 +348,8 @@ def parse_scriptSig(d, _bytes):
             signatures = parse_sig([sig])
             pubkey, address = xpubkey_to_address(x_pubkey)
         except:
-            print_error("cannot find address in input script", bh2u(_bytes))
+            print_error("parse_scriptSig: cannot find address in input script (p2pkh?)",
+                        bh2u(_bytes))
             return
         d['type'] = 'p2pkh'
         d['signatures'] = signatures
@@ -358,30 +361,41 @@ def parse_scriptSig(d, _bytes):
 
     # p2sh transaction, m of n
     match = [ opcodes.OP_0 ] + [ opcodes.OP_PUSHDATA4 ] * (len(decoded) - 1)
-    if not match_decoded(decoded, match):
-        print_error("cannot find address in input script", bh2u(_bytes))
+    if match_decoded(decoded, match):
+        x_sig = [bh2u(x[1]) for x in decoded[1:-1]]
+        try:
+            m, n, x_pubkeys, pubkeys, redeemScript = parse_redeemScript(decoded[-1][1])
+        except NotRecognizedRedeemScript:
+            print_error("parse_scriptSig: cannot find address in input script (p2sh?)",
+                        bh2u(_bytes))
+            # we could still guess:
+            # d['address'] = hash160_to_p2sh(hash_160(decoded[-1][1]))
+            return
+        # write result in d
+        d['type'] = 'p2sh'
+        d['num_sig'] = m
+        d['signatures'] = parse_sig(x_sig)
+        d['x_pubkeys'] = x_pubkeys
+        d['pubkeys'] = pubkeys
+        d['redeemScript'] = redeemScript
+        d['address'] = hash160_to_p2sh(hash_160(bfh(redeemScript)))
         return
-    x_sig = [bh2u(x[1]) for x in decoded[1:-1]]
-    m, n, x_pubkeys, pubkeys, redeemScript = parse_redeemScript(decoded[-1][1])
-    # write result in d
-    d['type'] = 'p2sh'
-    d['num_sig'] = m
-    d['signatures'] = parse_sig(x_sig)
-    d['x_pubkeys'] = x_pubkeys
-    d['pubkeys'] = pubkeys
-    d['redeemScript'] = redeemScript
-    d['address'] = hash160_to_p2sh(hash_160(bfh(redeemScript)))
+
+    print_error("parse_scriptSig: cannot find address in input script (unknown)",
+                bh2u(_bytes))
 
 
 def parse_redeemScript(s):
     dec2 = [ x for x in script_GetOp(s) ]
-    m = dec2[0][0] - opcodes.OP_1 + 1
-    n = dec2[-2][0] - opcodes.OP_1 + 1
+    try:
+        m = dec2[0][0] - opcodes.OP_1 + 1
+        n = dec2[-2][0] - opcodes.OP_1 + 1
+    except IndexError:
+        raise NotRecognizedRedeemScript()
     op_m = opcodes.OP_1 + m - 1
     op_n = opcodes.OP_1 + n - 1
     match_multisig = [ op_m ] + [opcodes.OP_PUSHDATA4]*n + [ op_n, opcodes.OP_CHECKMULTISIG ]
     if not match_decoded(dec2, match_multisig):
-        print_error("cannot find address in input script", bh2u(s))
         raise NotRecognizedRedeemScript()
     x_pubkeys = [bh2u(x[1]) for x in dec2[1:-2]]
     pubkeys = [safe_parse_pubkey(x) for x in x_pubkeys]
@@ -425,19 +439,23 @@ def parse_input(vds):
     d['prevout_hash'] = prevout_hash
     d['prevout_n'] = prevout_n
     d['sequence'] = sequence
+    d['x_pubkeys'] = []
+    d['pubkeys'] = []
+    d['signatures'] = {}
+    d['address'] = None
+    d['num_sig'] = 0
     if prevout_hash == '00'*32:
         d['type'] = 'coinbase'
         d['scriptSig'] = bh2u(scriptSig)
     else:
-        d['x_pubkeys'] = []
-        d['pubkeys'] = []
-        d['signatures'] = {}
-        d['address'] = None
         d['type'] = 'unknown'
-        d['num_sig'] = 0
         if scriptSig:
             d['scriptSig'] = bh2u(scriptSig)
-            parse_scriptSig(d, scriptSig)
+            try:
+                parse_scriptSig(d, scriptSig)
+            except BaseException:
+                traceback.print_exc(file=sys.stderr)
+                print_error('failed to parse scriptSig', bh2u(scriptSig))
         else:
             d['scriptSig'] = ''
 
@@ -466,25 +484,40 @@ def parse_witness(vds, txin):
     # between p2wpkh and p2wsh; we do this based on number of witness items,
     # hence (FIXME) p2wsh with n==2 (maybe n==1 ?) will probably fail.
     # If v==0 and n==2, we need parent scriptPubKey to distinguish between p2wpkh and p2wsh.
-    if txin['type'] == 'coinbase':
-        pass
-    elif txin['type'] == 'p2wsh-p2sh' or n > 2:
-        try:
-            m, n, x_pubkeys, pubkeys, witnessScript = parse_redeemScript(bfh(w[-1]))
-        except NotRecognizedRedeemScript:
+    try:
+        if txin['type'] == 'coinbase':
+            pass
+        elif txin['type'] == 'p2wsh-p2sh' or n > 2:
+            try:
+                m, n, x_pubkeys, pubkeys, witnessScript = parse_redeemScript(bfh(w[-1]))
+            except NotRecognizedRedeemScript:
+                raise UnknownTxinType()
+            txin['signatures'] = parse_sig(w[1:-1])
+            txin['num_sig'] = m
+            txin['x_pubkeys'] = x_pubkeys
+            txin['pubkeys'] = pubkeys
+            txin['witnessScript'] = witnessScript
+            if not txin.get('scriptSig'):  # native segwit script
+                txin['type'] = 'p2wsh'
+                txin['address'] = bitcoin.script_to_p2wsh(txin['witnessScript'])
+        elif txin['type'] == 'p2wpkh-p2sh' or n == 2:
+            txin['num_sig'] = 1
+            txin['x_pubkeys'] = [w[1]]
+            txin['pubkeys'] = [safe_parse_pubkey(w[1])]
+            txin['signatures'] = parse_sig([w[0]])
+            if not txin.get('scriptSig'):  # native segwit script
+                txin['type'] = 'p2wpkh'
+                txin['address'] = bitcoin.public_key_to_p2wpkh(bfh(txin['pubkeys'][0]))
+        else:
             raise UnknownTxinType()
-        txin['signatures'] = parse_sig(w[1:-1])
-        txin['num_sig'] = m
-        txin['x_pubkeys'] = x_pubkeys
-        txin['pubkeys'] = pubkeys
-        txin['witnessScript'] = witnessScript
-    elif txin['type'] == 'p2wpkh-p2sh' or n == 2:
-        txin['num_sig'] = 1
-        txin['x_pubkeys'] = [w[1]]
-        txin['pubkeys'] = [safe_parse_pubkey(w[1])]
-        txin['signatures'] = parse_sig([w[0]])
-    else:
-        raise UnknownTxinType()
+    except UnknownTxinType:
+        txin['type'] = 'unknown'
+        # FIXME: GUI might show 'unknown' address (e.g. for a non-multisig p2wsh)
+    except BaseException:
+        txin['type'] = 'unknown'
+        traceback.print_exc(file=sys.stderr)
+        print_error('failed to parse witness', txin.get('witness'))
+
 
 def parse_output(vds, i):
     d = {}
@@ -514,20 +547,7 @@ def deserialize(raw):
     if is_segwit:
         for i in range(n_vin):
             txin = d['inputs'][i]
-            try:
-                parse_witness(vds, txin)
-            except UnknownTxinType:
-                txin['type'] = 'unknown'
-                # FIXME: GUI might show 'unknown' address (e.g. for a non-multisig p2wsh)
-                continue
-            # segwit-native script
-            if not txin.get('scriptSig'):
-                if txin['num_sig'] == 1:
-                    txin['type'] = 'p2wpkh'
-                    txin['address'] = bitcoin.public_key_to_p2wpkh(bfh(txin['pubkeys'][0]))
-                else:
-                    txin['type'] = 'p2wsh'
-                    txin['address'] = bitcoin.script_to_p2wsh(txin['witnessScript'])
+            parse_witness(vds, txin)
     d['lockTime'] = vds.read_uint32()
     return d
 
@@ -587,6 +607,8 @@ class Transaction:
     @classmethod
     def get_sorted_pubkeys(self, txin):
         # sort pubkeys and x_pubkeys, using the order of pubkeys
+        if txin['type'] == 'coinbase':
+            return [], []
         x_pubkeys = txin['x_pubkeys']
         pubkeys = txin.get('pubkeys')
         if pubkeys is None:
@@ -687,6 +709,8 @@ class Transaction:
     def get_siglist(self, txin, estimate_size=False):
         # if we have enough signatures, we use the actual pubkeys
         # otherwise, use extended pubkeys (with bip32 derivation)
+        if txin['type'] == 'coinbase':
+            return [], []
         num_sig = txin.get('num_sig', 1)
         if estimate_size:
             pubkey_size = self.estimate_pubkey_size_for_txin(txin)
@@ -708,10 +732,12 @@ class Transaction:
 
     @classmethod
     def serialize_witness(self, txin, estimate_size=False):
-        add_w = lambda x: var_int(len(x)//2) + x
         if not self.is_segwit_input(txin):
             return '00'
+        if txin['type'] == 'coinbase':
+            return txin['witness']
         pubkeys, sig_list = self.get_siglist(txin, estimate_size)
+        add_w = lambda x: var_int(len(x) // 2) + x
         if txin['type'] in ['p2wpkh', 'p2wpkh-p2sh']:
             witness = var_int(2) + add_w(sig_list[0]) + add_w(pubkeys[0])
         elif txin['type'] in ['p2wsh', 'p2wsh-p2sh']:
@@ -770,7 +796,9 @@ class Transaction:
         return script
 
     @classmethod
-    def is_txin_complete(self, txin):
+    def is_txin_complete(cls, txin):
+        if txin['type'] == 'coinbase':
+            return True
         num_sig = txin.get('num_sig', 1)
         x_signatures = txin['signatures']
         signatures = list(filter(None, x_signatures))
@@ -797,6 +825,14 @@ class Transaction:
     @classmethod
     def serialize_outpoint(self, txin):
         return bh2u(bfh(txin['prevout_hash'])[::-1]) + int_to_hex(txin['prevout_n'], 4)
+
+    @classmethod
+    def get_outpoint_from_txin(cls, txin):
+        if txin['type'] == 'coinbase':
+            return None
+        prevout_hash = txin['prevout_hash']
+        prevout_n = txin['prevout_n']
+        return prevout_hash + ':%d' % prevout_n
 
     @classmethod
     def serialize_input(self, txin, script):
@@ -915,19 +951,25 @@ class Transaction:
         return self.virtual_size_from_weight(weight)
 
     @classmethod
-    def estimated_input_weight(cls, txin):
+    def estimated_input_weight(cls, txin, is_segwit_tx):
         '''Return an estimate of serialized input weight in weight units.'''
         script = cls.input_script(txin, True)
         input_size = len(cls.serialize_input(txin, script)) // 2
 
-        # note: we should actually branch based on tx.is_segwit()
-        # only if none of the inputs have a witness, is the size actually 0
         if cls.is_segwit_input(txin):
+            assert is_segwit_tx
             witness_size = len(cls.serialize_witness(txin, True)) // 2
         else:
-            witness_size = 0
+            witness_size = 1 if is_segwit_tx else 0
 
         return 4 * input_size + witness_size
+
+    @classmethod
+    def estimated_output_size(cls, address):
+        """Return an estimate of serialized output size in bytes."""
+        script = bitcoin.address_to_script(address)
+        # 8 byte value + 1 byte script len + script
+        return 9 + len(script) // 2
 
     @classmethod
     def virtual_size_from_weight(cls, weight):

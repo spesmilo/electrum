@@ -47,7 +47,6 @@ class ContextMenu(Bubble):
             l = MenuItem()
             l.text = _(k)
             def func(f=v):
-                Clock.schedule_once(lambda dt: self.hide(), 0.1)
                 Clock.schedule_once(lambda dt: f(obj), 0.15)
             l.on_release = func
             self.ids.buttons.add_widget(l)

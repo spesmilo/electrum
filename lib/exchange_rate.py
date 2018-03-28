@@ -2,13 +2,16 @@ from datetime import datetime
 import inspect
 import requests
 import sys
+import os
+import json
 from threading import Thread
 import time
 import csv
 import decimal
 from decimal import Decimal
 
-from .bitcoin import COIN, NetworkConstants
+from . import constants
+from .bitcoin import COIN
 from .i18n import _
 from .util import PrintError, ThreadJob
 
@@ -34,7 +37,7 @@ class ExchangeBase(PrintError):
     def get_json(self, site, get_string):
         # APIs must have https
         url = ''.join(['https://', site, get_string])
-        response = requests.request('GET', url, headers={'User-Agent' : 'Electrum-GRS'})
+        response = requests.request('GET', url, headers={'User-Agent' : 'Electrum-GRS'}, timeout=10)
         return response.json()
 
     def get_csv(self, site, get_string):
@@ -60,28 +63,54 @@ class ExchangeBase(PrintError):
         t.setDaemon(True)
         t.start()
 
-    def get_historical_rates_safe(self, ccy):
+    def read_historical_rates(self, ccy, cache_dir):
+        filename = os.path.join(cache_dir, self.name() + '_'+ ccy)
+        if os.path.exists(filename):
+            timestamp = os.stat(filename).st_mtime
+            try:
+                with open(filename, 'r') as f:
+                    h = json.loads(f.read())
+                h['timestamp'] = timestamp
+            except:
+                h = None
+        else:
+            h = None
+        if h:
+            self.history[ccy] = h
+            self.on_history()
+        return h
+
+    def get_historical_rates_safe(self, ccy, cache_dir):
         try:
             self.print_error("requesting fx history for", ccy)
-            self.history[ccy] = self.historical_rates(ccy)
+            h = self.request_history(ccy)
             self.print_error("received fx history for", ccy)
-            self.on_history()
         except BaseException as e:
             self.print_error("failed fx history:", e)
+            return
+        filename = os.path.join(cache_dir, self.name() + '_' + ccy)
+        with open(filename, 'w') as f:
+            f.write(json.dumps(h))
+        h['timestamp'] = time.time()
+        self.history[ccy] = h
+        self.on_history()
 
-    def get_historical_rates(self, ccy):
-        result = self.history.get(ccy)
-        if not result and ccy in self.history_ccys():
-            t = Thread(target=self.get_historical_rates_safe, args=(ccy,))
+    def get_historical_rates(self, ccy, cache_dir):
+        if ccy not in self.history_ccys():
+            return
+        h = self.history.get(ccy)
+        if h is None:
+            h = self.read_historical_rates(ccy, cache_dir)
+        if h is None or h['timestamp'] < time.time() - 24*3600:
+            t = Thread(target=self.get_historical_rates_safe, args=(ccy, cache_dir))
             t.setDaemon(True)
             t.start()
-        return result
 
     def history_ccys(self):
         return []
 
     def historical_rate(self, ccy, d_t):
-        return self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'))
+        return self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'), 'NaN')
 
     def get_currencies(self):
         rates = self.get_rates('')
@@ -113,7 +142,7 @@ class GRSTicker(ExchangeBase):
     def get_rates(self, ccy):
         url = 'http://groestlcoin.org/grsticker.php'
         response = requests.request('GET', url,
-                                    headers={'User-Agent' : 'Electrum'})
+                                    headers={'User-Agent' : 'Electrum-GRS'})
 
         quote_currencies = {}
         grs_btc_rate = quote_currencies['BTC'] = Decimal(response.content.decode())
@@ -150,7 +179,9 @@ def get_exchanges_and_currencies():
         exchange = klass(None, None)
         try:
             d[name] = exchange.get_currencies()
+            print(name, "ok")
         except:
+            print(name, "error")
             continue
     with open(path, 'w') as f:
         f.write(json.dumps(d, indent=4, sort_keys=True))
@@ -181,7 +212,10 @@ class FxThread(ThreadJob):
         self.history_used_spot = False
         self.ccy_combo = None
         self.hist_checkbox = None
+        self.cache_dir = os.path.join(config.path, 'cache')
         self.set_exchange(self.config_exchange())
+        if not os.path.exists(self.cache_dir):
+            os.mkdir(self.cache_dir)
 
     def get_currencies(self, h):
         d = get_exchanges_by_ccy(h)
@@ -204,13 +238,13 @@ class FxThread(ThreadJob):
         # This runs from the plugins thread which catches exceptions
         if self.is_enabled():
             if self.timeout ==0 and self.show_history():
-                self.exchange.get_historical_rates(self.ccy)
+                self.exchange.get_historical_rates(self.ccy, self.cache_dir)
             if self.timeout <= time.time():
                 self.timeout = time.time() + 150
                 self.exchange.update(self.ccy)
 
     def is_enabled(self):
-        return bool(self.config.get('use_exchange_rate')) and not NetworkConstants.TESTNET
+        return bool(self.config.get('use_exchange_rate')) and not constants.net.TESTNET
 
     def set_enabled(self, b):
         return self.config.set_key('use_exchange_rate', bool(b))
@@ -221,6 +255,12 @@ class FxThread(ThreadJob):
 
     def set_history_config(self, b):
         self.config.set_key('history_rates', bool(b))
+
+    def get_history_capital_gains_config(self):
+        return bool(self.config.get('history_rates_capital_gains', False))
+
+    def set_history_capital_gains_config(self, b):
+        self.config.set_key('history_rates_capital_gains', bool(b))
 
     def get_fiat_address_config(self):
         return bool(self.config.get('fiat_address'))
@@ -253,45 +293,65 @@ class FxThread(ThreadJob):
         # A new exchange means new fx quotes, initially empty.  Force
         # a quote refresh
         self.timeout = 0
+        self.exchange.read_historical_rates(self.ccy, self.cache_dir)
 
     def on_quotes(self):
-        self.network.trigger_callback('on_quotes')
+        if self.network:
+            self.network.trigger_callback('on_quotes')
 
     def on_history(self):
-        self.network.trigger_callback('on_history')
+        if self.network:
+            self.network.trigger_callback('on_history')
 
     def exchange_rate(self):
         '''Returns None, or the exchange rate as a Decimal'''
         rate = self.exchange.quotes.get(self.ccy)
-        if rate:
-            return Decimal(rate)
+        if rate is None:
+            return Decimal('NaN')
+        return Decimal(rate)
+
+    def format_amount(self, btc_balance):
+        rate = self.exchange_rate()
+        return '' if rate.is_nan() else "%s" % self.value_str(btc_balance, rate)
 
     def format_amount_and_units(self, btc_balance):
         rate = self.exchange_rate()
-        return '' if rate is None else "%s %s" % (self.value_str(btc_balance, rate), self.ccy)
+        return '' if rate.is_nan() else "%s %s" % (self.value_str(btc_balance, rate), self.ccy)
 
     def get_fiat_status_text(self, btc_balance, base_unit, decimal_point):
         rate = self.exchange_rate()
-        return _("  (No FX rate available)") if rate is None else " 1 %s~%s %s" % (base_unit,
+        return _("  (No FX rate available)") if rate.is_nan() else " 1 %s~%s %s" % (base_unit,
             self.value_str(COIN / (10**(8 - decimal_point)), rate), self.ccy)
 
+    def fiat_value(self, satoshis, rate):
+        return Decimal('NaN') if satoshis is None else Decimal(satoshis) / COIN * Decimal(rate)
+
     def value_str(self, satoshis, rate):
-        if satoshis is None:  # Can happen with incomplete history
-            return _("Unknown")
-        if rate:
-            value = Decimal(satoshis) / COIN * Decimal(rate)
-            return "%s" % (self.ccy_amount_str(value, True))
-        return _("No data")
+        return self.format_fiat(self.fiat_value(satoshis, rate))
+
+    def format_fiat(self, value):
+        if value.is_nan():
+            return _("No data")
+        return "%s" % (self.ccy_amount_str(value, True))
 
     def history_rate(self, d_t):
+        if d_t is None:
+            return Decimal('NaN')
         rate = self.exchange.historical_rate(self.ccy, d_t)
         # Frequently there is no rate for today, until tomorrow :)
         # Use spot quotes in that case
-        if rate is None and (datetime.today().date() - d_t.date()).days <= 2:
-            rate = self.exchange.quotes.get(self.ccy)
+        if rate == 'NaN' and (datetime.today().date() - d_t.date()).days <= 2:
+            rate = self.exchange.quotes.get(self.ccy, 'NaN')
             self.history_used_spot = True
-        return rate
+        return Decimal(rate)
 
     def historical_value_str(self, satoshis, d_t):
-        rate = self.history_rate(d_t)
-        return self.value_str(satoshis, rate)
+        return self.format_fiat(self.historical_value(satoshis, d_t))
+
+    def historical_value(self, satoshis, d_t):
+        return self.fiat_value(satoshis, self.history_rate(d_t))
+
+    def timestamp_rate(self, timestamp):
+        from electrum_grs.util import timestamp_to_datetime
+        date = timestamp_to_datetime(timestamp)
+        return self.history_rate(date)

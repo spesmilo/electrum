@@ -10,7 +10,7 @@ from electrum_grs.plugins import BasePlugin
 from electrum_grs.keystore import Hardware_KeyStore
 from electrum_grs.transaction import Transaction
 from ..hw_wallet import HW_PluginBase
-from electrum_grs.util import print_error, is_verbose, bfh, bh2u
+from electrum_grs.util import print_error, is_verbose, bfh, bh2u, versiontuple
 
 try:
     import hid
@@ -29,6 +29,9 @@ MSG_NEEDS_FW_UPDATE_GENERIC = _('Firmware version too old. Please update at') + 
                       ' https://www.ledgerwallet.com'
 MSG_NEEDS_FW_UPDATE_SEGWIT = _('Firmware version (or "Bitcoin" app) too old for Segwit support. Please update at') + \
                       ' https://www.ledgerwallet.com'
+MULTI_OUTPUT_SUPPORT = '1.1.4'
+SEGWIT_SUPPORT = '1.1.10'
+SEGWIT_SUPPORT_SPECIAL = '1.0.4'
 
 
 class Ledger_Client():
@@ -133,12 +136,12 @@ class Ledger_Client():
     def perform_hw1_preflight(self):
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
-            firmware = firmwareInfo['version'].split(".")
-            self.multiOutputSupported = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 4
-            self.segwitSupported = (int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 10) or (firmwareInfo['specialVersion'] == 0x20 and int(firmware[0]) == 1 and int(firmware[1]) == 0 and int(firmware[2]) >= 4)
-            self.nativeSegwitSupported = int(firmware[0]) >= 1 and int(firmware[1]) >= 1 and int(firmware[2]) >= 10
+            firmware = firmwareInfo['version']
+            self.multiOutputSupported = versiontuple(firmware) >= versiontuple(MULTI_OUTPUT_SUPPORT)
+            self.nativeSegwitSupported = versiontuple(firmware) >= versiontuple(SEGWIT_SUPPORT)
+            self.segwitSupported = self.nativeSegwitSupported or (firmwareInfo['specialVersion'] == 0x20 and versiontuple(firmware) >= versiontuple(SEGWIT_SUPPORT_SPECIAL))
 
-            if not checkFirmware(firmware):
+            if not checkFirmware(firmwareInfo):
                 self.dongleObject.dongle.close()
                 raise Exception(MSG_NEEDS_FW_UPDATE_GENERIC)
             try:
@@ -166,6 +169,10 @@ class Ledger_Client():
                 raise Exception("Dongle is temporarily locked - please unplug it and replug it again")
             if ((e.sw & 0xFFF0) == 0x63c0):
                 raise Exception("Invalid PIN - please unplug the dongle and plug it again before retrying")
+            if e.sw == 0x6f00 and e.message == 'Invalid channel':
+                # based on docs 0x6f00 might be a more general error, hence we also compare message to be sure
+                raise Exception("Invalid channel.\n"
+                                "Please make sure that 'Browser support' is disabled on your device.")
             raise e
 
     def checkDevice(self):
@@ -230,15 +237,16 @@ class Ledger_KeyStore(Hardware_KeyStore):
         return address_path[2:]
 
     def decrypt_message(self, pubkey, message, password):
-        raise RuntimeError(_('Encryption and decryption are currently not supported for %s') % self.device)
+        raise RuntimeError(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
     def sign_message(self, sequence, message, password):
         self.signing = True
         message = message.encode('utf8')
+        message_hash = hashlib.sha256(message).hexdigest().upper()
         # prompt for the PIN before displaying the dialog if necessary
         client = self.get_client()
         address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
-        self.handler.show_message("Signing message ...")
+        self.handler.show_message("Signing message ...\r\nMessage hash: "+message_hash)
         try:
             info = self.get_client().signMessagePrepare(address_path, message)
             pin = ""
@@ -450,6 +458,27 @@ class Ledger_KeyStore(Hardware_KeyStore):
         tx.raw = tx.serialize()
         self.signing = False
 
+    def show_address(self, sequence, txin_type):
+        self.signing = True
+        client = self.get_client()
+        address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
+        self.handler.show_message(_("Showing address ..."))
+        segwit = Transaction.is_segwit_inputtype(txin_type)
+        segwitNative = txin_type == 'p2wpkh'
+        try:
+            client.getWalletPublicKey(address_path, showOnScreen=True, segwit=segwit, segwitNative=segwitNative)
+        except BTChipException as e:
+            if e.sw == 0x6985:  # cancelled by user
+                pass
+            else:
+                traceback.print_exc(file=sys.stderr)
+                self.handler.show_error(e)
+        except BaseException as e:
+            traceback.print_exc(file=sys.stderr)
+            self.handler.show_error(e)
+        finally:
+            self.handler.finished()
+        self.signing = False
 
 class LedgerPlugin(HW_PluginBase):
     libraries_available = BTCHIP
@@ -491,14 +520,21 @@ class LedgerPlugin(HW_PluginBase):
         return HIDDongleHIDAPI(dev, ledger, BTCHIP_DEBUG)
 
     def create_client(self, device, handler):
-        self.handler = handler
+        if handler:
+            self.handler = handler
 
         client = self.get_btchip_device(device)
         if client is not None:
             client = Ledger_Client(client)
         return client
 
+<<<<<<< HEAD
     def setup_device(self, device_info, wizard):
+||||||| merged common ancestors
+    def setup_device(self, device_info, wizard):        
+=======
+    def setup_device(self, device_info, wizard, purpose):
+>>>>>>> upstream/3.1
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
@@ -526,3 +562,8 @@ class LedgerPlugin(HW_PluginBase):
         if client is not None:
             client.checkDevice()
         return client
+
+    def show_address(self, wallet, address):
+        sequence = wallet.get_address_index(address)
+        txin_type = wallet.get_txin_type(address)
+        wallet.get_keystore().show_address(sequence, txin_type)

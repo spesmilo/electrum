@@ -1,0 +1,4 @@
+Cython>=0.27
+trezor>=0.9.0
+keepkey
+btchip-python

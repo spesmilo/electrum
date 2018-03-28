@@ -25,6 +25,8 @@
 import ast
 import os
 import time
+import traceback
+import sys
 
 # from jsonrpc import JSONRPCResponseManager
 import jsonrpclib
@@ -58,7 +60,7 @@ def get_fd_or_server(config):
     lockfile = get_lockfile(config)
     while True:
         try:
-            return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY), None
+            return os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644), None
         except OSError:
             pass
         server = get_server(config)
@@ -121,13 +123,12 @@ class Daemon(DaemonThread):
         self.config = config
         if config.get('offline'):
             self.network = None
-            self.fx = None
         else:
             self.network = Network(config)
             self.network.start()
-            self.fx = FxThread(config, self.network)
+        self.fx = FxThread(config, self.network)
+        if self.network:
             self.network.add_jobs([self.fx])
-
         self.gui = None
         self.wallets = {}
         # Setup JSONRPC server
@@ -173,7 +174,7 @@ class Daemon(DaemonThread):
             path = config.get_wallet_path()
             wallet = self.load_wallet(path, config.get('password'))
             self.cmd_runner.wallet = wallet
-            response = True
+            response = wallet is not None
         elif sub == 'close_wallet':
             path = config.get_wallet_path()
             if path in self.wallets:
@@ -301,4 +302,8 @@ class Daemon(DaemonThread):
             gui_name = 'qt'
         gui = __import__('electrum_grs_gui.' + gui_name, fromlist=['electrum_grs_gui'])
         self.gui = gui.ElectrumGui(config, self, plugins)
-        self.gui.main()
+        try:
+            self.gui.main()
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
+            # app will exit now

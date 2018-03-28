@@ -11,8 +11,9 @@ from lib.bitcoin import (
     var_int, op_push, address_to_script, regenerate_key,
     verify_message, deserialize_privkey, serialize_privkey, is_segwit_address,
     is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
-    xpub_type, is_xprv, is_bip32_derivation, seed_type, NetworkConstants)
+    xpub_type, is_xprv, is_bip32_derivation, seed_type)
 from lib.util import bfh
+from lib import constants
 
 try:
     import ecdsa
@@ -168,12 +169,12 @@ class Test_bitcoin_testnet(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        NetworkConstants.set_testnet()
+        constants.set_testnet()
 
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
-        NetworkConstants.set_mainnet()
+        constants.set_mainnet()
 
     def test_address_to_script(self):
         # bech32 native segwit
@@ -271,6 +272,7 @@ class Test_keyImport(unittest.TestCase):
 
     priv_pub_addr = (
            {'priv': 'KzMFjMC2MPadjvX5Cd7b8AKKjjpBSoRKUTpoAtN6B3J9ezXB3Zhj',
+            'exported_privkey': 'p2pkh:KzMFjMC2MPadjvX5Cd7b8AKKjjpBSoRKUTpoAtN6B3J9ezXB3Zhj',
             'pub': '02c6467b7e621144105ed3e4835b0b4ab7e35266a2ae1c4f8baa19e9ca93452997',
             'address': 'FbkiHMrpZbJLsNXSRMiWwFnda7zWRSX12q',
             'minikey' : False,
@@ -278,7 +280,17 @@ class Test_keyImport(unittest.TestCase):
             'compressed': True,
             'addr_encoding': 'base58',
             'scripthash': 'c9aecd1fef8d661a42c560bf75c8163e337099800b8face5ca3d1393a30508a7'},
+           {'priv': 'p2pkh:Kzj8VjwpZ99bQqVeUiRXrKuX9mLr1o6sWxFMCBJn1umC388U6vCd',
+            'exported_privkey': 'p2pkh:Kzj8VjwpZ99bQqVeUiRXrKuX9mLr1o6sWxFMCBJn1umC388U6vCd',
+            'pub': '0352d78b4b37e0f6d4e164423436f2925fa57817467178eca550a88f2821973c41',
+            'address': 'FkhPzz95fBT4ttWZhaP2oUrXNC4ZH6GBbu',
+            'minikey': False,
+            'txin_type': 'p2pkh',
+            'compressed': True,
+            'addr_encoding': 'base58',
+            'scripthash': 'a9b2a76fc196c553b352186dfcca81fcf323a721cd8431328f8e9d54216818c1'},
            {'priv': '5Hxn5C4SQuiV6e62A1MtZmbSeQyrLFhu5uYks62pU5VBUva3Y5H',
+            'exported_privkey': 'p2pkh:5Hxn5C4SQuiV6e62A1MtZmbSeQyrLFhu5uYks62pU5VBUva3Y5H',
             'pub': '04e5fe91a20fac945845a5518450d23405ff3e3e1ce39827b47ee6d5db020a9075422d56a59195ada0035e4a52a238849f68e7a325ba5b2247013e0481c5c7cb3f',
             'address': 'FkYzwNGW2hqKQhm6GAt4UyLdbdsBBnEF2p',
             'minikey': False,
@@ -286,7 +298,17 @@ class Test_keyImport(unittest.TestCase):
             'compressed': False,
             'addr_encoding': 'base58',
             'scripthash': 'f5914651408417e1166f725a5829ff9576d0dbf05237055bf13abd2af7f79473'},
+           {'priv': 'p2pkh:5KhYQCe1xd5g2tqpmmGpUWDpDuTbA8vnpbiCNDwMPAx29aZG8mg',
+            'exported_privkey': 'p2pkh:5KhYQCe1xd5g2tqpmmGpUWDpDuTbA8vnpbiCNDwMPAx29aZG8mg',
+            'pub': '048f0431b0776e8210376c81280011c2b68be43194cb00bd47b7e9aa66284b713ce09556cde3fee606051a07613f3c159ef3953b8927c96ae3dae94a6ba4182e0e',
+            'address': 'FYHUAL1fKeMP5xRZZweYCYsrf4nHzFwv1f',
+            'minikey': False,
+            'txin_type': 'p2pkh',
+            'compressed': False,
+            'addr_encoding': 'base58',
+            'scripthash': '6dd2e07ad2de9ba8eec4bbe8467eb53f8845acff0d9e6f5627391acc22ff62df'},
            {'priv': 'LHJnnvRzsdrTX2j5QeWVsaBkabK7gfMNqNNqxnbBVRaJYfhsSCan',
+            'exported_privkey': 'p2wpkh-p2sh:Kz9XebiCXL2BZzhYJViiHDzn5iup1povWV8aqstzWU4sz1JQ3L2h',
             'pub': '0279ad237ca0d812fb503ab86f25e15ebd5fa5dd95c193639a8a738dcd1acbad81',
             'address': '3GeVJB3oKr7psgKR6BTXSxKtWUkfrFK6LQ',
             'minikey': False,
@@ -294,7 +316,17 @@ class Test_keyImport(unittest.TestCase):
             'compressed': True,
             'addr_encoding': 'base58',
             'scripthash': 'd7b04e882fa6b13246829ac552a2b21461d9152eb00f0a6adb58457a3e63d7c5'},
+           {'priv': 'p2wpkh-p2sh:L3CZH1pm87X4bbE6mSGvZnAZ1KcFDRomBudUkrkBG7EZhDuFFgGN',
+            'exported_privkey': 'p2wpkh-p2sh:L3CZH1pm87X4bbE6mSGvZnAZ1KcFDRomBudUkrkBG7EZhDuFFgGN',
+            'pub': '0229da20a15b3363b2c28e3c5093c180b56c439df0b968a970366bb1f38435361e',
+            'address': '3C79goMwT7zSTjXnPoCg6VFGAnUpZAkyus',
+            'minikey': False,
+            'txin_type': 'p2wpkh-p2sh',
+            'compressed': True,
+            'addr_encoding': 'base58',
+            'scripthash': '714bf6bfe1083e69539f40d4c7a7dca85d187471b35642e55f20d7e866494cf7'},
            {'priv': 'L8g5V8kFFeg2WbecahRSdobARbHz2w2STH9S8ePHVSY4fmfYtzuL',
+            'exported_privkey': 'p2wpkh:Kz6SuyPM5VktY5dr2d2YqdVgBA6LCWkiHqXJaC3BzxnMPSUjPJw2',
             'pub': '03e9f948421aaa89415dc5f281a61b60dde12aae3181b3a76cd2d849b164fc6d0b',
             'address': 'grs1qqmpt7u5e9hfznljta5gnvhyvfd2kdd0rc7t09c',
             'minikey': False,
@@ -302,8 +334,18 @@ class Test_keyImport(unittest.TestCase):
             'compressed': True,
             'addr_encoding': 'bech32',
             'scripthash': '1929acaaef3a208c715228e9f1ca0318e3a6b9394ab53c8d026137f847ecf97b'},
+           {'priv': 'p2wpkh:KyDWy5WbjLA58Zesh1o8m3pADGdJ3v33DKk4m7h8BD5zDK8H6P7p',
+            'exported_privkey': 'p2wpkh:KyDWy5WbjLA58Zesh1o8m3pADGdJ3v33DKk4m7h8BD5zDK8H6P7p',
+            'pub': '038c57657171c1f73e34d5b3971d05867d50221ad94980f7e87cbc2344425e6a1e',
+            'address': 'grs1qpakeeg4d9ydyjxd8paqrw4xy9htsg532mn6jdw',
+            'minikey': False,
+            'txin_type': 'p2wpkh',
+            'compressed': True,
+            'addr_encoding': 'bech32',
+            'scripthash': '242f02adde84ebb2a7dd778b2f3a81b3826f111da4d8960d826d7a4b816cb261'},
            # from http://bitscan.com/articles/security/spotlight-on-mini-private-keys
            {'priv': 'SzavMBLoXU6kDrqtUVmffv',
+            'exported_privkey': 'p2pkh:L53fCHmQhbNp1B4JipfBtfeHZH7cAibzG9oK19XfiFzxHgBj56o3',
             'pub': '02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9',
             'address': 'FdSdN8eiuyEgNS9BpZ6d8SbFMWu2vzTL1d',
             'minikey': True,
@@ -344,6 +386,7 @@ class Test_keyImport(unittest.TestCase):
     def test_is_private_key(self):
         for priv_details in self.priv_pub_addr:
             self.assertTrue(is_private_key(priv_details['priv']))
+            self.assertTrue(is_private_key(priv_details['exported_privkey']))
             self.assertFalse(is_private_key(priv_details['pub']))
             self.assertFalse(is_private_key(priv_details['address']))
         self.assertFalse(is_private_key("not a privkey"))
@@ -352,8 +395,7 @@ class Test_keyImport(unittest.TestCase):
         for priv_details in self.priv_pub_addr:
             txin_type, privkey, compressed = deserialize_privkey(priv_details['priv'])
             priv2 = serialize_privkey(privkey, compressed, txin_type)
-            if not priv_details['minikey']:
-                self.assertEqual(priv_details['priv'], priv2)
+            self.assertEqual(priv_details['exported_privkey'], priv2)
 
     def test_address_to_scripthash(self):
         for priv_details in self.priv_pub_addr:

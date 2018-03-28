@@ -9,6 +9,12 @@ import platform
 import imp
 import argparse
 
+with open('contrib/requirements/requirements.txt') as f:
+    requirements = f.read().splitlines()
+
+with open('contrib/requirements/requirements-hw.txt') as f:
+    requirements_hw = f.read().splitlines()
+
 version = imp.load_source('version', 'lib/version.py')
 
 if sys.version_info[:3] < (3, 4, 0):
@@ -35,21 +41,7 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
 setup(
     name="Electrum-grs",
     version=version.ELECTRUM_VERSION,
-    install_requires=[
-        'pyaes>=0.1a1',
-        'ecdsa>=0.9',
-        'pbkdf2',
-        'requests',
-        'qrcode',
-        'protobuf',
-        'dnspython',
-        'jsonrpclib-pelix',
-        'PySocks>=1.6.6',
-        'groestlcoin_hash',
-    ],
-    dependency_links=[
-        "git+https://github.com/mazaclub/python-trezor#egg=trezor",
-    ],
+    install_requires=requirements,
     packages=[
         'electrum_grs',
         'electrum_grs_gui',
@@ -78,6 +70,8 @@ setup(
             'servers.json',
             'servers_testnet.json',
             'currencies.json',
+            'checkpoints.json',
+            'checkpoints_testnet.json',
             'www/index.html',
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
@@ -92,3 +86,8 @@ setup(
     url="https://electrum.org",
     long_description="""Lightweight Groestlcoin Wallet"""
 )
+
+# Optional modules (not required to run Electrum)
+import pip
+opt_modules = requirements_hw + ['pycryptodomex']
+[ pip.main(['install', m]) for m in opt_modules ]

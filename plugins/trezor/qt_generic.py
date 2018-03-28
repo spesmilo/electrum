@@ -5,7 +5,7 @@ from PyQt5.Qt import Qt
 from PyQt5.Qt import QGridLayout, QInputDialog, QPushButton
 from PyQt5.Qt import QVBoxLayout, QLabel
 from electrum_grs_gui.qt.util import *
-from .plugin import TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
+from .trezor import TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 
 from electrum_grs.i18n import _
@@ -188,13 +188,14 @@ class QtPlugin(QtPluginBase):
 
     @hook
     def receive_menu(self, menu, addrs, wallet):
-        if type(wallet) is not Standard_Wallet:
+        if len(addrs) != 1:
             return
-        keystore = wallet.get_keystore()
-        if type(keystore) == self.keystore_class and len(addrs) == 1:
-            def show_address():
-                keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
-            menu.addAction(_("Show on %s") % self.device, show_address)
+        for keystore in wallet.get_keystores():
+            if type(keystore) == self.keystore_class:
+                def show_address():
+                    keystore.thread.add(partial(self.show_address, wallet, keystore, addrs[0]))
+                menu.addAction(_("Show on {}").format(self.device), show_address)
+                break
 
     def show_settings_dialog(self, window, keystore):
         device_id = self.choose_device(window, keystore)
@@ -292,7 +293,7 @@ class SettingsDialog(WindowModalDialog):
     their PIN.'''
 
     def __init__(self, window, plugin, keystore, device_id):
-        title = _("%s Settings") % plugin.device
+        title = _("{} Settings").format(plugin.device)
         super(SettingsDialog, self).__init__(window, title)
         self.setMaximumWidth(540)
 
@@ -320,8 +321,11 @@ class SettingsDialog(WindowModalDialog):
         def update(features):
             self.features = features
             set_label_enabled()
-            bl_hash = bh2u(features.bootloader_hash)
-            bl_hash = "\n".join([bl_hash[:32], bl_hash[32:]])
+            if features.bootloader_hash:
+                bl_hash = bh2u(features.bootloader_hash)
+                bl_hash = "\n".join([bl_hash[:32], bl_hash[32:]])
+            else:
+                bl_hash = "N/A"
             noyes = [_("No"), _("Yes")]
             endis = [_("Enable Passphrases"), _("Disable Passphrases")]
             disen = [_("Disabled"), _("Enabled")]
@@ -375,25 +379,31 @@ class SettingsDialog(WindowModalDialog):
             invoke_client('toggle_passphrase', unpair_after=currently_enabled)
 
         def change_homescreen():
-            from PIL import Image  # FIXME
             dialog = QFileDialog(self, _("Choose Homescreen"))
             filename, __ = dialog.getOpenFileName()
-            if filename:
-                im = Image.open(str(filename))
-                if im.size != (hs_cols, hs_rows):
-                    raise Exception('Image must be 64 x 128 pixels')
+
+            if filename.endswith('.toif'):
+                img = open(filename, 'rb').read()
+                if img[:8] != b'TOIf\x90\x00\x90\x00':
+                    raise Exception('File is not a TOIF file with size of 144x144')
+            else:
+                from PIL import Image # FIXME
+                im = Image.open(filename)
+                if im.size != (128, 64):
+                    raise Exception('Image must be 128 x 64 pixels')
                 im = im.convert('1')
                 pix = im.load()
-                img = ''
-                for j in range(hs_rows):
-                    for i in range(hs_cols):
-                        img += '1' if pix[i, j] else '0'
-                img = ''.join(chr(int(img[i:i + 8], 2))
-                              for i in range(0, len(img), 8))
+                img = bytearray(1024)
+                for j in range(64):
+                    for i in range(128):
+                        if pix[i, j]:
+                            o = (i + j * 128)
+                            img[o // 8] |= (1 << (7 - o % 8))
+                img = bytes(img)
                 invoke_client('change_homescreen', img)
 
         def clear_homescreen():
-            invoke_client('change_homescreen', '\x00')
+            invoke_client('change_homescreen', b'\x00')
 
         def set_pin():
             invoke_client('set_pin', remove=False)
@@ -457,9 +467,9 @@ class SettingsDialog(WindowModalDialog):
         settings_glayout = QGridLayout()
 
         # Settings tab - Label
-        label_msg = QLabel(_("Name this %s.  If you have mutiple devices "
+        label_msg = QLabel(_("Name this {}.  If you have mutiple devices "
                              "their labels help distinguish them.")
-                           % plugin.device)
+                           .format(plugin.device))
         label_msg.setWordWrap(True)
         label_label = QLabel(_("Device Label"))
         label_edit = QLineEdit()
@@ -482,7 +492,7 @@ class SettingsDialog(WindowModalDialog):
         pin_msg = QLabel(_("PIN protection is strongly recommended.  "
                            "A PIN is your only protection against someone "
                            "stealing your groestlcoins if they obtain physical "
-                           "access to your %s.") % plugin.device)
+                           "access to your {}.").format(plugin.device))
         pin_msg.setWordWrap(True)
         pin_msg.setStyleSheet("color: red")
         settings_glayout.addWidget(pin_msg, 3, 1, 1, -1)
@@ -497,8 +507,8 @@ class SettingsDialog(WindowModalDialog):
             homescreen_clear_button.clicked.connect(clear_homescreen)
             homescreen_msg = QLabel(_("You can set the homescreen on your "
                                       "device to personalize it.  You must "
-                                      "choose a %d x %d monochrome black and "
-                                      "white image.") % (hs_rows, hs_cols))
+                                      "choose a {} x {} monochrome black and "
+                                      "white image.").format(hs_rows, hs_cols))
             homescreen_msg.setWordWrap(True)
             settings_glayout.addWidget(homescreen_label, 4, 0)
             settings_glayout.addWidget(homescreen_change_button, 4, 1)
@@ -541,7 +551,7 @@ class SettingsDialog(WindowModalDialog):
         clear_pin_button.clicked.connect(clear_pin)
         clear_pin_warning = QLabel(
             _("If you disable your PIN, anyone with physical access to your "
-              "%s device can spend your groestlcoins.") % plugin.device)
+              "{} device can spend your groestlcoins.").format(plugin.device))
         clear_pin_warning.setWordWrap(True)
         clear_pin_warning.setStyleSheet("color: red")
         advanced_glayout.addWidget(clear_pin_button, 0, 2)

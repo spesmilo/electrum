@@ -43,9 +43,7 @@ import sys
 import traceback
 
 
-PORT = 12344
-HOST = 'cosigner.electrum.org'
-server = ServerProxy('http://%s:%d'%(HOST,PORT), allow_none=True)
+server = ServerProxy('https://cosigner.electrum.org/', allow_none=True)
 
 
 class Listener(util.DaemonThread):
@@ -194,7 +192,7 @@ class Plugin(BasePlugin):
             return
 
         wallet = window.wallet
-        if wallet.has_password():
+        if wallet.has_keystore_encryption():
             password = window.password_dialog('An encrypted transaction was retrieved from cosigning pool.\nPlease enter your password to decrypt it.')
             if not password:
                 return

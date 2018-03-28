@@ -57,7 +57,7 @@ class PasswordLayout(object):
 
     titles = [_("Enter Password"), _("Change Password"), _("Enter Passphrase")]
 
-    def __init__(self, wallet, msg, kind, OK_button):
+    def __init__(self, wallet, msg, kind, OK_button, force_disable_encrypt_cb=False):
         self.wallet = wallet
 
         self.pw = QLineEdit()
@@ -126,7 +126,8 @@ class PasswordLayout(object):
         def enable_OK():
             ok = self.new_pw.text() == self.conf_pw.text()
             OK_button.setEnabled(ok)
-            self.encrypt_cb.setEnabled(ok and bool(self.new_pw.text()))
+            self.encrypt_cb.setEnabled(ok and bool(self.new_pw.text())
+                                       and not force_disable_encrypt_cb)
         self.new_pw.textChanged.connect(enable_OK)
         self.conf_pw.textChanged.connect(enable_OK)
 
@@ -163,11 +164,84 @@ class PasswordLayout(object):
         return pw
 
 
-class ChangePasswordDialog(WindowModalDialog):
+class PasswordLayoutForHW(object):
+
+    def __init__(self, wallet, msg, kind, OK_button):
+        self.wallet = wallet
+
+        self.kind = kind
+        self.OK_button = OK_button
+
+        vbox = QVBoxLayout()
+        label = QLabel(msg + "\n")
+        label.setWordWrap(True)
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        grid.setColumnMinimumWidth(0, 150)
+        grid.setColumnMinimumWidth(1, 100)
+        grid.setColumnStretch(1,1)
+
+        logo_grid = QGridLayout()
+        logo_grid.setSpacing(8)
+        logo_grid.setColumnMinimumWidth(0, 70)
+        logo_grid.setColumnStretch(1,1)
+
+        logo = QLabel()
+        logo.setAlignment(Qt.AlignCenter)
+
+        logo_grid.addWidget(logo,  0, 0)
+        logo_grid.addWidget(label, 0, 1, 1, 2)
+        vbox.addLayout(logo_grid)
+
+        if wallet and wallet.has_storage_encryption():
+            lockfile = ":icons/lock.png"
+        else:
+            lockfile = ":icons/unlock.png"
+        logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
+
+        vbox.addLayout(grid)
+
+        self.encrypt_cb = QCheckBox(_('Encrypt wallet file'))
+        grid.addWidget(self.encrypt_cb, 1, 0, 1, 2)
+
+        self.vbox = vbox
+
+    def title(self):
+        return _("Toggle Encryption")
+
+    def layout(self):
+        return self.vbox
+
+
+class ChangePasswordDialogBase(WindowModalDialog):
 
     def __init__(self, parent, wallet):
         WindowModalDialog.__init__(self, parent)
-        is_encrypted = wallet.storage.is_encrypted()
+        is_encrypted = wallet.has_storage_encryption()
+        OK_button = OkButton(self)
+
+        self.create_password_layout(wallet, is_encrypted, OK_button)
+
+        self.setWindowTitle(self.playout.title())
+        vbox = QVBoxLayout(self)
+        vbox.addLayout(self.playout.layout())
+        vbox.addStretch(1)
+        vbox.addLayout(Buttons(CancelButton(self), OK_button))
+        self.playout.encrypt_cb.setChecked(is_encrypted)
+
+    def create_password_layout(self, wallet, is_encrypted, OK_button):
+        raise NotImplementedError()
+
+
+class ChangePasswordDialogForSW(ChangePasswordDialogBase):
+
+    def __init__(self, parent, wallet):
+        ChangePasswordDialogBase.__init__(self, parent, wallet)
+        if not wallet.has_password():
+            self.playout.encrypt_cb.setChecked(True)
+
+    def create_password_layout(self, wallet, is_encrypted, OK_button):
         if not wallet.has_password():
             msg = _('Your wallet is not protected.')
             msg += ' ' + _('Use this dialog to add a password to your wallet.')
@@ -177,19 +251,34 @@ class ChangePasswordDialog(WindowModalDialog):
             else:
                 msg = _('Your wallet is password protected and encrypted.')
             msg += ' ' + _('Use this dialog to change your password.')
-        OK_button = OkButton(self)
-        self.playout = PasswordLayout(wallet, msg, PW_CHANGE, OK_button)
-        self.setWindowTitle(self.playout.title())
-        vbox = QVBoxLayout(self)
-        vbox.addLayout(self.playout.layout())
-        vbox.addStretch(1)
-        vbox.addLayout(Buttons(CancelButton(self), OK_button))
-        self.playout.encrypt_cb.setChecked(is_encrypted or not wallet.has_password())
+        self.playout = PasswordLayout(
+            wallet, msg, PW_CHANGE, OK_button,
+            force_disable_encrypt_cb=not wallet.can_have_keystore_encryption())
 
     def run(self):
         if not self.exec_():
             return False, None, None, None
         return True, self.playout.old_password(), self.playout.new_password(), self.playout.encrypt_cb.isChecked()
+
+
+class ChangePasswordDialogForHW(ChangePasswordDialogBase):
+
+    def __init__(self, parent, wallet):
+        ChangePasswordDialogBase.__init__(self, parent, wallet)
+
+    def create_password_layout(self, wallet, is_encrypted, OK_button):
+        if not is_encrypted:
+            msg = _('Your wallet file is NOT encrypted.')
+        else:
+            msg = _('Your wallet file is encrypted.')
+        msg += '\n' + _('Note: If you enable this setting, you will need your hardware device to open your wallet.')
+        msg += '\n' + _('Use this dialog to toggle encryption.')
+        self.playout = PasswordLayoutForHW(wallet, msg, PW_CHANGE, OK_button)
+
+    def run(self):
+        if not self.exec_():
+            return False, None
+        return True, self.playout.encrypt_cb.isChecked()
 
 
 class PasswordDialog(WindowModalDialog):
