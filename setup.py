@@ -45,7 +45,7 @@ setup(
     version=version.ELECTRUM_VERSION,
     install_requires=requirements,
     extras_require={
-        'full': requirements_hw + ['pycryptodomex'],
+        'full': requirements_hw + ['pycryptodomex', 'scrypt>=0.6.0'],
     },
     packages=[
         'electrum_ltc',
