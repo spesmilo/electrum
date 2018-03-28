@@ -8,3 +8,5 @@ dnspython
 jsonrpclib-pelix
 PySocks>=1.6.6
 qdarkstyle<3.0
+bitstring
+cryptography
