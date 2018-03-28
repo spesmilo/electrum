@@ -41,10 +41,12 @@ directory. To run Electrum from its root directory, just do::
 You can also install Electrum on your system, by running this command::
 
     sudo apt-get install python3-setuptools
-    python3 setup.py install
+    pip3 install .[full]
 
 This will download and install the Python dependencies used by
 Electrum, instead of using the 'packages' directory.
+The 'full' extra contains some optional dependencies that we think
+are often useful but they are not strictly needed.
 
 If you cloned the git repository, you need to compile extra files
 before you can run Electrum. Read the next section, "Development
@@ -62,7 +64,7 @@ Check out the code from Github::
 
 Run install (this should install dependencies)::
 
-    python3 setup.py install
+    pip3 install .[full]
 
 Compile the icons file for Qt::
 
