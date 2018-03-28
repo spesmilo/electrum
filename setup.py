@@ -44,6 +44,9 @@ setup(
     name="Electrum-LTC",
     version=version.ELECTRUM_VERSION,
     install_requires=requirements,
+    extras_require={
+        'full': requirements_hw + ['pycryptodomex'],
+    },
     packages=[
         'electrum_ltc',
         'electrum_ltc_gui',
@@ -86,8 +89,3 @@ setup(
     url="http://electrum-ltc.org",
     long_description="""Lightweight Litecoin Wallet"""
 )
-
-# Optional modules (not required to run Electrum)
-import pip
-opt_modules = requirements_hw + ['pycryptodomex']
-[ pip.main(['install', m]) for m in opt_modules ]
