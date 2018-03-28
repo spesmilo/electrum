@@ -5,6 +5,7 @@ from PyQt5 import QtCore, QtWidgets
 from collections import OrderedDict
 import logging
 from electrum.lightning import lightningCall
+from .qrcodewidget import QRDialog
 
 mapping = {0: "r_hash", 1: "pay_req", 2: "settled"}
 revMapp = {"r_hash": 0, "pay_req": 1, "settled": 2}
@@ -61,7 +62,11 @@ class LightningInvoiceList(QtWidgets.QWidget):
         def copy():
             print(pay_req)
             cb.setText(pay_req)
+        def qr():
+            d = QRDialog(pay_req, self, "Lightning invoice")
+            d.exec_()
         menu.addAction("Copy payment request", copy)
+        menu.addAction("Show payment request as QR code", qr)
         menu.exec_(self._tv.viewport().mapToGlobal(position))
     def lightningWorkerHandler(self, sourceClassName, obj):
         new = {}
