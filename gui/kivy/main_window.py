@@ -631,7 +631,6 @@ class ElectrumWindow(App):
             self.receive_screen.clear()
         self.update_tabs()
         run_hook('load_wallet', wallet, self)
-        print('load wallet done', self.wallet)
 
     def update_status(self, *dt):
         self.num_blocks = self.network.get_local_height()
