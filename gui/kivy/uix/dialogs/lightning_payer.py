@@ -1,7 +1,9 @@
+import binascii
 from kivy.lang import Builder
 from kivy.factory import Factory
 from electrum_gui.kivy.i18n import _
 import electrum.lightning as lightning
+from electrum.lightning_payencode.lnaddr import lndecode
 
 Builder.load_string('''
 <LightningPayerDialog@Popup>
@@ -34,6 +36,11 @@ Builder.load_string('''
         Button:
             size_hint: 1, None
             height: '48dp'
+            text: _('Open channel to pubkey in invoice')
+            on_release: s.do_open_channel()
+        Button:
+            size_hint: 1, None
+            height: '48dp'
             text: _('Pay pasted/scanned invoice')
             on_release: s.do_pay()
 ''')
@@ -63,7 +70,13 @@ class LightningPayerDialog(Factory.Popup):
         self.invoice_data = contents
     def do_clear(self):
         self.invoice_data = ""
+    def do_open_channel(self):
+        compressed_pubkey_bytes = lndecode(self.invoice_data).pubkey.serialize()
+        hexpubkey = binascii.hexlify(compressed_pubkey_bytes).decode("ascii")
+        local_amt = 100000
+        push_amt = 0
+        lightning.lightningCall(self.app.wallet.network.lightningrpc, "openchannel")(hexpubkey, local_amt, push_amt)
     def do_pay(self):
         lightning.lightningCall(self.app.wallet.network.lightningrpc, "sendpayment")("--pay_req=" + self.invoice_data)
-    def on_lightning_qr(self):
-        self.app.show_info("Lightning Invoice QR scanning not implemented") #TODO
+    def on_lightning_qr(self, data):
+        self.invoice_data = str(data)
