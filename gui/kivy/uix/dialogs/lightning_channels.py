@@ -37,7 +37,7 @@ class LightningChannelsDialog(Factory.Popup):
 
     def close_channel(self, obj):
         print("asked to close channel", obj.channelPoint)
-        lightning.lightningCall(self.app.wallet.network.lightningrpc, "closechannel")(obj.channelPoint + (" --force" if not obj.active else ""))
+        lightning.lightningCall(self.app.wallet.network.lightningrpc, "closechannel")(*([obj.channelPoint] + (["--force"] if not obj.active else [])))
 
     def show_menu(self, obj):
         self.hide_menu()
@@ -69,10 +69,13 @@ class LightningChannelsDialog(Factory.Popup):
             raise res
         channel_cards = self.ids.lightning_channels_container
         channel_cards.clear_widgets()
-        for i in res["channels"]:
+        if "channels" in res:
+          for i in res["channels"]:
             item = Factory.LightningChannelItem()
             item.screen = self
             print(i)
-            item.channelPoint = binascii.hexlify(bytes(reversed(bytes(bytearray.fromhex(i["channel_point"].split(":")[0]))))).decode("ascii")
+            item.channelPoint = i["channel_point"].split(":")[0]
             item.active = i["active"]
             channel_cards.add_widget(item)
+        else:
+          self.app.show_info(res)
