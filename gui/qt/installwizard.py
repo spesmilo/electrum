@@ -148,7 +148,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.raise_()
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
-    def run_and_get_wallet(self):
+    def run_and_get_wallet(self, get_wallet_from_daemon):
 
         vbox = QVBoxLayout()
         hbox = QHBoxLayout()
@@ -181,8 +181,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         def on_filename(filename):
             path = os.path.join(wallet_folder, filename)
+            wallet_from_memory = get_wallet_from_daemon(path)
             try:
-                self.storage = WalletStorage(path, manual_upgrades=True)
+                if wallet_from_memory:
+                    self.storage = wallet_from_memory.storage
+                else:
+                    self.storage = WalletStorage(path, manual_upgrades=True)
                 self.next_button.setEnabled(True)
             except BaseException:
                 traceback.print_exc(file=sys.stderr)
@@ -193,7 +197,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     msg =_("This file does not exist.") + '\n' \
                           + _("Press 'Next' to create this wallet, or choose another file.")
                     pw = False
-                else:
+                elif not wallet_from_memory:
                     if self.storage.is_encrypted_with_user_pw():
                         msg = _("This file is encrypted with a password.") + '\n' \
                               + _('Enter your password or choose another file.')
@@ -205,6 +209,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     else:
                         msg = _("Press 'Next' to open this wallet.")
                         pw = False
+                else:
+                    msg = _("This file is already open in memory.") + "\n" \
+                        + _("Press 'Next' to create/focus window.")
+                    pw = False
             else:
                 msg = _('Cannot read file')
                 pw = False
@@ -229,6 +237,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 return
             if not self.storage.file_exists():
                 break
+            wallet_from_memory = get_wallet_from_daemon(self.storage.path)
+            if wallet_from_memory:
+                return wallet_from_memory
             if self.storage.file_exists() and self.storage.is_encrypted():
                 if self.storage.is_encrypted_with_user_pw():
                     password = self.pw_e.text()
@@ -251,7 +262,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                             _('Failed to decrypt using this hardware device.') + '\n' +
                             _('If you use a passphrase, make sure it is correct.'))
                         self.stack = []
-                        return self.run_and_get_wallet()
+                        return self.run_and_get_wallet(get_wallet_from_daemon)
                     except BaseException as e:
                         traceback.print_exc(file=sys.stdout)
                         QMessageBox.information(None, _('Error'), str(e))
@@ -300,8 +311,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
         self.wallet = Wallet(self.storage)
         return self.wallet
-
-
 
     def finished(self):
         """Called in hardware client wrapper, in order to close popups."""

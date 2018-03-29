@@ -179,7 +179,8 @@ class TxDialog(QDialog, MessageBoxMixin):
 
     def sign(self):
         def sign_done(success):
-            if success:
+            # note: with segwit we could save partially signed tx, because they have a txid
+            if self.tx.is_complete():
                 self.prompt_if_unsaved = True
                 self.saved = False
                 self.save_button.setDisabled(False)
@@ -289,7 +290,7 @@ class TxDialog(QDialog, MessageBoxMixin):
                 cursor.insertText(prevout_hash[-8:] + ":%-4d " % prevout_n, ext)
                 addr = x.get('address')
                 if addr == "(pubkey)":
-                    _addr = self.wallet.find_pay_to_pubkey_address(prevout_hash, prevout_n)
+                    _addr = self.wallet.get_txin_address(x)
                     if _addr:
                         addr = _addr
                 if addr is None:

@@ -1,4 +1,4 @@
-btchip-python==0.1.24
+btchip-python==0.1.26
 certifi==2018.1.18
 chardet==3.0.4
 click==6.7

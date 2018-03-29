@@ -11,6 +11,7 @@
 
 PYTHON_VER="$(python3 -c 'import sys; print(sys.version[:3])')"
 
+cd $(dirname $0)
 if [ -e ./env/bin/activate ]; then
     source ./env/bin/activate
 else

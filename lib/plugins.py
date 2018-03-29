@@ -466,7 +466,7 @@ class DeviceMgr(ThreadJob, PrintError):
         devices = [dev for dev in devices if not self.xpub_by_id(dev.id_)]
         infos = []
         for device in devices:
-            if not device.product_key in plugin.DEVICE_IDS:
+            if device.product_key not in plugin.DEVICE_IDS:
                 continue
             client = self.create_client(device, handler, plugin)
             if not client:
@@ -482,9 +482,14 @@ class DeviceMgr(ThreadJob, PrintError):
             infos = self.unpaired_device_infos(handler, plugin, devices)
             if infos:
                 break
-            msg = _('Please insert your {}.  Verify the cable is '
-                    'connected and that no other application is using it.\n\n'
-                    'Try to connect again?').format(plugin.device)
+            msg = _('Please insert your {}').format(plugin.device)
+            if keystore.label:
+                msg += ' ({})'.format(keystore.label)
+            msg += '. {}\n\n{}'.format(
+                _('Verify the cable is connected and that '
+                  'no other application is using it.'),
+                _('Try to connect again?')
+            )
             if not handler.yes_no_question(msg):
                 raise UserCancelled()
             devices = None
@@ -506,17 +511,15 @@ class DeviceMgr(ThreadJob, PrintError):
             handler.win.wallet.save_keystore()
         return info
 
-    def scan_devices(self):
-        # All currently supported hardware libraries use hid, so we
-        # assume it here.  This can be easily abstracted if necessary.
-        # Note this import must be local so those without hardware
-        # wallet libraries are not affected.
-        import hid
-        self.print_error("scanning devices...")
+    def _scan_devices_with_hid(self):
+        try:
+            import hid
+        except ImportError:
+            return []
+
         with self.hid_lock:
             hid_list = hid.enumerate(0, 0)
 
-        # First see what's connected that we know about
         devices = []
         for d in hid_list:
             product_key = (d['vendor_id'], d['product_id'])
@@ -530,6 +533,13 @@ class DeviceMgr(ThreadJob, PrintError):
                 id_ += str(interface_number) + str(usage_page)
                 devices.append(Device(d['path'], interface_number,
                                       id_, product_key, usage_page))
+        return devices
+
+    def scan_devices(self):
+        self.print_error("scanning devices...")
+
+        # First see what's connected that we know about
+        devices = self._scan_devices_with_hid()
 
         # Let plugin handlers enumerate devices we don't know about
         for f in self.enumerate_func:
@@ -541,13 +551,13 @@ class DeviceMgr(ThreadJob, PrintError):
             else:
                 devices.extend(new_devices)
 
-        # Now find out what was disconnected
+        # find out what was disconnected
         pairs = [(dev.path, dev.id_) for dev in devices]
         disconnected_ids = []
         with self.lock:
             connected = {}
             for client, pair in self.clients.items():
-                if pair in pairs:
+                if pair in pairs and client.has_usable_connection_with_device():
                     connected[client] = pair
                 else:
                     disconnected_ids.append(pair[1])

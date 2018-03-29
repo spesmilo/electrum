@@ -172,8 +172,10 @@ class TcpConnection(threading.Thread, util.PrintError):
                 # workaround android bug
                 cert = re.sub("([^\n])-----END CERTIFICATE-----","\\1\n-----END CERTIFICATE-----",cert)
                 temporary_path = cert_path + '.temp'
-                with open(temporary_path,"w") as f:
+                with open(temporary_path, "w", encoding='utf-8') as f:
                     f.write(cert)
+                    f.flush()
+                    os.fsync(f.fileno())
             else:
                 is_new = False
 
@@ -199,7 +201,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                         os.unlink(rej)
                     os.rename(temporary_path, rej)
                 else:
-                    with open(cert_path) as f:
+                    with open(cert_path, encoding='utf-8') as f:
                         cert = f.read()
                     try:
                         b = pem.dePem(cert, 'CERTIFICATE')
@@ -396,7 +398,7 @@ def test_certificates():
     certs = os.listdir(mydir)
     for c in certs:
         p = os.path.join(mydir,c)
-        with open(p) as f:
+        with open(p, encoding='utf-8') as f:
             cert = f.read()
         check_cert(c, cert)
 

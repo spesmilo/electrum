@@ -44,7 +44,8 @@ import sys
 
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
-                   format_satoshis, NoDynamicFeeEstimates, TimeoutException)
+                   format_satoshis, NoDynamicFeeEstimates, TimeoutException,
+                   WalletFileException, BitcoinException)
 
 from .bitcoin import *
 from .version import *
@@ -131,6 +132,7 @@ def sweep_preparations(privkeys, network, imax=100):
             find_utxos_for_privkey('p2pk', privkey, compressed)
     if not inputs:
         raise BaseException(_('No inputs found. (Note that inputs need to be confirmed)'))
+        # FIXME actually inputs need not be confirmed now, see https://github.com/kyuupichan/electrumx/issues/365
     return inputs, keypairs
 
 
@@ -335,7 +337,7 @@ class Abstract_Wallet(PrintError):
         addrs = self.get_receiving_addresses()
         if len(addrs) > 0:
             if not bitcoin.is_address(addrs[0]):
-                raise Exception('The addresses in this wallet are not bitcoin addresses.')
+                raise WalletFileException('The addresses in this wallet are not bitcoin addresses.')
 
     def synchronize(self):
         pass
@@ -1166,7 +1168,7 @@ class Abstract_Wallet(PrintError):
             _type, data, value = o
             if _type == TYPE_ADDRESS:
                 if not is_address(data):
-                    raise BaseException("Invalid groestlcoin address:" + data)
+                    raise BaseException("Invalid groestlcoin address: {}".format(data))
             if value == '!':
                 if i_max is not None:
                     raise BaseException("More than one output set to spend max")
@@ -1339,7 +1341,7 @@ class Abstract_Wallet(PrintError):
 
     def bump_fee(self, tx, delta):
         if tx.is_final():
-            raise BaseException(_("Cannot bump fee: transaction is final"))
+            raise BaseException(_('Cannot bump fee') + ': ' + _('transaction is final'))
         inputs = copy.deepcopy(tx.inputs())
         outputs = copy.deepcopy(tx.outputs())
         for txin in inputs:
@@ -1370,7 +1372,7 @@ class Abstract_Wallet(PrintError):
                 if delta > 0:
                     continue
         if delta > 0:
-            raise BaseException(_('Cannot bump fee: could not find suitable outputs'))
+            raise BaseException(_('Cannot bump fee') + ': ' + _('could not find suitable outputs'))
         locktime = self.get_local_height()
         tx_new = Transaction.from_io(inputs, outputs, locktime=locktime)
         tx_new.BIP_LI01_sort()
@@ -1442,7 +1444,7 @@ class Abstract_Wallet(PrintError):
         xpubs = self.get_master_public_keys()
         for txout in tx.outputs():
             _type, addr, amount = txout
-            if self.is_change(addr):
+            if self.is_mine(addr):
                 index = self.get_address_index(addr)
                 pubkeys = self.get_public_keys(addr)
                 # sort xpubs using the order of pubkeys
@@ -1588,6 +1590,11 @@ class Abstract_Wallet(PrintError):
 
     def add_payment_request(self, req, config):
         addr = req['address']
+        if not bitcoin.is_address(addr):
+            raise Exception(_('Invalid Bitcoin address.'))
+        if not self.is_mine(addr):
+            raise Exception(_('Address not in wallet.'))
+
         amount = req.get('amount')
         message = req.get('memo')
         self.receive_requests[addr] = req
@@ -1609,7 +1616,7 @@ class Abstract_Wallet(PrintError):
                 f.write(pr.SerializeToString())
             # reload
             req = self.get_payment_request(addr, config)
-            with open(os.path.join(path, key + '.json'), 'w') as f:
+            with open(os.path.join(path, key + '.json'), 'w', encoding='utf-8') as f:
                 f.write(json.dumps(req))
         return req
 
@@ -1927,8 +1934,18 @@ class Imported_Wallet(Simple_Wallet):
         pubkey = self.get_public_key(address)
         self.addresses.pop(address)
         if pubkey:
-            self.keystore.delete_imported_key(pubkey)
-            self.save_keystore()
+            # delete key iff no other address uses it (e.g. p2pkh and p2wpkh for same key)
+            for txin_type in bitcoin.SCRIPT_TYPES.keys():
+                try:
+                    addr2 = bitcoin.pubkey_to_address(txin_type, pubkey)
+                except NotImplementedError:
+                    pass
+                else:
+                    if addr2 in self.addresses:
+                        break
+            else:
+                self.keystore.delete_imported_key(pubkey)
+                self.save_keystore()
         self.storage.put('addresses', self.addresses)
 
         self.storage.write()
@@ -1944,14 +1961,14 @@ class Imported_Wallet(Simple_Wallet):
             txin_type, pubkey = self.keystore.import_privkey(sec, pw)
         except Exception:
             neutered_privkey = str(sec)[:3] + '..' + str(sec)[-2:]
-            raise BaseException('Invalid private key', neutered_privkey)
+            raise BitcoinException('Invalid private key: {}'.format(neutered_privkey))
         if txin_type in ['p2pkh', 'p2wpkh', 'p2wpkh-p2sh']:
             if redeem_script is not None:
-                raise BaseException('Cannot use redeem script with', txin_type)
+                raise BitcoinException('Cannot use redeem script with script type {}'.format(txin_type))
             addr = bitcoin.pubkey_to_address(txin_type, pubkey)
         elif txin_type in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
             if redeem_script is None:
-                raise BaseException('Redeem script required for', txin_type)
+                raise BitcoinException('Redeem script required for script type {}'.format(txin_type))
             addr = bitcoin.redeem_script_to_address(txin_type, redeem_script)
         else:
             raise NotImplementedError(txin_type)

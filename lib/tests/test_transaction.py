@@ -3,7 +3,7 @@ import unittest
 from lib import transaction
 from lib.bitcoin import TYPE_ADDRESS
 from lib.keystore import xpubkey_to_address
-from lib.util import bh2u
+from lib.util import bh2u, bfh
 
 unsigned_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000005701ff4c53ff0488b21e03ef2afea18000000089689bff23e1e7fb2f161daa37270a97a3d8c2e537584b2d304ecb47b86d21fc021b010d3bd425f8cf2e04824bfdf1f1f5ff1d51fadd9a41f9e3fb8dd3403b1bfe00000000ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
@@ -166,6 +166,26 @@ class TestTransaction(unittest.TestCase):
         tx = transaction.Transaction(v2_blob)
         self.assertEqual(tx.txid(), "b97f9180173ab141b61b9f944d841e60feec691d6daab4d4d932b24dd36606fe")
 
+    def test_get_address_from_output_script(self):
+        # the inverse of this test is in test_bitcoin: test_address_to_script
+        addr_from_script = lambda script: transaction.get_address_from_output_script(bfh(script))
+        ADDR = transaction.TYPE_ADDRESS
+
+        # bech32 native segwit
+        # test vectors from BIP-0173
+        self.assertEqual((ADDR, 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4'), addr_from_script('0014751e76e8199196d454941c45d1b3a323f1433bd6'))
+        self.assertEqual((ADDR, 'bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx'), addr_from_script('5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6'))
+        self.assertEqual((ADDR, 'bc1sw50qa3jx3s'), addr_from_script('6002751e'))
+        self.assertEqual((ADDR, 'bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj'), addr_from_script('5210751e76e8199196d454941c45d1b3a323'))
+
+        # base58 p2pkh
+        self.assertEqual((ADDR, '14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG'), addr_from_script('76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac'))
+        self.assertEqual((ADDR, '1BEqfzh4Y3zzLosfGhw1AsqbEKVW6e1qHv'), addr_from_script('76a914704f4b81cadb7bf7e68c08cd3657220f680f863c88ac'))
+
+        # base58 p2sh
+        self.assertEqual((ADDR, '35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), addr_from_script('a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487'))
+        self.assertEqual((ADDR, '3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji'), addr_from_script('a914f47c8954e421031ad04ecd8e7752c9479206b9d387'))
+
 #####
 
     def _run_naive_tests_on_tx(self, raw_tx, txid):
@@ -263,6 +283,11 @@ class TestTransaction(unittest.TestCase):
     def test_txid_regression_issue_3899(self):
         raw_tx = '0100000004328685b0352c981d3d451b471ae3bfc78b82565dc2a54049a81af273f0a9fd9c010000000b0009630330472d5fae685bffffffff328685b0352c981d3d451b471ae3bfc78b82565dc2a54049a81af273f0a9fd9c020000000b0009630359646d5fae6858ffffffff328685b0352c981d3d451b471ae3bfc78b82565dc2a54049a81af273f0a9fd9c030000000b000963034bd4715fae6854ffffffff328685b0352c981d3d451b471ae3bfc78b82565dc2a54049a81af273f0a9fd9c040000000b000963036de8705fae6860ffffffff0130750000000000001976a914b5abca61d20f9062fb1fdbb880d9d93bac36675188ac00000000'
         txid = 'f570d5d1e965ee61bcc7005f8fefb1d3abbed9d7ddbe035e2a68fa07e5fc4a0d'
+        self._run_naive_tests_on_tx(raw_tx, txid)
+
+    def test_txid_negative_version_num(self):
+        raw_tx = 'f0b47b9a01ecf5e5c3bbf2cf1f71ecdc7f708b0b222432e914b394e24aad1494a42990ddfc000000008b483045022100852744642305a99ad74354e9495bf43a1f96ded470c256cd32e129290f1fa191022030c11d294af6a61b3da6ed2c0c296251d21d113cfd71ec11126517034b0dcb70014104a0fe6e4a600f859a0932f701d3af8e0ecd4be886d91045f06a5a6b931b95873aea1df61da281ba29cadb560dad4fc047cf47b4f7f2570da4c0b810b3dfa7e500ffffffff0240420f00000000001976a9147eeacb8a9265cd68c92806611f704fc55a21e1f588ac05f00d00000000001976a914eb3bd8ccd3ba6f1570f844b59ba3e0a667024a6a88acff7f0000'
+        txid = 'c659729a7fea5071361c2c1a68551ca2bf77679b27086cc415adeeb03852e369'
         self._run_naive_tests_on_tx(raw_tx, txid)
 
 
