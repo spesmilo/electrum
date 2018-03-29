@@ -19,8 +19,6 @@ hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += ['_scrypt']
-# FIXME: use a proper hook for this
-hiddenimports += ['electrum_ftc', 'electrum_ftc.base_wizard', 'electrum_ftc_gui', 'electrum_ftc_gui.qt', 'electrum_ftc_plugins', 'electrum_ftc.qrscanner']
 
 datas = [
     (home+'lib/currencies.json', 'electrum_ftc'),
@@ -62,7 +60,7 @@ a = Analysis([home+'electrum-ftc',
              datas=datas,
              #pathex=[home+'lib', home+'gui', home+'plugins'],
              hiddenimports=hiddenimports,
-             hookspath=[])
+             hookspath=[home+'contrib\\pyinstaller-hooks'])
 
 
 # http://stackoverflow.com/questions/19055089/pyinstaller-onefile-warning-pyconfig-h-when-importing-scipy-or-scipy-signal
@@ -74,7 +72,12 @@ for d in a.datas:
 # hotfix for #3171 (pre-Win10 binaries)
 a.binaries = [x for x in a.binaries if not x[1].lower().startswith(r'c:\windows')]
 
-pyz = PYZ(a.pure)
+import re
+pure = []
+for module in a.pure:
+    name = re.sub(r'^electrum(|_gui|_plugins)(\.|$)', r'electrum_ftc\1\2', module[0])
+    pure.append((name, *module[1:]))
+pyz = PYZ(pure)
 
 
 #####
