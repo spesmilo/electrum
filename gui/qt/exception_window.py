@@ -70,7 +70,7 @@ class Exception_Window(QWidget, MessageBoxMixin):
 
         heading = QLabel('<h2>' + _('Sorry!') + '</h2>')
         main_box.addWidget(heading)
-        main_box.addWidget(QLabel(_('Something went wrong while executing Electrum.')))
+        main_box.addWidget(QLabel(_('Something went wrong while executing Electrum-GRS.')))
 
         main_box.addWidget(QLabel(
             _('To help us diagnose and fix the problem, you can send us a bug report that contains useful debug '
