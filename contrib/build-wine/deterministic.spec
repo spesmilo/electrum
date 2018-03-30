@@ -10,6 +10,8 @@ for i, x in enumerate(sys.argv):
 else:
     raise BaseException('no name')
 
+PYTHON_VERSION = '3.6.5'
+PYHOME = 'c:/python' + PYTHON_VERSION
 
 home = 'C:\\electrum\\'
 
@@ -21,7 +23,7 @@ hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 
 # Add libusb binary
-binaries = [("c:/python3.5.4/libusb-1.0.dll", ".")]
+binaries = [(PYHOME+"/libusb-1.0.dll", ".")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
