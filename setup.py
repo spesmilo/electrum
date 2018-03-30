@@ -34,8 +34,13 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
         else:
             usr_share = os.path.expanduser('~/.local/share')
     data_files += [
+        # Menu icon
+        (os.path.join(usr_share, 'icons/hicolor/128x128/apps/'), ['icons/electron-cash.png']),
+        (os.path.join(usr_share, 'pixmaps/'),                    ['icons/electron-cash.png']),
+        # Menu entry
         (os.path.join(usr_share, 'applications/'), ['electron-cash.desktop']),
-        (os.path.join(usr_share, 'pixmaps/'), ['icons/electron-cash.png'])
+        # App stream (store) metadata
+        (os.path.join(usr_share, 'metainfo/'), ['org.electroncash.ElectronCash.appdata.xml']),
     ]
 
 setup(
