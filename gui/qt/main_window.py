@@ -1151,8 +1151,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def feerounding_onclick():
             text = (self.feerounding_text + '\n\n' +
-                    _('To somewhat protect your privacy, Electrum tries to create change with similar precision to other outputs.') + ' ' +
-                    _('At most 100 satoshis might be lost due to this rounding.') + ' ' +
+                    _('To somewhat protect your privacy, Electrum-GRS tries to create change with similar precision to other outputs.') + ' ' +
+                    _('At most 100 gros might be lost due to this rounding.') + ' ' +
                     _("You can disable this setting in '{}'.").format(_('Preferences')) + '\n' +
                     _('Also, dust is not kept as change, but added to the fee.'))
             QMessageBox.information(self, 'Fee rounding', text)
@@ -2135,7 +2135,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 "private key, and verifying with the corresponding public key. The "
                 "address you have entered does not have a unique public key, so these "
                 "operations cannot be performed.") + '\n\n' + \
-               _('The operation is undefined. Not just in Electrum, but in general.')
+               _('The operation is undefined. Not just in Electrum-GRS, but in general.')
 
     @protected
     def do_sign(self, address, message, signature, password):
@@ -2847,7 +2847,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         outrounding_cb.setToolTip(
             _('Set the value of the change output so that it has similar precision to the other outputs.') + '\n' +
             _('This might improve your privacy somewhat.') + '\n' +
-            _('If enabled, at most 100 satoshis might be lost due to this, per transaction.'))
+            _('If enabled, at most 100 gros might be lost due to this, per transaction.'))
         outrounding_cb.setChecked(enable_outrounding)
         outrounding_cb.stateChanged.connect(on_outrounding)
         tx_widgets.append((outrounding_cb, None))
