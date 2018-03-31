@@ -56,12 +56,12 @@ tar xz --directory $BUILDDIR
 cp $BUILDDIR/libusb/1.0.22/lib/libusb-1.0.dylib contrib/build-osx
 
 info "Installing requirements..."
-python3 -m pip install -Ir --require-hashes ./contrib/deterministic-build/requirements.txt --user && \
-python3 -m pip install -Ir --require-hashes ./contrib/deterministic-build/requirements-binaries.txt --user || \
+python3 -m pip install --require-hashes -Ir ./contrib/deterministic-build/requirements.txt --user && \
+python3 -m pip install --require-hashes -Ir ./contrib/deterministic-build/requirements-binaries.txt --user || \
 fail "Could not install requirements"
 
 info "Installing hardware wallet requirements..."
-python3 -m pip install -Ir --require-hashes ./contrib/deterministic-build/requirements-hw.txt --user || \
+python3 -m pip install --require-hashes -Ir ./contrib/deterministic-build/requirements-hw.txt --user || \
 fail "Could not install hardware wallet requirements"
 
 info "Building $PACKAGE..."
