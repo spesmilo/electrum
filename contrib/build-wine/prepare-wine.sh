@@ -112,7 +112,7 @@ $PYTHON -m pip install pywin32-ctypes==0.1.2
 # install PySocks
 $PYTHON -m pip install win_inet_pton==1.0.1
 
-$PYTHON -m pip install --require-hashes -r $here/../deterministic-build/requirements-binaries.txt
+$PYTHON -m pip install $here/../deterministic-build/requirements-binaries.txt
 
 # Install PyInstaller
 $PYTHON -m pip install https://github.com/ecdsa/pyinstaller/archive/fix_2952.zip
