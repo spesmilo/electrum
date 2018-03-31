@@ -69,7 +69,13 @@ class GuiMixin(object):
         if passphrase is None:
             return self.proto.Cancel()
         passphrase = bip39_normalize_passphrase(passphrase)
-        return self.proto.PassphraseAck(passphrase=passphrase)
+
+        ack = self.proto.PassphraseAck(passphrase=passphrase)
+        length = len(ack.passphrase)
+        if length > 50:
+            self.handler.show_error(_("Too long passphrase ({} > 50 chars).").format(length))
+            return self.proto.Cancel()
+        return ack
 
     def callback_WordRequest(self, msg):
         self.step += 1
