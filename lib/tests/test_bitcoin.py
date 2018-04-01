@@ -13,7 +13,9 @@ from lib.bitcoin import (
     is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
     xpub_type, is_xprv, is_bip32_derivation, seed_type)
 from lib.util import bfh
-from lib import constants
+
+from . import TestCaseForTestnet
+
 
 try:
     import ecdsa
@@ -164,17 +166,7 @@ class Test_bitcoin(unittest.TestCase):
         self.assertEqual(address_to_script('3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji'), 'a914f47c8954e421031ad04ecd8e7752c9479206b9d387')
 
 
-class Test_bitcoin_testnet(unittest.TestCase):
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        constants.set_testnet()
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        constants.set_mainnet()
+class Test_bitcoin_testnet(TestCaseForTestnet):
 
     def test_address_to_script(self):
         # bech32 native segwit
