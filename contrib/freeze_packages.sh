@@ -21,9 +21,14 @@ for i in '' '-hw' '-binaries'; do
     echo "OK."
 
     requirements=$(pip freeze)
-    echo "Generating package hashes..."
+    restricted=$(echo $requirements | $other_python ./deterministic-build/find_restricted_dependencies.py)
+    requirements="$requirements $restricted"
 
-    echo "$requirements" | while IFS= read -r requirement ; do
+    echo "Generating package hashes..."
+    rm $contrib/deterministic-build/requirements${i}.txt
+    touch $contrib/deterministic-build/requirements${i}.txt
+
+    for requirement in $requirements; do
         echo -e "\r  Hashing $requirement..."
         $other_python -m hashin -r $contrib/deterministic-build/requirements${i}.txt ${requirement}
     done
