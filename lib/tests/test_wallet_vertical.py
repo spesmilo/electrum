@@ -5,6 +5,7 @@ import lib.bitcoin as bitcoin
 import lib.keystore as keystore
 import lib.storage as storage
 import lib.wallet as wallet
+from lib import constants
 
 from plugins.trustedcoin import trustedcoin
 
@@ -280,3 +281,26 @@ class TestWalletKeystoreAddressIntegrity(unittest.TestCase):
 
         self.assertEqual(w.get_receiving_addresses()[0], '35LeC45QgCVeRor1tJD6LiDgPbybBXisns')
         self.assertEqual(w.get_change_addresses()[0], '39RhtDchc6igmx5tyoimhojFL1ZbQBrXa6')
+
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_bip39_multisig_seed_p2sh_segwit_testnet(self, mock_write):
+        constants.set_testnet()
+        # bip39 seed: finish seminar arrange erosion sunny coil insane together pretty lunch lunch rose
+        # der: m/49'/1'/0'
+        # NOTE: there is currently no bip43 standard derivation path for p2wsh-p2sh
+        ks1 = keystore.from_xprv('Uprv9BEixD3As2LK5h6G2SNT3cTqbZpsWYPceKTSuVAm1yuSybxSvQz2MV1o8cHTtctQmj4HAenb3eh5YJv4YRZjv35i8fofVnNbs4Dd2B4i5je')
+        self.assertTrue(isinstance(ks1, keystore.BIP32_KeyStore))
+        self.assertEqual(ks1.xpub, 'Upub5QE5Mia4hPtcJBAj8TuTQkQa9bfMv17U1YP3hsaNaKSRrQHbTxJGuHLGyv3MbKZixuPyjfXGUdbTjE4KwyFcX8YD7PX5ybTDbP11UT8UpZR')
+
+        # bip39 seed: square page wood spy oil story rebel give milk screen slide shuffle
+        # der: m/49'/1'/0'
+        ks2 = keystore.from_xpub('Upub5QRzUGRJuWJe5MxGzwgQAeyJjzcdGTXkkq77w6EfBkCyf5iWppSaZ4caY2MgWcU9LP4a4uE5apUFN4wLoENoe9tpu26mrUxeGsH84dN3JFh')
+        self._check_xpub_keystore_sanity(ks2)
+        self.assertTrue(isinstance(ks2, keystore.BIP32_KeyStore))
+
+        w = self._create_multisig_wallet(ks1, ks2)
+        self.assertEqual(w.txin_type, 'p2wsh-p2sh')
+
+        self.assertEqual(w.get_receiving_addresses()[0], '2MzsfTfTGomPRne6TkctMmoDj6LwmVkDrMt')
+        self.assertEqual(w.get_change_addresses()[0], '2NFp9w8tbYYP9Ze2xQpeYBJQjx3gbXymHX7')
+        constants.set_mainnet()
