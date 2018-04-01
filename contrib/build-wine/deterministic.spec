@@ -10,7 +10,7 @@ for i, x in enumerate(sys.argv):
 else:
     raise BaseException('no name')
 
-PYTHON_VERSION = '3.6.5'
+PYTHON_VERSION = '3.5.4'
 PYHOME = 'c:/python' + PYTHON_VERSION
 
 home = 'C:\\electrum\\'
