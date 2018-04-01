@@ -13,7 +13,7 @@ LIBUSB_FILENAME=libusb-1.0.22.7z
 LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-1.0.22/$LIBUSB_FILENAME?download
 LIBUSB_SHA256=671f1a420757b4480e7fadc8313d6fb3cbb75ca00934c417c1efa6e77fb8779b
 
-PYTHON_VERSION=3.6.5
+PYTHON_VERSION=3.5.4
 
 ## These settings probably don't need change
 export WINEPREFIX=/opt/wine64
@@ -97,8 +97,8 @@ KEYSERVER_PYTHON_DEV="hkp://pool.sks-keyservers.net"
 retry gpg --no-default-keyring --keyring $KEYRING_PYTHON_DEV --keyserver $KEYSERVER_PYTHON_DEV --recv-keys $KEYLIST_PYTHON_DEV
 for msifile in core dev exe lib pip tools; do
     echo "Installing $msifile..."
-    wget -nc "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"
-    wget -nc "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi.asc"
+    wget -N -c "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"
+    wget -N -c "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi.asc"
     verify_signature "${msifile}.msi.asc" $KEYRING_PYTHON_DEV
     wine msiexec /i "${msifile}.msi" /qb TARGETDIR=C:/python$PYTHON_VERSION
 done
@@ -135,11 +135,6 @@ verify_hash $LIBUSB_FILENAME "$LIBUSB_SHA256"
 7z x -olibusb $LIBUSB_FILENAME -aos
 
 cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
-
-# Install UPX
-#wget -O upx.zip "https://downloads.sourceforge.net/project/upx/upx/3.08/upx308w.zip"
-#unzip -o upx.zip
-#cp upx*/upx.exe .
 
 # add dlls needed for pyinstaller:
 cp $WINEPREFIX/drive_c/python$PYTHON_VERSION/Lib/site-packages/PyQt5/Qt/bin/* $WINEPREFIX/drive_c/python$PYTHON_VERSION/
