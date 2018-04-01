@@ -20,7 +20,7 @@ for i in '' '-hw' '-binaries'; do
 
     echo "OK."
 
-    requirements=$(pip freeze)
+    requirements=$(pip freeze --all)
     restricted=$(echo $requirements | $other_python $contrib/deterministic-build/find_restricted_dependencies.py)
     requirements="$requirements $restricted"
 
