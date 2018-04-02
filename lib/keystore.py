@@ -76,6 +76,8 @@ class KeyStore(PrintError):
             return False
         return bool(self.get_tx_derivations(tx))
 
+    def ready_to_sign(self):
+        return not self.is_watching_only()
 
 
 class Software_KeyStore(KeyStore):
@@ -535,6 +537,17 @@ class Hardware_KeyStore(KeyStore, Xpub):
         xpub = client.get_xpub(derivation, "standard")
         password = self.get_pubkey_from_xpub(xpub, ())
         return password
+
+    def has_usable_connection_with_device(self):
+        if not hasattr(self, 'plugin'):
+            return False
+        client = self.plugin.get_client(self, force_pair=False)
+        if client is None:
+            return False
+        return client.has_usable_connection_with_device()
+
+    def ready_to_sign(self):
+        return super().ready_to_sign() and self.has_usable_connection_with_device()
 
 
 def bip39_normalize_passphrase(passphrase):
