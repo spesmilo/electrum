@@ -411,7 +411,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                 lines.append([item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['date']])
             else:
                 lines.append(item)
-        with open(fileName, "w+") as f:
+        with open(fileName, "w+", encoding='utf-8') as f:
             if is_csv:
                 import csv
                 transaction = csv.writer(f, lineterminator='\n')

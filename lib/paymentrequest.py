@@ -453,7 +453,11 @@ class InvoiceStore(object):
 
     def set_paid(self, pr, txid):
         pr.tx = txid
-        self.paid[txid] = pr.get_id()
+        pr_id = pr.get_id()
+        self.paid[txid] = pr_id
+        if pr_id not in self.invoices:
+            # in case the user had deleted it previously
+            self.add(pr)
 
     def load(self, d):
         for k, v in d.items():

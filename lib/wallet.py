@@ -1458,8 +1458,8 @@ class Abstract_Wallet(PrintError):
         # hardware wallets require extra info
         if any([(isinstance(k, Hardware_KeyStore) and k.can_sign(tx)) for k in self.get_keystores()]):
             self.add_hw_info(tx)
-        # sign
-        for k in self.get_keystores():
+        # sign. start with ready keystores.
+        for k in sorted(self.get_keystores(), key=lambda ks: ks.ready_to_sign(), reverse=True):
             try:
                 if k.can_sign(tx):
                     k.sign_transaction(tx, password)
