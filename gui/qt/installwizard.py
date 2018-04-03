@@ -348,7 +348,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         if not result and raise_on_cancel:
             raise UserCancelled
         if result == 1:
-            raise GoBack
+            raise GoBack from None
         self.title.setVisible(False)
         self.back_button.setEnabled(False)
         self.next_button.setEnabled(False)
