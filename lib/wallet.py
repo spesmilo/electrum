@@ -39,6 +39,7 @@ from functools import partial
 from collections import defaultdict
 from numbers import Number
 from decimal import Decimal
+import itertools
 
 import sys
 
@@ -188,7 +189,12 @@ class Abstract_Wallet(PrintError):
         self.synchronizer = None
         self.verifier = None
 
-        self.gap_limit_for_change = 6 # constant
+        self.gap_limit_for_change = 6  # constant
+
+        # locks: if you need to take multiple ones, acquire them in the order they are defined here!
+        self.lock = threading.RLock()
+        self.transaction_lock = threading.RLock()
+
         # saved fields
         self.use_change            = storage.get('use_change', True)
         self.multiple_change       = storage.get('multiple_change', False)
@@ -218,10 +224,6 @@ class Abstract_Wallet(PrintError):
         # interface.is_up_to_date() returns true when all requests have been answered and processed
         # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
         self.up_to_date = False
-
-        # locks: if you need to take multiple ones, acquire them in the order they are defined here!
-        self.lock = threading.RLock()
-        self.transaction_lock = threading.RLock()
 
         self.check_history()
 
@@ -253,6 +255,7 @@ class Abstract_Wallet(PrintError):
         self.pruned_txo = self.storage.get('pruned_txo', {})
         tx_list = self.storage.get('transactions', {})
         self.transactions = {}
+        self._history_local = {}  # address -> set(txid)
         for tx_hash, raw in tx_list.items():
             tx = Transaction(raw)
             self.transactions[tx_hash] = tx
@@ -260,6 +263,8 @@ class Abstract_Wallet(PrintError):
                     and (tx_hash not in self.pruned_txo.values()):
                 self.print_error("removing unreferenced tx", tx_hash)
                 self.transactions.pop(tx_hash)
+            else:
+                self._add_tx_to_local_history(tx_hash)
 
     @profiler
     def save_transactions(self, write=False):
@@ -669,8 +674,9 @@ class Abstract_Wallet(PrintError):
     def get_addr_balance(self, address):
         received, sent = self.get_addr_io(address)
         c = u = x = 0
+        local_height = self.get_local_height()
         for txo, (tx_height, v, is_cb) in received.items():
-            if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
+            if is_cb and tx_height + COINBASE_MATURITY > local_height:
                 x += v
             elif tx_height > 0:
                 c += v
@@ -732,11 +738,29 @@ class Abstract_Wallet(PrintError):
         # we need self.transaction_lock but get_tx_height will take self.lock
         # so we need to take that too here, to enforce order of locks
         with self.lock, self.transaction_lock:
-            for tx_hash in self.transactions:
-                if addr in self.txi.get(tx_hash, []) or addr in self.txo.get(tx_hash, []):
-                    tx_height = self.get_tx_height(tx_hash)[0]
-                    h.append((tx_hash, tx_height))
+            related_txns = self._history_local.get(addr, set())
+            for tx_hash in related_txns:
+                tx_height = self.get_tx_height(tx_hash)[0]
+                h.append((tx_hash, tx_height))
         return h
+
+    def _add_tx_to_local_history(self, txid):
+        with self.transaction_lock:
+            for addr in itertools.chain(self.txi.get(txid, []), self.txo.get(txid, [])):
+                cur_hist = self._history_local.get(addr, set())
+                cur_hist.add(txid)
+                self._history_local[addr] = cur_hist
+
+    def _remove_tx_from_local_history(self, txid):
+        with self.transaction_lock:
+            for addr in itertools.chain(self.txi.get(txid, []), self.txo.get(txid, [])):
+                cur_hist = self._history_local.get(addr, set())
+                try:
+                    cur_hist.remove(txid)
+                except KeyError:
+                    pass
+                else:
+                    self._history_local[addr] = cur_hist
 
     def get_txin_address(self, txi):
         addr = txi.get('address')
@@ -876,6 +900,8 @@ class Abstract_Wallet(PrintError):
                     if dd.get(addr) is None:
                         dd[addr] = []
                     dd[addr].append((ser, v))
+            # add to local history
+            self._add_tx_to_local_history(tx_hash)
             # save
             self.transactions[tx_hash] = tx
             return True
@@ -894,6 +920,8 @@ class Abstract_Wallet(PrintError):
                 if hh == tx_hash:
                     self.spent_outpoints.pop(ser, None)
                     self.pruned_txo.pop(ser)
+
+            self._remove_tx_from_local_history(tx_hash)
 
             # add tx to pruned_txo, and undo the txi addition
             for next_tx, dd in self.txi.items():
