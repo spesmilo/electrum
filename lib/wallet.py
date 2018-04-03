@@ -900,6 +900,7 @@ class Abstract_Wallet(PrintError):
                     if dd.get(addr) is None:
                         dd[addr] = []
                     dd[addr].append((ser, v))
+                    self._add_tx_to_local_history(next_tx)
             # add to local history
             self._add_tx_to_local_history(tx_hash)
             # save
