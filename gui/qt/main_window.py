@@ -1838,6 +1838,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def show_invoice(self, key):
         pr = self.invoices.get(key)
+        if pr is None:
+            self.show_error('Cannot find payment request in wallet.')
+            return
         pr.verify(self.contacts)
         self.show_pr_details(pr)
 
