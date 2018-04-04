@@ -98,10 +98,10 @@ class RequestList(MyTreeWidget):
             amount_str = self.parent.format_amount(amount) if amount else ""
             item = QTreeWidgetItem([date, address, '', message, amount_str, pr_tooltips.get(status,'')])
             if signature is not None:
-                item.setIcon(2, QIcon(":icons/seal.png"))
+                item.setIcon(2, self.icon_cache.get(":icons/seal.png"))
                 item.setToolTip(2, 'signed by '+ requestor)
             if status is not PR_UNKNOWN:
-                item.setIcon(6, QIcon(pr_icons.get(status)))
+                item.setIcon(6, self.icon_cache.get(pr_icons.get(status)))
             self.addTopLevelItem(item)
 
 

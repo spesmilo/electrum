@@ -393,6 +393,8 @@ class MyTreeWidget(QTreeWidget):
         self.addChild = self.addTopLevelItem
         self.insertChild = self.insertTopLevelItem
 
+        self.icon_cache = IconCache()
+
         # Control which columns are editable
         self.editor = None
         self.pending_update = False
@@ -777,6 +779,17 @@ class SortableTreeWidgetItem(QTreeWidgetItem):
         except ValueError:
             # If not, we will just do string comparison
             return self.text(column) < other.text(column)
+
+
+class IconCache:
+
+    def __init__(self):
+        self.__cache = {}
+
+    def get(self, file_name):
+        if file_name not in self.__cache:
+            self.__cache[file_name] = QIcon(file_name)
+        return self.__cache[file_name]
 
 
 if __name__ == "__main__":
