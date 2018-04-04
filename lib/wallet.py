@@ -1531,7 +1531,10 @@ class Abstract_Wallet(PrintError):
                 baseurl = 'file://' + rdir
                 rewrite = config.get('url_rewrite')
                 if rewrite:
-                    baseurl = baseurl.replace(*rewrite)
+                    try:
+                        baseurl = baseurl.replace(*rewrite)
+                    except BaseException as e:
+                        self.print_stderr('Invalid config setting for "url_rewrite". err:', e)
                 out['request_url'] = os.path.join(baseurl, 'req', key[0], key[1], key, key)
                 out['URI'] += '&r=' + out['request_url']
                 out['index_url'] = os.path.join(baseurl, 'index.html') + '?id=' + key
