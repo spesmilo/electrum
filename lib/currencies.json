@@ -48,5 +48,13 @@
         "BRL", 
         "BTC", 
         "PLN"
+    ],
+    "CryptoCompare": [
+        "AUD",
+        "CAD",
+        "EUR",
+        "JPY",
+        "USD",
+        "BTC"
     ]
 }

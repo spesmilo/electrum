@@ -152,6 +152,20 @@ class GRSTicker(ExchangeBase):
             quote_currencies[currency] = grs_btc_rate * btc_rate
         return quote_currencies
 
+class CryptoCompare(ExchangeBase):
+    def get_rates(self, ccy):
+        tsyms = ','.join(self.history_ccys())
+        result = self.get_json('min-api.cryptocompare.com', '/data/price?fsym=GRS&tsyms={}&extraParams=ElectrumGRS'.format(tsyms))
+        return dict((k, Decimal(v)) for k, v in result.items())
+
+    def history_ccys(self):
+        return ['AUD', 'CAD', 'EUR', 'JPY', 'USD', 'BTC']
+
+    def request_history(self, ccy):
+        result = self.get_json('min-api.cryptocompare.com', '/data/histoday?fsym=GRS&tsym={}&limit=100&aggregate=1&extraParams=ElectrumGRS'.format(ccy))
+        result = result.get('Data', [])
+        return dict((datetime.fromtimestamp(i['time']).strftime('%Y-%m-%d'), float(i['close'])) for i in result)
+
 
 def dictinvert(d):
     inv = {}
@@ -250,8 +264,7 @@ class FxThread(ThreadJob):
         return self.config.set_key('use_exchange_rate', bool(b))
 
     def get_history_config(self):
-        # There are currently no history rates exchanges.
-        return False and bool(self.config.get('history_rates'))
+        return bool(self.config.get('history_rates'))
 
     def set_history_config(self, b):
         self.config.set_key('history_rates', bool(b))
@@ -273,7 +286,7 @@ class FxThread(ThreadJob):
         return self.config.get("currency", "BTC")
 
     def config_exchange(self):
-        return self.config.get('use_exchange', 'GRSTicker')
+        return self.config.get('use_exchange', 'CryptoCompare')
 
     def show_history(self):
         return self.is_enabled() and self.get_history_config() and self.ccy in self.exchange.history_ccys()
@@ -285,7 +298,7 @@ class FxThread(ThreadJob):
         self.on_quotes()
 
     def set_exchange(self, name):
-        class_ = globals().get(name, GRSTicker)
+        class_ = globals().get(name, CryptoCompare)
         self.print_error("using exchange", name)
         if self.config_exchange() != name:
             self.config.set_key('use_exchange', name, True)
