@@ -144,7 +144,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                     context = self.get_ssl_context(cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path)
                     s = context.wrap_socket(s, do_handshake_on_connect=True)
                 except ssl.SSLError as e:
-                    print_error(e)
+                    self.print_error(e)
                     s = None
                 except:
                     return
@@ -172,8 +172,10 @@ class TcpConnection(threading.Thread, util.PrintError):
                 # workaround android bug
                 cert = re.sub("([^\n])-----END CERTIFICATE-----","\\1\n-----END CERTIFICATE-----",cert)
                 temporary_path = cert_path + '.temp'
-                with open(temporary_path,"w") as f:
+                with open(temporary_path, "w", encoding='utf-8') as f:
                     f.write(cert)
+                    f.flush()
+                    os.fsync(f.fileno())
             else:
                 is_new = False
 
@@ -199,7 +201,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                         os.unlink(rej)
                     os.rename(temporary_path, rej)
                 else:
-                    with open(cert_path) as f:
+                    with open(cert_path, encoding='utf-8') as f:
                         cert = f.read()
                     try:
                         b = pem.dePem(cert, 'CERTIFICATE')
@@ -295,8 +297,8 @@ class Interface(util.PrintError):
         wire_requests = self.unsent_requests[0:n]
         try:
             self.pipe.send_all([make_dict(*r) for r in wire_requests])
-        except socket.error as e:
-            self.print_error("socket error:", e)
+        except BaseException as e:
+            self.print_error("pipe send error:", e)
             return False
         self.unsent_requests = self.unsent_requests[n:]
         for request in wire_requests:
@@ -396,7 +398,7 @@ def test_certificates():
     certs = os.listdir(mydir)
     for c in certs:
         p = os.path.join(mydir,c)
-        with open(p) as f:
+        with open(p, encoding='utf-8') as f:
             cert = f.read()
         check_cert(c, cert)
 

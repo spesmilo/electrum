@@ -28,6 +28,8 @@ import re
 from decimal import Decimal
 
 from electrum import bitcoin
+from electrum.util import bfh
+
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 from . import util
@@ -92,9 +94,12 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit):
         for word in x.split():
             if word[0:3] == 'OP_':
                 assert word in opcodes.lookup
-                script += chr(opcodes.lookup[word])
+                opcode_int = opcodes.lookup[word]
+                assert opcode_int < 256  # opcode is single-byte
+                script += bitcoin.int_to_hex(opcode_int)
             else:
-                script += push_script(word).decode('hex')
+                bfh(word)  # to test it is hex data
+                script += push_script(word)
         return script
 
     def parse_amount(self, x):

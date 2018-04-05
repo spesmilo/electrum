@@ -33,7 +33,7 @@ from .keystore import bip44_derivation
 from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types
 from .storage import STO_EV_USER_PW, STO_EV_XPUB_PW, get_derivation_used_for_hw_device_encryption
 from .i18n import _
-from .util import UserCancelled
+from .util import UserCancelled, InvalidPassword
 
 # hardware device setup purpose
 HWD_SETUP_NEW_WALLET, HWD_SETUP_DECRYPT_WALLET = range(0, 2)
@@ -164,7 +164,7 @@ class BaseWizard(object):
             k = keystore.Imported_KeyStore({})
             self.storage.put('keystore', k.dump())
             w = Imported_Wallet(self.storage)
-            for x in text.split():
+            for x in keystore.get_private_keys(text):
                 w.import_private_key(x, None)
             self.keystores.append(w.keystore)
         else:
@@ -202,20 +202,32 @@ class BaseWizard(object):
         # scan devices
         devices = []
         devmgr = self.plugins.device_manager
-        for name, description, plugin in support:
-            try:
-                # FIXME: side-effect: unpaired_device_info sets client.handler
-                u = devmgr.unpaired_device_infos(None, plugin)
-            except:
-                devmgr.print_error("error", name)
-                continue
-            devices += list(map(lambda x: (name, x), u))
+        try:
+            scanned_devices = devmgr.scan_devices()
+        except BaseException as e:
+            devmgr.print_error('error scanning devices: {}'.format(e))
+            debug_msg = '  {}:\n    {}'.format(_('Error scanning devices'), e)
+        else:
+            debug_msg = ''
+            for name, description, plugin in support:
+                try:
+                    # FIXME: side-effect: unpaired_device_info sets client.handler
+                    u = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices)
+                except BaseException as e:
+                    devmgr.print_error('error getting device infos for {}: {}'.format(name, e))
+                    debug_msg += '  {}:\n    {}\n'.format(plugin.name, e)
+                    continue
+                devices += list(map(lambda x: (name, x), u))
+        if not debug_msg:
+            debug_msg = '  {}'.format(_('No exceptions encountered.'))
         if not devices:
             msg = ''.join([
                 _('No hardware device detected.') + '\n',
                 _('To trigger a rescan, press \'Next\'.') + '\n\n',
                 _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", and do "Remove device". Then, plug your device again.') + ' ',
-                _('On Linux, you might have to add a new permission to your udev rules.'),
+                _('On Linux, you might have to add a new permission to your udev rules.') + '\n\n',
+                _('Debug message') + '\n',
+                debug_msg
             ])
             self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device(purpose))
             return
@@ -243,6 +255,9 @@ class BaseWizard(object):
             devmgr.unpair_id(device_info.device.id_)
             self.choose_hw_device(purpose)
             return
+        except UserCancelled:
+            self.choose_hw_device(purpose)
+            return
         except BaseException as e:
             self.show_error(str(e))
             self.choose_hw_device(purpose)
@@ -259,7 +274,15 @@ class BaseWizard(object):
             derivation = get_derivation_used_for_hw_device_encryption()
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, 'standard', self)
             password = keystore.Xpub.get_pubkey_from_xpub(xpub, ())
-            self.storage.decrypt(password)
+            try:
+                self.storage.decrypt(password)
+            except InvalidPassword:
+                # try to clear session so that user can type another passphrase
+                devmgr = self.plugins.device_manager
+                client = devmgr.client_by_id(device_info.device.id_)
+                if hasattr(client, 'clear_session'):  # FIXME not all hw wallet plugins have this
+                    client.clear_session()
+                raise
         else:
             raise Exception('unknown purpose: %s' % purpose)
 
@@ -458,10 +481,6 @@ class BaseWizard(object):
 
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
-
-    def on_cosigner(self, text, password, i):
-        k = keystore.from_master_key(text, password)
-        self.on_keystore(k)
 
     def choose_seed_type(self):
         title = _('Choose Seed type')

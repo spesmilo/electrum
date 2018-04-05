@@ -1,5 +1,3 @@
-import threading
-
 from binascii import hexlify, unhexlify
 
 from electrum.util import bfh, bh2u
@@ -72,8 +70,6 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
 
     def __init__(self, parent, config, name):
         HW_PluginBase.__init__(self, parent, config, name)
-        self.main_thread = threading.current_thread()
-        # FIXME: move to base class when Ledger is fixed
         if self.libraries_available:
             self.device_manager().register_devices(self.DEVICE_IDS)
 
@@ -303,56 +299,83 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
         return inputs
 
     def tx_outputs(self, derivation, tx, segwit=False):
+
+        def create_output_by_derivation(info):
+            index, xpubs, m = info
+            if len(xpubs) == 1:
+                script_type = self.types.PAYTOP2SHWITNESS if segwit else self.types.PAYTOADDRESS
+                address_n = self.client_class.expand_path(derivation + "/%d/%d" % index)
+                txoutputtype = self.types.TxOutputType(
+                    amount=amount,
+                    script_type=script_type,
+                    address_n=address_n,
+                )
+            else:
+                script_type = self.types.PAYTOP2SHWITNESS if segwit else self.types.PAYTOMULTISIG
+                address_n = self.client_class.expand_path("/%d/%d" % index)
+                nodes = map(self.ckd_public.deserialize, xpubs)
+                pubkeys = [self.types.HDNodePathType(node=node, address_n=address_n) for node in nodes]
+                multisig = self.types.MultisigRedeemScriptType(
+                    pubkeys=pubkeys,
+                    signatures=[b''] * len(pubkeys),
+                    m=m)
+                txoutputtype = self.types.TxOutputType(
+                    multisig=multisig,
+                    amount=amount,
+                    address_n=self.client_class.expand_path(derivation + "/%d/%d" % index),
+                    script_type=script_type)
+            return txoutputtype
+
+        def create_output_by_address():
+            txoutputtype = self.types.TxOutputType()
+            txoutputtype.amount = amount
+            if _type == TYPE_SCRIPT:
+                txoutputtype.script_type = self.types.PAYTOOPRETURN
+                txoutputtype.op_return_data = address[2:]
+            elif _type == TYPE_ADDRESS:
+                if is_segwit_address(address):
+                    txoutputtype.script_type = self.types.PAYTOWITNESS
+                else:
+                    addrtype, hash_160 = b58_address_to_hash160(address)
+                    if addrtype == constants.net.ADDRTYPE_P2PKH:
+                        txoutputtype.script_type = self.types.PAYTOADDRESS
+                    elif addrtype == constants.net.ADDRTYPE_P2SH:
+                        txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
+                    else:
+                        raise BaseException('addrtype: ' + str(addrtype))
+                txoutputtype.address = address
+            return txoutputtype
+
+        def is_any_output_on_change_branch():
+            for _type, address, amount in tx.outputs():
+                info = tx.output_info.get(address)
+                if info is not None:
+                    index, xpubs, m = info
+                    if index[0] == 1:
+                        return True
+            return False
+
         outputs = []
         has_change = False
+        any_output_on_change_branch = is_any_output_on_change_branch()
 
         for _type, address, amount in tx.outputs():
+            use_create_by_derivation = False
+
             info = tx.output_info.get(address)
             if info is not None and not has_change:
-                has_change = True # no more than one change address
-                addrtype, hash_160 = b58_address_to_hash160(address)
                 index, xpubs, m = info
-                if len(xpubs) == 1:
-                    script_type = self.types.PAYTOP2SHWITNESS if segwit else self.types.PAYTOADDRESS
-                    address_n = self.client_class.expand_path(derivation + "/%d/%d"%index)
-                    txoutputtype = self.types.TxOutputType(
-                        amount = amount,
-                        script_type = script_type,
-                        address_n = address_n,
-                    )
-                else:
-                    script_type = self.types.PAYTOP2SHWITNESS if segwit else self.types.PAYTOMULTISIG
-                    address_n = self.client_class.expand_path("/%d/%d"%index)
-                    nodes = map(self.ckd_public.deserialize, xpubs)
-                    pubkeys = [ self.types.HDNodePathType(node=node, address_n=address_n) for node in nodes]
-                    multisig = self.types.MultisigRedeemScriptType(
-                        pubkeys = pubkeys,
-                        signatures = [b''] * len(pubkeys),
-                        m = m)
-                    txoutputtype = self.types.TxOutputType(
-                        multisig = multisig,
-                        amount = amount,
-                        address_n = self.client_class.expand_path(derivation + "/%d/%d"%index),
-                        script_type = script_type)
-            else:
-                txoutputtype = self.types.TxOutputType()
-                txoutputtype.amount = amount
-                if _type == TYPE_SCRIPT:
-                    txoutputtype.script_type = self.types.PAYTOOPRETURN
-                    txoutputtype.op_return_data = address[2:]
-                elif _type == TYPE_ADDRESS:
-                    if is_segwit_address(address):
-                        txoutputtype.script_type = self.types.PAYTOWITNESS
-                    else:
-                        addrtype, hash_160 = b58_address_to_hash160(address)
-                        if addrtype == constants.net.ADDRTYPE_P2PKH:
-                            txoutputtype.script_type = self.types.PAYTOADDRESS
-                        elif addrtype == constants.net.ADDRTYPE_P2SH:
-                            txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
-                        else:
-                            raise BaseException('addrtype: ' + str(addrtype))
-                    txoutputtype.address = address
+                on_change_branch = index[0] == 1
+                # prioritise hiding outputs on the 'change' branch from user
+                # because no more than one change address allowed
+                if on_change_branch == any_output_on_change_branch:
+                    use_create_by_derivation = True
+                    has_change = True
 
+            if use_create_by_derivation:
+                txoutputtype = create_output_by_derivation(info)
+            else:
+                txoutputtype = create_output_by_address()
             outputs.append(txoutputtype)
 
         return outputs

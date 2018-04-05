@@ -13,6 +13,10 @@ echo "Clearing $here/build and $here/dist..."
 rm "$here"/build/* -rf
 rm "$here"/dist/* -rf
 
+mkdir -p /tmp/electrum-build
+mkdir -p /tmp/electrum-build/pip-cache
+export PIP_CACHE_DIR="/tmp/electrum-build/pip-cache"
+
 $here/prepare-wine.sh || exit 1
 
 echo "Resetting modification time in C:\Python..."

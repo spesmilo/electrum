@@ -22,13 +22,14 @@
 # SOFTWARE.
 import re
 import dns
+from dns.exception import DNSException
 import json
 import traceback
 import sys
 
 from . import bitcoin
 from . import dnssec
-from .util import export_meta, import_meta
+from .util import export_meta, import_meta, print_error, to_string
 
 
 class Contacts(dict):
@@ -96,10 +97,14 @@ class Contacts(dict):
     def resolve_openalias(self, url):
         # support email-style addresses, per the OA standard
         url = url.replace('@', '.')
-        records, validated = dnssec.query(url, dns.rdatatype.TXT)
+        try:
+            records, validated = dnssec.query(url, dns.rdatatype.TXT)
+        except DNSException as e:
+            print_error('Error resolving openalias: ', str(e))
+            return None
         prefix = 'btc'
         for record in records:
-            string = record.strings[0]
+            string = to_string(record.strings[0], 'utf8')
             if string.startswith('oa1:' + prefix):
                 address = self.find_regex(string, r'recipient_address=([A-Za-z0-9]+)')
                 name = self.find_regex(string, r'recipient_name=([^;]+)')

@@ -246,7 +246,7 @@ class Network(util.DaemonThread):
             return []
         path = os.path.join(self.config.path, "recent_servers")
         try:
-            with open(path, "r") as f:
+            with open(path, "r", encoding='utf-8') as f:
                 data = f.read()
                 return json.loads(data)
         except:
@@ -258,7 +258,7 @@ class Network(util.DaemonThread):
         path = os.path.join(self.config.path, "recent_servers")
         s = json.dumps(self.recent_servers, indent=4, sort_keys=True)
         try:
-            with open(path, "w") as f:
+            with open(path, "w", encoding='utf-8') as f:
                 f.write(s)
         except:
             pass
@@ -319,7 +319,7 @@ class Network(util.DaemonThread):
         self.queue_request('server.peers.subscribe', [])
         self.request_fee_estimates()
         self.queue_request('blockchain.relayfee', [])
-        for h in self.subscribed_addresses:
+        for h in list(self.subscribed_addresses):
             self.queue_request('blockchain.scripthash.subscribe', [h])
 
     def request_fee_estimates(self):
@@ -563,7 +563,7 @@ class Network(util.DaemonThread):
                 self.notify('fee')
         elif method == 'blockchain.relayfee':
             if error is None:
-                self.relay_fee = int(result * COIN)
+                self.relay_fee = int(result * COIN) if result is not None else None
                 self.print_error("relayfee", self.relay_fee)
         elif method == 'blockchain.block.get_chunk':
             self.on_get_chunk(interface, response)
@@ -677,7 +677,7 @@ class Network(util.DaemonThread):
                     # check cached response for subscriptions
                     r = self.sub_cache.get(k)
                 if r is not None:
-                    util.print_error("cache hit", k)
+                    self.print_error("cache hit", k)
                     callback(r)
                 else:
                     message_id = self.queue_request(method, params)
@@ -1089,7 +1089,7 @@ class Network(util.DaemonThread):
     def export_checkpoints(self, path):
         # run manually from the console to generate checkpoints
         cp = self.blockchain().get_checkpoints()
-        with open(path, 'w') as f:
+        with open(path, 'w', encoding='utf-8') as f:
             f.write(json.dumps(cp, indent=4))
 
     def max_checkpoint(self):

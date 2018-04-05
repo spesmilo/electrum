@@ -161,6 +161,9 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
 
     def show_summary(self):
         h = self.summary
+        if not h:
+            self.parent.show_message(_("Nothing to summarize."))
+            return
         start_date = h.get('start_date')
         end_date = h.get('end_date')
         format_amount = lambda x: self.parent.format_amount(x.value) + ' ' + self.parent.base_unit()
@@ -232,7 +235,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             label = tx_item['label']
             status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
             has_invoice = self.wallet.invoices.paid.get(tx_hash)
-            icon = QIcon(":icons/" + TX_ICONS[status])
+            icon = self.icon_cache.get(":icons/" + TX_ICONS[status])
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             entry = ['', tx_hash, status_str, label, v_str, balance_str]
@@ -250,10 +253,10 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             item.setToolTip(0, str(conf) + " confirmation" + ("s" if conf != 1 else ""))
             item.setData(0, SortableTreeWidgetItem.DataRole, (status, conf))
             if has_invoice:
-                item.setIcon(3, QIcon(":icons/seal"))
+                item.setIcon(3, self.icon_cache.get(":icons/seal"))
             for i in range(len(entry)):
                 if i>3:
-                    item.setTextAlignment(i, Qt.AlignRight)
+                    item.setTextAlignment(i, Qt.AlignRight | Qt.AlignVCenter)
                 if i!=2:
                     item.setFont(i, QFont(MONOSPACE_FONT))
             if value and value < 0:
@@ -299,7 +302,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
 
     def update_item(self, tx_hash, height, conf, timestamp):
         status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
-        icon = QIcon(":icons/" +  TX_ICONS[status])
+        icon = self.icon_cache.get(":icons/" +  TX_ICONS[status])
         items = self.findItems(tx_hash, Qt.UserRole|Qt.MatchContains|Qt.MatchRecursive, column=1)
         if items:
             item = items[0]
@@ -344,7 +347,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                 if child_tx:
                     menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
         if pr_key:
-            menu.addAction(QIcon(":icons/seal"), _("View invoice"), lambda: self.parent.show_invoice(pr_key))
+            menu.addAction(self.icon_cache.get(":icons/seal"), _("View invoice"), lambda: self.parent.show_invoice(pr_key))
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))
@@ -408,7 +411,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                 lines.append([item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['date']])
             else:
                 lines.append(item)
-        with open(fileName, "w+") as f:
+        with open(fileName, "w+", encoding='utf-8') as f:
             if is_csv:
                 import csv
                 transaction = csv.writer(f, lineterminator='\n')

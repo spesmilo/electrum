@@ -46,9 +46,13 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         fileName, __ = QFileDialog.getOpenFileName(self, 'select file')
         if not fileName:
             return
-        with open(fileName, "r") as f:
-            data = f.read()
-        self.setText(data)
+        try:
+            with open(fileName, "r") as f:
+                data = f.read()
+        except BaseException as e:
+            self.show_error(_('Error opening file') + ':\n' + str(e))
+        else:
+            self.setText(data)
 
     def qr_input(self):
         from electrum import qrscanner, get_config

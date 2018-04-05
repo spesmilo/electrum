@@ -84,6 +84,12 @@ class TimeoutException(Exception):
         return self.message
 
 
+class WalletFileException(Exception): pass
+
+
+class BitcoinException(Exception): pass
+
+
 # Throw this exception to unwind the stack like when an error occurs.
 # However unlike other exceptions the user won't be informed.
 class UserCancelled(Exception):
@@ -412,7 +418,7 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
         return 'unknown'
     x = int(x)  # Some callers pass Decimal
     scale_factor = pow (10, decimal_point)
-    integer_part = "{:n}".format(int(abs(x) / scale_factor))
+    integer_part = "{:d}".format(int(abs(x) / scale_factor))
     if x < 0:
         integer_part = '-' + integer_part
     elif is_diff:
@@ -730,10 +736,6 @@ class SocketPipe:
                 print_error("SSLError:", e)
                 time.sleep(0.1)
                 continue
-            except OSError as e:
-                print_error("OSError", e)
-                time.sleep(0.1)
-                continue
 
 
 class QueuePipe:
@@ -804,7 +806,7 @@ def versiontuple(v):
 
 def import_meta(path, validater, load_meta):
     try:
-        with open(path, 'r') as f:
+        with open(path, 'r', encoding='utf-8') as f:
             d = validater(json.loads(f.read()))
         load_meta(d)
     #backwards compatibility for JSONDecodeError
@@ -818,7 +820,7 @@ def import_meta(path, validater, load_meta):
 
 def export_meta(meta, fileName):
     try:
-        with open(fileName, 'w+') as f:
+        with open(fileName, 'w+', encoding='utf-8') as f:
             json.dump(meta, f, indent=4, sort_keys=True)
     except (IOError, os.error) as e:
         traceback.print_exc(file=sys.stderr)

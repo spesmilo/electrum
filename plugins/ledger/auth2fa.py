@@ -1,16 +1,24 @@
+import os
+import hashlib
+import logging
+import json
+import copy
 from binascii import hexlify, unhexlify
+
+import websocket
 
 from PyQt5.Qt import QDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel
 import PyQt5.QtCore as QtCore
 from PyQt5.QtWidgets import *
 
+from btchip.btchip import *
+
 from electrum.i18n import _
 from electrum_gui.qt.util import *
 from electrum.util import print_msg
-
-import os, hashlib, websocket, logging, json, copy
+from electrum import constants, bitcoin
 from electrum_gui.qt.qrcodewidget import QRCodeWidget
-from btchip.btchip import *
+
 
 DEBUG = False
 
@@ -37,7 +45,7 @@ class LedgerAuthDialog(QDialog):
         self.handler = handler
         self.txdata = data
         self.idxs = self.txdata['keycardData'] if self.txdata['confirmationType'] > 1 else ''
-        self.setMinimumWidth(600)
+        self.setMinimumWidth(650)
         self.setWindowTitle(_("Ledger Wallet Authentication"))
         self.cfg = copy.deepcopy(self.handler.win.wallet.get_keystore().cfg)
         self.dongle = self.handler.win.wallet.get_keystore().get_client().dongle
@@ -110,17 +118,23 @@ class LedgerAuthDialog(QDialog):
         card = QVBoxLayout()
         self.cardbox.setLayout(card)
         self.addrtext = QTextEdit()
-        self.addrtext.setStyleSheet("QTextEdit { color:blue; background-color:lightgray; padding:15px 10px; border:none; font-size:20pt; }")
+        self.addrtext.setStyleSheet("QTextEdit { color:blue; background-color:lightgray; padding:15px 10px; border:none; font-size:20pt; font-family:monospace; }")
         self.addrtext.setReadOnly(True)
-        self.addrtext.setMaximumHeight(120)
+        self.addrtext.setMaximumHeight(130)
         card.addWidget(self.addrtext)
         
         def pin_changed(s):
             if len(s) < len(self.idxs):
                 i = self.idxs[len(s)]
                 addr = self.txdata['address']
-                addr = addr[:i] + '<u><b>' + addr[i:i+1] + '</u></b>' + addr[i+1:]
-                self.addrtext.setHtml(str(addr))
+                if not constants.net.TESTNET:
+                    text = addr[:i] + '<u><b>' + addr[i:i+1] + '</u></b>' + addr[i+1:]
+                else:
+                    # pin needs to be created from mainnet address
+                    addr_mainnet = bitcoin.script_to_address(bitcoin.address_to_script(addr), net=constants.BitcoinMainnet)
+                    addr_mainnet = addr_mainnet[:i] + '<u><b>' + addr_mainnet[i:i+1] + '</u></b>' + addr_mainnet[i+1:]
+                    text = str(addr) + '\n' + str(addr_mainnet)
+                self.addrtext.setHtml(str(text))
             else:
                 self.addrtext.setHtml(_("Press Enter"))
                 
@@ -179,8 +193,8 @@ class LedgerAuthDialog(QDialog):
         self.pinbox.setVisible(self.cfg['mode'] == 0)
         self.cardbox.setVisible(self.cfg['mode'] == 1)
         self.pintxt.setFocus(True) if self.cfg['mode'] == 0 else self.cardtxt.setFocus(True)
-        self.setMaximumHeight(200)
-        
+        self.setMaximumHeight(400)
+
     def do_pairing(self):
         rng = os.urandom(16)
         pairID = (hexlify(rng) + hexlify(hashlib.sha256(rng).digest()[0:1])).decode('utf-8')
@@ -338,11 +352,7 @@ class LedgerWebSocket(QThread):
             ws.send( self.txreq )
             debug_msg("Req Sent", self.txreq)
 
+
 def debug_msg(*args):
     if DEBUG:
         print_msg(*args)        
-
-    
-        
-        
-        

@@ -89,7 +89,7 @@ def get_payment_request(url):
             error = "payment URL not pointing to a valid server"
     elif u.scheme == 'file':
         try:
-            with open(u.path, 'r') as f:
+            with open(u.path, 'r', encoding='utf-8') as f:
                 data = f.read()
         except IOError:
             data = None
@@ -385,9 +385,9 @@ def check_ssl_config(config):
     from . import pem
     key_path = config.get('ssl_privkey')
     cert_path = config.get('ssl_chain')
-    with open(key_path, 'r') as f:
+    with open(key_path, 'r', encoding='utf-8') as f:
         params = pem.parse_private_key(f.read())
-    with open(cert_path, 'r') as f:
+    with open(cert_path, 'r', encoding='utf-8') as f:
         s = f.read()
     bList = pem.dePemList(s, "CERTIFICATE")
     # verify chain
@@ -405,10 +405,10 @@ def check_ssl_config(config):
 
 def sign_request_with_x509(pr, key_path, cert_path):
     from . import pem
-    with open(key_path, 'r') as f:
+    with open(key_path, 'r', encoding='utf-8') as f:
         params = pem.parse_private_key(f.read())
         privkey = rsakey.RSAKey(*params)
-    with open(cert_path, 'r') as f:
+    with open(cert_path, 'r', encoding='utf-8') as f:
         s = f.read()
         bList = pem.dePemList(s, "CERTIFICATE")
     certificates = pb2.X509Certificates()
@@ -453,7 +453,11 @@ class InvoiceStore(object):
 
     def set_paid(self, pr, txid):
         pr.tx = txid
-        self.paid[txid] = pr.get_id()
+        pr_id = pr.get_id()
+        self.paid[txid] = pr_id
+        if pr_id not in self.invoices:
+            # in case the user had deleted it previously
+            self.add(pr)
 
     def load(self, d):
         for k, v in d.items():

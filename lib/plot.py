@@ -1,17 +1,13 @@
-from PyQt5.QtGui import *
-from electrum.i18n import _
-
-
 import datetime
 from collections import defaultdict
-from electrum.bitcoin import COIN
 
 import matplotlib
 matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as md
-from matplotlib.patches import Ellipse
-from matplotlib.offsetbox import AnchoredOffsetbox, TextArea, DrawingArea, HPacker
+
+from .i18n import _
+from .bitcoin import COIN
 
 
 class NothingToPlotException(Exception):

@@ -22,7 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+import random
 import time
 import threading
 import base64
@@ -45,11 +45,12 @@ from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QLineEdit,
 from electrum.plugins import BasePlugin, hook
 from electrum.paymentrequest import PaymentRequest
 from electrum.i18n import _
+from electrum.util import PrintError
 from electrum_gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton,
                                   WindowModalDialog, get_parent_main_window)
 
 
-class Processor(threading.Thread):
+class Processor(threading.Thread, PrintError):
     polling_interval = 5*60
 
     def __init__(self, imap_server, username, password, callback):
@@ -59,6 +60,8 @@ class Processor(threading.Thread):
         self.password = password
         self.imap_server = imap_server
         self.on_receive = callback
+        self.M = None
+        self.connect_wait = 100  # ms, between failed connection attempts
 
     def poll(self):
         try:
@@ -80,13 +83,18 @@ class Processor(threading.Thread):
                     self.on_receive(pr_str)
 
     def run(self):
-        self.M = imaplib.IMAP4_SSL(self.imap_server)
-        self.M.login(self.username, self.password)
         while True:
-            self.poll()
-            time.sleep(self.polling_interval)
-        self.M.close()
-        self.M.logout()
+            try:
+                self.M = imaplib.IMAP4_SSL(self.imap_server)
+                self.M.login(self.username, self.password)
+            except BaseException as e:
+                self.print_error(e)
+                self.connect_wait *= 2
+            # Reconnect when host changes
+            while self.M and self.M.host == self.imap_server:
+                self.poll()
+                time.sleep(self.polling_interval)
+            time.sleep(random.randint(0, self.connect_wait))
 
     def send(self, recipient, message, payment_request):
         msg = MIMEMultipart()
@@ -98,10 +106,13 @@ class Processor(threading.Thread):
         encode_base64(part)
         part.add_header('Content-Disposition', 'attachment; filename="payreq.btc"')
         msg.attach(part)
-        s = smtplib.SMTP_SSL(self.imap_server, timeout=2)
-        s.login(self.username, self.password)
-        s.sendmail(self.username, [recipient], msg.as_string())
-        s.quit()
+        try:
+            s = smtplib.SMTP_SSL(self.imap_server, timeout=2)
+            s.login(self.username, self.password)
+            s.sendmail(self.username, [recipient], msg.as_string())
+            s.quit()
+        except BaseException as e:
+            self.print_error(e)
 
 
 class QEmailSignalObject(QObject):
@@ -225,3 +236,27 @@ class Plugin(BasePlugin):
         password = str(password_e.text())
         self.config.set_key('email_password', password)
         self.password = password
+
+        check_connection = CheckConnectionThread(server, username, password)
+        check_connection.connection_error_signal.connect(lambda e: window.show_message(
+            _("Unable to connect to mail server:\n {}").format(e) + "\n" +
+            _("Please check your connection and credentials.")
+        ))
+        check_connection.start()
+
+
+class CheckConnectionThread(QThread):
+    connection_error_signal = pyqtSignal(str)
+
+    def __init__(self, server, username, password):
+        super().__init__()
+        self.server = server
+        self.username = username
+        self.password = password
+
+    def run(self):
+        try:
+            conn = imaplib.IMAP4_SSL(self.server)
+            conn.login(self.username, self.password)
+        except BaseException as e:
+            self.connection_error_signal.emit(str(e))

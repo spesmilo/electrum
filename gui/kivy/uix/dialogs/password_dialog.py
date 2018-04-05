@@ -5,35 +5,42 @@ from kivy.lang import Builder
 from decimal import Decimal
 from kivy.clock import Clock
 
+from electrum.util import InvalidPassword
+from electrum_gui.kivy.i18n import _
+
 Builder.load_string('''
 
 <PasswordDialog@Popup>
     id: popup
-    title: _('PIN Code')
+    title: 'Electrum'
     message: ''
-    size_hint: 0.9, 0.9
     BoxLayout:
+        size_hint: 1, 1
         orientation: 'vertical'
         Widget:
-            size_hint: 1, 1
+            size_hint: 1, 0.05
         Label:
+            font_size: '20dp'
             text: root.message
             text_size: self.width, None
             size: self.texture_size
         Widget:
-            size_hint: 1, 1
+            size_hint: 1, 0.05
         Label:
             id: a
-            text: ' * '*len(kb.password) + ' o '*(6-len(kb.password))
+            font_size: '50dp'
+            text: '*'*len(kb.password) + '-'*(6-len(kb.password))
+            size: self.texture_size
         Widget:
-            size_hint: 1, 1
+            size_hint: 1, 0.05
         GridLayout:
             id: kb
+            size_hint: 1, None
+            height: self.minimum_height
             update_amount: popup.update_password
             password: ''
             on_password: popup.on_password(self.password)
-            size_hint: 1, None
-            height: '200dp'
+            spacing: '2dp'
             cols: 3
             KButton:
                 text: '1'
@@ -59,30 +66,44 @@ Builder.load_string('''
                 text: '0'
             KButton:
                 text: '<'
-        BoxLayout:
-            size_hint: 1, None
-            height: '48dp'
-            Widget:
-                size_hint: 0.5, None
-            Button:
-                size_hint: 0.5, None
-                height: '48dp'
-                text: _('Cancel')
-                on_release:
-                    popup.dismiss()
-                    popup.callback(None)
 ''')
 
 
 class PasswordDialog(Factory.Popup):
 
-    #def __init__(self, message, callback):
-    #    Factory.Popup.__init__(self)
-
-    def init(self, message, callback):
+    def init(self, app, wallet, message, on_success, on_failure, is_change=0):
+        self.app = app
+        self.wallet = wallet
         self.message = message
-        self.callback = callback
+        self.on_success = on_success
+        self.on_failure = on_failure
         self.ids.kb.password = ''
+        self.success = False
+        self.is_change = is_change
+        self.pw = None
+        self.new_password = None
+        self.title = 'Electrum' + ('  -  ' + self.wallet.basename() if self.wallet else '')
+
+    def check_password(self, password):
+        if self.is_change > 1:
+            return True
+        try:
+            self.wallet.check_password(password)
+            return True
+        except InvalidPassword as e:
+            return False
+
+    def on_dismiss(self):
+        if not self.success:
+            if self.on_failure:
+                self.on_failure()
+            else:
+                # keep dialog open
+                return True
+        else:
+            if self.on_success:
+                args = (self.pw, self.new_password) if self.is_change else (self.pw,)
+                Clock.schedule_once(lambda dt: self.on_success(*args), 0.1)
 
     def update_password(self, c):
         kb = self.ids.kb
@@ -97,5 +118,25 @@ class PasswordDialog(Factory.Popup):
 
     def on_password(self, pw):
         if len(pw) == 6:
-            self.dismiss()
-            Clock.schedule_once(lambda dt: self.callback(pw), 0.1)
+            if self.check_password(pw):
+                if self.is_change == 0:
+                    self.success = True
+                    self.pw = pw
+                    self.message = _('Please wait...')
+                    self.dismiss()
+                elif self.is_change == 1:
+                    self.pw = pw
+                    self.message = _('Enter new PIN')
+                    self.ids.kb.password = ''
+                    self.is_change = 2
+                elif self.is_change == 2:
+                    self.new_password = pw
+                    self.message = _('Confirm new PIN')
+                    self.ids.kb.password = ''
+                    self.is_change = 3
+                elif self.is_change == 3:
+                    self.success = pw == self.new_password
+                    self.dismiss()
+            else:
+                self.app.show_error(_('Wrong PIN'))
+                self.ids.kb.password = ''

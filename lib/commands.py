@@ -34,7 +34,7 @@ from functools import wraps
 from decimal import Decimal
 
 from .import util
-from .util import bfh, bh2u, format_satoshis, json_decode, print_error
+from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode
 from .import bitcoin
 from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
@@ -159,18 +159,12 @@ class Commands:
         return True
 
     @command('')
-    def make_seed(self, nbits=132, entropy=1, language=None, segwit=False):
+    def make_seed(self, nbits=132, language=None, segwit=False):
         """Create a seed"""
         from .mnemonic import Mnemonic
         t = 'segwit' if segwit else 'standard'
-        s = Mnemonic(language).make_seed(t, nbits, custom_entropy=entropy)
+        s = Mnemonic(language).make_seed(t, nbits)
         return s
-
-    @command('')
-    def check_seed(self, seed, entropy=1, language=None):
-        """Check that a seed was generated with given entropy"""
-        from .mnemonic import Mnemonic
-        return Mnemonic(language).check_seed(seed, entropy)
 
     @command('n')
     def getaddresshistory(self, address):
@@ -207,7 +201,7 @@ class Commands:
         keypairs = {}
         inputs = jsontx.get('inputs')
         outputs = jsontx.get('outputs')
-        locktime = jsontx.get('locktime', 0)
+        locktime = jsontx.get('lockTime', 0)
         for txin in inputs:
             if txin.get('output'):
                 prevout_hash, prevout_n = txin['output'].split(':')
@@ -418,6 +412,8 @@ class Commands:
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
         if locktime != None: 
             tx.locktime = locktime
+        if rbf is None:
+            rbf = self.config.get('use_rbf', True)
         if rbf:
             tx.set_rbf(True)
         if not unsigned:
@@ -426,7 +422,7 @@ class Commands:
         return tx
 
     @command('wp')
-    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
+    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
         """Create a transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
@@ -434,7 +430,7 @@ class Commands:
         return tx.as_dict()
 
     @command('wp')
-    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
+    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
         """Create a multi-output transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
@@ -455,7 +451,7 @@ class Commands:
             from .exchange_rate import FxThread
             fx = FxThread(self.config, None)
             kwargs['fx'] = fx
-        return self.wallet.get_full_history(**kwargs)
+        return json_encode(self.wallet.get_full_history(**kwargs))
 
     @command('w')
     def setlabel(self, key, label):
@@ -697,7 +693,6 @@ command_options = {
     'from_addr':   ("-F", "Source address (must be a wallet address; use sweep to spend from non-wallet address)."),
     'change_addr': ("-c", "Change address. Default is a spare address, or the source address if it's not in the wallet"),
     'nbits':       (None, "Number of bits of entropy"),
-    'entropy':     (None, "Custom entropy"),
     'segwit':      (None, "Create segwit seed"),
     'language':    ("-L", "Default language for wordlist"),
     'privkey':     (None, "Private key. Set to '?' to get a prompt."),
@@ -726,7 +721,6 @@ arg_types = {
     'nbits': int,
     'imax': int,
     'year': int,
-    'entropy': int,
     'tx': tx_from_str,
     'pubkeys': json_loads,
     'jsontx': json_loads,
