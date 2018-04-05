@@ -109,13 +109,11 @@ class SimpleConfig(PrintError):
         make_dir(path, allow_symlink=False)
         if self.get('testnet'):
             path = os.path.join(path, 'testnet')
-            make_dir(path, allow_symlink=False)
         elif self.get('regtest'):
             path = os.path.join(path, 'regtest')
-            make_dir(path, allow_symlink=False)
         elif self.get('simnet'):
             path = os.path.join(path, 'simnet')
-            make_dir(path, allow_symlink=False)
+        make_dir(path, allow_symlink=False)
 
         self.print_error("electrum directory", path)
         return path
