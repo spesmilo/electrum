@@ -32,8 +32,8 @@ NETWORK = None
 CONFIG = None
 locked = set()
 
-machine = "148.251.87.112"
-#machine = "127.0.0.1"
+#machine = "148.251.87.112"
+machine = "127.0.0.1"
 
 def WriteDb(json):
     req = rpc_pb2.WriteDbRequest()
