@@ -1308,8 +1308,11 @@ class Abstract_Wallet(PrintError):
             self.verifier = SPV(self.network, self)
             self.synchronizer = Synchronizer(self, network)
             network.add_jobs([self.verifier, self.synchronizer])
-            network.lightningworker = LightningWorker(lambda: self, lambda: network, lambda: network.config)
-            network.lightningrpc = LightningRPC()
+            network.lightningworker = None
+            network.lightningrpc = None
+            if network.config.get("lightning", False):
+                network.lightningworker = LightningWorker(lambda: self, lambda: network, lambda: network.config)
+                network.lightningrpc = LightningRPC()
             network.lightninglock.release()
         else:
             self.verifier = None
