@@ -736,10 +736,6 @@ class SocketPipe:
                 print_error("SSLError:", e)
                 time.sleep(0.1)
                 continue
-            except OSError as e:
-                print_error("OSError", e)
-                time.sleep(0.1)
-                continue
 
 
 class QueuePipe:
