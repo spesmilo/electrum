@@ -108,8 +108,11 @@ class Synchronizer(ThreadJob):
         if not params:
             return
         addr = params[0]
+        server_status = self.requested_histories.get(addr)
+        if server_status is None:
+            self.print_error("receiving history (unsolicited)", addr, len(result))
+            return
         self.print_error("receiving history", addr, len(result))
-        server_status = self.requested_histories[addr]
         hashes = set(map(lambda item: item['tx_hash'], result))
         hist = list(map(lambda item: (item['tx_hash'], item['height']), result))
         # tx_fees

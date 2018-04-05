@@ -47,6 +47,10 @@ def serialize_header(res):
     return s
 
 def deserialize_header(s, height):
+    if not s:
+        raise Exception('Invalid header: {}'.format(s))
+    if len(s) != 80:
+        raise Exception('Invalid header length: {}'.format(len(s)))
     hex_to_int = lambda s: int('0x' + bh2u(s[::-1]), 16)
     h = {}
     h['version'] = hex_to_int(s[0:4])
@@ -266,6 +270,8 @@ class Blockchain(util.PrintError):
             with open(name, 'rb') as f:
                 f.seek(delta * 80)
                 h = f.read(80)
+                if len(h) < 80:
+                    raise Exception('Expected to read a full header. This was only {} bytes'.format(len(h)))
         elif not os.path.exists(util.get_headers_dir(self.config)):
             raise Exception('Electrum datadir does not exist. Was it deleted while running?')
         else:
