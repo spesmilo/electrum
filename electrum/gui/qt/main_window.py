@@ -150,8 +150,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tabs.addTab(self.create_history_tab(), QIcon(":icons/tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
-        self.lightning_invoices_tab = self.create_lightning_invoices_tab(wallet)
-        tabs.addTab(self.lightning_invoices_tab, _("Lightning Invoices"))
+        if config.get("lightning", False):
+            self.lightning_invoices_tab = self.create_lightning_invoices_tab(wallet)
+            tabs.addTab(self.lightning_invoices_tab, _("Lightning Invoices"))
 
         def add_optional_tab(tabs, tab, icon, description, name):
             tab.tab_icon = icon
