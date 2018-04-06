@@ -95,7 +95,7 @@ class DigitalBitbox_Client():
 
 
     def get_xpub(self, bip32_path, xtype):
-        assert xtype in ('standard', 'p2wpkh-p2sh')
+        assert xtype in ('standard', 'p2wpkh-p2sh', 'p2wpkh')
         reply = self._get_xpub(bip32_path)
         if reply:
             xpub = reply['xpub']
@@ -718,7 +718,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in ('standard', 'p2wpkh-p2sh'):
+        if xtype not in ('standard', 'p2wpkh-p2sh', 'p2wpkh'):
             raise ScriptTypeNotSupported(_('This type of script is not supported with the Digital Bitbox.'))
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
