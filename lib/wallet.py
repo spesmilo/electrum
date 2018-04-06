@@ -336,6 +336,11 @@ class Abstract_Wallet(PrintError):
             nonlocal save
             for tx_hash, lst in list(txio_dict.items()):
                 for addr in lst:
+                    if not self.is_mine(addr):
+                        # this can happen e.g. after an old multi-acc wallet is split
+                        self.remove_transaction(tx_hash)
+                        save = True
+                        break  # go to next txio item
                     hist = self.history[addr]
                     for tx_hash2, tx_height in hist:
                         if tx_hash == tx_hash2:
