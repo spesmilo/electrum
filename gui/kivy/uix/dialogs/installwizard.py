@@ -562,7 +562,11 @@ class RestoreSeedDialog(WizardDialog):
         from electrum.mnemonic import Mnemonic
         from electrum.old_mnemonic import words as old_wordlist
         self.words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
-        self.ids.text_input_seed.text = test_seed if is_test else ''
+
+        import subprocess
+        proc = subprocess.run(["xclip","-sel","clipboard","-o"], stdout=subprocess.PIPE)
+        self.ids.text_input_seed.text = proc.stdout.decode("ascii") if is_test else ''
+
         self.message = _('Please type your seed phrase using the virtual keyboard.')
         self.title = _('Enter Seed')
         self.ext = False
