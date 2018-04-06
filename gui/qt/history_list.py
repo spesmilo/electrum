@@ -336,7 +336,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
         menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
         for c in self.editable_columns:
-            menu.addAction(_("Edit {}").format(self.headerItem().text(c)), lambda: self.editItem(item, c))
+            menu.addAction(_("Edit {}").format(self.headerItem().text(c)),
+                           lambda bound_c=c: self.editItem(item, bound_c))
         menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx))
         if is_unconfirmed and tx:
             rbf = is_mine and not tx.is_final()
