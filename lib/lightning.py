@@ -32,8 +32,6 @@ NETWORK = None
 CONFIG = None
 locked = set()
 
-#machine = "148.251.87.112"
-machine = "127.0.0.1"
 
 def WriteDb(json):
     req = rpc_pb2.WriteDbRequest()
@@ -602,6 +600,7 @@ class LightningRPC:
         self.queue = queue.Queue()
         self.subscribers = []
         self.console = None
+
     # overridden
     async def run(self, netAndWalLock):
       while asyncio.get_event_loop().is_running():
@@ -612,6 +611,7 @@ class LightningRPC:
             pass
         else:
             def lightningRpcNetworkRequestThreadTarget(qitem):
+                machine = CONFIG.get('lndhost', '127.0.0.1')
                 applyMethodName = lambda x: functools.partial(x, qitem.methodName)
                 client = Server("http://" + machine + ":8090")
                 argumentStrings = [str(x) for x in qitem.args]
@@ -666,7 +666,7 @@ class LightningWorker:
         self.wallet = wallet
         self.network = network
         self.config = config
-        ks = self.wallet().keystore
+        ks = self.wallet.keystore
         assert hasattr(ks, "xprv"), "Wallet must have xprv, can't be e.g. imported"
         try:
             xprv = ks.get_master_private_key(None)
@@ -677,8 +677,7 @@ class LightningWorker:
         privKey = tupl[-1]
         assert type(privKey) is type(bytes([]))
         privateKeyHash = bitcoin.Hash(privKey)
-
-        deser = bitcoin.deserialize_xpub(wallet().keystore.xpub)
+        deser = bitcoin.deserialize_xpub(wallet.keystore.xpub)
         assert deser[0] == "p2wpkh", deser
         self.subscribers = []
 
@@ -688,15 +687,14 @@ class LightningWorker:
         global globalIdx
 
         wasAlreadyUpToDate = False
-
         while asyncio.get_event_loop().is_running():
-            WALLET = self.wallet()
-            NETWORK = self.network()
-            CONFIG = self.config()
-
+            WALLET = self.wallet
+            NETWORK = self.network
+            CONFIG = self.config
+            machine = CONFIG.get('lndhost', '127.0.0.1')
             globalIdx = WALLET.storage.get("lightning_global_key_index", 0)
-            if globalIdx != 0: print("initial lightning global key index", globalIdx)
-
+            if globalIdx != 0:
+                print("initial lightning global key index", globalIdx)
             writer = None
             print("OPENING CONNECTION")
             try:
@@ -718,6 +716,7 @@ class LightningWorker:
                 traceback.print_exc()
                 await asyncio.sleep(5)
                 continue
+
     def subscribe(self, notifyFunction):
         self.subscribers.append(functools.partial(notifyFunction, "LightningWorker"))
 

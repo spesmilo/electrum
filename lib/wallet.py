@@ -1310,7 +1310,7 @@ class Abstract_Wallet(PrintError):
             network.lightningworker = None
             network.lightningrpc = None
             if network.config.get("lightning", False):
-                network.lightningworker = LightningWorker(lambda: self, lambda: network, lambda: network.config)
+                network.lightningworker = LightningWorker(self, network, network.config)
                 network.lightningrpc = LightningRPC()
             network.lightninglock.release()
         else:
