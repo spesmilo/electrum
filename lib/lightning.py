@@ -619,7 +619,7 @@ class LightningRPC:
                 resolvedMethod = getattr(client, qitem.methodName)
                 try:
                     result = resolvedMethod(lightningSessionKey, *argumentStrings)
-                except BaseException as e:
+                except Exception as e:
                     traceback.print_exc()
                     for i in self.subscribers: applyMethodName(i)(e)
                     raise
@@ -629,7 +629,7 @@ class LightningRPC:
                     assert result["stderr"] == "" and result["returncode"] == 0, "LightningRPC detected error: " + result["stderr"]
                     toprint = json.loads(result["stdout"])
                     for i in self.subscribers: applyMethodName(i)(toprint)
-                except BaseException as e:
+                except Exception as e:
                     traceback.print_exc()
                     for i in self.subscribers: applyMethodName(i)(e)
                 if self.console:
@@ -639,7 +639,7 @@ class LightningRPC:
         self.console = console
     def subscribe(self, notifyFunction):
         self.subscribers.append(notifyFunction)
-    def clearSubscribers():
+    def clearSubscribers(self):
         self.subscribers = []
 
 def lightningCall(rpc, methodName):
@@ -670,9 +670,9 @@ class LightningWorker:
         assert hasattr(ks, "xprv"), "Wallet must have xprv, can't be e.g. imported"
         try:
             xprv = ks.get_master_private_key(None)
+            xprv, xpub = bitcoin.bip32_private_derivation(xprv, "m/", "m/152/152/152/152")
         except:
-            raise BaseException("Could not get master private key, is the wallet password protected?")
-        xprv, xpub = bitcoin.bip32_private_derivation(xprv, "m/", "m/152/152/152/152")
+            raise Exception("Could not get master private key, is the wallet password protected?")
         tupl = bitcoin.deserialize_xprv(xprv)
         privKey = tupl[-1]
         assert type(privKey) is type(bytes([]))
@@ -774,7 +774,7 @@ async def readReqAndReply(obj, writer, netAndWalLock):
                 netAndWalLock.release()
                 found = True
                 break
-    except BaseException as e:
+    except Exception as e:
         traceback.print_exc()
         print("exception while calling method", obj["method"])
         writer.write(json.dumps({"id":obj["id"],"error": {"code": -32002, "message": traceback.format_exc()}}).encode("ascii") + b"\n")
