@@ -247,8 +247,7 @@ class Plugin(BasePlugin):
         bitmap.fill(Qt.white)
         painter = QPainter()
         painter.begin(bitmap)
-        QFontDatabase.addApplicationFont(os.path.abspath('plugins/revealer/SourceSansPro-Black.otf'))
-        
+        QFontDatabase.addApplicationFont(os.path.abspath('plugins/revealer/SourceSansPro-Bold.otf'))
         if len(txt) < 102 :
             fontsize = 12
             linespace = 15
