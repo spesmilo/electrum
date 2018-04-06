@@ -6,7 +6,7 @@ So you have something to hide?
 plug-in for the electrum wallet.
 
 Features:
-    - Analog multi-factor backup solution
+    - Deep Cold multi-factor backup solution
     - Safety - One time pad security
     - Redundancy - Trustless printing & distribution
     - Encrypt your seedphrase or any secret you want for your revealer
@@ -60,7 +60,7 @@ class Plugin(BasePlugin):
     @hook
     def set_seed(self, seed, parent):
         self.cseed = seed.upper()
-        parent.addButton(':icons/revealer.png', partial(self.setup_dialog, parent), _("Revealer secret backup utility"))
+        parent.addButton(':icons/revealer.png', partial(self.setup_dialog, parent), "Revealer"+_("secret backup utility"))
 
     def requires_settings(self):
         return True
@@ -72,7 +72,7 @@ class Plugin(BasePlugin):
         self.update_wallet_name(window.parent().parent().wallet)
         self.user_input = False
         self.noise_seed = False
-        self.d = WindowModalDialog(window, _("Revealer"))
+        self.d = WindowModalDialog(window, "Revealer")
         self.d.setMinimumWidth(420)
         vbox = QVBoxLayout(self.d)
         vbox.addSpacing(21)
@@ -87,7 +87,7 @@ class Plugin(BasePlugin):
         self.load_noise.textChanged.connect(self.on_edit)
         self.load_noise.setMaximumHeight(33)
 
-        vbox.addWidget(WWLabel(_("<b>Enter your physical revealer code:<b>")))
+        vbox.addWidget(WWLabel("<b>"+_("Enter your physical revealer code:")+"<b>"))
         vbox.addWidget(self.load_noise)
         vbox.addSpacing(11)
 
@@ -100,12 +100,12 @@ class Plugin(BasePlugin):
         vbox.addSpacing(21)
 
         vbox.addWidget(WWLabel(_("or, alternatively: ")))
-        bcreate = QPushButton("Create a digital Revealer")
+        bcreate = QPushButton(_("Create a digital Revealer"))
         bcreate.clicked.connect(partial(self.make_digital, self.d))
         bcreate.clicked.connect(partial(self.cypherseed_dialog, window))
         vbox.addWidget(bcreate)
         vbox.addSpacing(11)
-        vbox.addWidget(QLabel(''.join([_("<b>WARNING</b>: Printing a revealer and encrypted seed"), '<br/>',
+        vbox.addWidget(QLabel(''.join([ "<b>"+_("WARNING")+ "</b>:" + _("Printing a revealer and encrypted seed"), '<br/>',
                                        _("on the same printer is not trustless towards the printer."), '<br/>',
                                        ])))
         vbox.addSpacing(11)
@@ -157,12 +157,12 @@ class Plugin(BasePlugin):
 
     def bcrypt(self, dialog):
         self.rawnoise = False
-        dialog.show_message(_(self.filename+" encrypted for Revealer "+ self.version + '_'+self.code_id+" saved as PNG and PDF at: <b>" + self.base_dir+self.filename+self.version + '_'+self.code_id+'</b>'))
+        dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at:").format(self.filename, self.version, self.code_id), "<b>", self.base_dir+ self.filename+self.version+"_"+self.code_id,"</b>"]))
         dialog.close()
 
     def bdone(self, dialog):
-        dialog.show_message(_(
-            "Digital Revealer (" + self.version + '_'+ self.code_id + ") saved as PNG and PDF at: <b>" + self.base_dir + 'revealer_' +self.version + '_'+ self.code_id + '</b>'))
+        dialog.show_message(''.join([_("Digital Revealer ({}_{}) saved as PNG and PDF at:").format(self.version, self.code_id), "<b>", self.base_dir + 'revealer_' +self.version + '_'+ self.code_id, '</b>']))
+
 
     def customtxt_limits(self):
         txt = self.text.text()
@@ -180,7 +180,7 @@ class Plugin(BasePlugin):
 
     def cypherseed_dialog(self, window):
 
-        d = WindowModalDialog(window, _("Revealer"))
+        d = WindowModalDialog(window, "Revealer")
         d.setMinimumWidth(420)
 
         self.c_dialog = d
@@ -197,7 +197,7 @@ class Plugin(BasePlugin):
         grid = QGridLayout()
         self.vbox.addLayout(grid)
 
-        cprint = QPushButton("Generate encrypted seed PDF")
+        cprint = QPushButton(_("Generate encrypted seed PDF"))
         cprint.clicked.connect(partial(self.seed_img, True))
         self.vbox.addWidget(cprint)
         self.vbox.addSpacing(14)
@@ -209,15 +209,15 @@ class Plugin(BasePlugin):
         self.text.textChanged.connect(self.customtxt_limits)
         self.vbox.addWidget(self.text)
 
-        self.char_count = WWLabel(_(""))
+        self.char_count = WWLabel("")
         self.char_count.setAlignment(Qt.AlignRight)
         self.vbox.addWidget(self.char_count)
 
-        self.max_chars = WWLabel(_("<font color='red'>This version supports a maximum of 216 characters.</font>"))
+        self.max_chars = WWLabel("<font color='red'>" + _("This version supports a maximum of 216 characters.")+"</font>")
         self.vbox.addWidget(self.max_chars)
         self.max_chars.setVisible(False)
 
-        self.ctext = QPushButton("Generate custom secret encrypted PDF")
+        self.ctext = QPushButton(_("Generate custom secret encrypted PDF"))
         self.ctext.clicked.connect(self.t)
 
         self.vbox.addWidget(self.ctext)
@@ -348,9 +348,9 @@ class Plugin(BasePlugin):
         cypherseed = self.overlay_marks(cypherseed, True, calibration)
 
         if not is_seed:
-            self.filename = '_custom_secret_'
+            self.filename = '_'+_('custom_secret')+'_'
         else:
-            self.filename = self.wallet_name+'_seed_'
+            self.filename = self.wallet_name+'_'+ _('seed')+'_'
             
         if not calibration:
             self.toPdf(QImage(cypherseed))
@@ -366,7 +366,7 @@ class Plugin(BasePlugin):
         self.make_calnoise()
         img = self.overlay_marks(self.calnoise.scaledToHeight(self.f_size.height()), False, True)
         self.calibration_pdf(img)
-        QDesktopServices.openUrl (QUrl.fromLocalFile(os.path.abspath(self.base_dir+'calibration.pdf')))
+        QDesktopServices.openUrl (QUrl.fromLocalFile(os.path.abspath(self.base_dir+_('calibration')+'.pdf')))
         return img        
     
     def toPdf(self, image):
@@ -399,7 +399,7 @@ class Plugin(BasePlugin):
         printer.setPaperSize(QSizeF(210, 297), QPrinter.Millimeter)
         printer.setResolution(600)
         printer.setOutputFormat(QPrinter.PdfFormat)
-        printer.setOutputFileName(self.base_dir+'calibration.pdf')
+        printer.setOutputFileName(self.base_dir+_('calibration')+'.pdf')
         printer.setPageMargins(0,0,0,0,6)
 
         painter = QPainter()
@@ -407,16 +407,16 @@ class Plugin(BasePlugin):
         painter.drawImage(553,533, image)
         font = QFont('Source Sans Pro', 10, QFont.Bold)
         painter.setFont(font)
-        painter.drawText(254,277, "Calibration sheet")
+        painter.drawText(254,277, _("Calibration sheet"))
         font = QFont('Source Sans Pro', 7, QFont.Normal)
         painter.setFont(font)
-        painter.drawText(2800,1377, "Instructions:")
+        painter.drawText(2800,1377, _("Instructions:"))
         font = QFont('Source Sans Pro', 7, QFont.Normal)
         painter.setFont(font)
-        painter.drawText(2900, 1477, "Place this paper on a well iluminated flat surface.")
-        painter.drawText(2900, 1577, "Align your Revealer borderlines to the dashed lines on the top and left.")
-        painter.drawText(2900, 1677, "Slightly pressing the revealer down, read the numbers that best match on the opposite sides. ")
-        painter.drawText(2900, 1777, "Type the numbers in the software")
+        painter.drawText(2900, 1477, _("Place this paper on a well iluminated flat surface."))
+        painter.drawText(2900, 1577, _("Align your Revealer borderlines to the dashed lines on the top and left."))
+        painter.drawText(2900, 1677, _("Slightly pressing the revealer down, read the numbers that best match on the opposite sides. "))
+        painter.drawText(2900, 1777, _("Type the numbers in the software"))
         painter.end()
                             
     def pixelcode_2x2(self, img):
@@ -659,24 +659,24 @@ class Plugin(BasePlugin):
         d.setMinimumSize(100, 200)
 
         vbox = QVBoxLayout(d)
-        vbox.addWidget(QLabel(''.join([_("<br/>If you have an old printer, or want optimal precision"),'<br/>',
-                                       _("print the calibration pdf and follow the printed instuctions "), '<br/>',
+        vbox.addWidget(QLabel(''.join(["<br/>", _("If you have an old printer, or want optimal precision"),"<br/>",
+                                       _("print the calibration pdf and follow the printed instuctions "), "<br/>",
                                     ])))
         self.calibration_h = self.config.get('calibration_h')
         self.calibration_v = self.config.get('calibration_v')
-        cprint = QPushButton("Open calibration pdf")
+        cprint = QPushButton(_("Open calibration pdf"))
         cprint.clicked.connect(self.calibration)
         vbox.addWidget(cprint)
 
         vbox.addWidget(QLabel(_('Calibration values:')))
         grid = QGridLayout()
         vbox.addLayout(grid)
-        grid.addWidget(QLabel('Right side'), 0, 0)
+        grid.addWidget(QLabel(_('Right side')), 0, 0)
         horizontal = QLineEdit()
         horizontal.setText(str(self.calibration_h))
         grid.addWidget(horizontal, 0, 1)
 
-        grid.addWidget(QLabel('Bottom'), 1, 0)
+        grid.addWidget(QLabel(_('Bottom')), 1, 0)
         vertical = QLineEdit()
         vertical.setText(str(self.calibration_v))
         grid.addWidget(vertical, 1, 1)
