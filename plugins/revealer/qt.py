@@ -25,7 +25,6 @@ from hashlib import sha256
 
 from PyQt5.QtPrintSupport import QPrinter
 
-from electrum_gui.qt.qrwindow import MONOSPACE_FONT
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 from electrum_gui.qt.util import *
@@ -499,8 +498,8 @@ class Plugin(BasePlugin):
 
         #print code
         f_size = 37
-        font = QFont(MONOSPACE_FONT, f_size-11, QFont.Bold)
-        font.setLetterSpacing(QFont.PercentageSpacing, 100)
+        QFontDatabase.addApplicationFont(os.path.abspath('plugins/revealer/DejaVuSansMono-Bold.ttf'))
+        font = QFont("DejaVu Sans Mono", f_size-11, QFont.Bold)
         painter.setFont(font)
 
         if not calibration_sheet:
@@ -519,9 +518,6 @@ class Plugin(BasePlugin):
                                 base_img.width()-((total_distance_h))-(border_thick*8)/2-(border_thick/2)-2 - 77,
                                 (base_img.height()-((total_distance_h)))-((border_thick*8)/2)-(border_thick/2)-2)
                 painter.setPen(QColor(0,0,0,255))
-
-                font = QFont(MONOSPACE_FONT, f_size - 11, QFont.Black)  #
-                painter.setFont(font)
                 painter.drawText(QRect(0, base_img.height()-107, base_img.width()-total_distance_h - border_thick - 11, base_img.height()-total_distance_h - border_thick), Qt.AlignRight, self.version + '_'+self.code_id)
                 painter.end()
                     
@@ -568,10 +564,6 @@ class Plugin(BasePlugin):
 
                 painter.setPen(QColor(0,0,0,255))
                 painter.drawText(QRect(((base_img.width()/2) +21)-qr_size, base_img.height()-107, base_img.width()-total_distance_h - border_thick -93, base_img.height()-total_distance_h - border_thick), Qt.AlignLeft, self.hex_noise.upper())
-
-                font = QFont(MONOSPACE_FONT, f_size-11, QFont.Black)#
-                font.setLetterSpacing(QFont.PercentageSpacing, 100)
-                painter.setFont(font)
                 painter.drawText(QRect(0, base_img.height()-107, base_img.width()-total_distance_h - border_thick -3 -qr_size, base_img.height()-total_distance_h - border_thick), Qt.AlignRight, self.code_id)
 
                 # draw qr code
@@ -620,7 +612,7 @@ class Plugin(BasePlugin):
             cal_painter.setPen(pen)
             n=15
 
-            cal_painter.setFont(QFont(MONOSPACE_FONT, 21))
+            cal_painter.setFont(QFont("DejaVu Sans Mono", 21, QFont.Bold))
             for x in range(-n,n):
                 #lines on bottom (vertical calibration)
                 cal_painter.drawLine((((base_img.width())/(n*2)) *(x))+ (base_img.width()/2)-13,
@@ -652,7 +644,7 @@ class Plugin(BasePlugin):
             base_img = cal_img
 
         return base_img
-    
+
     def calibration_dialog(self, window):
         d = WindowModalDialog(window, _("Revealer - Printer calibration settings"))
         
