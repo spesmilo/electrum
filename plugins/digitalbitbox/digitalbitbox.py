@@ -504,6 +504,11 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         if tx.is_complete():
             return
 
+        # HACK: the tx input dict is missing the 'pubkeys' field,
+        # which is needed when getting the preimage script for segwit
+        # inputs. serializing the tx fixes that.
+        tx.serialize()
+
         try:
             p2pkhTransaction = True
             derivations = self.get_tx_derivations(tx)
