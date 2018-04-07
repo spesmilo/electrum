@@ -344,7 +344,7 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
                     elif addrtype == constants.net.ADDRTYPE_P2SH:
                         txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
                     else:
-                        raise BaseException('addrtype: ' + str(addrtype))
+                        raise Exception('addrtype: ' + str(addrtype))
                 txoutputtype.address = address
             return txoutputtype
 

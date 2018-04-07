@@ -81,7 +81,7 @@ def command(s):
             wallet = args[0].wallet
             password = kwargs.get('password')
             if c.requires_wallet and wallet is None:
-                raise BaseException("wallet not loaded. Use 'electrum daemon load_wallet'")
+                raise Exception("wallet not loaded. Use 'electrum daemon load_wallet'")
             if c.requires_password and password is None and wallet.has_password():
                 return {'error': 'Password required' }
             return func(*args, **kwargs)
@@ -125,7 +125,7 @@ class Commands:
     @command('')
     def create(self, segwit=False):
         """Create a new wallet"""
-        raise BaseException('Not a JSON-RPC command')
+        raise Exception('Not a JSON-RPC command')
 
     @command('wn')
     def restore(self, text):
@@ -133,7 +133,7 @@ class Commands:
         public key, a master private key, a list of bitcoin addresses
         or bitcoin private keys. If you want to be prompted for your
         seed, type '?' or ':' (concealed) """
-        raise BaseException('Not a JSON-RPC command')
+        raise Exception('Not a JSON-RPC command')
 
     @command('wp')
     def password(self, password=None, new_password=None):
@@ -377,7 +377,7 @@ class Commands:
             return None
         out = self.wallet.contacts.resolve(x)
         if out.get('type') == 'openalias' and self.nocheck is False and out.get('validated') is False:
-            raise BaseException('cannot verify alias', x)
+            raise Exception('cannot verify alias', x)
         return out['address']
 
     @command('n')
@@ -522,7 +522,7 @@ class Commands:
             if raw:
                 tx = Transaction(raw)
             else:
-                raise BaseException("Unknown transaction")
+                raise Exception("Unknown transaction")
         return tx.as_dict()
 
     @command('')
@@ -551,7 +551,7 @@ class Commands:
         """Return a payment request"""
         r = self.wallet.get_payment_request(key, self.config)
         if not r:
-            raise BaseException("Request not found")
+            raise Exception("Request not found")
         return self._format_request(r)
 
     #@command('w')
@@ -618,7 +618,7 @@ class Commands:
         "Sign payment request with an OpenAlias"
         alias = self.config.get('alias')
         if not alias:
-            raise BaseException('No alias in your configuration')
+            raise Exception('No alias in your configuration')
         alias_addr = self.wallet.contacts.resolve(alias)['address']
         self.wallet.sign_payment_request(address, alias, alias_addr, password)
 

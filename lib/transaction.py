@@ -583,7 +583,7 @@ class Transaction:
         elif isinstance(raw, dict):
             self.raw = raw['hex']
         else:
-            raise BaseException("cannot initialize transaction", raw)
+            raise Exception("cannot initialize transaction", raw)
         self._inputs = None
         self._outputs = None
         self.locktime = 0
@@ -747,7 +747,7 @@ class Transaction:
         else:
             witness = txin.get('witness', None)
             if not witness:
-                raise BaseException('wrong txin type:', txin['type'])
+                raise Exception('wrong txin type:', txin['type'])
         if self.is_txin_complete(txin) or estimate_size:
             value_field = ''
         else:

@@ -15,7 +15,7 @@ for i, x in enumerate(sys.argv):
         VERSION = sys.argv[i+1]
         break
 else:
-    raise BaseException('no version')
+    raise Exception('no version')
 
 electrum = os.path.abspath(".") + "/"
 block_cipher = None
