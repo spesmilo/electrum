@@ -140,7 +140,8 @@ def deserialize_proxy(s):
 
 def deserialize_server(server_str):
     host, port, protocol = str(server_str).rsplit(':', 2)
-    assert protocol in 'st'
+    if protocol not in 'st':
+        raise ValueError('invalid network protocol: {}'.format(protocol))
     int(port)    # Throw if cannot be converted to int
     return host, port, protocol
 
