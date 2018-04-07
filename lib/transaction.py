@@ -538,7 +538,8 @@ def deserialize(raw):
     is_segwit = (n_vin == 0)
     if is_segwit:
         marker = vds.read_bytes(1)
-        assert marker == b'\x01'
+        if marker != b'\x01':
+            raise ValueError('invalid txn marker byte: {}'.format(marker))
         n_vin = vds.read_compact_size()
     d['inputs'] = [parse_input(vds) for i in range(n_vin)]
     n_vout = vds.read_compact_size()
@@ -582,7 +583,7 @@ class Transaction:
         elif isinstance(raw, dict):
             self.raw = raw['hex']
         else:
-            raise BaseException("cannot initialize transaction", raw)
+            raise Exception("cannot initialize transaction", raw)
         self._inputs = None
         self._outputs = None
         self.locktime = 0
@@ -746,7 +747,7 @@ class Transaction:
         else:
             witness = txin.get('witness', None)
             if not witness:
-                raise BaseException('wrong txin type:', txin['type'])
+                raise Exception('wrong txin type:', txin['type'])
         if self.is_txin_complete(txin) or estimate_size:
             value_field = ''
         else:
@@ -1032,7 +1033,8 @@ class Transaction:
                     private_key = bitcoin.MySigningKey.from_secret_exponent(secexp, curve = SECP256k1)
                     public_key = private_key.get_verifying_key()
                     sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
-                    assert public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der)
+                    if not public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der):
+                        raise Exception('Sanity check verifying our own signature failed.')
                     txin['signatures'][j] = bh2u(sig) + '01'
                     #txin['x_pubkeys'][j] = pubkey
                     txin['pubkeys'][j] = pubkey # needed for fd keys

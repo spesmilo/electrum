@@ -107,7 +107,7 @@ class DigitalBitbox_Client():
                 xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
             return xpub
         else:
-            raise BaseException('no reply')
+            raise Exception('no reply')
 
 
     def dbb_has_password(self):

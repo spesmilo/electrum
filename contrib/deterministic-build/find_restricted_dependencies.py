@@ -23,7 +23,7 @@ for p in sys.stdin.read().split():
     try:
         data = requests.get("https://pypi.org/pypi/{}/{}/json".format(p, v)).json()["info"]
     except ValueError:
-        raise BaseException("Package could not be found: {}=={}".format(p, v))
+        raise Exception("Package could not be found: {}=={}".format(p, v))
     try:
         for r in data["requires_dist"]:
             if ";" not in r:

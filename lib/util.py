@@ -551,12 +551,12 @@ def parse_URI(uri, on_pr=None):
 
     if ':' not in uri:
         if not bitcoin.is_address(uri):
-            raise BaseException("Not a litecoin address")
+            raise Exception("Not a Litecoin address")
         return {'address': uri}
 
     u = urllib.parse.urlparse(uri)
     if u.scheme != 'litecoin':
-        raise BaseException("Not a litecoin URI")
+        raise Exception("Not a litecoin URI")
     address = u.path
 
     # python for android fails to parse query
@@ -573,7 +573,7 @@ def parse_URI(uri, on_pr=None):
     out = {k: v[0] for k, v in pq.items()}
     if address:
         if not bitcoin.is_address(address):
-            raise BaseException("Invalid litecoin address:" + address)
+            raise Exception("Invalid Litecoin address:" + address)
         out['address'] = address
     if 'amount' in out:
         am = out['amount']

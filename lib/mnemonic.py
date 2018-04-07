@@ -173,7 +173,8 @@ class Mnemonic(object):
             nonce += 1
             i = entropy + nonce
             seed = self.mnemonic_encode(i)
-            assert i == self.mnemonic_decode(seed)
+            if i != self.mnemonic_decode(seed):
+                raise Exception('Cannot extract same entropy from mnemonic!')
             if is_old_seed(seed):
                 continue
             if is_new_seed(seed, prefix):

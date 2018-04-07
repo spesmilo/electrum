@@ -140,7 +140,8 @@ def deserialize_proxy(s):
 
 def deserialize_server(server_str):
     host, port, protocol = str(server_str).rsplit(':', 2)
-    assert protocol in 'st'
+    if protocol not in 'st':
+        raise ValueError('invalid network protocol: {}'.format(protocol))
     int(port)    # Throw if cannot be converted to int
     return host, port, protocol
 
@@ -922,7 +923,7 @@ class Network(util.DaemonThread):
                 self.notify('updated')
 
         else:
-            raise BaseException(interface.mode)
+            raise Exception(interface.mode)
         # If not finished, get the next header
         if next_height:
             if interface.mode == 'catch_up' and interface.tip > next_height + 50:
@@ -1054,7 +1055,7 @@ class Network(util.DaemonThread):
                     self.switch_to_interface(i.server)
                     break
         else:
-            raise BaseException('blockchain not found', index)
+            raise Exception('blockchain not found', index)
 
         if self.interface:
             server = self.interface.server
@@ -1073,7 +1074,7 @@ class Network(util.DaemonThread):
         except queue.Empty:
             raise util.TimeoutException(_('Server did not answer'))
         if r.get('error'):
-            raise BaseException(r.get('error'))
+            raise Exception(r.get('error'))
         return r.get('result')
 
     def broadcast(self, tx, timeout=30):

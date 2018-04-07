@@ -132,7 +132,7 @@ def sweep_preparations(privkeys, network, imax=100):
             # we also search for pay-to-pubkey outputs
             find_utxos_for_privkey('p2pk', privkey, compressed)
     if not inputs:
-        raise BaseException(_('No inputs found. (Note that inputs need to be confirmed)'))
+        raise Exception(_('No inputs found. (Note that inputs need to be confirmed)'))
         # FIXME actually inputs need not be confirmed now, see https://github.com/kyuupichan/electrumx/issues/365
     return inputs, keypairs
 
@@ -145,9 +145,9 @@ def sweep(privkeys, network, config, recipient, fee=None, imax=100):
         tx = Transaction.from_io(inputs, outputs)
         fee = config.estimate_fee(tx.estimated_size())
     if total - fee < 0:
-        raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d'%(total, fee))
+        raise Exception(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d'%(total, fee))
     if total - fee < dust_threshold(network):
-        raise BaseException(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d\nDust Threshold: %d'%(total, fee, dust_threshold(network)))
+        raise Exception(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d\nDust Threshold: %d'%(total, fee, dust_threshold(network)))
 
     outputs = [(TYPE_ADDRESS, recipient, total - fee)]
     locktime = network.get_local_height()
@@ -1197,10 +1197,10 @@ class Abstract_Wallet(PrintError):
             _type, data, value = o
             if _type == TYPE_ADDRESS:
                 if not is_address(data):
-                    raise BaseException("Invalid Litecoin address: {}".format(data))
+                    raise Exception("Invalid Litecoin address: {}".format(data))
             if value == '!':
                 if i_max is not None:
-                    raise BaseException("More than one output set to spend max")
+                    raise Exception("More than one output set to spend max")
                 i_max = i
 
         # Avoid index-out-of-range with inputs[0] below
@@ -1239,7 +1239,7 @@ class Abstract_Wallet(PrintError):
         elif callable(fixed_fee):
             fee_estimator = fixed_fee
         else:
-            raise BaseException('Invalid argument fixed_fee: %s' % fixed_fee)
+            raise Exception('Invalid argument fixed_fee: %s' % fixed_fee)
 
         if i_max is None:
             # Let the coin chooser select the coins to spend
@@ -1370,7 +1370,7 @@ class Abstract_Wallet(PrintError):
 
     def bump_fee(self, tx, delta):
         if tx.is_final():
-            raise BaseException(_('Cannot bump fee') + ': ' + _('transaction is final'))
+            raise Exception(_('Cannot bump fee') + ': ' + _('transaction is final'))
         inputs = copy.deepcopy(tx.inputs())
         outputs = copy.deepcopy(tx.outputs())
         for txin in inputs:
@@ -1401,7 +1401,7 @@ class Abstract_Wallet(PrintError):
                 if delta > 0:
                     continue
         if delta > 0:
-            raise BaseException(_('Cannot bump fee') + ': ' + _('could not find suitable outputs'))
+            raise Exception(_('Cannot bump fee') + ': ' + _('could not find suitable outputs'))
         locktime = self.get_local_height()
         tx_new = Transaction.from_io(inputs, outputs, locktime=locktime)
         tx_new.BIP_LI01_sort()
