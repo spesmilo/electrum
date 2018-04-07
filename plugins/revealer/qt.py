@@ -19,8 +19,7 @@ Tiago Romagnani Silveira, 2017
 import os
 import random
 import qrcode
-import io
-
+import traceback
 from hashlib import sha256
 
 from PyQt5.QtPrintSupport import QPrinter
@@ -104,8 +103,8 @@ class Plugin(BasePlugin):
         def mk_digital():
             try:
                 self.make_digital(self.d)
-            except:
-                return
+            except Exception:
+                traceback.print_exc(file=sys.stdout)
             else:
                 self.cypherseed_dialog(window)
 
@@ -572,13 +571,7 @@ class Plugin(BasePlugin):
                 painter.drawText(QRect(0, base_img.height()-107, base_img.width()-total_distance_h - border_thick -3 -qr_size, base_img.height()-total_distance_h - border_thick), Qt.AlignRight, self.code_id)
 
                 # draw qr code
-                qr_noise = qrcode.make(self.hex_noise.upper() + self.code_id)
-
-                buf = io.BytesIO()
-                qr_noise.save(buf,'PNG')
-                qr_qt = QImage()
-                qr_qt.loadFromData(buf.getvalue(), format='PNG')
-
+                qr_qt = self.paintQR(self.hex_noise.upper() +self.code_id)
                 target = QRectF(base_img.width()-65-qr_size,
                                 base_img.height()-65-qr_size,
                                 qr_size, qr_size );
@@ -594,9 +587,6 @@ class Plugin(BasePlugin):
                                  base_img.width() - 65,
                                 base_img.height()-65-qr_size
                                  )
-
-
-
                 painter.end()
 
         else: # calibration only
@@ -649,6 +639,32 @@ class Plugin(BasePlugin):
             cal_painter.end()
             base_img = cal_img
 
+        return base_img
+
+    def paintQR(self, data):
+        if not data:
+            return
+        qr = qrcode.QRCode()
+        qr.add_data(data)
+        matrix = qr.get_matrix()
+        k = len(matrix)
+        border_color = Qt.white
+        base_img = QImage(k * 5, k * 5, QImage.Format_ARGB32)
+        base_img.fill(border_color)
+        qrpainter = QPainter()
+        qrpainter.begin(base_img)
+        boxsize = 5
+        size = k * boxsize
+        left = (base_img.width() - size)/2
+        top = (base_img.height() - size)/2
+        qrpainter.setBrush(Qt.black)
+        qrpainter.setPen(Qt.black)
+
+        for r in range(k):
+            for c in range(k):
+                if matrix[r][c]:
+                    qrpainter.drawRect(left+c*boxsize, top+r*boxsize, boxsize - 1, boxsize - 1)
+        qrpainter.end()
         return base_img
 
     def calibration_dialog(self, window):
