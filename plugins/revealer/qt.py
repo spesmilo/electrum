@@ -46,7 +46,7 @@ class Plugin(BasePlugin):
         self.calibration_h = self.config.get('calibration_h')
         self.calibration_v = self.config.get('calibration_v')
 
-        self.version = '0'#
+        self.version = '0'
         self.size = (159, 97)
         self.f_size = QSize(1014*2, 642*2)
         self.abstand_h = 21
@@ -59,7 +59,7 @@ class Plugin(BasePlugin):
     @hook
     def set_seed(self, seed, parent):
         self.cseed = seed.upper()
-        parent.addButton(':icons/revealer.png', partial(self.setup_dialog, parent), "Revealer"+_("secret backup utility"))
+        parent.addButton(':icons/revealer.png', partial(self.setup_dialog, parent), "Revealer"+_(" secret backup utility"))
 
     def requires_settings(self):
         return True
@@ -152,7 +152,6 @@ class Plugin(BasePlugin):
         self.make_rawnoise(True)
         self.bdone(dialog)
         self.d.close()
-        return
 
     def bcrypt(self, dialog):
         self.rawnoise = False
@@ -309,7 +308,6 @@ class Plugin(BasePlugin):
         if create_revealer==True:
             self.make_revealer()
         self.noise_seed = False
-        return
 
     def make_calnoise(self):
         random.seed(self.calibration_noise)
@@ -320,7 +318,6 @@ class Plugin(BasePlugin):
             for y in range(h):
                 rawnoise.setPixel(x,y,random.randint(0, 1))
         self.calnoise = self.pixelcode_2x2(rawnoise)
-        return
 
     def make_revealer(self):
         revealer = self.pixelcode_2x2(self.rawnoise)
@@ -332,7 +329,6 @@ class Plugin(BasePlugin):
         revealer.save(self.base_dir + self.filename + self.version+'_'+self.code_id + '.png')
         self.toPdf(QImage(revealer))
         QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.abspath(self.base_dir + self.filename + self.version+'_'+ self.code_id + '.pdf')))
-        return
 
     def make_cypherseed(self, img, rawnoise, calibration=False, is_seed = True):
         img = img.convertToFormat(QImage.Format_Mono)
@@ -568,6 +564,7 @@ class Plugin(BasePlugin):
 
                 # draw qr code
                 qr_noise = qrcode.make(self.hex_noise.upper() + self.code_id)
+
                 buf = io.BytesIO()
                 qr_noise.save(buf,'PNG')
                 qr_qt = QImage()
@@ -652,7 +649,7 @@ class Plugin(BasePlugin):
 
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(''.join(["<br/>", _("If you have an old printer, or want optimal precision"),"<br/>",
-                                       _("print the calibration pdf and follow the printed instuctions "), "<br/>",
+                                       _("print the calibration pdf and follow the printed instructions "), "<br/>",
                                     ])))
         self.calibration_h = self.config.get('calibration_h')
         self.calibration_v = self.config.get('calibration_v')
