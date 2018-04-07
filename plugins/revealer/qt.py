@@ -418,7 +418,7 @@ class Plugin(BasePlugin):
         painter.setFont(font)
         painter.drawText(700, 2177, _("1. Place this paper on a flat and well iluminated surface."))
         painter.drawText(700, 2277, _("2. Align your Revealer borderlines to the dashed lines on the top and left."))
-        painter.drawText(700, 2377, _("3. Slightly pressing the revealer down, read the numbers that best match on the opposite sides. "))
+        painter.drawText(700, 2377, _("3. Press slighly the revealer against the paper and read the numbers that best match on the opposite sides. "))
         painter.drawText(700, 2477, _("4. Type the numbers in the software"))
         painter.end()
                             
