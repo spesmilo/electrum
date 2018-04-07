@@ -100,8 +100,17 @@ class Plugin(BasePlugin):
 
         vbox.addWidget(WWLabel(_("or, alternatively: ")))
         bcreate = QPushButton(_("Create a digital Revealer"))
-        bcreate.clicked.connect(partial(self.make_digital, self.d))
-        bcreate.clicked.connect(partial(self.cypherseed_dialog, window))
+
+        def mk_digital():
+            try:
+                self.make_digital(self.d)
+            except:
+                return
+            else:
+                self.cypherseed_dialog(window)
+
+        bcreate.clicked.connect(mk_digital)
+
         vbox.addWidget(bcreate)
         vbox.addSpacing(11)
         vbox.addWidget(QLabel(''.join([ "<b>"+_("WARNING")+ "</b>:" + _("Printing a revealer and encrypted seed"), '<br/>',
