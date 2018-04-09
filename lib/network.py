@@ -1070,7 +1070,8 @@ class Network(util.DaemonThread):
             if self.lightningrpc is not None and self.lightningworker is not None:
                 task = asyncio.ensure_future(asyncio.gather(self.lightningrpc.run(networkAndWalletLock), self.lightningworker.run(networkAndWalletLock)))
             loop.run_forever()
-        threading.Thread(target=asyncioThread).start()
+        if self.config.get("lightning", False):
+            threading.Thread(target=asyncioThread).start()
         networkAndWalletLock.acquire()
         while self.is_running():
             self.maintain_sockets()
