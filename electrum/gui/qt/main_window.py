@@ -64,6 +64,7 @@ from .fee_slider import FeeSlider
 from .util import *
 from .installwizard import WIF_HELP_TEXT
 from .lightning_invoice_list import LightningInvoiceList
+from .lightning_channels_list import LightningChannelsList
 
 
 class StatusBarButton(QPushButton):
@@ -153,6 +154,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if config.get("lightning", False):
             self.lightning_invoices_tab = self.create_lightning_invoices_tab(wallet)
             tabs.addTab(self.lightning_invoices_tab, _("Lightning Invoices"))
+
+            self.lightning_channels_tab = self.create_lightning_channels_tab(wallet)
+            tabs.addTab(self.lightning_channels_tab, _("Lightning Channels"))
 
         def add_optional_tab(tabs, tab, icon, description, name):
             tab.tab_icon = icon
@@ -796,6 +800,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def create_lightning_invoices_tab(self, wallet):
         self.lightning_invoice_list = LightningInvoiceList(self, wallet.network.lightningworker, wallet.network.lightningrpc)
         return self.lightning_invoice_list
+
+    def create_lightning_channels_tab(self, wallet):
+        self.lightning_channels_list = LightningChannelsList(self, wallet.network.lightningworker, wallet.network.lightningrpc)
+        return self.lightning_channels_list
 
     def create_history_tab(self):
         from .history_list import HistoryList
