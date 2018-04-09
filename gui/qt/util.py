@@ -165,17 +165,21 @@ class CancelButton(QPushButton):
         self.clicked.connect(dialog.reject)
 
 class MessageBoxMixin(object):
-    def top_level_window_recurse(self, window=None):
+    def top_level_window_recurse(self, window=None, test_func=None):
         window = window or self
         classes = (WindowModalDialog, QMessageBox)
+        if test_func is None:
+            test_func = lambda x: True
         for n, child in enumerate(window.children()):
-            # Test for visibility as old closed dialogs may not be GC-ed
-            if isinstance(child, classes) and child.isVisible():
-                return self.top_level_window_recurse(child)
+            # Test for visibility as old closed dialogs may not be GC-ed.
+            # Only accept children that confirm to test_func.
+            if isinstance(child, classes) and child.isVisible() \
+                    and test_func(child):
+                return self.top_level_window_recurse(child, test_func=test_func)
         return window
 
-    def top_level_window(self):
-        return self.top_level_window_recurse()
+    def top_level_window(self, test_func=None):
+        return self.top_level_window_recurse(test_func)
 
     def question(self, msg, parent=None, title=None, icon=None):
         Yes, No = QMessageBox.Yes, QMessageBox.No
