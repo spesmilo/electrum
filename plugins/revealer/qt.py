@@ -253,7 +253,7 @@ class Plugin(BasePlugin):
         bitmap.fill(Qt.white)
         painter = QPainter()
         painter.begin(bitmap)
-        QFontDatabase.addApplicationFont(os.path.abspath('plugins/revealer/SourceSansPro-Bold.otf'))
+        QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'SourceSansPro-Bold.otf') )
         if len(txt) < 102 :
             fontsize = 12
             linespace = 15
@@ -418,7 +418,7 @@ class Plugin(BasePlugin):
         painter.setFont(font)
         painter.drawText(700, 2177, _("1. Place this paper on a flat and well iluminated surface."))
         painter.drawText(700, 2277, _("2. Align your Revealer borderlines to the dashed lines on the top and left."))
-        painter.drawText(700, 2377, _("3. Press slighly the revealer against the paper and read the numbers that best match on the opposite sides. "))
+        painter.drawText(700, 2377, _("3. Press slightly the Revealer against the paper and read the numbers that best match on the opposite sides. "))
         painter.drawText(700, 2477, _("4. Type the numbers in the software"))
         painter.end()
                             
@@ -502,7 +502,7 @@ class Plugin(BasePlugin):
 
         #print code
         f_size = 37
-        QFontDatabase.addApplicationFont(os.path.abspath('plugins/revealer/DejaVuSansMono-Bold.ttf'))
+        QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'DejaVuSansMono-Bold.ttf'))
         font = QFont("DejaVu Sans Mono", f_size-11, QFont.Bold)
         painter.setFont(font)
 
