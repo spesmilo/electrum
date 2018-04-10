@@ -163,11 +163,13 @@ class Plugin(BasePlugin):
 
     def bcrypt(self, dialog):
         self.rawnoise = False
-        dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at:").format(self.filename, self.version, self.code_id), "<b>", self.base_dir+ self.filename+self.version+"_"+self.code_id,"</b>"]))
+        dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at:").format(self.was, self.version, self.code_id),
+                                     "<br/>","<b>", self.base_dir+ self.filename+self.version+"_"+self.code_id,"</b>"]))
         dialog.close()
 
     def bdone(self, dialog):
-        dialog.show_message(''.join([_("Digital Revealer ({}_{}) saved as PNG and PDF at:").format(self.version, self.code_id), "<b>", self.base_dir + 'revealer_' +self.version + '_'+ self.code_id, '</b>']))
+        dialog.show_message(''.join([_("Digital Revealer ({}_{}) saved as PNG and PDF at:").format(self.version, self.code_id),
+                                     "<br/>","<b>", self.base_dir + 'revealer_' +self.version + '_'+ self.code_id, '</b>']))
 
 
     def customtxt_limits(self):
@@ -351,10 +353,12 @@ class Plugin(BasePlugin):
         cypherseed = self.overlay_marks(cypherseed, True, calibration)
 
         if not is_seed:
-            self.filename = '_'+_('custom_secret')+'_'
+            self.filename = _('custom_secret')+'_'
+            self.was = _('Custom secret')
         else:
             self.filename = self.wallet_name+'_'+ _('seed')+'_'
-            
+            self.was = self.wallet_name +' ' + _('seed')
+
         if not calibration:
             self.toPdf(QImage(cypherseed))
             QDesktopServices.openUrl (QUrl.fromLocalFile(os.path.abspath(self.base_dir+self.filename+self.version+'_'+self.code_id+'.pdf')))
@@ -418,7 +422,8 @@ class Plugin(BasePlugin):
         painter.setFont(font)
         painter.drawText(700, 2177, _("1. Place this paper on a flat and well iluminated surface."))
         painter.drawText(700, 2277, _("2. Align your Revealer borderlines to the dashed lines on the top and left."))
-        painter.drawText(700, 2377, _("3. Press slightly the Revealer against the paper and read the numbers that best match on the opposite sides. "))
+        painter.drawText(700, 2377, _("3. Press slightly the Revealer against the paper and read the numbers that best "
+                                      "match on the opposite sides. "))
         painter.drawText(700, 2477, _("4. Type the numbers in the software"))
         painter.end()
                             
@@ -487,7 +492,8 @@ class Plugin(BasePlugin):
         painter.drawPath(Rpath)
 
         Bpath = QPainterPath()
-        Bpath.addRect(QRectF((total_distance_h), (total_distance_h), base_img.width()-((total_distance_h)*2), (base_img.height()-((total_distance_h))*2)))
+        Bpath.addRect(QRectF((total_distance_h), (total_distance_h),
+                             base_img.width()-((total_distance_h)*2), (base_img.height()-((total_distance_h))*2)))
         pen = QPen(Qt.black, 1)
         painter.setPen(pen)
         painter.drawPath(Bpath)
@@ -514,7 +520,8 @@ class Plugin(BasePlugin):
                 painter.drawLine(0, base_img.height()-dist_v, base_img.width(), base_img.height()-(dist_v))
                 painter.drawLine(base_img.width()-(dist_h), 0,  base_img.width()-(dist_h), base_img.height())
 
-                painter.drawImage(((total_distance_h))+11, ((total_distance_h))+11, QImage(':icons/electrumb.png').scaledToWidth(2.1*(total_distance_h), Qt.SmoothTransformation))
+                painter.drawImage(((total_distance_h))+11, ((total_distance_h))+11,
+                                  QImage(':icons/electrumb.png').scaledToWidth(2.1*(total_distance_h), Qt.SmoothTransformation))
 
                 painter.setPen(QPen(Qt.white, border_thick*8))
                 painter.drawLine(base_img.width()-((total_distance_h))-(border_thick*8)/2-(border_thick/2)-2, 
@@ -522,7 +529,8 @@ class Plugin(BasePlugin):
                                 base_img.width()-((total_distance_h))-(border_thick*8)/2-(border_thick/2)-2 - 77,
                                 (base_img.height()-((total_distance_h)))-((border_thick*8)/2)-(border_thick/2)-2)
                 painter.setPen(QColor(0,0,0,255))
-                painter.drawText(QRect(0, base_img.height()-107, base_img.width()-total_distance_h - border_thick - 11, base_img.height()-total_distance_h - border_thick), Qt.AlignRight, self.version + '_'+self.code_id)
+                painter.drawText(QRect(0, base_img.height()-107, base_img.width()-total_distance_h - border_thick - 11,
+                                       base_img.height()-total_distance_h - border_thick), Qt.AlignRight, self.version + '_'+self.code_id)
                 painter.end()
                     
             else: # revealer
@@ -543,8 +551,10 @@ class Plugin(BasePlugin):
 
                 #frame around logo
                 painter.setPen(QPen(Qt.black, border_thick))                
-                painter.drawLine(total_distance_h+border_thick, total_distance_h+logo.height()+3*(border_thick/2), total_distance_h+logo.width()+border_thick, total_distance_h+logo.height()+3*(border_thick/2))
-                painter.drawLine(logo.width()+total_distance_h+3*(border_thick/2), total_distance_h+(border_thick), total_distance_h+logo.width()+3*(border_thick/2), total_distance_h+logo.height()+(border_thick))
+                painter.drawLine(total_distance_h+border_thick, total_distance_h+logo.height()+3*(border_thick/2),
+                                 total_distance_h+logo.width()+border_thick, total_distance_h+logo.height()+3*(border_thick/2))
+                painter.drawLine(logo.width()+total_distance_h+3*(border_thick/2), total_distance_h+(border_thick),
+                                 total_distance_h+logo.width()+3*(border_thick/2), total_distance_h+logo.height()+(border_thick))
 
                 #frame around code/qr
                 qr_size = 179
@@ -567,8 +577,11 @@ class Plugin(BasePlugin):
                     (base_img.height() - ((total_distance_h))) - ((border_thick * 8) / 2) - (border_thick / 2) - 2)
 
                 painter.setPen(QColor(0,0,0,255))
-                painter.drawText(QRect(((base_img.width()/2) +21)-qr_size, base_img.height()-107, base_img.width()-total_distance_h - border_thick -93, base_img.height()-total_distance_h - border_thick), Qt.AlignLeft, self.hex_noise.upper())
-                painter.drawText(QRect(0, base_img.height()-107, base_img.width()-total_distance_h - border_thick -3 -qr_size, base_img.height()-total_distance_h - border_thick), Qt.AlignRight, self.code_id)
+                painter.drawText(QRect(((base_img.width()/2) +21)-qr_size, base_img.height()-107,
+                                       base_img.width()-total_distance_h - border_thick -93,
+                                       base_img.height()-total_distance_h - border_thick), Qt.AlignLeft, self.hex_noise.upper())
+                painter.drawText(QRect(0, base_img.height()-107, base_img.width()-total_distance_h - border_thick -3 -qr_size,
+                                       base_img.height()-total_distance_h - border_thick), Qt.AlignRight, self.code_id)
 
                 # draw qr code
                 qr_qt = self.paintQR(self.hex_noise.upper() +self.code_id)
@@ -674,7 +687,7 @@ class Plugin(BasePlugin):
 
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(''.join(["<br/>", _("If you have an old printer, or want optimal precision"),"<br/>",
-                                       _("print the calibration pdf and follow the printed instructions "), "<br/>",
+                                       _("print the calibration pdf and follow the instructions "), "<br/>","<br/>",
                                     ])))
         self.calibration_h = self.config.get('calibration_h')
         self.calibration_v = self.config.get('calibration_v')
