@@ -188,7 +188,7 @@ class Ledger_Client():
                 self.perform_hw1_preflight()
             except BTChipException as e:
                 if (e.sw == 0x6d00 or e.sw == 0x6700):
-                    raise BaseException(_("Device not in Bitcoin mode")) from e
+                    raise Exception(_("Device not in Bitcoin mode")) from e
                 raise e
             self.preflightDone = True
 
@@ -350,6 +350,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 self.give_error("No matching x_key for sign_transaction") # should never happen
 
             redeemScript = Transaction.get_preimage_script(txin)
+            if txin.get('prev_tx') is None:  # and not Transaction.is_segwit_input(txin):
+                # note: offline signing does not work atm even with segwit inputs for ledger
+                raise Exception(_('Offline signing with {} is not supported.').format(self.device))
             inputs.append([txin['prev_tx'].raw, txin['prevout_n'], redeemScript, txin['prevout_hash'], signingPos, txin.get('sequence', 0xffffffff - 1) ])
             inputsPaths.append(hwAddress)
             pubKeys.append(pubkeys)

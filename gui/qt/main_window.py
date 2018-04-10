@@ -254,10 +254,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def pop_top_level_window(self, window):
         self.tl_windows.remove(window)
 
-    def top_level_window(self):
+    def top_level_window(self, test_func=None):
         '''Do the right thing in the presence of tx dialog windows'''
         override = self.tl_windows[-1] if self.tl_windows else None
-        return self.top_level_window_recurse(override)
+        if override and test_func and not test_func(override):
+            override = None  # only override if ok for test_func
+        return self.top_level_window_recurse(override, test_func)
 
     def diagnostic_name(self):
         return "%s/%s" % (PrintError.diagnostic_name(self),
@@ -1613,7 +1615,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return status, msg
 
         # Capture current TL window; override might be removed on return
-        parent = self.top_level_window()
+        parent = self.top_level_window(lambda win: isinstance(win, MessageBoxMixin))
 
         def broadcast_done(result):
             # GUI thread

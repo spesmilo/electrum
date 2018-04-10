@@ -400,12 +400,15 @@ class ElectrumWindow(App):
         intent = Intent(PythonActivity.mActivity, SimpleScannerActivity)
 
         def on_qr_result(requestCode, resultCode, intent):
-            if resultCode == -1:  # RESULT_OK:
-                #  this doesn't work due to some bug in jnius:
-                # contents = intent.getStringExtra("text")
-                String = autoclass("java.lang.String")
-                contents = intent.getStringExtra(String("text"))
-                on_complete(contents)
+            try:
+                if resultCode == -1:  # RESULT_OK:
+                    #  this doesn't work due to some bug in jnius:
+                    # contents = intent.getStringExtra("text")
+                    String = autoclass("java.lang.String")
+                    contents = intent.getStringExtra(String("text"))
+                    on_complete(contents)
+            finally:
+                activity.unbind(on_activity_result=on_qr_result)
         activity.bind(on_activity_result=on_qr_result)
         PythonActivity.mActivity.startActivityForResult(intent, 0)
 

@@ -8,7 +8,7 @@ for i, x in enumerate(sys.argv):
         cmdline_name = sys.argv[i+1]
         break
 else:
-    raise BaseException('no name')
+    raise Exception('no name')
 
 PYTHON_VERSION = '3.5.4'
 PYHOME = 'c:/python' + PYTHON_VERSION
