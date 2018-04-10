@@ -7,7 +7,7 @@ p4a is used to package Electrum, Python, SDL and a bootstrap Java app into an AP
 We patched p4a to add some functionality we need for Electrum. Until those changes are
 merged into p4a, you need to merge them locally (into the master branch):
 
-2. [kivy/python-for-android#1217](https://github.com/kivy/python-for-android/pull/1217)
+1.1 [kivy/python-for-android#1217](https://github.com/kivy/python-for-android/pull/1217)
 
 Something like this should work:
 
@@ -16,9 +16,9 @@ cd /opt
 git clone https://github.com/kivy/python-for-android
 cd python-for-android
 git remote add agilewalker https://github.com/agilewalker/python-for-android
-git checkout a036f4442b6a23
-git fetch agilewalker
-git merge agilewalker/master
+git fetch --all
+git checkout 93759f36ba45c7bbe0456a4b3e6788622924cbac
+git merge a2fb5ecbc09c4847adbcfd03c6b1ca62b3d09b8d
 ```
 
 ## 2. Install buildozer
