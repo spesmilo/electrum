@@ -432,7 +432,8 @@ class SimpleConfig(PrintError):
         return bool(self.get('dynamic_fees', False))
 
     def use_mempool_fees(self):
-        return bool(self.get('mempool_fees', False))
+        # TODO: Mempool fees are disabled for GRS.
+        return False and bool(self.get('mempool_fees', False))
 
     def fee_per_kb(self):
         """Returns sat/kvB fee to pay for a txn.
