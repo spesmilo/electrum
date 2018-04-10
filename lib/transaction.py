@@ -457,7 +457,6 @@ def parse_output(vds, i):
     return d
 
 
-
 def deserialize(raw):
     vds = BCDataStream()
     vds.write(bfh(raw))
