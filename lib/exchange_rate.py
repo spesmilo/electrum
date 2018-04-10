@@ -159,7 +159,7 @@ class CryptoCompare(ExchangeBase):
         return dict((k, Decimal(v)) for k, v in result.items())
 
     def history_ccys(self):
-        return ['AUD', 'CAD', 'EUR', 'JPY', 'USD', 'BTC']
+        return ['AED', 'AUD', 'CAD', 'CHF', 'CNY', 'EUR', 'GBP', 'INR', 'JPY', 'KRW', 'PKR', 'RUB', 'SEK', 'USD', 'BTC']
 
     def request_history(self, ccy):
         result = self.get_json('min-api.cryptocompare.com', '/data/histoday?fsym=GRS&tsym={}&limit=100&aggregate=1&extraParams=ElectrumGRS'.format(ccy))

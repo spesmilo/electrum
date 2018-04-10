@@ -50,10 +50,19 @@
         "PLN"
     ],
     "CryptoCompare": [
+        "AED",
         "AUD",
         "CAD",
+        "CHF",
+        "CNY",
         "EUR",
+        "GBP",
+        "INR",
         "JPY",
+        "KRW",
+        "PKR",
+        "RUB",
+        "SEK",
         "USD",
         "BTC"
     ]
