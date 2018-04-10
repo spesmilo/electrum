@@ -105,6 +105,12 @@ MAX_FEE_RATE = 300000
 FEE_TARGETS = [25, 10, 5, 2]
 
 COINBASE_MATURITY = 100
+NEW_COINBASE_MATURITY = 7200
+def get_coinbase_maturity(height):
+    if height < 506400:
+        return COINBASE_MATURITY
+    else:
+        return NEW_COINBASE_MATURITY
 COIN = 100000000
 
 # supported types of transction outputs

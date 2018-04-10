@@ -1077,7 +1077,12 @@ class Network(util.DaemonThread):
     def max_checkpoint(self):
         old_checkpoints_count = 247
         first_new_block_num = 499200
+        second_checkpoints_count = 283
+        second_fork_block_num = 506400
         if len(bitcoin.NetworkConstants.CHECKPOINTS)<= old_checkpoints_count:
             return max(0, len(bitcoin.NetworkConstants.CHECKPOINTS) * 2016 - 1)
-        else:
+        elif len(bitcoin.NetworkConstants.CHECKPOINTS)<= second_checkpoints_count:
             return max(0, first_new_block_num + (len(bitcoin.NetworkConstants.CHECKPOINTS)-old_checkpoints_count) * 200 - 1)
+        else:
+            return max(0, second_fork_block_num + (
+            len(bitcoin.NetworkConstants.CHECKPOINTS) - second_checkpoints_count) * 10 - 1)

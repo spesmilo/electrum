@@ -212,19 +212,34 @@ def ub_height_to_index(height):
     after_chunk_size = 200
     fork_height = 499200
     pre_fork_max_index = fork_height // 2016
+    second_fork_chunk_size = 10
+    second_fork_height = 506400
+    second_fork_max_index = 283
+
+
     if height <= (pre_fork_max_index*2016 -1):
         return height // 2016
-    else:
+    elif height< second_fork_height:
         return pre_fork_max_index + (height - fork_height)//after_chunk_size
+    else:
+        return second_fork_max_index + (height - second_fork_height)//second_fork_chunk_size
 
 def ub_start_height_of_index(index):
     after_chunk_size = 200
     fork_height = 499200
     pre_fork_max_index = fork_height // 2016
+
+    second_fork_chunk_size = 10
+    second_fork_height = 506400
+    second_fork_max_index = 283
+
     if index <= pre_fork_max_index:
         return index * 2016
-    else:
+    elif index < second_fork_max_index:
         return (index - pre_fork_max_index) * after_chunk_size + fork_height
+    else:
+        return (index - second_fork_max_index)*second_fork_chunk_size + second_fork_height
+
 
 
 def android_ext_dir():
@@ -328,11 +343,11 @@ def user_dir():
     if 'ANDROID_DATA' in os.environ:
         return android_check_data_dir()
     elif os.name == 'posix':
-        return os.path.join(os.environ["HOME"], ".ubtc_electrum")
+        return os.path.join(os.environ["HOME"], ".ubtc_electrum_test")
     elif "APPDATA" in os.environ:
-        return os.path.join(os.environ["APPDATA"], "ubtc_Electrum")
+        return os.path.join(os.environ["APPDATA"], "ubtc_Electrum_test")
     elif "LOCALAPPDATA" in os.environ:
-        return os.path.join(os.environ["LOCALAPPDATA"], "ubtc_Electrum")
+        return os.path.join(os.environ["LOCALAPPDATA"], "ubtc_Electrum_test")
     else:
         #raise Exception("No home directory found in environment variables.")
         return

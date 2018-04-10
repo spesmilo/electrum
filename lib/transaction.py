@@ -456,6 +456,39 @@ def parse_output(vds, i):
     d['prevout_n'] = i
     return d
 
+def extern_deserialize(raw):
+    vds = BCDataStream()
+    vds.write(bfh(raw))
+    d = {}
+    start = vds.read_cursor
+    d['version'] = vds.read_int32()
+    dummy = vds.read_bytes(1)[0]
+    assert dummy == False
+    flags = vds.read_bytes(1)[0]
+    n_vin = vds.read_compact_size()
+    is_segwit = (n_vin == 0)
+    if is_segwit:
+        marker = vds.read_bytes(1)
+        assert marker == b'\x09'
+        n_vin = vds.read_compact_size()
+    d['inputs'] = [parse_input(vds) for i in range(n_vin)]
+    n_vout = vds.read_compact_size()
+    d['outputs'] = [parse_output(vds, i) for i in range(n_vout)]
+    if is_segwit:
+        for i in range(n_vin):
+            txin = d['inputs'][i]
+            parse_witness(vds, txin)
+            # segwit-native script
+            if not txin.get('scriptSig'):
+                if txin['num_sig'] == 1:
+                    txin['type'] = 'p2wpkh'
+                    txin['address'] = bitcoin.public_key_to_p2wpkh(bfh(txin['pubkeys'][0]))
+                else:
+                    txin['type'] = 'p2wsh'
+                    txin['address'] = bitcoin.script_to_p2wsh(txin['witnessScript'])
+    d['lockTime'] = vds.read_uint32()
+    return d
+
 
 def deserialize(raw):
     vds = BCDataStream()
@@ -587,7 +620,10 @@ class Transaction:
             #self.raw = self.serialize()
         if self._inputs is not None:
             return
-        d = deserialize(self.raw)
+        try:
+            d = deserialize(self.raw)
+        except Exception:
+            d = extern_deserialize(self.raw)
         self._inputs = d['inputs']
         self._outputs = [(x['type'], x['address'], x['value']) for x in d['outputs']]
         self.locktime = d['lockTime']

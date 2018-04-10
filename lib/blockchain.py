@@ -270,7 +270,7 @@ class Blockchain(util.PrintError):
                 return h
             else:
                 return hash_header(self.read_header(height))
-        elif len(self.checkpoints)>=247:
+        elif len(self.checkpoints)>=247 and len(self.checkpoints <283):
             if height < 247*2016:
                 assert (height+1) % 2016 == 0
                 index = height // 2016
@@ -279,6 +279,24 @@ class Blockchain(util.PrintError):
             elif height < 499200+(len(self.checkpoints) -247 )* 200:
                 assert (height -499200 + 1) % 200 == 0
                 index = 247 + ((height-499200) // 200)
+                h, t = self.checkpoints[index]
+                return h
+            else:
+                return hash_header(self.read_header(height))
+        elif len(self.checkpoints)>=283:
+            if height < 247*2016:
+                assert (height+1) % 2016 == 0
+                index = height // 2016
+                h, t = self.checkpoints[index]
+                return h
+            elif height < 499200+(len(self.checkpoints) -247 )* 200:
+                assert (height -499200 + 1) % 200 == 0
+                index = 247 + ((height-499200) // 200)
+                h, t = self.checkpoints[index]
+                return h
+            elif height< 506400 + (len(self.checkpoints)-283)*10:
+                assert (height - 506400 + 1) % 10 == 0
+                index = 283 + ((height - 506400) // 10)
                 h, t = self.checkpoints[index]
                 return h
             else:
@@ -296,6 +314,8 @@ class Blockchain(util.PrintError):
             return t
         old_check_index_count = 247
         first_block_num = 499200
+        second_block_num = 506400
+        second_check_index_count = 283   # means first block 506200 last block 506399
         # new target
         if index <old_check_index_count:
             first = self.read_header(index * 2016)
@@ -308,18 +328,33 @@ class Blockchain(util.PrintError):
             nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
             new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
             return new_target
-        else:
+        elif index < second_check_index_count:
             print("block num",first_block_num+ (index-old_check_index_count) * 200)
             if first_block_num+ (index-old_check_index_count) * 200 < 498777:
                 return self.bits_to_target(0x1800b0ed)
             elif first_block_num+ (index-old_check_index_count) * 200 < 499277:
                 return self.bits_to_target(0x18451c94)
+            if index == second_check_index_count-1:
+                return self.bits_to_target(0x18431e40)//100
             first = self.read_header(first_block_num+ (index-old_check_index_count) * 200)
             last = self.read_header(first_block_num+ (index-old_check_index_count) * 200 + 199)
             bits = last.get('bits')
             target = self.bits_to_target(bits)
             nActualTimespan = last.get('timestamp') - first.get('timestamp')
             nTargetTimespan = 200* 10 * 60
+            nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
+            nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
+            new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
+            return new_target
+        else:
+            print("second block num", first_block_num + (index - second_check_index_count) * 200)
+
+            first = self.read_header(second_block_num + (index - second_check_index_count) * 10)
+            last = self.read_header(second_block_num + (index - second_check_index_count) * 10 + 9)
+            bits = last.get('bits')
+            target = self.bits_to_target(bits)
+            nActualTimespan = last.get('timestamp') - first.get('timestamp')
+            nTargetTimespan = 10 * 1 * 60
             nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
             nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
             new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
@@ -380,6 +415,8 @@ class Blockchain(util.PrintError):
     def get_checkpoints(self):
         # for each chunk, store the hash of the last block and the target after the chunk
         cp = []
+        second_fork_height = 506400
+        second_fork_index = 283
         if self.height() <499277:
             n = self.height() // 2016
             for index in range(n):
@@ -387,7 +424,7 @@ class Blockchain(util.PrintError):
                 target = self.get_target(index)
                 cp.append((h, target))
             return cp
-        else:
+        elif self.height()<second_fork_height:
             n = 247 + ((self.height()-499200) // 200)
             for index in range(n):
                 if n <=246:
@@ -396,6 +433,22 @@ class Blockchain(util.PrintError):
                     cp.append((h, target))
                 else:
                     h = self.get_hash(499200 + (index - 247 ) * 200 - 1)
+                    target = self.get_target(index)
+                    cp.append((h, target))
+            return cp
+        else:
+            n = second_fork_index + ((self.height() - second_fork_height) // 10)
+            for index in range(n):
+                if n <= 246:
+                    h = self.get_hash((index + 1) * 2016 - 1)
+                    target = self.get_target(index)
+                    cp.append((h, target))
+                elif n <=second_fork_index -1:
+                    h = self.get_hash(499200 + (index - 247) * 200 - 1)
+                    target = self.get_target(index)
+                    cp.append((h, target))
+                else:
+                    h = self.get_hash(second_fork_height + (index - second_fork_index) * 10 - 1)
                     target = self.get_target(index)
                     cp.append((h, target))
             return cp
