@@ -107,6 +107,9 @@ android.add_activities = org.electrum.qr.SimpleScannerActivity
 # (str) XML file to include as an intent filters in <activity> tag
 android.manifest.intent_filters = gui/kivy/tools/bitcoin_intent.xml
 
+# (str) launchMode to set for the main activity
+android.manifest.launch_mode = singleTask
+
 # (list) Android additionnal libraries to copy into libs/armeabi
 #android.add_libs_armeabi = lib/android/*.so
 
