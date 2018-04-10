@@ -586,7 +586,7 @@ class Abstract_Wallet(PrintError):
         received, sent = self.get_addr_io(address)
         c = u = x = 0
         for txo, (tx_height, v, is_cb) in received.items():
-            if is_cb and tx_height + COINBASE_MATURITY > self.get_local_height():
+            if is_cb and tx_height + get_coinbase_maturity(tx_height) > self.get_local_height():
                 x += v
             elif tx_height > 0:
                 c += v
@@ -614,7 +614,7 @@ class Abstract_Wallet(PrintError):
             for x in utxos.values():
                 if confirmed_only and x['height'] <= 0:
                     continue
-                if mature and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
+                if mature and x['coinbase'] and x['height'] + get_coinbase_maturity(x['height']) > self.get_local_height():
                     continue
                 coins.append(x)
                 continue
