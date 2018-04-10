@@ -80,6 +80,9 @@ setup(
             'checkpoints_testnet.json',
             'www/index.html',
             'wordlist/*.txt',
+            'ln/*.py',
+            'ln/google/api/*.py',
+            'lightning_payencode/*.py',
             'locale/*/LC_MESSAGES/electrum.mo',
         ]
     },
