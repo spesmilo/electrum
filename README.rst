@@ -53,7 +53,7 @@ Linux
 
 First the dependencies need to be installed. For Ubuntu/Debian::
 
-    sudo apt-get install git libssl-dev python3-pip python3-pyqt5 pyqt5-dev-tools
+    sudo apt-get install git libssl-dev python3-pip python3-pyqt5 pyqt5-dev-tools libudev-dev libusb-1.0.0-dev
 
 Then, install the current release of electrum-ftc::
 
