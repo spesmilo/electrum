@@ -429,8 +429,7 @@ class SimpleConfig(PrintError):
             return self.has_fee_etas()
 
     def is_dynfee(self):
-        # TODO: Re-enable when servers can estimate fees.
-        return False and bool(self.get('dynamic_fees', False))
+        return bool(self.get('dynamic_fees', False))
 
     def use_mempool_fees(self):
         return bool(self.get('mempool_fees', False))
