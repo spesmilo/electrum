@@ -114,22 +114,6 @@ def gen_msg(msg_type, **kwargs):
         data += param
     return data
 
-
-
-def decode(string):
-    """Return the integer value of the
-    bytestring b
-    """
-    if isinstance(string, str):
-        string = bytes(bytearray.fromhex(string))
-    result = 0
-    while len(string) > 0:
-        result *= 256
-        result += string[0]
-        string = string[1:]
-    return result
-
-
 def encode(n, s):
     """Return a bytestring version of the integer
     value n, with a string length of s
@@ -260,7 +244,7 @@ class Peer(PrintError):
             self.read_buffer += await self.reader.read(2**10)
             lc = self.read_buffer[:18]
             l = aead_decrypt(self.rk, self.rn, b'', lc)
-            length = decode(l)
+            length = int.from_bytes(l, byteorder="big")
             offset = 18 + length + 16
             if len(self.read_buffer) < offset:
                 continue
