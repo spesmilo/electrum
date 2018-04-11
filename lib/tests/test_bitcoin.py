@@ -148,12 +148,11 @@ class Test_bitcoin(unittest.TestCase):
 
     def test_address_to_script(self):
         # bech32 native segwit
-        # test vectors from BIP-0173
-        # TODO: Adapt to Feathercoin
-        # self.assertEqual(address_to_script('FC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4'), '0014751e76e8199196d454941c45d1b3a323f1433bd6')
-        # self.assertEqual(address_to_script('fc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx'), '5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6')
-        # self.assertEqual(address_to_script('FC1SW50QA3JX3S'), '6002751e')
-        # self.assertEqual(address_to_script('fc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj'), '5210751e76e8199196d454941c45d1b3a323')
+        # test vectors from BIP-0173, adapted for Feathercoin
+        self.assertEqual(address_to_script('FC1QMK84YX50TRP37UL4SYLFG3SH4CV5RCVWY9AJUK'), '0014dd8f521a8f58c31f73f5813e944617ae1941e18e')
+        self.assertEqual(address_to_script('fc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k34wt34'), '5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6')
+        self.assertEqual(address_to_script('fc1sw50qvkz623'), '6002751e')
+        self.assertEqual(address_to_script('fc1zw508d6qejxtdg4y5r3zarvaryvgqhvh8'), '5210751e76e8199196d454941c45d1b3a323')
 
         # base58 P2PKH
         self.assertEqual(address_to_script('6hR4DL6rgjHYCGKQ4o4eigvfgrirgGNrsS'), '76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac')
@@ -178,10 +177,9 @@ class Test_bitcoin_testnet(unittest.TestCase):
 
     def test_address_to_script(self):
         # bech32 native segwit
-        # test vectors from BIP-0173
-        # TODO: Adapt to Feathercoin
-        # self.assertEqual(address_to_script('tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7'), '00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')
-        # self.assertEqual(address_to_script('tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy'), '0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
+        # test vectors from BIP-0173, adapted for Feathercoin
+        self.assertEqual(address_to_script('tf1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qtmut5m'), '00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262')
+        self.assertEqual(address_to_script('tf1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvses8d594p'), '0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433')
 
         # base58 P2PKH
         self.assertEqual(address_to_script('mutXcGt1CJdkRvXuN2xoz2quAAQYQ59bRX'), '76a9149da64e300c5e4eb4aaffc9c2fd465348d5618ad488ac')
@@ -288,32 +286,31 @@ class Test_keyImport(unittest.TestCase):
             'compressed': False,
             'addr_encoding': 'base58',
             'scripthash': '322092a15881322cc38db6b5c0a354a7bfbbb2fe26c414d3903b0da7f5a1756c'},
-        # TODO
-           # {'priv': 'LHJnnvRzsdrTX2j5QeWVsaBkabK7gfMNqNNqxnbBVRaJYfk24iJz',
-           #  'pub': '0279ad237ca0d812fb503ab86f25e15ebd5fa5dd95c193639a8a738dcd1acbad81',
-           #  'address': '3GeVJB3oKr7psgKR6BTXSxKtWUkfsHHhk7',
-           #  'minikey': False,
-           #  'txin_type': 'p2wpkh-p2sh',
-           #  'compressed': True,
-           #  'addr_encoding': 'base58',
-           #  'scripthash': 'd7b04e882fa6b13246829ac552a2b21461d9152eb00f0a6adb58457a3e63d7c5'},
-           # {'priv': 'L8g5V8kFFeg2WbecahRSdobARbHz2w2STH9S8ePHVSY4fmia7Rsj',
-           #  'pub': '03e9f948421aaa89415dc5f281a61b60dde12aae3181b3a76cd2d849b164fc6d0b',
-           #  'address': 'bc1qqmpt7u5e9hfznljta5gnvhyvfd2kdd0r90hwue',
-           #  'minikey': False,
-           #  'txin_type': 'p2wpkh',
-           #  'compressed': True,
-           #  'addr_encoding': 'bech32',
-           #  'scripthash': '1929acaaef3a208c715228e9f1ca0318e3a6b9394ab53c8d026137f847ecf97b'},
+           {'priv': 'LHJnnvRzsdrTX2j5QeWVsaBkabK7gfMNqNNqxnbBVRaJYfk24iJz',
+            'pub': '0279ad237ca0d812fb503ab86f25e15ebd5fa5dd95c193639a8a738dcd1acbad81',
+            'address': '3GeVJB3oKr7psgKR6BTXSxKtWUkfsHHhk7',
+            'minikey': False,
+            'txin_type': 'p2wpkh-p2sh',
+            'compressed': True,
+            'addr_encoding': 'base58',
+            'scripthash': 'd7b04e882fa6b13246829ac552a2b21461d9152eb00f0a6adb58457a3e63d7c5'},
+           {'priv': 'L8g5V8kFFeg2WbecahRSdobARbHz2w2STH9S8ePHVSY4fmia7Rsj',
+            'pub': '03e9f948421aaa89415dc5f281a61b60dde12aae3181b3a76cd2d849b164fc6d0b',
+            'address': 'fc1qqmpt7u5e9hfznljta5gnvhyvfd2kdd0rlt95uc',
+            'minikey': False,
+            'txin_type': 'p2wpkh',
+            'compressed': True,
+            'addr_encoding': 'bech32',
+            'scripthash': '1929acaaef3a208c715228e9f1ca0318e3a6b9394ab53c8d026137f847ecf97b'},
            # # from http://bitscan.com/articles/security/spotlight-on-mini-private-keys
-           # {'priv': 'SzavMBLoXU6kDrqtUVmffv',
-           #  'pub': '02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9',
-           #  'address': '19GuvDvMMUZ8vq84wT79fvnvhMd5MnfTkR',
-           #  'minikey': True,
-           #  'txin_type': 'p2pkh',
-           #  'compressed': True,  # this is actually ambiguous... issue #2748
-           #  'addr_encoding': 'base58',
-           #  'scripthash': '60ad5a8b922f758cd7884403e90ee7e6f093f8d21a0ff24c9a865e695ccefdf1'},
+           {'priv': 'SzavMBLoXU6kDrqtUVmffv',
+            'pub': '02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9',
+            'address': '6n1Mhk6PJ13QNu5HHKmcTgbwWREHGqF1sV',
+            'minikey': True,
+            'txin_type': 'p2pkh',
+            'compressed': True,  # this is actually ambiguous... issue #2748
+            'addr_encoding': 'base58',
+            'scripthash': '60ad5a8b922f758cd7884403e90ee7e6f093f8d21a0ff24c9a865e695ccefdf1'},
     )
 
     def test_public_key_from_private_key(self):
