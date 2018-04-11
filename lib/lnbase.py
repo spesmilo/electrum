@@ -8,6 +8,7 @@ import json
 from collections import OrderedDict
 import asyncio
 import sys
+import os
 import binascii
 import hashlib
 import hmac
@@ -24,90 +25,90 @@ server_response_timeout = 60
 message_types = {}
 
 def handlesingle(x, ma):
-  try:
-    x = int(x)
-  except ValueError:
-    x = ma[x]
-  try:
-    x = int(x)
-  except ValueError:
-    x = int.from_bytes(x, byteorder="big")
-  return x
+    try:
+        x = int(x)
+    except ValueError:
+        x = ma[x]
+    try:
+        x = int(x)
+    except ValueError:
+        x = int.from_bytes(x, byteorder="big")
+    return x
 
 def calcexp(exp, ma):
-  exp = str(exp)
-  assert "*" not in exp
-  return sum(handlesingle(x, ma) for x in exp.split("+"))
+    exp = str(exp)
+    assert "*" not in exp
+    return sum(handlesingle(x, ma) for x in exp.split("+"))
 
 def make_handler(k, v):
-  def handler(data):
-    nonlocal k, v
-    print("msg type", k)
-    ma = {}
-    pos = 0
-    for fieldname in v["payload"]:
-      poslenMap = v["payload"][fieldname]
-      #print(poslenMap["position"], ma)
-      assert pos == calcexp(poslenMap["position"], ma)
-      length = poslenMap["length"]
-      length = calcexp(length, ma)
-      ma[fieldname] = data[pos:pos+length]
-      pos += length
-    assert pos == len(data), (k, pos, len(data))
-    return ma
-  return handler
+    def handler(data):
+        nonlocal k, v
+        print("msg type", k)
+        ma = {}
+        pos = 0
+        for fieldname in v["payload"]:
+            poslenMap = v["payload"][fieldname]
+            #print(poslenMap["position"], ma)
+            assert pos == calcexp(poslenMap["position"], ma)
+            length = poslenMap["length"]
+            length = calcexp(length, ma)
+            ma[fieldname] = data[pos:pos+length]
+            pos += length
+        assert pos == len(data), (k, pos, len(data))
+        return ma
+    return handler
 
-with open("lightning.json") as f:
-  structured = json.loads(f.read(), object_pairs_hook=OrderedDict)
+path = os.path.join(os.path.dirname(__file__), 'lightning.json')
+with open(path) as f:
+    structured = json.loads(f.read(), object_pairs_hook=OrderedDict)
 
 for k in structured:
-  v = structured[k]
-  if k in ["open_channel","final_incorrect_cltv_expiry", "final_incorrect_htlc_amount"]:
-    continue
-  if len(v["payload"]) == 0:
-    continue
-  try:
-    num = int(v["type"])
-  except ValueError:
-    #print("skipping", k)
-    continue
-  byts = num.to_bytes(byteorder="big",length=2)
-  assert byts not in message_types, (byts, message_types[byts].__name__, k)
-  names = [x.__name__ for x in message_types.values()]
-  assert k + "_handler" not in names, (k, names)
-  message_types[byts] = make_handler(k, v)
-  message_types[byts].__name__ = k + "_handler"
+    v = structured[k]
+    if k in ["open_channel","final_incorrect_cltv_expiry", "final_incorrect_htlc_amount"]:
+        continue
+    if len(v["payload"]) == 0:
+        continue
+    try:
+        num = int(v["type"])
+    except ValueError:
+        #print("skipping", k)
+        continue
+    byts = num.to_bytes(byteorder="big",length=2)
+    assert byts not in message_types, (byts, message_types[byts].__name__, k)
+    names = [x.__name__ for x in message_types.values()]
+    assert k + "_handler" not in names, (k, names)
+    message_types[byts] = make_handler(k, v)
+    message_types[byts].__name__ = k + "_handler"
 
 assert message_types[b"\x00\x10"].__name__ == "init_handler"
 
 def decode_msg(data):
-  typ = data[:2]
-  parsed = message_types[typ](data[2:])
-  return parsed
-
+    typ = data[:2]
+    parsed = message_types[typ](data[2:])
+    return parsed
 
 def gen_msg(msg_type, **kwargs):
-  typ = structured[msg_type]
-  data = int(typ["type"]).to_bytes(byteorder="big", length=2)
-  lengths = {}
-  for k in typ["payload"]:
-    poslenMap = typ["payload"][k]
-    leng = calcexp(poslenMap["length"], lengths)
-    try:
-      leng = kwargs[poslenMap["length"]]
-    except:
-      pass
-    try:
-      param = kwargs[k]
-    except KeyError:
-      param = 0
-    try:
-      param = param.to_bytes(length=leng, byteorder="big")
-    except:
-      raise Exception("{} does not fit in {} bytes".format(k, leng))
-    lengths[k] = len(param)
-    data += param
-  return data
+    typ = structured[msg_type]
+    data = int(typ["type"]).to_bytes(byteorder="big", length=2)
+    lengths = {}
+    for k in typ["payload"]:
+        poslenMap = typ["payload"][k]
+        leng = calcexp(poslenMap["length"], lengths)
+        try:
+            leng = kwargs[poslenMap["length"]]
+        except:
+            pass
+        try:
+            param = kwargs[k]
+        except KeyError:
+            param = 0
+        try:
+            param = param.to_bytes(length=leng, byteorder="big")
+        except:
+            raise Exception("{} does not fit in {} bytes".format(k, leng))
+        lengths[k] = len(param)
+        data += param
+    return data
 
 ###############################
 
