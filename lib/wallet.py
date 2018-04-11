@@ -206,6 +206,7 @@ class Abstract_Wallet(PrintError):
         self.load_keystore()
         self.load_addresses()
         self.load_transactions()
+        self.load_local_history()
         self.build_spent_outpoints()
 
         self.test_addresses_sanity()
@@ -255,7 +256,6 @@ class Abstract_Wallet(PrintError):
         self.pruned_txo = self.storage.get('pruned_txo', {})
         tx_list = self.storage.get('transactions', {})
         self.transactions = {}
-        self._history_local = {}  # address -> set(txid)
         for tx_hash, raw in tx_list.items():
             tx = Transaction(raw)
             self.transactions[tx_hash] = tx
@@ -263,8 +263,12 @@ class Abstract_Wallet(PrintError):
                     and (tx_hash not in self.pruned_txo.values()):
                 self.print_error("removing unreferenced tx", tx_hash)
                 self.transactions.pop(tx_hash)
-            else:
-                self._add_tx_to_local_history(tx_hash)
+
+    @profiler
+    def load_local_history(self):
+        self._history_local = {}  # address -> set(txid)
+        for txid in itertools.chain(self.txi, self.txo):
+            self._add_tx_to_local_history(txid)
 
     @profiler
     def save_transactions(self, write=False):
