@@ -260,8 +260,8 @@ class Test_xprv_xpub(unittest.TestCase):
     def test_is_bip32_derivation(self):
         self.assertTrue(is_bip32_derivation("m/0'/1"))
         self.assertTrue(is_bip32_derivation("m/0'/0'"))
-        self.assertTrue(is_bip32_derivation("m/44'/0'/0'/0/0"))
-        self.assertTrue(is_bip32_derivation("m/49'/0'/0'/0/0"))
+        self.assertTrue(is_bip32_derivation("m/44'/17'/0'/0/0"))
+        self.assertTrue(is_bip32_derivation("m/49'/17'/0'/0/0"))
         self.assertFalse(is_bip32_derivation("mmmmmm"))
         self.assertFalse(is_bip32_derivation("n/"))
         self.assertFalse(is_bip32_derivation(""))
