@@ -9,4 +9,5 @@ curl https://homebrew.bintray.com/bottles/libusb-1.0.21.el_capitan.bottle.tar.gz
 cp dist/libusb/1.0.21/lib/libusb-1.0.dylib dist/
 
 pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx.spec
+codesign -s "N8PK9KJ4X2" dist/Electrum-FTC.app
 hdiutil create -fs HFS+ -volname "Electrum-FTC" -srcfolder dist/Electrum-FTC.app dist/electrum-ftc-$VERSION.dmg
