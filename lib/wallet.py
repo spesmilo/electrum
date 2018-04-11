@@ -202,31 +202,27 @@ class Abstract_Wallet(PrintError):
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
         self.fiat_value            = storage.get('fiat_value', {})
+        self.receive_requests      = storage.get('payment_requests', {})
 
-        self.load_keystore()
-        self.load_addresses()
-        self.load_transactions()
-        self.load_local_history()
-        self.build_spent_outpoints()
-
-        self.test_addresses_sanity()
-
-        # load requests
-        self.receive_requests = self.storage.get('payment_requests', {})
+        # Verified transactions.  Each value is a (height, timestamp, block_pos) tuple.  Access with self.lock.
+        self.verified_tx = storage.get('verified_tx3', {})
 
         # Transactions pending verification.  A map from tx hash to transaction
         # height.  Access is not contended so no lock is needed.
         self.unverified_tx = defaultdict(int)
 
-        # Verified transactions.  Each value is a (height, timestamp, block_pos) tuple.  Access with self.lock.
-        self.verified_tx = storage.get('verified_tx3', {})
+        self.load_keystore()
+        self.load_addresses()
+        self.test_addresses_sanity()
+        self.load_transactions()
+        self.check_history()
+        self.load_local_history()
+        self.build_spent_outpoints()
 
         # there is a difference between wallet.up_to_date and interface.is_up_to_date()
         # interface.is_up_to_date() returns true when all requests have been answered and processed
         # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
         self.up_to_date = False
-
-        self.check_history()
 
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
