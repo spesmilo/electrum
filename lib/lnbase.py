@@ -16,7 +16,6 @@ import hmac
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 
 from electrum.bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number
-from electrum.bitcoin import int_to_hex, bfh, rev_hex
 from electrum.util import PrintError
 from electrum.wallet import Wallet
 
@@ -118,7 +117,7 @@ def encode(n, s):
     """Return a bytestring version of the integer
     value n, with a string length of s
     """
-    return bfh(rev_hex(int_to_hex(n, s)))
+    return n.to_bytes(length=s, byteorder="big")
 
 
 def H256(data):
