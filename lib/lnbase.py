@@ -45,7 +45,6 @@ def calcexp(exp, ma):
 def make_handler(k, v):
     def handler(data):
         nonlocal k, v
-        print("msg type", k)
         ma = {}
         pos = 0
         for fieldname in v["payload"]:
@@ -57,7 +56,7 @@ def make_handler(k, v):
             ma[fieldname] = data[pos:pos+length]
             pos += length
         assert pos == len(data), (k, pos, len(data))
-        return ma
+        return k, ma
     return handler
 
 path = os.path.join(os.path.dirname(__file__), 'lightning.json')
@@ -86,8 +85,8 @@ assert message_types[b"\x00\x10"].__name__ == "init_handler"
 
 def decode_msg(data):
     typ = data[:2]
-    parsed = message_types[typ](data[2:])
-    return parsed
+    k, parsed = message_types[typ](data[2:])
+    return k, parsed
 
 def gen_msg(msg_type, **kwargs):
     typ = structured[msg_type]
@@ -223,9 +222,6 @@ def create_ephemeral_key(privkey):
     pub = privkey_to_pubkey(privkey)
     return (privkey[:32], pub)
 
-def process_message(message):
-    print("Received %d bytes: "%len(message), binascii.hexlify(message))
-
 
 
 class Peer(PrintError):
@@ -238,11 +234,17 @@ class Peer(PrintError):
         self.read_buffer = b''
         self.ping_time = 0
 
-    def ping_required(self):
-        return time.time() - self.ping_time > 120
+    def diagnostic_name(self):
+        return self.host
+
+    def ping_if_required(self):
+        if time.time() - self.ping_time > 120:
+            self.send_message(gen_msg('ping', num_pong_bytes=4, byteslen=4))
+            self.ping_time = time.time()
 
     def send_message(self, msg):
-        print("Sending %d bytes: "%len(msg), binascii.hexlify(msg))
+        message_type, payload = decode_msg(msg)
+        self.print_error("Sending '%s'"%message_type.upper(), payload)
         l = encode(len(msg), 2)
         lc = aead_encrypt(self.sk, self.sn, b'', l)
         c = aead_encrypt(self.sk, self.sn+1, b'', msg)
@@ -298,22 +300,28 @@ class Peer(PrintError):
         self.sn = 0
         self.rn = 0
 
+    def process_message(self, message):
+        message_type, payload = decode_msg(message)
+        self.print_error("Received '%s'" % message_type.upper(), payload)
+        if message_type == 'ping':
+            l = int.from_bytes(payload['num_pong_bytes'], byteorder="big")
+            self.send_message(gen_msg('pong', byteslen=l))
+        elif message == 'channel_update':
+            pass
+
     async def main_loop(self, loop):
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port, loop=loop)
         await self.handshake()
         # read init
         msg = await self.read_message()
-        process_message(msg)
+        self.process_message(msg)
         # send init
-        init_msg = gen_msg("init", gflen=0, lflen=0)
-        self.send_message(init_msg)
+        self.send_message(gen_msg("init", gflen=0, lflen=0))
+        # loop
         while True:
-            if self.ping_required():
-                self.send_message(gen_msg("ping", num_pong_bytes=4, byteslen=4))
-                self.ping_time = time.time()
-
+            self.ping_if_required()
             msg = await self.read_message()
-            process_message(msg)
+            self.process_message(msg)
         # close socket
         self.writer.close()
     
@@ -326,7 +334,7 @@ class Peer(PrintError):
 node_list = [
     ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff'),
     ('77.58.162.148', '9735', '022bb78ab9df617aeaaf37f6644609abb7295fad0c20327bccd41f8d69173ccb49')
-    ]
+]
 
 
 if __name__ == "__main__":
