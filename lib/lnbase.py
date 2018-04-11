@@ -49,6 +49,7 @@ def make_handler(k, v):
         pos = 0
         for fieldname in v["payload"]:
             poslenMap = v["payload"][fieldname]
+            if "feature" in poslenMap: continue
             #print(poslenMap["position"], ma)
             assert pos == calcexp(poslenMap["position"], ma)
             length = poslenMap["length"]
@@ -65,7 +66,7 @@ with open(path) as f:
 
 for k in structured:
     v = structured[k]
-    if k in ["open_channel","final_incorrect_cltv_expiry", "final_incorrect_htlc_amount"]:
+    if k in ["final_incorrect_cltv_expiry", "final_incorrect_htlc_amount"]:
         continue
     if len(v["payload"]) == 0:
         continue
@@ -94,6 +95,7 @@ def gen_msg(msg_type, **kwargs):
     lengths = {}
     for k in typ["payload"]:
         poslenMap = typ["payload"][k]
+        if "feature" in poslenMap: continue
         leng = calcexp(poslenMap["length"], lengths)
         try:
             clone = dict(lengths)
@@ -327,6 +329,10 @@ class Peer(PrintError):
         self.process_message(msg)
         # send init
         self.send_message(gen_msg("init", gflen=0, lflen=0))
+
+        msg = gen_msg("open_channel")
+        self.send_message(msg)
+
         # loop
         while True:
             self.ping_if_required()
