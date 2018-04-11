@@ -15,8 +15,9 @@ import hashlib
 import hmac
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 
-from electrum.bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number, deserialize_privkey, EC_KEY
-from electrum.constants import set_testnet
+from electrum.bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number, deserialize_privkey, EC_KEY, rev_hex
+from electrum.constants import set_testnet, set_simnet
+import electrum.constants as constants
 from electrum.util import PrintError
 from electrum.wallet import Wallet
 from electrum.storage import WalletStorage
@@ -212,8 +213,9 @@ def create_ephemeral_key(privkey):
     return (privkey[:32], pub)
 
 def get_unused_public_keys():
-    set_testnet()
-    WALLET = Wallet(WalletStorage(os.environ["HOME"] + "/.electrum/testnet/wallets/default_wallet"))
+    path = os.environ["HOME"] + "/.electrum/" + ("testnet" if constants.net is constants.BitcoinTestnet else "simnet") + "/wallets/default_wallet"
+    os.stat(path)
+    WALLET = Wallet(WalletStorage(path))
     for str_address in WALLET.get_unused_addresses():
         pri, redeem_script = WALLET.export_private_key(str_address, None)
 
@@ -343,7 +345,7 @@ class Peer(PrintError):
 
         pubkeys = get_unused_public_keys()
 
-        msg = gen_msg("open_channel", funding_pubkey=next(pubkeys), revocation_basepoint=next(pubkeys), htlc_basepoint=next(pubkeys), payment_basepoint=next(pubkeys), delayed_payment_basepoint=next(pubkeys), first_per_commitment_point=next(pubkeys))
+        msg = gen_msg("open_channel", chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)), funding_satoshis=20000, max_accepted_htlcs=5, funding_pubkey=next(pubkeys), revocation_basepoint=next(pubkeys), htlc_basepoint=next(pubkeys), payment_basepoint=next(pubkeys), delayed_payment_basepoint=next(pubkeys), first_per_commitment_point=next(pubkeys))
         self.send_message(msg)
 
         # loop
@@ -375,10 +377,15 @@ node_list = [
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        host, port, pubkey = sys.argv[1:4]
+    if len(sys.argv) > 2:
+        host, port, pubkey = sys.argv[2:5]
     else:
         host, port, pubkey = node_list[0]
+    if sys.argv[1] not in ["simnet", "testnet"]: raise Exception("first argument must be simnet or testnet")
+    if sys.argv[1] == "simnet":
+        set_simnet()
+    else:
+        set_testnet()
     pubkey = binascii.unhexlify(pubkey)
     port = int(port)
     privkey = b"\x21"*32 + b"\x01"
