@@ -219,6 +219,7 @@ class Abstract_Wallet(PrintError):
         self.load_unverified_transactions()
         self.load_local_history()
         self.build_spent_outpoints()
+        self.remove_local_transactions_we_dont_have()
 
         # there is a difference between wallet.up_to_date and interface.is_up_to_date()
         # interface.is_up_to_date() returns true when all requests have been answered and processed
@@ -266,6 +267,13 @@ class Abstract_Wallet(PrintError):
         self._history_local = {}  # address -> set(txid)
         for txid in itertools.chain(self.txi, self.txo):
             self._add_tx_to_local_history(txid)
+
+    def remove_local_transactions_we_dont_have(self):
+        txid_set = set(self.txi) | set(self.txo)
+        for txid in txid_set:
+            tx_height = self.get_tx_height(txid)[0]
+            if tx_height == TX_HEIGHT_LOCAL and txid not in self.transactions:
+                self.remove_transaction(txid)
 
     @profiler
     def save_transactions(self, write=False):
