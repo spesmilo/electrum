@@ -958,7 +958,8 @@ def add_global_options(parser):
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
     group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
     group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
-    group.add_argument("--lightning", action="store_true", dest="lightning", default=False, help="Enable Lightning support")
+    group.add_argument("--lightning", action="store_true", dest="lightning", default=False, help="Enable Lightning support via hub")
+    group.add_argument("--lnbase", action="store_true", dest="lnbase", default=False, help="Enable Lightning support")
 
 def get_parser():
     # create main parser
