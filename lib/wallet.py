@@ -939,11 +939,9 @@ class Abstract_Wallet(PrintError):
                         dd.pop(addr)
                     else:
                         dd[addr] = l
-            try:
-                self.txi.pop(tx_hash)
-                self.txo.pop(tx_hash)
-            except KeyError:
-                self.print_error("tx was not in history", tx_hash)
+
+            self.txi.pop(tx_hash, None)
+            self.txo.pop(tx_hash, None)
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_unverified_tx(tx_hash, tx_height)
