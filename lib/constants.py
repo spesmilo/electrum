@@ -93,6 +93,14 @@ class BitcoinTestnet:
     }
 
 
+class BitcoinRegtest(BitcoinTestnet):
+
+    SEGWIT_HRP = "bcrt"
+    GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+    DEFAULT_SERVERS = read_json('servers_regtest.json', {})
+    CHECKPOINTS = []
+
+
 # don't import net directly, import the module instead (so that net is singleton)
 net = BitcoinMainnet
 
@@ -105,3 +113,8 @@ def set_mainnet():
 def set_testnet():
     global net
     net = BitcoinTestnet
+
+
+def set_regtest():
+    global net
+    net = BitcoinRegtest
