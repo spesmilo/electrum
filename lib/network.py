@@ -1081,6 +1081,7 @@ class Network(util.DaemonThread):
                 privkey = b"\x21"*32 + b"\x01"
                 peer = Peer(privkey, host, port, pubkey)
                 self.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(loop), loop))
+                loop.run_forever()
 
         threading.Thread(target=asyncioThread).start()
         networkAndWalletLock.acquire()
@@ -1093,7 +1094,7 @@ class Network(util.DaemonThread):
             networkAndWalletLock.release()
             networkAndWalletLock.acquire()
         # cancel tasks
-        [f.cancel for f in self.futures]
+        [f.cancel() for f in self.futures]
         loop.stop()
         if loop.is_running(): time.sleep(0.1)
         try:
