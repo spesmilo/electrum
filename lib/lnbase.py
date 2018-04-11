@@ -16,6 +16,7 @@ import cryptography.hazmat.primitives.ciphers.aead as AEAD
 
 from electrum.bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number
 from electrum.bitcoin import int_to_hex, bfh, rev_hex
+from electrum.util import PrintError
 
 tcp_socket_timeout = 10
 server_response_timeout = 60
@@ -224,97 +225,95 @@ def create_ephemeral_key(privkey):
 def process_message(message):
     print("Received %d bytes: "%len(message), binascii.hexlify(message))
 
-def send_message(writer, msg, sk, sn):
-    print("Sending %d bytes: "%len(msg), binascii.hexlify(msg))
-    l = encode(len(msg), 2)
-    lc = aead_encrypt(sk, sn, b'', l)
-    c = aead_encrypt(sk, sn+1, b'', msg)
-    assert len(lc) == 18
-    assert len(c) == len(msg) + 16
-    writer.write(lc+c)
 
 
-async def read_message(reader, rk, rn):
-    rspns = b''
-    while True:
-        rspns += await reader.read(2**10)
-        print("buffer %d bytes:"%len(rspns), binascii.hexlify(rspns))
-        lc = rspns[:18]
-        l = aead_decrypt(rk, rn, b'', lc)
-        length = decode(l)
-        if len(rspns) < 18 + length + 16:
-            continue
-        c = rspns[18:18 + length + 16]
-        msg = aead_decrypt(rk, rn+1, b'', c)
-        return msg
+class Peer(PrintError):
 
+    def __init__(self, privkey, host, port, pubkey):
+        self.host = host
+        self.port = port
+        self.privkey = privkey
+        self.pubkey = pubkey
 
+    def send_message(self, msg):
+        print("Sending %d bytes: "%len(msg), binascii.hexlify(msg))
+        l = encode(len(msg), 2)
+        lc = aead_encrypt(self.sk, self.sn, b'', l)
+        c = aead_encrypt(self.sk, self.sn+1, b'', msg)
+        assert len(lc) == 18
+        assert len(c) == len(msg) + 16
+        self.writer.write(lc+c)
+        self.sn += 2
 
-async def main_loop(my_privkey, host, port, pubkey, loop):
-    reader, writer = await asyncio.open_connection(host, port, loop=loop)
+    async def read_message(self):
+        rspns = b''
+        while True:
+            rspns += await self.reader.read(2**10)
+            print("buffer %d bytes:"%len(rspns), binascii.hexlify(rspns))
+            lc = rspns[:18]
+            l = aead_decrypt(self.rk, self.rn, b'', lc)
+            length = decode(l)
+            if len(rspns) < 18 + length + 16:
+                continue
+            c = rspns[18:18 + length + 16]
+            msg = aead_decrypt(self.rk, self.rn+1, b'', c)
+            self.rn += 2
+            return msg
 
-    hs = HandshakeState(pubkey)
-    msg = act1_initiator_message(hs, my_privkey)
+    async def handshake(self):
+        hs = HandshakeState(self.pubkey)
+        msg = act1_initiator_message(hs, self.privkey)
+        # act 1
+        self.writer.write(msg)
+        rspns = await self.reader.read(2**10)
+        assert len(rspns) == 50
+        hver, alice_epub, tag = rspns[0], rspns[1:34], rspns[34:]
+        assert bytes([hver]) == hs.handshake_version
+        # act 2
+        hs.update(alice_epub)
+        myepriv, myepub = create_ephemeral_key(self.privkey)
+        ss = get_ecdh(myepriv, alice_epub)
+        ck, temp_k2 = get_bolt8_hkdf(hs.ck, ss)
+        hs.ck = ck
+        p = aead_decrypt(temp_k2, 0, hs.h, tag)
+        hs.update(tag)
+        # act 3
+        my_pubkey = privkey_to_pubkey(self.privkey)
+        c = aead_encrypt(temp_k2, 1, hs.h, my_pubkey)
+        hs.update(c)
+        ss = get_ecdh(self.privkey[:32], alice_epub)
+        ck, temp_k3 = get_bolt8_hkdf(hs.ck, ss)
+        hs.ck = ck
+        t = aead_encrypt(temp_k3, 0, hs.h, b'')
+        self.sk, self.rk = get_bolt8_hkdf(hs.ck, b'')
+        msg = hs.handshake_version + c + t
+        self.writer.write(msg)
+        # init counters
+        self.sn = 0
+        self.rn = 0
 
-    # handshake act 1
-    writer.write(msg)
-    rspns = await reader.read(2**10)
-    assert len(rspns) == 50
-    hver, alice_epub, tag = rspns[0], rspns[1:34], rspns[34:]
-    assert bytes([hver]) == hs.handshake_version
-
-    # handshake act 2
-    hs.update(alice_epub)
-    myepriv, myepub = create_ephemeral_key(my_privkey)
-    ss = get_ecdh(myepriv, alice_epub)
-    ck, temp_k2 = get_bolt8_hkdf(hs.ck, ss)
-    hs.ck = ck
-    p = aead_decrypt(temp_k2, 0, hs.h, tag)
-    hs.update(tag)
-
-    # handshake act 3
-    my_pubkey = privkey_to_pubkey(my_privkey)
-    c = aead_encrypt(temp_k2, 1, hs.h, my_pubkey)
-    hs.update(c)
-    ss = get_ecdh(my_privkey[:32], alice_epub)
-    ck, temp_k3 = get_bolt8_hkdf(hs.ck, ss)
-    hs.ck = ck
-    t = aead_encrypt(temp_k3, 0, hs.h, b'')
-    sk, rk = get_bolt8_hkdf(hs.ck, b'')
-    msg = hs.handshake_version + c + t
-    writer.write(msg)
+    async def main_loop(self, loop):
+        self.reader, self.writer = await asyncio.open_connection(self.host, self.port, loop=loop)
+        await self.handshake()
+        # read init
+        msg = await self.read_message()
+        process_message(msg)
+        # send init
+        init_msg = gen_msg("init", gflen=0, lflen=0)
+        self.send_message(init_msg)
+        # send ping
+        ping_msg = gen_msg("ping", num_pong_bytes=4, byteslen=4)
+        self.send_message(ping_msg)
+        # read pong
+        msg = await self.read_message()
+        process_message(msg)
+        # close socket
+        self.writer.close()
     
-    # init counters
-    sn = 0
-    rn = 0
-
-    # read init
-    msg = await read_message(reader, rk, rn)
-    process_message(msg)
-    rn += 2
-
-    # send init
-    init_msg = gen_msg("init", gflen=0, lflen=0)
-    send_message(writer, init_msg, sk, sn)
-    sn += 2
-
-    # send ping
-    msg_type = 18
-    num_pong_bytes = 4
-    byteslen = 4
-    ping_msg = encode(msg_type, 2) + encode(num_pong_bytes, 2) + encode(byteslen, 2) + b'\x00'*byteslen
-    send_message(writer, ping_msg, sk, sn)
-    sn += 2
-
-    # read pong
-    msg = await read_message(reader, rk, rn)
-    process_message(msg)
-    rn += 2
-    
-    # close socket
-    writer.close()
-    
-
+    def run(self):
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.main_loop(loop))
+        loop.close()
 
 
 node_list = [
@@ -331,6 +330,5 @@ if __name__ == "__main__":
     pubkey = binascii.unhexlify(pubkey)
     port = int(port)
     privkey = b"\x21"*32 + b"\x01"
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main_loop(privkey, host, port, pubkey, loop))
-    loop.close()
+    peer = Peer(privkey, host, port, pubkey)
+    peer.run()
