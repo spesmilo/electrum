@@ -91,11 +91,11 @@ class DigitalBitbox_Client():
 
     def _get_xpub(self, bip32_path):
         if self.check_device_dialog():
-            return self.hid_send_encrypt(b'{"xpub": "%s"}' % bip32_path.encode('utf8'))
+            return self.hid_send_encrypt(('{"xpub": "%s"}' % bip32_path).encode('utf8'))
 
 
     def get_xpub(self, bip32_path, xtype):
-        assert xtype in ('standard', 'p2wpkh-p2sh')
+        assert xtype in ('standard', 'p2wpkh-p2sh', 'p2wpkh')
         reply = self._get_xpub(bip32_path)
         if reply:
             xpub = reply['xpub']
@@ -121,7 +121,7 @@ class DigitalBitbox_Client():
 
     def stretch_key(self, key):
         import pbkdf2, hmac
-        return binascii.hexlify(pbkdf2.PBKDF2(key, b'Digital Bitbox', iterations = 20480, macmodule = hmac, digestmodule = hashlib.sha512).read(64))
+        return to_hexstr(pbkdf2.PBKDF2(key, b'Digital Bitbox', iterations = 20480, macmodule = hmac, digestmodule = hashlib.sha512).read(64))
 
 
     def backup_password_dialog(self):
@@ -255,9 +255,14 @@ class DigitalBitbox_Client():
             return
 
         try:
+            # Python 3.5+
+            jsonDecodeError = json.JSONDecodeError
+        except AttributeError:
+            jsonDecodeError = ValueError
+        try:
             with open(os.path.join(dbb_user_dir, "config.dat")) as f:
                 dbb_config = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except (FileNotFoundError, jsonDecodeError):
             return
 
         if 'encryptionprivkey' not in dbb_config or 'comserverchannelid' not in dbb_config:
@@ -284,8 +289,8 @@ class DigitalBitbox_Client():
 
     def dbb_generate_wallet(self):
         key = self.stretch_key(self.password)
-        filename = ("Electrum-LTC-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf").encode('utf8')
-        msg = b'{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, b'Digital Bitbox Electrum Plugin')
+        filename = ("Electrum-LTC-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf")
+        msg = ('{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, 'Digital Bitbox Electrum Plugin')).encode('utf8')
         reply = self.hid_send_encrypt(msg)
         if 'error' in reply:
             raise Exception(reply['error']['message'])
@@ -320,7 +325,7 @@ class DigitalBitbox_Client():
             self.handler.show_message(_("Loading backup...") + "\n\n" +
                                       _("To continue, touch the Digital Bitbox's light for 3 seconds.") + "\n\n" +
                                       _("To cancel, briefly touch the light or wait for the timeout."))
-        msg = b'{"seed":{"source": "backup", "key": "%s", "filename": "%s"}}' % (key, backups['backup'][f].encode('utf8'))
+        msg = ('{"seed":{"source": "backup", "key": "%s", "filename": "%s"}}' % (key, backups['backup'][f])).encode('utf8')
         hid_reply = self.hid_send_encrypt(msg)
         self.handler.finished()
         if 'error' in hid_reply:
@@ -448,7 +453,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             hasharray.append({'hash': inputHash, 'keypath': inputPath})
             hasharray = json.dumps(hasharray)
 
-            msg = b'{"sign":{"meta":"sign message", "data":%s}}' % hasharray.encode('utf8')
+            msg = ('{"sign":{"meta":"sign message", "data":%s}}' % hasharray).encode('utf8')
 
             dbb_client = self.plugin.get_client(self)
 
@@ -713,7 +718,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in ('standard', 'p2wpkh-p2sh'):
+        if xtype not in ('standard', 'p2wpkh-p2sh', 'p2wpkh'):
             raise ScriptTypeNotSupported(_('This type of script is not supported with the Digital Bitbox.'))
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
