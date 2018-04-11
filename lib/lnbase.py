@@ -18,6 +18,7 @@ import cryptography.hazmat.primitives.ciphers.aead as AEAD
 from electrum.bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number
 from electrum.bitcoin import int_to_hex, bfh, rev_hex
 from electrum.util import PrintError
+from electrum.wallet import Wallet
 
 tcp_socket_timeout = 10
 server_response_timeout = 60
@@ -111,7 +112,6 @@ def gen_msg(msg_type, **kwargs):
         data += param
     return data
 
-###############################
 
 
 def decode(string):
@@ -309,6 +309,9 @@ class Peer(PrintError):
         elif message == 'channel_update':
             pass
 
+    def open_channel(self):
+        pass
+
     async def main_loop(self, loop):
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port, loop=loop)
         await self.handshake()
@@ -323,12 +326,20 @@ class Peer(PrintError):
             msg = await self.read_message()
             self.process_message(msg)
         # close socket
+        self.print_error('closing lnbase')
         self.writer.close()
+
+
+# replacement for lightningCall
+class LNWallet(Wallet):
     
-    def run(self):
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.main_loop(loop))
-        loop.close()
+    def __init__(self, wallet, peer):
+        self.wallet = wallet
+        self.peer = peer
+
+    def openchannel(self):
+        # todo: get utxo from wallet
+        self.peer.open_channel()
 
 
 node_list = [
@@ -346,4 +357,7 @@ if __name__ == "__main__":
     port = int(port)
     privkey = b"\x21"*32 + b"\x01"
     peer = Peer(privkey, host, port, pubkey)
-    peer.run()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(peer.main_loop(loop))
+    loop.close()
+
