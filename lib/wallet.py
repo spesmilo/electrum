@@ -305,6 +305,13 @@ class Abstract_Wallet(PrintError):
 
     @profiler
     def check_history(self):
+        """Try to clean up history.
+
+        (1) Remove addresses from history that are not ours,
+        (2) add transactions into the wallet that are in history but does not
+        seem to be accounted for properly,
+        (3) remove transactions from wallet that are not in history.
+        """
         save = False
 
         hist_addrs_mine = list(filter(lambda k: self.is_mine(k), self.history.keys()))
@@ -324,6 +331,33 @@ class Abstract_Wallet(PrintError):
                 if tx is not None:
                     self.add_transaction(tx_hash, tx)
                     save = True
+
+        def check_txio_against_history(txio_dict):
+            """remove transactions from wallet that are not in history"""
+            nonlocal save
+            for tx_hash, lst in list(txio_dict.items()):
+                for addr in lst:
+                    if not self.is_mine(addr):
+                        # this can happen e.g. after an old multi-acc wallet is split
+                        self.remove_transaction(tx_hash)
+                        save = True
+                        break  # go to next txio item
+                    hist = self.history[addr]
+                    for tx_hash2, tx_height in hist:
+                        if tx_hash == tx_hash2:
+                            break
+                    else:
+                        # txio_dict inconsistent with wallet.history
+                        # it might be a local txn though, in which case it is OK.
+                        if tx_hash not in self.transactions:
+                            # not a local txn
+                            self.remove_transaction(tx_hash)
+                            save = True
+                        break  # go to next txio item
+
+        check_txio_against_history(self.txi)
+        check_txio_against_history(self.txo)
+
         if save:
             self.save_transactions()
 
@@ -941,9 +975,12 @@ class Abstract_Wallet(PrintError):
                         dd[addr] = l
             try:
                 self.txi.pop(tx_hash)
+            except KeyError:
+                self.print_error("tx was not in wallet.txi", tx_hash)
+            try:
                 self.txo.pop(tx_hash)
             except KeyError:
-                self.print_error("tx was not in history", tx_hash)
+                self.print_error("tx was not in wallet.txo", tx_hash)
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_unverified_tx(tx_hash, tx_height)
