@@ -288,14 +288,36 @@ class Peer(PrintError):
     def process_message(self, message):
         message_type, payload = decode_msg(message)
         self.print_error("Received '%s'" % message_type.upper(), payload)
-        if message_type == 'ping':
-            l = int.from_bytes(payload['num_pong_bytes'], byteorder="big")
-            self.send_message(gen_msg('pong', byteslen=l))
-        elif message == 'channel_update':
-            pass
+        try:
+            f = getattr(self, 'on_' + message_type)
+        except AttributeError:
+            return
+        f(payload)
 
-    def open_channel(self):
+    def on_ping(self, payload):
+        l = int.from_bytes(payload['num_pong_bytes'], byteorder="big")
+        self.send_message(gen_msg('pong', byteslen=l))
+
+    def on_accept_channel(self, payload):
+        # check that it is in my pending requests
+        # I need to attach a wallet to each request
+        if ok:
+            tx = wallet.create_funding_tx()
+            wallet.sign(tx)
+            m = gen_msg('funding created', signature)
+            self.send_message(m)
+
+    def on_funding_signed(self, payload):
+        sig = payload['signature']
+        channel_id = payload['channel_id']
+        tx = self.channels[channel_id]
+        self.network.broadcast(tx)
+
+    def on_funding_locked(self, payload):
         pass
+
+    def open_channel(self, funding_sat, push_msat):
+        self.send_message(gen_msg('open_channel', funding_satoshis=funding_sat, push_msat=push_msat))
 
     async def main_loop(self, loop):
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port, loop=loop)
@@ -345,4 +367,3 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.run_until_complete(peer.main_loop(loop))
     loop.close()
-
