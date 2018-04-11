@@ -9,6 +9,7 @@ from collections import OrderedDict
 import asyncio
 import sys
 import os
+import time
 import binascii
 import hashlib
 import hmac
@@ -235,6 +236,10 @@ class Peer(PrintError):
         self.privkey = privkey
         self.pubkey = pubkey
         self.read_buffer = b''
+        self.ping_time = 0
+
+    def ping_required(self):
+        return time.time() - self.ping_time > 120
 
     def send_message(self, msg):
         print("Sending %d bytes: "%len(msg), binascii.hexlify(msg))
@@ -302,12 +307,13 @@ class Peer(PrintError):
         # send init
         init_msg = gen_msg("init", gflen=0, lflen=0)
         self.send_message(init_msg)
-        # send ping
-        ping_msg = gen_msg("ping", num_pong_bytes=4, byteslen=4)
-        self.send_message(ping_msg)
-        # read pong
-        msg = await self.read_message()
-        process_message(msg)
+        while True:
+            if self.ping_required():
+                self.send_message(gen_msg("ping", num_pong_bytes=4, byteslen=4))
+                self.ping_time = time.time()
+
+            msg = await self.read_message()
+            process_message(msg)
         # close socket
         self.writer.close()
     
