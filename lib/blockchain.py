@@ -335,7 +335,7 @@ class Blockchain(util.PrintError):
             elif first_block_num+ (index-old_check_index_count) * 200 < 499277:
                 return self.bits_to_target(0x18451c94)
             if index == second_check_index_count-1:
-                return self.bits_to_target(0x18431e40)//100
+                return self.bits_to_target(0x191a37d1)
             first = self.read_header(first_block_num+ (index-old_check_index_count) * 200)
             last = self.read_header(first_block_num+ (index-old_check_index_count) * 200 + 199)
             bits = last.get('bits')
