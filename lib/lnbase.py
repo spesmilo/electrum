@@ -15,9 +15,11 @@ import hashlib
 import hmac
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 
-from electrum.bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number
+from electrum.bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number, deserialize_privkey, EC_KEY
+from electrum.constants import set_testnet
 from electrum.util import PrintError
 from electrum.wallet import Wallet
+from electrum.storage import WalletStorage
 
 tcp_socket_timeout = 10
 server_response_timeout = 60
@@ -108,7 +110,7 @@ def gen_msg(msg_type, **kwargs):
         except KeyError:
             param = 0
         try:
-            param = param.to_bytes(length=leng, byteorder="big")
+            if not isinstance(param, bytes): param = param.to_bytes(length=leng, byteorder="big")
         except ValueError:
             raise Exception("{} does not fit in {} bytes".format(k, leng))
         lengths[k] = len(param)
@@ -209,6 +211,15 @@ def create_ephemeral_key(privkey):
     pub = privkey_to_pubkey(privkey)
     return (privkey[:32], pub)
 
+def get_unused_public_keys():
+    set_testnet()
+    WALLET = Wallet(WalletStorage(os.environ["HOME"] + "/.electrum/testnet/wallets/default_wallet"))
+    for str_address in WALLET.get_unused_addresses():
+        pri, redeem_script = WALLET.export_private_key(str_address, None)
+
+        typ, pri, compressed = deserialize_privkey(pri)
+        pubk = binascii.unhexlify(EC_KEY(pri).get_public_key(True))
+        yield pubk
 
 
 class Peer(PrintError):
@@ -330,7 +341,9 @@ class Peer(PrintError):
         # send init
         self.send_message(gen_msg("init", gflen=0, lflen=0))
 
-        msg = gen_msg("open_channel")
+        pubkeys = get_unused_public_keys()
+
+        msg = gen_msg("open_channel", funding_pubkey=next(pubkeys), revocation_basepoint=next(pubkeys), htlc_basepoint=next(pubkeys), payment_basepoint=next(pubkeys), delayed_payment_basepoint=next(pubkeys), first_per_commitment_point=next(pubkeys))
         self.send_message(msg)
 
         # loop
