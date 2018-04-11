@@ -1,0 +1,801 @@
+{
+ "init": {
+  "type": "16",
+  "payload": {
+   "gflen": {
+    "position": "0",
+    "length": "2"
+   },
+   "globalfeatures": {
+    "position": "2",
+    "length": "gflen"
+   },
+   "lflen": {
+    "position": "2+gflen",
+    "length": "2"
+   },
+   "localfeatures": {
+    "position": "4+gflen",
+    "length": "lflen"
+   }
+  }
+ },
+ "error": {
+  "type": "17",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "len": {
+    "position": "32",
+    "length": "2"
+   },
+   "data": {
+    "position": "34",
+    "length": "len"
+   }
+  }
+ },
+ "ping": {
+  "type": "18",
+  "payload": {
+   "num_pong_bytes": {
+    "position": "0",
+    "length": "2"
+   },
+   "byteslen": {
+    "position": "2",
+    "length": "2"
+   },
+   "ignored": {
+    "position": "4",
+    "length": "byteslen"
+   }
+  }
+ },
+ "pong": {
+  "type": "19",
+  "payload": {
+   "byteslen": {
+    "position": "0",
+    "length": "2"
+   },
+   "ignored": {
+    "position": "2",
+    "length": "byteslen"
+   }
+  }
+ },
+ "open_channel": {
+  "type": "32",
+  "payload": {
+   "chain_hash": {
+    "position": "0",
+    "length": "32"
+   },
+   "temporary_channel_id": {
+    "position": "32",
+    "length": "32"
+   },
+   "funding_satoshis": {
+    "position": "64",
+    "length": "8"
+   },
+   "push_msat": {
+    "position": "72",
+    "length": "8"
+   },
+   "dust_limit_satoshis": {
+    "position": "80",
+    "length": "8"
+   },
+   "max_htlc_value_in_flight_msat": {
+    "position": "88",
+    "length": "8"
+   },
+   "channel_reserve_satoshis": {
+    "position": "96",
+    "length": "8"
+   },
+   "htlc_minimum_msat": {
+    "position": "104",
+    "length": "8"
+   },
+   "feerate_per_kw": {
+    "position": "112",
+    "length": "4"
+   },
+   "to_self_delay": {
+    "position": "116",
+    "length": "2"
+   },
+   "max_accepted_htlcs": {
+    "position": "118",
+    "length": "2"
+   },
+   "funding_pubkey": {
+    "position": "120",
+    "length": "33"
+   },
+   "revocation_basepoint": {
+    "position": "153",
+    "length": "33"
+   },
+   "payment_basepoint": {
+    "position": "186",
+    "length": "33"
+   },
+   "delayed_payment_basepoint": {
+    "position": "219",
+    "length": "33"
+   },
+   "htlc_basepoint": {
+    "position": "252",
+    "length": "33"
+   },
+   "first_per_commitment_point": {
+    "position": "285",
+    "length": "33"
+   },
+   "channel_flags": {
+    "position": "318",
+    "length": "1"
+   },
+   "shutdown_len": {
+    "position": "319",
+    "length": "2",
+    "feature": "option_upfront_shutdown_script"
+   },
+   "shutdown_scriptpubkey": {
+    "position": "321",
+    "length": "shutdown_len",
+    "feature": "option_upfront_shutdown_script"
+   }
+  }
+ },
+ "accept_channel": {
+  "type": "33",
+  "payload": {
+   "temporary_channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "dust_limit_satoshis": {
+    "position": "32",
+    "length": "8"
+   },
+   "max_htlc_value_in_flight_msat": {
+    "position": "40",
+    "length": "8"
+   },
+   "channel_reserve_satoshis": {
+    "position": "48",
+    "length": "8"
+   },
+   "htlc_minimum_msat": {
+    "position": "56",
+    "length": "8"
+   },
+   "minimum_depth": {
+    "position": "64",
+    "length": "4"
+   },
+   "to_self_delay": {
+    "position": "68",
+    "length": "2"
+   },
+   "max_accepted_htlcs": {
+    "position": "70",
+    "length": "2"
+   },
+   "funding_pubkey": {
+    "position": "72",
+    "length": "33"
+   },
+   "revocation_basepoint": {
+    "position": "105",
+    "length": "33"
+   },
+   "payment_basepoint": {
+    "position": "138",
+    "length": "33"
+   },
+   "delayed_payment_basepoint": {
+    "position": "171",
+    "length": "33"
+   },
+   "htlc_basepoint": {
+    "position": "204",
+    "length": "33"
+   },
+   "first_per_commitment_point": {
+    "position": "237",
+    "length": "33"
+   },
+   "shutdown_len": {
+    "position": "270",
+    "length": "2",
+    "feature": "option_upfront_shutdown_script"
+   },
+   "shutdown_scriptpubkey": {
+    "position": "272",
+    "length": "shutdown_len",
+    "feature": "option_upfront_shutdown_script"
+   }
+  }
+ },
+ "funding_created": {
+  "type": "34",
+  "payload": {
+   "temporary_channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "funding_txid": {
+    "position": "32",
+    "length": "32"
+   },
+   "funding_output_index": {
+    "position": "64",
+    "length": "2"
+   },
+   "signature": {
+    "position": "66",
+    "length": "64"
+   }
+  }
+ },
+ "funding_signed": {
+  "type": "35",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "signature": {
+    "position": "32",
+    "length": "64"
+   }
+  }
+ },
+ "funding_locked": {
+  "type": "36",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "next_per_commitment_point": {
+    "position": "32",
+    "length": "33"
+   }
+  }
+ },
+ "shutdown": {
+  "type": "38",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "len": {
+    "position": "32",
+    "length": "2"
+   },
+   "scriptpubkey": {
+    "position": "34",
+    "length": "len"
+   }
+  }
+ },
+ "closing_signed": {
+  "type": "39",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "fee_satoshis": {
+    "position": "32",
+    "length": "8"
+   },
+   "signature": {
+    "position": "40",
+    "length": "64"
+   }
+  }
+ },
+ "update_add_htlc": {
+  "type": "128",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "id": {
+    "position": "32",
+    "length": "8"
+   },
+   "amount_msat": {
+    "position": "40",
+    "length": "8"
+   },
+   "payment_hash": {
+    "position": "48",
+    "length": "32"
+   },
+   "cltv_expiry": {
+    "position": "80",
+    "length": "4"
+   },
+   "onion_routing_packet": {
+    "position": "84",
+    "length": "1366"
+   }
+  }
+ },
+ "update_fulfill_htlc": {
+  "type": "130",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "id": {
+    "position": "32",
+    "length": "8"
+   },
+   "payment_preimage": {
+    "position": "40",
+    "length": "32"
+   }
+  }
+ },
+ "update_fail_htlc": {
+  "type": "131",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "id": {
+    "position": "32",
+    "length": "8"
+   },
+   "len": {
+    "position": "40",
+    "length": "2"
+   },
+   "reason": {
+    "position": "42",
+    "length": "len"
+   }
+  }
+ },
+ "update_fail_malformed_htlc": {
+  "type": "135",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "id": {
+    "position": "32",
+    "length": "8"
+   },
+   "sha256_of_onion": {
+    "position": "40",
+    "length": "32"
+   },
+   "failure_code": {
+    "position": "72",
+    "length": "2"
+   }
+  }
+ },
+ "commitment_signed": {
+  "type": "132",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "signature": {
+    "position": "32",
+    "length": "64"
+   },
+   "num_htlcs": {
+    "position": "96",
+    "length": "2"
+   },
+   "htlc_signature": {
+    "position": "98",
+    "length": "num_htlcs*64"
+   }
+  }
+ },
+ "revoke_and_ack": {
+  "type": "133",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "per_commitment_secret": {
+    "position": "32",
+    "length": "32"
+   },
+   "next_per_commitment_point": {
+    "position": "64",
+    "length": "33"
+   }
+  }
+ },
+ "update_fee": {
+  "type": "134",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "feerate_per_kw": {
+    "position": "32",
+    "length": "4"
+   }
+  }
+ },
+ "channel_reestablish": {
+  "type": "136",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "next_local_commitment_number": {
+    "position": "32",
+    "length": "8"
+   },
+   "next_remote_revocation_number": {
+    "position": "40",
+    "length": "8"
+   },
+   "your_last_per_commitment_secret": {
+    "position": "48",
+    "length": "32",
+    "feature": "option_data_loss_protect"
+   },
+   "my_current_per_commitment_point": {
+    "position": "80",
+    "length": "33",
+    "feature": "option_data_loss_protect"
+   }
+  }
+ },
+ "invalid_realm": {
+  "type": "PERM|1",
+  "payload": {}
+ },
+ "temporary_node_failure": {
+  "type": "NODE|2",
+  "payload": {}
+ },
+ "permanent_node_failure": {
+  "type": "PERM|NODE|2",
+  "payload": {}
+ },
+ "required_node_feature_missing": {
+  "type": "PERM|NODE|3",
+  "payload": {}
+ },
+ "invalid_onion_version": {
+  "type": "BADONION|PERM|4",
+  "payload": {
+   "sha256_of_onion": {
+    "position": "0",
+    "length": "32"
+   }
+  }
+ },
+ "invalid_onion_hmac": {
+  "type": "BADONION|PERM|5",
+  "payload": {
+   "sha256_of_onion": {
+    "position": "0",
+    "length": "32"
+   }
+  }
+ },
+ "invalid_onion_key": {
+  "type": "BADONION|PERM|6",
+  "payload": {
+   "sha256_of_onion": {
+    "position": "0",
+    "length": "32"
+   }
+  }
+ },
+ "temporary_channel_failure": {
+  "type": "UPDATE|7",
+  "payload": {
+   "len": {
+    "position": "0",
+    "length": "2"
+   },
+   "channel_update": {
+    "position": "2",
+    "length": "len"
+   }
+  }
+ },
+ "permanent_channel_failure": {
+  "type": "PERM|8",
+  "payload": {}
+ },
+ "required_channel_feature_missing": {
+  "type": "PERM|9",
+  "payload": {}
+ },
+ "unknown_next_peer": {
+  "type": "PERM|10",
+  "payload": {}
+ },
+ "amount_below_minimum": {
+  "type": "UPDATE|11",
+  "payload": {
+   "htlc_msat": {
+    "position": "0",
+    "length": "8"
+   },
+   "len": {
+    "position": "8",
+    "length": "2"
+   },
+   "channel_update": {
+    "position": "10",
+    "length": "len"
+   }
+  }
+ },
+ "fee_insufficient": {
+  "type": "UPDATE|12",
+  "payload": {
+   "htlc_msat": {
+    "position": "0",
+    "length": "8"
+   },
+   "len": {
+    "position": "8",
+    "length": "2"
+   },
+   "channel_update": {
+    "position": "10",
+    "length": "len"
+   }
+  }
+ },
+ "incorrect_cltv_expiry": {
+  "type": "UPDATE|13",
+  "payload": {
+   "cltv_expiry": {
+    "position": "0",
+    "length": "4"
+   },
+   "len": {
+    "position": "4",
+    "length": "2"
+   },
+   "channel_update": {
+    "position": "6",
+    "length": "len"
+   }
+  }
+ },
+ "expiry_too_soon": {
+  "type": "UPDATE|14",
+  "payload": {
+   "len": {
+    "position": "0",
+    "length": "2"
+   },
+   "channel_update": {
+    "position": "2",
+    "length": "len"
+   }
+  }
+ },
+ "unknown_payment_hash": {
+  "type": "PERM|15",
+  "payload": {}
+ },
+ "incorrect_payment_amount": {
+  "type": "PERM|16",
+  "payload": {}
+ },
+ "final_expiry_too_soon": {
+  "type": "17",
+  "payload": {}
+ },
+ "final_incorrect_cltv_expiry": {
+  "type": "18",
+  "payload": {
+   "cltv_expiry": {
+    "position": "0",
+    "length": "4"
+   }
+  }
+ },
+ "final_incorrect_htlc_amount": {
+  "type": "19",
+  "payload": {
+   "incoming_htlc_amt": {
+    "position": "0",
+    "length": "4"
+   }
+  }
+ },
+ "channel_disabled": {
+  "type": "UPDATE|20",
+  "payload": {}
+ },
+ "expiry_too_far": {
+  "type": "21",
+  "payload": {}
+ },
+ "announcement_signatures": {
+  "type": "259",
+  "payload": {
+   "channel_id": {
+    "position": "0",
+    "length": "32"
+   },
+   "short_channel_id": {
+    "position": "32",
+    "length": "8"
+   },
+   "node_signature": {
+    "position": "40",
+    "length": "64"
+   },
+   "bitcoin_signature": {
+    "position": "104",
+    "length": "64"
+   }
+  }
+ },
+ "channel_announcement": {
+  "type": "256",
+  "payload": {
+   "node_signature_1": {
+    "position": "0",
+    "length": "64"
+   },
+   "node_signature_2": {
+    "position": "64",
+    "length": "64"
+   },
+   "bitcoin_signature_1": {
+    "position": "128",
+    "length": "64"
+   },
+   "bitcoin_signature_2": {
+    "position": "192",
+    "length": "64"
+   },
+   "len": {
+    "position": "256",
+    "length": "2"
+   },
+   "features": {
+    "position": "258",
+    "length": "len"
+   },
+   "chain_hash": {
+    "position": "258+len",
+    "length": "32"
+   },
+   "short_channel_id": {
+    "position": "290+len",
+    "length": "8"
+   },
+   "node_id_1": {
+    "position": "298+len",
+    "length": "33"
+   },
+   "node_id_2": {
+    "position": "331+len",
+    "length": "33"
+   },
+   "bitcoin_key_1": {
+    "position": "364+len",
+    "length": "33"
+   },
+   "bitcoin_key_2": {
+    "position": "397+len",
+    "length": "33"
+   }
+  }
+ },
+ "node_announcement": {
+  "type": "257",
+  "payload": {
+   "signature": {
+    "position": "0",
+    "length": "64"
+   },
+   "flen": {
+    "position": "64",
+    "length": "2"
+   },
+   "features": {
+    "position": "66",
+    "length": "flen"
+   },
+   "timestamp": {
+    "position": "66+flen",
+    "length": "4"
+   },
+   "node_id": {
+    "position": "70+flen",
+    "length": "33"
+   },
+   "rgb_color": {
+    "position": "103+flen",
+    "length": "3"
+   },
+   "alias": {
+    "position": "106+flen",
+    "length": "32"
+   },
+   "addrlen": {
+    "position": "138+flen",
+    "length": "2"
+   },
+   "addresses": {
+    "position": "140+flen",
+    "length": "addrlen"
+   }
+  }
+ },
+ "channel_update": {
+  "type": "258",
+  "payload": {
+   "signature": {
+    "position": "0",
+    "length": "64"
+   },
+   "chain_hash": {
+    "position": "64",
+    "length": "32"
+   },
+   "short_channel_id": {
+    "position": "96",
+    "length": "8"
+   },
+   "timestamp": {
+    "position": "104",
+    "length": "4"
+   },
+   "flags": {
+    "position": "108",
+    "length": "2"
+   },
+   "cltv_expiry_delta": {
+    "position": "110",
+    "length": "2"
+   },
+   "htlc_minimum_msat": {
+    "position": "112",
+    "length": "8"
+   },
+   "fee_base_msat": {
+    "position": "120",
+    "length": "4"
+   },
+   "fee_proportional_millionths": {
+    "position": "124",
+    "length": "4"
+   }
+  }
+ }
+}
