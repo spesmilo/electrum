@@ -234,6 +234,7 @@ class Peer(PrintError):
         self.port = port
         self.privkey = privkey
         self.pubkey = pubkey
+        self.read_buffer = b''
 
     def send_message(self, msg):
         print("Sending %d bytes: "%len(msg), binascii.hexlify(msg))
@@ -246,16 +247,16 @@ class Peer(PrintError):
         self.sn += 2
 
     async def read_message(self):
-        rspns = b''
         while True:
-            rspns += await self.reader.read(2**10)
-            print("buffer %d bytes:"%len(rspns), binascii.hexlify(rspns))
-            lc = rspns[:18]
+            self.read_buffer += await self.reader.read(2**10)
+            lc = self.read_buffer[:18]
             l = aead_decrypt(self.rk, self.rn, b'', lc)
             length = decode(l)
-            if len(rspns) < 18 + length + 16:
+            offset = 18 + length + 16
+            if len(self.read_buffer) < offset:
                 continue
-            c = rspns[18:18 + length + 16]
+            c = self.read_buffer[18:offset]
+            self.read_buffer = self.read_buffer[offset:]
             msg = aead_decrypt(self.rk, self.rn+1, b'', c)
             self.rn += 2
             return msg
