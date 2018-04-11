@@ -2726,9 +2726,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         id_widgets.append((SSL_id_label, SSL_id_e))
 
         units = ['BTC', 'mBTC', 'bits']
-        msg = _('Base unit of your wallet.')\
-              + '\n1BTC=1000mBTC.\n' \
-              + _(' These settings affects the fields in the Send tab')+' '
+        msg = (_('Base unit of your wallet.')
+               + '\n1 BTC = 1000 mBTC. 1 mBTC = 1000 bits.\n'
+               + _('This setting affects the Send tab, and all balance related fields.'))
         unit_label = HelpLabel(_('Base unit') + ':', msg)
         unit_combo = QComboBox()
         unit_combo.addItems(units)
