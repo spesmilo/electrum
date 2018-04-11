@@ -97,8 +97,10 @@ def gen_msg(msg_type, **kwargs):
         poslenMap = typ["payload"][k]
         leng = calcexp(poslenMap["length"], lengths)
         try:
-            leng = kwargs[poslenMap["length"]]
-        except:
+            clone = dict(lengths)
+            clone.update(kwargs)
+            leng = calcexp(poslenMap["length"], clone)
+        except KeyError:
             pass
         try:
             param = kwargs[k]
@@ -106,7 +108,7 @@ def gen_msg(msg_type, **kwargs):
             param = 0
         try:
             param = param.to_bytes(length=leng, byteorder="big")
-        except:
+        except ValueError:
             raise Exception("{} does not fit in {} bytes".format(k, leng))
         lengths[k] = len(param)
         data += param
