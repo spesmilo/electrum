@@ -223,6 +223,19 @@ def get_unused_public_keys():
         _, _, _, _, child_c, child_cK = bitcoin.deserialize_xpub(childxpub)
         yield child_cK
 
+def aiosafe(f):
+    async def f2(*args, **kwargs):
+        try:
+            return await f(*args, **kwargs)
+        except:
+            # if the loop isn't stopped
+            # run_forever in network.py would not return,
+            # the asyncioThread would not die,
+            # and we would block on shutdown
+            asyncio.get_event_loop().stop()
+            traceback.print_exc()
+    return f2
+
 class Peer(PrintError):
 
     def __init__(self, privkey, host, port, pubkey):
@@ -332,29 +345,22 @@ class Peer(PrintError):
     #def open_channel(self, funding_sat, push_msat):
     #    self.send_message(gen_msg('open_channel', funding_satoshis=funding_sat, push_msat=push_msat))
 
+    @aiosafe
     async def main_loop(self):
-        try:
-            self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
-            await self.handshake()
-            # send init
-            self.send_message(gen_msg("init", gflen=0, lflen=0))
-            # read init
+        self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
+        await self.handshake()
+        # send init
+        self.send_message(gen_msg("init", gflen=0, lflen=0))
+        # read init
+        msg = await self.read_message()
+        self.process_message(msg)
+        # initialized
+        self.init_message_received_future.set_result(msg)
+        # loop
+        while True:
+            self.ping_if_required()
             msg = await self.read_message()
             self.process_message(msg)
-            # initialized
-            self.init_message_received_future.set_result(msg)
-            # loop
-            while True:
-                self.ping_if_required()
-                msg = await self.read_message()
-                self.process_message(msg)
-        except:
-            # if the loop isn't stopped
-            # run_forever in network.py would not return,
-            # the asyncioThread would not die,
-            # and we would block on shutdown
-            asyncio.get_event_loop().stop()
-            traceback.print_exc()
         # close socket
         self.print_error('closing lnbase')
         self.writer.close()
@@ -370,7 +376,6 @@ class Peer(PrintError):
             accept_channel = await self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
         finally:
             del self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
-
         raise Exception("TODO: create funding transaction using wallet")
 
 
