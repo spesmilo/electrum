@@ -1313,6 +1313,9 @@ class Abstract_Wallet(PrintError):
                 network.lightningworker = LightningWorker(self, network, network.config)
                 network.lightningrpc = LightningRPC()
             network.lightninglock.release()
+            if network.config.get("lnbase", False):
+                from .lnbase import LNWorker
+                self.lnworker = LNWorker(self, network)
         else:
             self.verifier = None
             self.synchronizer = None
