@@ -202,30 +202,29 @@ class Abstract_Wallet(PrintError):
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
         self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
         self.fiat_value            = storage.get('fiat_value', {})
+        self.receive_requests      = storage.get('payment_requests', {})
 
-        self.load_keystore()
-        self.load_addresses()
-        self.load_transactions()
-        self.build_spent_outpoints()
-
-        self.test_addresses_sanity()
-
-        # load requests
-        self.receive_requests = self.storage.get('payment_requests', {})
+        # Verified transactions.  Each value is a (height, timestamp, block_pos) tuple.  Access with self.lock.
+        self.verified_tx = storage.get('verified_tx3', {})
 
         # Transactions pending verification.  A map from tx hash to transaction
         # height.  Access is not contended so no lock is needed.
         self.unverified_tx = defaultdict(int)
 
-        # Verified transactions.  Each value is a (height, timestamp, block_pos) tuple.  Access with self.lock.
-        self.verified_tx = storage.get('verified_tx3', {})
+        self.load_keystore()
+        self.load_addresses()
+        self.test_addresses_sanity()
+        self.load_transactions()
+        self.check_history()
+        self.load_unverified_transactions()
+        self.load_local_history()
+        self.build_spent_outpoints()
+        self.remove_local_transactions_we_dont_have()
 
         # there is a difference between wallet.up_to_date and interface.is_up_to_date()
         # interface.is_up_to_date() returns true when all requests have been answered and processed
         # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
         self.up_to_date = False
-
-        self.check_history()
 
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
@@ -255,7 +254,6 @@ class Abstract_Wallet(PrintError):
         self.pruned_txo = self.storage.get('pruned_txo', {})
         tx_list = self.storage.get('transactions', {})
         self.transactions = {}
-        self._history_local = {}  # address -> set(txid)
         for tx_hash, raw in tx_list.items():
             tx = Transaction(raw)
             self.transactions[tx_hash] = tx
@@ -263,8 +261,19 @@ class Abstract_Wallet(PrintError):
                     and (tx_hash not in self.pruned_txo.values()):
                 self.print_error("removing unreferenced tx", tx_hash)
                 self.transactions.pop(tx_hash)
-            else:
-                self._add_tx_to_local_history(tx_hash)
+
+    @profiler
+    def load_local_history(self):
+        self._history_local = {}  # address -> set(txid)
+        for txid in itertools.chain(self.txi, self.txo):
+            self._add_tx_to_local_history(txid)
+
+    def remove_local_transactions_we_dont_have(self):
+        txid_set = set(self.txi) | set(self.txo)
+        for txid in txid_set:
+            tx_height = self.get_tx_height(txid)[0]
+            if tx_height == TX_HEIGHT_LOCAL and txid not in self.transactions:
+                self.remove_transaction(txid)
 
     @profiler
     def save_transactions(self, write=False):
@@ -604,7 +613,7 @@ class Abstract_Wallet(PrintError):
                     status = _('Unconfirmed')
                     if fee is None:
                         fee = self.tx_fees.get(tx_hash)
-                    if fee and self.network.config.has_fee_mempool():
+                    if fee and self.network and self.network.config.has_fee_mempool():
                         size = tx.estimated_size()
                         fee_per_byte = fee / size
                         exp_n = self.network.config.fee_to_depth(fee_per_byte)
@@ -938,11 +947,9 @@ class Abstract_Wallet(PrintError):
                         dd.pop(addr)
                     else:
                         dd[addr] = l
-            try:
-                self.txi.pop(tx_hash)
-                self.txo.pop(tx_hash)
-            except KeyError:
-                self.print_error("tx was not in history", tx_hash)
+
+            self.txi.pop(tx_hash, None)
+            self.txo.pop(tx_hash, None)
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_unverified_tx(tx_hash, tx_height)
@@ -1285,7 +1292,7 @@ class Abstract_Wallet(PrintError):
             return True
         return False
 
-    def prepare_for_verifier(self):
+    def load_unverified_transactions(self):
         # review transactions that are in the history
         for addr, hist in self.history.items():
             for tx_hash, tx_height in hist:
@@ -1294,8 +1301,6 @@ class Abstract_Wallet(PrintError):
 
     def start_threads(self, network):
         self.network = network
-        # prepare self.unverified_tx regardless of network
-        self.prepare_for_verifier()
         if self.network is not None:
             self.verifier = SPV(self.network, self)
             self.synchronizer = Synchronizer(self, network)

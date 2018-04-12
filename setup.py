@@ -72,6 +72,7 @@ setup(
         'electrum_ltc': [
             'servers.json',
             'servers_testnet.json',
+            'servers_regtest.json',
             'currencies.json',
             'checkpoints.json',
             'checkpoints_testnet.json',

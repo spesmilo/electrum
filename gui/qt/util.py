@@ -679,7 +679,7 @@ class ColorScheme:
     dark_scheme = False
 
     GREEN = ColorSchemeItem("#117c11", "#8af296")
-    YELLOW = ColorSchemeItem("#ffff00", "#ffff00")
+    YELLOW = ColorSchemeItem("#897b2a", "#ffff00")
     RED = ColorSchemeItem("#7c1111", "#f18c8c")
     BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
     DEFAULT = ColorSchemeItem("black", "white")

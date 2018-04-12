@@ -657,7 +657,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def base_unit(self):
         assert self.decimal_point in [2, 5, 8]
         if self.decimal_point == 2:
-            return 'bits'
+            return 'uLTC'
         if self.decimal_point == 5:
             return 'mLTC'
         if self.decimal_point == 8:
@@ -2725,10 +2725,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         SSL_id_e.setReadOnly(True)
         id_widgets.append((SSL_id_label, SSL_id_e))
 
-        units = ['LTC', 'mLTC', 'bits']
-        msg = _('Base unit of your wallet.')\
-              + '\n1LTC=1000mLTC.\n' \
-              + _(' These settings affects the fields in the Send tab')+' '
+        units = ['LTC', 'mLTC', 'uLTC']
+        msg = (_('Base unit of your wallet.')
+               + '\n1 LTC = 1000 mLTC. 1 mLTC = 1000 uLTC.\n'
+               + _('This setting affects the Send tab, and all balance related fields.'))
         unit_label = HelpLabel(_('Base unit') + ':', msg)
         unit_combo = QComboBox()
         unit_combo.addItems(units)
@@ -2743,7 +2743,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.decimal_point = 8
             elif unit_result == 'mLTC':
                 self.decimal_point = 5
-            elif unit_result == 'bits':
+            elif unit_result == 'uLTC':
                 self.decimal_point = 2
             else:
                 raise Exception('Unknown base unit')
