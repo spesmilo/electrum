@@ -1,3 +1,13 @@
+# Release 3.1.3 - (unreleased)
+
+ * Qt GUI: seed word auto-complete during restore
+ * Android: fix some crashes
+ * performance improvements (wallet, and Qt GUI)
+ * hardware wallets: show debug message during device scan
+ * Digital Bitbox: enabled BIP84 (p2wpkh) wallet creation
+ * add regtest support (via --regtest flag)
+ * other minor bugfixes and usability improvements
+
 # Release 3.1.2 - (March 28, 2018)
 
  * Kivy/android: request PIN on startup
