@@ -4,6 +4,8 @@
   Derived from https://gist.github.com/AdamISZ/046d05c156aaeb56cc897f85eecb3eb8
 """
 
+from ecdsa.util import sigdecode_der, sigencode_string_canonize
+from ecdsa.curves import SECP256k1
 import subprocess
 import queue
 import traceback
@@ -23,6 +25,7 @@ from .bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, st
 from . import bitcoin
 from .constants import set_testnet, set_simnet
 from . import constants
+from . import transaction
 from .util import PrintError
 from .wallet import Wallet
 from .storage import WalletStorage
@@ -117,10 +120,14 @@ def gen_msg(msg_type, **kwargs):
         except KeyError:
             param = 0
         try:
-            if not isinstance(param, bytes): param = param.to_bytes(length=leng, byteorder="big")
+            if not isinstance(param, bytes):
+                assert isinstance(param, int), "field {} is neither bytes or int".format(k)
+                param = param.to_bytes(length=leng, byteorder="big")
         except ValueError:
             raise Exception("{} does not fit in {} bytes".format(k, leng))
         lengths[k] = len(param)
+        if lengths[k] != leng:
+            raise Exception("field {} is {} bytes long, should be {} bytes long".format(k, lengths[k], leng))
         data += param
     return data
 
@@ -218,12 +225,14 @@ def create_ephemeral_key(privkey):
     pub = privkey_to_pubkey(privkey)
     return (privkey[:32], pub)
 
-def get_unused_public_keys():
+def get_unused_keys():
     xprv, xpub = bitcoin.bip32_root(b"testseed", "p2wpkh")
     for i in itertools.count():
-        childxpub = bitcoin.bip32_public_derivation(xpub, "m/", "m/42/"+str(i))
+        childxprv, childxpub = bitcoin.bip32_private_derivation(xprv, "m/", "m/42/"+str(i))
         _, _, _, _, child_c, child_cK = bitcoin.deserialize_xpub(childxpub)
-        yield child_cK
+        _, _, _, _, _, k = bitcoin.deserialize_xprv(childxprv)
+        assert len(k) == 32
+        yield child_cK, k
 
 def aiosafe(f):
     async def f2(*args, **kwargs):
@@ -248,6 +257,7 @@ class Peer(PrintError):
         self.read_buffer = b''
         self.ping_time = 0
         self.temporary_channel_id_to_incoming_accept_channel = {}
+        self.temporary_channel_id_to_incoming_funding_signed = {}
         self.init_message_received_future = asyncio.Future()
 
     def diagnostic_name(self):
@@ -326,7 +336,10 @@ class Peer(PrintError):
         f(payload)
 
     def on_error(self, payload):
-        self.temporary_channel_id_to_incoming_accept_channel[payload["channel_id"]].set_exception(LightningError(payload["data"]))
+        if payload["channel_id"] in self.temporary_channel_id_to_incoming_accept_channel:
+            self.temporary_channel_id_to_incoming_accept_channel[payload["channel_id"]].set_exception(LightningError(payload["data"]))
+        if payload["channel_id"] in self.temporary_channel_id_to_incoming_funding_signed:
+            self.temporary_channel_id_to_incoming_funding_signed[payload["channel_id"]].set_exception(LightningError(payload["data"]))
 
     def on_ping(self, payload):
         l = int.from_bytes(payload['num_pong_bytes'], byteorder="big")
@@ -340,6 +353,9 @@ class Peer(PrintError):
         channel_id = payload['channel_id']
         tx = self.channels[channel_id]
         self.network.broadcast(tx)
+
+    def on_funding_signed(self, payload):
+        self.temporary_channel_id_to_incoming_funding_signed[payload["temporary_channel_id"]].set_result(payload)
 
     def on_funding_locked(self, payload):
         pass
@@ -367,19 +383,39 @@ class Peer(PrintError):
         self.print_error('closing lnbase')
         self.writer.close()
 
-    async def channel_establishment_flow(self, wallet):
+    async def channel_establishment_flow(self, wallet, config):
         await self.init_message_received_future
-        pubkeys = get_unused_public_keys()
+        keys = get_unused_keys()
         temp_channel_id = os.urandom(32)
-        msg = gen_msg("open_channel", temporary_channel_id=temp_channel_id, chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)), funding_satoshis=20000, max_accepted_htlcs=5, funding_pubkey=next(pubkeys), revocation_basepoint=next(pubkeys), htlc_basepoint=next(pubkeys), payment_basepoint=next(pubkeys), delayed_payment_basepoint=next(pubkeys), first_per_commitment_point=next(pubkeys))
+        funding_pubkey, funding_privkey = next(keys)
+        msg = gen_msg("open_channel", temporary_channel_id=temp_channel_id, chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)), funding_satoshis=20000, max_accepted_htlcs=5, funding_pubkey=funding_pubkey, revocation_basepoint=next(keys)[0], htlc_basepoint=next(keys)[0], payment_basepoint=next(keys)[0], delayed_payment_basepoint=next(keys)[0], first_per_commitment_point=next(keys)[0])
         self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id] = asyncio.Future()
         self.send_message(msg)
         try:
             accept_channel = await self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
         finally:
             del self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
-        raise Exception("TODO: create funding transaction using wallet")
+        remote_pubkey = accept_channel["funding_pubkey"]
+        if int.from_bytes(remote_pubkey, byteorder="big") < int.from_bytes(funding_pubkey, byteorder="big"):
+            pubkeys = [remote_pubkey, funding_pubkey]
+        else:
+            pubkeys = [funding_pubkey, remote_pubkey]
+        scr = transaction.multisig_script([binascii.hexlify(x).decode("ascii") for x in pubkeys], 2)
+        #TODO support passwd, fix fee
+        tx = wallet.mktx([(bitcoin.TYPE_SCRIPT, scr, 20000)], None, config, 1000)
+        tx.sign({funding_pubkey: (funding_privkey, True)})
+        sig = bytes.fromhex(tx.inputs()[0]["signatures"][0])
+        sig = bytes(sig[:len(sig)-1])
+        r, s = sigdecode_der(sig, SECP256k1.generator.order())
+        sig = sigencode_string_canonize(r, s, SECP256k1.generator.order())
+        print(sig)
 
+        self.temporary_channel_id_to_incoming_funding_signed[temp_channel_id] = asyncio.Future()
+        self.send_message(gen_msg("funding_created", temporary_channel_id=temp_channel_id, funding_txid=bytes.fromhex(tx.txid()), funding_output_index=0, signature=sig))
+        try:
+            funding_signed = await self.temporary_channel_id_to_incoming_funding_signed[temp_channel_id]
+        finally:
+            del self.temporary_channel_id_to_incoming_funding_signed[temp_channel_id]
 
 # replacement for lightningCall
 class LNWorker:
@@ -406,14 +442,14 @@ class LNWorker:
         fut = asyncio.run_coroutine_threadsafe(self._test(q), asyncio.get_event_loop())
         exp = q.get(timeout=5)
         if exp is not None:
-            raise exp
+            return exp
         return "blocking test run took: " + str(time.time() - start)
 
     async def _test(self, q):
         try:
-            await self.peer.channel_establishment_flow(self.wallet)
-        except Exception as e:
-            q.put(e)
+            await self.peer.channel_establishment_flow(self.wallet, self.network.config)
+        except Exception:
+            q.put(traceback.format_exc())
         else:
             q.put(None)
 
