@@ -1015,9 +1015,9 @@ class Network(util.DaemonThread):
         self.init_headers_file()
         self.futures = []
         networkAndWalletLock = QLock()
-        self.lightninglock.acquire()
         def asyncioThread():
             if self.config.get("lightning", False):
+                self.lightninglock.acquire()
                 if self.lightningrpc is not None and self.lightningworker is not None:
                     task = asyncio.ensure_future(asyncio.gather(self.lightningrpc.run(networkAndWalletLock), self.lightningworker.run(networkAndWalletLock)))
             self.asyncio_loop.run_forever()
