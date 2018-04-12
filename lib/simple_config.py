@@ -407,7 +407,7 @@ class SimpleConfig(PrintError):
                 maxp = len(FEE_ETA_TARGETS)  # not (-1) to have "next block"
                 fee_rate = self.eta_to_fee(pos)
         else:
-            fee_rate = self.fee_per_kb()
+            fee_rate = self.fee_per_kb(dyn=False)
             pos = self.static_fee_index(fee_rate)
             maxp = 9
         return maxp, pos, fee_rate
@@ -416,6 +416,8 @@ class SimpleConfig(PrintError):
         return FEERATE_STATIC_VALUES[i]
 
     def static_fee_index(self, value):
+        if value is None:
+            raise TypeError('static fee cannot be None')
         dist = list(map(lambda x: abs(x - value), FEERATE_STATIC_VALUES))
         return min(range(len(dist)), key=dist.__getitem__)
 
@@ -437,12 +439,16 @@ class SimpleConfig(PrintError):
     def use_mempool_fees(self):
         return bool(self.get('mempool_fees', False))
 
-    def fee_per_kb(self):
+    def fee_per_kb(self, dyn=None, mempool=None):
         """Returns sat/kvB fee to pay for a txn.
         Note: might return None.
         """
-        if self.is_dynfee():
-            if self.use_mempool_fees():
+        if dyn is None:
+            dyn = self.is_dynfee()
+        if mempool is None:
+            mempool = self.use_mempool_fees()
+        if dyn:
+            if mempool:
                 fee_rate = self.depth_to_fee(self.get_depth_level())
             else:
                 fee_rate = self.eta_to_fee(self.get_fee_level())
