@@ -31,8 +31,9 @@ from PyQt5.QtWidgets import *
 import PyQt5.QtCore as QtCore
 
 from electrum_grs.i18n import _
-from electrum_grs.bitcoin import NetworkConstants
+from electrum_grs import constants
 from electrum_grs.util import print_error
+from electrum_grs.network import serialize_server, deserialize_server
 
 from .util import *
 
@@ -145,7 +146,7 @@ class ServerListWidget(QTreeWidget):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def set_server(self, s):
-        host, port, protocol = s.split(':')
+        host, port, protocol = deserialize_server(s)
         self.parent.server_host.setText(host)
         self.parent.server_port.setText(port)
         self.parent.set_server()
@@ -170,7 +171,7 @@ class ServerListWidget(QTreeWidget):
             port = d.get(protocol)
             if port:
                 x = QTreeWidgetItem([_host, port])
-                server = _host+':'+port+':'+protocol
+                server = serialize_server(_host, port, protocol)
                 x.setData(1, Qt.UserRole, server)
                 self.addTopLevelItem(x)
 
@@ -193,8 +194,8 @@ class NetworkChoiceLayout(object):
         proxy_tab = QWidget()
         blockchain_tab = QWidget()
         tabs.addTab(blockchain_tab, _('Overview'))
-        tabs.addTab(proxy_tab, _('Connection'))
         tabs.addTab(server_tab, _('Server'))
+        tabs.addTab(proxy_tab, _('Proxy'))
 
         # server tab
         grid = QGridLayout(server_tab)
@@ -204,13 +205,11 @@ class NetworkChoiceLayout(object):
         self.server_host.setFixedWidth(200)
         self.server_port = QLineEdit()
         self.server_port.setFixedWidth(60)
-        self.ssl_cb = QCheckBox(_('Use SSL'))
         self.autoconnect_cb = QCheckBox(_('Select server automatically'))
         self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
 
         self.server_host.editingFinished.connect(self.set_server)
         self.server_port.editingFinished.connect(self.set_server)
-        self.ssl_cb.clicked.connect(self.change_protocol)
         self.autoconnect_cb.clicked.connect(self.set_server)
         self.autoconnect_cb.clicked.connect(self.update)
 
@@ -269,8 +268,6 @@ class NetworkChoiceLayout(object):
         self.tor_cb.hide()
         self.tor_cb.clicked.connect(self.use_tor_proxy)
 
-        grid.addWidget(self.ssl_cb, 0, 0, 1, 3)
-        grid.addWidget(HelpButton(_('SSL is used to authenticate and encrypt your connections with Electrum-GRS servers.')), 0, 4)
         grid.addWidget(self.tor_cb, 1, 0, 1, 3)
         grid.addWidget(self.proxy_cb, 2, 0, 1, 3)
         grid.addWidget(HelpButton(_('Proxy settings apply to all connections: with Electrum-GRS servers, but also with third-party services.')), 2, 4)
@@ -334,14 +331,13 @@ class NetworkChoiceLayout(object):
             self.server_port.setEnabled(enabled)
             self.servers_list.setEnabled(enabled)
         else:
-            for w in [self.autoconnect_cb, self.server_host, self.server_port, self.ssl_cb, self.servers_list]:
+            for w in [self.autoconnect_cb, self.server_host, self.server_port, self.servers_list]:
                 w.setEnabled(False)
 
     def update(self):
         host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
         self.server_host.setText(host)
         self.server_port.setText(port)
-        self.ssl_cb.setChecked(protocol=='s')
         self.autoconnect_cb.setChecked(auto_connect)
 
         host = self.network.interface.host if self.network.interface else _('None')
@@ -397,7 +393,7 @@ class NetworkChoiceLayout(object):
     def change_protocol(self, use_ssl):
         p = 's' if use_ssl else 't'
         host = self.server_host.text()
-        pp = self.servers.get(host, NetworkConstants.DEFAULT_PORTS)
+        pp = self.servers.get(host, constants.net.DEFAULT_PORTS)
         if p not in pp.keys():
             p = list(pp.keys())[0]
         port = pp[p]
@@ -413,7 +409,7 @@ class NetworkChoiceLayout(object):
     def follow_server(self, server):
         self.network.switch_to_interface(server)
         host, port, protocol, proxy, auto_connect = self.network.get_parameters()
-        host, port, protocol = server.split(':')
+        host, port, protocol = deserialize_server(server)
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
         self.update()
 
@@ -422,7 +418,7 @@ class NetworkChoiceLayout(object):
             self.change_server(str(x.text(0)), self.protocol)
 
     def change_server(self, host, protocol):
-        pp = self.servers.get(host, NetworkConstants.DEFAULT_PORTS)
+        pp = self.servers.get(host, constants.net.DEFAULT_PORTS)
         if protocol and protocol not in protocol_letters:
             protocol = None
         if protocol:
@@ -438,7 +434,6 @@ class NetworkChoiceLayout(object):
                 port = pp.get(protocol)
         self.server_host.setText(host)
         self.server_port.setText(port)
-        self.ssl_cb.setChecked(protocol=='s')
 
     def accept(self):
         pass
@@ -447,7 +442,6 @@ class NetworkChoiceLayout(object):
         host, port, protocol, proxy, auto_connect = self.network.get_parameters()
         host = str(self.server_host.text())
         port = str(self.server_port.text())
-        protocol = 's' if self.ssl_cb.isChecked() else 't'
         auto_connect = self.autoconnect_cb.isChecked()
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
 

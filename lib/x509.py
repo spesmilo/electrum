@@ -284,7 +284,7 @@ class X509(object):
         return self.AKI if self.AKI else repr(self.issuer)
 
     def get_common_name(self):
-        return self.subject.get('2.5.4.3', 'unknown').decode()
+        return self.subject.get('2.5.4.3', b'unknown').decode()
 
     def get_signature(self):
         return self.cert_sig_algo, self.signature, self.data
@@ -313,7 +313,7 @@ def load_certificates(ca_path):
     ca_list = {}
     ca_keyID = {}
     # ca_path = '/tmp/tmp.txt'
-    with open(ca_path, 'r') as f:
+    with open(ca_path, 'r', encoding='utf-8') as f:
         s = f.read()
     bList = pem.dePemList(s, "CERTIFICATE")
     for b in bList:

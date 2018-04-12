@@ -135,7 +135,7 @@ Builder.load_string('''
         height: self.minimum_height
         Label:
             color: root.text_color
-            text: _('From %d cosigners')%n.value
+            text: _('From {} cosigners').format(n.value)
         Slider:
             id: n
             range: 2, 5
@@ -143,7 +143,7 @@ Builder.load_string('''
             value: 2
         Label:
             color: root.text_color
-            text: _('Require %d signatures')%m.value
+            text: _('Require {} signatures').format(m.value)
         Slider:
             id: m
             range: 1, n.value
@@ -702,6 +702,7 @@ class AddXpubDialog(WizardDialog):
         self.is_valid = kwargs['is_valid']
         self.title = kwargs['title']
         self.message = kwargs['message']
+        self.allow_multi = kwargs.get('allow_multi', False)
 
     def check_text(self, dt):
         self.ids.next.disabled = not bool(self.is_valid(self.get_text()))
@@ -715,7 +716,10 @@ class AddXpubDialog(WizardDialog):
 
     def scan_xpub(self):
         def on_complete(text):
-            self.ids.text_input.text = text
+            if self.allow_multi:
+                self.ids.text_input.text += text + '\n'
+            else:
+                self.ids.text_input.text = text
         self.app.scan_qr(on_complete)
 
     def do_paste(self):
@@ -798,27 +802,17 @@ class InstallWizard(BaseWizard, Widget):
         app = App.get_running_app()
         Clock.schedule_once(lambda dt: app.show_error(msg))
 
-    def password_dialog(self, message, callback):
+    def request_password(self, run_next, force_disable_encrypt_cb=False):
+        def on_success(old_pin, pin):
+            assert old_pin is None
+            run_next(pin, False)
+        def on_failure():
+            self.show_error(_('PIN mismatch'))
+            self.run('request_password', run_next)
         popup = PasswordDialog()
-        popup.init(message, callback)
+        app = App.get_running_app()
+        popup.init(app, None, _('Choose PIN code'), on_success, on_failure, is_change=2)
         popup.open()
-
-    def request_password(self, run_next):
-        def callback(pin):
-            if pin:
-                self.run('confirm_password', pin, run_next)
-            else:
-                run_next(None, None)
-        self.password_dialog('Choose a PIN code', callback)
-
-    def confirm_password(self, pin, run_next):
-        def callback(conf):
-            if conf == pin:
-                run_next(pin, False)
-            else:
-                self.show_error(_('PIN mismatch'))
-                self.run('request_password', run_next)
-        self.password_dialog('Confirm your PIN code', callback)
 
     def action_dialog(self, action, run_next):
         f = getattr(self, action)

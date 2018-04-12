@@ -203,7 +203,8 @@ class Console(QtWidgets.QPlainTextEdit):
                     self.skip = not self.skip
 
             if type(self.namespace.get(command)) == type(lambda:None):
-                self.appendPlainText("'%s' is a function. Type '%s()' to use it in the Python console."%(command, command))
+                self.appendPlainText("'{}' is a function. Type '{}()' to use it in the Python console."
+                                     .format(command, command))
                 self.newPrompt()
                 return
 
@@ -222,7 +223,7 @@ class Console(QtWidgets.QPlainTextEdit):
                     exec(command, self.namespace, self.namespace)
             except SystemExit:
                 self.close()
-            except Exception:
+            except BaseException:
                 traceback_lines = traceback.format_exc().split('\n')
                 # Remove traceback mentioning this file, and a linebreak
                 for i in (3,2,1,-1):

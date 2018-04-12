@@ -43,9 +43,7 @@ import sys
 import traceback
 
 
-PORT = 12344
-HOST = 'cosigner.electrum.org'
-server = ServerProxy('http://%s:%d'%(HOST,PORT), allow_none=True)
+server = ServerProxy('https://cosigner.electrum.org/', allow_none=True)
 
 
 class Listener(util.DaemonThread):
@@ -175,7 +173,8 @@ class Plugin(BasePlugin):
         for window, xpub, K, _hash in self.cosigner_list:
             if not self.cosigner_can_sign(tx, xpub):
                 continue
-            message = bitcoin.encrypt_message(bfh(tx.raw), bh2u(K)).decode('ascii')
+            raw_tx_bytes = bfh(str(tx))
+            message = bitcoin.encrypt_message(raw_tx_bytes, bh2u(K)).decode('ascii')
             try:
                 server.put(_hash, message)
             except Exception as e:
@@ -194,7 +193,7 @@ class Plugin(BasePlugin):
             return
 
         wallet = window.wallet
-        if wallet.has_password():
+        if wallet.has_keystore_encryption():
             password = window.password_dialog('An encrypted transaction was retrieved from cosigning pool.\nPlease enter your password to decrypt it.')
             if not password:
                 return

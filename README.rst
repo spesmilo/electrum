@@ -15,7 +15,9 @@ Electrum-GRS - Lightweight Groestlcoin client
 .. image:: https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master
     :target: https://coveralls.io/github/spesmilo/electrum?branch=master
     :alt: Test coverage statistics
-
+.. image:: https://img.shields.io/badge/help-translating-blue.svg
+    :target: https://crowdin.com/project/electrum
+    :alt: Help translating Electrum online
 
 
 
@@ -73,7 +75,7 @@ Compile the protobuf description file::
 
 Create translations (optional)::
 
-    sudo apt-get install python-pycurl gettext
+    sudo apt-get install python-requests gettext
     ./contrib/make_locale
 
 
@@ -92,20 +94,12 @@ This directory contains the python dependencies used by Electrum-GRS.
 Mac OS X / macOS
 --------
 
-::
-
-    # On MacPorts installs: 
-    sudo python3 setup-release.py py2app
-    
-    # On Homebrew installs: 
-    ARCHFLAGS="-arch i386 -arch x86_64" sudo python3 setup-release.py py2app --includes sip
-    
-    sudo hdiutil create -fs HFS+ -volname "Electrum-GRS" -srcfolder dist/Electrum-grs.app dist/electrum-VERSION-macosx.dmg
+See `contrib/build-osx/`.
 
 Windows
 -------
 
-See `contrib/build-wine/README` file.
+See `contrib/build-wine/`.
 
 
 Android

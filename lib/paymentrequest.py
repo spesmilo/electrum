@@ -40,6 +40,7 @@ except ImportError:
 from . import bitcoin
 from . import util
 from .util import print_error, bh2u, bfh
+from .util import export_meta, import_meta
 from . import transaction
 from . import x509
 from . import rsakey
@@ -88,7 +89,7 @@ def get_payment_request(url):
             error = "payment URL not pointing to a valid server"
     elif u.scheme == 'file':
         try:
-            with open(u.path, 'r') as f:
+            with open(u.path, 'r', encoding='utf-8') as f:
                 data = f.read()
         except IOError:
             data = None
@@ -384,9 +385,9 @@ def check_ssl_config(config):
     from . import pem
     key_path = config.get('ssl_privkey')
     cert_path = config.get('ssl_chain')
-    with open(key_path, 'r') as f:
+    with open(key_path, 'r', encoding='utf-8') as f:
         params = pem.parse_private_key(f.read())
-    with open(cert_path, 'r') as f:
+    with open(cert_path, 'r', encoding='utf-8') as f:
         s = f.read()
     bList = pem.dePemList(s, "CERTIFICATE")
     # verify chain
@@ -404,10 +405,10 @@ def check_ssl_config(config):
 
 def sign_request_with_x509(pr, key_path, cert_path):
     from . import pem
-    with open(key_path, 'r') as f:
+    with open(key_path, 'r', encoding='utf-8') as f:
         params = pem.parse_private_key(f.read())
         privkey = rsakey.RSAKey(*params)
-    with open(cert_path, 'r') as f:
+    with open(cert_path, 'r', encoding='utf-8') as f:
         s = f.read()
         bList = pem.dePemList(s, "CERTIFICATE")
     certificates = pb2.X509Certificates()
@@ -467,24 +468,29 @@ class InvoiceStore(object):
                 continue
 
     def import_file(self, path):
-        try:
-            with open(path, 'r') as f:
-                d = json.loads(f.read())
-                self.load(d)
-        except:
-            traceback.print_exc(file=sys.stderr)
-            return
+        def validate(data):
+            return data  # TODO
+        import_meta(path, validate, self.on_import)
+
+    def on_import(self, data):
+        self.load(data)
         self.save()
 
-    def save(self):
-        l = {}
+    def export_file(self, filename):
+        export_meta(self.dump(), filename)
+
+    def dump(self):
+        d = {}
         for k, pr in self.invoices.items():
-            l[k] = {
+            d[k] = {
                 'hex': bh2u(pr.raw),
                 'requestor': pr.requestor,
                 'txid': pr.tx
             }
-        self.storage.put('invoices', l)
+        return d
+
+    def save(self):
+        self.storage.put('invoices', self.dump())
 
     def get_status(self, key):
         pr = self.get(key)

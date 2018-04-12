@@ -3,15 +3,19 @@
 
 [Desktop Entry]
 Comment=Lightweight Groestlcoin Client
-Exec=electrum-grs %u
+Exec=sh -c 'PATH="$HOME/.local/bin:$PATH" electrum-grs %u'
 GenericName[en_US]=Electrum-GRS
 GenericName=Electrum-GRS
 Icon=/usr/share/app-install/icons/electrum-grs.png
 Name[en_US]=Electrum Groestlcoin Wallet
 Name=Electrum Groestlcoin Wallet
-Categories=Network;
+Categories=Finance;Network;
 StartupNotify=false
 Terminal=false
 Type=Application
 MimeType=x-scheme-handler/groestlcoin;
+Actions=Testnet;
 
+[Desktop Action Testnet]
+Exec=sh -c 'PATH="$HOME/.local/bin:$PATH" electrum-grs --testnet %u'
+Name=Testnet mode

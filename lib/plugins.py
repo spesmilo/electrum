@@ -312,6 +312,8 @@ class DeviceMgr(ThreadJob, PrintError):
         # What we recognise.  Each entry is a (vendor_id, product_id)
         # pair.
         self.recognised_hardware = set()
+        # Custom enumerate functions for devices we don't know about.
+        self.enumerate_func = set()
         # For synchronization
         self.lock = threading.RLock()
         self.hid_lock = threading.RLock()
@@ -333,6 +335,9 @@ class DeviceMgr(ThreadJob, PrintError):
     def register_devices(self, device_pairs):
         for pair in device_pairs:
             self.recognised_hardware.add(pair)
+
+    def register_enumerate_func(self, func):
+        self.enumerate_func.add(func)
 
     def create_client(self, device, handler, plugin):
         # Get from cache first
@@ -362,15 +367,20 @@ class DeviceMgr(ThreadJob, PrintError):
             if not xpub in self.xpub_ids:
                 return
             _id = self.xpub_ids.pop(xpub)
-        client = self.client_lookup(_id)
-        self.clients.pop(client, None)
-        if client:
-            client.close()
+            self._close_client(_id)
 
     def unpair_id(self, id_):
         xpub = self.xpub_by_id(id_)
         if xpub:
             self.unpair_xpub(xpub)
+        else:
+            self._close_client(id_)
+
+    def _close_client(self, id_):
+        client = self.client_lookup(id_)
+        self.clients.pop(client, None)
+        if client:
+            client.close()
 
     def pair_xpub(self, xpub, id_):
         with self.lock:
@@ -442,11 +452,11 @@ class DeviceMgr(ThreadJob, PrintError):
         # The user input has wrong PIN or passphrase, or cancelled input,
         # or it is not pairable
         raise DeviceUnpairableError(
-            _('Electrum-GRS cannot pair with your %s.\n\n'
+            _('Electrum-GRS cannot pair with your {}.\n\n'
               'Before you request groestlcoins to be sent to addresses in this '
               'wallet, ensure you can pair with your device, or that you have '
               'its seed (and passphrase, if any).  Otherwise all groestlcoins you '
-              'receive will be unspendable.') % plugin.device)
+              'receive will be unspendable.').format(plugin.device))
 
     def unpaired_device_infos(self, handler, plugin, devices=None):
         '''Returns a list of DeviceInfo objects: one for each connected,
@@ -456,7 +466,7 @@ class DeviceMgr(ThreadJob, PrintError):
         devices = [dev for dev in devices if not self.xpub_by_id(dev.id_)]
         infos = []
         for device in devices:
-            if not device.product_key in plugin.DEVICE_IDS:
+            if device.product_key not in plugin.DEVICE_IDS:
                 continue
             client = self.create_client(device, handler, plugin)
             if not client:
@@ -472,9 +482,14 @@ class DeviceMgr(ThreadJob, PrintError):
             infos = self.unpaired_device_infos(handler, plugin, devices)
             if infos:
                 break
-            msg = _('Please insert your %s.  Verify the cable is '
-                    'connected and that no other application is using it.\n\n'
-                    'Try to connect again?') % plugin.device
+            msg = _('Please insert your {}').format(plugin.device)
+            if keystore.label:
+                msg += ' ({})'.format(keystore.label)
+            msg += '. {}\n\n{}'.format(
+                _('Verify the cable is connected and that '
+                  'no other application is using it.'),
+                _('Try to connect again?')
+            )
             if not handler.yes_no_question(msg):
                 raise UserCancelled()
             devices = None
@@ -484,27 +499,27 @@ class DeviceMgr(ThreadJob, PrintError):
         for info in infos:
             if info.label == keystore.label:
                 return info
-        msg = _("Please select which %s device to use:") % plugin.device
-        descriptions = [info.label + ' (%s)'%(_("initialized") if info.initialized else _("wiped")) for info in infos]
+        msg = _("Please select which {} device to use:").format(plugin.device)
+        descriptions = [str(info.label) + ' (%s)'%(_("initialized") if info.initialized else _("wiped")) for info in infos]
         c = handler.query_choice(msg, descriptions)
         if c is None:
             raise UserCancelled()
         info = infos[c]
         # save new label
         keystore.set_label(info.label)
-        handler.win.wallet.save_keystore()
+        if handler.win.wallet is not None:
+            handler.win.wallet.save_keystore()
         return info
 
-    def scan_devices(self):
-        # All currently supported hardware libraries use hid, so we
-        # assume it here.  This can be easily abstracted if necessary.
-        # Note this import must be local so those without hardware
-        # wallet libraries are not affected.
-        import hid
-        self.print_error("scanning devices...")
+    def _scan_devices_with_hid(self):
+        try:
+            import hid
+        except ImportError:
+            return []
+
         with self.hid_lock:
             hid_list = hid.enumerate(0, 0)
-        # First see what's connected that we know about
+
         devices = []
         for d in hid_list:
             product_key = (d['vendor_id'], d['product_id'])
@@ -518,14 +533,31 @@ class DeviceMgr(ThreadJob, PrintError):
                 id_ += str(interface_number) + str(usage_page)
                 devices.append(Device(d['path'], interface_number,
                                       id_, product_key, usage_page))
+        return devices
 
-        # Now find out what was disconnected
+    def scan_devices(self):
+        self.print_error("scanning devices...")
+
+        # First see what's connected that we know about
+        devices = self._scan_devices_with_hid()
+
+        # Let plugin handlers enumerate devices we don't know about
+        for f in self.enumerate_func:
+            try:
+                new_devices = f()
+            except BaseException as e:
+                self.print_error('custom device enum failed. func {}, error {}'
+                                 .format(str(f), str(e)))
+            else:
+                devices.extend(new_devices)
+
+        # find out what was disconnected
         pairs = [(dev.path, dev.id_) for dev in devices]
         disconnected_ids = []
         with self.lock:
             connected = {}
             for client, pair in self.clients.items():
-                if pair in pairs:
+                if pair in pairs and client.has_usable_connection_with_device():
                     connected[client] = pair
                 else:
                     disconnected_ids.append(pair[1])

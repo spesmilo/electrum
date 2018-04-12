@@ -33,7 +33,7 @@ import pbkdf2, hmac, hashlib
 import base64
 import zlib
 
-from .util import PrintError, profiler
+from .util import PrintError, profiler, InvalidPassword, WalletFileException
 from .plugins import run_hook, plugin_loaders
 from .keystore import bip44_derivation
 from . import bitcoin
@@ -51,11 +51,20 @@ FINAL_SEED_VERSION = 16     # electrum >= 2.7 will set this to prevent
 def multisig_type(wallet_type):
     '''If wallet_type is mofn multi-sig, return [m, n],
     otherwise return None.'''
+    if not wallet_type:
+        return None
     match = re.match('(\d+)of(\d+)', wallet_type)
     if match:
         match = [int(x) for x in match.group(1, 2)]
     return match
 
+def get_derivation_used_for_hw_device_encryption():
+    return ("m"
+            "/4541509'"      # ascii 'ELE'  as decimal ("BIP43 purpose")
+            "/1112098098'")  # ascii 'BIE2' as decimal
+
+# storage encryption version
+STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW = range(0, 3)
 
 class WalletStorage(PrintError):
 
@@ -68,11 +77,13 @@ class WalletStorage(PrintError):
         self.modified = False
         self.pubkey = None
         if self.file_exists():
-            with open(self.path, "r") as f:
+            with open(self.path, "r", encoding='utf-8') as f:
                 self.raw = f.read()
+            self._encryption_version = self._init_encryption_version()
             if not self.is_encrypted():
                 self.load_data(self.raw)
         else:
+            self._encryption_version = STO_EV_PLAINTEXT
             # avoid new wallets getting 'upgraded'
             self.put('seed_version', FINAL_SEED_VERSION)
 
@@ -102,15 +113,51 @@ class WalletStorage(PrintError):
 
         if not self.manual_upgrades:
             if self.requires_split():
-                raise BaseException("This wallet has multiple accounts and must be split")
+                raise WalletFileException("This wallet has multiple accounts and must be split")
             if self.requires_upgrade():
                 self.upgrade()
 
+    def is_past_initial_decryption(self):
+        """Return if storage is in a usable state for normal operations.
+
+        The value is True exactly
+            if encryption is disabled completely (self.is_encrypted() == False),
+            or if encryption is enabled but the contents have already been decrypted.
+        """
+        return bool(self.data)
+
     def is_encrypted(self):
+        """Return if storage encryption is currently enabled."""
+        return self.get_encryption_version() != STO_EV_PLAINTEXT
+
+    def is_encrypted_with_user_pw(self):
+        return self.get_encryption_version() == STO_EV_USER_PW
+
+    def is_encrypted_with_hw_device(self):
+        return self.get_encryption_version() == STO_EV_XPUB_PW
+
+    def get_encryption_version(self):
+        """Return the version of encryption used for this storage.
+
+        0: plaintext / no encryption
+
+        ECIES, private key derived from a password,
+        1: password is provided by user
+        2: password is derived from an xpub; used with hw wallets
+        """
+        return self._encryption_version
+
+    def _init_encryption_version(self):
         try:
-            return base64.b64decode(self.raw)[0:4] == b'BIE1'
+            magic = base64.b64decode(self.raw)[0:4]
+            if magic == b'BIE1':
+                return STO_EV_USER_PW
+            elif magic == b'BIE2':
+                return STO_EV_XPUB_PW
+            else:
+                return STO_EV_PLAINTEXT
         except:
-            return False
+            return STO_EV_PLAINTEXT
 
     def file_exists(self):
         return self.path and os.path.exists(self.path)
@@ -120,20 +167,50 @@ class WalletStorage(PrintError):
         ec_key = bitcoin.EC_KEY(secret)
         return ec_key
 
+    def _get_encryption_magic(self):
+        v = self._encryption_version
+        if v == STO_EV_USER_PW:
+            return b'BIE1'
+        elif v == STO_EV_XPUB_PW:
+            return b'BIE2'
+        else:
+            raise WalletFileException('no encryption magic for version: %s' % v)
+
     def decrypt(self, password):
         ec_key = self.get_key(password)
-        s = zlib.decompress(ec_key.decrypt_message(self.raw)) if self.raw else None
+        if self.raw:
+            enc_magic = self._get_encryption_magic()
+            s = zlib.decompress(ec_key.decrypt_message(self.raw, enc_magic))
+        else:
+            s = None
         self.pubkey = ec_key.get_public_key()
         s = s.decode('utf8')
         self.load_data(s)
 
-    def set_password(self, password, encrypt):
-        self.put('use_encryption', bool(password))
-        if encrypt and password:
+    def check_password(self, password):
+        """Raises an InvalidPassword exception on invalid password"""
+        if not self.is_encrypted():
+            return
+        if self.pubkey and self.pubkey != self.get_key(password).get_public_key():
+            raise InvalidPassword()
+
+    def set_keystore_encryption(self, enable):
+        self.put('use_encryption', enable)
+
+    def set_password(self, password, enc_version=None):
+        """Set a password to be used for encrypting this storage."""
+        if enc_version is None:
+            enc_version = self._encryption_version
+        if password and enc_version != STO_EV_PLAINTEXT:
             ec_key = self.get_key(password)
             self.pubkey = ec_key.get_public_key()
+            self._encryption_version = enc_version
         else:
             self.pubkey = None
+            self._encryption_version = STO_EV_PLAINTEXT
+        # make sure next storage.write() saves changes
+        with self.lock:
+            self.modified = True
 
     def get(self, key, default=None):
         with self.lock:
@@ -175,11 +252,12 @@ class WalletStorage(PrintError):
         if self.pubkey:
             s = bytes(s, 'utf8')
             c = zlib.compress(s)
-            s = bitcoin.encrypt_message(c, self.pubkey)
+            enc_magic = self._get_encryption_magic()
+            s = bitcoin.encrypt_message(c, self.pubkey, enc_magic)
             s = s.decode('utf8')
 
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
-        with open(temp_path, "w") as f:
+        with open(temp_path, "w", encoding='utf-8') as f:
             f.write(s)
             f.flush()
             os.fsync(f.fileno())
@@ -242,7 +320,7 @@ class WalletStorage(PrintError):
                 storage2.write()
                 result.append(new_path)
         else:
-            raise BaseException("This wallet has multiple accounts and must be split")
+            raise WalletFileException("This wallet has multiple accounts and must be split")
         return result
 
     def requires_upgrade(self):
@@ -263,6 +341,9 @@ class WalletStorage(PrintError):
         self.write()
 
     def convert_wallet_type(self):
+        if not self._is_upgrade_method_needed(0, 13):
+            return
+
         wallet_type = self.get('wallet_type')
         if wallet_type == 'btchip': wallet_type = 'ledger'
         if self.get('keystore') or self.get('x1/') or wallet_type=='imported':
@@ -338,7 +419,7 @@ class WalletStorage(PrintError):
                     d['seed'] = seed
                 self.put(key, d)
         else:
-            raise
+            raise WalletFileException('Unable to tell wallet type. Is this even a wallet file?')
         # remove junk
         self.put('master_public_key', None)
         self.put('master_public_keys', None)
@@ -446,6 +527,9 @@ class WalletStorage(PrintError):
         self.put('seed_version', 16)
 
     def convert_imported(self):
+        if not self._is_upgrade_method_needed(0, 13):
+            return
+
         # '/x' is the internal ID for imported accounts
         d = self.get('accounts', {}).get('/x', {}).get('imported',{})
         if not d:
@@ -459,7 +543,7 @@ class WalletStorage(PrintError):
             else:
                 addresses.append(addr)
         if addresses and keypairs:
-            raise BaseException('mixed addresses and privkeys')
+            raise WalletFileException('mixed addresses and privkeys')
         elif addresses:
             self.put('addresses', addresses)
             self.put('accounts', None)
@@ -469,9 +553,12 @@ class WalletStorage(PrintError):
             self.put('keypairs', keypairs)
             self.put('accounts', None)
         else:
-            raise BaseException('no addresses or privkeys')
+            raise WalletFileException('no addresses or privkeys')
 
     def convert_account(self):
+        if not self._is_upgrade_method_needed(0, 13):
+            return
+
         self.put('accounts', None)
 
     def _is_upgrade_method_needed(self, min_version, max_version):
@@ -479,9 +566,9 @@ class WalletStorage(PrintError):
         if cur_version > max_version:
             return False
         elif cur_version < min_version:
-            raise BaseException(
-                ('storage upgrade: unexpected version %d (should be %d-%d)'
-                 % (cur_version, min_version, max_version)))
+            raise WalletFileException(
+                'storage upgrade: unexpected version {} (should be {}-{})'
+                .format(cur_version, min_version, max_version))
         else:
             return True
 
@@ -497,7 +584,9 @@ class WalletStorage(PrintError):
         if not seed_version:
             seed_version = OLD_SEED_VERSION if len(self.get('master_public_key','')) == 128 else NEW_SEED_VERSION
         if seed_version > FINAL_SEED_VERSION:
-            raise BaseException('This version of Electrum is too old to open this wallet')
+            raise WalletFileException('This version of Electrum is too old to open this wallet.\n'
+                                      '(highest supported storage version: {}, version of this file: {})'
+                                      .format(FINAL_SEED_VERSION, seed_version))
         if seed_version==14 and self.get('seed_type') == 'segwit':
             self.raise_unsupported_version(seed_version)
         if seed_version >=12:
@@ -520,4 +609,4 @@ class WalletStorage(PrintError):
             else:
                 # creation was complete if electrum was run from source
                 msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
-        raise BaseException(msg)
+        raise WalletFileException(msg)

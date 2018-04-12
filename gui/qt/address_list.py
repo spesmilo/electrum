@@ -24,47 +24,56 @@
 # SOFTWARE.
 import webbrowser
 
-from .util import *
 from electrum_grs.i18n import _
 from electrum_grs.util import block_explorer_URL
 from electrum_grs.plugins import run_hook
 from electrum_grs.bitcoin import is_address
 
+from .util import *
+
 
 class AddressList(MyTreeWidget):
-    filter_columns = [0, 1, 2]  # Address, Label, Balance
+    filter_columns = [0, 1, 2, 3]  # Type, Address, Label, Balance
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [], 1)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [], 2)
         self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.show_change = False
+        self.setSortingEnabled(True)
+        self.show_change = 0
         self.show_used = 0
         self.change_button = QComboBox(self)
         self.change_button.currentIndexChanged.connect(self.toggle_change)
-        for t in [_('Receiving'), _('Change')]:
+        for t in [_('All'), _('Receiving'), _('Change')]:
             self.change_button.addItem(t)
         self.used_button = QComboBox(self)
         self.used_button.currentIndexChanged.connect(self.toggle_used)
         for t in [_('All'), _('Unused'), _('Funded'), _('Used')]:
             self.used_button.addItem(t)
 
-    def get_list_header(self):
+    def get_toolbar_buttons(self):
         return QLabel(_("Filter:")), self.change_button, self.used_button
 
+    def on_hide_toolbar(self):
+        self.show_change = 0
+        self.show_used = 0
+        self.update()
+
+    def save_toolbar_state(self, state, config):
+        config.set_key('show_toolbar_addresses', state)
+
     def refresh_headers(self):
-        headers = [ _('Address'), _('Label'), _('Balance')]
+        headers = [_('Type'), _('Address'), _('Label'), _('Balance')]
         fx = self.parent.fx
         if fx and fx.get_fiat_address_config():
             headers.extend([_(fx.get_currency()+' Balance')])
         headers.extend([_('Tx')])
         self.update_headers(headers)
 
-    def toggle_change(self, show):
-        show = bool(show)
-        if show == self.show_change:
+    def toggle_change(self, state):
+        if state == self.show_change:
             return
-        self.show_change = show
+        self.show_change = state
         self.update()
 
     def toggle_used(self, state):
@@ -77,10 +86,15 @@ class AddressList(MyTreeWidget):
         self.wallet = self.parent.wallet
         item = self.currentItem()
         current_address = item.data(0, Qt.UserRole) if item else None
-        addr_list = self.wallet.get_change_addresses() if self.show_change else self.wallet.get_receiving_addresses()
+        if self.show_change == 1:
+            addr_list = self.wallet.get_receiving_addresses()
+        elif self.show_change == 2:
+            addr_list = self.wallet.get_change_addresses()
+        else:
+            addr_list = self.wallet.get_addresses()
         self.clear()
         for address in addr_list:
-            num = len(self.wallet.history.get(address,[]))
+            num = len(self.wallet.get_address_history(address))
             is_used = self.wallet.is_used(address)
             label = self.wallet.labels.get(address, '')
             c, u, x = self.wallet.get_addr_balance(address)
@@ -91,23 +105,29 @@ class AddressList(MyTreeWidget):
                 continue
             if self.show_used == 3 and not is_used:
                 continue
-            balance_text = self.parent.format_amount(balance)
+            balance_text = self.parent.format_amount(balance, whitespaces=True)
             fx = self.parent.fx
             if fx and fx.get_fiat_address_config():
                 rate = fx.exchange_rate()
                 fiat_balance = fx.value_str(balance, rate)
-                address_item = QTreeWidgetItem([address, label, balance_text, fiat_balance, "%d"%num])
-                address_item.setTextAlignment(3, Qt.AlignRight)
+                address_item = SortableTreeWidgetItem(['', address, label, balance_text, fiat_balance, "%d"%num])
+                address_item.setTextAlignment(4, Qt.AlignRight)
+                address_item.setFont(4, QFont(MONOSPACE_FONT))
             else:
-                address_item = QTreeWidgetItem([address, label, balance_text, "%d"%num])
-                address_item.setTextAlignment(2, Qt.AlignRight)
-            address_item.setFont(0, QFont(MONOSPACE_FONT))
-            address_item.setData(0, Qt.UserRole, address)
-            address_item.setData(0, Qt.UserRole+1, True) # label can be edited
+                address_item = SortableTreeWidgetItem(['', address, label, balance_text, "%d"%num])
+            address_item.setFont(3, QFont(MONOSPACE_FONT))
+            if self.wallet.is_change(address):
+                address_item.setText(0, _('change'))
+                address_item.setBackground(0, ColorScheme.YELLOW.as_color(True))
+            else:
+                address_item.setText(0, _('receiving'))
+                address_item.setBackground(0, ColorScheme.GREEN.as_color(True))
+            address_item.setFont(1, QFont(MONOSPACE_FONT))
+            address_item.setData(0, Qt.UserRole, address)  # column 0; independent from address column
             if self.wallet.is_frozen(address):
-                address_item.setBackground(0, ColorScheme.BLUE.as_color(True))
-            if self.wallet.is_beyond_limit(address, self.show_change):
-                address_item.setBackground(0, ColorScheme.RED.as_color(True))
+                address_item.setBackground(1, ColorScheme.BLUE.as_color(True))
+            if self.wallet.is_beyond_limit(address):
+                address_item.setBackground(1, ColorScheme.RED.as_color(True))
             self.addChild(address_item)
             if address == current_address:
                 self.setCurrentItem(address_item)
@@ -118,7 +138,7 @@ class AddressList(MyTreeWidget):
         can_delete = self.wallet.can_delete_address()
         selected = self.selectedItems()
         multi_select = len(selected) > 1
-        addrs = [item.text(0) for item in selected]
+        addrs = [item.text(1) for item in selected]
         if not addrs:
             return
         if not multi_select:
@@ -135,10 +155,10 @@ class AddressList(MyTreeWidget):
         if not multi_select:
             column_title = self.headerItem().text(col)
             copy_text = item.text(col)
-            menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(copy_text))
+            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(copy_text))
             menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             if col in self.editable_columns:
-                menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, col))
+                menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(item, col))
             menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
             if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.parent.show_private_key(addr))

@@ -32,6 +32,7 @@ from urllib.parse import quote
 
 import electrum_grs
 from electrum_grs import bitcoin
+from electrum_grs import constants
 from electrum_grs import keystore
 from electrum_grs.bitcoin import *
 from electrum_grs.mnemonic import Mnemonic
@@ -40,10 +41,20 @@ from electrum_grs.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum_grs.i18n import _
 from electrum_grs.plugins import BasePlugin, hook
 from electrum_grs.util import NotEnoughFunds
+from electrum_grs.storage import STO_EV_USER_PW
 
 # signing_xpub is hardcoded so that the wallet can be restored from seed, without TrustedCoin's server
-signing_xpub = "xpub661MyMwAqRbcGnMkaTx2594P9EDuiEqMq25PM2aeG6UmwzaohgA6uDmNsvSUV8ubqwA3Wpste1hg69XHgjUuCD5HLcEp2QPzyV1HMrPppsL"
-billing_xpub = "xpub6DTBdtBB8qUmH5c77v8qVGVoYk7WjJNpGvutqjLasNG1mbux6KsojaLrYf2sRhXAVU4NaFuHhbD9SvVPRt1MB1MaMooRuhHcAZH1yhQ1qDU"
+def get_signing_xpub():
+    if constants.net.TESTNET:
+        return "tpubD6NzVbkrYhZ4XdmyJQcCPjQfg6RXVUzGFhPjZ7uvRC8JLcS7Hw1i7UTpyhp9grHpak4TyK2hzBJrujDVLXQ6qB5tNpVx9rC6ixijUXadnmY"
+    else:
+        return "xpub661MyMwAqRbcGnMkaTx2594P9EDuiEqMq25PM2aeG6UmwzaohgA6uDmNsvSUV8ubqwA3Wpste1hg69XHgjUuCD5HLcEp2QPzyV1HMrPppsL"
+
+def get_billing_xpub():
+    if constants.net.TESTNET:
+        return "tpubD6NzVbkrYhZ4X11EJFTJujsYbUmVASAYY7gXsEt4sL97AMBdypiH1E9ZVTpdXXEy3Kj9Eqd1UkxdGtvDt5z23DKsh6211CfNJo8bLLyem5r"
+    else:
+        return "xpub6DTBdtBB8qUmH5c77v8qVGVoYk7WjJNpGvutqjLasNG1mbux6KsojaLrYf2sRhXAVU4NaFuHhbD9SvVPRt1MB1MaMooRuhHcAZH1yhQ1qDU"
 
 SEED_PREFIX = version.SEED_PREFIX_2FA
 
@@ -203,26 +214,6 @@ class Wallet_2fa(Multisig_Wallet):
     def get_user_id(self):
         return get_user_id(self.storage)
 
-    def get_max_amount(self, config, inputs, recipient, fee):
-        from electrum_grs.transaction import Transaction
-        sendable = sum(map(lambda x:x['value'], inputs))
-        for i in inputs:
-            self.add_input_info(i)
-        xf = self.extra_fee(config)
-        _type, addr = recipient
-        if xf and sendable >= xf:
-            billing_address = self.billing_info['billing_address']
-            sendable -= xf
-            outputs = [(_type, addr, sendable),
-                       (TYPE_ADDRESS, billing_address, xf)]
-        else:
-            outputs = [(_type, addr, sendable)]
-        dummy_tx = Transaction.from_io(inputs, outputs)
-        if fee is None:
-            fee = self.estimate_fee(config, dummy_tx.estimated_size())
-        amount = max(0, sendable - fee)
-        return amount, fee
-
     def min_prepay(self):
         return min(self.price_per_tx.keys())
 
@@ -306,7 +297,7 @@ def make_xpub(xpub, s):
 
 def make_billing_address(wallet, num):
     long_id, short_id = wallet.get_user_id()
-    xpub = make_xpub(billing_xpub, long_id)
+    xpub = make_xpub(get_billing_xpub(), long_id)
     version, _, _, _, c, cK = deserialize_xpub(xpub)
     cK, c = bitcoin.CKD_pub(cK, c, num)
     return bitcoin.public_key_to_p2pkh(cK)
@@ -338,12 +329,17 @@ class TrustedCoinPlugin(BasePlugin):
     def get_tx_extra_fee(self, wallet, tx):
         if type(wallet) != Wallet_2fa:
             return
+        if wallet.billing_info is None:
+            assert wallet.can_sign_without_server()
+            return None
         address = wallet.billing_info['billing_address']
         for _type, addr, amount in tx.outputs():
             if _type == TYPE_ADDRESS and addr == address:
                 return address, amount
 
     def request_billing_info(self, wallet):
+        if wallet.can_sign_without_server():
+            return
         self.print_error("request billing info")
         billing_info = server.get(wallet.get_user_id()[1])
         billing_address = make_billing_address(wallet, billing_info['billing_index'])
@@ -389,6 +385,7 @@ class TrustedCoinPlugin(BasePlugin):
         f = lambda x: wizard.request_passphrase(seed, x)
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
+    @classmethod
     def get_xkeys(self, seed, passphrase, derivation):
         from electrum_grs.mnemonic import Mnemonic
         from electrum_grs.keystore import bip32_root, bip32_private_derivation
@@ -397,6 +394,7 @@ class TrustedCoinPlugin(BasePlugin):
         xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
         return xprv, xpub
 
+    @classmethod
     def xkeys_from_seed(self, seed, passphrase):
         words = seed.split()
         n = len(words)
@@ -409,7 +407,7 @@ class TrustedCoinPlugin(BasePlugin):
             xprv1, xpub1 = self.get_xkeys(seed, passphrase, "m/0'/")
             xprv2, xpub2 = self.get_xkeys(seed, passphrase, "m/1'/")
         else:
-            raise BaseException('unrecognized seed length')
+            raise BaseException('unrecognized seed length: {} words'.format(n))
         return xprv1, xpub1, xprv2, xpub2
 
     def create_keystore(self, wizard, seed, passphrase):
@@ -419,20 +417,22 @@ class TrustedCoinPlugin(BasePlugin):
         k2 = keystore.from_xpub(xpub2)
         wizard.request_password(run_next=lambda pw, encrypt: self.on_password(wizard, pw, encrypt, k1, k2))
 
-    def on_password(self, wizard, password, encrypt, k1, k2):
+    def on_password(self, wizard, password, encrypt_storage, k1, k2):
         k1.update_password(None, password)
-        wizard.storage.set_password(password, encrypt)
+        wizard.storage.set_keystore_encryption(bool(password))
+        if encrypt_storage:
+            wizard.storage.set_password(password, enc_version=STO_EV_USER_PW)
         wizard.storage.put('x1/', k1.dump())
         wizard.storage.put('x2/', k2.dump())
         wizard.storage.write()
         msg = [
-            _("Your wallet file is: %s.")%os.path.abspath(wizard.storage.path),
+            _("Your wallet file is: {}.").format(os.path.abspath(wizard.storage.path)),
             _("You need to be online in order to complete the creation of "
               "your wallet.  If you generated your seed on an offline "
-              'computer, click on "%s" to close this window, move your '
+              'computer, click on "{}" to close this window, move your '
               "wallet file to an online computer, and reopen it with "
-              "Electrum.") % _('Cancel'),
-            _('If you are online, click on "%s" to continue.') % _('Next')
+              "Electrum.").format(_('Cancel')),
+            _('If you are online, click on "{}" to continue.').format(_('Next'))
         ]
         msg = '\n\n'.join(msg)
         wizard.stack = []
@@ -469,7 +469,7 @@ class TrustedCoinPlugin(BasePlugin):
         else:
             self.create_keystore(wizard, seed, passphrase)
 
-    def on_restore_pw(self, wizard, seed, passphrase, password, encrypt):
+    def on_restore_pw(self, wizard, seed, passphrase, password, encrypt_storage):
         storage = wizard.storage
         xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed, passphrase)
         k1 = keystore.from_xprv(xprv1)
@@ -480,10 +480,14 @@ class TrustedCoinPlugin(BasePlugin):
         storage.put('x1/', k1.dump())
         storage.put('x2/', k2.dump())
         long_user_id, short_id = get_user_id(storage)
-        xpub3 = make_xpub(signing_xpub, long_user_id)
+        xpub3 = make_xpub(get_signing_xpub(), long_user_id)
         k3 = keystore.from_xpub(xpub3)
         storage.put('x3/', k3.dump())
-        storage.set_password(password, encrypt)
+
+        storage.set_keystore_encryption(bool(password))
+        if encrypt_storage:
+            storage.set_password(password, enc_version=STO_EV_USER_PW)
+
         wizard.wallet = Wallet_2fa(storage)
         wizard.create_addresses()
 
@@ -493,7 +497,7 @@ class TrustedCoinPlugin(BasePlugin):
         xpub2 = wizard.storage.get('x2/')['xpub']
         # Generate third key deterministically.
         long_user_id, short_id = get_user_id(wizard.storage)
-        xpub3 = make_xpub(signing_xpub, long_user_id)
+        xpub3 = make_xpub(get_signing_xpub(), long_user_id)
         # secret must be sent by the server
         try:
             r = server.create(xpub1, xpub2, email)

@@ -69,6 +69,9 @@ class AmountEdit(MyLineEdit):
         except:
             return None
 
+    def setAmount(self, x):
+        self.setText("%d"%x)
+
 
 class BTCAmountEdit(AmountEdit):
 
@@ -78,7 +81,6 @@ class BTCAmountEdit(AmountEdit):
 
     def _base_unit(self):
         p = self.decimal_point()
-        assert p in [2, 5, 8]
         if p == 8:
             return 'GRS'
         if p == 5:
@@ -101,6 +103,13 @@ class BTCAmountEdit(AmountEdit):
         else:
             self.setText(format_satoshis_plain(amount, self.decimal_point()))
 
-class BTCkBEdit(BTCAmountEdit):
+
+class FeerateEdit(BTCAmountEdit):
     def _base_unit(self):
-        return BTCAmountEdit._base_unit(self) + '/kB'
+        return 'gro/byte'
+
+    def get_amount(self):
+        sat_per_byte_amount = BTCAmountEdit.get_amount(self)
+        if sat_per_byte_amount is None:
+            return None
+        return 1000 * sat_per_byte_amount

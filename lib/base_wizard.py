@@ -24,11 +24,21 @@
 # SOFTWARE.
 
 import os
+import sys
+import traceback
+
 from . import bitcoin
 from . import keystore
 from .keystore import bip44_derivation
 from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types
+from .storage import STO_EV_USER_PW, STO_EV_XPUB_PW, get_derivation_used_for_hw_device_encryption
 from .i18n import _
+from .util import UserCancelled, InvalidPassword
+
+# hardware device setup purpose
+HWD_SETUP_NEW_WALLET, HWD_SETUP_DECRYPT_WALLET = range(0, 2)
+
+class ScriptTypeNotSupported(Exception): pass
 
 
 class BaseWizard(object):
@@ -122,20 +132,18 @@ class BaseWizard(object):
             choices = [
                 ('choose_seed_type', _('Create a new seed')),
                 ('restore_from_seed', _('I already have a seed')),
-                ('restore_from_key', _('Use public or private keys')),
+                ('restore_from_key', _('Use a master key')),
             ]
-            # Change this when at least one hardware wallet supports Groestlcoin. (TODO)
-            #if not self.is_kivy:
-            #    choices.append(('choose_hw_device',  _('Use a hardware device')))
+            if not self.is_kivy:
+                choices.append(('choose_hw_device',  _('Use a hardware device')))
         else:
             message = _('Add a cosigner to your multi-sig wallet')
             choices = [
                 ('restore_from_key', _('Enter cosigner key')),
                 ('restore_from_seed', _('Enter cosigner seed')),
             ]
-            # Change this when at least one hardware wallet supports Groestlcoin. (TODO)
-            #if not self.is_kivy:
-            #    choices.append(('choose_hw_device',  _('Cosign with hardware device')))
+            if not self.is_kivy:
+                choices.append(('choose_hw_device',  _('Cosign with hardware device')))
 
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
@@ -143,20 +151,26 @@ class BaseWizard(object):
         v = lambda x: keystore.is_address_list(x) or keystore.is_private_key_list(x)
         title = _("Import Groestlcoin Addresses")
         message = _("Enter a list of Groestlcoin addresses (this will create a watching-only wallet), or a list of private keys.")
-        self.add_xpub_dialog(title=title, message=message, run_next=self.on_import, is_valid=v)
+        self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
+                             is_valid=v, allow_multi=True)
 
     def on_import(self, text):
+        # create a temporary wallet and exploit that modifications
+        # will be reflected on self.storage
         if keystore.is_address_list(text):
-            self.wallet = Imported_Wallet(self.storage)
+            w = Imported_Wallet(self.storage)
             for x in text.split():
-                self.wallet.import_address(x)
+                w.import_address(x)
         elif keystore.is_private_key_list(text):
             k = keystore.Imported_KeyStore({})
             self.storage.put('keystore', k.dump())
-            self.wallet = Imported_Wallet(self.storage)
-            for x in text.split():
-                self.wallet.import_private_key(x, None)
-        self.terminate()
+            w = Imported_Wallet(self.storage)
+            for x in keystore.get_private_keys(text):
+                w.import_private_key(x, None)
+            self.keystores.append(w.keystore)
+        else:
+            return self.terminate()
+        return self.run('create_wallet')
 
     def restore_from_key(self):
         if self.wallet_type == 'standard':
@@ -175,7 +189,7 @@ class BaseWizard(object):
         k = keystore.from_master_key(text)
         self.on_keystore(k)
 
-    def choose_hw_device(self):
+    def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET):
         title = _('Hardware Keystore')
         # check available plugins
         support = self.plugins.get_hardware_support()
@@ -184,19 +198,24 @@ class BaseWizard(object):
                 _('No hardware wallet support found on your system.'),
                 _('Please install the relevant libraries (eg python-trezor for Trezor).'),
             ])
-            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device())
+            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device(purpose))
             return
         # scan devices
         devices = []
         devmgr = self.plugins.device_manager
-        for name, description, plugin in support:
-            try:
-                # FIXME: side-effect: unpaired_device_info sets client.handler
-                u = devmgr.unpaired_device_infos(None, plugin)
-            except:
-                devmgr.print_error("error", name)
-                continue
-            devices += list(map(lambda x: (name, x), u))
+        try:
+            scanned_devices = devmgr.scan_devices()
+        except BaseException as e:
+            devmgr.print_error('error scanning devices: {}'.format(e))
+        else:
+            for name, description, plugin in support:
+                try:
+                    # FIXME: side-effect: unpaired_device_info sets client.handler
+                    u = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices)
+                except BaseException as e:
+                    devmgr.print_error('error getting device infos for {}: {}'.format(name, e))
+                    continue
+                devices += list(map(lambda x: (name, x), u))
         if not devices:
             msg = ''.join([
                 _('No hardware device detected.') + '\n',
@@ -204,48 +223,91 @@ class BaseWizard(object):
                 _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", and do "Remove device". Then, plug your device again.') + ' ',
                 _('On Linux, you might have to add a new permission to your udev rules.'),
             ])
-            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device())
+            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device(purpose))
             return
         # select device
         self.devices = devices
         choices = []
         for name, info in devices:
             state = _("initialized") if info.initialized else _("wiped")
-            label = info.label or _("An unnamed %s")%name
+            label = info.label or _("An unnamed {}").format(name)
             descr = "%s [%s, %s]" % (label, name, state)
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
-        self.choice_dialog(title=title, message=msg, choices=choices, run_next=self.on_device)
+        self.choice_dialog(title=title, message=msg, choices=choices, run_next= lambda *args: self.on_device(*args, purpose=purpose))
 
-    def on_device(self, name, device_info):
+    def on_device(self, name, device_info, *, purpose):
         self.plugin = self.plugins.get_plugin(name)
         try:
-            self.plugin.setup_device(device_info, self)
+            self.plugin.setup_device(device_info, self, purpose)
+        except OSError as e:
+            self.show_error(_('We encountered an error while connecting to your device:')
+                            + '\n' + str(e) + '\n'
+                            + _('To try to fix this, we will now re-pair with your device.') + '\n'
+                            + _('Please try again.'))
+            devmgr = self.plugins.device_manager
+            devmgr.unpair_id(device_info.device.id_)
+            self.choose_hw_device(purpose)
+            return
+        except UserCancelled:
+            self.choose_hw_device(purpose)
+            return
         except BaseException as e:
             self.show_error(str(e))
-            self.choose_hw_device()
+            self.choose_hw_device(purpose)
             return
-        if self.wallet_type=='multisig':
-            # There is no general standard for HD multisig.
-            # This is partially compatible with BIP45; assumes index=0
-            self.on_hw_derivation(name, device_info, "m/45'/0")
+        if purpose == HWD_SETUP_NEW_WALLET:
+            if self.wallet_type=='multisig':
+                # There is no general standard for HD multisig.
+                # This is partially compatible with BIP45; assumes index=0
+                self.on_hw_derivation(name, device_info, "m/45'/0")
+            else:
+                f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
+                self.derivation_dialog(f)
+        elif purpose == HWD_SETUP_DECRYPT_WALLET:
+            derivation = get_derivation_used_for_hw_device_encryption()
+            xpub = self.plugin.get_xpub(device_info.device.id_, derivation, 'standard', self)
+            password = keystore.Xpub.get_pubkey_from_xpub(xpub, ())
+            try:
+                self.storage.decrypt(password)
+            except InvalidPassword:
+                # try to clear session so that user can type another passphrase
+                devmgr = self.plugins.device_manager
+                client = devmgr.client_by_id(device_info.device.id_)
+                if hasattr(client, 'clear_session'):  # FIXME not all hw wallet plugins have this
+                    client.clear_session()
+                raise
         else:
-            f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
-            self.derivation_dialog(f)
+            raise Exception('unknown purpose: %s' % purpose)
 
     def derivation_dialog(self, f):
-        default = bip44_derivation(0, False)
+        default = bip44_derivation(0, bip43_purpose=44)
         message = '\n'.join([
             _('Enter your wallet derivation here.'),
             _('If you are not sure what this is, leave this field unchanged.')
         ])
-        self.line_dialog(run_next=f, title=_('Derivation'), message=message, default=default, test=bitcoin.is_bip32_derivation)
+        presets = (
+            ('legacy BIP44', bip44_derivation(0, bip43_purpose=44)),
+            ('p2sh-segwit BIP49', bip44_derivation(0, bip43_purpose=49)),
+            ('native-segwit BIP84', bip44_derivation(0, bip43_purpose=84)),
+        )
+        while True:
+            try:
+                self.line_dialog(run_next=f, title=_('Derivation'), message=message,
+                                 default=default, test=bitcoin.is_bip32_derivation,
+                                 presets=presets)
+                return
+            except ScriptTypeNotSupported as e:
+                self.show_error(e)
+                # let the user choose again
 
     def on_hw_derivation(self, name, device_info, derivation):
         from .keystore import hardware_keystore
-        xtype = 'p2wpkh-p2sh' if derivation.startswith("m/49'/") else 'standard'
+        xtype = keystore.xtype_from_derivation(derivation)
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
+        except ScriptTypeNotSupported:
+            raise  # this is handled in derivation_dialog
         except BaseException as e:
             self.show_error(e)
             return
@@ -290,7 +352,7 @@ class BaseWizard(object):
             self.run('create_keystore', seed, '')
         elif self.seed_type == '2fa':
             if self.is_kivy:
-                self.show_error('2FA seeds are not supported in this version')
+                self.show_error(_('2FA seeds are not supported in this version'))
                 self.run('restore_from_seed')
             else:
                 self.load_2fa()
@@ -349,13 +411,45 @@ class BaseWizard(object):
                 self.run('create_wallet')
 
     def create_wallet(self):
-        if any(k.may_have_password() for k in self.keystores):
-            self.request_password(run_next=self.on_password)
+        encrypt_keystore = any(k.may_have_password() for k in self.keystores)
+        # note: the following condition ("if") is duplicated logic from
+        # wallet.get_available_storage_encryption_version()
+        if self.wallet_type == 'standard' and isinstance(self.keystores[0], keystore.Hardware_KeyStore):
+            # offer encrypting with a pw derived from the hw device
+            k = self.keystores[0]
+            try:
+                k.handler = self.plugin.create_handler(self)
+                password = k.get_password_for_storage_encryption()
+            except UserCancelled:
+                devmgr = self.plugins.device_manager
+                devmgr.unpair_xpub(k.xpub)
+                self.choose_hw_device()
+                return
+            except BaseException as e:
+                traceback.print_exc(file=sys.stderr)
+                self.show_error(str(e))
+                return
+            self.request_storage_encryption(
+                run_next=lambda encrypt_storage: self.on_password(
+                    password,
+                    encrypt_storage=encrypt_storage,
+                    storage_enc_version=STO_EV_XPUB_PW,
+                    encrypt_keystore=False))
         else:
-            self.on_password(None, False)
+            # prompt the user to set an arbitrary password
+            self.request_password(
+                run_next=lambda password, encrypt_storage: self.on_password(
+                    password,
+                    encrypt_storage=encrypt_storage,
+                    storage_enc_version=STO_EV_USER_PW,
+                    encrypt_keystore=encrypt_keystore),
+                force_disable_encrypt_cb=not encrypt_keystore)
 
-    def on_password(self, password, encrypt):
-        self.storage.set_password(password, encrypt)
+    def on_password(self, password, *, encrypt_storage,
+                    storage_enc_version=STO_EV_USER_PW, encrypt_keystore):
+        self.storage.set_keystore_encryption(bool(password) and encrypt_keystore)
+        if encrypt_storage:
+            self.storage.set_password(password, enc_version=storage_enc_version)
         for k in self.keystores:
             if k.may_have_password():
                 k.update_password(None, password)
@@ -371,21 +465,24 @@ class BaseWizard(object):
             self.storage.write()
             self.wallet = Multisig_Wallet(self.storage)
             self.run('create_addresses')
+        elif self.wallet_type == 'imported':
+            if len(self.keystores) > 0:
+                keys = self.keystores[0].dump()
+                self.storage.put('keystore', keys)
+            self.wallet = Imported_Wallet(self.storage)
+            self.wallet.storage.write()
+            self.terminate()
 
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))
 
-    def on_cosigner(self, text, password, i):
-        k = keystore.from_master_key(text, password)
-        self.on_keystore(k)
-
     def choose_seed_type(self):
         title = _('Choose Seed type')
         message = ' '.join([
-            "The type of addresses used by your wallet will depend on your seed.",
-            "Segwit wallets use bech32 addresses, defined in BIP173.",
-            "Please note that websites and other wallets may not support these addresses yet.",
-            "Thus, you might want to keep using a non-segwit wallet in order to be able to receive groestlcoins during the transition period."
+            _("The type of addresses used by your wallet will depend on your seed."),
+            _("Segwit wallets use bech32 addresses, defined in BIP173."),
+            _("Please note that websites and other wallets may not support these addresses yet."),
+            _("Thus, you might want to keep using a non-segwit wallet in order to be able to receive groestlcoins during the transition period.")
         ])
         choices = [
             ('create_standard_seed', _('Standard')),
@@ -432,5 +529,5 @@ class BaseWizard(object):
             self.wallet.synchronize()
             self.wallet.storage.write()
             self.terminate()
-        msg = _("Electrum-GRS is generating your addresses, please wait.")
+        msg = _("Electrum-GRS is generating your addresses, please wait...")
         self.waiting_dialog(task, msg)
