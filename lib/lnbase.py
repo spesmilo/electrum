@@ -4,6 +4,7 @@
   Derived from https://gist.github.com/AdamISZ/046d05c156aaeb56cc897f85eecb3eb8
 """
 
+import subprocess
 import queue
 import traceback
 import itertools
@@ -387,9 +388,10 @@ class LNWorker:
         self.wallet = wallet
         self.network = network
         host, port, pubkey = ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff')
+        #host, port, pubkey = ('localhost', '9735', subprocess.Popen("~/go/bin/lncli getinfo | jq -r .identity_pubkey", shell=True, stdout=subprocess.PIPE).communicate()[0].strip())
         pubkey = binascii.unhexlify(pubkey)
         port = int(port)
-        privkey = b"\x21"*32 + b"\x01"
+        privkey = os.urandom(32) + b"\x01"
         self.peer = Peer(privkey, host, port, pubkey)
         self.network.futures.append(asyncio.run_coroutine_threadsafe(self.peer.main_loop(), asyncio.get_event_loop()))
 
@@ -399,15 +401,13 @@ class LNWorker:
         self.peer.open_channel()
 
     def blocking_test_run(self):
-        try:
-            start = time.time()
-            q = queue.Queue()
-            fut = asyncio.run_coroutine_threadsafe(self._test(q), asyncio.get_event_loop())
-            exp = q.get(timeout=5)
-            if exp is not None: raise exp
-            return "blocking test run took: " + str(time.time() - start)
-        except:
-            traceback.print_exc()
+        start = time.time()
+        q = queue.Queue()
+        fut = asyncio.run_coroutine_threadsafe(self._test(q), asyncio.get_event_loop())
+        exp = q.get(timeout=5)
+        if exp is not None:
+            raise exp
+        return "blocking test run took: " + str(time.time() - start)
 
     async def _test(self, q):
         try:
