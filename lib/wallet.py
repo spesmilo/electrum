@@ -26,7 +26,7 @@
 #   - Standard_Wallet: one keystore, P2PKH
 #   - Multisig_Wallet: several keystores, P2SH
 
-
+import asyncio
 import os
 import threading
 import random
@@ -1312,8 +1312,9 @@ class Abstract_Wallet(PrintError):
             if network.config.get("lightning", False):
                 network.lightningworker = LightningWorker(self, network, network.config)
                 network.lightningrpc = LightningRPC()
-            network.lightninglock.release()
+                network.lightninglock.release()
             if network.config.get("lnbase", False):
+                asyncio.set_event_loop(network.asyncio_loop)
                 from .lnbase import LNWorker
                 self.lnworker = LNWorker(self, network)
         else:
