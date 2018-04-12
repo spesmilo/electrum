@@ -4,6 +4,7 @@
   Derived from https://gist.github.com/AdamISZ/046d05c156aaeb56cc897f85eecb3eb8
 """
 
+import itertools
 import json
 from collections import OrderedDict
 import asyncio
@@ -16,6 +17,7 @@ import hmac
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 
 from .bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number, deserialize_privkey, EC_KEY, rev_hex
+from . import bitcoin
 from .constants import set_testnet, set_simnet
 from . import constants
 from .util import PrintError
@@ -213,16 +215,11 @@ def create_ephemeral_key(privkey):
     return (privkey[:32], pub)
 
 def get_unused_public_keys():
-    path = os.environ["HOME"] + "/.electrum/" + ("testnet" if constants.net is constants.BitcoinTestnet else "simnet") + "/wallets/default_wallet"
-    os.stat(path)
-    WALLET = Wallet(WalletStorage(path))
-    for str_address in WALLET.get_unused_addresses():
-        pri, redeem_script = WALLET.export_private_key(str_address, None)
-
-        typ, pri, compressed = deserialize_privkey(pri)
-        pubk = binascii.unhexlify(EC_KEY(pri).get_public_key(True))
-        yield pubk
-
+    xprv, xpub = bitcoin.bip32_root(b"testseed", "p2wpkh")
+    for i in itertools.count():
+        childxpub = bitcoin.bip32_public_derivation(xpub, "m/", "m/42/"+str(i))
+        _, _, _, _, child_c, child_cK = bitcoin.deserialize_xpub(childxpub)
+        yield child_cK
 
 class Peer(PrintError):
 
@@ -233,6 +230,7 @@ class Peer(PrintError):
         self.pubkey = pubkey
         self.read_buffer = b''
         self.ping_time = 0
+        self.temporary_channel_id_to_incoming_accept_channel = {}
 
     def diagnostic_name(self):
         return self.host
@@ -314,13 +312,7 @@ class Peer(PrintError):
         self.send_message(gen_msg('pong', byteslen=l))
 
     def on_accept_channel(self, payload):
-        # check that it is in my pending requests
-        # I need to attach a wallet to each request
-        if ok:
-            tx = wallet.create_funding_tx()
-            wallet.sign(tx)
-            m = gen_msg('funding created', signature)
-            self.send_message(m)
+        self.temporary_channel_id_to_incoming_accept_channel[payload["temporary_channel_id"]].set_result(payload)
 
     def on_funding_signed(self, payload):
         sig = payload['signature']
@@ -331,10 +323,10 @@ class Peer(PrintError):
     def on_funding_locked(self, payload):
         pass
 
-    def open_channel(self, funding_sat, push_msat):
-        self.send_message(gen_msg('open_channel', funding_satoshis=funding_sat, push_msat=push_msat))
+    #def open_channel(self, funding_sat, push_msat):
+    #    self.send_message(gen_msg('open_channel', funding_satoshis=funding_sat, push_msat=push_msat))
 
-    async def main_loop(self, loop):
+    async def initialize(self, loop):
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port, loop=loop)
         await self.handshake()
         # read init
@@ -343,11 +335,7 @@ class Peer(PrintError):
         # send init
         self.send_message(gen_msg("init", gflen=0, lflen=0))
 
-        pubkeys = get_unused_public_keys()
-
-        msg = gen_msg("open_channel", chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)), funding_satoshis=20000, max_accepted_htlcs=5, funding_pubkey=next(pubkeys), revocation_basepoint=next(pubkeys), htlc_basepoint=next(pubkeys), payment_basepoint=next(pubkeys), delayed_payment_basepoint=next(pubkeys), first_per_commitment_point=next(pubkeys))
-        self.send_message(msg)
-
+    async def main_loop(self, loop):
         # loop
         while True:
             self.ping_if_required()
@@ -357,6 +345,23 @@ class Peer(PrintError):
         self.print_error('closing lnbase')
         self.writer.close()
 
+    async def channel_establishment_flow(self):
+        pubkeys = get_unused_public_keys()
+
+        temp_channel_id = os.urandom(32)
+        msg = gen_msg("open_channel", temporary_channel_id=temp_channel_id, chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)), funding_satoshis=20000, max_accepted_htlcs=5, funding_pubkey=next(pubkeys), revocation_basepoint=next(pubkeys), htlc_basepoint=next(pubkeys), payment_basepoint=next(pubkeys), delayed_payment_basepoint=next(pubkeys), first_per_commitment_point=next(pubkeys))
+        self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id] = asyncio.Future()
+        self.send_message(msg)
+        accept_channel = await self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
+        del self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
+
+        # check that it is in my pending requests
+        # I need to attach a wallet to each request
+        if ok:
+            tx = wallet.create_funding_tx()
+            wallet.sign(tx)
+            m = gen_msg('funding created', signature)
+            self.send_message(m)
 
 # replacement for lightningCall
 class LNWallet(Wallet):
@@ -391,5 +396,8 @@ if __name__ == "__main__":
     privkey = b"\x21"*32 + b"\x01"
     peer = Peer(privkey, host, port, pubkey)
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(peer.main_loop(loop))
+    loop.run_until_complete(peer.initialize(loop))
+    async def asynctest():
+        await peer.channel_establishment_flow()
+    loop.run_until_complete(asyncio.gather(asynctest(), peer.main_loop(loop)))
     loop.close()
