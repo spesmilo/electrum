@@ -4,6 +4,7 @@
   Derived from https://gist.github.com/AdamISZ/046d05c156aaeb56cc897f85eecb3eb8
 """
 
+import queue
 import traceback
 import itertools
 import json
@@ -398,14 +399,24 @@ class LNWorker:
         self.peer.open_channel()
 
     def blocking_test_run(self):
-        start = time.time()
-        fut = asyncio.ensure_future(self._test())
-        asyncio.get_event_loop().run_until_complete(fut)
-        fut.exception()
-        return "blocking test run took: " + str(time.time() - start)
+        try:
+            start = time.time()
+            q = queue.Queue()
+            fut = asyncio.run_coroutine_threadsafe(self._test(q), asyncio.get_event_loop())
+            exp = q.get(timeout=5)
+            if exp is not None: raise exp
+            return "blocking test run took: " + str(time.time() - start)
+        except:
+            traceback.print_exc()
 
-    async def _test(self):
-        await self.peer.channel_establishment_flow(self.wallet)
+    async def _test(self, q):
+        try:
+            await self.peer.channel_establishment_flow(self.wallet)
+        except Exception as e:
+            q.put(e)
+        else:
+            q.put(None)
+
 
 
 
