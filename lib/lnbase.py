@@ -331,8 +331,8 @@ class Peer(PrintError):
     #def open_channel(self, funding_sat, push_msat):
     #    self.send_message(gen_msg('open_channel', funding_satoshis=funding_sat, push_msat=push_msat))
 
-    async def main_loop(self, loop):
-        self.reader, self.writer = await asyncio.open_connection(self.host, self.port, loop=loop)
+    async def main_loop(self):
+        self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
         await self.handshake()
         # send init
         self.send_message(gen_msg("init", gflen=0, lflen=0))
@@ -350,7 +350,7 @@ class Peer(PrintError):
         self.print_error('closing lnbase')
         self.writer.close()
 
-    async def channel_establishment_flow(self):
+    async def channel_establishment_flow(self, wallet):
         await self.init_message_received_future
         pubkeys = get_unused_public_keys()
         temp_channel_id = os.urandom(32)
@@ -359,10 +359,10 @@ class Peer(PrintError):
         self.send_message(msg)
         try:
             accept_channel = await self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
-        except LightningError:
-            return
         finally:
             del self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
+
+        raise Exception("TODO: create funding transaction using wallet")
 
 
 # replacement for lightningCall
@@ -371,18 +371,28 @@ class LNWorker:
     def __init__(self, wallet, network):
         self.wallet = wallet
         self.network = network
-        self.loop = network.asyncio_loop
         host, port, pubkey = ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff')
         pubkey = binascii.unhexlify(pubkey)
         port = int(port)
         privkey = b"\x21"*32 + b"\x01"
         self.peer = Peer(privkey, host, port, pubkey)
-        self.network.futures.append(asyncio.run_coroutine_threadsafe(self.peer.main_loop(self.loop), self.loop))
+        self.network.futures.append(asyncio.run_coroutine_threadsafe(self.peer.main_loop(), asyncio.get_event_loop()))
 
     def openchannel(self):
         # todo: get utxo from wallet
         # submit coro to asyncio main loop
         self.peer.open_channel()
+
+    def blocking_test_run(self):
+        start = time.time()
+        fut = asyncio.ensure_future(self._test())
+        asyncio.get_event_loop().run_until_complete(fut)
+        fut.exception()
+        return "blocking test run took: " + str(time.time() - start)
+
+    async def _test(self):
+        await self.peer.channel_establishment_flow(self.wallet)
+
 
 
 node_list = [
@@ -405,8 +415,5 @@ if __name__ == "__main__":
     port = int(port)
     privkey = b"\x21"*32 + b"\x01"
     peer = Peer(privkey, host, port, pubkey)
-    loop = asyncio.get_event_loop()
-    async def asynctest():
-        await peer.channel_establishment_flow()
-    loop.run_until_complete(asyncio.gather(asynctest(), peer.main_loop(loop)))
+    loop.run_until_complete(peer.main_loop())
     loop.close()
