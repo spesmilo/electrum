@@ -15,12 +15,12 @@ import hashlib
 import hmac
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 
-from electrum.bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number, deserialize_privkey, EC_KEY, rev_hex
-from electrum.constants import set_testnet, set_simnet
-import electrum.constants as constants
-from electrum.util import PrintError
-from electrum.wallet import Wallet
-from electrum.storage import WalletStorage
+from .bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number, deserialize_privkey, EC_KEY, rev_hex
+from .constants import set_testnet, set_simnet
+from . import constants
+from .util import PrintError
+from .wallet import Wallet
+from .storage import WalletStorage
 
 tcp_socket_timeout = 10
 server_response_timeout = 60
