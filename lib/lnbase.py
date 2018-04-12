@@ -4,6 +4,7 @@
   Derived from https://gist.github.com/AdamISZ/046d05c156aaeb56cc897f85eecb3eb8
 """
 
+import traceback
 import itertools
 import json
 from collections import OrderedDict
@@ -332,20 +333,23 @@ class Peer(PrintError):
     #    self.send_message(gen_msg('open_channel', funding_satoshis=funding_sat, push_msat=push_msat))
 
     async def main_loop(self):
-        self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
-        await self.handshake()
-        # send init
-        self.send_message(gen_msg("init", gflen=0, lflen=0))
-        # read init
-        msg = await self.read_message()
-        self.process_message(msg)
-        # initialized
-        self.init_message_received_future.set_result(msg)
-        # loop
-        while True:
-            self.ping_if_required()
+        try:
+            self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
+            await self.handshake()
+            # send init
+            self.send_message(gen_msg("init", gflen=0, lflen=0))
+            # read init
             msg = await self.read_message()
             self.process_message(msg)
+            # initialized
+            self.init_message_received_future.set_result(msg)
+            # loop
+            while True:
+                self.ping_if_required()
+                msg = await self.read_message()
+                self.process_message(msg)
+        except:
+            traceback.print_exc()
         # close socket
         self.print_error('closing lnbase')
         self.writer.close()
