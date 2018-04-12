@@ -232,6 +232,7 @@ class Peer(PrintError):
         self.read_buffer = b''
         self.ping_time = 0
         self.temporary_channel_id_to_incoming_accept_channel = {}
+        self.init_message_received_future = asyncio.Future()
 
     def diagnostic_name(self):
         return self.host
@@ -330,16 +331,19 @@ class Peer(PrintError):
     #def open_channel(self, funding_sat, push_msat):
     #    self.send_message(gen_msg('open_channel', funding_satoshis=funding_sat, push_msat=push_msat))
 
-    async def initialize(self, loop):
+    async def main_loop(self, loop):
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port, loop=loop)
         await self.handshake()
-        # read init
-        msg = await self.read_message()
-        self.process_message(msg)
+
         # send init
         self.send_message(gen_msg("init", gflen=0, lflen=0))
 
-    async def main_loop(self, loop):
+        # read init
+        msg = await self.read_message()
+        self.process_message(msg)
+
+        self.init_message_received_future.set_result(msg)
+
         # loop
         while True:
             self.ping_if_required()
@@ -350,6 +354,8 @@ class Peer(PrintError):
         self.writer.close()
 
     async def channel_establishment_flow(self):
+        await self.init_message_received_future
+
         pubkeys = get_unused_public_keys()
 
         temp_channel_id = os.urandom(32)
@@ -404,7 +410,6 @@ if __name__ == "__main__":
     privkey = b"\x21"*32 + b"\x01"
     peer = Peer(privkey, host, port, pubkey)
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(peer.initialize(loop))
     async def asynctest():
         await peer.channel_establishment_flow()
     loop.run_until_complete(asyncio.gather(asynctest(), peer.main_loop(loop)))
