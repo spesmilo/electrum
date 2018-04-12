@@ -334,16 +334,13 @@ class Peer(PrintError):
     async def main_loop(self, loop):
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port, loop=loop)
         await self.handshake()
-
         # send init
         self.send_message(gen_msg("init", gflen=0, lflen=0))
-
         # read init
         msg = await self.read_message()
         self.process_message(msg)
-
+        # initialized
         self.init_message_received_future.set_result(msg)
-
         # loop
         while True:
             self.ping_if_required()
@@ -355,9 +352,7 @@ class Peer(PrintError):
 
     async def channel_establishment_flow(self):
         await self.init_message_received_future
-
         pubkeys = get_unused_public_keys()
-
         temp_channel_id = os.urandom(32)
         msg = gen_msg("open_channel", temporary_channel_id=temp_channel_id, chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)), funding_satoshis=20000, max_accepted_htlcs=5, funding_pubkey=next(pubkeys), revocation_basepoint=next(pubkeys), htlc_basepoint=next(pubkeys), payment_basepoint=next(pubkeys), delayed_payment_basepoint=next(pubkeys), first_per_commitment_point=next(pubkeys))
         self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id] = asyncio.Future()
@@ -369,23 +364,24 @@ class Peer(PrintError):
         finally:
             del self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
 
-        # check that it is in my pending requests
-        # I need to attach a wallet to each request
-        if ok:
-            tx = wallet.create_funding_tx()
-            wallet.sign(tx)
-            m = gen_msg('funding created', signature)
-            self.send_message(m)
 
 # replacement for lightningCall
-class LNWallet(Wallet):
-    
-    def __init__(self, wallet, peer):
+class LNWorker:
+
+    def __init__(self, wallet, network):
         self.wallet = wallet
-        self.peer = peer
+        self.network = network
+        self.loop = network.asyncio_loop
+        host, port, pubkey = ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff')
+        pubkey = binascii.unhexlify(pubkey)
+        port = int(port)
+        privkey = b"\x21"*32 + b"\x01"
+        self.peer = Peer(privkey, host, port, pubkey)
+        self.network.futures.append(asyncio.run_coroutine_threadsafe(self.peer.main_loop(self.loop), self.loop))
 
     def openchannel(self):
         # todo: get utxo from wallet
+        # submit coro to asyncio main loop
         self.peer.open_channel()
 
 
