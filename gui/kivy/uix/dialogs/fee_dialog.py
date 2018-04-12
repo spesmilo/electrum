@@ -74,7 +74,6 @@ class FeeDialog(Factory.Popup):
         Factory.Popup.__init__(self)
         self.app = app
         self.config = config
-        self.fee_rate = self.config.fee_per_kb()
         self.callback = callback
         mempool = self.config.use_mempool_fees()
         dynfees = self.config.is_dynfee()

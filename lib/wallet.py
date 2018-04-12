@@ -1628,7 +1628,7 @@ class Abstract_Wallet(PrintError):
     def add_payment_request(self, req, config):
         addr = req['address']
         if not bitcoin.is_address(addr):
-            raise Exception(_('Invalid Bitcoin address.'))
+            raise Exception(_('Invalid Litecoin address.'))
         if not self.is_mine(addr):
             raise Exception(_('Address not in wallet.'))
 
@@ -1790,6 +1790,7 @@ class Abstract_Wallet(PrintError):
         return None
 
     def price_at_timestamp(self, txid, price_func):
+        """Returns fiat price of Litecoin at the time tx got confirmed."""
         height, conf, timestamp = self.get_tx_height(txid)
         return price_func(timestamp if timestamp else time.time())
 
