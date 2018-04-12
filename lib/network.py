@@ -1012,7 +1012,7 @@ class Network(util.DaemonThread):
     def run(self):
         self.init_headers_file()
         self.futures = []
-        loop = asyncio.new_event_loop()
+        self.asyncio_loop = loop = asyncio.new_event_loop()
         networkAndWalletLock = QLock()
         def asyncioThread():
             asyncio.set_event_loop(loop)
@@ -1020,17 +1020,7 @@ class Network(util.DaemonThread):
                 self.lightninglock.acquire()
                 if self.lightningrpc is not None and self.lightningworker is not None:
                     task = asyncio.ensure_future(asyncio.gather(self.lightningrpc.run(networkAndWalletLock), self.lightningworker.run(networkAndWalletLock)))
-                loop.run_forever()
-            if self.config.get('lnbase', False):
-                from .lnbase import Peer
-                import binascii
-                host, port, pubkey = ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff')
-                pubkey = binascii.unhexlify(pubkey)
-                port = int(port)
-                privkey = b"\x21"*32 + b"\x01"
-                peer = Peer(privkey, host, port, pubkey)
-                self.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(loop), loop))
-                loop.run_forever()
+            loop.run_forever()
 
         threading.Thread(target=asyncioThread).start()
         networkAndWalletLock.acquire()
