@@ -349,6 +349,11 @@ class Peer(PrintError):
                 msg = await self.read_message()
                 self.process_message(msg)
         except:
+            # if the loop isn't stopped
+            # run_forever in network.py would not return,
+            # the asyncioThread would not die,
+            # and we would block on shutdown
+            asyncio.get_event_loop().stop()
             traceback.print_exc()
         # close socket
         self.print_error('closing lnbase')
