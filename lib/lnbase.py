@@ -27,7 +27,8 @@ from .storage import WalletStorage
 tcp_socket_timeout = 10
 server_response_timeout = 60
 
-###############################
+class LightningError(Exception):
+    pass
 
 message_types = {}
 
@@ -307,6 +308,9 @@ class Peer(PrintError):
             return
         f(payload)
 
+    def on_error(self, payload):
+        self.temporary_channel_id_to_incoming_accept_channel[payload["channel_id"]].set_exception(LightningError(payload["data"]))
+
     def on_ping(self, payload):
         l = int.from_bytes(payload['num_pong_bytes'], byteorder="big")
         self.send_message(gen_msg('pong', byteslen=l))
@@ -352,8 +356,12 @@ class Peer(PrintError):
         msg = gen_msg("open_channel", temporary_channel_id=temp_channel_id, chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)), funding_satoshis=20000, max_accepted_htlcs=5, funding_pubkey=next(pubkeys), revocation_basepoint=next(pubkeys), htlc_basepoint=next(pubkeys), payment_basepoint=next(pubkeys), delayed_payment_basepoint=next(pubkeys), first_per_commitment_point=next(pubkeys))
         self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id] = asyncio.Future()
         self.send_message(msg)
-        accept_channel = await self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
-        del self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
+        try:
+            accept_channel = await self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
+        except LightningError:
+            return
+        finally:
+            del self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
 
         # check that it is in my pending requests
         # I need to attach a wallet to each request
