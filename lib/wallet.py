@@ -1790,6 +1790,7 @@ class Abstract_Wallet(PrintError):
         return None
 
     def price_at_timestamp(self, txid, price_func):
+        """Returns fiat price of bitcoin at the time tx got confirmed."""
         height, conf, timestamp = self.get_tx_height(txid)
         return price_func(timestamp if timestamp else time.time())
 
