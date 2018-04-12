@@ -26,7 +26,7 @@
 #   - Standard_Wallet: one keystore, P2PKH
 #   - Multisig_Wallet: several keystores, P2SH
 
-
+import asyncio
 import os
 import sys
 import random
