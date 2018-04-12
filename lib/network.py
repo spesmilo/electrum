@@ -256,6 +256,7 @@ class Network(util.DaemonThread):
         self.socket_queue = queue.Queue()
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
+        self.asyncio_loop = loop = asyncio.new_event_loop()
 
     def register_callback(self, callback, events):
         with self.lock:
@@ -1010,17 +1011,16 @@ class Network(util.DaemonThread):
             b.update_size()
 
     def run(self):
+        asyncio.set_event_loop(self.asyncio_loop)
         self.init_headers_file()
         self.futures = []
-        self.asyncio_loop = loop = asyncio.new_event_loop()
         networkAndWalletLock = QLock()
+        self.lightninglock.acquire()
         def asyncioThread():
-            asyncio.set_event_loop(loop)
             if self.config.get("lightning", False):
-                self.lightninglock.acquire()
                 if self.lightningrpc is not None and self.lightningworker is not None:
                     task = asyncio.ensure_future(asyncio.gather(self.lightningrpc.run(networkAndWalletLock), self.lightningworker.run(networkAndWalletLock)))
-            loop.run_forever()
+            self.asyncio_loop.run_forever()
 
         threading.Thread(target=asyncioThread).start()
         networkAndWalletLock.acquire()
@@ -1034,10 +1034,10 @@ class Network(util.DaemonThread):
             networkAndWalletLock.acquire()
         # cancel tasks
         [f.cancel() for f in self.futures]
-        loop.stop()
-        if loop.is_running(): time.sleep(0.1)
+        self.asyncio_loop.stop()
+        if self.asyncio_loop.is_running(): time.sleep(0.1)
         try:
-            loop.close()
+            self.asyncio_loop.close()
         except:
             pass
         self.stop_network()
