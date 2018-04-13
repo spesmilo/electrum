@@ -11,7 +11,8 @@ from lib.bitcoin import (
     var_int, op_push, address_to_script, regenerate_key,
     verify_message, deserialize_privkey, serialize_privkey, is_segwit_address,
     is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
-    xpub_type, is_xprv, is_bip32_derivation, seed_type, EncodeBase58Check)
+    xpub_type, is_xprv, is_bip32_derivation, seed_type, EncodeBase58Check,
+    script_num_to_hex)
 from lib.util import bfh
 from lib import constants
 
@@ -149,6 +150,21 @@ class Test_bitcoin(unittest.TestCase):
         self.assertEqual(op_push(0xffff), '4dffff')
         self.assertEqual(op_push(0x10000), '4e00000100')
         self.assertEqual(op_push(0x12345678), '4e78563412')
+
+    def test_script_num_to_hex(self):
+        # test vectors from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptnum.go#L77
+        self.assertEqual(script_num_to_hex(127), '7f')
+        self.assertEqual(script_num_to_hex(-127), 'ff')
+        self.assertEqual(script_num_to_hex(128), '8000')
+        self.assertEqual(script_num_to_hex(-128), '8080')
+        self.assertEqual(script_num_to_hex(129), '8100')
+        self.assertEqual(script_num_to_hex(-129), '8180')
+        self.assertEqual(script_num_to_hex(256), '0001')
+        self.assertEqual(script_num_to_hex(-256), '0081')
+        self.assertEqual(script_num_to_hex(32767), 'ff7f')
+        self.assertEqual(script_num_to_hex(-32767), 'ffff')
+        self.assertEqual(script_num_to_hex(32768), '008000')
+        self.assertEqual(script_num_to_hex(-32768), '008080')
 
     def test_address_to_script(self):
         # bech32 native segwit
