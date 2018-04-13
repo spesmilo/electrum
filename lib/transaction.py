@@ -665,11 +665,12 @@ class Transaction:
         return d
 
     @classmethod
-    def from_io(klass, inputs, outputs, locktime=0):
+    def from_io(klass, inputs, outputs, locktime=0, version=1):
         self = klass(None)
         self._inputs = inputs
         self._outputs = outputs
         self.locktime = locktime
+        self.version = version
         return self
 
     @classmethod
@@ -1021,7 +1022,6 @@ class Transaction:
         for i, txin in enumerate(self.inputs()):
             num = txin['num_sig']
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
-            print_error("qq", x_pubkeys, keypairs)
             for j, x_pubkey in enumerate(x_pubkeys):
                 signatures = list(filter(None, txin['signatures']))
                 if len(signatures) == num:
