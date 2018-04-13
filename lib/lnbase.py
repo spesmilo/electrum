@@ -21,7 +21,7 @@ import hashlib
 import hmac
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 
-from .bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number, deserialize_privkey, EC_KEY, rev_hex, int_to_hex, push_script, var_int, op_push
+from .bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number, deserialize_privkey, EC_KEY, rev_hex, int_to_hex, push_script, script_num_to_hex
 from . import bitcoin
 from .constants import set_testnet, set_simnet
 from . import constants
@@ -277,7 +277,7 @@ def make_commitment(local_funding_pubkey, remote_funding_pubkey, remotepubkey,
         'sequence':sequence
     }]
     # commitment tx outputs
-    local_script = bytes([opcodes.OP_IF]) + bfh(push_script(bh2u(revocation_pubkey))) + bytes([opcodes.OP_ELSE]) + bfh(push_script(int_to_hex(local_delay, 5))) \
+    local_script = bytes([opcodes.OP_IF]) + bfh(push_script(bh2u(revocation_pubkey))) + bytes([opcodes.OP_ELSE]) + bfh(push_script(script_num_to_hex(local_delay))) \
                    + bytes([opcodes.OP_CSV, opcodes.OP_DROP]) + bfh(push_script(bh2u(delayed_pubkey))) + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
     local_address = bitcoin.redeem_script_to_address('p2wsh', bh2u(local_script))
     fee = local_feerate * overall_weight(0) // 1000
