@@ -21,12 +21,12 @@ import hashlib
 import hmac
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 
-from .bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number, deserialize_privkey, EC_KEY, rev_hex, int_to_hex
+from .bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number, deserialize_privkey, EC_KEY, rev_hex, int_to_hex, push_script, var_int, op_push
 from . import bitcoin
 from .constants import set_testnet, set_simnet
 from . import constants
 from . import transaction
-from .util import PrintError, bh2u, print_error
+from .util import PrintError, bh2u, print_error, bfh
 from .wallet import Wallet
 from .storage import WalletStorage
 from .transaction import opcodes, Transaction
@@ -255,11 +255,11 @@ def get_obscured_ctn(ctn, local, remote):
 def overall_weight(num_htlc):
     return 500 + 172 * num_htlc + 224
 
-def make_commitment(local_pubkey, remote_pubkey,
+def make_commitment(local_funding_pubkey, remote_funding_pubkey, remotepubkey,
                     payment_pubkey, remote_payment_pubkey, revocation_pubkey, delayed_pubkey,
                     funding_txid, funding_pos, funding_satoshis,
-                    to_local_msat, to_remote_msat, local_feerate):
-    pubkeys = sorted([bh2u(local_pubkey), bh2u(remote_pubkey)])
+                    to_local_msat, to_remote_msat, local_feerate, local_delay):
+    pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
     obs = get_obscured_ctn(0, payment_pubkey, remote_payment_pubkey)
     locktime = (0x20 << 24) + (obs & 0xffffff)
     sequence = (0x80 << 24) + (obs >> 24)
@@ -277,11 +277,12 @@ def make_commitment(local_pubkey, remote_pubkey,
         'sequence':sequence
     }]
     # commitment tx outputs
-    local_script = bytes([opcodes.OP_IF]) + revocation_pubkey + bytes([opcodes.OP_ELSE, opcodes.OP_CSV, opcodes.OP_DROP]) + delayed_pubkey + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
+    local_script = bytes([opcodes.OP_IF]) + bfh(push_script(bh2u(revocation_pubkey))) + bytes([opcodes.OP_ELSE]) + bfh(push_script(int_to_hex(local_delay, 5))) \
+                   + bytes([opcodes.OP_CSV, opcodes.OP_DROP]) + bfh(push_script(bh2u(delayed_pubkey))) + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
     local_address = bitcoin.redeem_script_to_address('p2wsh', bh2u(local_script))
     fee = local_feerate * overall_weight(0) // 1000
     local_amount = to_local_msat // 1000 - fee
-    remote_address = bitcoin.pubkey_to_address('p2wpkh', bh2u(remote_pubkey))
+    remote_address = bitcoin.pubkey_to_address('p2wpkh', bh2u(remotepubkey))
     remote_amount = to_remote_msat // 1000
     to_local = (bitcoin.TYPE_ADDRESS, local_address, local_amount)
     to_remote = (bitcoin.TYPE_ADDRESS, remote_address, remote_amount)
@@ -289,6 +290,7 @@ def make_commitment(local_pubkey, remote_pubkey,
     c_outputs = [to_local, to_remote]
     # create commitment tx
     tx = Transaction.from_io(c_inputs, c_outputs, locktime=locktime, version=2)
+    tx.BIP_LI01_sort()
     return tx
 
 class Peer(PrintError):
