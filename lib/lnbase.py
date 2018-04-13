@@ -252,8 +252,13 @@ def get_obscured_ctn(ctn, local, remote):
     mask = int.from_bytes(H256(local + remote)[-6:], byteorder="big")
     return ctn ^ mask
 
+def overall_weight(num_htlc):
+    return 500 + 172 * num_htlc + 224
 
-def make_commitment(local_pubkey, remote_pubkey, payment_pubkey, remote_payment_pubkey, revocation_pubkey, delayed_pubkey, funding_txid, funding_pos, funding_satoshis):
+def make_commitment(local_pubkey, remote_pubkey,
+                    payment_pubkey, remote_payment_pubkey, revocation_pubkey, delayed_pubkey,
+                    funding_txid, funding_pos, funding_satoshis,
+                    to_local_msat, to_remote_msat, local_feerate):
     pubkeys = sorted([bh2u(local_pubkey), bh2u(remote_pubkey)])
     obs = get_obscured_ctn(0, payment_pubkey, remote_payment_pubkey)
     locktime = (0x20 << 24) + (obs & 0xffffff)
@@ -274,9 +279,10 @@ def make_commitment(local_pubkey, remote_pubkey, payment_pubkey, remote_payment_
     # commitment tx outputs
     local_script = bytes([opcodes.OP_IF]) + revocation_pubkey + bytes([opcodes.OP_ELSE, opcodes.OP_CSV, opcodes.OP_DROP]) + delayed_pubkey + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
     local_address = bitcoin.redeem_script_to_address('p2wsh', bh2u(local_script))
-    local_amount = funding_satoshis
+    fee = local_feerate * overall_weight(0) // 1000
+    local_amount = to_local_msat // 1000 - fee
     remote_address = bitcoin.pubkey_to_address('p2wpkh', bh2u(remote_pubkey))
-    remote_amount = 0
+    remote_amount = to_remote_msat // 1000
     to_local = (bitcoin.TYPE_ADDRESS, local_address, local_amount)
     to_remote = (bitcoin.TYPE_ADDRESS, remote_address, remote_amount)
     # no htlc for the moment
@@ -459,9 +465,12 @@ class Peer(PrintError):
         funding_tx = wallet.mktx([funding_output], None, config, 1000)
         funding_index = funding_tx.outputs().index(funding_output)
         remote_payment_pubkey = accept_channel['payment_basepoint']
-        c_tx = make_commitment(funding_pubkey, remote_pubkey, payment_pubkey, remote_payment_pubkey, revocation_pubkey, delayed_pubkey, funding_tx.txid(), funding_index, funding_satoshis)
+        c_tx = make_commitment(
+            funding_pubkey, remote_pubkey,
+            payment_pubkey, remote_payment_pubkey, revocation_pubkey, delayed_pubkey,
+            funding_tx.txid(), funding_index, funding_satoshis,
+            funding_satoshis*1000, 0, 20000)
         c_tx.sign({bh2u(funding_pubkey): (funding_privkey, True)})
-
         sig_index = pubkeys.index(bh2u(funding_pubkey))
         sig = bytes.fromhex(c_tx.inputs()[0]["signatures"][sig_index])
         self.print_error('sig', len(sig))
