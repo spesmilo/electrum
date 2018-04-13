@@ -152,6 +152,29 @@ def int_to_hex(i, length=1):
     s = "0"*(2*length - len(s)) + s
     return rev_hex(s)
 
+def script_num_to_hex(i):
+    """See CScriptNum in Bitcoin Core.
+    Encodes an integer as hex, to be used in script.
+
+    ported from https://github.com/bitcoin/bitcoin/blob/8cbc5c4be4be22aca228074f087a374a7ec38be8/src/script/script.h#L326
+    """
+    if i == 0:
+        return ''
+
+    result = bytearray()
+    neg = i < 0
+    absvalue = abs(i)
+    while absvalue > 0:
+        result.append(absvalue & 0xff)
+        absvalue >>= 8
+
+    if result[-1] & 0x80:
+        result.append(0x80 if neg else 0x00)
+    elif neg:
+        result[-1] |= 0x80
+
+    return bh2u(result)
+
 
 def var_int(i):
     # https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
