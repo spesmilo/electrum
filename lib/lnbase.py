@@ -249,10 +249,10 @@ def aiosafe(f):
 
 class Peer(PrintError):
 
-    def __init__(self, privkey, host, port, pubkey):
+    def __init__(self, host, port, pubkey):
         self.host = host
         self.port = port
-        self.privkey = privkey
+        self.privkey = os.urandom(32) + b"\x01"
         self.pubkey = pubkey
         self.read_buffer = b''
         self.ping_time = 0
@@ -427,8 +427,7 @@ class LNWorker:
         #host, port, pubkey = ('localhost', '9735', subprocess.Popen("~/go/bin/lncli getinfo | jq -r .identity_pubkey", shell=True, stdout=subprocess.PIPE).communicate()[0].strip())
         pubkey = binascii.unhexlify(pubkey)
         port = int(port)
-        privkey = os.urandom(32) + b"\x01"
-        self.peer = Peer(privkey, host, port, pubkey)
+        self.peer = Peer(host, port, pubkey)
         self.network.futures.append(asyncio.run_coroutine_threadsafe(self.peer.main_loop(), asyncio.get_event_loop()))
 
     def openchannel(self):
