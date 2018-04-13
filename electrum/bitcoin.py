@@ -234,7 +234,6 @@ def script_num_to_hex(i: int) -> str:
 
     return bh2u(result)
 
-
 def var_int(i: int) -> str:
     # https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
     if i<0xfd:
