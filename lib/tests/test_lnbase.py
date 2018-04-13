@@ -1,6 +1,9 @@
+import json
 import unittest
 from lib.util import bh2u
 from lib.lnbase import make_commitment, get_locktime
+from lib.transaction import Transaction
+from lib import bitcoin
 
 class Test_LNBase(unittest.TestCase):
 
@@ -35,15 +38,35 @@ class Test_LNBase(unittest.TestCase):
         # actual commitment transaction fee = 10860
         # to_local amount 6989140 wscript 63210212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b1967029000b2752103fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c68ac
         # to_remote amount 3000000 P2WPKH(0394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b)
-        #remote_signature = 3045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c0
+        remote_signature = "3045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c0"
         # local_signature = 3044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c3836939
         #num_htlcs: 0
-        c_tx = make_commitment(
+        our_commit_tx = make_commitment(
             local_funding_pubkey, remote_funding_pubkey,
             local_payment_basepoint, remote_payment_basepoint,
             local_revocation_pubkey, local_delayedpubkey,
             funding_tx_id, funding_output_index, funding_amount_satoshi)
-        
-        commit_tx = '02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8002c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de84311054a56a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0400473044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c383693901483045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c001475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220'
-        self.assertEqual(str(c_tx), commit_tx)
+        our_commit_tx.sign({bh2u(local_funding_pubkey): (local_funding_privkey[:-1], True)})
 
+        ref_commit_tx_str = '02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8002c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de84311054a56a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0400473044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c383693901483045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c001475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220'
+        ref_commit_tx = Transaction(ref_commit_tx_str)
+
+        pubkeys, _x_pubkeys = our_commit_tx.get_sorted_pubkeys(our_commit_tx.inputs()[0])
+        index_of_pubkey = pubkeys.index(bh2u(remote_funding_pubkey))
+        our_commit_tx._inputs[0]["signatures"][index_of_pubkey] = remote_signature + "01"
+
+        print("Reference inputs", json.dumps(ref_commit_tx.inputs(), indent=2))
+        print("Our inputs", json.dumps(our_commit_tx.inputs(), indent=2))
+
+        for idx, inp in enumerate(our_commit_tx.inputs()):
+            for field in inp.keys():
+                 self.assertEqual(inp[field], ref_commit_tx.inputs()[idx][field], field)
+
+        self.assertEquals(ref_commit_tx.inputs()[0]["witness"], our_commit_tx.serialize_witness(txin=our_commit_tx.inputs()[0]))
+
+        output1adr = ref_commit_tx.outputs()[0][1]
+        output2adr = ref_commit_tx.outputs()[1][1]
+        self.assertTrue(bitcoin.redeem_script_to_address("p2wsh", "63210212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b1967029000b2752103fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c68ac") in [output1adr, output2adr])
+        # todo check order and other output
+
+        self.assertEqual(str(our_commit_tx), ref_commit_tx_str)
