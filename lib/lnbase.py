@@ -448,7 +448,8 @@ class Peer(PrintError):
         c_tx.sign({bh2u(funding_pubkey): (funding_privkey, True)})
         # 
         self.print_error('ctx inputs', c_tx.inputs())
-        sig = bytes.fromhex(c_tx.inputs()[0]["signatures"][0])
+        sig_index = pubkeys.index(bh2u(funding_pubkey))
+        sig = bytes.fromhex(c_tx.inputs()[0]["signatures"][sig_index])
         self.print_error('sig', len(sig))
         sig = bytes(sig[:len(sig)-1])
         r, s = sigdecode_der(sig, SECP256k1.generator.order())
