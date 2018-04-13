@@ -230,7 +230,8 @@ opcodes = Enumeration("Opcodes", [
     "OP_HASH256", "OP_CODESEPARATOR", "OP_CHECKSIG", "OP_CHECKSIGVERIFY", "OP_CHECKMULTISIG",
     "OP_CHECKMULTISIGVERIFY",
     ("OP_NOP1", 0xB0),
-    ("OP_CHECKLOCKTIMEVERIFY", 0xB1), ("OP_CHECKSEQUENCEVERIFY", 0xB2),
+    ("OP_CLTV", 0xB1),
+    ("OP_CSV", 0xB2),
     "OP_NOP4", "OP_NOP5", "OP_NOP6", "OP_NOP7", "OP_NOP8", "OP_NOP9", "OP_NOP10",
     ("OP_INVALIDOPCODE", 0xFF),
 ])
@@ -1020,6 +1021,7 @@ class Transaction:
         for i, txin in enumerate(self.inputs()):
             num = txin['num_sig']
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
+            print_error("qq", x_pubkeys, keypairs)
             for j, x_pubkey in enumerate(x_pubkeys):
                 signatures = list(filter(None, txin['signatures']))
                 if len(signatures) == num:
