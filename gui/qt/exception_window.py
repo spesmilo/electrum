@@ -186,7 +186,8 @@ class Exception_Window(QWidget, MessageBoxMixin):
     @staticmethod
     def get_git_version():
         dir = os.path.dirname(os.path.realpath(sys.argv[0]))
-        version = subprocess.check_output(['git', 'describe', '--always'], cwd=dir)
+        version = subprocess.check_output(
+            ['git', 'describe', '--always', '--dirty'], cwd=dir)
         return str(version, "utf8").strip()
 
 
