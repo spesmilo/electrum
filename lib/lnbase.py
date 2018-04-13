@@ -248,18 +248,17 @@ def aiosafe(f):
             traceback.print_exc()
     return f2
 
-def get_locktime(cn, local, remote):
-    print_error(len(local), len(remote))
-    q = local + remote
-    mask = int.from_bytes(H256(q)[-6:], byteorder="big")
-    print_error('mask', hex(mask))
-    obs = cn ^ mask
-    print_error('obs ', hex(obs))
-    locktime = (0x20 << 48) + obs
-    return locktime
+def get_obscured_ctn(ctn, local, remote):
+    mask = int.from_bytes(H256(local + remote)[-6:], byteorder="big")
+    return ctn ^ mask
+
 
 def make_commitment(local_pubkey, remote_pubkey, payment_pubkey, remote_payment_pubkey, revocation_pubkey, delayed_pubkey, funding_txid, funding_pos, funding_satoshis):
     pubkeys = sorted([bh2u(local_pubkey), bh2u(remote_pubkey)])
+    obs = get_obscured_ctn(0, payment_pubkey, remote_payment_pubkey)
+    locktime = (0x20 << 24) + (obs & 0xffffff)
+    sequence = (0x80 << 24) + (obs >> 24)
+    print_error('locktime', locktime, hex(locktime))
     # commitment tx input
     c_inputs = [{
         'type': 'p2wsh',
@@ -269,7 +268,8 @@ def make_commitment(local_pubkey, remote_pubkey, payment_pubkey, remote_payment_
         'prevout_n': funding_pos,
         'prevout_hash': funding_txid,
         'value': funding_satoshis,
-        'coinbase': False
+        'coinbase': False,
+        'sequence':sequence
     }]
     # commitment tx outputs
     local_script = bytes([opcodes.OP_IF]) + revocation_pubkey + bytes([opcodes.OP_ELSE, opcodes.OP_CSV, opcodes.OP_DROP]) + delayed_pubkey + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
@@ -282,8 +282,6 @@ def make_commitment(local_pubkey, remote_pubkey, payment_pubkey, remote_payment_
     # no htlc for the moment
     c_outputs = [to_local, to_remote]
     # create commitment tx
-    locktime = get_locktime(0, payment_pubkey, remote_payment_pubkey)
-    print_error('locktime', locktime, hex(locktime))
     tx = Transaction.from_io(c_inputs, c_outputs, locktime=locktime, version=2)
     return tx
 
