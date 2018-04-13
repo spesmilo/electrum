@@ -29,6 +29,7 @@ from . import transaction
 from .util import PrintError, bh2u
 from .wallet import Wallet
 from .storage import WalletStorage
+from .transaction import opcodes, Transaction
 
 tcp_socket_timeout = 10
 server_response_timeout = 60
@@ -388,7 +389,25 @@ class Peer(PrintError):
         keys = get_unused_keys()
         temp_channel_id = os.urandom(32)
         funding_pubkey, funding_privkey = next(keys)
-        msg = gen_msg("open_channel", temporary_channel_id=temp_channel_id, chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)), funding_satoshis=20000, max_accepted_htlcs=5, funding_pubkey=funding_pubkey, revocation_basepoint=next(keys)[0], htlc_basepoint=next(keys)[0], payment_basepoint=next(keys)[0], delayed_payment_basepoint=next(keys)[0], first_per_commitment_point=next(keys)[0])
+        revocation_pubkey, revocation_privkey = next(keys)
+        htlc_pubkey, htlc_privkey = next(keys)
+        payment_pubkey, payment_privkey = next(keys)
+        delayed_pubkey, delayed_privkey = next(keys)
+
+        funding_satoshis = 20000
+        msg = gen_msg(
+            "open_channel",
+            temporary_channel_id=temp_channel_id,
+            chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)),
+            funding_satoshis=funding_satoshis,
+            max_accepted_htlcs=5,
+            funding_pubkey=funding_pubkey,
+            revocation_basepoint=revocation_pubkey,
+            htlc_basepoint=htlc_pubkey,
+            payment_basepoint=payment_pubkey,
+            delayed_payment_basepoint=delayed_pubkey,
+            first_per_commitment_point=next(keys)[0]
+        )
         self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id] = asyncio.Future()
         self.send_message(msg)
         try:
@@ -400,19 +419,43 @@ class Peer(PrintError):
         redeem_script = transaction.multisig_script(pubkeys, 2)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         #TODO support passwd, fix fee
-        funding_output = (bitcoin.TYPE_ADDRESS, funding_address, 20000)
-        tx = wallet.mktx([funding_output], None, config, 1000)
-        funding_index = tx.outputs().index(funding_output)
-        tx.sign({funding_pubkey: (funding_privkey, True)})
-        # this is wrong: you need to send the signature of the first commitment tx
-        sig = bytes.fromhex(tx.inputs()[0]["signatures"][0])
+        funding_output = (bitcoin.TYPE_ADDRESS, funding_address, funding_satoshis)
+        funding_tx = wallet.mktx([funding_output], None, config, 1000)
+        funding_index = funding_tx.outputs().index(funding_output)
+        # commitment tx input
+        c_inputs = [{
+            'type': 'p2wsh',
+            'x_pubkeys': pubkeys,
+            'signatures':[None, None],
+            'num_sig': 2,
+            'prevout_n': funding_index,
+            'prevout_hash': funding_tx.txid(),
+            'value': funding_satoshis,
+            'coinbase': False
+        }]
+        # commitment tx outputs
+        local_script = bytes([opcodes.OP_IF]) + revocation_pubkey + bytes([opcodes.OP_ELSE, opcodes.OP_CSV, opcodes.OP_DROP]) + delayed_pubkey + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
+        local_address = bitcoin.redeem_script_to_address('p2wsh', bh2u(local_script))
+        local_amount = funding_satoshis
+        remote_address = bitcoin.pubkey_to_address('p2wpkh', bh2u(remote_pubkey))
+        remote_amount = 0
+        to_local = (bitcoin.TYPE_ADDRESS, local_address, local_amount)
+        to_remote = (bitcoin.TYPE_ADDRESS, remote_address, remote_amount)
+        # no htlc for the moment
+        c_outputs = [to_local, to_remote]
+        # create commitment tx
+        c_tx = Transaction.from_io(c_inputs, c_outputs)
+        c_tx.sign({bh2u(funding_pubkey): (funding_privkey, True)})
+        # 
+        self.print_error('ctx inputs', c_tx.inputs())
+        sig = bytes.fromhex(c_tx.inputs()[0]["signatures"][0])
         self.print_error('sig', len(sig))
         sig = bytes(sig[:len(sig)-1])
         r, s = sigdecode_der(sig, SECP256k1.generator.order())
         sig = sigencode_string_canonize(r, s, SECP256k1.generator.order())
         self.print_error('canonical signature', len(sig))
         self.temporary_channel_id_to_incoming_funding_signed[temp_channel_id] = asyncio.Future()
-        self.send_message(gen_msg("funding_created", temporary_channel_id=temp_channel_id, funding_txid=bytes.fromhex(tx.txid()), funding_output_index=funding_index, signature=sig))
+        self.send_message(gen_msg("funding_created", temporary_channel_id=temp_channel_id, funding_txid=bytes.fromhex(funding_tx.txid()), funding_output_index=funding_index, signature=sig))
         try:
             funding_signed = await self.temporary_channel_id_to_incoming_funding_signed[temp_channel_id]
         finally:
