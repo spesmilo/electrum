@@ -255,12 +255,12 @@ def get_obscured_ctn(ctn, local, remote):
 def overall_weight(num_htlc):
     return 500 + 172 * num_htlc + 224
 
-def make_commitment(local_funding_pubkey, remote_funding_pubkey, remotepubkey,
+def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubkey,
                     payment_pubkey, remote_payment_pubkey, revocation_pubkey, delayed_pubkey,
                     funding_txid, funding_pos, funding_satoshis,
                     to_local_msat, to_remote_msat, local_feerate, local_delay):
     pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
-    obs = get_obscured_ctn(0, payment_pubkey, remote_payment_pubkey)
+    obs = get_obscured_ctn(ctn, payment_pubkey, remote_payment_pubkey)
     locktime = (0x20 << 24) + (obs & 0xffffff)
     sequence = (0x80 << 24) + (obs >> 24)
     print_error('locktime', locktime, hex(locktime))
@@ -459,7 +459,7 @@ class Peer(PrintError):
             accept_channel = await self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
         finally:
             del self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
-        remote_pubkey = accept_channel["funding_pubkey"]
+        remote_funding_pubkey = accept_channel["funding_pubkey"]
         pubkeys = sorted([bh2u(funding_pubkey), bh2u(remote_pubkey)])
         redeem_script = transaction.multisig_script(pubkeys, 2)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
@@ -468,10 +468,11 @@ class Peer(PrintError):
         funding_index = funding_tx.outputs().index(funding_output)
         remote_payment_pubkey = accept_channel['payment_basepoint']
         c_tx = make_commitment(
-            funding_pubkey, remote_pubkey,
+            0,
+            funding_pubkey, remote_funding_pubkey,
             payment_pubkey, remote_payment_pubkey, revocation_pubkey, delayed_pubkey,
             funding_tx.txid(), funding_index, funding_satoshis,
-            funding_satoshis*1000, 0, 20000)
+            funding_satoshis*1000, 0, 20000, 144)
         c_tx.sign({bh2u(funding_pubkey): (funding_privkey, True)})
         sig_index = pubkeys.index(bh2u(funding_pubkey))
         sig = bytes.fromhex(c_tx.inputs()[0]["signatures"][sig_index])
