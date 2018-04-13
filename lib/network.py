@@ -1086,8 +1086,11 @@ class Network(util.DaemonThread):
             networkAndWalletLock.acquire()
         # cancel tasks
         [f.cancel() for f in self.futures]
-        self.asyncio_loop.stop()
-        if self.asyncio_loop.is_running(): time.sleep(0.1)
+        async def loopstop():
+            self.asyncio_loop.stop()
+        asyncio.run_coroutine_threadsafe(loopstop(), self.asyncio_loop)
+        while self.asyncio_loop.is_running():
+            time.sleep(0.1)
         try:
             self.asyncio_loop.close()
         except:
