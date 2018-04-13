@@ -4,6 +4,7 @@ from PyQt5 import QtCore, QtWidgets
 from collections import OrderedDict
 import logging
 from electrum.lightning import lightningCall
+import traceback
 
 mapping = {0: "channel_point"}
 revMapp = {"channel_point": 0}
@@ -39,6 +40,8 @@ def clickHandler(nodeIdInput, local_amt_inp, push_amt_inp, lightningRpc):
     lightningCall(lightningRpc, "openchannel")(str(nodeId), local_amt_inp.text(), push_amt_inp.text())
 
 class LightningChannelsList(QtWidgets.QWidget):
+    update_rows = QtCore.pyqtSignal(str, dict)
+
     def create_menu(self, position):
         menu = QtWidgets.QMenu()
         cur = self._tv.currentItem()
@@ -67,6 +70,15 @@ class LightningChannelsList(QtWidgets.QWidget):
                 except KeyError:
                     obj[k] = v
     def lightningRpcHandler(self, methodName, obj):
+        if isinstance(obj, Exception):
+            try:
+                raise obj
+            except:
+                traceback.print_exc()
+        else:
+            self.update_rows.emit(methodName, obj)
+
+    def do_update_rows(self, methodName, obj):
         if methodName != "listchannels":
             print("channel list ignoring reply {} to {}".format(obj, methodName))
             return
@@ -77,6 +89,8 @@ class LightningChannelsList(QtWidgets.QWidget):
         
     def __init__(self, parent, lightningWorker, lightningRpc):
         QtWidgets.QWidget.__init__(self, parent)
+
+        self.update_rows.connect(self.do_update_rows)
 
         def tick():
             lightningCall(lightningRpc, "listchannels")()
