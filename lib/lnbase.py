@@ -26,7 +26,7 @@ from . import bitcoin
 from .constants import set_testnet, set_simnet
 from . import constants
 from . import transaction
-from .util import PrintError
+from .util import PrintError, bh2u
 from .wallet import Wallet
 from .storage import WalletStorage
 
@@ -396,22 +396,23 @@ class Peer(PrintError):
         finally:
             del self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
         remote_pubkey = accept_channel["funding_pubkey"]
-        if int.from_bytes(remote_pubkey, byteorder="big") < int.from_bytes(funding_pubkey, byteorder="big"):
-            pubkeys = [remote_pubkey, funding_pubkey]
-        else:
-            pubkeys = [funding_pubkey, remote_pubkey]
-        scr = transaction.multisig_script([binascii.hexlify(x).decode("ascii") for x in pubkeys], 2)
+        pubkeys = sorted([bh2u(funding_pubkey), bh2u(remote_pubkey)])
+        redeem_script = transaction.multisig_script(pubkeys, 2)
+        funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         #TODO support passwd, fix fee
-        tx = wallet.mktx([(bitcoin.TYPE_SCRIPT, scr, 20000)], None, config, 1000)
+        funding_output = (bitcoin.TYPE_ADDRESS, funding_address, 20000)
+        tx = wallet.mktx([funding_output], None, config, 1000)
+        funding_index = tx.outputs().index(funding_output)
         tx.sign({funding_pubkey: (funding_privkey, True)})
+        # this is wrong: you need to send the signature of the first commitment tx
         sig = bytes.fromhex(tx.inputs()[0]["signatures"][0])
+        self.print_error('sig', len(sig))
         sig = bytes(sig[:len(sig)-1])
         r, s = sigdecode_der(sig, SECP256k1.generator.order())
         sig = sigencode_string_canonize(r, s, SECP256k1.generator.order())
-        print(sig)
-
+        self.print_error('canonical signature', len(sig))
         self.temporary_channel_id_to_incoming_funding_signed[temp_channel_id] = asyncio.Future()
-        self.send_message(gen_msg("funding_created", temporary_channel_id=temp_channel_id, funding_txid=bytes.fromhex(tx.txid()), funding_output_index=0, signature=sig))
+        self.send_message(gen_msg("funding_created", temporary_channel_id=temp_channel_id, funding_txid=bytes.fromhex(tx.txid()), funding_output_index=funding_index, signature=sig))
         try:
             funding_signed = await self.temporary_channel_id_to_incoming_funding_signed[temp_channel_id]
         finally:
