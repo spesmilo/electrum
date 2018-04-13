@@ -473,8 +473,7 @@ if __name__ == "__main__":
         set_testnet()
     pubkey = binascii.unhexlify(pubkey)
     port = int(port)
-    privkey = b"\x21"*32 + b"\x01"
-    peer = Peer(privkey, host, port, pubkey)
+    peer = Peer(host, port, pubkey)
     loop = asyncio.get_event_loop()
     loop.run_until_complete(peer.main_loop())
     loop.close()
