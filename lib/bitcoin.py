@@ -166,11 +166,11 @@ def var_int(i):
 
 
 def op_push(i):
-    if i<0x4c:
+    if i<0x4c:  # OP_PUSHDATA1
         return int_to_hex(i)
-    elif i<0xff:
+    elif i<=0xff:
         return '4c' + int_to_hex(i)
-    elif i<0xffff:
+    elif i<=0xffff:
         return '4d' + int_to_hex(i,2)
     else:
         return '4e' + int_to_hex(i,4)
