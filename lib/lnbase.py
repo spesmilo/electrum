@@ -21,7 +21,10 @@ import hashlib
 import hmac
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 
-from .bitcoin import public_key_from_private_key, ser_to_point, point_to_ser, string_to_number, deserialize_privkey, EC_KEY, rev_hex, int_to_hex, push_script, script_num_to_hex
+from .bitcoin import (public_key_from_private_key, ser_to_point, point_to_ser,
+                      string_to_number, deserialize_privkey, EC_KEY, rev_hex, int_to_hex,
+                      push_script, script_num_to_hex, add_data_to_script,
+                      add_number_to_script)
 from . import bitcoin
 from .constants import set_testnet, set_simnet
 from . import constants
@@ -156,7 +159,7 @@ class HandshakeState(object):
     def update(self, data):
         self.h = H256(self.h + data)
         return self.h
-        
+
 def get_nonce_bytes(n):
     """BOLT 8 requires the nonce to be 12 bytes, 4 bytes leading
     zeroes and 8 bytes little endian encoded 64 bit integer.
@@ -221,7 +224,7 @@ def act1_initiator_message(hs, my_privkey):
 def privkey_to_pubkey(priv):
     pub = public_key_from_private_key(priv[:32], True)
     return bytes.fromhex(pub)
-    
+
 def create_ephemeral_key(privkey):
     pub = privkey_to_pubkey(privkey)
     return (privkey[:32], pub)
@@ -277,7 +280,7 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubk
         'sequence':sequence
     }]
     # commitment tx outputs
-    local_script = bytes([opcodes.OP_IF]) + bfh(push_script(bh2u(revocation_pubkey))) + bytes([opcodes.OP_ELSE]) + bfh(push_script(script_num_to_hex(local_delay))) \
+    local_script = bytes([opcodes.OP_IF]) + bfh(push_script(bh2u(revocation_pubkey))) + bytes([opcodes.OP_ELSE]) + add_number_to_script(local_delay) \
                    + bytes([opcodes.OP_CSV, opcodes.OP_DROP]) + bfh(push_script(bh2u(delayed_pubkey))) + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
     local_address = bitcoin.redeem_script_to_address('p2wsh', bh2u(local_script))
     fee = local_feerate * overall_weight(0) // 1000
