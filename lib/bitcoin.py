@@ -198,6 +198,35 @@ def op_push(i):
     else:
         return '4e' + int_to_hex(i,4)
 
+
+def add_data_to_script(data):
+    """Returns pushed data to the script, automatically
+    choosing canonical opcodes depending on the length of the data.
+    bytes -> bytes
+
+    ported from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptbuilder.go#L128
+    """
+    assert_bytes(data)
+    from .transaction import opcodes
+
+    data_len = len(data)
+
+    # "small integer" opcodes
+    if data_len == 0 or data_len == 1 and data[0] == 0:
+        return bytes([opcodes.OP_0])
+    elif data_len == 1 and data[0] <= 16:
+        return bytes([opcodes.OP_1 - 1 + data[0]])
+    elif data_len == 1 and data[0] == 0x81:
+        return bytes([opcodes.OP_1NEGATE])
+
+    return bfh(push_script(bh2u(data)))
+
+
+def add_number_to_script(i):
+    """int -> bytes"""
+    return add_data_to_script(bfh(script_num_to_hex(i)))
+
+
 def push_script(x):
     return op_push(len(x)//2) + x
 
