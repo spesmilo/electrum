@@ -12,7 +12,8 @@ from lib.bitcoin import (
     verify_message, deserialize_privkey, serialize_privkey, is_segwit_address,
     is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
     xpub_type, is_xprv, is_bip32_derivation, seed_type, EncodeBase58Check,
-    script_num_to_hex)
+    script_num_to_hex, add_data_to_script, add_number_to_script)
+from lib.transaction import opcodes
 from lib.util import bfh
 from lib import constants
 
@@ -165,6 +166,43 @@ class Test_bitcoin(unittest.TestCase):
         self.assertEqual(script_num_to_hex(-32767), 'ffff')
         self.assertEqual(script_num_to_hex(32768), '008000')
         self.assertEqual(script_num_to_hex(-32768), '008080')
+
+    def test_add_data_to_script(self):
+        # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#push-operators
+        self.assertEqual(add_data_to_script(bfh('')), bytes([opcodes.OP_0]))
+        self.assertEqual(add_data_to_script(bfh('07')), bytes([opcodes.OP_7]))
+        self.assertEqual(add_data_to_script(bfh('10')), bytes([opcodes.OP_16]))
+        self.assertEqual(add_data_to_script(bfh('81')), bytes([opcodes.OP_1NEGATE]))
+        self.assertEqual(add_data_to_script(bfh('11')), bfh('0111'))
+        self.assertEqual(add_data_to_script(bfh(75 * '42')), bfh('4b' + 75 * '42'))
+        self.assertEqual(add_data_to_script(bfh(76 * '42')), bytes([opcodes.OP_PUSHDATA1]) + bfh('4c' + 76 * '42'))
+        self.assertEqual(add_data_to_script(bfh(100 * '42')), bytes([opcodes.OP_PUSHDATA1]) + bfh('64' + 100 * '42'))
+        self.assertEqual(add_data_to_script(bfh(255 * '42')), bytes([opcodes.OP_PUSHDATA1]) + bfh('ff' + 255 * '42'))
+        self.assertEqual(add_data_to_script(bfh(256 * '42')), bytes([opcodes.OP_PUSHDATA2]) + bfh('0001' + 256 * '42'))
+        self.assertEqual(add_data_to_script(bfh(520 * '42')), bytes([opcodes.OP_PUSHDATA2]) + bfh('0802' + 520 * '42'))
+
+    def test_add_number_to_script(self):
+        # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#numbers
+        self.assertEqual(add_number_to_script(0), bytes([opcodes.OP_0]))
+        self.assertEqual(add_number_to_script(7), bytes([opcodes.OP_7]))
+        self.assertEqual(add_number_to_script(16), bytes([opcodes.OP_16]))
+        self.assertEqual(add_number_to_script(-1), bytes([opcodes.OP_1NEGATE]))
+        self.assertEqual(add_number_to_script(-127), bfh('01ff'))
+        self.assertEqual(add_number_to_script(-2), bfh('0182'))
+        self.assertEqual(add_number_to_script(17), bfh('0111'))
+        self.assertEqual(add_number_to_script(127), bfh('017f'))
+        self.assertEqual(add_number_to_script(-32767), bfh('02ffff'))
+        self.assertEqual(add_number_to_script(-128), bfh('028080'))
+        self.assertEqual(add_number_to_script(128), bfh('028000'))
+        self.assertEqual(add_number_to_script(32767), bfh('02ff7f'))
+        self.assertEqual(add_number_to_script(-8388607), bfh('03ffffff'))
+        self.assertEqual(add_number_to_script(-32768), bfh('03008080'))
+        self.assertEqual(add_number_to_script(32768), bfh('03008000'))
+        self.assertEqual(add_number_to_script(8388607), bfh('03ffff7f'))
+        self.assertEqual(add_number_to_script(-2147483647), bfh('04ffffffff'))
+        self.assertEqual(add_number_to_script(-8388608 ), bfh('0400008080'))
+        self.assertEqual(add_number_to_script(8388608), bfh('0400008000'))
+        self.assertEqual(add_number_to_script(2147483647), bfh('04ffffff7f'))
 
     def test_address_to_script(self):
         # bech32 native segwit
@@ -520,7 +558,7 @@ class Test_seeds(unittest.TestCase):
         ('  fRoSt pig brisk excIte novel rePort CamEra enlist axis nation nOVeL dEsert ', 'segwit'),
         ('9dk', 'segwit'),
     }
-    
+
     def test_new_seed(self):
         seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform able"
         self.assertTrue(is_new_seed(seed))
