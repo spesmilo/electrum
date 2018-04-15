@@ -5,6 +5,7 @@
 """
 
 from ecdsa.util import sigdecode_der, sigencode_string_canonize
+from ecdsa import VerifyingKey
 from ecdsa.curves import SECP256k1
 import subprocess
 import queue
@@ -382,6 +383,9 @@ class Peer(PrintError):
             f = getattr(self, 'on_' + message_type)
         except AttributeError:
             return
+        # raw message is needed to check signature
+        if message_type=='node_announcement':
+            payload['raw'] = message
         f(payload)
 
     def on_error(self, payload):
@@ -407,6 +411,43 @@ class Peer(PrintError):
         self.temporary_channel_id_to_incoming_funding_signed[payload["temporary_channel_id"]].set_result(payload)
 
     def on_funding_locked(self, payload):
+        pass
+
+    def on_node_announcement(self, payload):
+        pubkey = payload['node_id']
+        signature = payload['signature']
+        h = bitcoin.Hash(payload['raw'][66:])
+        if not bitcoin.verify_signature(pubkey, signature, h):
+            return False
+        self.s = payload['addresses']
+        def read(n):
+            data, self.s = self.s[0:n], self.s[n:]
+            return data
+        while self.s:
+            atype = ord(read(1))
+            if atype == 0:
+                pass
+            elif atype == 1:
+                ipv4_addr = '.'.join(map(lambda x: '%d'%x, read(4)))
+                port = int.from_bytes(read(2), byteorder="big")
+                x = ipv4_addr, port, binascii.hexlify(pubkey)
+                self.print_error('node announcement', x)
+                node_list.append(x)
+            elif atype == 2:
+                ipv6_addr = read(16)
+                port = read(2)
+                print(ipv6_addr, port)
+            else:
+                pass
+            continue
+
+    def on_init(self, payload):
+        pass
+
+    def on_channel_update(self, payload):
+        pass
+
+    def on_channel_announcement(self, payload):
         pass
 
     #def open_channel(self, funding_sat, push_msat):

@@ -656,6 +656,14 @@ def msg_magic(message):
     length = bfh(var_int(len(message)))
     return b"\x18Bitcoin Signed Message:\n" + length + message
 
+def verify_signature(pubkey, signature, h):
+    pubkey_point = ser_to_point(pubkey)
+    verif_key = ecdsa.VerifyingKey.from_public_point(pubkey_point, curve = SECP256k1)
+    try:
+        verif_key.verify_digest(signature, h, sigdecode = ecdsa.util.sigdecode_string)
+    except ecdsa.keys.BadSignatureError:
+        return False
+    return True
 
 def verify_message(address, sig, message):
     assert_bytes(sig, message)
