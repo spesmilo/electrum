@@ -310,6 +310,8 @@ class Peer(PrintError):
         self.temporary_channel_id_to_incoming_funding_signed = {}
         self.init_message_received_future = asyncio.Future()
         self.localfeatures = 0x08 # request initial sync
+        self.nodes = {} # received node announcements
+        self.channels = {} # received channel announcements
 
     def diagnostic_name(self):
         return self.host
@@ -330,8 +332,8 @@ class Peer(PrintError):
         self.writer.write(lc+c)
 
     async def read_message(self):
-        rn_l = self.rn()
-        rn_m = self.rn()
+        rn_l, rk_l = self.rn()
+        rn_m, rk_m = self.rn()
         while True:
             s = await self.reader.read(2**10)
             if not s:
@@ -340,14 +342,14 @@ class Peer(PrintError):
             if len(self.read_buffer) < 18:
                 continue
             lc = self.read_buffer[:18]
-            l = aead_decrypt(self.rk, rn_l, b'', lc)
+            l = aead_decrypt(rk_l, rn_l, b'', lc)
             length = int.from_bytes(l, byteorder="big")
             offset = 18 + length + 16
             if len(self.read_buffer) < offset:
                 continue
             c = self.read_buffer[18:offset]
             self.read_buffer = self.read_buffer[offset:]
-            msg = aead_decrypt(self.rk, rn_m, b'', c)
+            msg = aead_decrypt(rk_m, rn_m, b'', c)
             return msg
 
     async def handshake(self):
@@ -385,7 +387,7 @@ class Peer(PrintError):
         self.s_ck = ck
 
     def rn(self):
-        o = self._rn
+        o = self._rn, self.rk
         self._rn += 1
         if self._rn == 1000:
             self.r_ck, self.rk = get_bolt8_hkdf(self.r_ck, self.rk)
@@ -447,6 +449,7 @@ class Peer(PrintError):
         def read(n):
             data, self.s = self.s[0:n], self.s[n:]
             return data
+        addresses = []
         while self.s:
             atype = ord(read(1))
             if atype == 0:
@@ -455,15 +458,16 @@ class Peer(PrintError):
                 ipv4_addr = '.'.join(map(lambda x: '%d'%x, read(4)))
                 port = int.from_bytes(read(2), byteorder="big")
                 x = ipv4_addr, port, binascii.hexlify(pubkey)
-                self.print_error('node announcement', x)
-                node_list.append(x)
+                addresses.append((ipv4_addr, port))
             elif atype == 2:
-                ipv6_addr = read(16)
-                port = read(2)
-                print(ipv6_addr, port)
+                ipv6_addr = b':'.join([binascii.hexlify(read(2)) for i in range(4)])
+                port = int.from_bytes(read(2), byteorder="big")
+                addresses.append((ipv6_addr, port))
             else:
                 pass
             continue
+        self.print_error('node announcement', binascii.hexlify(pubkey), addresses)
+        self.nodes[pubkey] = {'addresses': addresses}
 
     def on_init(self, payload):
         pass
