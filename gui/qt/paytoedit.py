@@ -99,7 +99,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit):
                 script += bitcoin.int_to_hex(opcode_int)
             else:
                 bfh(word)  # to test it is hex data
-                script += push_script(word)
+                script += word
         return script
 
     def parse_amount(self, x):
