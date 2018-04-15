@@ -330,7 +330,7 @@ class Blockchain(util.PrintError):
         max_target = 0x00000FFFF0000000000000000000000000000000000000000000000000000000
 
         if BlockLastSolved is None or block_height-1 < PastBlocksMin:
-            return 0x1e0ffff0, max_target
+            return max_target
         for i in range(1, PastBlocksMax + 1):
             CountBlocks += 1
 
