@@ -330,6 +330,8 @@ class Peer(PrintError):
         self.writer.write(lc+c)
 
     async def read_message(self):
+        rn_l = self.rn()
+        rn_m = self.rn()
         while True:
             s = await self.reader.read(2**10)
             if not s:
@@ -338,14 +340,14 @@ class Peer(PrintError):
             if len(self.read_buffer) < 18:
                 continue
             lc = self.read_buffer[:18]
-            l = aead_decrypt(self.rk, self.rn(), b'', lc)
+            l = aead_decrypt(self.rk, rn_l, b'', lc)
             length = int.from_bytes(l, byteorder="big")
             offset = 18 + length + 16
             if len(self.read_buffer) < offset:
                 continue
             c = self.read_buffer[18:offset]
             self.read_buffer = self.read_buffer[offset:]
-            msg = aead_decrypt(self.rk, self.rn(), b'', c)
+            msg = aead_decrypt(self.rk, rn_m, b'', c)
             return msg
 
     async def handshake(self):
@@ -400,10 +402,10 @@ class Peer(PrintError):
 
     def process_message(self, message):
         message_type, payload = decode_msg(message)
-        self.print_error("Received '%s'" % message_type.upper(), payload)
         try:
             f = getattr(self, 'on_' + message_type)
         except AttributeError:
+            self.print_error("Received '%s'" % message_type.upper(), payload)
             return
         # raw message is needed to check signature
         if message_type=='node_announcement':
@@ -467,10 +469,10 @@ class Peer(PrintError):
         pass
 
     def on_channel_update(self, payload):
-        pass
+        self.print_error('channel update')
 
     def on_channel_announcement(self, payload):
-        pass
+        self.print_error('channel announcement')
 
     #def open_channel(self, funding_sat, push_msat):
     #    self.send_message(gen_msg('open_channel', funding_satoshis=funding_sat, push_msat=push_msat))
