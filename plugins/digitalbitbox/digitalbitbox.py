@@ -270,7 +270,7 @@ class DigitalBitbox_Client():
 
         choices = [
             _('Do not pair'),
-            _('Import pairing from the digital bitbox desktop app'),
+            _('Import pairing from the Digital Bitbox desktop app'),
         ]
         try:
             reply = self.handler.win.query_choice(_('Mobile pairing options'), choices)

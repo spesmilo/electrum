@@ -1315,7 +1315,7 @@ class Abstract_Wallet(PrintError):
             self.synchronizer.release()
             self.synchronizer = None
             self.verifier = None
-            # Now no references to the syncronizer or verifier
+            # Now no references to the synchronizer or verifier
             # remain so they will be GC-ed
             self.storage.put('stored_height', self.get_local_height())
         self.save_transactions()

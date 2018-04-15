@@ -209,7 +209,7 @@ class SendScreen(CScreen):
         if not self.screen.address:
             return
         if self.screen.is_pr:
-            # it sould be already saved
+            # it should be already saved
             return
         # save address as invoice
         from electrum.paymentrequest import make_unsigned_request, PaymentRequest
@@ -460,7 +460,7 @@ class TabbedCarousel(Factory.TabbedPanel):
         self.current_tab.state = "normal"
         header.state = 'down'
         self._current_tab = header
-        # set the carousel to load  the appropriate slide
+        # set the carousel to load the appropriate slide
         # saved in the screen attribute of the tab head
         slide = carousel.slides[header.slide]
         if carousel.current_slide != slide:

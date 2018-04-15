@@ -57,7 +57,7 @@ Version".
 Development version
 ===================
 
-Check out the code from Github::
+Check out the code from GitHub::
 
     git clone git://github.com/spesmilo/electrum.git
     cd electrum
