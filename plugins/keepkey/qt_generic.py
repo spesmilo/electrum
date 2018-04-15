@@ -457,7 +457,7 @@ class SettingsDialog(WindowModalDialog):
         settings_glayout = QGridLayout()
 
         # Settings tab - Label
-        label_msg = QLabel(_("Name this {}.  If you have mutiple devices "
+        label_msg = QLabel(_("Name this {}.  If you have multiple devices "
                              "their labels help distinguish them.")
                            .format(plugin.device))
         label_msg.setWordWrap(True)

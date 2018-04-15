@@ -176,7 +176,7 @@ class TrustedCoinCosignerClient(object):
 
     def transfer_credit(self, id, recipient, otp, signature_callback):
         """
-        Tranfer a cosigner's credits to another cosigner.
+        Transfer a cosigner's credits to another cosigner.
         :param id: the id of the sending cosigner
         :param recipient: the id of the recipient cosigner
         :param otp: the one time password (of the sender)
@@ -250,7 +250,7 @@ class Wallet_2fa(Multisig_Wallet):
             try:
                 tx = mk_tx(outputs + [fee_output])
             except NotEnoughFunds:
-                # trustedcoin won't charge if the total inputs is
+                # TrustedCoin won't charge if the total inputs is
                 # lower than their fee
                 tx = mk_tx(outputs)
                 if tx.input_value() >= fee:

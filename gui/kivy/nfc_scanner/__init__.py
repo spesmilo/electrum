@@ -3,7 +3,7 @@ __all__ = ('NFCBase', 'NFCScanner')
 class NFCBase(Widget):
     ''' This is the base Abstract definition class that the actual hardware dependent
     implementations would be based on. If you want to define a feature that is
-    accissible and implemented by every platform implementation then define that
+    accessible and implemented by every platform implementation then define that
     method in this class.
     '''
 
@@ -39,6 +39,6 @@ class NFCBase(Widget):
 # load NFCScanner implementation
 
 NFCScanner = core_select_lib('nfc_manager', (
-    # keep the dummy implementtation as the last one to make it the fallback provider.NFCScanner = core_select_lib('nfc_scanner', (
+    # keep the dummy implementation as the last one to make it the fallback provider.NFCScanner = core_select_lib('nfc_scanner', (
     ('android', 'scanner_android', 'ScannerAndroid'),
     ('dummy', 'scanner_dummy', 'ScannerDummy')), True, 'electrum_gui.kivy')

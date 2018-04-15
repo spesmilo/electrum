@@ -199,7 +199,7 @@ class CoinChooserBase(PrintError):
         utxos = [c['prevout_hash'] + str(c['prevout_n']) for c in coins]
         self.p = PRNG(''.join(sorted(utxos)))
 
-        # Copy the ouputs so when adding change we don't modify "outputs"
+        # Copy the outputs so when adding change we don't modify "outputs"
         tx = Transaction.from_io([], outputs[:])
         # Weight of the transaction with no inputs and no change
         # Note: this will use legacy tx serialization as the need for "segwit"

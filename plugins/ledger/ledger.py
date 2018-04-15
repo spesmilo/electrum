@@ -544,7 +544,7 @@ class LedgerPlugin(HW_PluginBase):
             if device.interface_number == 0 or device.usage_page == 0xffa0:
                 ledger = True
             else:
-                return None  # non-compatible interface of a nano s or blue
+                return None  # non-compatible interface of a Nano S or Blue
         dev = hid.device()
         dev.open_path(device.path)
         dev.set_nonblocking(True)
