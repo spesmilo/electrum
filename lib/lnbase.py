@@ -310,8 +310,11 @@ class Peer(PrintError):
         self.temporary_channel_id_to_incoming_funding_signed = {}
         self.init_message_received_future = asyncio.Future()
         self.localfeatures = 0x08 # request initial sync
+        # view of the network
         self.nodes = {} # received node announcements
         self.channels = {} # received channel announcements
+        self.channel_u_origin = {}
+        self.channel_u_final = {}
 
     def diagnostic_name(self):
         return self.host
@@ -466,17 +469,30 @@ class Peer(PrintError):
             else:
                 pass
             continue
-        self.print_error('node announcement', binascii.hexlify(pubkey), addresses)
-        self.nodes[pubkey] = {'addresses': addresses}
+        alias = payload['alias'].rstrip(b'\x00')
+        self.nodes[pubkey] = {
+            'aliass': alias,
+            'addresses': addresses
+        }
+        self.print_error('node announcement', binascii.hexlify(pubkey), alias, addresses)
 
     def on_init(self, payload):
         pass
 
     def on_channel_update(self, payload):
-        self.print_error('channel update')
+        flags = int.from_bytes(payload['flags'], byteorder="big")
+        direction = bool(flags & 1)
+        short_channel_id = payload['short_channel_id']
+        if direction:
+            self.channel_u_origin[short_channel_id] = payload
+        else:
+            self.channel_u_final[short_channel_id] = payload
+        self.print_error('channel update', binascii.hexlify(short_channel_id), flags)
 
     def on_channel_announcement(self, payload):
-        self.print_error('channel announcement')
+        short_channel_id = payload['short_channel_id']
+        self.print_error('channel announcement', binascii.hexlify(short_channel_id))
+        self.channels[short_channel_id] = payload
 
     #def open_channel(self, funding_sat, push_msat):
     #    self.send_message(gen_msg('open_channel', funding_satoshis=funding_sat, push_msat=push_msat))
