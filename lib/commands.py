@@ -340,7 +340,7 @@ class Commands:
 
     @command('')
     def version(self):
-        """Return the version of electrum."""
+        """Return the version of Electrum."""
         from .version import ELECTRUM_VERSION
         return ELECTRUM_VERSION
 
@@ -589,7 +589,7 @@ class Commands:
     @command('w')
     def addrequest(self, amount, memo='', expiration=None, force=False):
         """Create a payment request, using the first unused address of the wallet.
-        The address will be condidered as used after this operation.
+        The address will be considered as used after this operation.
         If no payment is received, the address will be considered as unused if the payment request is deleted from the wallet."""
         addr = self.wallet.get_unused_address()
         if addr is None:
@@ -635,7 +635,7 @@ class Commands:
 
     @command('n')
     def notify(self, address, URL):
-        """Watch an address. Everytime the address changes, a http POST is sent to the URL."""
+        """Watch an address. Every time the address changes, a http POST is sent to the URL."""
         def callback(x):
             import urllib.request
             headers = {'content-type':'application/json'}

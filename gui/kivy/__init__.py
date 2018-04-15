@@ -32,7 +32,7 @@ try:
     sys.argv = ['']
     import kivy
 except ImportError:
-    # This error ideally shouldn't raised with pre-built packages
+    # This error ideally shouldn't be raised with pre-built packages
     sys.exit("Error: Could not import kivy. Please install it using the" + \
              "instructions mentioned here `http://kivy.org/#download` .")
 

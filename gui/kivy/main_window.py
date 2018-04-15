@@ -270,7 +270,7 @@ class ElectrumWindow(App):
         self.use_change = config.get('use_change', True)
         self.use_unconfirmed = not config.get('confirmed_only', False)
 
-        # create triggers so as to minimize updation a max of 2 times a sec
+        # create triggers so as to minimize updating a max of 2 times a sec
         self._trigger_update_wallet = Clock.create_trigger(self.update_wallet, .5)
         self._trigger_update_status = Clock.create_trigger(self.update_status, .5)
         self._trigger_update_history = Clock.create_trigger(self.update_history, .5)
@@ -728,7 +728,7 @@ class ElectrumWindow(App):
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
         exit=False, icon='atlas://gui/kivy/theming/light/error', duration=0,
         modal=False):
-        ''' Show a error Message Bubble.
+        ''' Show an error Message Bubble.
         '''
         self.show_info_bubble( text=error, icon=icon, width=width,
             pos=pos or Window.center, arrow_pos=arrow_pos, exit=exit,
@@ -736,7 +736,7 @@ class ElectrumWindow(App):
 
     def show_info(self, error, width='200dp', pos=None, arrow_pos=None,
         exit=False, duration=0, modal=False):
-        ''' Show a Info Message Bubble.
+        ''' Show an Info Message Bubble.
         '''
         self.show_error(error, icon='atlas://gui/kivy/theming/light/important',
             duration=duration, modal=modal, exit=exit, pos=pos,
@@ -744,7 +744,7 @@ class ElectrumWindow(App):
 
     def show_info_bubble(self, text=_('Hello World'), pos=None, duration=0,
         arrow_pos='bottom_mid', width=None, icon='', modal=False, exit=False):
-        '''Method to show a Information Bubble
+        '''Method to show an Information Bubble
 
         .. parameters::
             text: Message to be displayed

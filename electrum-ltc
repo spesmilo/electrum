@@ -271,7 +271,7 @@ def get_connected_hw_devices(plugins):
 def get_password_for_hw_device_encrypted_storage(plugins):
     devices = get_connected_hw_devices(plugins)
     if len(devices) == 0:
-        print_msg("Error: No connected hw device found. Can not decrypt this wallet.")
+        print_msg("Error: No connected hw device found. Cannot decrypt this wallet.")
         sys.exit(1)
     elif len(devices) > 1:
         print_msg("Warning: multiple hardware devices detected. "
@@ -336,7 +336,7 @@ def init_plugins(config, gui_name):
 if __name__ == '__main__':
     # The hook will only be used in the Qt GUI right now
     util.setup_thread_excepthook()
-    # on osx, delete Process Serial Number arg generated for apps launched in Finder
+    # on macOS, delete Process Serial Number arg generated for apps launched in Finder
     sys.argv = list(filter(lambda x: not x.startswith('-psn'), sys.argv))
 
     # old 'help' syntax

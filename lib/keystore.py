@@ -147,7 +147,7 @@ class Imported_KeyStore(Software_KeyStore):
             privkey, compressed, txin_type, internal_use=True)
         # NOTE: if the same pubkey is reused for multiple addresses (script types),
         # there will only be one pubkey-privkey pair for it in self.keypairs,
-        # and the privkey will encode a txin_type but that txin_type can not be trusted.
+        # and the privkey will encode a txin_type but that txin_type cannot be trusted.
         # Removing keys complicates this further.
         self.keypairs[pubkey] = pw_encode(serialized_privkey, password)
         return txin_type, pubkey
@@ -512,7 +512,7 @@ class Hardware_KeyStore(KeyStore, Xpub):
         }
 
     def unpaired(self):
-        '''A device paired with the wallet was diconnected.  This can be
+        '''A device paired with the wallet was disconnected.  This can be
         called in any thread context.'''
         self.print_error("unpaired")
 

@@ -48,7 +48,7 @@ Version".
 Development version
 ===================
 
-Check out the code from Github::
+Check out the code from GitHub::
 
     git clone git://github.com/pooler/electrum-ltc.git
     cd electrum-ltc

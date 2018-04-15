@@ -148,7 +148,7 @@ class PaymentRequest:
             self.error = "Error: Cannot parse payment request"
             return False
         if not pr.signature:
-            # the address will be dispayed as requestor
+            # the address will be displayed as requestor
             self.requestor = None
             return True
         if pr.pki_type in ["x509+sha256", "x509+sha1"]:

@@ -32,7 +32,7 @@ helpTxt = [_("Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>"
         _("Waiting for authentication on your mobile phone"),
         _("Transaction accepted by mobile phone. Waiting for confirmation."),
         _("Click Pair button to begin pairing a mobile phone."),
-        _("Scan this QR code with your LedgerWallet phone app to pair it with this Ledger device.<br>" 
+        _("Scan this QR code with your Ledger Wallet phone app to pair it with this Ledger device.<br>" 
             "To complete pairing you will need your security card to answer a challenge." )
         ]
 

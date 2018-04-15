@@ -99,7 +99,7 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
             return None
 
     def create_client(self, device, handler):
-        # disable bridge because it seems to never returns if keepkey is plugged
+        # disable bridge because it seems to never returns if KeepKey is plugged
         #transport = self._try_bridge(device) or self._try_hid(device)
         transport = self._try_hid(device)
         if not transport:
@@ -395,7 +395,7 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
             o.script_pubkey = bfh(vout['scriptPubKey'])
         return t
 
-    # This function is called from the trezor libraries (via tx_api)
+    # This function is called from the TREZOR libraries (via tx_api)
     def get_tx(self, tx_hash):
         tx = self.prev_tx[tx_hash]
         return self.electrum_tx_to_txtype(tx)
