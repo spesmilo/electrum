@@ -265,6 +265,7 @@ class Network(util.DaemonThread):
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
         self.asyncio_loop = loop = asyncio.new_event_loop()
+        self.futures = []
 
     def with_interface_lock(func):
         def func_wrapper(self, *args, **kwargs):
@@ -1064,7 +1065,6 @@ class Network(util.DaemonThread):
     def run(self):
         asyncio.set_event_loop(self.asyncio_loop)
         self.init_headers_file()
-        self.futures = []
         networkAndWalletLock = QLock()
         def asyncioThread():
             if self.config.get("lightning", False):
