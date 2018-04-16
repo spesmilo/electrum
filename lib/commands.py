@@ -685,12 +685,6 @@ class Commands:
         lightning.lightningCall(self.wallet.network.lightningrpc, lcmd)(*lightningargs)
         return q.get(block=True, timeout=600)
 
-    @command("wn")
-    def lnbase_test(self):
-        if not self.network.config.get("lnbase", False):
-            return "You need to pass --lnbase to the daemon starting command to run the lnbase test"
-        return self.wallet.lnworker.blocking_test_run()
-
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',
     'destination': 'Bitcoin address, contact or alias',
