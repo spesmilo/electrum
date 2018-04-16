@@ -307,9 +307,9 @@ class Peer(PrintError):
         self.pubkey = pubkey
         self.read_buffer = b''
         self.ping_time = 0
-        self.temporary_channel_id_to_incoming_accept_channel = {}
-        self.temporary_channel_id_to_incoming_funding_signed = {}
-        self.init_message_received_future = asyncio.Future()
+        self.channel_accepted = {}
+        self.funding_signed = {}
+        self.initialized = asyncio.Future()
         self.localfeatures = (0x08 if request_initial_sync else 0)
         # view of the network
         self.nodes = {} # received node announcements
@@ -419,17 +419,17 @@ class Peer(PrintError):
         f(payload)
 
     def on_error(self, payload):
-        if payload["channel_id"] in self.temporary_channel_id_to_incoming_accept_channel:
-            self.temporary_channel_id_to_incoming_accept_channel[payload["channel_id"]].set_exception(LightningError(payload["data"]))
-        if payload["channel_id"] in self.temporary_channel_id_to_incoming_funding_signed:
-            self.temporary_channel_id_to_incoming_funding_signed[payload["channel_id"]].set_exception(LightningError(payload["data"]))
+        if payload["channel_id"] in self.channel_accepted:
+            self.channel_accepted[payload["channel_id"]].set_exception(LightningError(payload["data"]))
+        if payload["channel_id"] in self.funding_signed:
+            self.funding_signed[payload["channel_id"]].set_exception(LightningError(payload["data"]))
 
     def on_ping(self, payload):
         l = int.from_bytes(payload['num_pong_bytes'], byteorder="big")
         self.send_message(gen_msg('pong', byteslen=l))
 
     def on_accept_channel(self, payload):
-        self.temporary_channel_id_to_incoming_accept_channel[payload["temporary_channel_id"]].set_result(payload)
+        self.channel_accepted[payload["temporary_channel_id"]].set_result(payload)
 
     def on_funding_signed(self, payload):
         sig = payload['signature']
@@ -438,7 +438,7 @@ class Peer(PrintError):
         self.network.broadcast(tx)
 
     def on_funding_signed(self, payload):
-        self.temporary_channel_id_to_incoming_funding_signed[payload["temporary_channel_id"]].set_result(payload)
+        self.funding_signed[payload["temporary_channel_id"]].set_result(payload)
 
     def on_funding_locked(self, payload):
         pass
@@ -508,7 +508,7 @@ class Peer(PrintError):
         msg = await self.read_message()
         self.process_message(msg)
         # initialized
-        self.init_message_received_future.set_result(msg)
+        self.initialized.set_result(msg)
         # loop
         while True:
             self.ping_if_required()
@@ -520,7 +520,7 @@ class Peer(PrintError):
 
     @aiosafe
     async def channel_establishment_flow(self, wallet, config):
-        await self.init_message_received_future
+        await self.initialized
         keys = get_unused_keys()
         temp_channel_id = os.urandom(32)
         funding_pubkey, funding_privkey = next(keys)
@@ -542,12 +542,12 @@ class Peer(PrintError):
             delayed_payment_basepoint=delayed_pubkey,
             first_per_commitment_point=next(keys)[0]
         )
-        self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id] = asyncio.Future()
+        self.channel_accepted[temp_channel_id] = asyncio.Future()
         self.send_message(msg)
         try:
-            accept_channel = await self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
+            accept_channel = await self.channel_accepted[temp_channel_id]
         finally:
-            del self.temporary_channel_id_to_incoming_accept_channel[temp_channel_id]
+            del self.channel_accepted[temp_channel_id]
         remote_funding_pubkey = accept_channel["funding_pubkey"]
         pubkeys = sorted([bh2u(funding_pubkey), bh2u(remote_pubkey)])
         redeem_script = transaction.multisig_script(pubkeys, 2)
@@ -570,12 +570,12 @@ class Peer(PrintError):
         r, s = sigdecode_der(sig, SECP256k1.generator.order())
         sig = sigencode_string_canonize(r, s, SECP256k1.generator.order())
         self.print_error('canonical signature', len(sig))
-        self.temporary_channel_id_to_incoming_funding_signed[temp_channel_id] = asyncio.Future()
+        self.funding_signed[temp_channel_id] = asyncio.Future()
         self.send_message(gen_msg("funding_created", temporary_channel_id=temp_channel_id, funding_txid=bytes.fromhex(funding_tx.txid()), funding_output_index=funding_index, signature=sig))
         try:
-            funding_signed = await self.temporary_channel_id_to_incoming_funding_signed[temp_channel_id]
+            funding_signed = await self.funding_signed[temp_channel_id]
         finally:
-            del self.temporary_channel_id_to_incoming_funding_signed[temp_channel_id]
+            del self.funding_signed[temp_channel_id]
 
 
 # replacement for lightningCall
