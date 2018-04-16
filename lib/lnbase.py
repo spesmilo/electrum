@@ -27,16 +27,17 @@ from .bitcoin import (public_key_from_private_key, ser_to_point, point_to_ser,
                       push_script, script_num_to_hex, add_data_to_script,
                       add_number_to_script)
 from . import bitcoin
-from .constants import set_testnet, set_simnet
 from . import constants
 from . import transaction
 from .util import PrintError, bh2u, print_error, bfh
-from .wallet import Wallet
-from .storage import WalletStorage
 from .transaction import opcodes, Transaction
 
-tcp_socket_timeout = 10
-server_response_timeout = 60
+# hardcoded nodes
+node_list = [
+    ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff'),
+    ('77.58.162.148', '9735', '022bb78ab9df617aeaaf37f6644609abb7295fad0c20327bccd41f8d69173ccb49')
+]
+
 
 class LightningError(Exception):
     pass
@@ -299,7 +300,7 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubk
 
 class Peer(PrintError):
 
-    def __init__(self, host, port, pubkey):
+    def __init__(self, host, port, pubkey, request_initial_sync=True):
         self.host = host
         self.port = port
         self.privkey = os.urandom(32) + b"\x01"
@@ -309,7 +310,7 @@ class Peer(PrintError):
         self.temporary_channel_id_to_incoming_accept_channel = {}
         self.temporary_channel_id_to_incoming_funding_signed = {}
         self.init_message_received_future = asyncio.Future()
-        self.localfeatures = 0x08 # request initial sync
+        self.localfeatures = (0x08 if request_initial_sync else 0)
         # view of the network
         self.nodes = {} # received node announcements
         self.channels = {} # received channel announcements
@@ -471,7 +472,7 @@ class Peer(PrintError):
             continue
         alias = payload['alias'].rstrip(b'\x00')
         self.nodes[pubkey] = {
-            'aliass': alias,
+            'alias': alias,
             'addresses': addresses
         }
         self.print_error('node announcement', binascii.hexlify(pubkey), alias, addresses)
@@ -517,6 +518,7 @@ class Peer(PrintError):
         self.print_error('closing lnbase')
         self.writer.close()
 
+    @aiosafe
     async def channel_establishment_flow(self, wallet, config):
         await self.init_message_received_future
         keys = get_unused_keys()
@@ -526,7 +528,6 @@ class Peer(PrintError):
         htlc_pubkey, htlc_privkey = next(keys)
         payment_pubkey, payment_privkey = next(keys)
         delayed_pubkey, delayed_privkey = next(keys)
-
         funding_satoshis = 20000
         msg = gen_msg(
             "open_channel",
@@ -576,14 +577,14 @@ class Peer(PrintError):
         finally:
             del self.temporary_channel_id_to_incoming_funding_signed[temp_channel_id]
 
+
 # replacement for lightningCall
 class LNWorker:
 
     def __init__(self, wallet, network):
         self.wallet = wallet
         self.network = network
-        host, port, pubkey = ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff')
-        #host, port, pubkey = ('localhost', '9735', subprocess.Popen("~/go/bin/lncli getinfo | jq -r .identity_pubkey", shell=True, stdout=subprocess.PIPE).communicate()[0].strip())
+        host, port, pubkey = network.config.get('lightning_peer', node_list[0])
         pubkey = binascii.unhexlify(pubkey)
         port = int(port)
         self.peer = Peer(host, port, pubkey)
@@ -593,46 +594,3 @@ class LNWorker:
         # todo: get utxo from wallet
         # submit coro to asyncio main loop
         self.peer.open_channel()
-
-    def blocking_test_run(self):
-        start = time.time()
-        q = queue.Queue()
-        fut = asyncio.run_coroutine_threadsafe(self._test(q), asyncio.get_event_loop())
-        exp = q.get(timeout=5)
-        if exp is not None:
-            return exp
-        return "blocking test run took: " + str(time.time() - start)
-
-    async def _test(self, q):
-        try:
-            await self.peer.channel_establishment_flow(self.wallet, self.network.config)
-        except Exception:
-            q.put(traceback.format_exc())
-        else:
-            q.put(None)
-
-
-
-
-node_list = [
-    ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff'),
-    ('77.58.162.148', '9735', '022bb78ab9df617aeaaf37f6644609abb7295fad0c20327bccd41f8d69173ccb49')
-]
-
-
-if __name__ == "__main__":
-    if len(sys.argv) > 2:
-        host, port, pubkey = sys.argv[2:5]
-    else:
-        host, port, pubkey = node_list[0]
-    if sys.argv[1] not in ["simnet", "testnet"]: raise Exception("first argument must be simnet or testnet")
-    if sys.argv[1] == "simnet":
-        set_simnet()
-    else:
-        set_testnet()
-    pubkey = binascii.unhexlify(pubkey)
-    port = int(port)
-    peer = Peer(host, port, pubkey)
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(peer.main_loop())
-    loop.close()
