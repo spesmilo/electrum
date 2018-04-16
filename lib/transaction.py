@@ -812,7 +812,7 @@ class Transaction:
         txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
         if witness and self.is_segwit():
             marker = '00'
-            flag = '09'
+            flag = '01'
             witness = ''.join(self.serialize_witness(x, estimate_size) for x in inputs)
             return nVersion + marker + flag + txins + txouts + witness + nLocktime
         else:
