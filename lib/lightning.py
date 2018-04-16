@@ -4,7 +4,6 @@ import sys
 import struct
 import traceback
 import os.path
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "ln"))
 from .ln import rpc_pb2
 
 from jsonrpclib import Server
