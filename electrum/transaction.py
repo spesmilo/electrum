@@ -225,7 +225,7 @@ class Enumeration:
 
     def __getattr__(self, attr):
         if attr not in self.lookup:
-            raise AttributeError
+            raise AttributeError(attr)
         return self.lookup[attr]
     def whatis(self, value):
         return self.reverseLookup[value]
