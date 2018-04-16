@@ -21,6 +21,7 @@ import binascii
 import hashlib
 import hmac
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
+from . import ripemd
 
 from .bitcoin import (public_key_from_private_key, ser_to_point, point_to_ser,
                       string_to_number, deserialize_privkey, EC_KEY, rev_hex, int_to_hex,
@@ -260,10 +261,34 @@ def get_obscured_ctn(ctn, local, remote):
 def overall_weight(num_htlc):
     return 500 + 172 * num_htlc + 224
 
+def make_offered_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_preimage):
+    assert type(revocation_pubkey) is bytes
+    assert type(remote_htlcpubkey) is bytes
+    assert type(local_htlcpubkey) is bytes
+    assert type(payment_preimage) is bytes
+    h = hashlib.new("ripemd160")
+    h.update(payment_preimage)
+    payment_hash = h.digest()#ripemd.new(payment_preimage).digest()
+    assert type(payment_hash) is bytes
+    return bytes([opcodes.OP_DUP, opcodes.OP_HASH160]) + bfh(push_script(bh2u(bitcoin.hash_160(revocation_pubkey)))) + bytes([opcodes.OP_EQUAL
+     , opcodes.OP_IF
+       , opcodes.OP_CHECKSIG
+     , opcodes.OP_ELSE]) +\
+       bfh(push_script(bh2u(remote_htlcpubkey))) + bytes([opcodes.OP_SWAP, opcodes.OP_SIZE]) + bitcoin.add_number_to_script(32) + bytes([opcodes.OP_EQUAL,
+       opcodes.OP_NOTIF,
+         # to local node via htlc-timeout transaction (timelocked)
+         opcodes.OP_DROP]) + bitcoin.add_number_to_script(2) + bytes([opcodes.OP_SWAP]) + bfh(push_script(bh2u(local_htlcpubkey))) + bitcoin.add_number_to_script(2) + bytes([opcodes.OP_CHECKMULTISIG,
+       opcodes.OP_ELSE,
+         # to remote node with preimage
+         opcodes.OP_HASH160]) + bfh(push_script(bh2u(payment_hash))) + bytes([opcodes.OP_EQUALVERIFY,
+         opcodes.OP_CHECKSIG,
+       opcodes.OP_ENDIF,
+     opcodes.OP_ENDIF])
+
 def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubkey,
                     payment_pubkey, remote_payment_pubkey, revocation_pubkey, delayed_pubkey,
                     funding_txid, funding_pos, funding_satoshis,
-                    to_local_msat, to_remote_msat, local_feerate, local_delay):
+                    to_local_msat, to_remote_msat, local_feerate, local_delay, htlcs=[]):
     pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
     obs = get_obscured_ctn(ctn, payment_pubkey, remote_payment_pubkey)
     locktime = (0x20 << 24) + (obs & 0xffffff)
@@ -292,7 +317,7 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubk
     to_local = (bitcoin.TYPE_ADDRESS, local_address, local_amount)
     to_remote = (bitcoin.TYPE_ADDRESS, remote_address, remote_amount)
     # no htlc for the moment
-    c_outputs = [to_local, to_remote]
+    c_outputs = [to_local, to_remote] + htlcs
     # create commitment tx
     tx = Transaction.from_io(c_inputs, c_outputs, locktime=locktime, version=2)
     tx.BIP_LI01_sort()
