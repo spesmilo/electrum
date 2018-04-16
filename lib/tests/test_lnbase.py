@@ -1,6 +1,6 @@
 import json
 import unittest
-from lib.util import bh2u
+from lib.util import bh2u, bfh
 from lib.lnbase import make_commitment, get_obscured_ctn, Peer, make_offered_htlc
 from lib.transaction import Transaction
 from lib import bitcoin
@@ -135,3 +135,25 @@ class Test_LNBase(unittest.TestCase):
     def test_message_node_announcement(self):
         message = b'\x01\x01\xd5\xf9X\xed\x95=b\xd8\x86\x1fT\xcf\xdb\x1eV\xe7\xf9xd>B\xa8\x8d\xc1b\x81\xf7\xc4{Z\x08\x81\x10H\x13\xfb^\x1e)A\xd4\xb0m\x92x\x9d\x19!\xe3\x8a\xf0\xc4\x0fq\x0b\xd7\xc7\x7f\\$\xe3_\xe4R\x00\x00Z\xd3G`\x03\xfd\n\xeb\xde\x87\x13\xe9\xc3\x11\xf2$h\xd3\xd0RNx\x8b\x1e\xf5\x7fL\xdaA\xbf[Z#\x00\xfc\\\xd6\xcc\x00\x00ruphware++\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x07\x01V=C\xb7&\x07'
         peer.process_message(message)
+
+    def test_find_route_for_payment(self):
+        p = Peer('', 0, 'a')
+        p.on_channel_announcement({'node_id_1': 'b', 'node_id_2': 'c', 'short_channel_id': bfh('0000000000000001')})
+        p.on_channel_announcement({'node_id_1': 'b', 'node_id_2': 'e', 'short_channel_id': bfh('0000000000000002')})
+        p.on_channel_announcement({'node_id_1': 'b', 'node_id_2': 'a', 'short_channel_id': bfh('0000000000000003')})
+        p.on_channel_announcement({'node_id_1': 'd', 'node_id_2': 'c', 'short_channel_id': bfh('0000000000000004')})
+        p.on_channel_announcement({'node_id_1': 'e', 'node_id_2': 'd', 'short_channel_id': bfh('0000000000000005')})
+        p.on_channel_announcement({'node_id_1': 'a', 'node_id_2': 'd', 'short_channel_id': bfh('0000000000000006')})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000001'), 'flags': b'0', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000001'), 'flags': b'1', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000002'), 'flags': b'0', 'cltv_expiry_delta': 99, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000002'), 'flags': b'1', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000003'), 'flags': b'0', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000003'), 'flags': b'1', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000004'), 'flags': b'0', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000004'), 'flags': b'1', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000005'), 'flags': b'0', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000005'), 'flags': b'1', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 999})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000006'), 'flags': b'0', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 99999999})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000006'), 'flags': b'1', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150})
+        print(p.find_route_for_payment('a', 'e', 100000))
