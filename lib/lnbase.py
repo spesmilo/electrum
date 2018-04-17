@@ -331,7 +331,9 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubk
     to_local = (bitcoin.TYPE_ADDRESS, local_address, local_amount)
     to_remote = (bitcoin.TYPE_ADDRESS, remote_address, remote_amount)
     # no htlc for the moment
-    c_outputs = [to_local, to_remote] + htlcs
+    c_outputs = [to_local, to_remote]
+    for script, msat_amount in htlcs:
+        c_outputs += [(bitcoin.TYPE_ADDRESS, bitcoin.redeem_script_to_address('p2wsh', bh2u(script)), msat_amount // 1000)]
     # create commitment tx
     tx = Transaction.from_io(c_inputs, c_outputs, locktime=locktime, version=2)
     tx.BIP_LI01_sort()
