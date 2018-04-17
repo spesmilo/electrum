@@ -132,11 +132,15 @@ def Hash(x: bytes) -> bytes:
 
 
 def hash_160(x: bytes) -> bytes:
+    return ripemd(sha256(public_key))
+
+def ripemd(x):
     try:
         md = hashlib.new('ripemd160')
-        md.update(sha256(x))
+        md.update(x)
         return md.digest()
     except BaseException:
         from . import ripemd
-        md = ripemd.new(sha256(x))
+        md = ripemd.new(x)
         return md.digest()
+
