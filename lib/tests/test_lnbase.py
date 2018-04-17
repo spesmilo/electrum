@@ -4,7 +4,7 @@ import unittest
 
 from lib.util import bh2u, bfh
 from lib.lnbase import make_commitment, get_obscured_ctn, Peer, make_offered_htlc, make_received_htlc
-from lib.lnbase import secret_to_pubkey, derive_pubkey
+from lib.lnbase import secret_to_pubkey, derive_pubkey, derive_privkey
 from lib.transaction import Transaction
 from lib import bitcoin
 import ecdsa.ellipticcurve
@@ -172,7 +172,7 @@ class Test_LNBase(unittest.TestCase):
         print(p.find_route_for_payment('a', 'e', 100000))
 
     def test_key_derivation(self):
-        print('test key derivation')
+        # BOLT3, Appendix E
         base_secret = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
         per_commitment_secret = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100
         base_point = secret_to_pubkey(base_secret)
@@ -180,3 +180,5 @@ class Test_LNBase(unittest.TestCase):
         per_commitment_point = secret_to_pubkey(per_commitment_secret)
         localpubkey = derive_pubkey(base_point, per_commitment_point)
         self.assertEqual(localpubkey, bfh('0235f2dbfaa89b57ec7b055afe29849ef7ddfeb1cefdb9ebdc43f5494984db29e5'))
+        localprivkey = derive_privkey(base_secret, per_commitment_point)
+        self.assertEqual(localprivkey, 0xcbced912d3b21bf196a766651e436aff192362621ce317704ea2f75d87e7be0f)
