@@ -275,6 +275,30 @@ def make_offered_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, pa
         + bytes([opcodes.OP_CHECKMULTISIG, opcodes.OP_ELSE, opcodes.OP_HASH160])\
         + bfh(push_script(bh2u(bitcoin.ripemd(payment_hash)))) + bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF, opcodes.OP_ENDIF])
 
+def make_received_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_preimage, cltv_expiry):
+    for i in [revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_preimage]:
+        assert type(i) is bytes
+    assert type(cltv_expiry) is int
+
+    payment_hash = bitcoin.sha256(payment_preimage)
+    return bytes([opcodes.OP_DUP, opcodes.OP_HASH160]) \
+        + bfh(push_script(bh2u(bitcoin.hash_160(revocation_pubkey)))) \
+        + bytes([opcodes.OP_EQUAL, opcodes.OP_IF, opcodes.OP_CHECKSIG, opcodes.OP_ELSE]) \
+        + bfh(push_script(bh2u(remote_htlcpubkey))) \
+        + bytes([opcodes.OP_SWAP, opcodes.OP_SIZE]) \
+        + bitcoin.add_number_to_script(32) \
+        + bytes([opcodes.OP_EQUAL, opcodes.OP_IF, opcodes.OP_HASH160]) \
+        + bfh(push_script(bh2u(bitcoin.ripemd(payment_hash)))) \
+        + bytes([opcodes.OP_EQUALVERIFY]) \
+        + bitcoin.add_number_to_script(2) \
+        + bytes([opcodes.OP_SWAP]) \
+        + bfh(push_script(bh2u(local_htlcpubkey))) \
+        + bitcoin.add_number_to_script(2) \
+        + bytes([opcodes.OP_CHECKMULTISIG, opcodes.OP_ELSE, opcodes.OP_DROP]) \
+        + bitcoin.add_number_to_script(cltv_expiry) \
+        + bytes([opcodes.OP_CLTV, opcodes.OP_DROP, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF, opcodes.OP_ENDIF])
+
+
 def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubkey,
                     payment_pubkey, remote_payment_pubkey, revocation_pubkey, delayed_pubkey,
                     funding_txid, funding_pos, funding_satoshis,
