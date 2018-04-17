@@ -266,6 +266,10 @@ def derive_pubkey(basepoint, per_commitment_point):
     p2 = SECP256k1.generator * bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
     return point_to_ser(p + p2)
 
+def derive_privkey(secret, per_commitment_point):
+    basepoint = point_to_ser(SECP256k1.generator * secret)
+    return secret + bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
+
 def overall_weight(num_htlc):
     return 500 + 172 * num_htlc + 224
 
@@ -652,16 +656,13 @@ class Peer(PrintError):
         funding_pubkey, funding_privkey = next(keys)
         revocation_basepoint, revocation_privkey = next(keys)
         htlc_basepoint, htlc_privkey = next(keys)
-        payment_basepoint, payment_privkey = next(keys)
         delayed_payment_basepoint, delayed_privkey = next(keys)
 
         funding_satoshis = 20000
         base_secret = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
         per_commitment_secret = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100
         base_point = secret_to_pubkey(base_secret)
-        print('base_point', binascii.hexlify(base_point))
         per_commitment_point = secret_to_pubkey(per_commitment_secret)
-        print('per_commitment_point', binascii.hexlify(per_commitment_point))
 
         msg = gen_msg(
             "open_channel",
@@ -690,7 +691,8 @@ class Peer(PrintError):
         funding_tx = wallet.mktx([funding_output], None, config, 1000)
         funding_index = funding_tx.outputs().index(funding_output)
         remote_payment_basepoint = payload['payment_basepoint']
-        localpubkey = derive_pubkey(payment_basepoint, per_commitment_point)
+        localpubkey = derive_pubkey(base_point, per_commitment_point)
+        localprivkey = derive_privkey(base_secret, per_commitment_point)
         self.print_error('localpubkey', binascii.hexlify(localpubkey))
         revocation_pubkey = derive_pubkey(revocation_basepoint, per_commitment_point)
         self.print_error('revocation_pubkey', binascii.hexlify(revocation_pubkey))
