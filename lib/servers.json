@@ -1,11 +1,29 @@
 {
+    "2y27fkedpau73lbw.onion": {
+        "pruning": "-",
+        "s": "50004",
+        "t": "50003",
+        "version": "1.2"
+    },
+    "agapc7dhcqfjqpjb.onion": {
+        "pruning": "-",
+        "s": "50004",
+        "t": "50003",
+        "version": "1.2"
+    },
     "backup.electrum-ltc.org": {
         "pruning": "-",
         "s": "443",
         "t": "50001",
         "version": "1.2"
     },
-    "btc.cihar.com": {
+    "e-1.claudioboxx.com": {
+        "pruning": "-",
+        "s": "50004",
+        "t": "50003",
+        "version": "1.2"
+    },
+    "e-3.claudioboxx.com": {
         "pruning": "-",
         "s": "50004",
         "t": "50003",
@@ -72,6 +90,12 @@
         "pruning": "-",
         "s": "9434",
         "t": "9433",
+        "version": "1.2"
+    },
+    "gttvzmfh23pxqiw4.onion": {
+        "pruning": "-",
+        "s": "50004",
+        "t": "50003",
         "version": "1.2"
     },
     "ltc.asis.io": {
