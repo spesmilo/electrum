@@ -21,7 +21,6 @@ import binascii
 import hashlib
 import hmac
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
-from . import ripemd
 
 from .bitcoin import (public_key_from_private_key, ser_to_point, point_to_ser,
                       string_to_number, deserialize_privkey, EC_KEY, rev_hex, int_to_hex,
@@ -276,6 +275,48 @@ def derive_blinded_pubkey(basepoint, per_commitment_point):
 
 def overall_weight(num_htlc):
     return 500 + 172 * num_htlc + 224
+
+HTLC_TIMEOUT_WEIGHT = 663
+HTLC_SUCCESS_WEIGHT = 703
+
+def make_htlc_tx(cltv_timeout, htlc_output_txid, htlc_output_index, remotehtlcsig, localhtlcsig, payment_preimage, amount_msat, local_feerate, revocationpubkey, local_delayedpubkey):
+    assert type(cltv_timeout) is int
+    assert type(htlc_output_txid) is str
+    assert type(htlc_output_index) is int
+    assert type(remotehtlcsig) is bytes
+    assert type(localhtlcsig) is bytes
+    assert type(payment_preimage) is bytes
+    assert type(amount_msat) is int
+    assert type(local_feerate) is int
+    assert type(revocationpubkey) is bytes
+    assert type(local_delayedpubkey) is bytes
+    c_inputs = [{
+        'type': 'p2wsh',
+        'x_pubkeys': [bh2u(x) for x in [revocationpubkey, local_delayedpubkey]],
+        'signatures': [bh2u(x) for x in [remotehtlcsig, localhtlcsig, payment_preimage]],
+        'num_sig': 2,
+        'prevout_n': htlc_output_index,
+        'prevout_hash': htlc_output_txid,
+        'value': amount_msat // 1000,
+        'coinbase': False,
+        'sequence': 0x0
+    }]
+    script = bytes([opcodes.OP_IF]) \
+        + bfh(push_script(bh2u(revocationpubkey))) \
+        + bytes([opcodes.OP_ELSE]) \
+        + bitcoin.add_number_to_script(0) \
+        + bytes([opcodes.OP_CSV, opcodes.OP_DROP]) \
+        + bfh(push_script(bh2u(local_delayedpubkey))) \
+        + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
+
+    p2wsh = bitcoin.redeem_script_to_address('p2wsh', bh2u(script))
+    weight = HTLC_SUCCESS_WEIGHT if cltv_timeout == 0 else HTLC_TIMEOUT_WEIGHT
+    fee = local_feerate * weight
+    output = (bitcoin.TYPE_ADDRESS, p2wsh, amount_msat // 1000 - fee)
+    c_outputs = [output]
+    tx = Transaction.from_io(c_inputs, c_outputs, locktime=cltv_timeout, version=2)
+    tx.BIP_LI01_sort()
+    return tx
 
 def make_offered_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_preimage):
     assert type(revocation_pubkey) is bytes
