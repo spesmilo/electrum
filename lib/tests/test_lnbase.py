@@ -1,7 +1,10 @@
+import binascii
 import json
 import unittest
+
 from lib.util import bh2u, bfh
 from lib.lnbase import make_commitment, get_obscured_ctn, Peer, make_offered_htlc, make_received_htlc
+from lib.lnbase import secret_to_pubkey, derive_pubkey
 from lib.transaction import Transaction
 from lib import bitcoin
 import ecdsa.ellipticcurve
@@ -167,3 +170,13 @@ class Test_LNBase(unittest.TestCase):
         p.on_channel_update({'short_channel_id': bfh('0000000000000006'), 'flags': b'0', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 99999999})
         p.on_channel_update({'short_channel_id': bfh('0000000000000006'), 'flags': b'1', 'cltv_expiry_delta': 10, 'htlc_minimum_msat': 250, 'fee_base_msat': 100, 'fee_proportional_millionths': 150})
         print(p.find_route_for_payment('a', 'e', 100000))
+
+    def test_key_derivation(self):
+        print('test key derivation')
+        base_secret = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+        per_commitment_secret = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100
+        base_point = secret_to_pubkey(base_secret)
+        self.assertEqual(base_point, bfh('036d6caac248af96f6afa7f904f550253a0f3ef3f5aa2fe6838a95b216691468e2'))
+        per_commitment_point = secret_to_pubkey(per_commitment_secret)
+        localpubkey = derive_pubkey(base_point, per_commitment_point)
+        self.assertEqual(localpubkey, bfh('0235f2dbfaa89b57ec7b055afe29849ef7ddfeb1cefdb9ebdc43f5494984db29e5'))
