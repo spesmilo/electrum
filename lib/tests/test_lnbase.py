@@ -29,8 +29,6 @@ local_delayedpubkey = bytes.fromhex('03fd5960528dc152014952efdb702a88f71e3c1653b
 local_revocation_pubkey = bytes.fromhex('0212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b19')
 # funding wscript = 5221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae
 
-peer = Peer('ecdsa.net', 9735, '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff')
-
 class Test_LNBase(unittest.TestCase):
 
     def test_simple_commitment_tx_with_no_HTLCs(self):
@@ -43,7 +41,6 @@ class Test_LNBase(unittest.TestCase):
         # to_remote amount 3000000 P2WPKH(0394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b)
         remote_signature = "3045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c0"
         # local_signature = 3044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c3836939
-        #num_htlcs: 0
         our_commit_tx = make_commitment(commitment_number,
             local_funding_pubkey, remote_funding_pubkey, remotepubkey,
             local_payment_basepoint, remote_payment_basepoint,
@@ -54,14 +51,8 @@ class Test_LNBase(unittest.TestCase):
         pubkeys, _x_pubkeys = our_commit_tx.get_sorted_pubkeys(our_commit_tx.inputs()[0])
         index_of_pubkey = pubkeys.index(bh2u(remote_funding_pubkey))
         our_commit_tx._inputs[0]["signatures"][index_of_pubkey] = remote_signature + "01"
-        our_commit_tx.raw=None
-
-        print(our_commit_tx)
-        
+        our_commit_tx.raw = None
         ref_commit_tx_str = '02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8002c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de84311054a56a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0400473044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c383693901483045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c001475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220'
-        ref_commit_tx = Transaction(ref_commit_tx_str)
-
-        # todo check order and other output
         self.assertEqual(str(our_commit_tx), ref_commit_tx_str)
 
     def test_commitment_tx_with_all_five_HTLCs_untrimmed_minimum_feerate(self):
@@ -123,18 +114,6 @@ class Test_LNBase(unittest.TestCase):
         output_htlc_timeout_tx_3 = "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219703000000000000000001b80b0000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0500483045022100daee1808f9861b6c3ecd14f7b707eca02dd6bdfc714ba2f33bc8cdba507bb182022026654bf8863af77d74f51f4e0b62d461a019561bb12acb120d3f7195d148a554014730440220643aacb19bbb72bd2b635bc3f7375481f5981bace78cdd8319b2988ffcc6704202203d27784ec8ad51ed3bd517a05525a5139bb0b755dd719e0054332d186ac0872701008576a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a9148a486ff2e31d6158bf39e2608864d63fefd09d5b88ac6868f7010000"
         # local_signature = 30440220549e80b4496803cbc4a1d09d46df50109f546d43fbbf86cd90b174b1484acd5402205f12a4f995cb9bded597eabfee195a285986aa6d93ae5bb72507ebc6a4e2349e
         output_htlc_success_tx_4 = "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219704000000000000000001a00f0000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e050047304402207e0410e45454b0978a623f36a10626ef17b27d9ad44e2760f98cfa3efb37924f0220220bd8acd43ecaa916a80bd4f919c495a2c58982ce7c8625153f8596692a801d014730440220549e80b4496803cbc4a1d09d46df50109f546d43fbbf86cd90b174b1484acd5402205f12a4f995cb9bded597eabfee195a285986aa6d93ae5bb72507ebc6a4e2349e012004040404040404040404040404040404040404040404040404040404040404048a76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a91418bc1a114ccf9c052d3d23e28d3b0a9d1227434288527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f801b175ac686800000000"
-
-    def test_message_channel_update(self):
-        message = b'\x01\x02\x0e\xd2\x86&\x10\xd8\xf8\xd9\xa6\x19\xfbK}\xa69W\xd5\xb7\xd0=\xbaV\xfa\x93K\xb8/V\xa2\x821_#y9\xb4\xd9\x88mt\x98\xf2\x9f\x92w\xa3"6\x1c\xcb\xb2\xca\xa7\xc5/A\xa05a8J\x8a\xbe?CI\x7f\xd7\xf8&\x95q\x08\xf4\xa3\x0f\xd9\xce\xc3\xae\xbay\x97 \x84\xe9\x0e\xad\x01\xea3\t\x00\x00\x00\x00\x13\xb86\x00\x00Z\x00\x00Z\xd3@]\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x03\xe8\x00\x00\x00\x01\x00\x00\x00\n'
-        peer.process_message(message)
-
-    def test_message_channel_announcement(self):
-        message = b"\x01\x00\x08T-g\x922w\xad\x00\x1aJ\xa7!\x03\xe6;-R-\xc7D\xee#I\x8e\x81\x1c,\xc8\x1ajHr,\x8b\\\xf2\xa0^\xdcU\xdb\xb5\x89\x8aP\xfa\x91\x0c\xf4\x81\r1\xd6\xcc\x9a\xd2\xcc\x90\xcf\xca\rm\x12f\xd1\x05n;\xfb\xe8\xect?\xc0pFP\x8c\x14Z\xbe\x86hra\x1bV!\x9d?\x1ax\xd2\xa4\xb54\x1a\xa0\xc7f\xd9\xa3\x01p\xde\x9b]/\xa9\xf0\x19\x8b\xea\x9e\x1dh,\xc3\xfc;\xf5\xbb\xacVm\x15\x105\xcb\x8as\xffG\x84\xab0]H\rg\xad\x0f@\xd3\xa3\xacpd\x18 \xbeoE\x80X\x8d\x15\xb4tL\xeag\x03\xc7\xc1\xa8\xff\x95\x87Vt\xceC*\xa7\xff\nSSm\x850g\x93\xae$!\x93H\x87\x86\xb2\x11\xcf=\xc3\xe43\xf9V(Z\xfb\xeeH\x9a\x03\xe1\x9b\xcfs\xa1!\xc2\xbe\x15<\xa0\xa5\x82\x81\xf6\x01\x13A\x00\x85\xa8{\n\xdf\xe2O\xa1P|\x8d`^\x11P\x7flO\x1b020\x15\x02\xd7\x889\xde\x7f\x00\x00CI\x7f\xd7\xf8&\x95q\x08\xf4\xa3\x0f\xd9\xce\xc3\xae\xbay\x97 \x84\xe9\x0e\xad\x01\xea3\t\x00\x00\x00\x00\x13\xba\x9a\x00\x00\xb8\x00\x00\x02r\xbaY\x86\x0f3d\x05\xa2\x84w\xbc\x85\xae\xf6\xed\x82\xa5\xe8\xc6\x91\x11\xfbS\xa4\xb4]\xe9\xf0}\xec\xec\x03\xfd\n\xeb\xde\x87\x13\xe9\xc3\x11\xf2$h\xd3\xd0RNx\x8b\x1e\xf5\x7fL\xdaA\xbf[Z#\x00\xfc\\\xd6\x02\xd7\xa9\xe2\x87;>\x0c\xe0\xd0sn\xa8+\x10\x97O\x07\xfd\x19j\x0fU\x83\xcd\x93p\x99k\x1e\xec_\xc6\x03'\xbe\xa4\xe9F\xb9\xc5/\xfb\xf3\xaeBLgXG-o\x87%\x98\x8c}[\x9f\xcb\xd2\xfbC\x8bB\xb5"
-        peer.process_message(message)
-
-    def test_message_node_announcement(self):
-        message = b'\x01\x01\xd5\xf9X\xed\x95=b\xd8\x86\x1fT\xcf\xdb\x1eV\xe7\xf9xd>B\xa8\x8d\xc1b\x81\xf7\xc4{Z\x08\x81\x10H\x13\xfb^\x1e)A\xd4\xb0m\x92x\x9d\x19!\xe3\x8a\xf0\xc4\x0fq\x0b\xd7\xc7\x7f\\$\xe3_\xe4R\x00\x00Z\xd3G`\x03\xfd\n\xeb\xde\x87\x13\xe9\xc3\x11\xf2$h\xd3\xd0RNx\x8b\x1e\xf5\x7fL\xdaA\xbf[Z#\x00\xfc\\\xd6\xcc\x00\x00ruphware++\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x07\x01V=C\xb7&\x07'
-        peer.process_message(message)
 
     def test_find_route_for_payment(self):
         p = Peer('', 0, 'a')
