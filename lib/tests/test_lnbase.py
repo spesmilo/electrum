@@ -1,7 +1,7 @@
 import json
 import unittest
 from lib.util import bh2u, bfh
-from lib.lnbase import make_commitment, get_obscured_ctn, Peer, make_offered_htlc
+from lib.lnbase import make_commitment, get_obscured_ctn, Peer, make_offered_htlc, make_received_htlc
 from lib.transaction import Transaction
 from lib import bitcoin
 import ecdsa.ellipticcurve
@@ -67,27 +67,43 @@ class Test_LNBase(unittest.TestCase):
 
         remote_htlcpubkey = remotepubkey
         local_htlcpubkey = localpubkey
+
         htlc2_payment_preimage = b"\x02" * 32
         htlc2 = make_offered_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, htlc2_payment_preimage)
-
         # HTLC 2 offered amount 2000
         # wscript 
         ref_htlc2_wscript = "76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a914b43e1b38138a41b37f7cd9a1d274bc63e3a9b5d188ac6868"
+        self.assertEqual(htlc2, bfh(ref_htlc2_wscript))
 
-        self.assertEqual(htlc2, bfh(ref_htlc2_wscript)) # TODO comparison fails on payment_hash
-
+        htlc3_payment_preimage = b"\x03" * 32
+        htlc3 = make_offered_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, htlc3_payment_preimage)
         # HTLC 3 offered amount 3000 
         # wscript 
         ref_htlc3_wscript = "76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a9148a486ff2e31d6158bf39e2608864d63fefd09d5b88ac6868"
+        self.assertEqual(htlc3, bfh(ref_htlc3_wscript))
+
+        htlc0_payment_preimage = b"\x00" * 32
+        htlc0 = make_received_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, htlc0_payment_preimage, 500)
         # HTLC 0 received amount 1000
         # wscript
         ref_htlc0_wscript = "76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a914b8bcb07f6344b42ab04250c86a6e8b75d3fdbbc688527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f401b175ac6868"
+        self.assertEqual(htlc0, bfh(ref_htlc0_wscript))
+
+        htlc1_cltv_expiry = 501
+        htlc1_payment_preimage = b"\x01" * 32
+        htlc1 = make_received_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, htlc1_payment_preimage, htlc1_cltv_expiry)
         # HTLC 1 received amount 2000 
         # wscript 
         ref_htlc1_wscript = "76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a9144b6b2e5444c2639cc0fb7bcea5afba3f3cdce23988527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f501b175ac6868"
+        self.assertEqual(htlc1, bfh(ref_htlc1_wscript))
+
+        htlc4_payment_preimage = b"\x04" * 32
+        htlc4 = make_received_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, htlc4_payment_preimage, 504)
         # HTLC 4 received amount 4000 
         # wscript 
         ref_htlc4_wscript = "76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a91418bc1a114ccf9c052d3d23e28d3b0a9d1227434288527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f801b175ac6868"
+        self.assertEqual(htlc4, bfh(ref_htlc4_wscript))
+
         # to_local amount 6988000 wscript 63210212a140cd0c6539d07cd08dfe09984dec3251ea808b892efeac3ede9402bf2b1967029000b2752103fd5960528dc152014952efdb702a88f71e3c1653b2314431701ec77e57fde83c68ac
         # to_remote amount 3000000 P2WPKH(0394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b)
         remote_signature = "304402204fd4928835db1ccdfc40f5c78ce9bd65249b16348df81f0c44328dcdefc97d630220194d3869c38bc732dd87d13d2958015e2fc16829e74cd4377f84d215c0b70606"
