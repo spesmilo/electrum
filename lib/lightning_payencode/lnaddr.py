@@ -2,7 +2,7 @@
 import traceback
 import ecdsa.curves
 from ..bitcoin import MyVerifyingKey, GetPubKey
-from .bech32 import bech32_encode, bech32_decode, CHARSET
+from ..segwit_addr import bech32_encode, bech32_decode, CHARSET
 from binascii import hexlify, unhexlify
 from bitstring import BitArray
 from decimal import Decimal
@@ -79,7 +79,7 @@ def encode_fallback(fallback, currency):
     """ Encode all supported fallback addresses.
     """
     if currency == 'bc' or currency == 'tb':
-        fbhrp, witness = bech32_decode(fallback)
+        fbhrp, witness = bech32_decode(fallback, ignore_long_length=True)
         if fbhrp:
             if fbhrp != currency:
                 raise ValueError("Not a bech32 address for this currency")
@@ -251,7 +251,7 @@ class LnAddr(object):
         )
 
 def lndecode(a, verbose=False):
-    hrp, data = bech32_decode(a)
+    hrp, data = bech32_decode(a, ignore_long_length=True)
     if not hrp:
         raise ValueError("Bad bech32 checksum")
 
