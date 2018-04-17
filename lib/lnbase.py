@@ -651,19 +651,16 @@ class Peer(PrintError):
     async def channel_establishment_flow(self, wallet, config):
         await self.initialized
         temp_channel_id = os.urandom(32)
-
         keys = get_unused_keys()
         funding_pubkey, funding_privkey = next(keys)
         revocation_basepoint, revocation_privkey = next(keys)
         htlc_basepoint, htlc_privkey = next(keys)
         delayed_payment_basepoint, delayed_privkey = next(keys)
-
         funding_satoshis = 20000
         base_secret = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
         per_commitment_secret = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100
         base_point = secret_to_pubkey(base_secret)
         per_commitment_point = secret_to_pubkey(per_commitment_secret)
-
         msg = gen_msg(
             "open_channel",
             temporary_channel_id=temp_channel_id,
@@ -673,7 +670,7 @@ class Peer(PrintError):
             funding_pubkey=funding_pubkey,
             revocation_basepoint=revocation_basepoint,
             htlc_basepoint=htlc_basepoint,
-            payment_basepoint=payment_basepoint,
+            payment_basepoint=base_point,
             delayed_payment_basepoint=delayed_payment_basepoint,
             first_per_commitment_point=per_commitment_point
         )
@@ -705,7 +702,7 @@ class Peer(PrintError):
             ctn,
             funding_pubkey, remote_funding_pubkey,
             remotepubkey,
-            payment_basepoint, remote_payment_basepoint,
+            base_point, remote_payment_basepoint,
             revocation_pubkey, local_delayedpubkey,
             funding_tx.txid(), funding_index, funding_satoshis,
             funding_satoshis*1000, 0, 20000, 144)
