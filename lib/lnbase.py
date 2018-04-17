@@ -262,13 +262,17 @@ def secret_to_pubkey(secret):
     return point_to_ser(SECP256k1.generator * secret)
 
 def derive_pubkey(basepoint, per_commitment_point):
-    p = ser_to_point(basepoint)
-    p2 = SECP256k1.generator * bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
-    return point_to_ser(p + p2)
+    p = ser_to_point(basepoint) + SECP256k1.generator * bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
+    return point_to_ser(p)
 
 def derive_privkey(secret, per_commitment_point):
     basepoint = point_to_ser(SECP256k1.generator * secret)
     return secret + bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
+
+def derive_blinded_pubkey(basepoint, per_commitment_point):
+    k1 = ser_to_point(basepoint) * bitcoin.string_to_number(bitcoin.sha256(basepoint + per_commitment_point))
+    k2 = ser_to_point(per_commitment_point) * bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
+    return point_to_ser(k1 + k2)
 
 def overall_weight(num_htlc):
     return 500 + 172 * num_htlc + 224
@@ -691,7 +695,7 @@ class Peer(PrintError):
         localpubkey = derive_pubkey(base_point, per_commitment_point)
         localprivkey = derive_privkey(base_secret, per_commitment_point)
         self.print_error('localpubkey', binascii.hexlify(localpubkey))
-        revocation_pubkey = derive_pubkey(revocation_basepoint, per_commitment_point)
+        revocation_pubkey = derive_blinded_pubkey(revocation_basepoint, remote_per_commitment_point)
         self.print_error('revocation_pubkey', binascii.hexlify(revocation_pubkey))
         local_delayedpubkey = derive_pubkey(delayed_payment_basepoint, per_commitment_point)
         self.print_error('local_delayedpubkey', binascii.hexlify(local_delayedpubkey))
