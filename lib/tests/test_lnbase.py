@@ -5,6 +5,7 @@ import unittest
 from lib.util import bh2u, bfh
 from lib.lnbase import make_commitment, get_obscured_ctn, Peer, make_offered_htlc, make_received_htlc, make_htlc_tx
 from lib.lnbase import secret_to_pubkey, derive_pubkey, derive_privkey, derive_blinded_pubkey
+from lib.lnbase import make_htlc_tx_output, make_htlc_tx_inputs
 from lib.transaction import Transaction
 from lib import bitcoin
 import ecdsa.ellipticcurve
@@ -146,9 +147,30 @@ class Test_LNBase(unittest.TestCase):
         output_htlc_success_tx_0 = "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219700000000000000000001e8030000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e050047304402206a6e59f18764a5bf8d4fa45eebc591566689441229c918b480fb2af8cc6a4aeb02205248f273be447684b33e3c8d1d85a8e0ca9fa0bae9ae33f0527ada9c162919a60147304402207cb324fa0de88f452ffa9389678127ebcf4cabe1dd848b8e076c1a1962bf34720220116ed922b12311bd602d67e60d2529917f21c5b82f25ff6506c0f87886b4dfd5012000000000000000000000000000000000000000000000000000000000000000008a76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a914b8bcb07f6344b42ab04250c86a6e8b75d3fdbbc688527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f401b175ac686800000000"
         local_signature_htlc0 = "3045022100c89172099507ff50f4c925e6c5150e871fb6e83dd73ff9fbb72f6ce829a9633f02203a63821d9162e99f9be712a68f9e589483994feae2661e4546cd5b6cec007be5" # TODO derive ourselves
 
-        our_htlc0_tx = make_htlc_tx(0, our_commit_tx.txid(), htlc_output_index=0, remotehtlcsig=bfh(signature_for_output_0_remote_htlc), localhtlcsig=bfh(local_signature_htlc0), payment_preimage=htlc0_payment_preimage, amount_msat=htlc0_msat, local_feerate=local_feerate_per_kw, revocationpubkey=local_revocation_pubkey, local_delayedpubkey=local_delayedpubkey)
-        print(our_htlc0_tx)
-        print(output_htlc_success_tx_0)
+        our_htlc0_tx_output = make_htlc_tx_output(
+            amount_msat=htlc0_msat,
+            local_feerate=local_feerate_per_kw,
+            revocationpubkey=local_revocation_pubkey,
+            local_delayedpubkey=local_delayedpubkey,
+            success=True)
+
+        our_htlc0_tx_inputs = make_htlc_tx_inputs(
+            htlc_output_txid=our_commit_tx.txid(),
+            htlc_output_index=0,
+            remotehtlcsig=bfh(signature_for_output_0_remote_htlc),
+            localhtlcsig=bfh(local_signature_htlc0),
+            payment_preimage=htlc0_payment_preimage,
+            revocationpubkey=local_revocation_pubkey,
+            local_delayedpubkey=local_delayedpubkey,
+            amount_msat=htlc0_msat)
+
+        self.assertTrue(Transaction.is_txin_complete(our_htlc0_tx_inputs[0]))
+
+        self.assertEqual(bfh("050047"), bfh(Transaction.serialize_witness(our_htlc0_tx_inputs[0]))[:3])
+
+        our_htlc0_tx = make_htlc_tx(0,
+            inputs=out_htlc0_tx_inputs,
+            output=our_htlc0_tx_output)
         self.assertEqual(str(our_htlc0_tx), output_htlc_success_tx_0)
 
         output_htlc_timeout_tx_2 = "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219701000000000000000001d0070000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0500483045022100d5275b3619953cb0c3b5aa577f04bc512380e60fa551762ce3d7a1bb7401cff9022037237ab0dac3fe100cde094e82e2bed9ba0ed1bb40154b48e56aa70f259e608b01483045022100c89172099507ff50f4c925e6c5150e871fb6e83dd73ff9fbb72f6ce829a9633f02203a63821d9162e99f9be712a68f9e589483994feae2661e4546cd5b6cec007be501008576a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a914b43e1b38138a41b37f7cd9a1d274bc63e3a9b5d188ac6868f6010000"
