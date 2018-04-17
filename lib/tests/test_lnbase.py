@@ -47,13 +47,16 @@ class Test_LNBase(unittest.TestCase):
             local_revocation_pubkey, local_delayedpubkey,
             funding_tx_id, funding_output_index, funding_amount_satoshi,
             to_local_msat, to_remote_msat, local_feerate_per_kw, local_delay)
+        self.sign_and_insert_remote_sig(our_commit_tx, remote_signature)
+        ref_commit_tx_str = '02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8002c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de84311054a56a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0400473044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c383693901483045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c001475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220'
+        self.assertEqual(str(our_commit_tx), ref_commit_tx_str)
+
+    def sign_and_insert_remote_sig(self, our_commit_tx, remote_signature):
         our_commit_tx.sign({bh2u(local_funding_pubkey): (local_funding_privkey[:-1], True)})
         pubkeys, _x_pubkeys = our_commit_tx.get_sorted_pubkeys(our_commit_tx.inputs()[0])
         index_of_pubkey = pubkeys.index(bh2u(remote_funding_pubkey))
         our_commit_tx._inputs[0]["signatures"][index_of_pubkey] = remote_signature + "01"
         our_commit_tx.raw = None
-        ref_commit_tx_str = '02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8002c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de84311054a56a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0400473044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c383693901483045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c001475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220'
-        self.assertEqual(str(our_commit_tx), ref_commit_tx_str)
 
     def test_commitment_tx_with_all_five_HTLCs_untrimmed_minimum_feerate(self):
         to_local_msat = 6988000000
@@ -109,6 +112,18 @@ class Test_LNBase(unittest.TestCase):
         remote_signature = "304402204fd4928835db1ccdfc40f5c78ce9bd65249b16348df81f0c44328dcdefc97d630220194d3869c38bc732dd87d13d2958015e2fc16829e74cd4377f84d215c0b70606"
         # local_signature = 30440220275b0c325a5e9355650dc30c0eccfbc7efb23987c24b556b9dfdd40effca18d202206caceb2c067836c51f296740c7ae807ffcbfbf1dd3a0d56b6de9a5b247985f06
         output_commit_tx = "02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8007e80300000000000022002052bfef0479d7b293c27e0f1eb294bea154c63a3294ef092c19af51409bce0e2ad007000000000000220020403d394747cae42e98ff01734ad5c08f82ba123d3d9a620abda88989651e2ab5d007000000000000220020748eba944fedc8827f6b06bc44678f93c0f9e6078b35c6331ed31e75f8ce0c2db80b000000000000220020c20b5d1f8584fd90443e7b7b720136174fa4b9333c261d04dbbd012635c0f419a00f0000000000002200208c48d15160397c9731df9bc3b236656efb6665fbfe92b4a6878e88a499f741c4c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de843110e0a06a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e04004730440220275b0c325a5e9355650dc30c0eccfbc7efb23987c24b556b9dfdd40effca18d202206caceb2c067836c51f296740c7ae807ffcbfbf1dd3a0d56b6de9a5b247985f060147304402204fd4928835db1ccdfc40f5c78ce9bd65249b16348df81f0c44328dcdefc97d630220194d3869c38bc732dd87d13d2958015e2fc16829e74cd4377f84d215c0b7060601475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220"
+
+        htlcs = [(htlc2, 2000_000), (htlc3, 3000_000), (htlc0, 1000_000), (htlc1, 2000_000), (htlc4, 4000_000)]
+
+        our_commit_tx = make_commitment(commitment_number,
+            local_funding_pubkey, remote_funding_pubkey, remotepubkey,
+            local_payment_basepoint, remote_payment_basepoint,
+            local_revocation_pubkey, local_delayedpubkey,
+            funding_tx_id, funding_output_index, funding_amount_satoshi,
+            to_local_msat, to_remote_msat, local_feerate_per_kw, local_delay, htlcs=htlcs)
+        self.sign_and_insert_remote_sig(our_commit_tx, remote_signature)
+        self.assertEqual(str(our_commit_tx), output_commit_tx)
+
         num_htlcs = 5
         # (HTLC 0)
         signature_for_output_0_remote_htlc = "304402206a6e59f18764a5bf8d4fa45eebc591566689441229c918b480fb2af8cc6a4aeb02205248f273be447684b33e3c8d1d85a8e0ca9fa0bae9ae33f0527ada9c162919a6"
