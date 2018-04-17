@@ -175,6 +175,7 @@ class Test_LNBase(unittest.TestCase):
         # BOLT3, Appendix E
         base_secret = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
         per_commitment_secret = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100
+        revocation_basepoint_secret = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
         base_point = secret_to_pubkey(base_secret)
         self.assertEqual(base_point, bfh('036d6caac248af96f6afa7f904f550253a0f3ef3f5aa2fe6838a95b216691468e2'))
         per_commitment_point = secret_to_pubkey(per_commitment_secret)
@@ -183,7 +184,6 @@ class Test_LNBase(unittest.TestCase):
         self.assertEqual(localpubkey, bfh('0235f2dbfaa89b57ec7b055afe29849ef7ddfeb1cefdb9ebdc43f5494984db29e5'))
         localprivkey = derive_privkey(base_secret, per_commitment_point)
         self.assertEqual(localprivkey, 0xcbced912d3b21bf196a766651e436aff192362621ce317704ea2f75d87e7be0f)
-        revocation_basepoint_secret = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
         revocation_basepoint = secret_to_pubkey(revocation_basepoint_secret)
         self.assertEqual(revocation_basepoint, bfh('036d6caac248af96f6afa7f904f550253a0f3ef3f5aa2fe6838a95b216691468e2'))
         revocationpubkey = derive_blinded_pubkey(revocation_basepoint, per_commitment_point)
