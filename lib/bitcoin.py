@@ -306,16 +306,18 @@ def i2o_ECPublicKey(pubkey, compressed=False):
 
 
 ############ functions from pywallet #####################
-def hash_160(public_key):
+def ripemd(x):
     try:
         md = hashlib.new('ripemd160')
-        md.update(sha256(public_key))
+        md.update(x)
         return md.digest()
     except BaseException:
         from . import ripemd
-        md = ripemd.new(sha256(public_key))
+        md = ripemd.new(x)
         return md.digest()
 
+def hash_160(public_key):
+    return ripemd(sha256(public_key))
 
 def hash160_to_b58_address(h160, addrtype):
     s = bytes([addrtype])

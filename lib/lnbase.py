@@ -266,24 +266,14 @@ def make_offered_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, pa
     assert type(remote_htlcpubkey) is bytes
     assert type(local_htlcpubkey) is bytes
     assert type(payment_preimage) is bytes
-    h = hashlib.new("ripemd160")
-    h.update(payment_preimage)
-    payment_hash = h.digest()#ripemd.new(payment_preimage).digest()
-    assert type(payment_hash) is bytes
-    return bytes([opcodes.OP_DUP, opcodes.OP_HASH160]) + bfh(push_script(bh2u(bitcoin.hash_160(revocation_pubkey)))) + bytes([opcodes.OP_EQUAL
-     , opcodes.OP_IF
-       , opcodes.OP_CHECKSIG
-     , opcodes.OP_ELSE]) +\
-       bfh(push_script(bh2u(remote_htlcpubkey))) + bytes([opcodes.OP_SWAP, opcodes.OP_SIZE]) + bitcoin.add_number_to_script(32) + bytes([opcodes.OP_EQUAL,
-       opcodes.OP_NOTIF,
-         # to local node via htlc-timeout transaction (timelocked)
-         opcodes.OP_DROP]) + bitcoin.add_number_to_script(2) + bytes([opcodes.OP_SWAP]) + bfh(push_script(bh2u(local_htlcpubkey))) + bitcoin.add_number_to_script(2) + bytes([opcodes.OP_CHECKMULTISIG,
-       opcodes.OP_ELSE,
-         # to remote node with preimage
-         opcodes.OP_HASH160]) + bfh(push_script(bh2u(payment_hash))) + bytes([opcodes.OP_EQUALVERIFY,
-         opcodes.OP_CHECKSIG,
-       opcodes.OP_ENDIF,
-     opcodes.OP_ENDIF])
+    payment_hash = bitcoin.sha256(payment_preimage)
+    return bytes([opcodes.OP_DUP, opcodes.OP_HASH160]) + bfh(push_script(bh2u(bitcoin.hash_160(revocation_pubkey))))\
+        + bytes([opcodes.OP_EQUAL, opcodes.OP_IF, opcodes.OP_CHECKSIG, opcodes.OP_ELSE]) \
+        + bfh(push_script(bh2u(remote_htlcpubkey)))\
+        + bytes([opcodes.OP_SWAP, opcodes.OP_SIZE]) + bitcoin.add_number_to_script(32) + bytes([opcodes.OP_EQUAL, opcodes.OP_NOTIF, opcodes.OP_DROP])\
+        + bitcoin.add_number_to_script(2) + bytes([opcodes.OP_SWAP]) + bfh(push_script(bh2u(local_htlcpubkey))) + bitcoin.add_number_to_script(2)\
+        + bytes([opcodes.OP_CHECKMULTISIG, opcodes.OP_ELSE, opcodes.OP_HASH160])\
+        + bfh(push_script(bh2u(bitcoin.ripemd(payment_hash)))) + bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF, opcodes.OP_ENDIF])
 
 def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubkey,
                     payment_pubkey, remote_payment_pubkey, revocation_pubkey, delayed_pubkey,
