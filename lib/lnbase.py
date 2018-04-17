@@ -684,6 +684,7 @@ class Peer(PrintError):
             payload = await self.channel_accepted[temp_channel_id]
         finally:
             del self.channel_accepted[temp_channel_id]
+        remote_per_commitment_point = payload['first_per_commitment_point']
         remote_funding_pubkey = payload["funding_pubkey"]
         pubkeys = sorted([bh2u(funding_pubkey), bh2u(remote_funding_pubkey)])
         redeem_script = transaction.multisig_script(pubkeys, 2)
@@ -699,13 +700,12 @@ class Peer(PrintError):
         self.print_error('revocation_pubkey', binascii.hexlify(revocation_pubkey))
         local_delayedpubkey = derive_pubkey(delayed_payment_basepoint, per_commitment_point)
         self.print_error('local_delayedpubkey', binascii.hexlify(local_delayedpubkey))
-        remotepubkey = derive_pubkey(remote_payment_basepoint, per_commitment_point)
+        remotepubkey = derive_pubkey(remote_payment_basepoint, remote_per_commitment_point)
         self.print_error('remotepubkey', binascii.hexlify(remotepubkey))
         ctn = 0
         c_tx = make_commitment(
             ctn,
-            funding_pubkey, remote_funding_pubkey,
-            remotepubkey,
+            funding_pubkey, remote_funding_pubkey, remotepubkey,
             base_point, remote_payment_basepoint,
             revocation_pubkey, local_delayedpubkey,
             funding_tx.txid(), funding_index, funding_satoshis,
