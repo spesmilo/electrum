@@ -258,6 +258,14 @@ def get_obscured_ctn(ctn, local, remote):
     mask = int.from_bytes(H256(local + remote)[-6:], byteorder="big")
     return ctn ^ mask
 
+def secret_to_pubkey(secret):
+    return point_to_ser(SECP256k1.generator * secret)
+
+def derive_pubkey(basepoint, per_commitment_point):
+    p = ser_to_point(basepoint)
+    p2 = SECP256k1.generator * bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
+    return point_to_ser(p + p2)
+
 def overall_weight(num_htlc):
     return 500 + 172 * num_htlc + 224
 
@@ -300,11 +308,11 @@ def make_received_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, p
 
 
 def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubkey,
-                    payment_pubkey, remote_payment_pubkey, revocation_pubkey, delayed_pubkey,
+                    payment_basepoint, remote_payment_basepoint, revocation_pubkey, delayed_pubkey,
                     funding_txid, funding_pos, funding_satoshis,
                     to_local_msat, to_remote_msat, local_feerate, local_delay, htlcs=[]):
     pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
-    obs = get_obscured_ctn(ctn, payment_pubkey, remote_payment_pubkey)
+    obs = get_obscured_ctn(ctn, payment_basepoint, remote_payment_basepoint)
     locktime = (0x20 << 24) + (obs & 0xffffff)
     sequence = (0x80 << 24) + (obs >> 24)
     print_error('locktime', locktime, hex(locktime))
@@ -324,13 +332,12 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubk
     local_script = bytes([opcodes.OP_IF]) + bfh(push_script(bh2u(revocation_pubkey))) + bytes([opcodes.OP_ELSE]) + add_number_to_script(local_delay) \
                    + bytes([opcodes.OP_CSV, opcodes.OP_DROP]) + bfh(push_script(bh2u(delayed_pubkey))) + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
     local_address = bitcoin.redeem_script_to_address('p2wsh', bh2u(local_script))
-    fee = local_feerate * overall_weight(0) // 1000
+    fee = local_feerate * overall_weight(len(htlcs)) // 1000
     local_amount = to_local_msat // 1000 - fee
     remote_address = bitcoin.pubkey_to_address('p2wpkh', bh2u(remotepubkey))
     remote_amount = to_remote_msat // 1000
     to_local = (bitcoin.TYPE_ADDRESS, local_address, local_amount)
     to_remote = (bitcoin.TYPE_ADDRESS, remote_address, remote_amount)
-    # no htlc for the moment
     c_outputs = [to_local, to_remote]
     for script, msat_amount in htlcs:
         c_outputs += [(bitcoin.TYPE_ADDRESS, bitcoin.redeem_script_to_address('p2wsh', bh2u(script)), msat_amount // 1000)]
@@ -639,14 +646,23 @@ class Peer(PrintError):
     @aiosafe
     async def channel_establishment_flow(self, wallet, config):
         await self.initialized
-        keys = get_unused_keys()
         temp_channel_id = os.urandom(32)
+
+        keys = get_unused_keys()
         funding_pubkey, funding_privkey = next(keys)
-        revocation_pubkey, revocation_privkey = next(keys)
-        htlc_pubkey, htlc_privkey = next(keys)
-        payment_pubkey, payment_privkey = next(keys)
-        delayed_pubkey, delayed_privkey = next(keys)
+        revocation_basepoint, revocation_privkey = next(keys)
+        htlc_basepoint, htlc_privkey = next(keys)
+        payment_basepoint, payment_privkey = next(keys)
+        delayed_payment_basepoint, delayed_privkey = next(keys)
+
         funding_satoshis = 20000
+        base_secret = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+        per_commitment_secret = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100
+        base_point = secret_to_pubkey(base_secret)
+        print('base_point', binascii.hexlify(base_point))
+        per_commitment_point = secret_to_pubkey(per_commitment_secret)
+        print('per_commitment_point', binascii.hexlify(per_commitment_point))
+
         msg = gen_msg(
             "open_channel",
             temporary_channel_id=temp_channel_id,
@@ -654,30 +670,41 @@ class Peer(PrintError):
             funding_satoshis=funding_satoshis,
             max_accepted_htlcs=5,
             funding_pubkey=funding_pubkey,
-            revocation_basepoint=revocation_pubkey,
-            htlc_basepoint=htlc_pubkey,
-            payment_basepoint=payment_pubkey,
-            delayed_payment_basepoint=delayed_pubkey,
-            first_per_commitment_point=next(keys)[0]
+            revocation_basepoint=revocation_basepoint,
+            htlc_basepoint=htlc_basepoint,
+            payment_basepoint=payment_basepoint,
+            delayed_payment_basepoint=delayed_payment_basepoint,
+            first_per_commitment_point=per_commitment_point
         )
         self.channel_accepted[temp_channel_id] = asyncio.Future()
         self.send_message(msg)
         try:
-            accept_channel = await self.channel_accepted[temp_channel_id]
+            payload = await self.channel_accepted[temp_channel_id]
         finally:
             del self.channel_accepted[temp_channel_id]
-        remote_funding_pubkey = accept_channel["funding_pubkey"]
-        pubkeys = sorted([bh2u(funding_pubkey), bh2u(remote_pubkey)])
+        remote_funding_pubkey = payload["funding_pubkey"]
+        pubkeys = sorted([bh2u(funding_pubkey), bh2u(remote_funding_pubkey)])
         redeem_script = transaction.multisig_script(pubkeys, 2)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         funding_output = (bitcoin.TYPE_ADDRESS, funding_address, funding_satoshis)
         funding_tx = wallet.mktx([funding_output], None, config, 1000)
         funding_index = funding_tx.outputs().index(funding_output)
-        remote_payment_pubkey = accept_channel['payment_basepoint']
+        remote_payment_basepoint = payload['payment_basepoint']
+        localpubkey = derive_pubkey(payment_basepoint, per_commitment_point)
+        self.print_error('localpubkey', binascii.hexlify(localpubkey))
+        revocation_pubkey = derive_pubkey(revocation_basepoint, per_commitment_point)
+        self.print_error('revocation_pubkey', binascii.hexlify(revocation_pubkey))
+        local_delayedpubkey = derive_pubkey(delayed_payment_basepoint, per_commitment_point)
+        self.print_error('local_delayedpubkey', binascii.hexlify(local_delayedpubkey))
+        remotepubkey = derive_pubkey(remote_payment_basepoint, per_commitment_point)
+        self.print_error('remotepubkey', binascii.hexlify(remotepubkey))
+        ctn = 0
         c_tx = make_commitment(
-            0,
+            ctn,
             funding_pubkey, remote_funding_pubkey,
-            payment_pubkey, remote_payment_pubkey, revocation_pubkey, delayed_pubkey,
+            remotepubkey,
+            payment_basepoint, remote_payment_basepoint,
+            revocation_pubkey, local_delayedpubkey,
             funding_tx.txid(), funding_index, funding_satoshis,
             funding_satoshis*1000, 0, 20000, 144)
         c_tx.sign({bh2u(funding_pubkey): (funding_privkey, True)})
