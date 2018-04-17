@@ -119,17 +119,8 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin):
     def get_wallet_type(self):
         return self.main_window.wallet.wallet_type
 
-<<<<<<< HEAD
-    @staticmethod
-    def get_git_version():
-        dir = os.path.dirname(os.path.realpath(sys.argv[0]))
-        version = subprocess.check_output(
-            ['git', 'describe', '--always', '--dirty'], cwd=dir)
-        return str(version, "utf8").strip()
-=======
     def get_os_version(self):
         return platform.platform()
->>>>>>> Split crash reporter class
 
 
 def _show_window(*args):

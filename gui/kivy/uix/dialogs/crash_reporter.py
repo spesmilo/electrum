@@ -148,10 +148,13 @@ class ExceptionHook(base.ExceptionHandler):
         sys.excepthook = lambda exctype, value, tb: self.handle_exception(value)
 
     def handle_exception(self, _inst):
-        # FIXME: Remove this after testing the dialog
-        if type(_inst) is ZeroDivisionError:
-            print(type(_inst))
-            e = CrashReporter(self.main_window, *sys.exc_info())
-            # Open in main thread:
-            Clock.schedule_once(lambda _: e.open(), 0)
-            return base.ExceptionManager.PASS
+        exc_info = sys.exc_info()
+        # Check if this is an exception from within the exception handler:
+        import traceback
+        for item in traceback.extract_tb(exc_info[2]):
+            if item.filename.endswith("crash_reporter.py"):
+                return
+        e = CrashReporter(self.main_window, *exc_info)
+        # Open in main thread:
+        Clock.schedule_once(lambda _: e.open(), 0)
+        return base.ExceptionManager.PASS
