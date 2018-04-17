@@ -4,7 +4,7 @@ import unittest
 
 from lib.util import bh2u, bfh
 from lib.lnbase import make_commitment, get_obscured_ctn, Peer, make_offered_htlc, make_received_htlc
-from lib.lnbase import secret_to_pubkey, derive_pubkey, derive_privkey
+from lib.lnbase import secret_to_pubkey, derive_pubkey, derive_privkey, derive_blinded_pubkey
 from lib.transaction import Transaction
 from lib import bitcoin
 import ecdsa.ellipticcurve
@@ -178,7 +178,13 @@ class Test_LNBase(unittest.TestCase):
         base_point = secret_to_pubkey(base_secret)
         self.assertEqual(base_point, bfh('036d6caac248af96f6afa7f904f550253a0f3ef3f5aa2fe6838a95b216691468e2'))
         per_commitment_point = secret_to_pubkey(per_commitment_secret)
+        self.assertEqual(per_commitment_point, bfh('025f7117a78150fe2ef97db7cfc83bd57b2e2c0d0dd25eaf467a4a1c2a45ce1486'))
         localpubkey = derive_pubkey(base_point, per_commitment_point)
         self.assertEqual(localpubkey, bfh('0235f2dbfaa89b57ec7b055afe29849ef7ddfeb1cefdb9ebdc43f5494984db29e5'))
         localprivkey = derive_privkey(base_secret, per_commitment_point)
         self.assertEqual(localprivkey, 0xcbced912d3b21bf196a766651e436aff192362621ce317704ea2f75d87e7be0f)
+        revocation_basepoint_secret = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+        revocation_basepoint = secret_to_pubkey(revocation_basepoint_secret)
+        self.assertEqual(revocation_basepoint, bfh('036d6caac248af96f6afa7f904f550253a0f3ef3f5aa2fe6838a95b216691468e2'))
+        revocationpubkey = derive_blinded_pubkey(revocation_basepoint, per_commitment_point)
+        self.assertEqual(revocationpubkey, bfh('02916e326636d19c33f13e8c0c3a03dd157f332f3e99c317c141dd865eb01f8ff0'))
