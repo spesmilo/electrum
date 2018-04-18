@@ -25,7 +25,7 @@ import cryptography.hazmat.primitives.ciphers.aead as AEAD
 from .bitcoin import (public_key_from_private_key, ser_to_point, point_to_ser,
                       string_to_number, deserialize_privkey, EC_KEY, rev_hex, int_to_hex,
                       push_script, script_num_to_hex, add_data_to_script,
-                      add_number_to_script)
+                      add_number_to_script, var_int, witness_push)
 from . import bitcoin
 from . import constants
 from . import transaction
@@ -341,7 +341,7 @@ def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_dela
     output = (bitcoin.TYPE_ADDRESS, p2wsh, amount_msat // 1000 - fee)
     return output
 
-def make_htlc_tx_inputs(htlc_output_txid, htlc_output_index, remotehtlcsig, localhtlcsig, payment_preimage, revocationpubkey, local_delayedpubkey, amount_msat):
+def make_htlc_tx_inputs(htlc_output_txid, htlc_output_index, remotehtlcsig, localhtlcsig, payment_preimage, revocationpubkey, local_delayedpubkey, amount_msat, witness_script):
     assert type(htlc_output_txid) is str
     assert type(htlc_output_index) is int
     assert type(remotehtlcsig) is bytes
@@ -352,14 +352,15 @@ def make_htlc_tx_inputs(htlc_output_txid, htlc_output_index, remotehtlcsig, loca
     assert type(amount_msat) is int
     c_inputs = [{
         'type': 'p2wsh',
-        'x_pubkeys': [bh2u(x) for x in [revocationpubkey, local_delayedpubkey]],
-        'signatures': [bh2u(x) for x in [remotehtlcsig, localhtlcsig, payment_preimage]],
-        'num_sig': 3,
+        'x_pubkeys': [],  #[bh2u(x) for x in [revocationpubkey, local_delayedpubkey]],
+        'signatures': [],  #[bh2u(x) for x in [remotehtlcsig, localhtlcsig, payment_preimage]],
+        'num_sig': 0,
         'prevout_n': htlc_output_index,
         'prevout_hash': htlc_output_txid,
         'value': amount_msat // 1000,
         'coinbase': False,
-        'sequence': 0x0
+        'sequence': 0x0,
+        'witness': var_int(5) + '00' + ''.join([witness_push(x) for x in [bh2u(remotehtlcsig), bh2u(localhtlcsig), bh2u(payment_preimage), witness_script]]),
     }]
     return c_inputs
 
