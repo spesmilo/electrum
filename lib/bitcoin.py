@@ -188,6 +188,13 @@ def var_int(i):
         return "ff"+int_to_hex(i,8)
 
 
+def witness_push(item):
+    """ Returns data in the form it should be present in the witness.
+    hex -> hex
+    """
+    return var_int(len(item) // 2) + item
+
+
 def op_push(i):
     if i<0x4c:  # OP_PUSHDATA1
         return int_to_hex(i)
