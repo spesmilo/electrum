@@ -192,6 +192,7 @@ class Blockchain(Logger):
         self.parent = parent
         self._forkpoint_hash = forkpoint_hash  # blockhash at forkpoint. "first hash"
         self._prev_hash = prev_hash  # blockhash immediately before forkpoint
+        self.target_bridge = constants.read_json('target_bridge.json', None)
         self.lock = threading.RLock()
         self.update_size()
 
@@ -510,10 +511,14 @@ class Blockchain(Logger):
         if height < len(self.checkpoints) * 2016:
             # return pessimistic value to detect if check is unintentionally performed
             return 0
-        if height == len(self.checkpoints) * 2016:
-            # this value needs to be updated every time
-            # `checkpoints.json` is updated
-            return 143256919707644724074290378570122304852251874692742198474282369024
+        bridge_index = height - len(self.checkpoints) * 2016
+        if bridge_index >= 0 and bridge_index < len(self.target_bridge):
+            # The block headers are not fetched by default for headers with
+            # height less than len(self.checkpoints) * 2016. To bridge into
+            # on-the-fly target computation the target from previous headers
+            # must be known. Therefore, the necessary target values from local
+            # storage are used here.
+            return self.target_bridge[bridge_index]
         elif height == HEIGHT_FORK_FOUR:
             return MAX_TARGET_NEOSCRYPT
         elif height >= HEIGHT_FORK_THREE:
