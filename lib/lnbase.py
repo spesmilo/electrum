@@ -45,6 +45,19 @@ class LightningError(Exception):
 message_types = {}
 
 def handlesingle(x, ma):
+    """
+    Evaluate a term of the simple language used
+    to specify lightning message field lengths.
+
+    If `x` is an integer, it is returned as is,
+    otherwise it is treated as a variable and
+    looked up in `ma`.
+
+    It the value in `ma` was no integer, it is
+    assumed big-endian bytes and decoded.
+
+    Returns int
+    """
     try:
         x = int(x)
     except ValueError:
@@ -56,11 +69,28 @@ def handlesingle(x, ma):
     return x
 
 def calcexp(exp, ma):
+    """
+    Evaluate simple mathematical expression given
+    in `exp` with variables assigned in the dict `ma`
+
+    Returns int
+    """
     exp = str(exp)
     assert "*" not in exp
     return sum(handlesingle(x, ma) for x in exp.split("+"))
 
 def make_handler(k, v):
+    """
+    Generate a message handler function (taking bytes)
+    for message type `k` with specification `v`
+
+    Check lib/lightning.json, `k` could be 'init',
+    and `v` could be
+
+      { type: 16, payload: { 'gflen': ..., ... }, ... }
+
+    Returns function taking bytes
+    """
     def handler(data):
         nonlocal k, v
         ma = {}
@@ -84,6 +114,9 @@ with open(path) as f:
 
 for k in structured:
     v = structured[k]
+    # these message types are skipped since their types collide
+    # (for example with pong, which also uses type=19)
+    # we don't need them yet
     if k in ["final_incorrect_cltv_expiry", "final_incorrect_htlc_amount"]:
         continue
     if len(v["payload"]) == 0:
@@ -103,11 +136,21 @@ for k in structured:
 assert message_types[b"\x00\x10"].__name__ == "init_handler"
 
 def decode_msg(data):
+    """
+    Decode Lightning message by reading the first
+    two bytes to determine message type.
+
+    Returns message type string and parsed message contents dict
+    """
     typ = data[:2]
     k, parsed = message_types[typ](data[2:])
     return k, parsed
 
 def gen_msg(msg_type, **kwargs):
+    """
+    Encode kwargs into a Lightning message (bytes)
+    of the type given in the msg_type string
+    """
     typ = structured[msg_type]
     data = int(typ["type"]).to_bytes(byteorder="big", length=2)
     lengths = {}
