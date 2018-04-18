@@ -109,7 +109,7 @@ class BitcoinSimnet:
     WIF_PREFIX = 0x00
     TESTNET = True
     DEFAULT_PORTS = {}
-    DEFAULT_SERVERS = {}
+    DEFAULT_SERVERS = read_json('servers_regtest.json', {}) # Note: regtest!
     CHECKPOINTS = []
 
     XPRV_HEADERS = {
