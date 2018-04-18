@@ -166,14 +166,15 @@ class Test_LNBase(unittest.TestCase):
             payment_preimage=htlc0_payment_preimage,
             revocationpubkey=local_revocation_pubkey,
             local_delayedpubkey=local_delayedpubkey,
-            amount_msat=htlc0_msat)
+            amount_msat=htlc0_msat,
+            witness_script=ref_htlc0_wscript)
 
         self.assertTrue(Transaction.is_txin_complete(our_htlc0_tx_inputs[0]))
 
         self.assertEqual(bfh("050047"), bfh(Transaction.serialize_witness(our_htlc0_tx_inputs[0]))[:3])
 
         our_htlc0_tx = make_htlc_tx(0,
-            inputs=out_htlc0_tx_inputs,
+            inputs=our_htlc0_tx_inputs,
             output=our_htlc0_tx_output)
         self.assertEqual(str(our_htlc0_tx), output_htlc_success_tx_0)
 
