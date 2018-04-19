@@ -93,7 +93,7 @@ def can_connect(header):
             return b
     return False
 
-USE_DIFF_RETARGET = True
+USE_DIFF_RETARGET = False
 DGW3_START_HEIGHT = 100000
 
 class Blockchain(util.PrintError):
