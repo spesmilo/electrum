@@ -39,7 +39,6 @@ if __name__ == "__main__":
     peer = Peer(host, port, pubkey, request_initial_sync=False, network=network)
     network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), network.asyncio_loop))
     # run blocking test
-    start = time.time()
     coro = peer.channel_establishment_flow(wallet, config)
     fut = asyncio.run_coroutine_threadsafe(coro, network.asyncio_loop)
     while network.asyncio_loop.is_running():
