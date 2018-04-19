@@ -132,7 +132,7 @@ wine "$PWD/$NSIS_FILENAME" /S
 
 download_if_not_exist $LIBUSB_FILENAME "$LIBUSB_URL"
 verify_hash $LIBUSB_FILENAME "$LIBUSB_SHA256"
-7z x -olibusb $LIBUSB_FILENAME -aos
+7z x -olibusb $LIBUSB_FILENAME -aoa
 
 cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
 
