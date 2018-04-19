@@ -588,7 +588,7 @@ class Peer(PrintError):
 
     def on_funding_locked(self, payload):
         channel_id = int.from_bytes(payload['channel_id'], byteorder="big")
-        self.funding_locked[channel_id].set_result(payload)
+        self.remote_funding_locked[channel_id].set_result(payload)
 
     def on_node_announcement(self, payload):
         pubkey = payload['node_id']
@@ -766,29 +766,31 @@ class Peer(PrintError):
             revocation_pubkey, local_delayedpubkey,
             funding_txid, funding_index, funding_satoshis,
             local_amount, remote_amount, to_self_delay, dust_limit_satoshis)
-        # return for now
-        print('Done')
-        return
+        self.print_error('Done making commitment')
+
         # broadcast funding tx
         self.local_funding_locked[channel_id] = asyncio.Future()
         self.remote_funding_locked[channel_id] = asyncio.Future()
-        self.network.broadcast(funding_tx)
+        success, _txid = self.network.broadcast(funding_tx)
+        assert success
         # wait until we see confirmations
 
         def on_network_update(event, *args):
             if event == 'updated':
-                conf = wallet.get_tx_height(funding_txid)[1]
+                conf = wallet.get_tx_height(bh2u(funding_txid[::-1]))[1]
                 if conf >= funding_txn_minimum_depth:
-                    try:
-                        self.local_funding_locked[channel_id].set_result(1)
-                    except (asyncio.InvalidStateError, KeyError) as e:
-                        # FIXME race condition if updates come in quickly, set_result might be called multiple times
-                        # or self.local_funding_locked[channel_id] might be deleted already
-                        self.print_error('local_funding_locked.set_result error for channel {}: {}'.format(channel_id, e))
-                    self.network.unregister_callback(on_network_update, ['updated'])
+                    async def set_local_funding_locked_result():
+                        try:
+                            self.local_funding_locked[channel_id].set_result(1)
+                        except (asyncio.InvalidStateError, KeyError) as e:
+                            # FIXME race condition if updates come in quickly, set_result might be called multiple times
+                            # or self.local_funding_locked[channel_id] might be deleted already
+                            self.print_error('local_funding_locked.set_result error for channel {}: {}'.format(channel_id, e))
+                    asyncio.run_coroutine_threadsafe(set_local_funding_locked_result(), asyncio.get_event_loop())
+                    self.network.unregister_callback(on_network_update)
             else:
                 self.print_error("unexpected network message:", event, args)
-        self.network.register_callback(on_network_update, ['updated'])
+        self.network.register_callback(on_network_update, ['updated']) # thread safe
 
         try:
             await self.local_funding_locked[channel_id]
@@ -800,7 +802,7 @@ class Peer(PrintError):
             payload = await self.remote_funding_locked[channel_id]
         finally:
             del self.remote_funding_locked[channel_id]
-        self.print_error('Done')
+        self.print_error('Done waiting for remote_funding_locked')
 
     def on_update_add_htlc(self, payload):
         # no onion routing for the moment: we assume we are the end node
