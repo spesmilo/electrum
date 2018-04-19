@@ -1,7 +1,8 @@
 #! /usr/bin/env python3
-import traceback
 import ecdsa.curves
-from ..bitcoin import MyVerifyingKey, GetPubKey
+from ecdsa.ecdsa import generator_secp256k1
+from ..bitcoin import MyVerifyingKey, GetPubKey, regenerate_key, hash160_to_b58_address, b58_address_to_hash160, ser_to_point, verify_signature
+from hashlib import sha256
 from ..segwit_addr import bech32_encode, bech32_decode, CHARSET
 from binascii import hexlify, unhexlify
 from bitstring import BitArray
@@ -9,9 +10,7 @@ from decimal import Decimal
 
 import bitstring
 import hashlib
-import math
 import re
-import sys
 import time
 
 
@@ -88,28 +87,25 @@ def encode_fallback(fallback, currency):
                 raise ValueError("Invalid witness version {}".format(witness[0]))
             wprog = u5_to_bitarray(witness[1:])
         else:
-            addr = base58.b58decode_check(fallback)
-            if is_p2pkh(currency, addr[0]):
+            addrtype, addr = b58_address_to_hash160(fallback)
+            if is_p2pkh(currency, addrtype):
                 wver = 17
-            elif is_p2sh(currency, addr[0]):
+            elif is_p2sh(currency, addrtype):
                 wver = 18
             else:
                 raise ValueError("Unknown address type for {}".format(currency))
-            wprog = addr[1:]
+            wprog = addr
         return tagged('f', bitstring.pack("uint:5", wver) + wprog)
     else:
         raise NotImplementedError("Support for currency {} not implemented".format(currency))
 
 def parse_fallback(fallback, currency):
-    return None # this function disabled by Janus to avoid base58 dependency
     if currency == 'bc' or currency == 'tb':
         wver = fallback[0:5].uint
         if wver == 17:
-            addr=base58.b58encode_check(bytes([base58_prefix_map[currency][0]])
-                                        + fallback[5:].tobytes())
+            addr=hash160_to_b58_address(fallback[5:].tobytes(), base58_prefix_map[currency][0])
         elif wver == 18:
-            addr=base58.b58encode_check(bytes([base58_prefix_map[currency][1]])
-                                        + fallback[5:].tobytes())
+            addr=hash160_to_b58_address(fallback[5:].tobytes(), base58_prefix_map[currency][1])
         elif wver <= 16:
             addr=bech32_encode(currency, bitarray_to_u5(fallback))
         else:
@@ -205,7 +201,7 @@ def lnencode(addr, privkey):
                 expirybits = expirybits[5:]
             data += tagged('x', expirybits)
         elif k == 'h':
-            data += tagged_bytes('h', hashlib.sha256(v.encode('utf-8')).digest())
+            data += tagged_bytes('h', sha256(v.encode('utf-8')).digest())
         elif k == 'n':
             data += tagged_bytes('n', v)
         else:
@@ -224,11 +220,12 @@ def lnencode(addr, privkey):
         raise ValueError("Must include either 'd' or 'h'")
 
     # We actually sign the hrp, then data (padded to 8 bits with zeroes).
-    privkey = secp256k1.PrivateKey(bytes(unhexlify(privkey)))
-    sig = privkey.ecdsa_sign_recoverable(bytearray([ord(c) for c in hrp]) + data.tobytes())
-    # This doesn't actually serialize, but returns a pair of values :(
-    sig, recid = privkey.ecdsa_recoverable_serialize(sig)
-    data += bytes(sig) + bytes([recid])
+    msg = hrp.encode("ascii") + data.tobytes()
+    privkey = regenerate_key(privkey)
+    sig = privkey.sign_message(msg, is_compressed=False, algo=lambda x: sha256(x).digest())
+    recovery_flag = bytes([sig[0] - 27])
+    sig = bytes(sig[1:]) + recovery_flag
+    data += sig
 
     return bech32_encode(hrp, bitarray_to_u5(data))
 
@@ -347,8 +344,8 @@ def lndecode(a, verbose=False):
             if data_length != 53:
                 addr.unknown_tags.append((tag, tagdata))
                 continue
-            addr.pubkey = secp256k1.PublicKey(flags=secp256k1.ALL_FLAGS)
-            addr.pubkey.deserialize(trim_to_bytes(tagdata))
+            pubkeybytes = trim_to_bytes(tagdata)
+            addr.pubkey = pubkeybytes
         else:
             addr.unknown_tags.append((tag, tagdata))
 
@@ -357,24 +354,27 @@ def lndecode(a, verbose=False):
               .format(hexlify(sigdecoded[0:64])))
         print('recovery flag: {}'.format(sigdecoded[64]))
         print('hex of data for signing: {}'
-              .format(hexlify(bytearray([ord(c) for c in hrp])
-                              + data.tobytes())))
-        print('SHA256 of above: {}'.format(hashlib.sha256(bytearray([ord(c) for c in hrp]) + data.tobytes()).hexdigest()))
+              .format(hexlify(hrp.encode("ascii") + data.tobytes())))
+        print('SHA256 of above: {}'.format(sha256(hrp.encode("ascii") + data.tobytes()).hexdigest()))
 
     # BOLT #11:
     #
     # A reader MUST check that the `signature` is valid (see the `n` tagged
     # field specified below).
+    addr.signature = sigdecoded[:65]
     if addr.pubkey: # Specified by `n`
         # BOLT #11:
         #
         # A reader MUST use the `n` field to validate the signature instead of
         # performing signature recovery if a valid `n` field is provided.
-        addr.signature = addr.pubkey.ecdsa_deserialize_compact(sigdecoded[0:64])
-        if not addr.pubkey.ecdsa_verify(bytearray([ord(c) for c in hrp]) + data.tobytes(), addr.signature):
+        if not verify_signature(addr.pubkey, sigdecoded[:64], sha256(hrp.encode("ascii") + data.tobytes()).digest()):
             raise ValueError('Invalid signature')
+        pubkey_copy = addr.pubkey
+        class WrappedBytesKey:
+            serialize = lambda: pubkey_copy
+        addr.pubkey = WrappedBytesKey
     else: # Recover pubkey from signature.
-        addr.pubkey = SerializableKey(MyVerifyingKey.from_signature(sigdecoded[:64], sigdecoded[64], hashlib.sha256(bytearray([ord(c) for c in hrp]) + data.tobytes()).digest(), curve = ecdsa.curves.SECP256k1))
+        addr.pubkey = SerializableKey(MyVerifyingKey.from_signature(sigdecoded[:64], sigdecoded[64], sha256(hrp.encode("ascii") + data.tobytes()).digest(), curve = ecdsa.curves.SECP256k1))
 
     return addr
 
