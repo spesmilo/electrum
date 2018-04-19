@@ -35,11 +35,14 @@ from .util import format_satoshis_plain
 
 mainnet_block_explorers = {
     'Bitcoin.com': ('https://explorer.bitcoin.com/bch',
-                       Address.FMT_LEGACY,
-                        {'tx': 'tx', 'addr': 'address'}),
+                    Address.FMT_LEGACY,
+                    {'tx': 'tx', 'addr': 'address'}),
     'Blockchair.com': ('https://blockchair.com/bitcoin-cash',
                        Address.FMT_CASHADDR,
-                        {'tx': 'transaction', 'addr': 'address'}),
+                       {'tx': 'transaction', 'addr': 'address'}),
+    'ViaBTC.com': ('https://www.viabtc.com/bch',
+                   Address.FMT_CASHADDR,
+                   {'tx': 'tx', 'addr': 'address'}),
 }
 
 testnet_block_explorers = {
