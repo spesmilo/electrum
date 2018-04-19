@@ -1128,6 +1128,8 @@ class Abstract_Wallet(PrintError):
                 summary['unrealized_gains'] = Fiat(unrealized, fx.ccy)
                 summary['start_fiat_balance'] = Fiat(fx.historical_value(start_balance, start_date), fx.ccy)
                 summary['end_fiat_balance'] = Fiat(fx.historical_value(end_balance, end_date), fx.ccy)
+                summary['start_fiat_value'] = Fiat(fx.historical_value(COIN, start_date), fx.ccy)
+                summary['end_fiat_value'] = Fiat(fx.historical_value(COIN, end_date), fx.ccy)
         else:
             summary = {}
         return {

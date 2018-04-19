@@ -26,6 +26,8 @@
 from electrum_ltc.i18n import _
 from electrum_ltc.mnemonic import Mnemonic
 import electrum_ltc.old_mnemonic
+from electrum_ltc.plugins import run_hook
+
 
 from .util import *
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
@@ -194,4 +196,5 @@ class SeedDialog(WindowModalDialog):
         title =  _("Your wallet generation seed is:")
         slayout = SeedLayout(title=title, seed=seed, msg=True, passphrase=passphrase)
         vbox.addLayout(slayout)
+        run_hook('set_seed', seed, slayout.seed_e)
         vbox.addLayout(Buttons(CloseButton(self)))
