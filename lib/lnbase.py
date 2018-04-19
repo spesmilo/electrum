@@ -317,17 +317,15 @@ def derive_blinded_pubkey(basepoint, per_commitment_point):
     return point_to_ser(k1 + k2)
 
 
-def get_per_commitment_secret_from_seed(seed: int, bits: int, i: int) -> int:
+def get_per_commitment_secret_from_seed(seed: bytes, i: int, bits: int = 47) -> bytes:
     """Generate per commitment secret."""
-
-    per_commitment_secret = seed
-    for bitindex in range(bits, -1, -1):  # 47, 46, ..., 0
+    per_commitment_secret = bytearray(seed)
+    for bitindex in range(bits, -1, -1):
         mask = 1 << bitindex
         if i & mask:
-            pcs_bytes = bytearray(per_commitment_secret.to_bytes(byteorder="big", length=32))
-            pcs_bytes[bitindex // 8] ^= 1 << (bitindex % 8)
-            per_commitment_secret = int.from_bytes(bitcoin.sha256(pcs_bytes), byteorder="big")
-    return per_commitment_secret
+            per_commitment_secret[bitindex // 8] ^= 1 << (bitindex % 8)
+            per_commitment_secret = bytearray(bitcoin.sha256(per_commitment_secret))
+    return bytes(per_commitment_secret)
 
 
 def overall_weight(num_htlc):
