@@ -8,8 +8,10 @@ import shutil
 from io import StringIO
 from lib.simple_config import (SimpleConfig, read_user_config)
 
+from . import SequentialTestCase
 
-class Test_SimpleConfig(unittest.TestCase):
+
+class Test_SimpleConfig(SequentialTestCase):
 
     def setUp(self):
         super(Test_SimpleConfig, self).setUp()
@@ -109,7 +111,7 @@ class Test_SimpleConfig(unittest.TestCase):
         self.assertEqual({"something": "a"}, result)
 
 
-class TestUserConfig(unittest.TestCase):
+class TestUserConfig(SequentialTestCase):
 
     def setUp(self):
         super(TestUserConfig, self).setUp()

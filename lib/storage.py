@@ -162,8 +162,9 @@ class WalletStorage(PrintError):
     def file_exists(self):
         return self.path and os.path.exists(self.path)
 
-    def get_key(self, password):
-        secret = pbkdf2.PBKDF2(password, '', iterations = 1024, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
+    @staticmethod
+    def get_eckey_from_password(password):
+        secret = pbkdf2.PBKDF2(password, '', iterations=1024, macmodule=hmac, digestmodule=hashlib.sha512).read(64)
         ec_key = bitcoin.EC_KEY(secret)
         return ec_key
 
@@ -177,13 +178,13 @@ class WalletStorage(PrintError):
             raise WalletFileException('no encryption magic for version: %s' % v)
 
     def decrypt(self, password):
-        ec_key = self.get_key(password)
+        ec_key = self.get_eckey_from_password(password)
         if self.raw:
             enc_magic = self._get_encryption_magic()
             s = zlib.decompress(ec_key.decrypt_message(self.raw, enc_magic))
         else:
             s = None
-        self.pubkey = ec_key.get_public_key()
+        self.pubkey = ec_key.get_public_key_hex()
         s = s.decode('utf8')
         self.load_data(s)
 
@@ -191,7 +192,7 @@ class WalletStorage(PrintError):
         """Raises an InvalidPassword exception on invalid password"""
         if not self.is_encrypted():
             return
-        if self.pubkey and self.pubkey != self.get_key(password).get_public_key():
+        if self.pubkey and self.pubkey != self.get_eckey_from_password(password).get_public_key_hex():
             raise InvalidPassword()
 
     def set_keystore_encryption(self, enable):
@@ -202,8 +203,8 @@ class WalletStorage(PrintError):
         if enc_version is None:
             enc_version = self._encryption_version
         if password and enc_version != STO_EV_PLAINTEXT:
-            ec_key = self.get_key(password)
-            self.pubkey = ec_key.get_public_key()
+            ec_key = self.get_eckey_from_password(password)
+            self.pubkey = ec_key.get_public_key_hex()
             self._encryption_version = enc_version
         else:
             self.pubkey = None

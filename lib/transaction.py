@@ -629,16 +629,12 @@ class Transaction:
                 if sig in sigs1:
                     continue
                 pre_hash = Hash(bfh(self.serialize_preimage(i)))
-                # der to string
-                order = ecdsa.ecdsa.generator_secp256k1.order()
-                r, s = ecdsa.util.sigdecode_der(bfh(sig[:-2]), order)
-                sig_string = ecdsa.util.sigencode_string(r, s, order)
-                compressed = True
+                sig_string = bitcoin.sig_string_from_der_sig(bfh(sig[:-2]))
                 for recid in range(4):
-                    public_key = MyVerifyingKey.from_signature(sig_string, recid, pre_hash, curve = SECP256k1)
-                    pubkey = bh2u(point_to_ser(public_key.pubkey.point, compressed))
+                    public_key = bitcoin.pubkey_from_sig_string(sig_string, recid, pre_hash)
+                    pubkey = bh2u(pubkey_to_ser(public_key, compressed=True))
                     if pubkey in pubkeys:
-                        public_key.verify_digest(sig_string, pre_hash, sigdecode = ecdsa.util.sigdecode_string)
+                        bitcoin.verify_message_sig_pubkey(pre_hash, sig_string, public_key)
                         j = pubkeys.index(pubkey)
                         print_error("adding sig", i, j, pubkey, sig)
                         self._inputs[i]['signatures'][j] = sig
@@ -1028,13 +1024,8 @@ class Transaction:
                     pubkey = public_key_from_private_key(sec, compressed)
                     # add signature
                     pre_hash = Hash(bfh(self.serialize_preimage(i)))
-                    pkey = regenerate_key(sec)
-                    secexp = pkey.secret
-                    private_key = bitcoin.MySigningKey.from_secret_exponent(secexp, curve = SECP256k1)
-                    public_key = private_key.get_verifying_key()
-                    sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
-                    if not public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der):
-                        raise Exception('Sanity check verifying our own signature failed.')
+                    eckey = regenerate_key(sec)
+                    sig = eckey.sign_transaction(pre_hash)
                     txin['signatures'][j] = bh2u(sig) + '01'
                     #txin['x_pubkeys'][j] = pubkey
                     txin['pubkeys'][j] = pubkey # needed for fd keys

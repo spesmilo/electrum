@@ -3,6 +3,7 @@ import unittest
 import sys
 from ecdsa.util import number_to_string
 
+from lib import bitcoin
 from lib.bitcoin import (
     generator_secp256k1, point_to_ser, public_key_to_p2pkh, EC_KEY,
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
@@ -14,6 +15,9 @@ from lib.bitcoin import (
     xpub_type, is_xprv, is_bip32_derivation, seed_type, EncodeBase58Check)
 from lib.util import bfh
 from lib import constants
+from lib.storage import WalletStorage
+
+from . import SequentialTestCase
 
 from . import TestCaseForTestnet
 
@@ -24,8 +28,33 @@ except ImportError:
     sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
 
 
-class Test_bitcoin(unittest.TestCase):
+def needs_test_with_and_without_coincurve(func):
+    """Function decorator to run a unit test twice:
+    once when coincurve is not available, once when it is.
 
+    NOTE: this is inherently sequential;
+    tests running in parallel would break things
+    """
+    def run_test(*args, **kwargs):
+        func(*args, **kwargs)
+        _coincurve = bitcoin.coincurve
+        if _coincurve is None:
+            return
+        bitcoin.coincurve = None
+        try:
+            func(*args, **kwargs)
+        finally:
+            bitcoin.coincurve = _coincurve
+    return run_test
+
+
+class Test_bitcoin(SequentialTestCase):
+
+    def test_coincurve_is_available(self):
+        # we want the unit testing framework to test with coincurve available.
+        self.assertTrue(bool(bitcoin.coincurve))
+
+    @needs_test_with_and_without_coincurve
     def test_crypto(self):
         for message in [b"Chancellor on brink of second bailout for banks", b'\xff'*512]:
             self._do_test_crypto(message)
@@ -57,6 +86,7 @@ class Test_bitcoin(unittest.TestCase):
         #print signature
         EC_KEY.verify_message(eck, signature, message)
 
+    @needs_test_with_and_without_coincurve
     def test_msg_signing(self):
         msg1 = b'Chancellor on brink of second bailout for banks'
         msg2 = b'Electrum'
@@ -84,6 +114,37 @@ class Test_bitcoin(unittest.TestCase):
 
         self.assertFalse(verify_message(addr1, b'wrong', msg1))
         self.assertFalse(verify_message(addr1, sig2, msg1))
+
+    @needs_test_with_and_without_coincurve
+    def test_decrypt_message(self):
+        key = WalletStorage.get_eckey_from_password('pw123')
+        self.assertEqual(b'me<(s_s)>age', key.decrypt_message(b'QklFMQMDFtgT3zWSQsa+Uie8H/WvfUjlu9UN9OJtTt3KlgKeSTi6SQfuhcg1uIz9hp3WIUOFGTLr4RNQBdjPNqzXwhkcPi2Xsbiw6UCNJncVPJ6QBg=='))
+        self.assertEqual(b'me<(s_s)>age', key.decrypt_message(b'QklFMQKXOXbylOQTSMGfo4MFRwivAxeEEkewWQrpdYTzjPhqjHcGBJwdIhB7DyRfRQihuXx1y0ZLLv7XxLzrILzkl/H4YUtZB4uWjuOAcmxQH4i/Og=='))
+        self.assertEqual(b'hey_there' * 100, key.decrypt_message(b'QklFMQLOOsabsXtGQH8edAa6VOUa5wX8/DXmxX9NyHoAx1a5bWgllayGRVPeI2bf0ZdWK0tfal0ap0ZIVKbd2eOJybqQkILqT6E1/Syzq0Zicyb/AA1eZNkcX5y4gzloxinw00ubCA8M7gcUjJpOqbnksATcJ5y2YYXcHMGGfGurWu6uJ/UyrNobRidWppRMW5yR9/6utyNvT6OHIolCMEf7qLcmtneoXEiz51hkRdZS7weNf9mGqSbz9a2NL3sdh1A0feHIjAZgcCKcAvksNUSauf0/FnIjzTyPRpjRDMeDC8Ci3sGiuO3cvpWJwhZfbjcS26KmBv2CHWXfRRNFYOInHZNIXWNAoBB47Il5bGSMd+uXiGr+SQ9tNvcu+BiJNmFbxYqg+oQ8dGAl1DtvY2wJVY8k7vO9BIWSpyIxfGw7EDifhc5vnOmGe016p6a01C3eVGxgl23UYMrP7+fpjOcPmTSF4rk5U5ljEN3MSYqlf1QEv0OqlI9q1TwTK02VBCjMTYxDHsnt04OjNBkNO8v5uJ4NR+UUDBEp433z53I59uawZ+dbk4v4ZExcl8EGmKm3Gzbal/iJ/F7KQuX2b/ySEhLOFVYFWxK73X1nBvCSK2mC2/8fCw8oI5pmvzJwQhcCKTdEIrz3MMvAHqtPScDUOjzhXxInQOCb3+UBj1PPIdqkYLvZss1TEaBwYZjLkVnK2MBj7BaqT6Rp6+5A/fippUKHsnB6eYMEPR2YgDmCHL+4twxHJG6UWdP3ybaKiiAPy2OHNP6PTZ0HrqHOSJzBSDD+Z8YpaRg29QX3UEWlqnSKaan0VYAsV1VeaN0XFX46/TWO0L5tjhYVXJJYGqo6tIQJymxATLFRF6AZaD1Mwd27IAL04WkmoQoXfO6OFfwdp/shudY/1gBkDBvGPICBPtnqkvhGF+ZF3IRkuPwiFWeXmwBxKHsRx/3+aJu32Ml9+za41zVk2viaxcGqwTc5KMexQFLAUwqhv+aIik7U+5qk/gEVSuRoVkihoweFzKolNF+BknH2oB4rZdPixag5Zje3DvgjsSFlOl69W/67t/Gs8htfSAaHlsB8vWRQr9+v/lxTbrAw+O0E+sYGoObQ4qQMyQshNZEHbpPg63eWiHtJJnrVBvOeIbIHzoLDnMDsWVWZSMzAQ1vhX1H5QLgSEbRlKSliVY03kDkh/Nk/KOn+B2q37Ialq4JcRoIYFGJ8AoYEAD0tRuTqFddIclE75HzwaNG7NyKW1plsa72ciOPwsPJsdd5F0qdSQ3OSKtooTn7uf6dXOc4lDkfrVYRlZ0PX'))
+
+    @needs_test_with_and_without_coincurve
+    def test_encrypt_message(self):
+        key = WalletStorage.get_eckey_from_password('secret_password77')
+        msgs = [
+            bytes([0] * 555),
+            b'cannot think of anything funny'
+        ]
+        for plaintext in msgs:
+            ciphertext1 = EC_KEY.encrypt_message(plaintext, key.get_public_key_bytes())
+            ciphertext2 = EC_KEY.encrypt_message(plaintext, key.get_public_key_bytes())
+            self.assertEqual(plaintext, key.decrypt_message(ciphertext1))
+            self.assertEqual(plaintext, key.decrypt_message(ciphertext2))
+            self.assertNotEqual(ciphertext1, ciphertext2)
+
+    @needs_test_with_and_without_coincurve
+    def test_sign_transaction(self):
+        eckey1 = regenerate_key(bfh('7e1255fddb52db1729fc3ceb21a46f95b8d9fe94cc83425e936a6c5223bb679d'))
+        sig1 = eckey1.sign_transaction(bfh('5a548b12369a53faaa7e51b5081829474ebdd9c924b3a8230b69aa0be254cd94'))
+        self.assertEqual(bfh('3045022100902a288b98392254cd23c0e9a49ac6d7920f171b8249a48e484b998f1874a2010220723d844826828f092cf400cb210c4fa0b8cd1b9d1a7f21590e78e022ff6476b9'), sig1)
+
+        eckey2 = regenerate_key(bfh('c7ce8c1462c311eec24dff9e2532ac6241e50ae57e7d1833af21942136972f23'))
+        sig2 = eckey2.sign_transaction(bfh('642a2e66332f507c92bda910158dfe46fc10afbf72218764899d3af99a043fac'))
+        self.assertEqual(bfh('30440220618513f4cfc87dde798ce5febae7634c23e7b9254a1eabf486be820f6a7c2c4702204fef459393a2b931f949e63ced06888f35e286e446dc46feb24b5b5f81c6ed52'), sig2)
 
     def test_aes_homomorphic(self):
         """Make sure AES is homomorphic."""
@@ -184,7 +245,7 @@ class Test_bitcoin_testnet(TestCaseForTestnet):
         self.assertEqual(address_to_script('2NE4ZdmxFmUgwu5wtfoN2gVniyMgRDYq1kk'), 'a914e4567743d378957cd2ee7072da74b1203c1a7a0b87')
 
 
-class Test_xprv_xpub(unittest.TestCase):
+class Test_xprv_xpub(SequentialTestCase):
 
     xprv_xpub = (
         # Taken from test vectors in https://en.bitcoin.it/wiki/BIP_0032_TestVectors
@@ -215,6 +276,7 @@ class Test_xprv_xpub(unittest.TestCase):
 
         return xpub, xprv
 
+    @needs_test_with_and_without_coincurve
     def test_bip32(self):
         # see https://en.bitcoin.it/wiki/BIP_0032_TestVectors
         xpub, xprv = self._do_test_bip32("000102030405060708090a0b0c0d0e0f", "m/0'/1/2'/2/1000000000")
@@ -225,12 +287,14 @@ class Test_xprv_xpub(unittest.TestCase):
         self.assertEqual("xpub6FnCn6nSzZAw5Tw7cgR9bi15UV96gLZhjDstkXXxvCLsUXBGXPdSnLFbdpq8p9HmGsApME5hQTZ3emM2rnY5agb9rXpVGyy3bdW6EEgAtqt", xpub)
         self.assertEqual("xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j", xprv)
 
+    @needs_test_with_and_without_coincurve
     def test_xpub_from_xprv(self):
         """We can derive the xpub key from a xprv."""
         for xprv_details in self.xprv_xpub:
             result = xpub_from_xprv(xprv_details['xprv'])
             self.assertEqual(result, xprv_details['xpub'])
 
+    @needs_test_with_and_without_coincurve
     def test_is_xpub(self):
         for xprv_details in self.xprv_xpub:
             xpub = xprv_details['xpub']
@@ -238,11 +302,13 @@ class Test_xprv_xpub(unittest.TestCase):
         self.assertFalse(is_xpub('xpub1nval1d'))
         self.assertFalse(is_xpub('xpub661MyMwAqRbcFWohJWt7PHsFEJfZAvw9ZxwQoDa4SoMgsDDM1T7WK3u9E4edkC4ugRnZ8E4xDZRpk8Rnts3Nbt97dPwT52WRONGBADWRONG'))
 
+    @needs_test_with_and_without_coincurve
     def test_xpub_type(self):
         for xprv_details in self.xprv_xpub:
             xpub = xprv_details['xpub']
             self.assertEqual(xprv_details['xtype'], xpub_type(xpub))
 
+    @needs_test_with_and_without_coincurve
     def test_is_xprv(self):
         for xprv_details in self.xprv_xpub:
             xprv = xprv_details['xprv']
@@ -334,7 +400,7 @@ class Test_xprv_xpub_testnet(TestCaseForTestnet):
             self.assertTrue(xkey_b58.startswith(xpub_headers_b58[xtype]))
 
 
-class Test_keyImport(unittest.TestCase):
+class Test_keyImport(SequentialTestCase):
 
     priv_pub_addr = (
            {'priv': 'KzMFjMC2MPadjvX5Cd7b8AKKjjpBSoRKUTpoAtN6B3J9ezWYyXS6',
@@ -421,6 +487,7 @@ class Test_keyImport(unittest.TestCase):
             'scripthash': '60ad5a8b922f758cd7884403e90ee7e6f093f8d21a0ff24c9a865e695ccefdf1'},
     )
 
+    @needs_test_with_and_without_coincurve
     def test_public_key_from_private_key(self):
         for priv_details in self.priv_pub_addr:
             txin_type, privkey, compressed = deserialize_privkey(priv_details['priv'])
@@ -429,11 +496,13 @@ class Test_keyImport(unittest.TestCase):
             self.assertEqual(priv_details['txin_type'], txin_type)
             self.assertEqual(priv_details['compressed'], compressed)
 
+    @needs_test_with_and_without_coincurve
     def test_address_from_private_key(self):
         for priv_details in self.priv_pub_addr:
             addr2 = address_from_private_key(priv_details['priv'])
             self.assertEqual(priv_details['address'], addr2)
 
+    @needs_test_with_and_without_coincurve
     def test_is_valid_address(self):
         for priv_details in self.priv_pub_addr:
             addr = priv_details['address']
@@ -449,6 +518,7 @@ class Test_keyImport(unittest.TestCase):
 
         self.assertFalse(is_address("not an address"))
 
+    @needs_test_with_and_without_coincurve
     def test_is_private_key(self):
         for priv_details in self.priv_pub_addr:
             self.assertTrue(is_private_key(priv_details['priv']))
@@ -457,30 +527,34 @@ class Test_keyImport(unittest.TestCase):
             self.assertFalse(is_private_key(priv_details['address']))
         self.assertFalse(is_private_key("not a privkey"))
 
+    @needs_test_with_and_without_coincurve
     def test_serialize_privkey(self):
         for priv_details in self.priv_pub_addr:
             txin_type, privkey, compressed = deserialize_privkey(priv_details['priv'])
             priv2 = serialize_privkey(privkey, compressed, txin_type)
             self.assertEqual(priv_details['exported_privkey'], priv2)
 
+    @needs_test_with_and_without_coincurve
     def test_address_to_scripthash(self):
         for priv_details in self.priv_pub_addr:
             sh = address_to_scripthash(priv_details['address'])
             self.assertEqual(priv_details['scripthash'], sh)
 
+    @needs_test_with_and_without_coincurve
     def test_is_minikey(self):
         for priv_details in self.priv_pub_addr:
             minikey = priv_details['minikey']
             priv = priv_details['priv']
             self.assertEqual(minikey, is_minikey(priv))
 
+    @needs_test_with_and_without_coincurve
     def test_is_compressed(self):
         for priv_details in self.priv_pub_addr:
             self.assertEqual(priv_details['compressed'],
                              is_compressed(priv_details['priv']))
 
 
-class Test_seeds(unittest.TestCase):
+class Test_seeds(SequentialTestCase):
     """ Test old and new seeds. """
 
     mnemonics = {

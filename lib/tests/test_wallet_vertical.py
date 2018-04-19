@@ -10,6 +10,8 @@ from lib import constants
 from plugins.trustedcoin import trustedcoin
 
 from . import TestCaseForTestnet
+from . import SequentialTestCase
+from .test_bitcoin import needs_test_with_and_without_coincurve
 
 
 class WalletIntegrityHelper:
@@ -58,8 +60,9 @@ class WalletIntegrityHelper:
 
 
 # TODO passphrase/seed_extension
-class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
+class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
 
+    @needs_test_with_and_without_coincurve
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_seed_standard(self, mock_write):
         seed_words = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
@@ -79,6 +82,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         self.assertEqual(w.get_receiving_addresses()[0], '1NNkttn1YvVGdqBW4PR6zvc3Zx3H5owKRf')
         self.assertEqual(w.get_change_addresses()[0], '1KSezYMhAJMWqFbVFB2JshYg69UpmEXR4D')
 
+    @needs_test_with_and_without_coincurve
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_seed_segwit(self, mock_write):
         seed_words = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
@@ -98,6 +102,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         self.assertEqual(w.get_receiving_addresses()[0], 'bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af')
         self.assertEqual(w.get_change_addresses()[0], 'bc1qdy94n2q5qcp0kg7v9yzwe6wvfkhnvyzje7nx2p')
 
+    @needs_test_with_and_without_coincurve
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_seed_old(self, mock_write):
         seed_words = 'powerful random nobody notice nothing important anyway look away hidden message over'
@@ -116,6 +121,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         self.assertEqual(w.get_receiving_addresses()[0], '1FJEEB8ihPMbzs2SkLmr37dHyRFzakqUmo')
         self.assertEqual(w.get_change_addresses()[0], '1KRW8pH6HFHZh889VDq6fEKvmrsmApwNfe')
 
+    @needs_test_with_and_without_coincurve
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_seed_2fa(self, mock_write):
         seed_words = 'kiss live scene rude gate step hip quarter bunker oxygen motor glove'
@@ -149,6 +155,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         self.assertEqual(w.get_receiving_addresses()[0], '35L8XmCDoEBKeaWRjvmZvoZvhp8BXMMMPV')
         self.assertEqual(w.get_change_addresses()[0], '3PeZEcumRqHSPNN43hd4yskGEBdzXgY8Cy')
 
+    @needs_test_with_and_without_coincurve
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_bip39_seed_bip44_standard(self, mock_write):
         seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
@@ -167,6 +174,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         self.assertEqual(w.get_receiving_addresses()[0], '16j7Dqk3Z9DdTdBtHcCVLaNQy9MTgywUUo')
         self.assertEqual(w.get_change_addresses()[0], '1GG5bVeWgAp5XW7JLCphse14QaC4qiHyWn')
 
+    @needs_test_with_and_without_coincurve
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_bip39_seed_bip49_p2sh_segwit(self, mock_write):
         seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
@@ -185,6 +193,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         self.assertEqual(w.get_receiving_addresses()[0], '35ohQTdNykjkF1Mn9nAVEFjupyAtsPAK1W')
         self.assertEqual(w.get_change_addresses()[0], '3KaBTcviBLEJajTEMstsA2GWjYoPzPK7Y7')
 
+    @needs_test_with_and_without_coincurve
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_bip39_seed_bip84_native_segwit(self, mock_write):
         # test case from bip84
@@ -204,6 +213,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         self.assertEqual(w.get_receiving_addresses()[0], 'bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu')
         self.assertEqual(w.get_change_addresses()[0], 'bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el')
 
+    @needs_test_with_and_without_coincurve
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_multisig_seed_standard(self, mock_write):
         seed_words = 'blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure'
@@ -226,6 +236,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         self.assertEqual(w.get_receiving_addresses()[0], '32ji3QkAgXNz6oFoRfakyD3ys1XXiERQYN')
         self.assertEqual(w.get_change_addresses()[0], '36XWwEHrrVCLnhjK5MrVVGmUHghr9oWTN1')
 
+    @needs_test_with_and_without_coincurve
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_electrum_multisig_seed_segwit(self, mock_write):
         seed_words = 'snow nest raise royal more walk demise rotate smooth spirit canyon gun'
@@ -248,6 +259,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         self.assertEqual(w.get_receiving_addresses()[0], 'bc1qvzezdcv6vs5h45ugkavp896e0nde5c5lg5h0fwe2xyfhnpkxq6gq7pnwlc')
         self.assertEqual(w.get_change_addresses()[0], 'bc1qxqf840dqswcmu7a8v82fj6ej0msx08flvuy6kngr7axstjcaq6us9hrehd')
 
+    @needs_test_with_and_without_coincurve
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_bip39_multisig_seed_bip45_standard(self, mock_write):
         seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
@@ -270,6 +282,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         self.assertEqual(w.get_receiving_addresses()[0], '3JPTQ2nitVxXBJ1yhMeDwH6q417UifE3bN')
         self.assertEqual(w.get_change_addresses()[0], '3FGyDuxgUDn2pSZe5xAJH1yUwSdhzDMyEE')
 
+    @needs_test_with_and_without_coincurve
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_bip39_multisig_seed_p2sh_segwit(self, mock_write):
         # bip39 seed: pulse mixture jazz invite dune enrich minor weapon mosquito flight fly vapor
