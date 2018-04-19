@@ -34,8 +34,11 @@ from .networks import NetworkConstants
 from .util import format_satoshis_plain
 
 mainnet_block_explorers = {
-    'Blockchair.com': ('https://blockchair.com/bitcoin-cash',
+    'Bitcoin.com': ('https://explorer.bitcoin.com/bch',
                        Address.FMT_LEGACY,
+                        {'tx': 'tx', 'addr': 'address'}),
+    'Blockchair.com': ('https://blockchair.com/bitcoin-cash',
+                       Address.FMT_CASHADDR,
                         {'tx': 'transaction', 'addr': 'address'}),
 }
 
