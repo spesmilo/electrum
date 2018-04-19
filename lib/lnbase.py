@@ -449,11 +449,12 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubk
 
 class Peer(PrintError):
 
-    def __init__(self, host, port, pubkey, request_initial_sync=True):
+    def __init__(self, host, port, pubkey, request_initial_sync=True, network=None):
         self.host = host
         self.port = port
         self.privkey = os.urandom(32) + b"\x01"
         self.pubkey = pubkey
+        self.network = network
         self.read_buffer = b''
         self.ping_time = 0
         self.channel_accepted = {}
@@ -706,6 +707,7 @@ class Peer(PrintError):
         remote_revocation_basepoint = payload['revocation_basepoint']
         remote_payment_basepoint = payload['payment_basepoint']
         remote_delayed_payment_basepoint = payload['delayed_payment_basepoint']
+        funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], byteorder="big")
         self.print_error('remote dust limit', remote_dust_limit_satoshis)
         self.print_error('remote delay', remote_delay)
         # create funding tx
@@ -772,6 +774,22 @@ class Peer(PrintError):
         self.remote_funding_locked[channel_id] = asyncio.Future()
         self.network.broadcast(funding_tx)
         # wait until we see confirmations
+
+        def on_network_update(event, *args):
+            if event == 'updated':
+                conf = wallet.get_tx_height(funding_txid)[1]
+                if conf >= funding_txn_minimum_depth:
+                    try:
+                        self.local_funding_locked[channel_id].set_result(1)
+                    except (asyncio.InvalidStateError, KeyError) as e:
+                        # FIXME race condition if updates come in quickly, set_result might be called multiple times
+                        # or self.local_funding_locked[channel_id] might be deleted already
+                        self.print_error('local_funding_locked.set_result error for channel {}: {}'.format(channel_id, e))
+                    self.network.unregister_callback(on_network_update, ['updated'])
+            else:
+                self.print_error("unexpected network message:", event, args)
+        self.network.register_callback(on_network_update, ['updated'])
+
         try:
             await self.local_funding_locked[channel_id]
         finally:
@@ -874,7 +892,12 @@ class ChannelDB(PrintError):
 
     def on_channel_update(self, msg_payload):
         short_channel_id = msg_payload['short_channel_id']
-        self._id_to_channel_info[short_channel_id].on_channel_update(msg_payload)
+        try:
+            channel_info = self._id_to_channel_info[short_channel_id]
+        except KeyError:
+            pass  # ignore channel update
+        else:
+            channel_info.on_channel_update(msg_payload)
 
     def remove_channel(self, short_channel_id):
         try:
