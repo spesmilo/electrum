@@ -458,6 +458,8 @@ class Peer(PrintError):
         self.ping_time = 0
         self.channel_accepted = {}
         self.funding_signed = {}
+        self.local_funding_locked = {}
+        self.remote_funding_locked = {}
         self.initialized = asyncio.Future()
         self.localfeatures = (0x08 if request_initial_sync else 0)
         # view of the network
@@ -584,7 +586,8 @@ class Peer(PrintError):
         self.funding_signed[channel_id].set_result(payload)
 
     def on_funding_locked(self, payload):
-        pass
+        channel_id = int.from_bytes(payload['channel_id'], byteorder="big")
+        self.funding_locked[channel_id].set_result(payload)
 
     def on_node_announcement(self, payload):
         pubkey = payload['node_id']
@@ -752,7 +755,7 @@ class Peer(PrintError):
             del self.funding_signed[channel_id]
         self.print_error('received funding_signed')
         remote_sig = payload['signature']
-        # todo: check signature agains local ctx
+        # todo: check signature against local ctx
         local_ctx = make_commitment(
             ctn,
             funding_pubkey, remote_funding_pubkey,
@@ -761,9 +764,30 @@ class Peer(PrintError):
             revocation_pubkey, local_delayedpubkey,
             funding_txid, funding_index, funding_satoshis,
             local_amount, remote_amount, to_self_delay, dust_limit_satoshis)
+        # return for now
+        print('Done')
+        return
         # broadcast funding tx
-        #self.network.broadcast(funding_tx)
+        self.local_funding_locked[channel_id] = asyncio.Future()
+        self.remote_funding_locked[channel_id] = asyncio.Future()
+        self.network.broadcast(funding_tx)
+        # wait until we see confirmations
+        try:
+            await self.local_funding_locked[channel_id]
+        finally:
+            del self.local_funding_locked[channel_id]
+        self.send_message(gen_msg("funding_locked", channel_id=channel_id, next_per_commitment_point=next_per_commitment_point))
+        # wait until we receive funding_locked
+        try:
+            payload = await self.remote_funding_locked[channel_id]
+        finally:
+            del self.remote_funding_locked[channel_id]
         self.print_error('Done')
+
+    def on_update_add_htlc(self, payload):
+        # no onion routing for the moment: we assume we are the end node
+        self.print_error('on_update_htlc')
+
 
 
 # replacement for lightningCall
