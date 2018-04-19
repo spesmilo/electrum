@@ -316,6 +316,35 @@ def derive_blinded_pubkey(basepoint, per_commitment_point):
     k2 = ser_to_point(per_commitment_point) * bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
     return point_to_ser(k1 + k2)
 
+
+def get_per_commitment_secret_from_seed(seed: int, i: int) -> int:
+    """Generate per commitment secret."""
+
+
+    #seed ^= 1
+    #pcs_bytes = seed.to_bytes(byteorder="big", length=32)
+    #print(bh2u(pcs_bytes))
+    #return int.from_bytes(hashlib.sha256(pcs_bytes[::-1]).digest(), byteorder="big")
+
+    #tmp = seed.to_bytes(byteorder="big", length=32)
+    #seed = int.from_bytes(tmp[::-1], byteorder="big")
+
+    per_commitment_secret = seed
+    print('get_per_commitment_secret_from_seed() per_commitment_secret', per_commitment_secret)
+    print('get_per_commitment_secret_from_seed() i', i)
+    for bitindex in range(47, -1, -1):  # 47, 46, ..., 0
+        mask = 1 << bitindex
+        if i & mask:
+            print('get_per_commitment_secret_from_seed() bitindex, mask', bitindex, mask)
+            print('get_per_commitment_secret_from_seed() branch entered')
+            per_commitment_secret ^= mask
+            print('get_per_commitment_secret_from_seed() per_commitment_secret br1', per_commitment_secret)
+            pcs_bytes = per_commitment_secret.to_bytes(byteorder="big", length=32)
+            per_commitment_secret = int.from_bytes(bitcoin.sha256(pcs_bytes[::-1]), byteorder="big")
+            print('get_per_commitment_secret_from_seed() per_commitment_secret br2', per_commitment_secret)
+    return per_commitment_secret
+
+
 def overall_weight(num_htlc):
     return 500 + 172 * num_htlc + 224
 
