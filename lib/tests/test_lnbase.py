@@ -49,7 +49,8 @@ class Test_LNBase(unittest.TestCase):
         fee = local_feerate_per_kw * overall_weight(len(htlcs)) // 1000
         local_amount = to_local_msat // 1000 - fee
         remote_amount = to_remote_msat // 1000
-        our_commit_tx = make_commitment(commitment_number,
+        our_commit_tx = make_commitment(
+            commitment_number,
             local_funding_pubkey, remote_funding_pubkey, remotepubkey,
             local_payment_basepoint, remote_payment_basepoint,
             local_revocation_pubkey, local_delayedpubkey,
@@ -128,12 +129,17 @@ class Test_LNBase(unittest.TestCase):
         htlc4_msat = 4000_000
         htlcs = [(htlc2, htlc2_msat), (htlc3, htlc3_msat), (htlc0, htlc0_msat), (htlc1, htlc1_msat), (htlc4, htlc4_msat)]
 
-        our_commit_tx = make_commitment(commitment_number,
+        fee = local_feerate_per_kw * overall_weight(len(htlcs)) // 1000
+        local_amount = to_local_msat // 1000 - fee
+        remote_amount = to_remote_msat // 1000
+        our_commit_tx = make_commitment(
+            commitment_number,
             local_funding_pubkey, remote_funding_pubkey, remotepubkey,
             local_payment_basepoint, remote_payment_basepoint,
             local_revocation_pubkey, local_delayedpubkey,
             funding_tx_id, funding_output_index, funding_amount_satoshi,
-            to_local_msat, to_remote_msat, local_feerate_per_kw, local_delay, htlcs=htlcs)
+            local_amount, remote_amount,
+            local_delay, local_dust_limit_satoshi, htlcs=htlcs)
         self.sign_and_insert_remote_sig(our_commit_tx, remote_signature)
         self.assertEqual(str(our_commit_tx), output_commit_tx)
 
