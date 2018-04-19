@@ -34,8 +34,9 @@ if __name__ == "__main__":
     # wallet
     storage = WalletStorage(config.get_wallet_path())
     wallet = Wallet(storage)
+    wallet.start_threads(network)
     # start peer
-    peer = Peer(host, port, pubkey, request_initial_sync=False)
+    peer = Peer(host, port, pubkey, request_initial_sync=False, network=network)
     network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), network.asyncio_loop))
     # run blocking test
     start = time.time()
