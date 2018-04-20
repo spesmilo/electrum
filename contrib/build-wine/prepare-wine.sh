@@ -86,6 +86,7 @@ echo "done"
 
 wine 'wineboot'
 
+mkdir /tmp/electrum-build
 cd /tmp/electrum-build
 
 # Install Python
