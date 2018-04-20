@@ -649,7 +649,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return text
 
     def format_fee_rate(self, fee_rate):
-        return format_satoshis(fee_rate/1000, self.num_zeros, 0) + ' sat/byte'
+        return format_satoshis(fee_rate/1000, self.num_zeros, 0, precision=1) + ' sat/byte'
 
     def get_decimal_point(self):
         return self.decimal_point

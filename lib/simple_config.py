@@ -370,7 +370,7 @@ class SimpleConfig(PrintError):
         if fee_rate is None:
             rate_str = 'unknown'
         else:
-            rate_str = format_satoshis(fee_rate/1000, 0, 0) + ' sat/byte'
+            rate_str = format_satoshis(fee_rate/1000, 0, 0, precision=1) + ' sat/byte'
 
         if dyn:
             if mempool:

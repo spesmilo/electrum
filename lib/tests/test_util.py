@@ -18,6 +18,15 @@ class TestUtil(unittest.TestCase):
         expected = "1.7"
         self.assertEqual(expected, result)
 
+    def test_format_fee_precision(self):
+        result = format_satoshis(1666/1000, 0, 0, precision=6)
+        expected = "1.666"
+        self.assertEqual(expected, result)
+
+        result = format_satoshis(1666/1000, 0, 0, precision=1)
+        expected = "1.7"
+        self.assertEqual(expected, result)
+
     def test_format_satoshis_whitespaces(self):
         result = format_satoshis(12340, whitespaces=True)
         expected = "     0.0001234 "
