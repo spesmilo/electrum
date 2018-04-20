@@ -684,7 +684,8 @@ class Peer(PrintError):
         htlc_basepoint, htlc_privkey = next(keys)
         delayed_payment_basepoint, delayed_privkey = next(keys)
         base_secret = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
-        per_commitment_secret = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100
+        per_commitment_secret_seed = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100.to_bytes(length=32, byteorder="big")
+        per_commitment_secret_index = 2**48 - 1
         # amounts
         funding_satoshis = 200000
         push_msat = 0
@@ -694,7 +695,9 @@ class Peer(PrintError):
         ctn = 0
         #
         base_point = secret_to_pubkey(base_secret)
-        per_commitment_point = secret_to_pubkey(per_commitment_secret)
+        per_commitment_point_first = secret_to_pubkey(int.from_bytes(
+            get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index),
+            byteorder="big"))
         msg = gen_msg(
             "open_channel",
             temporary_channel_id=temp_channel_id,
@@ -709,7 +712,7 @@ class Peer(PrintError):
             htlc_basepoint=htlc_basepoint,
             payment_basepoint=base_point,
             delayed_payment_basepoint=delayed_payment_basepoint,
-            first_per_commitment_point=per_commitment_point,
+            first_per_commitment_point=per_commitment_point_first,
             to_self_delay=to_self_delay
         )
         self.channel_accepted[temp_channel_id] = asyncio.Future()
@@ -728,6 +731,7 @@ class Peer(PrintError):
         funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], byteorder="big")
         self.print_error('remote dust limit', remote_dust_limit_satoshis)
         self.print_error('remote delay', remote_delay)
+        self.print_error('funding_txn_minimum_depth', funding_txn_minimum_depth)
         # create funding tx
         pubkeys = sorted([bh2u(funding_pubkey), bh2u(remote_funding_pubkey)])
         redeem_script = transaction.multisig_script(pubkeys, 2)
@@ -739,11 +743,11 @@ class Peer(PrintError):
         # derive keys
         localpubkey = derive_pubkey(base_point, remote_per_commitment_point)
         localprivkey = derive_privkey(base_secret, remote_per_commitment_point)
-        remotepubkey = derive_pubkey(remote_payment_basepoint, per_commitment_point)
+        remotepubkey = derive_pubkey(remote_payment_basepoint, per_commitment_point_first)
         revocation_pubkey = derive_blinded_pubkey(revocation_basepoint, remote_per_commitment_point)
-        remote_revocation_pubkey = derive_blinded_pubkey(remote_revocation_basepoint, per_commitment_point)
+        remote_revocation_pubkey = derive_blinded_pubkey(remote_revocation_basepoint, per_commitment_point_first)
         local_delayedpubkey = derive_pubkey(delayed_payment_basepoint, remote_per_commitment_point)
-        remote_delayedpubkey = derive_pubkey(remote_delayed_payment_basepoint, per_commitment_point)
+        remote_delayedpubkey = derive_pubkey(remote_delayed_payment_basepoint, per_commitment_point_first)
         # compute amounts
         htlcs = []
         fee = local_feerate * overall_weight(len(htlcs)) // 1000
@@ -814,13 +818,17 @@ class Peer(PrintError):
             await self.local_funding_locked[channel_id]
         finally:
             del self.local_funding_locked[channel_id]
-        self.send_message(gen_msg("funding_locked", channel_id=channel_id, next_per_commitment_point=next_per_commitment_point))
+        per_commitment_secret_index -= 1
+        per_commitment_point_second = secret_to_pubkey(int.from_bytes(
+            get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index),
+            byteorder="big"))
+        self.send_message(gen_msg("funding_locked", channel_id=channel_id, next_per_commitment_point=per_commitment_point_second))
         # wait until we receive funding_locked
         try:
             payload = await self.remote_funding_locked[channel_id]
         finally:
             del self.remote_funding_locked[channel_id]
-        self.print_error('Done waiting for remote_funding_locked')
+        self.print_error('Done waiting for remote_funding_locked', payload)
 
     def on_update_add_htlc(self, payload):
         # no onion routing for the moment: we assume we are the end node
