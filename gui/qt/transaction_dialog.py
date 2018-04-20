@@ -244,10 +244,10 @@ class TxDialog(QDialog, MessageBoxMixin):
         size_str = _("Size:") + ' %d bytes'% size
         fee_str = _("Fee") + ': %s' % (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
         if fee is not None:
-            fee_rate = fee/size*1000
-            fee_str += '  ( %s ) ' % self.main_window.format_fee_rate(fee_rate)
-            confirm_rate = simple_config.FEERATE_WARNING_HIGH_FEE
-            if fee_rate > confirm_rate:
+            fee_rate_sat_b = fee/size
+            fee_str += '  ( %s ) ' % self.main_window.format_satoshis_per_byte(fee_rate_sat_b)
+            confirm_rate_sat_b = simple_config.FEERATE_WARNING_HIGH_FEE_SAT_PER_BYTE
+            if fee_rate_sat_b > confirm_rate_sat_b:
                 fee_str += ' - ' + _('Warning') + ': ' + _("high fee") + '!'
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
