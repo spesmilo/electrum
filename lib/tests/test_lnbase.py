@@ -6,6 +6,7 @@ from lib.util import bh2u, bfh
 from lib.lnbase import make_commitment, get_obscured_ctn, Peer, make_offered_htlc, make_received_htlc, make_htlc_tx
 from lib.lnbase import secret_to_pubkey, derive_pubkey, derive_privkey, derive_blinded_pubkey, overall_weight
 from lib.lnbase import make_htlc_tx_output, make_htlc_tx_inputs, get_per_commitment_secret_from_seed
+from lib.lnbase import make_htlc_tx_witness
 from lib.transaction import Transaction
 from lib import bitcoin
 import ecdsa.ellipticcurve
@@ -35,6 +36,20 @@ local_revocation_pubkey = bytes.fromhex('0212a140cd0c6539d07cd08dfe09984dec3251e
 
 class Test_LNBase(unittest.TestCase):
 
+    @staticmethod
+    def parse_witness_list(witness_bytes):
+        amount_witnesses = witness_bytes[0]
+        witness_bytes = witness_bytes[1:]
+        res = []
+        for i in range(amount_witnesses):
+            witness_length = witness_bytes[0]
+            this_witness = witness_bytes[1:witness_length+1]
+            assert len(this_witness) == witness_length
+            witness_bytes = witness_bytes[witness_length+1:]
+            res += [bytes(this_witness)]
+        assert witness_bytes == b"", witness_bytes
+        return res
+
     def test_simple_commitment_tx_with_no_HTLCs(self):
         to_local_msat = 7000000000
         to_remote_msat = 3000000000
@@ -56,16 +71,23 @@ class Test_LNBase(unittest.TestCase):
             local_revocation_pubkey, local_delayedpubkey,
             funding_tx_id, funding_output_index, funding_amount_satoshi,
             local_amount, remote_amount, local_delay, local_dust_limit_satoshi)
-        self.sign_and_insert_remote_sig(our_commit_tx, remote_signature)
+        self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
         ref_commit_tx_str = '02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8002c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de84311054a56a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0400473044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c383693901483045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c001475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220'
         self.assertEqual(str(our_commit_tx), ref_commit_tx_str)
 
-    def sign_and_insert_remote_sig(self, our_commit_tx, remote_signature):
-        our_commit_tx.sign({bh2u(local_funding_pubkey): (local_funding_privkey[:-1], True)})
-        pubkeys, _x_pubkeys = our_commit_tx.get_sorted_pubkeys(our_commit_tx.inputs()[0])
-        index_of_pubkey = pubkeys.index(bh2u(remote_funding_pubkey))
-        our_commit_tx._inputs[0]["signatures"][index_of_pubkey] = remote_signature + "01"
-        our_commit_tx.raw = None
+    def sign_and_insert_remote_sig(self, tx, remote_pubkey, remote_signature, pubkey, privkey):
+        assert type(remote_pubkey) is bytes
+        assert len(remote_pubkey) == 33
+        assert type(remote_signature) is str
+        assert type(pubkey) is bytes
+        assert type(privkey) is bytes
+        assert len(pubkey) == 33
+        assert len(privkey) == 33
+        tx.sign({bh2u(pubkey): (privkey[:-1], True)})
+        pubkeys, _x_pubkeys = tx.get_sorted_pubkeys(tx.inputs()[0])
+        index_of_pubkey = pubkeys.index(bh2u(remote_pubkey))
+        tx._inputs[0]["signatures"][index_of_pubkey] = remote_signature + "01"
+        tx.raw = None
 
     def test_commitment_tx_with_all_five_HTLCs_untrimmed_minimum_feerate(self):
         to_local_msat = 6988000000
@@ -140,7 +162,7 @@ class Test_LNBase(unittest.TestCase):
             funding_tx_id, funding_output_index, funding_amount_satoshi,
             local_amount, remote_amount,
             local_delay, local_dust_limit_satoshi, htlcs=htlcs)
-        self.sign_and_insert_remote_sig(our_commit_tx, remote_signature)
+        self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
         self.assertEqual(str(our_commit_tx), output_commit_tx)
 
         # (HTLC 0)
@@ -153,9 +175,8 @@ class Test_LNBase(unittest.TestCase):
         signature_for_output_3_remote_htlc = "3045022100daee1808f9861b6c3ecd14f7b707eca02dd6bdfc714ba2f33bc8cdba507bb182022026654bf8863af77d74f51f4e0b62d461a019561bb12acb120d3f7195d148a554"
         # (HTLC 4)
         signature_for_output_4_remote_htlc = "304402207e0410e45454b0978a623f36a10626ef17b27d9ad44e2760f98cfa3efb37924f0220220bd8acd43ecaa916a80bd4f919c495a2c58982ce7c8625153f8596692a801d"
-        # local_signature = 304402207cb324fa0de88f452ffa9389678127ebcf4cabe1dd848b8e076c1a1962bf34720220116ed922b12311bd602d67e60d2529917f21c5b82f25ff6506c0f87886b4dfd5
+        local_signature_htlc0 = "304402207cb324fa0de88f452ffa9389678127ebcf4cabe1dd848b8e076c1a1962bf34720220116ed922b12311bd602d67e60d2529917f21c5b82f25ff6506c0f87886b4dfd5" # derive ourselves
         output_htlc_success_tx_0 = "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219700000000000000000001e8030000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e050047304402206a6e59f18764a5bf8d4fa45eebc591566689441229c918b480fb2af8cc6a4aeb02205248f273be447684b33e3c8d1d85a8e0ca9fa0bae9ae33f0527ada9c162919a60147304402207cb324fa0de88f452ffa9389678127ebcf4cabe1dd848b8e076c1a1962bf34720220116ed922b12311bd602d67e60d2529917f21c5b82f25ff6506c0f87886b4dfd5012000000000000000000000000000000000000000000000000000000000000000008a76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a914b8bcb07f6344b42ab04250c86a6e8b75d3fdbbc688527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f401b175ac686800000000"
-        local_signature_htlc0 = "3045022100c89172099507ff50f4c925e6c5150e871fb6e83dd73ff9fbb72f6ce829a9633f02203a63821d9162e99f9be712a68f9e589483994feae2661e4546cd5b6cec007be5" # TODO derive ourselves
 
         our_htlc0_tx_output = make_htlc_tx_output(
             amount_msat=htlc0_msat,
@@ -167,28 +188,43 @@ class Test_LNBase(unittest.TestCase):
         our_htlc0_tx_inputs = make_htlc_tx_inputs(
             htlc_output_txid=our_commit_tx.txid(),
             htlc_output_index=0,
-            remotehtlcsig=bfh(signature_for_output_0_remote_htlc),
-            localhtlcsig=bfh(local_signature_htlc0),
-            payment_preimage=htlc0_payment_preimage,
             revocationpubkey=local_revocation_pubkey,
             local_delayedpubkey=local_delayedpubkey,
             amount_msat=htlc0_msat,
-            witness_script=ref_htlc0_wscript)
-
-        self.assertTrue(Transaction.is_txin_complete(our_htlc0_tx_inputs[0]))
-
-        self.assertEqual(bfh("050047"), bfh(Transaction.serialize_witness(our_htlc0_tx_inputs[0]))[:3])
+            witness=b"\x01\x04\xde\xad\xbe\xef", # deadbeef
+            pubkeys=[localpubkey, remotepubkey],
+            sigs=[None, signature_for_output_0_remote_htlc + "01"]
+            )
 
         our_htlc0_tx = make_htlc_tx(0,
             inputs=our_htlc0_tx_inputs,
             output=our_htlc0_tx_output)
+
+        our_htlc0_tx.sign({bh2u(localpubkey): (local_privkey[:-1], True)})
+        #our_htlc0_tx.update_signatures(str(our_htlc0_tx))
+
+        self.assertEqual(our_htlc0_tx.inputs()[0]["signatures"], [local_signature_htlc0 + "01", signature_for_output_0_remote_htlc + "01"])
+
+        #self.sign_and_insert_remote_sig(our_htlc0_tx, remotepubkey, signature_for_output_0_remote_htlc, localpubkey, local_privkey)
+
+        #our_htlc0_tx_witness = make_htlc_tx_witness(
+        #    remotehtlcsig=bfh(signature_for_output_0_remote_htlc) + b"\x01", # 0x01 is SIGHASH_ALL
+        #    localhtlcsig=bfh(local_signature_htlc0) + b"\x01",
+        #    payment_preimage=htlc0_payment_preimage,
+        #    witness_script=bfh(ref_htlc0_wscript)
+        #    )
+
         self.assertEqual(str(our_htlc0_tx), output_htlc_success_tx_0)
 
+        # local_signature = 3045022100c89172099507ff50f4c925e6c5150e871fb6e83dd73ff9fbb72f6ce829a9633f02203a63821d9162e99f9be712a68f9e589483994feae2661e4546cd5b6cec007be5
         output_htlc_timeout_tx_2 = "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219701000000000000000001d0070000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0500483045022100d5275b3619953cb0c3b5aa577f04bc512380e60fa551762ce3d7a1bb7401cff9022037237ab0dac3fe100cde094e82e2bed9ba0ed1bb40154b48e56aa70f259e608b01483045022100c89172099507ff50f4c925e6c5150e871fb6e83dd73ff9fbb72f6ce829a9633f02203a63821d9162e99f9be712a68f9e589483994feae2661e4546cd5b6cec007be501008576a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a914b43e1b38138a41b37f7cd9a1d274bc63e3a9b5d188ac6868f6010000"
+
         # local_signature = 3045022100def389deab09cee69eaa1ec14d9428770e45bcbe9feb46468ecf481371165c2f022015d2e3c46600b2ebba8dcc899768874cc6851fd1ecb3fffd15db1cc3de7e10da
         output_htlc_success_tx_1 = "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219702000000000000000001d0070000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e050047304402201b63ec807771baf4fdff523c644080de17f1da478989308ad13a58b51db91d360220568939d38c9ce295adba15665fa68f51d967e8ed14a007b751540a80b325f20201483045022100def389deab09cee69eaa1ec14d9428770e45bcbe9feb46468ecf481371165c2f022015d2e3c46600b2ebba8dcc899768874cc6851fd1ecb3fffd15db1cc3de7e10da012001010101010101010101010101010101010101010101010101010101010101018a76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a9144b6b2e5444c2639cc0fb7bcea5afba3f3cdce23988527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f501b175ac686800000000"
+
         # local_signature = 30440220643aacb19bbb72bd2b635bc3f7375481f5981bace78cdd8319b2988ffcc6704202203d27784ec8ad51ed3bd517a05525a5139bb0b755dd719e0054332d186ac08727
         output_htlc_timeout_tx_3 = "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219703000000000000000001b80b0000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0500483045022100daee1808f9861b6c3ecd14f7b707eca02dd6bdfc714ba2f33bc8cdba507bb182022026654bf8863af77d74f51f4e0b62d461a019561bb12acb120d3f7195d148a554014730440220643aacb19bbb72bd2b635bc3f7375481f5981bace78cdd8319b2988ffcc6704202203d27784ec8ad51ed3bd517a05525a5139bb0b755dd719e0054332d186ac0872701008576a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a9148a486ff2e31d6158bf39e2608864d63fefd09d5b88ac6868f7010000"
+
         # local_signature = 30440220549e80b4496803cbc4a1d09d46df50109f546d43fbbf86cd90b174b1484acd5402205f12a4f995cb9bded597eabfee195a285986aa6d93ae5bb72507ebc6a4e2349e
         output_htlc_success_tx_4 = "020000000001018154ecccf11a5fb56c39654c4deb4d2296f83c69268280b94d021370c94e219704000000000000000001a00f0000000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e050047304402207e0410e45454b0978a623f36a10626ef17b27d9ad44e2760f98cfa3efb37924f0220220bd8acd43ecaa916a80bd4f919c495a2c58982ce7c8625153f8596692a801d014730440220549e80b4496803cbc4a1d09d46df50109f546d43fbbf86cd90b174b1484acd5402205f12a4f995cb9bded597eabfee195a285986aa6d93ae5bb72507ebc6a4e2349e012004040404040404040404040404040404040404040404040404040404040404048a76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a91418bc1a114ccf9c052d3d23e28d3b0a9d1227434288527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f801b175ac686800000000"
 
