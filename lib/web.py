@@ -35,7 +35,7 @@ from .util import format_satoshis_plain
 
 mainnet_block_explorers = {
     'Bitcoin.com': ('https://explorer.bitcoin.com/bch',
-                    Address.FMT_LEGACY,
+                    Address.FMT_CASHADDR,
                     {'tx': 'tx', 'addr': 'address'}),
     'Blockchair.com': ('https://blockchair.com/bitcoin-cash',
                        Address.FMT_CASHADDR,
