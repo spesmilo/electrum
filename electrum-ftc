@@ -86,10 +86,17 @@ if is_local or is_android:
     imp.load_module('electrum_gui', *imp.find_module('gui'))
     imp.load_module('electrum_plugins', *imp.find_module('plugins'))
 else:
-    import importlib
-    sys.modules['electrum'] = importlib.import_module('electrum_ftc')
-    sys.modules['electrum_gui'] = importlib.import_module('electrum_ftc_gui')
-    sys.modules['electrum_plugins'] = importlib.import_module('electrum_ftc_plugins')
+    import pkgutil
+    modules = [('electrum_ftc', 'electrum'),
+               ('electrum_ftc_gui', 'electrum_gui'),
+               ('electrum_ftc_plugins', 'electrum_plugins')]
+    for module_name, alias_name in modules:
+        loader = pkgutil.find_loader(module_name)
+        if loader.__module__ == 'pyimod03_importers':
+            loader.load_module(alias_name, module_name)
+        else:
+            loader.name = alias_name
+            loader.load_module(alias_name)
 
 
 from electrum import bitcoin
