@@ -432,6 +432,9 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
         result = " " * (15 - len(result)) + result
     return result
 
+def format_fee_satoshis(fee, num_zeros=0):
+    return format_satoshis(fee, num_zeros, 0, precision=1)
+
 def timestamp_to_datetime(timestamp):
     if timestamp is None:
         return None

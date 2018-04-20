@@ -44,8 +44,8 @@ from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
 from electrum import constants
 from electrum.plugins import run_hook
 from electrum.i18n import _
-from electrum.util import (format_time, format_satoshis, PrintError,
-                           format_satoshis_plain, NotEnoughFunds,
+from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
+                           format_satoshis_plain, NotEnoughFunds, PrintError,
                            UserCancelled, NoDynamicFeeEstimates, profiler,
                            export_meta, import_meta, bh2u, bfh, InvalidPassword)
 from electrum import Transaction
@@ -649,7 +649,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return text
 
     def format_fee_rate(self, fee_rate):
-        return format_satoshis(fee_rate/1000, self.num_zeros, 0, precision=1) + ' sat/byte'
+        return format_fee_satoshis(fee_rate/1000, self.num_zeros) + ' sat/byte'
 
     def get_decimal_point(self):
         return self.decimal_point

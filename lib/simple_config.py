@@ -7,7 +7,7 @@ import stat
 from copy import deepcopy
 
 from .util import (user_dir, print_error, PrintError,
-                   NoDynamicFeeEstimates, format_satoshis)
+                   NoDynamicFeeEstimates, format_fee_satoshis)
 from .i18n import _
 
 FEE_ETA_TARGETS = [25, 10, 5, 2]
@@ -370,7 +370,7 @@ class SimpleConfig(PrintError):
         if fee_rate is None:
             rate_str = 'unknown'
         else:
-            rate_str = format_satoshis(fee_rate/1000, 0, 0, precision=1) + ' sat/byte'
+            rate_str = format_fee_satoshis(fee_rate/1000) + ' sat/byte'
 
         if dyn:
             if mempool:
