@@ -648,8 +648,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             text += ' (%s)'%x
         return text
 
-    def format_fee_rate(self, fee_rate):
-        return format_satoshis(fee_rate/1000, False, self.num_zeros, 0, False)  + ' sat/byte'
+    def format_satoshis_per_byte(self, sat_per_byte):
+        return format_satoshis(sat_per_byte, False, self.num_zeros, 0, False)  + ' sat/byte'
 
     def get_decimal_point(self):
         return self.decimal_point
@@ -1545,8 +1545,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             x_fee_address, x_fee_amount = x_fee
             msg.append( _("Additional fees") + ": " + self.format_amount_and_units(x_fee_amount) )
 
-        confirm_rate = simple_config.FEERATE_WARNING_HIGH_FEE
-        if fee > confirm_rate * tx.estimated_size() / 1000:
+        confirm_rate_sat_b = simple_config.FEERATE_WARNING_HIGH_FEE_SAT_PER_BYTE
+        if fee > confirm_rate_sat_b * tx.estimated_size():
             msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
 
         if self.wallet.has_keystore_encryption():
