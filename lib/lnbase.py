@@ -353,26 +353,32 @@ def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_dela
     output = (bitcoin.TYPE_ADDRESS, p2wsh, amount_msat // 1000 - fee)
     return output
 
-def make_htlc_tx_inputs(htlc_output_txid, htlc_output_index, remotehtlcsig, localhtlcsig, payment_preimage, revocationpubkey, local_delayedpubkey, amount_msat, witness_script):
-    assert type(htlc_output_txid) is str
-    assert type(htlc_output_index) is int
+def make_htlc_tx_witness(remotehtlcsig, localhtlcsig, payment_preimage, witness_script):
     assert type(remotehtlcsig) is bytes
     assert type(localhtlcsig) is bytes
     assert type(payment_preimage) is bytes
+    assert type(witness_script) is bytes
+    return bfh(var_int(5) + '00' + ''.join([witness_push(x) for x in [bh2u(remotehtlcsig), bh2u(localhtlcsig), bh2u(payment_preimage), bh2u(witness_script)]]))
+
+def make_htlc_tx_inputs(htlc_output_txid, htlc_output_index, revocationpubkey, local_delayedpubkey, amount_msat, witness, pubkeys, sigs):
+    assert type(htlc_output_txid) is str
+    assert type(htlc_output_index) is int
     assert type(revocationpubkey) is bytes
     assert type(local_delayedpubkey) is bytes
     assert type(amount_msat) is int
+    assert type(witness) is bytes
     c_inputs = [{
+        'scriptSig': '',
         'type': 'p2wsh',
-        'x_pubkeys': [],  #[bh2u(x) for x in [revocationpubkey, local_delayedpubkey]],
-        'signatures': [],  #[bh2u(x) for x in [remotehtlcsig, localhtlcsig, payment_preimage]],
-        'num_sig': 0,
+        'x_pubkeys': [bh2u(x) for x in pubkeys],
+        'signatures': sigs,
+        'num_sig': 2,
         'prevout_n': htlc_output_index,
         'prevout_hash': htlc_output_txid,
         'value': amount_msat // 1000,
         'coinbase': False,
         'sequence': 0x0,
-        'witness': var_int(5) + '00' + ''.join([witness_push(x) for x in [bh2u(remotehtlcsig), bh2u(localhtlcsig), bh2u(payment_preimage), witness_script]]),
+        'witness': bh2u(witness)
     }]
     return c_inputs
 
