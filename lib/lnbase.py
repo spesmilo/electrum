@@ -798,7 +798,7 @@ class Peer(PrintError):
         # wait until we see confirmations
         def on_network_update(event, *args):
             if event == 'updated':
-                conf = wallet.get_tx_height(bh2u(funding_txid[::-1]))[1]
+                conf = wallet.get_tx_height(funding_txid)[1]
                 if conf >= funding_txn_minimum_depth:
                     async def set_local_funding_locked_result():
                         try:
