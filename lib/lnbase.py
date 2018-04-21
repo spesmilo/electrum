@@ -797,20 +797,17 @@ class Peer(PrintError):
         assert success
         # wait until we see confirmations
         def on_network_update(event, *args):
-            if event == 'updated':
-                conf = wallet.get_tx_height(funding_txid)[1]
-                if conf >= funding_txn_minimum_depth:
-                    async def set_local_funding_locked_result():
-                        try:
-                            self.local_funding_locked[channel_id].set_result(1)
-                        except (asyncio.InvalidStateError, KeyError) as e:
-                            # FIXME race condition if updates come in quickly, set_result might be called multiple times
-                            # or self.local_funding_locked[channel_id] might be deleted already
-                            self.print_error('local_funding_locked.set_result error for channel {}: {}'.format(channel_id, e))
-                    asyncio.run_coroutine_threadsafe(set_local_funding_locked_result(), asyncio.get_event_loop())
-                    self.network.unregister_callback(on_network_update)
-            else:
-                self.print_error("unexpected network message:", event, args)
+            conf = wallet.get_tx_height(funding_txid)[1]
+            if conf >= funding_txn_minimum_depth:
+                async def set_local_funding_locked_result():
+                    try:
+                        self.local_funding_locked[channel_id].set_result(1)
+                    except (asyncio.InvalidStateError, KeyError) as e:
+                        # FIXME race condition if updates come in quickly, set_result might be called multiple times
+                        # or self.local_funding_locked[channel_id] might be deleted already
+                        self.print_error('local_funding_locked.set_result error for channel {}: {}'.format(channel_id, e))
+                asyncio.run_coroutine_threadsafe(set_local_funding_locked_result(), asyncio.get_event_loop())
+                self.network.unregister_callback(on_network_update)
         self.network.register_callback(on_network_update, ['updated']) # thread safe
 
         try:
