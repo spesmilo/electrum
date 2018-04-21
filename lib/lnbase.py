@@ -428,9 +428,10 @@ def make_received_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, p
 
 
 def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubkey,
-                    payment_basepoint, remote_payment_basepoint, revocation_pubkey, delayed_pubkey,
+                    payment_basepoint, remote_payment_basepoint,
+                    revocation_pubkey, delayed_pubkey, to_self_delay,
                     funding_txid, funding_pos, funding_satoshis,
-                    local_amount, remote_amount, to_self_delay, dust_limit_satoshis, htlcs=[]):
+                    local_amount, remote_amount, dust_limit_satoshis, htlcs=[]):
     pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
     obs = get_obscured_ctn(ctn, payment_basepoint, remote_payment_basepoint)
     locktime = (0x20 << 24) + (obs & 0xffffff)
@@ -467,7 +468,7 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubk
 
 class Peer(PrintError):
 
-    def __init__(self, host, port, pubkey, request_initial_sync=True, network=None):
+    def __init__(self, host, port, pubkey, request_initial_sync=False, network=None):
         self.host = host
         self.port = port
         self.privkey = os.urandom(32) + b"\x01"
@@ -746,8 +747,8 @@ class Peer(PrintError):
         remotepubkey = derive_pubkey(remote_payment_basepoint, per_commitment_point_first)
         revocation_pubkey = derive_blinded_pubkey(revocation_basepoint, remote_per_commitment_point)
         remote_revocation_pubkey = derive_blinded_pubkey(remote_revocation_basepoint, per_commitment_point_first)
-        local_delayedpubkey = derive_pubkey(delayed_payment_basepoint, remote_per_commitment_point)
-        remote_delayedpubkey = derive_pubkey(remote_delayed_payment_basepoint, per_commitment_point_first)
+        local_delayedpubkey = derive_pubkey(delayed_payment_basepoint, per_commitment_point_first)
+        remote_delayedpubkey = derive_pubkey(remote_delayed_payment_basepoint, remote_per_commitment_point)
         # compute amounts
         htlcs = []
         fee = local_feerate * overall_weight(len(htlcs)) // 1000
@@ -758,20 +759,19 @@ class Peer(PrintError):
         # remote commitment transaction
         remote_ctx = make_commitment(
             ctn,
-            remote_funding_pubkey, funding_pubkey,    # will be sorted
-            localpubkey,                              # used in to_remote
-            base_point, remote_payment_basepoint,     # used by obscured ctn
-            revocation_pubkey, remote_delayedpubkey,  # used by to_local script
+            remote_funding_pubkey, funding_pubkey, localpubkey,
+            base_point, remote_payment_basepoint,
+            revocation_pubkey, remote_delayedpubkey, remote_delay,
             funding_txid, funding_index, funding_satoshis,
-            remote_amount, local_amount, remote_delay, remote_dust_limit_satoshis)
+            remote_amount, local_amount, remote_dust_limit_satoshis)
         remote_ctx.sign({bh2u(funding_pubkey): (funding_privkey, True)})
         sig_index = pubkeys.index(bh2u(funding_pubkey))
         sig = bytes.fromhex(remote_ctx.inputs()[0]["signatures"][sig_index])
         r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
         sig_64 = sigencode_string_canonize(r, s, SECP256k1.generator.order())
-        funding_txid = bytes.fromhex(funding_txid)[::-1]
-        channel_id = int.from_bytes(funding_txid, byteorder="big") ^ funding_index
-        self.send_message(gen_msg("funding_created", temporary_channel_id=temp_channel_id, funding_txid=funding_txid, funding_output_index=funding_index, signature=sig_64))
+        funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
+        channel_id = int.from_bytes(funding_txid_bytes, byteorder="big") ^ funding_index
+        self.send_message(gen_msg("funding_created", temporary_channel_id=temp_channel_id, funding_txid=funding_txid_bytes, funding_output_index=funding_index, signature=sig_64))
         self.funding_signed[channel_id] = asyncio.Future()
         try:
             payload = await self.funding_signed[channel_id]
@@ -779,27 +779,26 @@ class Peer(PrintError):
             del self.funding_signed[channel_id]
         self.print_error('received funding_signed')
         remote_sig = payload['signature']
-        # todo: check signature against local ctx
+        # verify remote signature
         local_ctx = make_commitment(
             ctn,
-            funding_pubkey, remote_funding_pubkey,
-            remotepubkey,
+            funding_pubkey, remote_funding_pubkey, remotepubkey,
             base_point, remote_payment_basepoint,
-            revocation_pubkey, local_delayedpubkey,
+            remote_revocation_pubkey, local_delayedpubkey, to_self_delay,
             funding_txid, funding_index, funding_satoshis,
-            local_amount, remote_amount, to_self_delay, dust_limit_satoshis)
-        self.print_error('Done making commitment')
-
+            local_amount, remote_amount, dust_limit_satoshis)
+        pre_hash = bitcoin.Hash(bfh(local_ctx.serialize_preimage(0)))
+        if not bitcoin.verify_signature(remote_funding_pubkey, remote_sig, pre_hash):
+            raise Exception('verifying remote signature failed.')
         # broadcast funding tx
         self.local_funding_locked[channel_id] = asyncio.Future()
         self.remote_funding_locked[channel_id] = asyncio.Future()
         success, _txid = self.network.broadcast(funding_tx)
         assert success
         # wait until we see confirmations
-
         def on_network_update(event, *args):
             if event == 'updated':
-                conf = wallet.get_tx_height(bh2u(funding_txid[::-1]))[1]
+                conf = wallet.get_tx_height(funding_txid)[1]
                 if conf >= funding_txn_minimum_depth:
                     async def set_local_funding_locked_result():
                         try:
