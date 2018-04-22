@@ -229,7 +229,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         # Strip the leading "m/"
         change, index = self.get_address_index(address)
         derivation = self.derivation
-        address_path = "%s/%d/%d"%(derivation, change, index)
+        address_path = "{:s}/{:d}/{:d}".format(derivation, change, index)
         return address_path[2:]
 
     def decrypt_message(self, pubkey, message, password):
@@ -241,7 +241,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         message_hash = hashlib.sha256(message).hexdigest().upper()
         # prompt for the PIN before displaying the dialog if necessary
         client = self.get_client()
-        address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
+        address_path = self.get_derivation()[2:] + "/{:d}/{:d}".format(*sequence)
         self.handler.show_message("Signing message ...\r\nMessage hash: "+message_hash)
         try:
             info = self.get_client().signMessagePrepare(address_path, message)
@@ -312,7 +312,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 if x_pubkey in derivations:
                     signingPos = i
                     s = derivations.get(x_pubkey)
-                    hwAddress = "%s/%d/%d" % (self.get_derivation()[2:], s[0], s[1])
+                    hwAddress = "{:s}/{:d}/{:d}".format(self.get_derivation()[2:], s[0], s[1])
                     break
             else:
                 self.give_error("No matching x_key for sign_transaction") # should never happen
@@ -344,7 +344,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 info = tx.output_info.get(address)
                 if (info is not None) and (len(tx.outputs()) != 1):
                     index, xpubs, m = info
-                    changePath = self.get_derivation()[2:] + "/%d/%d"%index
+                    changePath = self.get_derivation()[2:] + "/{:d}/{:d}".format(*index)
                     changeAmount = amount
                 else:
                     output = address
@@ -411,7 +411,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
     def show_address(self, sequence):
         client = self.get_client()
         # prompt for the PIN before displaying the dialog if necessary
-        address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
+        address_path = self.get_derivation()[2:] + "/{:d}/{:d}".format(*sequence)
         self.handler.show_message(_("Showing address ..."))
         try:
             client.getWalletPublicKey(address_path, showOnScreen=True)
