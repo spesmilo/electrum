@@ -115,6 +115,9 @@ class Plugin(TrustedCoinPlugin):
         if wallet.can_sign_without_server():
             return
         if wallet.billing_info is None:
+            self.start_request_thread(wallet)
+            window.show_error(_('Requesting account info from TrustedCoin server...') + '\n' +
+                                _('Please try again.'))
             return True
         return False
 

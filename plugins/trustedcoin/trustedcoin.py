@@ -82,6 +82,11 @@ class TrustedCoinException(Exception):
         Exception.__init__(self, message)
         self.status_code = status_code
 
+
+class ErrorConnectingServer(Exception):
+    pass
+
+
 class TrustedCoinCosignerClient(object):
     def __init__(self, user_agent=None, base_url='https://api.trustedcoin.com/2/'):
         self.base_url = base_url
@@ -100,7 +105,10 @@ class TrustedCoinCosignerClient(object):
         url = urljoin(self.base_url, relative_url)
         if self.debug:
             print('%s %s %s' % (method, url, data))
-        response = requests.request(method, url, **kwargs)
+        try:
+            response = requests.request(method, url, **kwargs)
+        except Exception as e:
+            raise ErrorConnectingServer(e)
         if self.debug:
             print(response.text)
         if response.status_code != 200:
@@ -336,17 +344,29 @@ class TrustedCoinPlugin(BasePlugin):
             if _type == TYPE_ADDRESS and addr == address:
                 return address, amount
 
+    def finish_requesting(func):
+        def f(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            finally:
+                self.requesting = False
+        return f
+
+    @finish_requesting
     def request_billing_info(self, wallet):
         if wallet.can_sign_without_server():
             return
         self.print_error("request billing info")
-        billing_info = server.get(wallet.get_user_id()[1])
+        try:
+            billing_info = server.get(wallet.get_user_id()[1])
+        except ErrorConnectingServer as e:
+            self.print_error('cannot connect to TrustedCoin server: {}'.format(e))
+            return
         billing_address = make_billing_address(wallet, billing_info['billing_index'])
         assert billing_address == billing_info['billing_address']
         wallet.billing_info = billing_info
         wallet.price_per_tx = dict(billing_info['price_per_tx'])
         wallet.price_per_tx.pop(1)
-        self.requesting = False
         return True
 
     def start_request_thread(self, wallet):
