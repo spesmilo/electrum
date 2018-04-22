@@ -42,6 +42,7 @@ class QtHandlerBase(QObject, PrintError):
     passphrase_signal = pyqtSignal(object, object)
     message_signal = pyqtSignal(object, object)
     error_signal = pyqtSignal(object)
+    warning_signal = pyqtSignal(object)
     word_signal = pyqtSignal(object)
     clear_signal = pyqtSignal()
     query_signal = pyqtSignal(object, object)
@@ -52,6 +53,7 @@ class QtHandlerBase(QObject, PrintError):
         super(QtHandlerBase, self).__init__()
         self.clear_signal.connect(self.clear_dialog)
         self.error_signal.connect(self.error_dialog)
+        self.warning_signal.connect(self.warning_dialog)
         self.message_signal.connect(self.message_dialog)
         self.passphrase_signal.connect(self.passphrase_dialog)
         self.word_signal.connect(self.word_dialog)
@@ -91,6 +93,11 @@ class QtHandlerBase(QObject, PrintError):
 
     def show_error(self, msg):
         self.error_signal.emit(msg)
+
+    def show_warning(self, msg):
+        self.done.clear()
+        self.warning_signal.emit(msg)
+        self.done.wait()
 
     def finished(self):
         self.clear_signal.emit()
@@ -155,6 +162,10 @@ class QtHandlerBase(QObject, PrintError):
 
     def error_dialog(self, msg):
         self.win.show_error(msg, parent=self.top_level_window())
+
+    def warning_dialog(self, msg):
+        self.win.show_warning(msg, parent=self.top_level_window())
+        self.done.set()
 
     def clear_dialog(self):
         if self.dialog:
