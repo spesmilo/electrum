@@ -114,12 +114,6 @@ class ExchangeBase(PrintError):
         rates = self.get_rates('')
         return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
 
-class TheRockTrading(ExchangeBase):
-
-    def get_rates(self, ccy):
-        json = self.get_json('api.therocktrading.com', '/v1/funds/BTC{}/ticker'.format(ccy))
-        return {ccy: Decimal(json['last'])}
-
 class BitcoinAverage(ExchangeBase):
 
     def get_rates(self, ccy):
@@ -333,6 +327,11 @@ class NegocieCoins(ExchangeBase):
     def history_ccys(self):
         return ['BRL']
 
+class TheRockTrading(ExchangeBase):
+
+    def get_rates(self, ccy):
+        json = self.get_json('api.therocktrading.com', '/v1/funds/BTC{}/ticker'.format(ccy))
+        return {ccy: Decimal(json['last'])}
 
 class Unocoin(ExchangeBase):
 

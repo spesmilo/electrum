@@ -1,4 +1,11 @@
-{
+{   
+     
+    "Bitbank": [
+        "JPY"
+    ],
+    "BitFlyer": [
+        "JPY"
+    ],
     "BitPay": [
         "AED",
         "AFN",
@@ -793,23 +800,15 @@
     "NegocieCoins": [
         "BRL"
     ],
+    "TheRockTrading": [
+        "EUR"
+    ],
     "WEX": [
         "EUR",
         "RUB",
         "USD"
     ],
-    "itBit": [],
-    "Bitbank": [
-        "JPY"
-    ],
-    "BitFlyer": [
-        "JPY"
-    ],
     "Zaif": [
         "JPY"
-    ],
-    "TheRockTrading": [
-        "EUR"
     ]
-
  }
