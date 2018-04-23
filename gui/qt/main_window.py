@@ -2606,9 +2606,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         lang_combo = QComboBox()
         from electrum.i18n import languages
         lang_combo.addItems(list(languages.values()))
+        lang_keys = list(languages.keys())
+        lang_cur_setting = self.config.get("language", '')
         try:
-            index = languages.keys().index(self.config.get("language",''))
-        except Exception:
+            index = lang_keys.index(lang_cur_setting)
+        except ValueError:  # not in list
             index = 0
         lang_combo.setCurrentIndex(index)
         if not self.config.is_modifiable('language'):
