@@ -798,18 +798,18 @@
         "RUB",
         "USD"
     ],
-     "itBit": [],
-     "Bitbank": [
-         "JPY"
-     ],
-     "BitFlyer": [
-         "JPY"
-     ],
-     "Zaif": [
-         "JPY"
-     ],
-     "TheRockTrading":[
-         "EUR"
+    "itBit": [],
+    "Bitbank": [
+        "JPY"
+    ],
+    "BitFlyer": [
+        "JPY"
+    ],
+    "Zaif": [
+        "JPY"
+    ],
+    "TheRockTrading":[
+        "EUR"
     ]
 
  }
