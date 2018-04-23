@@ -48,10 +48,16 @@ if __name__ == "__main__":
 
     # run blocking test
     async def async_test():
-        RHASH = sha256(bytes.fromhex("01"*32))
-        await peer.channel_establishment_flow(wallet, config, funding_satoshis, push_msat)
+        payment_preimage = bytes.fromhex("01"*32)
+        RHASH = sha256(payment_preimage)
+        channel_id, per_commitment_secret_seed, local_ctx_args, remote_funding_pubkey = await peer.channel_establishment_flow(wallet, config, funding_satoshis, push_msat)
         pay_req = lnencode(LnAddr(RHASH, amount=Decimal("0.00000001")*10, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
         print("payment request", pay_req)
+        last_pcs_index = 2**48 - 1
+        expected_received_sat = 10
+        await peer.receive_commitment_revoke_ack(channel_id, per_commitment_secret_seed, last_pcs_index, local_ctx_args, expected_received_sat, remote_funding_pubkey, next_commitment_number=1)
+        htlc_id = 0 # TODO should correspond with received htlc (when handling more than just one update)
+        await peer.fulfill_htlc(channel_id, htlc_id, payment_preimage)
         while True:
             await asyncio.sleep(1)
     fut = asyncio.run_coroutine_threadsafe(async_test(), network.asyncio_loop)
