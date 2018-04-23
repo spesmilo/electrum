@@ -273,7 +273,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             return ext
 
         def format_amount(amt):
-            return self.main_window.format_amount(amt, whitespaces = True)
+            return self.main_window.format_amount(amt, whitespaces=True)
 
         i_text = QTextEdit()
         i_text.setFont(QFont(MONOSPACE_FONT))

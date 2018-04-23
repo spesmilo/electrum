@@ -725,9 +725,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 c, u, x = self.wallet.get_balance()
                 text =  _("Balance" ) + ": %s "%(self.format_amount_and_units(c))
                 if u:
-                    text +=  " [%s unconfirmed]"%(self.format_amount(u, True).strip())
+                    text +=  " [%s unconfirmed]"%(self.format_amount(u, is_diff=True).strip())
                 if x:
-                    text +=  " [%s unmatured]"%(self.format_amount(x, True).strip())
+                    text +=  " [%s unmatured]"%(self.format_amount(x, is_diff=True).strip())
 
                 # append fiat balance and price
                 if self.fx.is_enabled():
@@ -2606,9 +2606,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         lang_combo = QComboBox()
         from electrum_ltc.i18n import languages
         lang_combo.addItems(list(languages.values()))
+        lang_keys = list(languages.keys())
+        lang_cur_setting = self.config.get("language", '')
         try:
-            index = languages.keys().index(self.config.get("language",''))
-        except Exception:
+            index = lang_keys.index(lang_cur_setting)
+        except ValueError:  # not in list
             index = 0
         lang_combo.setCurrentIndex(index)
         if not self.config.is_modifiable('language'):

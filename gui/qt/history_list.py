@@ -239,7 +239,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
             has_invoice = self.wallet.invoices.paid.get(tx_hash)
             icon = self.icon_cache.get(":icons/" + TX_ICONS[status])
-            v_str = self.parent.format_amount(value, True, whitespaces=True)
+            v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             entry = ['', tx_hash, status_str, label, v_str, balance_str]
             fiat_value = None
