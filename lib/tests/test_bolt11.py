@@ -71,7 +71,7 @@ class TestBolt11(unittest.TestCase):
 
         # Roundtrip
         for t in tests:
-            o = lndecode(lnencode(t, PRIVKEY))
+            o = lndecode(lnencode(t, PRIVKEY), False, t.currency)
             self.compare(t, o)
 
     def test_n_decoding(self):

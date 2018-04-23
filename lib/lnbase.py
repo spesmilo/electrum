@@ -675,7 +675,7 @@ class Peer(PrintError):
         self.writer.close()
 
     @aiosafe
-    async def channel_establishment_flow(self, wallet, config):
+    async def channel_establishment_flow(self, wallet, config, funding_satoshis, push_msat):
         await self.initialized
         temp_channel_id = os.urandom(32)
         keys = get_unused_keys()
@@ -687,8 +687,6 @@ class Peer(PrintError):
         per_commitment_secret_seed = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100.to_bytes(length=32, byteorder="big")
         per_commitment_secret_index = 2**48 - 1
         # amounts
-        funding_satoshis = 200000
-        push_msat = 0
         local_feerate = 20000
         dust_limit_satoshis = 10
         to_self_delay = 144
@@ -713,7 +711,8 @@ class Peer(PrintError):
             payment_basepoint=base_point,
             delayed_payment_basepoint=delayed_payment_basepoint,
             first_per_commitment_point=per_commitment_point_first,
-            to_self_delay=to_self_delay
+            to_self_delay=to_self_delay,
+            max_htlc_value_in_flight_msat=10_000
         )
         self.channel_accepted[temp_channel_id] = asyncio.Future()
         self.send_message(msg)
@@ -793,7 +792,7 @@ class Peer(PrintError):
         self.local_funding_locked[channel_id] = asyncio.Future()
         self.remote_funding_locked[channel_id] = asyncio.Future()
         success, _txid = self.network.broadcast(funding_tx)
-        assert success
+        assert success, success
         # wait until we see confirmations
         def on_network_update(event, *args):
             conf = wallet.get_tx_height(funding_txid)[1]
