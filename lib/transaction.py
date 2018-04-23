@@ -820,6 +820,10 @@ class Transaction:
 
     @classmethod
     def get_preimage_script(self, txin):
+        preimage_script = txin.get('preimage_script', None)
+        if preimage_script is not None:
+            return preimage_script
+
         pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
         if txin['type'] == 'p2pkh':
             return bitcoin.address_to_script(txin['address'])
@@ -1041,21 +1045,25 @@ class Transaction:
                     sec, compressed = keypairs.get(x_pubkey)
                     pubkey = public_key_from_private_key(sec, compressed)
                     # add signature
-                    pre_hash = Hash(bfh(self.serialize_preimage(i)))
-                    pkey = regenerate_key(sec)
-                    secexp = pkey.secret
-                    private_key = bitcoin.MySigningKey.from_secret_exponent(secexp, curve = SECP256k1)
-                    public_key = private_key.get_verifying_key()
-                    sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
-                    if not public_key.verify_digest(sig, pre_hash, sigdecode = ecdsa.util.sigdecode_der):
-                        raise Exception('Sanity check verifying our own signature failed.')
-                    sig = bh2u(sig) + '01'
+                    sig = self.sign_txin(i, sec)
                     self.add_signature_to_txin(txin, j, sig)
                     #txin['x_pubkeys'][j] = pubkey
                     txin['pubkeys'][j] = pubkey # needed for fd keys
                     self._inputs[i] = txin
         print_error("is_complete", self.is_complete())
         self.raw = self.serialize()
+
+    def sign_txin(self, txin_index, privkey_bytes):
+        pre_hash = Hash(bfh(self.serialize_preimage(txin_index)))
+        pkey = regenerate_key(privkey_bytes)
+        secexp = pkey.secret
+        private_key = bitcoin.MySigningKey.from_secret_exponent(secexp, curve=SECP256k1)
+        public_key = private_key.get_verifying_key()
+        sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode=ecdsa.util.sigencode_der)
+        if not public_key.verify_digest(sig, pre_hash, sigdecode=ecdsa.util.sigdecode_der):
+            raise Exception('Sanity check verifying our own signature failed.')
+        sig = bh2u(sig) + '01'
+        return sig
 
     def get_outputs(self):
         """convert pubkeys to addresses"""
