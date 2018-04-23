@@ -32,6 +32,15 @@ from . import transaction
 from .util import PrintError, bh2u, print_error, bfh, profiler
 from .transaction import opcodes, Transaction
 
+from collections import namedtuple
+LocalCtxArgs = namedtuple("LocalCtxArgs",
+            ["ctn",
+            "funding_pubkey", "remote_funding_pubkey", "remotepubkey",
+            "base_point", "remote_payment_basepoint",
+            "remote_revocation_pubkey", "local_delayedpubkey", "to_self_delay",
+            "funding_txid", "funding_index", "funding_satoshis",
+            "local_amount", "remote_amount", "dust_limit_satoshis"])
+
 # hardcoded nodes
 node_list = [
     ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff'),
@@ -76,7 +85,12 @@ def calcexp(exp, ma):
     Returns int
     """
     exp = str(exp)
-    assert "*" not in exp
+    if "*" in exp:
+      assert "+" not in exp
+      result = 1
+      for term in exp.split("*"):
+        result *= handlesingle(term, ma)
+      return result
     return sum(handlesingle(x, ma) for x in exp.split("+"))
 
 def make_handler(k, v):
@@ -475,16 +489,23 @@ class Peer(PrintError):
         self.network = network
         self.read_buffer = b''
         self.ping_time = 0
+        self.futures = ["channel_accepted",
+            "funding_signed",
+            "local_funding_locked",
+            "remote_funding_locked",
+            "commitment_signed"]
         self.channel_accepted = {}
         self.funding_signed = {}
         self.local_funding_locked = {}
         self.remote_funding_locked = {}
+        self.commitment_signed = {}
         self.initialized = asyncio.Future()
         self.localfeatures = (0x08 if request_initial_sync else 0)
         # view of the network
         self.nodes = {} # received node announcements
         self.channel_db = ChannelDB()
         self.path_finder = LNPathFinder(self.channel_db)
+        self.unfulfilled_htlcs = []
 
     def diagnostic_name(self):
         return self.host
@@ -588,10 +609,11 @@ class Peer(PrintError):
         f(payload)
 
     def on_error(self, payload):
-        if payload["channel_id"] in self.channel_accepted:
-            self.channel_accepted[payload["channel_id"]].set_exception(LightningError(payload["data"]))
-        if payload["channel_id"] in self.funding_signed:
-            self.funding_signed[payload["channel_id"]].set_exception(LightningError(payload["data"]))
+        for i in self.futures:
+            if payload["channel_id"] in getattr(self, i):
+                getattr(self, i)[payload["channel_id"]].set_exception(LightningError(payload["data"]))
+                return
+        self.print_error("no future found to resolve", payload)
 
     def on_ping(self, payload):
         l = int.from_bytes(payload['num_pong_bytes'], byteorder="big")
@@ -693,8 +715,9 @@ class Peer(PrintError):
         ctn = 0
         #
         base_point = secret_to_pubkey(base_secret)
+        per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index)
         per_commitment_point_first = secret_to_pubkey(int.from_bytes(
-            get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index),
+            per_commitment_secret_first,
             byteorder="big"))
         msg = gen_msg(
             "open_channel",
@@ -778,13 +801,14 @@ class Peer(PrintError):
         self.print_error('received funding_signed')
         remote_sig = payload['signature']
         # verify remote signature
-        local_ctx = make_commitment(
+        local_ctx_args = LocalCtxArgs(
             ctn,
             funding_pubkey, remote_funding_pubkey, remotepubkey,
             base_point, remote_payment_basepoint,
             remote_revocation_pubkey, local_delayedpubkey, to_self_delay,
             funding_txid, funding_index, funding_satoshis,
             local_amount, remote_amount, dust_limit_satoshis)
+        local_ctx = make_commitment(*local_ctx_args)
         pre_hash = bitcoin.Hash(bfh(local_ctx.serialize_preimage(0)))
         if not bitcoin.verify_signature(remote_funding_pubkey, remote_sig, pre_hash):
             raise Exception('verifying remote signature failed.')
@@ -823,10 +847,44 @@ class Peer(PrintError):
         finally:
             del self.remote_funding_locked[channel_id]
         self.print_error('Done waiting for remote_funding_locked', payload)
+        self.commitment_signed[channel_id] = asyncio.Future()
+        return channel_id, per_commitment_secret_seed, local_ctx_args, remote_funding_pubkey
+    async def receive_commitment_revoke_ack(self, channel_id, per_commitment_secret_seed, last_pcs_index, local_ctx_args, expected_received_sat, remote_funding_pubkey, next_commitment_number):
+        try:
+            commitment_signed_msg = await self.commitment_signed[channel_id]
+        finally:
+            del self.commitment_signed[channel_id]
+            # TODO make new future? (there could be more updates)
+
+        local_ctx_args = local_ctx_args._replace(local_amount = local_ctx_args.local_amount + expected_received_sat)
+        local_ctx_args = local_ctx_args._replace(remote_amount = local_ctx_args.remote_amount - expected_received_sat)
+        local_ctx_args = local_ctx_args._replace(ctn = next_commitment_number)
+        new_commitment = make_commitment(*local_ctx_args)
+        pre_hash = bitcoin.Hash(bfh(new_commitment.serialize_preimage(0)))
+        if not bitcoin.verify_signature(remote_funding_pubkey, commitment_signed_msg["signature"], pre_hash):
+            raise Exception('failed verifying signature of updated commitment transaction')
+
+        last_per_commitment_secret = get_per_commitment_secret_from_seed(per_commitment_secret_seed, last_pcs_index)
+
+        next_per_commitment_secret = get_per_commitment_secret_from_seed(per_commitment_secret_seed, last_pcs_index - 1)
+        next_per_commitment_point = secret_to_pubkey(int.from_bytes(
+            next_per_commitment_secret,
+            byteorder="big"))
+
+        self.send_message(gen_msg("revoke_and_ack", channel_id=channel_id, per_commitment_secret=last_per_commitment_secret, next_per_commitment_point=next_per_commitment_point))
+
+    async def fulfill_htlc(self, channel_id, htlc_id, payment_preimage):
+        self.send_message(gen_msg("update_fulfill_htlc", channel_id=channel_id, id=htlc_id, payment_preimage=payment_preimage))
+
+    def on_commitment_signed(self, payload):
+        channel_id = int.from_bytes(payload['channel_id'], byteorder="big")
+        self.commitment_signed[channel_id].set_result(payload)
 
     def on_update_add_htlc(self, payload):
         # no onion routing for the moment: we assume we are the end node
-        self.print_error('on_update_htlc')
+        self.print_error('on_update_add_htlc', payload)
+        assert self.unfulfilled_htlcs == []
+        self.unfulfilled_htlcs.append(payload)
 
 
 
