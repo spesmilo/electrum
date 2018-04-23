@@ -117,10 +117,7 @@ class ExchangeBase(PrintError):
 class TheRockTrading(ExchangeBase):
     def get_rates(self,ccy):
         json=self.get_json('api.therocktrading.com','/v1/funds/BTC'+ccy+'/ticker')
-        out={ccy:Decimal(json['last'])}
-        return out
-    def history_ccys(self):
-            return ['EUR']
+        return {ccy:Decimal(json['last'])}
 
 class BitcoinAverage(ExchangeBase):
 
