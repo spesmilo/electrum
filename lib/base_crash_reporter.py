@@ -33,7 +33,7 @@ from electrum.i18n import _
 
 
 class BaseCrashReporter(object):
-    report_server = "https://crashhub.electrum.org/crash"
+    report_server = "https://crashhubtest.bauerj.eu"
     config_key = "show_crash_reporter"
     issue_template = """<h2>Traceback</h2>
 <pre>
@@ -58,14 +58,14 @@ class BaseCrashReporter(object):
     def __init__(self, exctype, value, tb):
         self.exc_args = (exctype, value, tb)
 
-    def send_report(self):
+    def send_report(self, endpoint="/crash"):
         if constants.net.GENESIS[-4:] not in ["4943", "e26f"] and ".electrum.org" in BaseCrashReporter.report_server:
             # Gah! Some kind of altcoin wants to send us crash reports.
             raise BaseException(_("Missing report URL."))
         report = self.get_traceback_info()
         report.update(self.get_additional_info())
         report = json.dumps(report)
-        response = requests.post(BaseCrashReporter.report_server, data=report)
+        response = requests.post(BaseCrashReporter.report_server + endpoint, data=report)
         return response
 
     def get_traceback_info(self):

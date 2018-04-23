@@ -1,10 +1,14 @@
 import sys
 
+import requests
 from kivy import base, utils
 from kivy.clock import Clock
+from kivy.core.window import Window
 from kivy.factory import Factory
 from kivy.lang import Builder
 from kivy.uix.label import Label
+from kivy.utils import platform
+
 
 from electrum.base_crash_reporter import BaseCrashReporter
 from electrum.i18n import _
@@ -65,7 +69,7 @@ Builder.load_string('''
             do_scroll_x: False
             Label:
                 id: contents
-                text_size: root.width, None
+                text_size: root.width*.9, None
                 size: self.texture_size
                 size_hint: None, None
         Button:
@@ -94,6 +98,7 @@ class CrashReporter(BaseCrashReporter, Factory.Popup):
         Factory.Popup.__init__(self)
         self.main_window = main_window
         self.title = BaseCrashReporter.CRASH_TITLE
+        self.title_size = "24sp"
         self.ids.crash_message.text = BaseCrashReporter.CRASH_MESSAGE
         self.ids.request_help_message.text = BaseCrashReporter.REQUEST_HELP_MESSAGE
         self.ids.describe_error_message.text = BaseCrashReporter.DESCRIBE_ERROR_MESSAGE
@@ -102,12 +107,40 @@ class CrashReporter(BaseCrashReporter, Factory.Popup):
         details = CrashReportDetails(self.get_report_string())
         details.open()
 
-    def send_report(self):
-        response = BaseCrashReporter.send_report(self)
-        popup = Factory.Popup(title=_('Report sent'),
-                              content=Label(text=response.text))
+    def show_popup(self, title, content):
+        popup = Factory.Popup(title=title,
+                              content=Label(text=content, text_size=(Window.size[0] * 3/4, None)),
+                              size_hint=(3/4, 3/4))
         popup.open()
+
+    def send_report(self):
+        try:
+            response = BaseCrashReporter.send_report(self, "/crash.json").json()
+        except requests.exceptions.RequestException:
+            self.show_popup(_('Unable to send report'), _("Please check your network connection."))
+        else:
+            self.show_popup(_('Report sent'), response["text"])
+            if response["location"]:
+                self.open_url(response["location"])
         self.dismiss()
+
+    def open_url(self, url):
+        if platform != 'android':
+            return
+        from jnius import autoclass, cast
+        String = autoclass("java.lang.String")
+        url = String(url)
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        activity = PythonActivity.mActivity
+        Intent = autoclass('android.content.Intent')
+        Uri = autoclass('android.net.Uri')
+        browserIntent = Intent()
+        # This line crashes the app:
+        # browserIntent.setAction(Intent.ACTION_VIEW)
+        # Luckily we don't need it because the OS is smart enough to recognize the URL
+        browserIntent.setData(Uri.parse(url))
+        currentActivity = cast('android.app.Activity', activity)
+        currentActivity.startActivity(browserIntent)
 
     def show_never(self):
         self.main_window.electrum_config.set_key(BaseCrashReporter.config_key, False)
