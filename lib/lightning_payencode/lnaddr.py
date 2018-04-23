@@ -7,6 +7,7 @@ from ..segwit_addr import bech32_encode, bech32_decode, CHARSET
 from binascii import hexlify, unhexlify
 from bitstring import BitArray
 from decimal import Decimal
+from .. import constants
 
 import bitstring
 import hashlib
@@ -230,14 +231,14 @@ def lnencode(addr, privkey):
     return bech32_encode(hrp, bitarray_to_u5(data))
 
 class LnAddr(object):
-    def __init__(self, paymenthash=None, amount=None, currency='bc', tags=None, date=None):
+    def __init__(self, paymenthash=None, amount=None, currency=None, tags=None, date=None):
         self.date = int(time.time()) if not date else int(date)
         self.tags = [] if not tags else tags
         self.unknown_tags = []
         self.paymenthash=paymenthash
         self.signature = None
         self.pubkey = None
-        self.currency = currency
+        self.currency = constants.net.SEGWIT_HRP if currency is None else currency
         self.amount = amount
 
     def __str__(self):
@@ -247,7 +248,7 @@ class LnAddr(object):
             ", ".join([k + '=' + str(v) for k, v in self.tags])
         )
 
-def lndecode(a, verbose=False):
+def lndecode(a, verbose=False, expected_hrp=constants.net.SEGWIT_HRP):
     hrp, data = bech32_decode(a, ignore_long_length=True)
     if not hrp:
         raise ValueError("Bad bech32 checksum")
@@ -257,6 +258,9 @@ def lndecode(a, verbose=False):
     # A reader MUST fail if it does not understand the `prefix`.
     if not hrp.startswith('ln'):
         raise ValueError("Does not start with ln")
+
+    if not hrp[2:].startswith(expected_hrp):
+        raise ValueError("Wrong Lightning invoice HRP " + hrp[2:] + ", should be " + expected_hrp)
 
     data = u5_to_bitarray(data);
 
