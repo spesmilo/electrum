@@ -51,9 +51,6 @@ def seed_warning_msg(seed):
 
 
 class SeedLayout(QVBoxLayout):
-    #options
-    is_bip39 = False
-    is_ext = False
 
     def seed_options(self):
         dialog = QDialog()
@@ -124,6 +121,10 @@ class SeedLayout(QVBoxLayout):
         hbox.addStretch(1)
         self.seed_type_label = QLabel('')
         hbox.addWidget(self.seed_type_label)
+
+        # options
+        self.is_bip39 = False
+        self.is_ext = False
         if options:
             opt_button = EnterButton(_('Options'), self.seed_options)
             hbox.addWidget(opt_button)
