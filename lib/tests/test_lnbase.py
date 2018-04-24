@@ -61,8 +61,7 @@ class Test_LNBase(unittest.TestCase):
         remote_signature = "3045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c0"
         # local_signature = 3044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c3836939
         htlcs=[]
-        fee = local_feerate_per_kw * overall_weight(len(htlcs)) // 1000
-        local_amount = to_local_msat // 1000 - fee
+        local_amount = to_local_msat // 1000
         remote_amount = to_remote_msat // 1000
         our_commit_tx = make_commitment(
             commitment_number,
@@ -70,7 +69,7 @@ class Test_LNBase(unittest.TestCase):
             local_payment_basepoint, remote_payment_basepoint,
             local_revocation_pubkey, local_delayedpubkey, local_delay,
             funding_tx_id, funding_output_index, funding_amount_satoshi,
-            local_amount, remote_amount, local_dust_limit_satoshi)
+            local_amount, remote_amount, local_dust_limit_satoshi, local_fee_rate=local_feerate_per_kw, htlcs=[])
         self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
         ref_commit_tx_str = '02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8002c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de84311054a56a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0400473044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c383693901483045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c001475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220'
         self.assertEqual(str(our_commit_tx), ref_commit_tx_str)
@@ -104,35 +103,35 @@ class Test_LNBase(unittest.TestCase):
 
         htlc2_cltv_timeout = 502
         htlc2_payment_preimage = b"\x02" * 32
-        htlc2 = make_offered_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, htlc2_payment_preimage)
+        htlc2 = make_offered_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, bitcoin.sha256(htlc2_payment_preimage))
         # HTLC 2 offered amount 2000
         ref_htlc2_wscript = "76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a914b43e1b38138a41b37f7cd9a1d274bc63e3a9b5d188ac6868"
         self.assertEqual(htlc2, bfh(ref_htlc2_wscript))
 
         htlc3_cltv_timeout = 503
         htlc3_payment_preimage = b"\x03" * 32
-        htlc3 = make_offered_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, htlc3_payment_preimage)
+        htlc3 = make_offered_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, bitcoin.sha256(htlc3_payment_preimage))
         # HTLC 3 offered amount 3000 
         ref_htlc3_wscript = "76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c820120876475527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae67a9148a486ff2e31d6158bf39e2608864d63fefd09d5b88ac6868"
         self.assertEqual(htlc3, bfh(ref_htlc3_wscript))
 
         htlc0_cltv_timeout = 500
         htlc0_payment_preimage = b"\x00" * 32
-        htlc0 = make_received_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, htlc0_payment_preimage, htlc0_cltv_timeout)
+        htlc0 = make_received_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, bitcoin.sha256(htlc0_payment_preimage), htlc0_cltv_timeout)
         # HTLC 0 received amount 1000
         ref_htlc0_wscript = "76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a914b8bcb07f6344b42ab04250c86a6e8b75d3fdbbc688527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f401b175ac6868"
         self.assertEqual(htlc0, bfh(ref_htlc0_wscript))
 
         htlc1_cltv_timeout = 501
         htlc1_payment_preimage = b"\x01" * 32
-        htlc1 = make_received_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, htlc1_payment_preimage, htlc1_cltv_timeout)
+        htlc1 = make_received_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, bitcoin.sha256(htlc1_payment_preimage), htlc1_cltv_timeout)
         # HTLC 1 received amount 2000 
         ref_htlc1_wscript = "76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a9144b6b2e5444c2639cc0fb7bcea5afba3f3cdce23988527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f501b175ac6868"
         self.assertEqual(htlc1, bfh(ref_htlc1_wscript))
 
         htlc4_cltv_timeout = 504
         htlc4_payment_preimage = b"\x04" * 32
-        htlc4 = make_received_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, htlc4_payment_preimage, htlc4_cltv_timeout)
+        htlc4 = make_received_htlc(local_revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, bitcoin.sha256(htlc4_payment_preimage), htlc4_cltv_timeout)
         # HTLC 4 received amount 4000 
         ref_htlc4_wscript = "76a91414011f7254d96b819c76986c277d115efce6f7b58763ac67210394854aa6eab5b2a8122cc726e9dded053a2184d88256816826d6231c068d4a5b7c8201208763a91418bc1a114ccf9c052d3d23e28d3b0a9d1227434288527c21030d417a46946384f88d5f3337267c5e579765875dc4daca813e21734b140639e752ae677502f801b175ac6868"
         self.assertEqual(htlc4, bfh(ref_htlc4_wscript))
@@ -150,8 +149,7 @@ class Test_LNBase(unittest.TestCase):
         htlc4_msat = 4000 * 1000
         htlcs = [(htlc2, htlc2_msat), (htlc3, htlc3_msat), (htlc0, htlc0_msat), (htlc1, htlc1_msat), (htlc4, htlc4_msat)]
 
-        fee = local_feerate_per_kw * overall_weight(len(htlcs)) // 1000
-        local_amount = to_local_msat // 1000 - fee
+        local_amount = to_local_msat // 1000
         remote_amount = to_remote_msat // 1000
         our_commit_tx = make_commitment(
             commitment_number,
@@ -160,7 +158,7 @@ class Test_LNBase(unittest.TestCase):
             local_revocation_pubkey, local_delayedpubkey, local_delay,
             funding_tx_id, funding_output_index, funding_amount_satoshi,
             local_amount, remote_amount, local_dust_limit_satoshi,
-            htlcs=htlcs)
+            htlcs=htlcs, local_fee_rate=local_feerate_per_kw)
         self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
         self.assertEqual(str(our_commit_tx), output_commit_tx)
 
