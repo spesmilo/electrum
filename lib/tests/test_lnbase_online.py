@@ -43,19 +43,19 @@ if __name__ == "__main__":
     peer = Peer(host, port, pubkey, request_initial_sync=False, network=network)
     network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), network.asyncio_loop))
 
-    funding_satoshis = 200000
-    push_msat = 100000
+    funding_satoshis = 1000000
+    push_msat = 500000000
 
     # run blocking test
     async def async_test():
         payment_preimage = bytes.fromhex("01"*32)
         RHASH = sha256(payment_preimage)
-        channel_id, per_commitment_secret_seed, local_ctx_args, remote_funding_pubkey = await peer.channel_establishment_flow(wallet, config, funding_satoshis, push_msat)
-        pay_req = lnencode(LnAddr(RHASH, amount=Decimal("0.00000001")*10, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
+        channel_id, per_commitment_secret_seed, local_ctx_args, remote_funding_pubkey, remote_funding_locked_msg, remote_revocation_basepoint, remote_htlc_basepoint, local_htlc_basepoint = await peer.channel_establishment_flow(wallet, config, funding_satoshis, push_msat)
+        expected_received_sat = 400000
+        pay_req = lnencode(LnAddr(RHASH, amount=Decimal("0.00000001")*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
         print("payment request", pay_req)
         last_pcs_index = 2**48 - 1
-        expected_received_sat = 10
-        await peer.receive_commitment_revoke_ack(channel_id, per_commitment_secret_seed, last_pcs_index, local_ctx_args, expected_received_sat, remote_funding_pubkey, next_commitment_number=1)
+        await peer.receive_commitment_revoke_ack(channel_id, per_commitment_secret_seed, last_pcs_index, local_ctx_args, expected_received_sat, remote_funding_pubkey, local_next_commitment_number=1, remote_next_commitment_point=remote_funding_locked_msg["next_per_commitment_point"], remote_revocation_basepoint=remote_revocation_basepoint, remote_htlc_basepoint=remote_htlc_basepoint, local_htlc_basepoint=local_htlc_basepoint)
         htlc_id = 0 # TODO should correspond with received htlc (when handling more than just one update)
         await peer.fulfill_htlc(channel_id, htlc_id, payment_preimage)
         while True:
