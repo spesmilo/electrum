@@ -135,6 +135,9 @@ class TxDialog(Factory.Popup):
     def do_rbf(self):
         from .bump_fee_dialog import BumpFeeDialog
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
+        if fee is None:
+            self.app.show_error(_("Can't bump fee: unknown fee for original transaction."))
+            return
         size = self.tx.estimated_size()
         d = BumpFeeDialog(self.app, fee, size, self._do_rbf)
         d.open()
