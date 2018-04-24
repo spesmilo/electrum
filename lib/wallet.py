@@ -45,8 +45,8 @@ import sys
 
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
-                   format_satoshis, NoDynamicFeeEstimates, TimeoutException,
-                   WalletFileException, BitcoinException)
+                   format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
+                   TimeoutException, WalletFileException, BitcoinException)
 
 from .bitcoin import *
 from .version import *
@@ -541,20 +541,19 @@ class Abstract_Wallet(PrintError):
 
     def get_wallet_delta(self, tx):
         """ effect of tx on wallet """
-        addresses = self.get_addresses()
-        is_relevant = False
+        is_relevant = False  # "related to wallet?"
         is_mine = False
         is_pruned = False
         is_partial = False
         v_in = v_out = v_out_mine = 0
-        for item in tx.inputs():
-            addr = item.get('address')
-            if addr in addresses:
+        for txin in tx.inputs():
+            addr = txin.get('address')
+            if self.is_mine(addr):
                 is_mine = True
                 is_relevant = True
-                d = self.txo.get(item['prevout_hash'], {}).get(addr, [])
+                d = self.txo.get(txin['prevout_hash'], {}).get(addr, [])
                 for n, v, cb in d:
-                    if n == item['prevout_n']:
+                    if n == txin['prevout_n']:
                         value = v
                         break
                 else:
@@ -569,7 +568,7 @@ class Abstract_Wallet(PrintError):
             is_partial = False
         for addr, value in tx.get_outputs():
             v_out += value
-            if addr in addresses:
+            if self.is_mine(addr):
                 v_out_mine += value
                 is_relevant = True
         if is_pruned:
@@ -1170,7 +1169,7 @@ class Abstract_Wallet(PrintError):
             if fee is not None:
                 size = tx.estimated_size()
                 fee_per_byte = fee / size
-                extra.append('%.1f sat/b'%(fee_per_byte))
+                extra.append(format_fee_satoshis(fee_per_byte) + ' sat/b')
             if fee is not None and height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED) \
                and self.network and self.network.config.has_fee_mempool():
                 exp_n = self.network.config.fee_to_depth(fee_per_byte)
@@ -2363,4 +2362,3 @@ class Wallet(object):
         if wallet_type in wallet_constructors:
             return wallet_constructors[wallet_type]
         raise RuntimeError("Unknown wallet type: " + str(wallet_type))
-
