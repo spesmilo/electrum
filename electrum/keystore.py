@@ -370,7 +370,10 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         pk = bip32_private_key(sequence, k, c)
         return pk, True
 
-
+    def get_keypair(self, sequence, password):
+        k, _ = self.get_private_key(sequence, password)
+        K, cK = get_pubkeys_from_secret(k)
+        return cK, k
 
 class Old_KeyStore(Deterministic_KeyStore):
 
