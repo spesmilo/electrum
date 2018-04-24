@@ -38,6 +38,7 @@ datas = [
     (home+'electrum/locale', 'electrum/locale'),
     (home+'electrum/plugins', 'electrum/plugins'),
     ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),
+    ('C:\\Program Files (x86)\\gnupg\\bin\\', '.')
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')
@@ -64,6 +65,7 @@ a = Analysis([home+'run_electrum',
               home+'electrum/plugins/keepkey/qt.py',
               home+'electrum/plugins/ledger/qt.py',
               home+'electrum/plugins/coldcard/qt.py',
+              home+'electrum/plugins/gpg_integration/qt.py',
               #home+'packages/requests/utils.py'
               ],
              binaries=binaries,
