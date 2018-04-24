@@ -28,7 +28,7 @@ source.exclude_patterns = Makefile,setup*
 #version.filename = %(source.dir)s/contrib/versions.py
 
 # (str) Application versioning (method 2)
-version = 3.1.6
+version = 3.1.7
 
 # (list) Application requirements
 requirements = python3crystax, android, openssl, plyer, kivy==32b0ffc7390bf3e19b3c3e8eb5d2d83a210d9684
