@@ -324,14 +324,12 @@ class NegocieCoins(ExchangeBase):
         json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['exchanges']['NEG']['last'])}
 
-    def history_ccys(self):
-        return ['BRL']
-
 class TheRockTrading(ExchangeBase):
 
     def get_rates(self, ccy):
-        json = self.get_json('api.therocktrading.com', '/v1/funds/BTC{}/ticker'.format(ccy))
-        return {ccy: Decimal(json['last'])}
+        json = self.get_json('api.therocktrading.com', 
+                             '/v1/funds/BTCEUR/ticker')
+        return {'EUR': Decimal(json['last'])}
 
 class Unocoin(ExchangeBase):
 

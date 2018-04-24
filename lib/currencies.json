@@ -1,8 +1,4 @@
-{   
-     
-    "Bitbank": [
-        "JPY"
-    ],
+{
     "BitFlyer": [
         "JPY"
     ],
@@ -98,7 +94,7 @@
         "MMK",
         "MNT",
         "MOP",
-        "MRO",
+        "MRU",
         "MUR",
         "MVR",
         "MWK",
@@ -134,7 +130,7 @@
         "SLL",
         "SOS",
         "SRD",
-        "STD",
+        "STN",
         "SVC",
         "SYP",
         "SZL",
@@ -169,6 +165,9 @@
     ],
     "BitStamp": [
         "USD"
+    ],
+    "Bitbank": [
+        "JPY"
     ],
     "BitcoinAverage": [
         "AED",
@@ -338,6 +337,9 @@
         "ZAR",
         "ZMW",
         "ZWL"
+    ],
+    "Bitcointoyou": [
+        "BRL"
     ],
     "Bitmarket": [
         "PLN"
@@ -717,7 +719,6 @@
     "Foxbit": [
         "BRL"
     ],
-    "itBit": [],
     "Kraken": [
         "CAD",
         "EUR",
@@ -729,11 +730,11 @@
         "AED",
         "ARS",
         "AUD",
-        "BAM",
         "BDT",
         "BHD",
         "BOB",
         "BRL",
+        "BWP",
         "BYN",
         "CAD",
         "CHF",
@@ -748,6 +749,7 @@
         "ETH",
         "EUR",
         "GBP",
+        "GEL",
         "GHS",
         "HKD",
         "HRK",
@@ -762,6 +764,7 @@
         "KRW",
         "KZT",
         "LKR",
+        "LTC",
         "MAD",
         "MXN",
         "MYR",
@@ -773,17 +776,17 @@
         "PHP",
         "PKR",
         "PLN",
-        "QAR",
+        "PYG",
         "RON",
         "RSD",
         "RUB",
-        "RWF",
         "SAR",
         "SEK",
         "SGD",
+        "SZL",
         "THB",
         "TRY",
-        "TTD",
+        "TWD",
         "TZS",
         "UAH",
         "UGX",
@@ -791,7 +794,8 @@
         "UYU",
         "VEF",
         "VND",
-        "XAR",
+        "XAF",
+        "XRP",
         "ZAR",
         "ZMW"
     ],
@@ -809,7 +813,5 @@
         "RUB",
         "USD"
     ],
-    "Zaif": [
-        "JPY"
-    ]
- }
+    "itBit": []
+}
