@@ -541,20 +541,19 @@ class Abstract_Wallet(PrintError):
 
     def get_wallet_delta(self, tx):
         """ effect of tx on wallet """
-        addresses = self.get_addresses()
-        is_relevant = False
+        is_relevant = False  # "related to wallet?"
         is_mine = False
         is_pruned = False
         is_partial = False
         v_in = v_out = v_out_mine = 0
-        for item in tx.inputs():
-            addr = item.get('address')
-            if addr in addresses:
+        for txin in tx.inputs():
+            addr = txin.get('address')
+            if self.is_mine(addr):
                 is_mine = True
                 is_relevant = True
-                d = self.txo.get(item['prevout_hash'], {}).get(addr, [])
+                d = self.txo.get(txin['prevout_hash'], {}).get(addr, [])
                 for n, v, cb in d:
-                    if n == item['prevout_n']:
+                    if n == txin['prevout_n']:
                         value = v
                         break
                 else:
@@ -569,7 +568,7 @@ class Abstract_Wallet(PrintError):
             is_partial = False
         for addr, value in tx.get_outputs():
             v_out += value
-            if addr in addresses:
+            if self.is_mine(addr):
                 v_out_mine += value
                 is_relevant = True
         if is_pruned:
