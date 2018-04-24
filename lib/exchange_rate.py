@@ -248,6 +248,12 @@ class MercadoBitcoin(ExchangeBase):
         json = self.get_json('www.mercadobitcoin.net', '/api/ltc/ticker/')
         return {'BRL': Decimal(json['ticker']['last'])}
 
+class TheRockTrading(ExchangeBase):
+
+    def get_rates(self, ccy):
+        json = self.get_json('api.therocktrading.com', 
+                             '/v1/funds/LTCEUR/ticker')
+        return {'EUR': Decimal(json['last'])}
 
 class QuadrigaCX(ExchangeBase):
 
