@@ -39,7 +39,8 @@ LocalCtxArgs = namedtuple("LocalCtxArgs",
             "base_point", "remote_payment_basepoint",
             "remote_revocation_pubkey", "local_delayedpubkey", "to_self_delay",
             "funding_txid", "funding_index", "funding_satoshis",
-            "local_amount", "remote_amount", "dust_limit_satoshis"])
+            "local_amount", "remote_amount", "dust_limit_satoshis", "local_feerate",
+            "commitment_owner"])
 
 # hardcoded nodes
 node_list = [
@@ -402,12 +403,11 @@ def make_htlc_tx(cltv_timeout, inputs, output):
     tx.BIP_LI01_sort()
     return tx
 
-def make_offered_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_preimage):
+def make_offered_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_hash):
     assert type(revocation_pubkey) is bytes
     assert type(remote_htlcpubkey) is bytes
     assert type(local_htlcpubkey) is bytes
-    assert type(payment_preimage) is bytes
-    payment_hash = bitcoin.sha256(payment_preimage)
+    assert type(payment_hash) is bytes
     return bytes([opcodes.OP_DUP, opcodes.OP_HASH160]) + bfh(push_script(bh2u(bitcoin.hash_160(revocation_pubkey))))\
         + bytes([opcodes.OP_EQUAL, opcodes.OP_IF, opcodes.OP_CHECKSIG, opcodes.OP_ELSE]) \
         + bfh(push_script(bh2u(remote_htlcpubkey)))\
@@ -416,12 +416,11 @@ def make_offered_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, pa
         + bytes([opcodes.OP_CHECKMULTISIG, opcodes.OP_ELSE, opcodes.OP_HASH160])\
         + bfh(push_script(bh2u(bitcoin.ripemd(payment_hash)))) + bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF, opcodes.OP_ENDIF])
 
-def make_received_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_preimage, cltv_expiry):
-    for i in [revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_preimage]:
+def make_received_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_hash, cltv_expiry):
+    for i in [revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_hash]:
         assert type(i) is bytes
     assert type(cltv_expiry) is int
 
-    payment_hash = bitcoin.sha256(payment_preimage)
     return bytes([opcodes.OP_DUP, opcodes.OP_HASH160]) \
         + bfh(push_script(bh2u(bitcoin.hash_160(revocation_pubkey)))) \
         + bytes([opcodes.OP_EQUAL, opcodes.OP_IF, opcodes.OP_CHECKSIG, opcodes.OP_ELSE]) \
@@ -444,7 +443,8 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubk
                     payment_basepoint, remote_payment_basepoint,
                     revocation_pubkey, delayed_pubkey, to_self_delay,
                     funding_txid, funding_pos, funding_satoshis,
-                    local_amount, remote_amount, dust_limit_satoshis, htlcs=[]):
+                    local_amount, remote_amount, dust_limit_satoshis, local_feerate, commitment_owner, htlcs):
+
     pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
     obs = get_obscured_ctn(ctn, payment_basepoint, remote_payment_basepoint)
     locktime = (0x20 << 24) + (obs & 0xffffff)
@@ -467,20 +467,31 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubk
                    + bytes([opcodes.OP_CSV, opcodes.OP_DROP]) + bfh(push_script(bh2u(delayed_pubkey))) + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
     local_address = bitcoin.redeem_script_to_address('p2wsh', bh2u(local_script))
     remote_address = bitcoin.pubkey_to_address('p2wpkh', bh2u(remotepubkey))
-    to_local = (bitcoin.TYPE_ADDRESS, local_address, local_amount)
-    to_remote = (bitcoin.TYPE_ADDRESS, remote_address, remote_amount)
+    # TODO trim htlc outputs here while also considering 2nd stage htlc transactions
+    fee = local_feerate * overall_weight(len(htlcs)) // 1000 # TODO incorrect if anything is trimmed
+    fee_local, fee_remote = 0, 0
+    if commitment_owner == FOR_US:
+      fee_local = fee
+    elif commitment_owner == FOR_REMOTE:
+      fee_remote = fee
+    else:
+      raise Exception("unexpected commitment owner")
+    to_local = (bitcoin.TYPE_ADDRESS, local_address, local_amount - fee_local)
+    to_remote = (bitcoin.TYPE_ADDRESS, remote_address, remote_amount - fee_remote)
     c_outputs = [to_local, to_remote]
     for script, msat_amount in htlcs:
         c_outputs += [(bitcoin.TYPE_ADDRESS, bitcoin.redeem_script_to_address('p2wsh', bh2u(script)), msat_amount // 1000)]
     # trim outputs
     c_outputs = list(filter(lambda x:x[2]>= dust_limit_satoshis, c_outputs))
+
     # create commitment tx
     tx = Transaction.from_io(c_inputs, c_outputs, locktime=locktime, version=2)
     tx.BIP_LI01_sort()
     return tx
 
-class Peer(PrintError):
+FOR_US, FOR_REMOTE = range(2)
 
+class Peer(PrintError):
     def __init__(self, host, port, pubkey, request_initial_sync=False, network=None):
         self.host = host
         self.port = port
@@ -735,7 +746,7 @@ class Peer(PrintError):
             delayed_payment_basepoint=delayed_payment_basepoint,
             first_per_commitment_point=per_commitment_point_first,
             to_self_delay=to_self_delay,
-            max_htlc_value_in_flight_msat=10_000
+            max_htlc_value_in_flight_msat=500000 * 1000
         )
         self.channel_accepted[temp_channel_id] = asyncio.Future()
         self.send_message(msg)
@@ -750,8 +761,14 @@ class Peer(PrintError):
         remote_revocation_basepoint = payload['revocation_basepoint']
         remote_payment_basepoint = payload['payment_basepoint']
         remote_delayed_payment_basepoint = payload['delayed_payment_basepoint']
+        remote_htlc_basepoint = payload['htlc_basepoint']
+        remote_htlc_minimum_msat = int.from_bytes(payload['htlc_minimum_msat'], "big")
+        remote_max_htlc_value_in_flight_msat = int.from_bytes(payload['max_htlc_value_in_flight_msat'], "big")
         funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], byteorder="big")
-        self.print_error('remote dust limit', remote_dust_limit_satoshis)
+        print('remote dust limit', remote_dust_limit_satoshis)
+        assert remote_dust_limit_satoshis < 600
+        assert remote_htlc_minimum_msat < 600 * 1000
+        assert remote_max_htlc_value_in_flight_msat >= 500 * 1000 * 1000, remote_max_htlc_value_in_flight_msat
         self.print_error('remote delay', remote_delay)
         self.print_error('funding_txn_minimum_depth', funding_txn_minimum_depth)
         # create funding tx
@@ -772,10 +789,10 @@ class Peer(PrintError):
         remote_delayedpubkey = derive_pubkey(remote_delayed_payment_basepoint, remote_per_commitment_point)
         # compute amounts
         htlcs = []
-        fee = local_feerate * overall_weight(len(htlcs)) // 1000
         to_local_msat = funding_satoshis*1000 - push_msat
         to_remote_msat = push_msat
-        local_amount = to_local_msat // 1000 - fee
+        #fee = local_feerate * overall_weight(0) // 1000 # TODO shouldnt be here
+        local_amount = to_local_msat // 1000
         remote_amount = to_remote_msat // 1000
         # remote commitment transaction
         remote_ctx = make_commitment(
@@ -784,7 +801,7 @@ class Peer(PrintError):
             base_point, remote_payment_basepoint,
             revocation_pubkey, remote_delayedpubkey, remote_delay,
             funding_txid, funding_index, funding_satoshis,
-            remote_amount, local_amount, remote_dust_limit_satoshis)
+            remote_amount, local_amount, remote_dust_limit_satoshis, local_feerate, FOR_REMOTE, htlcs=[])
         remote_ctx.sign({bh2u(funding_pubkey): (funding_privkey, True)})
         sig_index = pubkeys.index(bh2u(funding_pubkey))
         sig = bytes.fromhex(remote_ctx.inputs()[0]["signatures"][sig_index])
@@ -807,8 +824,8 @@ class Peer(PrintError):
             base_point, remote_payment_basepoint,
             remote_revocation_pubkey, local_delayedpubkey, to_self_delay,
             funding_txid, funding_index, funding_satoshis,
-            local_amount, remote_amount, dust_limit_satoshis)
-        local_ctx = make_commitment(*local_ctx_args)
+            local_amount, remote_amount, dust_limit_satoshis, local_feerate, FOR_US)
+        local_ctx = make_commitment(*local_ctx_args, htlcs=[])
         pre_hash = bitcoin.Hash(bfh(local_ctx.serialize_preimage(0)))
         if not bitcoin.verify_signature(remote_funding_pubkey, remote_sig, pre_hash):
             raise Exception('verifying remote signature failed.')
@@ -843,40 +860,60 @@ class Peer(PrintError):
         self.send_message(gen_msg("funding_locked", channel_id=channel_id, next_per_commitment_point=per_commitment_point_second))
         # wait until we receive funding_locked
         try:
-            payload = await self.remote_funding_locked[channel_id]
+            remote_funding_locked_msg = await self.remote_funding_locked[channel_id]
         finally:
             del self.remote_funding_locked[channel_id]
-        self.print_error('Done waiting for remote_funding_locked', payload)
+        self.print_error('Done waiting for remote_funding_locked', remote_funding_locked_msg)
         self.commitment_signed[channel_id] = asyncio.Future()
-        return channel_id, per_commitment_secret_seed, local_ctx_args, remote_funding_pubkey
-    async def receive_commitment_revoke_ack(self, channel_id, per_commitment_secret_seed, last_pcs_index, local_ctx_args, expected_received_sat, remote_funding_pubkey, next_commitment_number):
+        return channel_id, per_commitment_secret_seed, local_ctx_args, remote_funding_pubkey, remote_funding_locked_msg, remote_revocation_basepoint, remote_htlc_basepoint, htlc_basepoint
+
+    async def receive_commitment_revoke_ack(self, channel_id, local_per_commitment_secret_seed, local_last_pcs_index, local_ctx_args, expected_received_sat, remote_funding_pubkey, local_next_commitment_number, remote_next_commitment_point, remote_revocation_basepoint, remote_htlc_basepoint, local_htlc_basepoint):
         try:
             commitment_signed_msg = await self.commitment_signed[channel_id]
         finally:
             del self.commitment_signed[channel_id]
             # TODO make new future? (there could be more updates)
 
-        local_ctx_args = local_ctx_args._replace(local_amount = local_ctx_args.local_amount + expected_received_sat)
+        local_last_per_commitment_secret = get_per_commitment_secret_from_seed(local_per_commitment_secret_seed, local_last_pcs_index)
+
+        local_next_per_commitment_secret = get_per_commitment_secret_from_seed(local_per_commitment_secret_seed, local_last_pcs_index - 1)
+        local_next_per_commitment_point = secret_to_pubkey(int.from_bytes(
+            local_next_per_commitment_secret,
+            byteorder="big"))
+
         local_ctx_args = local_ctx_args._replace(remote_amount = local_ctx_args.remote_amount - expected_received_sat)
-        local_ctx_args = local_ctx_args._replace(ctn = next_commitment_number)
-        new_commitment = make_commitment(*local_ctx_args)
-        pre_hash = bitcoin.Hash(bfh(new_commitment.serialize_preimage(0)))
+        local_ctx_args = local_ctx_args._replace(ctn = local_next_commitment_number)
+
+        remote_revocation_pubkey = derive_blinded_pubkey(remote_revocation_basepoint, remote_next_commitment_point)
+        remote_htlc_pubkey = derive_pubkey(remote_htlc_basepoint, remote_next_commitment_point)
+        local_htlc_pubkey = derive_pubkey(local_htlc_basepoint, local_next_per_commitment_point)
+        payment_hash = self.unfulfilled_htlcs[0]["payment_hash"]
+        cltv_expiry = int.from_bytes(self.unfulfilled_htlcs[0]["cltv_expiry"],"big")
+        amount_msat = int.from_bytes(self.unfulfilled_htlcs[0]["amount_msat"], "big")
+
+        # make_received_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_hash, cltv_expiry)
+        htlcs = [
+            (
+                make_received_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, payment_hash, cltv_expiry),
+                amount_msat
+            )
+        ]
+
+        new_commitment = make_commitment(*local_ctx_args, htlcs=htlcs)
+        preimage_hex = new_commitment.serialize_preimage(0)
+        print("new commitment tx", new_commitment)
+        print("new commitment tx outputs", new_commitment.outputs())
+        pre_hash = bitcoin.Hash(bfh(preimage_hex))
         if not bitcoin.verify_signature(remote_funding_pubkey, commitment_signed_msg["signature"], pre_hash):
             raise Exception('failed verifying signature of updated commitment transaction')
 
-        last_per_commitment_secret = get_per_commitment_secret_from_seed(per_commitment_secret_seed, last_pcs_index)
-
-        next_per_commitment_secret = get_per_commitment_secret_from_seed(per_commitment_secret_seed, last_pcs_index - 1)
-        next_per_commitment_point = secret_to_pubkey(int.from_bytes(
-            next_per_commitment_secret,
-            byteorder="big"))
-
-        self.send_message(gen_msg("revoke_and_ack", channel_id=channel_id, per_commitment_secret=last_per_commitment_secret, next_per_commitment_point=next_per_commitment_point))
+        self.send_message(gen_msg("revoke_and_ack", channel_id=channel_id, per_commitment_secret=local_last_per_commitment_secret, next_per_commitment_point=local_next_per_commitment_point))
 
     async def fulfill_htlc(self, channel_id, htlc_id, payment_preimage):
         self.send_message(gen_msg("update_fulfill_htlc", channel_id=channel_id, id=htlc_id, payment_preimage=payment_preimage))
 
     def on_commitment_signed(self, payload):
+        self.print_error("commitment_signed", payload)
         channel_id = int.from_bytes(payload['channel_id'], byteorder="big")
         self.commitment_signed[channel_id].set_result(payload)
 
