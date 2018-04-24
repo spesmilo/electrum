@@ -172,7 +172,7 @@ and there is no warning message.
     now fully on CashAddr.
   * Introduce 'cash' moniker for micro bitcoin
 
-# Release 3.1.7
+# Release 3.2
 
 * restore disabled script opcodes (May 2018 HF)
 * network protocol version bump to 1.2
