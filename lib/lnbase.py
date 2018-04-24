@@ -36,7 +36,6 @@ from collections import namedtuple, defaultdict
 # hardcoded nodes
 node_list = [
     ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff'),
-    ('77.58.162.148', '9735', '022bb78ab9df617aeaaf37f6644609abb7295fad0c20327bccd41f8d69173ccb49')
 ]
 
 
@@ -292,15 +291,6 @@ LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amo
 ChannelConstraints = namedtuple("ChannelConstraints", ["feerate", "capacity", "is_initiator"])
 OpenChannel = namedtuple("OpenChannel", ["channel_id", "funding_outpoint", "local_config", "remote_config", "remote_state", "local_state", "constraints"])
 
-class KeypairGenerator:
-    def __init__(self, seed):
-        self.xprv, xpub = bitcoin.bip32_root(seed, "p2wpkh")
-    def get(self, keyfamily, index):
-        childxprv, childxpub = bitcoin.bip32_private_derivation(self.xprv, "m/", "m/42'/{keyfamily}'/{index}'".format(keyfamily=keyfamily, index=index))
-        _, _, _, _, child_c, child_cK = bitcoin.deserialize_xpub(childxpub)
-        _, _, _, _, _, k = bitcoin.deserialize_xprv(childxprv)
-        assert len(k) == 32
-        return Keypair(pubkey=child_cK, privkey=k)
 
 def aiosafe(f):
     async def f2(*args, **kwargs):
@@ -526,10 +516,10 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remote_pay
 
 
 class Peer(PrintError):
-    def __init__(self, host, port, pubkey, request_initial_sync=False, network=None):
+    def __init__(self, host, port, pubkey, privkey, request_initial_sync=False, network=None):
         self.host = host
         self.port = port
-        self.privkey = os.urandom(32) + b"\x01"
+        self.privkey = privkey
         self.pubkey = pubkey
         self.network = network
         self.read_buffer = b''
@@ -744,10 +734,8 @@ class Peer(PrintError):
         self.writer.close()
 
     @aiosafe
-    async def channel_establishment_flow(self, wallet, config, funding_sat, push_msat, temp_channel_id, keypair_generator=None):
+    async def channel_establishment_flow(self, wallet, config, password, funding_sat, push_msat, temp_channel_id):
         await self.initialized
-        if keypair_generator is None:
-            keypair_generator = KeypairGenerator(b"testseed")
         # see lnd/keychain/derivation.go
         keyfamilymultisig = 0
         keyfamilyrevocationbase = 1
@@ -763,12 +751,13 @@ class Peer(PrintError):
         local_max_htlc_value_in_flight_msat = 500000 * 1000
         local_max_accepted_htlcs = 5
         # key derivation
+        keypair_generator = lambda family, i: Keypair(*wallet.keystore.get_keypair([family, i], password))
         local_config=ChannelConfig(
-            payment_basepoint=keypair_generator.get(keyfamilypaymentbase, 0),
-            multisig_key=keypair_generator.get(keyfamilymultisig, 0),
-            htlc_basepoint=keypair_generator.get(keyfamilyhtlcbase, 0),
-            delayed_basepoint=keypair_generator.get(keyfamilydelaybase, 0),
-            revocation_basepoint=keypair_generator.get(keyfamilyrevocationbase, 0),
+            payment_basepoint=keypair_generator(keyfamilypaymentbase, 0),
+            multisig_key=keypair_generator(keyfamilymultisig, 0),
+            htlc_basepoint=keypair_generator(keyfamilyhtlcbase, 0),
+            delayed_basepoint=keypair_generator(keyfamilydelaybase, 0),
+            revocation_basepoint=keypair_generator(keyfamilyrevocationbase, 0),
             to_self_delay=to_self_delay,
             dust_limit_sat=dust_limit_sat,
             max_htlc_value_in_flight_msat=local_max_htlc_value_in_flight_msat,
@@ -1101,23 +1090,30 @@ class Peer(PrintError):
         self.revoke_and_ack[channel_id].set_result(payload)
 
 
-
 # replacement for lightningCall
 class LNWorker:
 
     def __init__(self, wallet, network):
+        self.privkey = bitcoin.sha256('1234567890')
         self.wallet = wallet
         self.network = network
-        host, port, pubkey = network.config.get('lightning_peer', node_list[0])
-        pubkey = binascii.unhexlify(pubkey)
-        port = int(port)
-        self.peer = Peer(host, port, pubkey)
-        self.network.futures.append(asyncio.run_coroutine_threadsafe(self.peer.main_loop(), asyncio.get_event_loop()))
+        self.config = network.config
+        self.peers = {}
+        self.channels = {}
+        peer_list = network.config.get('lightning_peers', node_list)
+        for host, port, pubkey in peer_list:
+            self.add_peer(host, port, pubkey)
 
-    def openchannel(self):
-        # todo: get utxo from wallet
-        # submit coro to asyncio main loop
-        self.peer.open_channel()
+    def add_peer(self, host, port, pubkey):
+        peer = Peer(host, int(port), binascii.unhexlify(pubkey), self.privkey)
+        self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
+        self.peers[pubkey] = peer
+
+    def open_channel(self, pubkey, amount, push_msat, password):
+        keystore = self.wallet.keystore
+        peer = self.peers.get(pubkey)
+        coro = peer.channel_establishment_flow(self.wallet, self.config, password, amount, push_msat, temp_channel_id=os.urandom(32))
+        fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
 
 class ChannelInfo(PrintError):
