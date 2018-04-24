@@ -41,7 +41,8 @@ if __name__ == "__main__":
     wallet = Wallet(storage)
     wallet.start_threads(network)
     # start peer
-    peer = Peer(host, port, pubkey, request_initial_sync=False, network=network)
+    privkey = sha256('1234567890')
+    peer = Peer(host, port, pubkey, privkey, request_initial_sync=False, network=network)
     network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), network.asyncio_loop))
 
     funding_satoshis = 1000000
