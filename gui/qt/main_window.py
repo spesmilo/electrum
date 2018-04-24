@@ -44,8 +44,8 @@ from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
 from electrum import constants
 from electrum.plugins import run_hook
 from electrum.i18n import _
-from electrum.util import (format_time, format_satoshis, PrintError,
-                           format_satoshis_plain, NotEnoughFunds,
+from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
+                           format_satoshis_plain, NotEnoughFunds, PrintError,
                            UserCancelled, NoDynamicFeeEstimates, profiler,
                            export_meta, import_meta, bh2u, bfh, InvalidPassword)
 from electrum import Transaction
@@ -639,7 +639,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.require_fee_update = False
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
-        return format_satoshis(x, is_diff, self.num_zeros, self.decimal_point, whitespaces)
+        return format_satoshis(x, self.num_zeros, self.decimal_point, is_diff=is_diff, whitespaces=whitespaces)
 
     def format_amount_and_units(self, amount):
         text = self.format_amount(amount) + ' '+ self.base_unit()
@@ -649,7 +649,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return text
 
     def format_fee_rate(self, fee_rate):
-        return format_satoshis(fee_rate/1000, False, self.num_zeros, 0, False)  + ' sat/byte'
+        return format_fee_satoshis(fee_rate/1000, self.num_zeros) + ' sat/byte'
 
     def get_decimal_point(self):
         return self.decimal_point
@@ -3192,5 +3192,3 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.need_update.set()
             self.msg_box(QPixmap(":icons/offline_tx.png"), None, _('Success'), _("Transaction added to wallet history"))
             return True
-
-

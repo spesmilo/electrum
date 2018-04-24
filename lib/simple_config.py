@@ -7,7 +7,7 @@ import stat
 from copy import deepcopy
 
 from .util import (user_dir, print_error, PrintError,
-                   NoDynamicFeeEstimates, format_satoshis)
+                   NoDynamicFeeEstimates, format_fee_satoshis)
 from .i18n import _
 
 FEE_ETA_TARGETS = [25, 10, 5, 2]
@@ -367,7 +367,11 @@ class SimpleConfig(PrintError):
         text is what we target: static fee / num blocks to confirm in / mempool depth
         tooltip is the corresponding estimate (e.g. num blocks for a static fee)
         """
-        rate_str = (format_satoshis(fee_rate/1000, False, 0, 0, False)  + ' sat/byte') if fee_rate is not None else 'unknown'
+        if fee_rate is None:
+            rate_str = 'unknown'
+        else:
+            rate_str = format_fee_satoshis(fee_rate/1000) + ' sat/byte'
+
         if dyn:
             if mempool:
                 depth = self.depth_target(pos)

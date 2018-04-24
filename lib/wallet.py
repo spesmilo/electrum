@@ -45,8 +45,8 @@ import sys
 
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
-                   format_satoshis, NoDynamicFeeEstimates, TimeoutException,
-                   WalletFileException, BitcoinException)
+                   format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
+                   TimeoutException, WalletFileException, BitcoinException)
 
 from .bitcoin import *
 from .version import *
@@ -1169,7 +1169,7 @@ class Abstract_Wallet(PrintError):
             if fee is not None:
                 size = tx.estimated_size()
                 fee_per_byte = fee / size
-                extra.append('%.1f sat/b'%(fee_per_byte))
+                extra.append(format_fee_satoshis(fee_per_byte) + ' sat/b')
             if fee is not None and height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED) \
                and self.network and self.network.config.has_fee_mempool():
                 exp_n = self.network.config.fee_to_depth(fee_per_byte)
@@ -2362,4 +2362,3 @@ class Wallet(object):
         if wallet_type in wallet_constructors:
             return wallet_constructors[wallet_type]
         raise RuntimeError("Unknown wallet type: " + str(wallet_type))
-

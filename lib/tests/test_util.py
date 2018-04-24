@@ -8,6 +8,43 @@ class TestUtil(unittest.TestCase):
         expected = "0.00001234"
         self.assertEqual(expected, result)
 
+    def test_format_satoshis_negative(self):
+        result = format_satoshis(-1234)
+        expected = "-0.00001234"
+        self.assertEqual(expected, result)
+
+    def test_format_fee(self):
+        result = format_satoshis(1700/1000, 0, 0)
+        expected = "1.7"
+        self.assertEqual(expected, result)
+
+    def test_format_fee_precision(self):
+        result = format_satoshis(1666/1000, 0, 0, precision=6)
+        expected = "1.666"
+        self.assertEqual(expected, result)
+
+        result = format_satoshis(1666/1000, 0, 0, precision=1)
+        expected = "1.7"
+        self.assertEqual(expected, result)
+
+    def test_format_satoshis_whitespaces(self):
+        result = format_satoshis(12340, whitespaces=True)
+        expected = "     0.0001234 "
+        self.assertEqual(expected, result)
+
+        result = format_satoshis(1234, whitespaces=True)
+        expected = "     0.00001234"
+        self.assertEqual(expected, result)
+
+    def test_format_satoshis_whitespaces_negative(self):
+        result = format_satoshis(-12340, whitespaces=True)
+        expected = "    -0.0001234 "
+        self.assertEqual(expected, result)
+
+        result = format_satoshis(-1234, whitespaces=True)
+        expected = "    -0.00001234"
+        self.assertEqual(expected, result)
+
     def test_format_satoshis_diff_positive(self):
         result = format_satoshis(1234, is_diff=True)
         expected = "+0.00001234"
@@ -67,4 +104,3 @@ class TestUtil(unittest.TestCase):
 
     def test_parse_URI_parameter_polution(self):
         self.assertRaises(Exception, parse_URI, 'bitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma?amount=0.0003&label=test&amount=30.0')
-
