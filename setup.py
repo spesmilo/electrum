@@ -23,19 +23,24 @@ if sys.version_info[:3] < (3, 5, 0):
 data_files = []
 
 if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--root=', dest='root_path', metavar='dir', default='/')
+    parser.add_argument('--prefix=', dest='prefix_path', metavar='prefix', default=sys.prefix)
     opts, _ = parser.parse_known_args(sys.argv[1:])
-    usr_share = os.path.join(sys.prefix, "share")
-    if not os.access(opts.root_path + usr_share, os.W_OK) and \
-       not os.access(opts.root_path, os.W_OK):
+    usr_share = os.path.join(opts.root_path + opts.prefix_path, "share")
+    if not os.access(usr_share, os.W_OK):
         if 'XDG_DATA_HOME' in os.environ.keys():
             usr_share = os.environ['XDG_DATA_HOME']
         else:
             usr_share = os.path.expanduser('~/.local/share')
     data_files += [
+        # Menu icon
+        (os.path.join(usr_share, 'icons/hicolor/128x128/apps/'), ['icons/electron-cash.png']),
+        (os.path.join(usr_share, 'pixmaps/'),                    ['icons/electron-cash.png']),
+        # Menu entry
         (os.path.join(usr_share, 'applications/'), ['electron-cash.desktop']),
-        (os.path.join(usr_share, 'pixmaps/'), ['icons/electron-cash.png'])
+        # App stream (store) metadata
+        (os.path.join(usr_share, 'metainfo/'), ['org.electroncash.ElectronCash.appdata.xml']),
     ]
 
 setup(
