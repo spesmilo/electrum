@@ -48,7 +48,7 @@ class Plugins(DaemonThread):
         DaemonThread.__init__(self)
         if is_local:
             find = imp.find_module('plugins')
-            plugins = imp.load_module('electrum_plugins', *find)
+            plugins = imp.load_module('electrum_ftc_plugins', *find)
         else:
             import electrum_ftc_plugins as plugins
         self.pkgpath = os.path.dirname(plugins.__file__)
