@@ -51,9 +51,6 @@ def seed_warning_msg(seed):
 
 
 class SeedLayout(QVBoxLayout):
-    #options
-    is_bip39 = False
-    is_ext = False
 
     def seed_options(self):
         dialog = QDialog()
@@ -88,17 +85,24 @@ class SeedLayout(QVBoxLayout):
         self.is_ext = cb_ext.isChecked() if 'ext' in self.options else False
         self.is_bip39 = cb_bip39.isChecked() if 'bip39' in self.options else False
 
-    def __init__(self, seed=None, title=None, icon=True, msg=None, options=None, is_seed=None, passphrase=None, parent=None):
+    def __init__(self, seed=None, title=None, icon=True, msg=None, options=None,
+                 is_seed=None, passphrase=None, parent=None, for_seed_words=True):
         QVBoxLayout.__init__(self)
         self.parent = parent
         self.options = options
         if title:
             self.addWidget(WWLabel(title))
-        self.seed_e = CompletionTextEdit()
-        if seed:
+        if seed:  # "read only", we already have the text
+            if for_seed_words:
+                self.seed_e = ButtonsTextEdit()
+            else:  # e.g. xpub
+                self.seed_e = ShowQRTextEdit()
+            self.seed_e.setReadOnly(True)
             self.seed_e.setText(seed)
-        else:
-            self.seed_e.setTabChangesFocus(True)
+        else:  # we expect user to enter text
+            assert for_seed_words
+            self.seed_e = CompletionTextEdit()
+            self.seed_e.setTabChangesFocus(False)  # so that tab auto-completes
             self.is_seed = is_seed
             self.saved_is_seed = self.is_seed
             self.seed_e.textChanged.connect(self.on_edit)
@@ -117,6 +121,10 @@ class SeedLayout(QVBoxLayout):
         hbox.addStretch(1)
         self.seed_type_label = QLabel('')
         hbox.addWidget(self.seed_type_label)
+
+        # options
+        self.is_bip39 = False
+        self.is_ext = False
         if options:
             opt_button = EnterButton(_('Options'), self.seed_options)
             hbox.addWidget(opt_button)
