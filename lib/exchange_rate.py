@@ -569,6 +569,6 @@ class FxThread(ThreadJob):
         return self.fiat_value(satoshis, self.history_rate(d_t))
 
     def timestamp_rate(self, timestamp):
-        from electrum.util import timestamp_to_datetime
+        from .util import timestamp_to_datetime
         date = timestamp_to_datetime(timestamp)
         return self.history_rate(date)
