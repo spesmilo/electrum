@@ -912,6 +912,13 @@ class Peer(PrintError):
         if not bitcoin.verify_signature(remote_funding_pubkey, commitment_signed_msg["signature"], pre_hash):
             raise Exception('failed verifying signature of updated commitment transaction')
 
+        htlc_sigs_len = len(commitment_signed_msg["htlc_signature"])
+        if htlc_sigs_len != 64:
+            raise Exception("unexpected number of htlc signatures: " + str(htlc_sigs_len))
+
+        # TODO: construct their commitment transaction (A), check that htlc_signature signs
+        # the HTLC transaction (B) that spends from the offered HTLC output in (A)
+
         self.send_message(gen_msg("revoke_and_ack", channel_id=channel_id, per_commitment_secret=local_last_per_commitment_secret, next_per_commitment_point=local_next_per_commitment_point))
 
     async def fulfill_htlc(self, channel_id, htlc_id, payment_preimage):
