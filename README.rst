@@ -14,7 +14,6 @@ Relevant changes to the Bitcoin Electrum wallet:
 
 - Works with the Feathercoin specifics (address format, difficulty adjustment, NeoScrypt)
 - All transactions are replace-by-fee transactions
-- No hardware wallet support
 - No support for Trustedcoin 2FA or GreenAddress
 - No Android version
 
