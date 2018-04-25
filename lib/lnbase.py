@@ -886,8 +886,8 @@ class Peer(PrintError):
             local_next_per_commitment_secret,
             byteorder="big"))
 
-        remote_revocation_pubkey = derive_blinded_pubkey(remote_revocation_basepoint, remote_next_commitment_point)
-        remote_htlc_pubkey = derive_pubkey(remote_htlc_basepoint, remote_next_commitment_point)
+        remote_revocation_pubkey = derive_blinded_pubkey(remote_revocation_basepoint, local_next_per_commitment_point)
+        remote_htlc_pubkey = derive_pubkey(remote_htlc_basepoint, local_next_per_commitment_point)
         local_htlc_pubkey = derive_pubkey(local_htlc_basepoint, local_next_per_commitment_point)
         payment_hash = self.unfulfilled_htlcs[0]["payment_hash"]
         cltv_expiry = int.from_bytes(self.unfulfilled_htlcs[0]["cltv_expiry"],"big")
@@ -896,10 +896,9 @@ class Peer(PrintError):
         local_ctx_args = local_ctx_args._replace(remote_amount = local_ctx_args.remote_amount - expected_received_sat)
         local_ctx_args = local_ctx_args._replace(ctn = local_next_commitment_number)
         local_ctx_args = local_ctx_args._replace(remote_revocation_pubkey = remote_revocation_pubkey)
-        local_ctx_args = local_ctx_args._replace(remotepubkey = derive_pubkey(local_ctx_args.remote_payment_basepoint, remote_next_commitment_point))
+        local_ctx_args = local_ctx_args._replace(remotepubkey = derive_pubkey(local_ctx_args.remote_payment_basepoint, local_next_per_commitment_point))
         local_ctx_args = local_ctx_args._replace(local_delayedpubkey = derive_pubkey(delayed_payment_basepoint, local_next_per_commitment_point))
 
-        # make_received_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_hash, cltv_expiry)
         htlcs = [
             (
                 make_received_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, payment_hash, cltv_expiry),
@@ -909,10 +908,6 @@ class Peer(PrintError):
 
         new_commitment = make_commitment(*local_ctx_args, htlcs=htlcs)
         preimage_hex = new_commitment.serialize_preimage(0)
-        print("new commitment tx", new_commitment)
-        print("new commitment tx outputs", new_commitment.outputs())
-        for idx, output in enumerate(new_commitment.outputs()):
-            print("output {}: ".format(idx), bitcoin.address_to_script(output[1] ))
         pre_hash = bitcoin.Hash(bfh(preimage_hex))
         if not bitcoin.verify_signature(remote_funding_pubkey, commitment_signed_msg["signature"], pre_hash):
             raise Exception('failed verifying signature of updated commitment transaction')
