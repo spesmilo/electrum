@@ -443,7 +443,8 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubk
                     payment_basepoint, remote_payment_basepoint,
                     revocation_pubkey, delayed_pubkey, to_self_delay,
                     funding_txid, funding_pos, funding_satoshis,
-                    local_amount, remote_amount, dust_limit_satoshis, local_feerate, commitment_owner, htlcs):
+                    local_amount, remote_amount,
+                    dust_limit_satoshis, local_feerate, for_us, htlcs):
 
     pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
     obs = get_obscured_ctn(ctn, payment_basepoint, remote_payment_basepoint)
@@ -469,15 +470,8 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubk
     remote_address = bitcoin.pubkey_to_address('p2wpkh', bh2u(remotepubkey))
     # TODO trim htlc outputs here while also considering 2nd stage htlc transactions
     fee = local_feerate * overall_weight(len(htlcs)) // 1000 # TODO incorrect if anything is trimmed
-    fee_local, fee_remote = 0, 0
-    if commitment_owner == FOR_US:
-      fee_local = fee
-    elif commitment_owner == FOR_REMOTE:
-      fee_remote = fee
-    else:
-      raise Exception("unexpected commitment owner")
-    to_local = (bitcoin.TYPE_ADDRESS, local_address, local_amount - fee_local)
-    to_remote = (bitcoin.TYPE_ADDRESS, remote_address, remote_amount - fee_remote)
+    to_local = (bitcoin.TYPE_ADDRESS, local_address, local_amount - (fee if for_us else 0))
+    to_remote = (bitcoin.TYPE_ADDRESS, remote_address, remote_amount - (fee if not for_us else 0))
     c_outputs = [to_local, to_remote]
     for script, msat_amount in htlcs:
         c_outputs += [(bitcoin.TYPE_ADDRESS, bitcoin.redeem_script_to_address('p2wsh', bh2u(script)), msat_amount // 1000)]
@@ -806,7 +800,7 @@ class Peer(PrintError):
             base_point, remote_payment_basepoint,
             revocation_pubkey, remote_delayedpubkey, remote_delay,
             funding_txid, funding_index, funding_satoshis,
-            remote_amount, local_amount, remote_dust_limit_satoshis, local_feerate, FOR_REMOTE, htlcs=[])
+            remote_amount, local_amount, remote_dust_limit_satoshis, local_feerate, False, htlcs=[])
         remote_ctx.sign({bh2u(funding_pubkey): (funding_privkey, True)})
         sig_index = pubkeys.index(bh2u(funding_pubkey))
         sig = bytes.fromhex(remote_ctx.inputs()[0]["signatures"][sig_index])
@@ -829,7 +823,7 @@ class Peer(PrintError):
             base_point, remote_payment_basepoint,
             remote_revocation_pubkey, local_delayedpubkey, to_self_delay,
             funding_txid, funding_index, funding_satoshis,
-            local_amount, remote_amount, dust_limit_satoshis, local_feerate, FOR_US)
+            local_amount, remote_amount, dust_limit_satoshis, local_feerate, True)
         local_ctx = make_commitment(*local_ctx_args, htlcs=[])
         pre_hash = bitcoin.Hash(bfh(local_ctx.serialize_preimage(0)))
         if not bitcoin.verify_signature(remote_funding_pubkey, remote_sig, pre_hash):
