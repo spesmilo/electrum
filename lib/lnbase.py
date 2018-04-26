@@ -483,7 +483,6 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remotepubk
     tx.BIP_LI01_sort()
     return tx
 
-FOR_US, FOR_REMOTE = range(2)
 
 class Peer(PrintError):
     def __init__(self, host, port, pubkey, request_initial_sync=False, network=None):
@@ -922,7 +921,7 @@ class Peer(PrintError):
             local_ctx_args.base_point, local_ctx_args.remote_payment_basepoint,
             revocation_pubkey, remote_delayedpubkey, remote_delay,
             local_ctx_args.funding_txid, local_ctx_args.funding_index, local_ctx_args.funding_satoshis,
-            local_ctx_args.local_amount, local_ctx_args.remote_amount, remote_dust_limit_satoshis, local_ctx_args.local_feerate, FOR_REMOTE, htlcs=htlcs_in_remote)
+            local_ctx_args.local_amount, local_ctx_args.remote_amount, remote_dust_limit_satoshis, local_ctx_args.local_feerate, False, htlcs=htlcs_in_remote)
         remote_ctx.sign({bh2u(local_ctx_args.funding_pubkey): (funding_privkey, True)})
         sig_index = pubkeys.index(bh2u(local_ctx_args.funding_pubkey))
         sig = bytes.fromhex(remote_ctx.inputs()[0]["signatures"][sig_index])
