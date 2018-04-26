@@ -112,7 +112,8 @@ def make_handler(k, v):
         pos = 0
         for fieldname in v["payload"]:
             poslenMap = v["payload"][fieldname]
-            if "feature" in poslenMap: continue
+            if "feature" in poslenMap and pos==len(data):
+                continue
             #print(poslenMap["position"], ma)
             assert pos == calcexp(poslenMap["position"], ma)
             length = poslenMap["length"]
