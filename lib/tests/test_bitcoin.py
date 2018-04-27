@@ -11,8 +11,10 @@ from lib.bitcoin import (
     var_int, op_push, address_to_script, regenerate_key,
     verify_message, deserialize_privkey, serialize_privkey, is_segwit_address,
     is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
-    xpub_type, is_xprv, is_bip32_derivation, seed_type, EncodeBase58Check)
-from lib.util import bfh
+    xpub_type, is_xprv, is_bip32_derivation, seed_type, EncodeBase58Check,
+    script_num_to_hex, push_script, add_number_to_script)
+from lib.transaction import opcodes
+from lib.util import bfh, bh2u
 from lib import constants
 
 from . import TestCaseForTestnet
@@ -149,6 +151,58 @@ class Test_bitcoin(unittest.TestCase):
         self.assertEqual(op_push(0xffff), '4dffff')
         self.assertEqual(op_push(0x10000), '4e00000100')
         self.assertEqual(op_push(0x12345678), '4e78563412')
+
+    def test_script_num_to_hex(self):
+        # test vectors from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptnum.go#L77
+        self.assertEqual(script_num_to_hex(127), '7f')
+        self.assertEqual(script_num_to_hex(-127), 'ff')
+        self.assertEqual(script_num_to_hex(128), '8000')
+        self.assertEqual(script_num_to_hex(-128), '8080')
+        self.assertEqual(script_num_to_hex(129), '8100')
+        self.assertEqual(script_num_to_hex(-129), '8180')
+        self.assertEqual(script_num_to_hex(256), '0001')
+        self.assertEqual(script_num_to_hex(-256), '0081')
+        self.assertEqual(script_num_to_hex(32767), 'ff7f')
+        self.assertEqual(script_num_to_hex(-32767), 'ffff')
+        self.assertEqual(script_num_to_hex(32768), '008000')
+        self.assertEqual(script_num_to_hex(-32768), '008080')
+
+    def test_push_script(self):
+        # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#push-operators
+        self.assertEqual(push_script(''), bh2u(bytes([opcodes.OP_0])))
+        self.assertEqual(push_script('07'), bh2u(bytes([opcodes.OP_7])))
+        self.assertEqual(push_script('10'), bh2u(bytes([opcodes.OP_16])))
+        self.assertEqual(push_script('81'), bh2u(bytes([opcodes.OP_1NEGATE])))
+        self.assertEqual(push_script('11'), '0111')
+        self.assertEqual(push_script(75 * '42'), '4b' + 75 * '42')
+        self.assertEqual(push_script(76 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('4c' + 76 * '42')))
+        self.assertEqual(push_script(100 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('64' + 100 * '42')))
+        self.assertEqual(push_script(255 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('ff' + 255 * '42')))
+        self.assertEqual(push_script(256 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA2]) + bfh('0001' + 256 * '42')))
+        self.assertEqual(push_script(520 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA2]) + bfh('0802' + 520 * '42')))
+
+    def test_add_number_to_script(self):
+        # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#numbers
+        self.assertEqual(add_number_to_script(0), bytes([opcodes.OP_0]))
+        self.assertEqual(add_number_to_script(7), bytes([opcodes.OP_7]))
+        self.assertEqual(add_number_to_script(16), bytes([opcodes.OP_16]))
+        self.assertEqual(add_number_to_script(-1), bytes([opcodes.OP_1NEGATE]))
+        self.assertEqual(add_number_to_script(-127), bfh('01ff'))
+        self.assertEqual(add_number_to_script(-2), bfh('0182'))
+        self.assertEqual(add_number_to_script(17), bfh('0111'))
+        self.assertEqual(add_number_to_script(127), bfh('017f'))
+        self.assertEqual(add_number_to_script(-32767), bfh('02ffff'))
+        self.assertEqual(add_number_to_script(-128), bfh('028080'))
+        self.assertEqual(add_number_to_script(128), bfh('028000'))
+        self.assertEqual(add_number_to_script(32767), bfh('02ff7f'))
+        self.assertEqual(add_number_to_script(-8388607), bfh('03ffffff'))
+        self.assertEqual(add_number_to_script(-32768), bfh('03008080'))
+        self.assertEqual(add_number_to_script(32768), bfh('03008000'))
+        self.assertEqual(add_number_to_script(8388607), bfh('03ffff7f'))
+        self.assertEqual(add_number_to_script(-2147483647), bfh('04ffffffff'))
+        self.assertEqual(add_number_to_script(-8388608 ), bfh('0400008080'))
+        self.assertEqual(add_number_to_script(8388608), bfh('0400008000'))
+        self.assertEqual(add_number_to_script(2147483647), bfh('04ffffff7f'))
 
     def test_address_to_script(self):
         # bech32 native segwit
@@ -504,7 +558,7 @@ class Test_seeds(unittest.TestCase):
         ('  fRoSt pig brisk excIte novel rePort CamEra enlist axis nation nOVeL dEsert ', 'segwit'),
         ('9dk', 'segwit'),
     }
-    
+
     def test_new_seed(self):
         seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform able"
         self.assertTrue(is_new_seed(seed))
