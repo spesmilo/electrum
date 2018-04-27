@@ -24,8 +24,8 @@ import cryptography.hazmat.primitives.ciphers.aead as AEAD
 
 from .bitcoin import (public_key_from_private_key, ser_to_point, point_to_ser,
                       string_to_number, deserialize_privkey, EC_KEY, rev_hex, int_to_hex,
-                      push_script, script_num_to_hex, add_data_to_script,
-                      add_number_to_script, var_int, witness_push)
+                      push_script, script_num_to_hex,
+                      add_number_to_script, var_int)
 from . import bitcoin
 from . import constants
 from . import transaction
@@ -374,7 +374,7 @@ def make_htlc_tx_witness(remotehtlcsig, localhtlcsig, payment_preimage, witness_
     assert type(localhtlcsig) is bytes
     assert type(payment_preimage) is bytes
     assert type(witness_script) is bytes
-    return bfh(var_int(5) + '00' + ''.join([witness_push(bh2u(x)) for x in [remotehtlcsig, localhtlcsig, payment_preimage, witness_script]]))
+    return bfh(transaction.construct_witness([0, remotehtlcsig, localhtlcsig, payment_preimage, witness_script]))
 
 def make_htlc_tx_inputs(htlc_output_txid, htlc_output_index, revocationpubkey, local_delayedpubkey, amount_msat, witness_script):
     assert type(htlc_output_txid) is str
