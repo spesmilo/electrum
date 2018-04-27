@@ -2,7 +2,7 @@ from binascii import hexlify, unhexlify
 
 from electrum.util import bfh, bh2u, versiontuple
 from electrum.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
-                              TYPE_ADDRESS, TYPE_SCRIPT)
+                              TYPE_ADDRESS, TYPE_SCRIPT, is_address)
 from electrum import constants
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, Device
@@ -271,7 +271,11 @@ class TrezorPlugin(HW_PluginBase):
         raw = bh2u(signed_tx)
         tx.update_signatures(raw)
 
-    def show_address(self, wallet, keystore, address):
+    def show_address(self, wallet, address, keystore=None):
+        if keystore is None:
+            keystore = wallet.get_keystore()
+        if not self.show_address_helper(wallet, address, keystore):
+            return
         client = self.get_client(keystore)
         if not client.atleast_version(1, 3):
             keystore.handler.show_error(_("Your device firmware is too old"))
