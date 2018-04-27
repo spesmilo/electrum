@@ -56,10 +56,6 @@ if __name__ == "__main__":
         print("payment request", pay_req)
         last_pcs_index = 2**48 - 1
         await peer.receive_commitment_revoke_ack(channel_id, per_commitment_secret_seed, last_pcs_index, local_ctx_args, expected_received_sat, remote_funding_pubkey, local_next_commitment_number=1, remote_next_commitment_point=remote_funding_locked_msg["next_per_commitment_point"], remote_revocation_basepoint=remote_revocation_basepoint, remote_htlc_basepoint=remote_htlc_basepoint, local_htlc_basepoint=local_htlc_basepoint, delayed_payment_basepoint=delayed_payment_basepoint, revocation_basepoint=revocation_basepoint, remote_delayed_payment_basepoint=remote_delayed_payment_basepoint, remote_delay=remote_delay, remote_dust_limit_satoshis=remote_dust_limit_satoshis, funding_privkey=funding_privkey, htlc_privkey=htlc_privkey, payment_preimage=payment_preimage)
-        htlc_id = 0 # TODO should correspond with received htlc (when handling more than just one update)
-        await peer.fulfill_htlc(channel_id, htlc_id, payment_preimage)
-        while True:
-            await asyncio.sleep(1)
     fut = asyncio.run_coroutine_threadsafe(async_test(), network.asyncio_loop)
     while not fut.done():
         time.sleep(1)
