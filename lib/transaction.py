@@ -361,9 +361,9 @@ def parse_scriptSig(d, _bytes):
     match = [ opcodes.OP_0 ] + [ opcodes.OP_PUSHDATA4 ] * (len(decoded) - 1)
     if match_decoded(decoded, match):
         x_sig = [bh2u(x[1]) for x in decoded[1:-1]]
-        redeem_script = bh2u(decoded[-1][1])
+        redeem_script_unsanitized = decoded[-1][1]  # for partial multisig txn, this has x_pubkeys
         try:
-            m, n, x_pubkeys, pubkeys = parse_redeemScript_multisig(bfh(redeem_script))
+            m, n, x_pubkeys, pubkeys, redeem_script = parse_redeemScript_multisig(redeem_script_unsanitized)
         except NotRecognizedRedeemScript:
             print_error("parse_scriptSig: cannot find address in input script (p2sh?)",
                         bh2u(_bytes))
@@ -398,10 +398,11 @@ def parse_redeemScript_multisig(redeem_script: bytes):
         raise NotRecognizedRedeemScript()
     x_pubkeys = [bh2u(x[1]) for x in dec2[1:-2]]
     pubkeys = [safe_parse_pubkey(x) for x in x_pubkeys]
-    redeem_script2 = bfh(multisig_script(pubkeys, m))
+    redeem_script2 = bfh(multisig_script(x_pubkeys, m))
     if redeem_script2 != redeem_script:
         raise NotRecognizedRedeemScript()
-    return m, n, x_pubkeys, pubkeys
+    redeem_script_sanitized = multisig_script(pubkeys, m)
+    return m, n, x_pubkeys, pubkeys, redeem_script_sanitized
 
 
 def get_address_from_output_script(_bytes, *, net=None):
@@ -503,9 +504,9 @@ def parse_witness(vds, txin):
         if txin['type'] == 'coinbase':
             pass
         elif txin['type'] == 'p2wsh-p2sh' or n > 2:
-            witness_script = w[-1]
+            witness_script_unsanitized = w[-1]  # for partial multisig txn, this has x_pubkeys
             try:
-                m, n, x_pubkeys, pubkeys = parse_redeemScript_multisig(bfh(witness_script))
+                m, n, x_pubkeys, pubkeys, witness_script = parse_redeemScript_multisig(bfh(witness_script_unsanitized))
             except NotRecognizedRedeemScript:
                 raise UnknownTxinType()
             txin['signatures'] = parse_sig(w[1:-1])
