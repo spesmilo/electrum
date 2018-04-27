@@ -1,5 +1,7 @@
 import unittest
 from unittest import mock
+import shutil
+import tempfile
 
 import lib
 from lib import storage, bitcoin, keystore, constants
@@ -318,7 +320,16 @@ class TestWalletKeystoreAddressIntegrityForTestnet(TestCaseForTestnet):
 
 class TestWalletSending(TestCaseForTestnet):
 
-    config = SimpleConfig()
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.electrum_path = tempfile.mkdtemp()
+        cls.config = SimpleConfig({'electrum_path': cls.electrum_path})
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.electrum_path)
 
     def create_standard_wallet_from_seed(self, seed_words):
         ks = keystore.from_seed(seed_words, '', False)
