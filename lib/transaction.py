@@ -27,6 +27,8 @@
 
 # Note: The deserialization code originally comes from ABE.
 
+from typing import Sequence, Union
+
 from .util import print_error, profiler
 
 from . import bitcoin
@@ -236,7 +238,7 @@ opcodes = Enumeration("Opcodes", [
 ])
 
 
-def script_GetOp(_bytes):
+def script_GetOp(_bytes : bytes):
     i = 0
     while i < len(_bytes):
         vch = None
@@ -382,7 +384,7 @@ def parse_scriptSig(d, _bytes):
                 bh2u(_bytes))
 
 
-def parse_redeemScript_multisig(redeem_script):
+def parse_redeemScript_multisig(redeem_script: bytes):
     dec2 = [ x for x in script_GetOp(redeem_script) ]
     try:
         m = dec2[0][0] - opcodes.OP_1 + 1
@@ -464,6 +466,18 @@ def parse_input(vds):
     return d
 
 
+def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
+    """Constructs a witness from the given stack items."""
+    witness = var_int(len(items))
+    for item in items:
+        if type(item) is int:
+            item = bitcoin.script_num_to_hex(item)
+        elif type(item) is bytes:
+            item = bh2u(item)
+        witness += bitcoin.witness_push(item)
+    return witness
+
+
 def parse_witness(vds, txin):
     n = vds.read_compact_size()
     if n == 0:
@@ -474,7 +488,7 @@ def parse_witness(vds, txin):
     # now 'n' is the number of items in the witness
     w = list(bh2u(vds.read_bytes(vds.read_compact_size())) for i in range(n))
 
-    txin['witness'] = var_int(n) + ''.join(witness_push(i) for i in w)
+    txin['witness'] = construct_witness(w)
 
     # FIXME: witness version > 0 will probably fail here.
     # For native segwit, we would need the scriptPubKey of the parent txn
@@ -750,11 +764,10 @@ class Transaction:
         if witness is None:
             pubkeys, sig_list = self.get_siglist(txin, estimate_size)
             if txin['type'] in ['p2wpkh', 'p2wpkh-p2sh']:
-                witness = var_int(2) + witness_push(sig_list[0]) + witness_push(pubkeys[0])
+                witness = construct_witness([sig_list[0], pubkeys[0]])
             elif txin['type'] in ['p2wsh', 'p2wsh-p2sh']:
-                n = len(sig_list) + 2
                 witness_script = multisig_script(pubkeys, txin['num_sig'])
-                witness = var_int(n) + '00' + ''.join(witness_push(x) for x in sig_list) + witness_push(witness_script)
+                witness = construct_witness([0, *sig_list, witness_script])
             else:
                 raise Exception('wrong txin type:', txin['type'])
         if self.is_txin_complete(txin) or estimate_size:

@@ -12,9 +12,9 @@ from lib.bitcoin import (
     verify_message, deserialize_privkey, serialize_privkey, is_segwit_address,
     is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
     xpub_type, is_xprv, is_bip32_derivation, seed_type, EncodeBase58Check,
-    script_num_to_hex, add_data_to_script, add_number_to_script)
+    script_num_to_hex, push_script, add_number_to_script)
 from lib.transaction import opcodes
-from lib.util import bfh
+from lib.util import bfh, bh2u
 from lib import constants
 
 from . import TestCaseForTestnet
@@ -167,19 +167,19 @@ class Test_bitcoin(unittest.TestCase):
         self.assertEqual(script_num_to_hex(32768), '008000')
         self.assertEqual(script_num_to_hex(-32768), '008080')
 
-    def test_add_data_to_script(self):
+    def test_push_script(self):
         # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#push-operators
-        self.assertEqual(add_data_to_script(bfh('')), bytes([opcodes.OP_0]))
-        self.assertEqual(add_data_to_script(bfh('07')), bytes([opcodes.OP_7]))
-        self.assertEqual(add_data_to_script(bfh('10')), bytes([opcodes.OP_16]))
-        self.assertEqual(add_data_to_script(bfh('81')), bytes([opcodes.OP_1NEGATE]))
-        self.assertEqual(add_data_to_script(bfh('11')), bfh('0111'))
-        self.assertEqual(add_data_to_script(bfh(75 * '42')), bfh('4b' + 75 * '42'))
-        self.assertEqual(add_data_to_script(bfh(76 * '42')), bytes([opcodes.OP_PUSHDATA1]) + bfh('4c' + 76 * '42'))
-        self.assertEqual(add_data_to_script(bfh(100 * '42')), bytes([opcodes.OP_PUSHDATA1]) + bfh('64' + 100 * '42'))
-        self.assertEqual(add_data_to_script(bfh(255 * '42')), bytes([opcodes.OP_PUSHDATA1]) + bfh('ff' + 255 * '42'))
-        self.assertEqual(add_data_to_script(bfh(256 * '42')), bytes([opcodes.OP_PUSHDATA2]) + bfh('0001' + 256 * '42'))
-        self.assertEqual(add_data_to_script(bfh(520 * '42')), bytes([opcodes.OP_PUSHDATA2]) + bfh('0802' + 520 * '42'))
+        self.assertEqual(push_script(''), bh2u(bytes([opcodes.OP_0])))
+        self.assertEqual(push_script('07'), bh2u(bytes([opcodes.OP_7])))
+        self.assertEqual(push_script('10'), bh2u(bytes([opcodes.OP_16])))
+        self.assertEqual(push_script('81'), bh2u(bytes([opcodes.OP_1NEGATE])))
+        self.assertEqual(push_script('11'), '0111')
+        self.assertEqual(push_script(75 * '42'), '4b' + 75 * '42')
+        self.assertEqual(push_script(76 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('4c' + 76 * '42')))
+        self.assertEqual(push_script(100 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('64' + 100 * '42')))
+        self.assertEqual(push_script(255 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('ff' + 255 * '42')))
+        self.assertEqual(push_script(256 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA2]) + bfh('0001' + 256 * '42')))
+        self.assertEqual(push_script(520 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA2]) + bfh('0802' + 520 * '42')))
 
     def test_add_number_to_script(self):
         # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#numbers
