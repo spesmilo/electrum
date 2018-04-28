@@ -9,6 +9,7 @@ from electrum.i18n import _
 from electrum.plugins import BasePlugin
 from electrum.keystore import Hardware_KeyStore
 from electrum.transaction import Transaction
+from electrum.wallet import Standard_Wallet
 from ..hw_wallet import HW_PluginBase
 from electrum.util import print_error, is_verbose, bfh, bh2u, versiontuple
 
@@ -602,7 +603,14 @@ class LedgerPlugin(HW_PluginBase):
             client.checkDevice()
         return client
 
-    def show_address(self, wallet, address):
+    def show_address(self, wallet, address, keystore=None):
+        if keystore is None:
+            keystore = wallet.get_keystore()
+        if not self.show_address_helper(wallet, address, keystore):
+            return
+        if type(wallet) is not Standard_Wallet:
+            keystore.handler.show_error(_('This function is only available for standard wallets when using {}.').format(self.device))
+            return
         sequence = wallet.get_address_index(address)
         txin_type = wallet.get_txin_type(address)
-        wallet.get_keystore().show_address(sequence, txin_type)
+        keystore.show_address(sequence, txin_type)

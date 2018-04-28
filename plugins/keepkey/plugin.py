@@ -9,6 +9,7 @@ from electrum.i18n import _
 from electrum.plugins import BasePlugin
 from electrum.transaction import deserialize, Transaction
 from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
+from electrum.wallet import Standard_Wallet
 from electrum.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
@@ -224,7 +225,14 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
         raw = bh2u(signed_tx)
         tx.update_signatures(raw)
 
-    def show_address(self, wallet, address):
+    def show_address(self, wallet, address, keystore=None):
+        if keystore is None:
+            keystore = wallet.get_keystore()
+        if not self.show_address_helper(wallet, address, keystore):
+            return
+        if type(wallet) is not Standard_Wallet:
+            keystore.handler.show_error(_('This function is only available for standard wallets when using {}.').format(self.device))
+            return
         client = self.get_client(wallet.keystore)
         if not client.atleast_version(1, 3):
             wallet.keystore.handler.show_error(_("Your device firmware is too old"))

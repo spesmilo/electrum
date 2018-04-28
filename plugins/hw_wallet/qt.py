@@ -201,6 +201,7 @@ class QtPluginBase(object):
             handler.button = button
             keystore.handler = handler
             keystore.thread = TaskThread(window, window.on_error)
+            self.add_show_address_on_hw_device_button_for_receive_addr(wallet, keystore, window)
             # Trigger a pairing
             keystore.thread.add(partial(self.get_client, keystore))
 
@@ -218,3 +219,12 @@ class QtPluginBase(object):
 
     def show_settings_dialog(self, window, keystore):
         device_id = self.choose_device(window, keystore)
+
+    def add_show_address_on_hw_device_button_for_receive_addr(self, wallet, keystore, main_window):
+        plugin = keystore.plugin
+        receive_address_e = main_window.receive_address_e
+
+        def show_address():
+            addr = receive_address_e.text()
+            keystore.thread.add(partial(plugin.show_address, wallet, addr, keystore))
+        receive_address_e.addButton(":icons/eye1.png", show_address, _("Show on {}").format(plugin.device))

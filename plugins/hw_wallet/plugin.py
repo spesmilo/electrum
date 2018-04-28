@@ -26,6 +26,7 @@
 
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
+from electrum.bitcoin import is_address
 
 
 class HW_PluginBase(BasePlugin):
@@ -58,3 +59,19 @@ class HW_PluginBase(BasePlugin):
         uninitialized, go through the initialization process.
         """
         raise NotImplementedError()
+
+    def show_address(self, wallet, address, keystore=None):
+        pass  # implemented in child classes
+
+    def show_address_helper(self, wallet, address, keystore=None):
+        if keystore is None:
+            keystore = wallet.get_keystore()
+        if not is_address(address):
+            keystore.handler.show_error(_('Invalid Bitcoin Address'))
+            return False
+        if not wallet.is_mine(address):
+            keystore.handler.show_error(_('Address not in wallet.'))
+            return False
+        if type(keystore) != self.keystore_class:
+            return False
+        return True
