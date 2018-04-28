@@ -516,6 +516,11 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 pass
             elif e.sw == 0x6982:
                 raise  # pin lock. decorator will catch it
+            elif e.sw == 0x6b00:  # hw.1 raises this
+                self.handler.show_error('{}\n{}\n{}'.format(
+                    _('Error showing address') + ':',
+                    e,
+                    _('Your device might not have support for this functionality.')))
             else:
                 traceback.print_exc(file=sys.stderr)
                 self.handler.show_error(e)
