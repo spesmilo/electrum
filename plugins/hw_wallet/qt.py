@@ -227,5 +227,4 @@ class QtPluginBase(object):
         def show_address():
             addr = receive_address_e.text()
             keystore.thread.add(partial(plugin.show_address, wallet, addr, keystore))
-        # TODO icon
-        receive_address_e.addButton(":icons/tab_console.png", show_address, _("Show on {}").format(plugin.device))
+        receive_address_e.addButton(":icons/eye1.png", show_address, _("Show on {}").format(plugin.device))
