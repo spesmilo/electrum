@@ -574,7 +574,7 @@ def deserialize(raw):
 
 
 
-def multisig_script(public_keys, m):
+def multisig_script(public_keys: Sequence[str], m: int) -> str:
     n = len(public_keys)
     assert n <= 15
     assert m <= n
@@ -768,7 +768,7 @@ class Transaction:
                 witness = construct_witness([sig_list[0], pubkeys[0]])
             elif txin['type'] in ['p2wsh', 'p2wsh-p2sh']:
                 witness_script = multisig_script(pubkeys, txin['num_sig'])
-                witness = construct_witness([0, *sig_list, witness_script])
+                witness = construct_witness([0] + sig_list + [witness_script])
             else:
                 raise Exception('wrong txin type:', txin['type'])
         if self.is_txin_complete(txin) or estimate_size:
