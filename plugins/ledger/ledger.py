@@ -9,6 +9,7 @@ from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin
 from electrum_ltc.keystore import Hardware_KeyStore
 from electrum_ltc.transaction import Transaction
+from electrum_ltc.wallet import Standard_Wallet
 from ..hw_wallet import HW_PluginBase
 from electrum_ltc.util import print_error, is_verbose, bfh, bh2u, versiontuple
 
@@ -356,10 +357,17 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 self.give_error("No matching x_key for sign_transaction") # should never happen
 
             redeemScript = Transaction.get_preimage_script(txin)
-            if txin.get('prev_tx') is None:  # and not Transaction.is_segwit_input(txin):
-                # note: offline signing does not work atm even with segwit inputs for ledger
-                raise Exception(_('Offline signing with {} is not supported.').format(self.device))
-            inputs.append([txin['prev_tx'].raw, txin['prevout_n'], redeemScript, txin['prevout_hash'], signingPos, txin.get('sequence', 0xffffffff - 1) ])
+            txin_prev_tx = txin.get('prev_tx')
+            if txin_prev_tx is None and not Transaction.is_segwit_input(txin):
+                raise Exception(_('Offline signing with {} is not supported for legacy inputs.').format(self.device))
+            txin_prev_tx_raw = txin_prev_tx.raw if txin_prev_tx else None
+            inputs.append([txin_prev_tx_raw,
+                           txin['prevout_n'],
+                           redeemScript,
+                           txin['prevout_hash'],
+                           signingPos,
+                           txin.get('sequence', 0xffffffff - 1),
+                           txin.get('value')])
             inputsPaths.append(hwAddress)
             pubKeys.append(pubkeys)
 
@@ -401,10 +409,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
             for utxo in inputs:
                 sequence = int_to_hex(utxo[5], 4)
                 if segwitTransaction:
-                    txtmp = bitcoinTransaction(bfh(utxo[0]))
                     tmp = bfh(utxo[3])[::-1]
                     tmp += bfh(int_to_hex(utxo[1], 4))
-                    tmp += txtmp.outputs[utxo[1]].amount
+                    tmp += bfh(int_to_hex(utxo[6], 8))  # txin['value']
                     chipInputs.append({'value' : tmp, 'witness' : True, 'sequence' : sequence})
                     redeemScripts.append(bfh(utxo[2]))
                 elif not p2shTransaction:
@@ -517,6 +524,11 @@ class Ledger_KeyStore(Hardware_KeyStore):
                 pass
             elif e.sw == 0x6982:
                 raise  # pin lock. decorator will catch it
+            elif e.sw == 0x6b00:  # hw.1 raises this
+                self.handler.show_error('{}\n{}\n{}'.format(
+                    _('Error showing address') + ':',
+                    e,
+                    _('Your device might not have support for this functionality.')))
             else:
                 traceback.print_exc(file=sys.stderr)
                 self.handler.show_error(e)
@@ -598,7 +610,14 @@ class LedgerPlugin(HW_PluginBase):
             client.checkDevice()
         return client
 
-    def show_address(self, wallet, address):
+    def show_address(self, wallet, address, keystore=None):
+        if keystore is None:
+            keystore = wallet.get_keystore()
+        if not self.show_address_helper(wallet, address, keystore):
+            return
+        if type(wallet) is not Standard_Wallet:
+            keystore.handler.show_error(_('This function is only available for standard wallets when using {}.').format(self.device))
+            return
         sequence = wallet.get_address_index(address)
         txin_type = wallet.get_txin_type(address)
-        wallet.get_keystore().show_address(sequence, txin_type)
+        keystore.show_address(sequence, txin_type)
