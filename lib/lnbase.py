@@ -31,7 +31,7 @@ from . import transaction
 from .util import PrintError, bh2u, print_error, bfh, profiler
 from .transaction import opcodes, Transaction
 
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 LocalCtxArgs = namedtuple("LocalCtxArgs",
             ["ctn",
             "funding_pubkey", "remote_funding_pubkey", "remotepubkey",
@@ -289,14 +289,15 @@ def create_ephemeral_key(privkey):
     pub = privkey_to_pubkey(privkey)
     return (privkey[:32], pub)
 
-def get_unused_keys():
-    xprv, xpub = bitcoin.bip32_root(b"testseed", "p2wpkh")
-    for i in itertools.count():
-        childxprv, childxpub = bitcoin.bip32_private_derivation(xprv, "m/", "m/42/"+str(i))
+class KeypairGenerator:
+    def __init__(self, seed):
+        self.xprv, xpub = bitcoin.bip32_root(seed, "p2wpkh")
+    def get(self, keyfamily, index):
+        childxprv, childxpub = bitcoin.bip32_private_derivation(self.xprv, "m/", "m/42'/{keyfamily}'/{index}'".format(keyfamily=keyfamily, index=index))
         _, _, _, _, child_c, child_cK = bitcoin.deserialize_xpub(childxpub)
         _, _, _, _, _, k = bitcoin.deserialize_xprv(childxprv)
         assert len(k) == 32
-        yield child_cK, k
+        return child_cK, k
 
 def aiosafe(f):
     async def f2(*args, **kwargs):
@@ -326,7 +327,9 @@ def derive_pubkey(basepoint, per_commitment_point):
 def derive_privkey(secret, per_commitment_point):
     assert type(secret) is int
     basepoint = point_to_ser(SECP256k1.generator * secret)
-    return secret + bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
+    basepoint = secret + bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
+    basepoint %= SECP256k1.order
+    return basepoint
 
 def derive_blinded_pubkey(basepoint, per_commitment_point):
     k1 = ser_to_point(basepoint) * bitcoin.string_to_number(bitcoin.sha256(basepoint + per_commitment_point))
@@ -503,12 +506,12 @@ class Peer(PrintError):
             "remote_funding_locked",
             "revoke_and_ack",
             "commitment_signed"]
-        self.channel_accepted = {}
-        self.funding_signed = {}
-        self.local_funding_locked = {}
-        self.remote_funding_locked = {}
-        self.revoke_and_ack = {}
-        self.commitment_signed = {}
+        self.channel_accepted = defaultdict(asyncio.Future)
+        self.funding_signed = defaultdict(asyncio.Future)
+        self.local_funding_locked = defaultdict(asyncio.Future)
+        self.remote_funding_locked = defaultdict(asyncio.Future)
+        self.revoke_and_ack = defaultdict(asyncio.Future)
+        self.commitment_signed = defaultdict(asyncio.Future)
         self.initialized = asyncio.Future()
         self.localfeatures = (0x08 if request_initial_sync else 0)
         # view of the network
@@ -707,16 +710,27 @@ class Peer(PrintError):
         self.writer.close()
 
     @aiosafe
-    async def channel_establishment_flow(self, wallet, config, funding_satoshis, push_msat):
+    async def channel_establishment_flow(self, wallet, config, funding_satoshis, push_msat, temp_channel_id, keypair_generator=None):
         await self.initialized
-        temp_channel_id = os.urandom(32)
-        keys = get_unused_keys()
-        funding_pubkey, funding_privkey = next(keys)
-        revocation_basepoint, revocation_privkey = next(keys)
-        htlc_basepoint, htlc_privkey = next(keys)
-        delayed_payment_basepoint, delayed_privkey = next(keys)
-        base_secret = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
-        per_commitment_secret_seed = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100.to_bytes(length=32, byteorder="big")
+
+        if keypair_generator is None:
+            keypair_generator = KeypairGenerator(b"testseed")
+
+        # see lnd/keychain/derivation.go
+        keyfamilymultisig = 0
+        keyfamilyrevocationbase = 1
+        keyfamilyhtlcbase = 2
+        keyfamilypaymentbase = 3
+        keyfamilydelaybase = 4
+        keyfamilyrevocationroot = 5
+        keyfamilynodekey = 6 # TODO currently unused
+
+        funding_pubkey, funding_privkey = keypair_generator.get(keyfamilymultisig, 0)
+        revocation_basepoint, _ = keypair_generator.get(keyfamilyrevocationbase, 0)
+        htlc_basepoint, htlc_privkey = keypair_generator.get(keyfamilyhtlcbase, 0)
+        delayed_payment_basepoint, delayed_privkey = keypair_generator.get(keyfamilydelaybase, 0)
+        base_point, _ = keypair_generator.get(keyfamilypaymentbase, 0)
+        per_commitment_secret_seed = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100.to_bytes(32, "big")
         per_commitment_secret_index = 2**48 - 1
         # amounts
         local_feerate = 20000
@@ -724,7 +738,6 @@ class Peer(PrintError):
         to_self_delay = 144
         ctn = 0
         #
-        base_point = secret_to_pubkey(base_secret)
         per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index)
         per_commitment_point_first = secret_to_pubkey(int.from_bytes(
             per_commitment_secret_first,
@@ -747,7 +760,7 @@ class Peer(PrintError):
             to_self_delay=to_self_delay,
             max_htlc_value_in_flight_msat=500000 * 1000
         )
-        self.channel_accepted[temp_channel_id] = asyncio.Future()
+        #self.channel_accepted[temp_channel_id] = asyncio.Future()
         self.send_message(msg)
         try:
             payload = await self.channel_accepted[temp_channel_id]
@@ -808,7 +821,7 @@ class Peer(PrintError):
         funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
         channel_id = int.from_bytes(funding_txid_bytes, byteorder="big") ^ funding_index
         self.send_message(gen_msg("funding_created", temporary_channel_id=temp_channel_id, funding_txid=funding_txid_bytes, funding_output_index=funding_index, signature=sig_64))
-        self.funding_signed[channel_id] = asyncio.Future()
+        #self.funding_signed[channel_id] = asyncio.Future()
         try:
             payload = await self.funding_signed[channel_id]
         finally:
@@ -828,8 +841,8 @@ class Peer(PrintError):
         if not bitcoin.verify_signature(remote_funding_pubkey, remote_sig, pre_hash):
             raise Exception('verifying remote signature failed.')
         # broadcast funding tx
-        self.local_funding_locked[channel_id] = asyncio.Future()
-        self.remote_funding_locked[channel_id] = asyncio.Future()
+        #self.local_funding_locked[channel_id] = asyncio.Future()
+        #self.remote_funding_locked[channel_id] = asyncio.Future()
         success, _txid = self.network.broadcast(funding_tx)
         assert success, success
         # wait until we see confirmations
@@ -862,7 +875,7 @@ class Peer(PrintError):
         finally:
             del self.remote_funding_locked[channel_id]
         self.print_error('Done waiting for remote_funding_locked', remote_funding_locked_msg)
-        self.commitment_signed[channel_id] = asyncio.Future()
+        #self.commitment_signed[channel_id] = asyncio.Future()
         return channel_id, per_commitment_secret_seed, local_ctx_args, remote_funding_pubkey, remote_funding_locked_msg, remote_revocation_basepoint, remote_htlc_basepoint, htlc_basepoint, delayed_payment_basepoint, revocation_basepoint, remote_delayed_payment_basepoint, remote_delay, remote_dust_limit_satoshis, funding_privkey, htlc_privkey
 
     async def receive_commitment_revoke_ack(self, channel_id, local_per_commitment_secret_seed, local_last_pcs_index, local_ctx_args, expected_received_sat, remote_funding_pubkey, local_next_commitment_number, remote_next_commitment_point, remote_revocation_basepoint, remote_htlc_basepoint, local_htlc_basepoint, delayed_payment_basepoint, revocation_basepoint, remote_delayed_payment_basepoint, remote_delay, remote_dust_limit_satoshis, funding_privkey, payment_preimage, htlc_privkey):
@@ -919,7 +932,8 @@ class Peer(PrintError):
         remote_delayedpubkey = derive_pubkey(remote_delayed_payment_basepoint, remote_next_commitment_point)
         their_local_htlc_pubkey = derive_pubkey(remote_htlc_basepoint, remote_next_commitment_point)
         their_remote_htlc_pubkey = derive_pubkey(local_htlc_basepoint, remote_next_commitment_point)
-        their_remote_htlc_privkey = derive_privkey(int.from_bytes(htlc_privkey, "big"), remote_next_commitment_point).to_bytes(32, "big")
+        their_remote_htlc_privkey_number = derive_privkey(int.from_bytes(htlc_privkey, "big"), remote_next_commitment_point)
+        their_remote_htlc_privkey = their_remote_htlc_privkey_number.to_bytes(32, "big")
         # TODO check payment_hash
         htlcs_in_remote = [(make_offered_htlc(revocation_pubkey, their_remote_htlc_pubkey, their_local_htlc_pubkey, payment_hash), amount_msat)]
         local_payment_pubkey = derive_pubkey(local_ctx_args.base_point, remote_next_commitment_point)
@@ -960,7 +974,7 @@ class Peer(PrintError):
         r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
         htlc_sig = sigencode_string_canonize(r, s, SECP256k1.generator.order())
 
-        self.revoke_and_ack[channel_id] = asyncio.Future()
+        #self.revoke_and_ack[channel_id] = asyncio.Future()
         self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sig))
 
         try:
@@ -992,8 +1006,8 @@ class Peer(PrintError):
         r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
         sig_64 = sigencode_string_canonize(r, s, SECP256k1.generator.order())
 
-        self.revoke_and_ack[channel_id] = asyncio.Future()
-        self.commitment_signed[channel_id] = asyncio.Future() # we will also receive a new commitment transaction shortly after sending ours
+        #self.revoke_and_ack[channel_id] = asyncio.Future()
+        #self.commitment_signed[channel_id] = asyncio.Future() # we will also receive a new commitment transaction shortly after sending ours
         self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=0))
         try:
             revoke_and_ack_msg = await self.revoke_and_ack[channel_id]
@@ -1006,6 +1020,8 @@ class Peer(PrintError):
             commitment_signed_msg = await self.commitment_signed[channel_id]
         finally:
             del self.commitment_signed[channel_id]
+
+        # TODO check commitment_signed results
 
         local_last_per_commitment_secret = get_per_commitment_secret_from_seed(local_per_commitment_secret_seed, local_last_pcs_index - 1)
 
