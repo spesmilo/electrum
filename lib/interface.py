@@ -172,6 +172,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                 # workaround android bug
                 cert = re.sub("([^\n])-----END CERTIFICATE-----","\\1\n-----END CERTIFICATE-----",cert)
                 temporary_path = cert_path + '.temp'
+                util.assert_datadir_available(self.config_path)
                 with open(temporary_path, "w", encoding='utf-8') as f:
                     f.write(cert)
                     f.flush()
@@ -201,6 +202,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                         os.unlink(rej)
                     os.rename(temporary_path, rej)
                 else:
+                    util.assert_datadir_available(self.config_path)
                     with open(cert_path, encoding='utf-8') as f:
                         cert = f.read()
                     try:
