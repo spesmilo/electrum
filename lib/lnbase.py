@@ -448,6 +448,28 @@ def make_received_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, p
         + bitcoin.add_number_to_script(cltv_expiry) \
         + bytes([opcodes.OP_CLTV, opcodes.OP_DROP, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF, opcodes.OP_ENDIF])
 
+def make_commitment_using_open_channel(openchannel, ctn, for_us, pcp, local_sat, remote_sat, htlcs=[]):
+    conf = openchannel.local_config if for_us else openchannel.remote_config
+    other_conf = openchannel.local_config if not for_us else openchannel.remote_config
+    payment_pubkey = derive_pubkey(other_conf.payment_key.pubkey, pcp)
+    remote_revocation_pubkey = derive_blinded_pubkey(other_conf.revocation_key.pubkey, pcp)
+    return make_commitment(
+        ctn,
+        conf.multisig_key.pubkey,
+        other_conf.multisig_key.pubkey,
+        payment_pubkey,
+        openchannel.local_config.payment_key.pubkey,
+        openchannel.remote_config.payment_key.pubkey,
+        remote_revocation_pubkey,
+        derive_pubkey(conf.delayed_key.pubkey, pcp),
+        conf.to_self_delay,
+        *openchannel.funding_outpoint,
+        openchannel.constraints.capacity,
+        local_sat,
+        remote_sat,
+        openchannel.local_config.dust_limit_sat,
+        openchannel.constraints.feerate,
+        for_us, htlcs=htlcs)
 
 def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remote_payment_pubkey,
                     payment_basepoint, remote_payment_basepoint,
@@ -965,23 +987,11 @@ class Peer(PrintError):
             )
         ]
 
-        new_commitment = make_commitment(
-                1,
-                openchannel.local_config.multisig_key.pubkey,
-                openchannel.remote_config.multisig_key.pubkey,
-                derive_pubkey(openchannel.remote_config.payment_key.pubkey, local_next_per_commitment_point),
-                openchannel.local_config.payment_key.pubkey,
-                openchannel.remote_config.payment_key.pubkey,
-                remote_revocation_pubkey,
-                derive_pubkey(delayed_payment_basepoint, local_next_per_commitment_point),
-                openchannel.local_config.to_self_delay,
-                *openchannel.funding_outpoint,
-                openchannel.constraints.capacity,
+        new_commitment = make_commitment_using_open_channel(openchannel, 1, True, local_next_per_commitment_point,
                 openchannel.local_state.amount_sat,
                 openchannel.remote_state.amount_sat - expected_received_sat,
-                openchannel.local_config.dust_limit_sat,
-                openchannel.constraints.feerate,
-                True, htlcs=htlcs_in_local)
+                htlcs_in_local)
+
         preimage_hex = new_commitment.serialize_preimage(0)
         pre_hash = bitcoin.Hash(bfh(preimage_hex))
         if not bitcoin.verify_signature(remote_funding_pubkey, commitment_signed_msg["signature"], pre_hash):
@@ -1059,18 +1069,9 @@ class Peer(PrintError):
 
         remote_next_commitment_point = revoke_and_ack_msg["next_per_commitment_point"]
 
-        revocation_pubkey = derive_blinded_pubkey(revocation_basepoint, remote_next_commitment_point)
-        remote_delayedpubkey = derive_pubkey(remote_delayed_payment_basepoint, remote_next_commitment_point)
-        local_payment_pubkey = derive_pubkey(openchannel.local_config.payment_key.pubkey, remote_next_commitment_point)
         # remote commitment transaction without htlcs
-        bare_ctx = make_commitment(
-            2,
-            remote_funding_pubkey, funding_pubkey, local_payment_pubkey,
-            openchannel.local_config.payment_key.pubkey, openchannel.remote_config.payment_key.pubkey,
-            revocation_pubkey, remote_delayedpubkey, remote_delay,
-            *openchannel.funding_outpoint, openchannel.constraints.capacity,
-            openchannel.remote_state.amount_sat - expected_received_sat, openchannel.local_state.amount_sat + expected_received_sat,
-            remote_dust_limit_sat, openchannel.constraints.feerate, False, htlcs=[])
+        bare_ctx = make_commitment_using_open_channel(openchannel, 2, False, remote_next_commitment_point,
+            openchannel.remote_state.amount_sat - expected_received_sat, openchannel.local_state.amount_sat + expected_received_sat)
 
         bare_ctx.sign({bh2u(funding_pubkey): (funding_privkey, True)})
         sig_index = pubkeys.index(bh2u(funding_pubkey))
