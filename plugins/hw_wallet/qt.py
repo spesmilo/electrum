@@ -93,7 +93,8 @@ class QtHandlerBase(QObject, PrintError):
     def show_error(self, msg, blocking=False):
         self.done.clear()
         self.error_signal.emit(msg, blocking)
-        self.done.wait()
+        if blocking:
+            self.done.wait()
 
     def finished(self):
         self.clear_signal.emit()
