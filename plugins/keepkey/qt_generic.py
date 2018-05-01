@@ -132,11 +132,13 @@ class QtHandler(QtHandlerBase):
 
     char_signal = pyqtSignal(object)
     pin_signal = pyqtSignal(object)
+    close_char_dialog_signal = pyqtSignal()
 
     def __init__(self, win, pin_matrix_widget_class, device):
         super(QtHandler, self).__init__(win, device)
         self.char_signal.connect(self.update_character_dialog)
         self.pin_signal.connect(self.pin_dialog)
+        self.close_char_dialog_signal.connect(self._close_char_dialog)
         self.pin_matrix_widget_class = pin_matrix_widget_class
         self.character_dialog = None
 
@@ -146,9 +148,13 @@ class QtHandler(QtHandlerBase):
         self.done.wait()
         data = self.character_dialog.data
         if not data or 'done' in data:
+            self.close_char_dialog_signal.emit()
+        return data
+
+    def _close_char_dialog(self):
+        if self.character_dialog:
             self.character_dialog.accept()
             self.character_dialog = None
-        return data
 
     def get_pin(self, msg):
         self.done.clear()
