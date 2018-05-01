@@ -125,13 +125,16 @@ class QtHandler(QtHandlerBase):
         self.done.wait()
         data = self.matrix_dialog.data
         if data == 'x':
-            self.close_matrix_dialog_signal.emit()
+            self.close_matrix_dialog()
         return data
 
     def _close_matrix_dialog(self):
         if self.matrix_dialog:
             self.matrix_dialog.accept()
             self.matrix_dialog = None
+
+    def close_matrix_dialog(self):
+        self.close_matrix_dialog_signal.emit()
 
     def pin_dialog(self, msg):
         # Needed e.g. when resetting a device
