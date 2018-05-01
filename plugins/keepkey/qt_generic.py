@@ -5,7 +5,7 @@ from PyQt5.Qt import Qt
 from PyQt5.Qt import QGridLayout, QInputDialog, QPushButton
 from PyQt5.Qt import QVBoxLayout, QLabel
 from electrum_gui.qt.util import *
-from .plugin import TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
+from .keepkey import TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 
 from electrum.i18n import _
