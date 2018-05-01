@@ -462,7 +462,7 @@ def make_commitment_using_open_channel(openchannel, ctn, for_us, pcp, local_sat,
         openchannel.remote_config.payment_key.pubkey,
         remote_revocation_pubkey,
         derive_pubkey(conf.delayed_key.pubkey, pcp),
-        conf.to_self_delay,
+        other_conf.to_self_delay,
         *openchannel.funding_outpoint,
         openchannel.constraints.capacity,
         local_sat,
@@ -768,7 +768,7 @@ class Peer(PrintError):
         per_commitment_secret_index = 2**48 - 1
         # amounts
         local_feerate = 20000
-        to_self_delay = 144
+        to_self_delay = 143
         dust_limit_sat = 10
         #
         per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index)
@@ -846,7 +846,7 @@ class Peer(PrintError):
             0,
             remote_funding_pubkey, funding_key.pubkey, local_payment_pubkey,
             base_point.pubkey, remote_payment_basepoint,
-            revocation_pubkey, remote_delayedpubkey, remote_delay,
+            revocation_pubkey, remote_delayedpubkey, to_self_delay,
             funding_txid, funding_index, funding_sat,
             remote_amount, local_amount, remote_dust_limit_sat, local_feerate, False, htlcs=[])
         remote_ctx.sign({bh2u(funding_key.pubkey): (funding_key.privkey, True)})
@@ -869,7 +869,7 @@ class Peer(PrintError):
             0,
             funding_key.pubkey, remote_funding_pubkey, remote_payment_pubkey,
             base_point.pubkey, remote_payment_basepoint,
-            remote_revocation_pubkey, local_delayedpubkey, to_self_delay,
+            remote_revocation_pubkey, local_delayedpubkey, remote_delay,
             funding_txid, funding_index, funding_sat,
             local_amount, remote_amount, dust_limit_sat, local_feerate, True, htlcs=[])
         pre_hash = bitcoin.Hash(bfh(local_ctx.serialize_preimage(0)))
@@ -1048,7 +1048,7 @@ class Peer(PrintError):
                 local_delayedpubkey=remote_delayedpubkey,
                 amount_msat=amount_msat,
                 witness_script=bh2u(preimage_script))
-        htlc_tx = make_htlc_tx(cltv_expiry, inputs=htlc_tx_inputs, output=htlc_tx_output)
+        htlc_tx = make_htlc_tx(remote_delay, inputs=htlc_tx_inputs, output=htlc_tx_output)
 
         # htlc_sig signs the HTLC transaction that spends from THEIR commitment transaction's offered_htlc output
         sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
