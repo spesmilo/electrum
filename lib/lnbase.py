@@ -507,14 +507,22 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remote_pay
     c_outputs = [to_local, to_remote]
     for script, msat_amount in htlcs:
         c_outputs += [(bitcoin.TYPE_ADDRESS, bitcoin.redeem_script_to_address('p2wsh', bh2u(script)), msat_amount // 1000)]
+
     # trim outputs
-    c_outputs = list(filter(lambda x:x[2]>= dust_limit_sat, c_outputs))
+    c_outputs_filtered = list(filter(lambda x:x[2]>= dust_limit_sat, c_outputs))
     assert sum(x[2] for x in c_outputs) <= funding_sat
 
     # create commitment tx
-    tx = Transaction.from_io(c_inputs, c_outputs, locktime=locktime, version=2)
+    tx = Transaction.from_io(c_inputs, c_outputs_filtered, locktime=locktime, version=2)
     tx.BIP_LI01_sort()
-    return tx
+
+    htlc_output_indices = {}
+    for idx, output in enumerate(c_outputs):
+        if output in tx.outputs():
+            # minus the first two outputs (to_local, to_remote)
+            htlc_output_indices[idx - 2] = tx.outputs().index(output)
+
+    return tx, {i: Outpoint(tx.txid(), j) for i, j in htlc_output_indices.items()}
 
 
 class Peer(PrintError):
@@ -834,7 +842,7 @@ class Peer(PrintError):
         local_amount = to_local_msat // 1000
         remote_amount = to_remote_msat // 1000
         # remote commitment transaction
-        remote_ctx = make_commitment(
+        remote_ctx, _ = make_commitment(
             0,
             remote_funding_pubkey, funding_key.pubkey, local_payment_pubkey,
             base_point.pubkey, remote_payment_basepoint,
@@ -857,7 +865,7 @@ class Peer(PrintError):
         self.print_error('received funding_signed')
         remote_sig = payload['signature']
         # verify remote signature
-        local_ctx = make_commitment(
+        local_ctx, _ = make_commitment(
             0,
             funding_key.pubkey, remote_funding_pubkey, remote_payment_pubkey,
             base_point.pubkey, remote_payment_basepoint,
@@ -987,7 +995,7 @@ class Peer(PrintError):
             )
         ]
 
-        new_commitment = make_commitment_using_open_channel(openchannel, 1, True, local_next_per_commitment_point,
+        new_commitment, _ = make_commitment_using_open_channel(openchannel, 1, True, local_next_per_commitment_point,
                 openchannel.local_state.amount_sat,
                 openchannel.remote_state.amount_sat - expected_received_sat,
                 htlcs_in_local)
@@ -1010,29 +1018,22 @@ class Peer(PrintError):
 
         funding_pubkey = openchannel.local_config.multisig_key.pubkey
         pubkeys = sorted([bh2u(funding_pubkey), bh2u(remote_funding_pubkey)])
-        revocation_pubkey = derive_blinded_pubkey(revocation_basepoint, remote_next_commitment_point)
-        remote_delayedpubkey = derive_pubkey(remote_delayed_payment_basepoint, remote_next_commitment_point)
         their_local_htlc_pubkey = derive_pubkey(remote_htlc_basepoint, remote_next_commitment_point)
         their_remote_htlc_pubkey = derive_pubkey(local_htlc_basepoint, remote_next_commitment_point)
         their_remote_htlc_privkey_number = derive_privkey(int.from_bytes(htlc_privkey, "big"), remote_next_commitment_point)
         their_remote_htlc_privkey = their_remote_htlc_privkey_number.to_bytes(32, "big")
         # TODO check payment_hash
+        revocation_pubkey = derive_blinded_pubkey(revocation_basepoint, remote_next_commitment_point)
         htlcs_in_remote = [(make_offered_htlc(revocation_pubkey, their_remote_htlc_pubkey, their_local_htlc_pubkey, payment_hash), amount_msat)]
-        local_payment_pubkey = derive_pubkey(openchannel.local_config.payment_key.pubkey, remote_next_commitment_point)
-        remote_ctx = make_commitment(
-            1,
-            remote_funding_pubkey, funding_pubkey, local_payment_pubkey,
-            openchannel.local_config.payment_key.pubkey, openchannel.remote_config.payment_key.pubkey,
-            revocation_pubkey, remote_delayedpubkey, remote_delay,
-            *openchannel.funding_outpoint, openchannel.constraints.capacity,
-            openchannel.remote_state.amount_sat - expected_received_sat, openchannel.local_state.amount_sat, remote_dust_limit_sat,
-            openchannel.constraints.feerate, False, htlcs=htlcs_in_remote)
+        remote_ctx, htlc_outpoints = make_commitment_using_open_channel(openchannel, 1, False, remote_next_commitment_point,
+            openchannel.remote_state.amount_sat - expected_received_sat, openchannel.local_state.amount_sat, htlcs_in_remote)
         remote_ctx.sign({bh2u(funding_pubkey): (funding_privkey, True)})
         sig_index = pubkeys.index(bh2u(funding_pubkey))
         sig = bytes.fromhex(remote_ctx.inputs()[0]["signatures"][sig_index])
         r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
         sig_64 = sigencode_string_canonize(r, s, SECP256k1.generator.order())
 
+        remote_delayedpubkey = derive_pubkey(remote_delayed_payment_basepoint, remote_next_commitment_point)
         htlc_tx_output = make_htlc_tx_output(
                 amount_msat = amount_msat,
                 local_feerate = openchannel.constraints.feerate,
@@ -1042,15 +1043,14 @@ class Peer(PrintError):
         preimage_script = htlcs_in_remote[0][0]
         htlc_output_txid = remote_ctx.txid()
         htlc_tx_inputs = make_htlc_tx_inputs(
-                htlc_output_txid=htlc_output_txid,
-                htlc_output_index=1, # TODO find index of htlc output in remote_ctx
+                *htlc_outpoints[0],
                 revocationpubkey=revocation_pubkey,
                 local_delayedpubkey=remote_delayedpubkey,
                 amount_msat=amount_msat,
                 witness_script=bh2u(preimage_script))
         htlc_tx = make_htlc_tx(cltv_expiry, inputs=htlc_tx_inputs, output=htlc_tx_output)
 
-        # htlc_sig signs the HTLC transaction that spends from THEIR commitment transaction's received_htlc output
+        # htlc_sig signs the HTLC transaction that spends from THEIR commitment transaction's offered_htlc output
         sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
         r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
         htlc_sig = sigencode_string_canonize(r, s, SECP256k1.generator.order())
@@ -1070,7 +1070,7 @@ class Peer(PrintError):
         remote_next_commitment_point = revoke_and_ack_msg["next_per_commitment_point"]
 
         # remote commitment transaction without htlcs
-        bare_ctx = make_commitment_using_open_channel(openchannel, 2, False, remote_next_commitment_point,
+        bare_ctx, _ = make_commitment_using_open_channel(openchannel, 2, False, remote_next_commitment_point,
             openchannel.remote_state.amount_sat - expected_received_sat, openchannel.local_state.amount_sat + expected_received_sat)
 
         bare_ctx.sign({bh2u(funding_pubkey): (funding_privkey, True)})
