@@ -28,127 +28,16 @@ PASSPHRASE_NOT_PIN = _(
     "If you forget a passphrase you will be unable to access any "
     "bitcoins in the wallet behind it.  A passphrase is not a PIN. "
     "Only change this if you are sure you understand it.")
-CHARACTER_RECOVERY = (
-    "Use the recovery cipher shown on your device to input your seed words.  "
-    "The cipher changes with every keypress.\n"
-    "After at most 4 letters the device will auto-complete a word.\n"
-    "Press SPACE or the Accept Word button to accept the device's auto-"
-    "completed word and advance to the next one.\n"
-    "Press BACKSPACE to go back a character or word.\n"
-    "Press ENTER or the Seed Entered button once the last word in your "
-    "seed is auto-completed.")
-
-class CharacterButton(QPushButton):
-    def __init__(self, text=None):
-        QPushButton.__init__(self, text)
-
-    def keyPressEvent(self, event):
-        event.setAccepted(False)   # Pass through Enter and Space keys
-
-
-class CharacterDialog(WindowModalDialog):
-
-    def __init__(self, parent):
-        super(CharacterDialog, self).__init__(parent)
-        self.setWindowTitle(_("KeepKey Seed Recovery"))
-        self.character_pos = 0
-        self.word_pos = 0
-        self.loop = QEventLoop()
-        self.word_help = QLabel()
-        self.char_buttons = []
-
-        vbox = QVBoxLayout(self)
-        vbox.addWidget(WWLabel(CHARACTER_RECOVERY))
-        hbox = QHBoxLayout()
-        hbox.addWidget(self.word_help)
-        for i in range(4):
-            char_button = CharacterButton('*')
-            char_button.setMaximumWidth(36)
-            self.char_buttons.append(char_button)
-            hbox.addWidget(char_button)
-        self.accept_button = CharacterButton(_("Accept Word"))
-        self.accept_button.clicked.connect(partial(self.process_key, 32))
-        self.rejected.connect(partial(self.loop.exit, 1))
-        hbox.addWidget(self.accept_button)
-        hbox.addStretch(1)
-        vbox.addLayout(hbox)
-
-        self.finished_button = QPushButton(_("Seed Entered"))
-        self.cancel_button = QPushButton(_("Cancel"))
-        self.finished_button.clicked.connect(partial(self.process_key,
-                                                     Qt.Key_Return))
-        self.cancel_button.clicked.connect(self.rejected)
-        buttons = Buttons(self.finished_button, self.cancel_button)
-        vbox.addSpacing(40)
-        vbox.addLayout(buttons)
-        self.refresh()
-        self.show()
-
-    def refresh(self):
-        self.word_help.setText("Enter seed word %2d:" % (self.word_pos + 1))
-        self.accept_button.setEnabled(self.character_pos >= 3)
-        self.finished_button.setEnabled((self.word_pos in (11, 17, 23)
-                                         and self.character_pos >= 3))
-        for n, button in enumerate(self.char_buttons):
-            button.setEnabled(n == self.character_pos)
-            if n == self.character_pos:
-                button.setFocus()
-
-    def is_valid_alpha_space(self, key):
-        # Auto-completion requires at least 3 characters
-        if key == ord(' ') and self.character_pos >= 3:
-            return True
-        # Firmware aborts protocol if the 5th character is non-space
-        if self.character_pos >= 4:
-            return False
-        return (key >= ord('a') and key <= ord('z')
-                or (key >= ord('A') and key <= ord('Z')))
-
-    def process_key(self, key):
-        self.data = None
-        if key == Qt.Key_Return and self.finished_button.isEnabled():
-            self.data = {'done': True}
-        elif key == Qt.Key_Backspace and (self.word_pos or self.character_pos):
-            self.data = {'delete': True}
-        elif self.is_valid_alpha_space(key):
-            self.data = {'character': chr(key).lower()}
-        if self.data:
-            self.loop.exit(0)
-
-    def keyPressEvent(self, event):
-        self.process_key(event.key())
-        if not self.data:
-            QDialog.keyPressEvent(self, event)
-
-    def get_char(self, word_pos, character_pos):
-        self.word_pos = word_pos
-        self.character_pos = character_pos
-        self.refresh()
-        if self.loop.exec_():
-            self.data = None  # User cancelled
 
 
 class QtHandler(QtHandlerBase):
 
-    char_signal = pyqtSignal(object)
     pin_signal = pyqtSignal(object)
 
     def __init__(self, win, pin_matrix_widget_class, device):
         super(QtHandler, self).__init__(win, device)
-        self.char_signal.connect(self.update_character_dialog)
         self.pin_signal.connect(self.pin_dialog)
         self.pin_matrix_widget_class = pin_matrix_widget_class
-        self.character_dialog = None
-
-    def get_char(self, msg):
-        self.done.clear()
-        self.char_signal.emit(msg)
-        self.done.wait()
-        data = self.character_dialog.data
-        if not data or 'done' in data:
-            self.character_dialog.accept()
-            self.character_dialog = None
-        return data
 
     def get_pin(self, msg):
         self.done.clear()
@@ -169,13 +58,6 @@ class QtHandler(QtHandlerBase):
         dialog.exec_()
         self.response = str(matrix.get_value())
         self.done.set()
-
-    def update_character_dialog(self, msg):
-        if not self.character_dialog:
-            self.character_dialog = CharacterDialog(self.top_level_window())
-        self.character_dialog.get_char(msg.word_pos, msg.character_pos)
-        self.done.set()
-
 
 
 class QtPlugin(QtPluginBase):
@@ -221,9 +103,7 @@ class QtPlugin(QtPluginBase):
             gb = QGroupBox()
             hbox1 = QHBoxLayout()
             gb.setLayout(hbox1)
-            # KeepKey recovery doesn't need a word count
-            if method == TIM_NEW or self.device == 'TREZOR':
-                vbox.addWidget(gb)
+            vbox.addWidget(gb)
             gb.setTitle(_("Select your seed length:"))
             bg = QButtonGroup()
             for i, count in enumerate([12, 18, 24]):
