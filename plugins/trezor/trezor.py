@@ -217,14 +217,13 @@ class TrezorPlugin(HW_PluginBase):
         item, label, pin_protection, passphrase_protection = settings
 
         if method == TIM_RECOVER:
-            # FIXME the PIN prompt will appear over this message
-            # which makes this unreadable
             handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
                 "seed's actual length.  If you enter a word incorrectly or "
                 "misspell it, you cannot change it or go back - you will need "
                 "to start again from the beginning.\n\nSo please enter "
-                "the words carefully!"))
+                "the words carefully!"),
+                blocking=True)
 
         language = 'english'
         devmgr = self.device_manager()
