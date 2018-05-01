@@ -85,11 +85,11 @@ class GuiMixin(object):
 
     def callback_WordRequest(self, msg):
         if (msg.type is not None
-            and msg.type in (self.types.WordRequestType_Matrix9,
-                             self.types.WordRequestType_Matrix6)):
-            num = 9 if msg.type == self.types.WordRequestType_Matrix9 else 6
+            and msg.type in (self.types.WordRequestType.Matrix9,
+                             self.types.WordRequestType.Matrix6)):
+            num = 9 if msg.type == self.types.WordRequestType.Matrix9 else 6
             char = self.handler.get_matrix(num)
-            if (char == 'x'):
+            if char == 'x':
                 return self.proto.Cancel()
             return self.proto.WordAck(word=char)
 
