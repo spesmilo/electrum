@@ -2,7 +2,7 @@ from binascii import hexlify, unhexlify
 import traceback
 import sys
 
-from electrum.util import bfh, bh2u, versiontuple
+from electrum.util import bfh, bh2u, versiontuple, UserCancelled
 from electrum.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
                               TYPE_ADDRESS, TYPE_SCRIPT, is_address)
 from electrum import constants
@@ -207,6 +207,8 @@ class TrezorPlugin(HW_PluginBase):
     def _initialize_device_safe(self, settings, method, device_id, wizard, handler):
         try:
             self._initialize_device(settings, method, device_id, wizard, handler)
+        except UserCancelled:
+            pass
         except BaseException as e:
             traceback.print_exc(file=sys.stderr)
             handler.show_error(str(e))
