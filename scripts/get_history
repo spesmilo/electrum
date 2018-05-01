@@ -3,7 +3,7 @@
 import sys
 from electroncash import Network
 from electroncash.util import json_encode, print_msg
-from electroncash import bitcoin
+from electroncash.address import Address
 
 try:
     addr = sys.argv[1]
@@ -13,6 +13,6 @@ except Exception:
 
 n = Network()
 n.start()
-_hash = bitcoin.address_to_scripthash(addr)
-h = n.synchronous_get(('blockchain.scripthash.get_history',[_hash]))
+sh = Address.from_string(addr).to_scripthash_hex()
+h = n.synchronous_get(('blockchain.scripthash.get_history',[sh]))
 print_msg(json_encode(h))

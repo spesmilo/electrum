@@ -8,9 +8,9 @@ from lib.bitcoin import (
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
     is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
-    var_int, op_push, address_to_script, regenerate_key,
+    var_int, op_push, regenerate_key,
     verify_message, deserialize_privkey, serialize_privkey,
-    address_to_scripthash, is_minikey, is_compressed, is_xpub,
+    is_minikey, is_compressed, is_xpub,
     xpub_type, is_xprv, is_bip32_derivation, seed_type)
 from lib.networks import NetworkConstants
 from lib.util import bfh
@@ -147,15 +147,6 @@ class Test_bitcoin(unittest.TestCase):
         self.assertEqual(op_push(0x10000), '4e00000100')
         self.assertEqual(op_push(0x12345678), '4e78563412')
 
-    def test_address_to_script(self):
-        # base58 P2PKH
-        self.assertEqual(address_to_script('14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG'), '76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac')
-        self.assertEqual(address_to_script('1BEqfzh4Y3zzLosfGhw1AsqbEKVW6e1qHv'), '76a914704f4b81cadb7bf7e68c08cd3657220f680f863c88ac')
-
-        # base58 P2SH
-        self.assertEqual(address_to_script('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), 'a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487')
-        self.assertEqual(address_to_script('3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji'), 'a914f47c8954e421031ad04ecd8e7752c9479206b9d387')
-
 
 class Test_bitcoin_testnet(unittest.TestCase):
 
@@ -168,15 +159,6 @@ class Test_bitcoin_testnet(unittest.TestCase):
     def tearDownClass(cls):
         super().tearDownClass()
         NetworkConstants.set_mainnet()
-
-    def test_address_to_script(self):
-        # base58 P2PKH
-        self.assertEqual(address_to_script('mutXcGt1CJdkRvXuN2xoz2quAAQYQ59bRX'), '76a9149da64e300c5e4eb4aaffc9c2fd465348d5618ad488ac')
-        self.assertEqual(address_to_script('miqtaRTkU3U8rzwKbEHx3g8FSz8GJtPS3K'), '76a914247d2d5b6334bdfa2038e85b20fc15264f8e5d2788ac')
-
-        # base58 P2SH
-        self.assertEqual(address_to_script('2N3LSvr3hv5EVdfcrxg2Yzecf3SRvqyBE4p'), 'a9146eae23d8c4a941316017946fc761a7a6c85561fb87')
-        self.assertEqual(address_to_script('2NE4ZdmxFmUgwu5wtfoN2gVniyMgRDYq1kk'), 'a914e4567743d378957cd2ee7072da74b1203c1a7a0b87')
 
 
 class Test_xprv_xpub(unittest.TestCase):
@@ -309,7 +291,8 @@ class Test_keyImport(unittest.TestCase):
 
     def test_address_to_scripthash(self):
         for priv_details in self.priv_pub_addr:
-            sh = address_to_scripthash(priv_details['address'])
+            addr = Address.from_string(priv_details['address'])
+            sh = addr.to_scripthash_hex()
             self.assertEqual(priv_details['scripthash'], sh)
 
     def test_is_minikey(self):
