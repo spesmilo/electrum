@@ -102,9 +102,6 @@ class KeepKeyPlugin(HW_PluginBase):
         from keepkeylib.transport_hid import HidTransport
         return HidTransport(pair)
 
-    def bridge_transport(self, d):
-        raise NotImplementedError('')
-
     def _try_hid(self, device):
         self.print_error("Trying to connect over USB...")
         if device.interface_number == 1:
@@ -120,17 +117,7 @@ class KeepKeyPlugin(HW_PluginBase):
             self.print_error("cannot connect at", device.path, str(e))
             return None
 
-    def _try_bridge(self, device):
-        self.print_error("Trying to connect over Trezor Bridge...")
-        try:
-            return self.bridge_transport({'path': hexlify(device.path)})
-        except BaseException as e:
-            self.print_error("cannot connect to bridge", str(e))
-            return None
-
     def create_client(self, device, handler):
-        # disable bridge because it seems to never returns if KeepKey is plugged
-        #transport = self._try_bridge(device) or self._try_hid(device)
         transport = self._try_hid(device)
         if not transport:
             self.print_error("cannot connect to device")
