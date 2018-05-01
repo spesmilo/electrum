@@ -10,17 +10,13 @@ from PyQt5.QtWidgets import *
 
 from electrum import Wallet, WalletStorage
 from electrum.util import UserCancelled, InvalidPassword
-from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET
+from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum.i18n import _
 
 from .seed_dialog import SeedLayout, KeysLayout
 from .network_dialog import NetworkChoiceLayout
 from .util import *
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
-
-
-class GoBack(Exception):
-    pass
 
 
 MSG_ENTER_PASSWORD = _("Choose a password to encrypt your wallet keys.") + '\n'\
