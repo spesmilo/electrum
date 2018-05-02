@@ -516,13 +516,13 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remote_pay
     tx = Transaction.from_io(c_inputs, c_outputs_filtered, locktime=locktime, version=2)
     tx.BIP_LI01_sort()
 
-    htlc_output_indices = {}
+    tx.htlc_output_indices = {}
     for idx, output in enumerate(c_outputs):
         if output in tx.outputs():
             # minus the first two outputs (to_local, to_remote)
-            htlc_output_indices[idx - 2] = tx.outputs().index(output)
+            tx.htlc_output_indices[idx - 2] = tx.outputs().index(output)
 
-    return tx, {i: Outpoint(tx.txid(), j) for i, j in htlc_output_indices.items()}
+    return tx
 
 
 class Peer(PrintError):
@@ -842,7 +842,7 @@ class Peer(PrintError):
         local_amount = to_local_msat // 1000
         remote_amount = to_remote_msat // 1000
         # remote commitment transaction
-        remote_ctx, _ = make_commitment(
+        remote_ctx = make_commitment(
             0,
             remote_funding_pubkey, funding_key.pubkey, local_payment_pubkey,
             base_point.pubkey, remote_payment_basepoint,
@@ -865,7 +865,7 @@ class Peer(PrintError):
         self.print_error('received funding_signed')
         remote_sig = payload['signature']
         # verify remote signature
-        local_ctx, _ = make_commitment(
+        local_ctx = make_commitment(
             0,
             funding_key.pubkey, remote_funding_pubkey, remote_payment_pubkey,
             base_point.pubkey, remote_payment_basepoint,
@@ -995,7 +995,7 @@ class Peer(PrintError):
             )
         ]
 
-        new_commitment, _ = make_commitment_using_open_channel(openchannel, 1, True, local_next_per_commitment_point,
+        new_commitment = make_commitment_using_open_channel(openchannel, 1, True, local_next_per_commitment_point,
                 openchannel.local_state.amount_sat,
                 openchannel.remote_state.amount_sat - expected_received_sat,
                 htlcs_in_local)
@@ -1025,7 +1025,7 @@ class Peer(PrintError):
         # TODO check payment_hash
         revocation_pubkey = derive_blinded_pubkey(revocation_basepoint, remote_next_commitment_point)
         htlcs_in_remote = [(make_offered_htlc(revocation_pubkey, their_remote_htlc_pubkey, their_local_htlc_pubkey, payment_hash), amount_msat)]
-        remote_ctx, htlc_outpoints = make_commitment_using_open_channel(openchannel, 1, False, remote_next_commitment_point,
+        remote_ctx = make_commitment_using_open_channel(openchannel, 1, False, remote_next_commitment_point,
             openchannel.remote_state.amount_sat - expected_received_sat, openchannel.local_state.amount_sat, htlcs_in_remote)
         remote_ctx.sign({bh2u(funding_pubkey): (funding_privkey, True)})
         sig_index = pubkeys.index(bh2u(funding_pubkey))
@@ -1043,7 +1043,7 @@ class Peer(PrintError):
         preimage_script = htlcs_in_remote[0][0]
         htlc_output_txid = remote_ctx.txid()
         htlc_tx_inputs = make_htlc_tx_inputs(
-                *htlc_outpoints[0],
+                remote_ctx.txid(), remote_ctx.htlc_output_indices[0],
                 revocationpubkey=revocation_pubkey,
                 local_delayedpubkey=remote_delayedpubkey,
                 amount_msat=amount_msat,
@@ -1070,7 +1070,7 @@ class Peer(PrintError):
         remote_next_commitment_point = revoke_and_ack_msg["next_per_commitment_point"]
 
         # remote commitment transaction without htlcs
-        bare_ctx, _ = make_commitment_using_open_channel(openchannel, 2, False, remote_next_commitment_point,
+        bare_ctx = make_commitment_using_open_channel(openchannel, 2, False, remote_next_commitment_point,
             openchannel.remote_state.amount_sat - expected_received_sat, openchannel.local_state.amount_sat + expected_received_sat)
 
         bare_ctx.sign({bh2u(funding_pubkey): (funding_privkey, True)})
