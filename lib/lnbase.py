@@ -768,7 +768,7 @@ class Peer(PrintError):
         per_commitment_secret_index = 2**48 - 1
         # amounts
         local_feerate = 20000
-        to_self_delay = 143
+        to_self_delay = 144
         dust_limit_sat = 10
         #
         per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index)
@@ -1048,7 +1048,7 @@ class Peer(PrintError):
                 local_delayedpubkey=remote_delayedpubkey,
                 amount_msat=amount_msat,
                 witness_script=bh2u(preimage_script))
-        htlc_tx = make_htlc_tx(remote_delay, inputs=htlc_tx_inputs, output=htlc_tx_output)
+        htlc_tx = make_htlc_tx(cltv_expiry, inputs=htlc_tx_inputs, output=htlc_tx_output)
 
         # htlc_sig signs the HTLC transaction that spends from THEIR commitment transaction's offered_htlc output
         sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
