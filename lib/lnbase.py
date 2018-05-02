@@ -65,7 +65,7 @@ def handlesingle(x, ma):
     try:
         x = int(x)
     except ValueError:
-        x = int.from_bytes(x, byteorder="big")
+        x = int.from_bytes(x, byteorder='big')
     return x
 
 def calcexp(exp, ma):
@@ -132,7 +132,7 @@ for k in structured:
     except ValueError:
         #print("skipping", k)
         continue
-    byts = num.to_bytes(byteorder="big",length=2)
+    byts = num.to_bytes(2, 'big')
     assert byts not in message_types, (byts, message_types[byts].__name__, k)
     names = [x.__name__ for x in message_types.values()]
     assert k + "_handler" not in names, (k, names)
@@ -158,7 +158,7 @@ def gen_msg(msg_type, **kwargs):
     of the type given in the msg_type string
     """
     typ = structured[msg_type]
-    data = int(typ["type"]).to_bytes(byteorder="big", length=2)
+    data = int(typ["type"]).to_bytes(2, 'big')
     lengths = {}
     for k in typ["payload"]:
         poslenMap = typ["payload"][k]
@@ -177,7 +177,7 @@ def gen_msg(msg_type, **kwargs):
         try:
             if not isinstance(param, bytes):
                 assert isinstance(param, int), "field {} is neither bytes or int".format(k)
-                param = param.to_bytes(length=leng, byteorder="big")
+                param = param.to_bytes(leng, 'big')
         except ValueError:
             raise Exception("{} does not fit in {} bytes".format(k, leng))
         lengths[k] = len(param)
@@ -185,13 +185,6 @@ def gen_msg(msg_type, **kwargs):
             raise Exception("field {} is {} bytes long, should be {} bytes long".format(k, lengths[k], leng))
         data += param
     return data
-
-def encode(n, s):
-    """Return a bytestring version of the integer
-    value n, with a string length of s
-    """
-    return n.to_bytes(length=s, byteorder="big")
-
 
 def H256(data):
     return hashlib.sha256(data).digest()
@@ -215,13 +208,7 @@ def get_nonce_bytes(n):
     """BOLT 8 requires the nonce to be 12 bytes, 4 bytes leading
     zeroes and 8 bytes little endian encoded 64 bit integer.
     """
-    nb = b"\x00"*4
-    #Encode the integer as an 8 byte byte-string
-    nb2 = encode(n, 8)
-    nb2 = bytearray(nb2)
-    #Little-endian is required here
-    nb2.reverse()
-    return nb + nb2
+    return b"\x00"*4 + n.to_bytes(8, 'little')
 
 def aead_encrypt(k, nonce, associated_data, data):
     nonce_bytes = get_nonce_bytes(nonce)
@@ -306,7 +293,7 @@ def aiosafe(f):
     return f2
 
 def get_obscured_ctn(ctn, local, remote):
-    mask = int.from_bytes(H256(local + remote)[-6:], byteorder="big")
+    mask = int.from_bytes(H256(local + remote)[-6:], 'big')
     return ctn ^ mask
 
 def secret_to_pubkey(secret):
@@ -555,7 +542,7 @@ class Peer(PrintError):
     def send_message(self, msg):
         message_type, payload = decode_msg(msg)
         self.print_error("Sending '%s'"%message_type.upper(), payload)
-        l = encode(len(msg), 2)
+        l = len(msg).to_bytes(2, 'big')
         lc = aead_encrypt(self.sk, self.sn(), b'', l)
         c = aead_encrypt(self.sk, self.sn(), b'', msg)
         assert len(lc) == 18
@@ -574,7 +561,7 @@ class Peer(PrintError):
                 continue
             lc = self.read_buffer[:18]
             l = aead_decrypt(rk_l, rn_l, b'', lc)
-            length = int.from_bytes(l, byteorder="big")
+            length = int.from_bytes(l, 'big')
             offset = 18 + length + 16
             if len(self.read_buffer) < offset:
                 continue
@@ -653,18 +640,18 @@ class Peer(PrintError):
         self.print_error("no future found to resolve", payload)
 
     def on_ping(self, payload):
-        l = int.from_bytes(payload['num_pong_bytes'], byteorder="big")
+        l = int.from_bytes(payload['num_pong_bytes'], 'big')
         self.send_message(gen_msg('pong', byteslen=l))
 
     def on_accept_channel(self, payload):
         self.channel_accepted[payload["temporary_channel_id"]].set_result(payload)
 
     def on_funding_signed(self, payload):
-        channel_id = int.from_bytes(payload['channel_id'], byteorder="big")
+        channel_id = int.from_bytes(payload['channel_id'], 'big')
         self.funding_signed[channel_id].set_result(payload)
 
     def on_funding_locked(self, payload):
-        channel_id = int.from_bytes(payload['channel_id'], byteorder="big")
+        channel_id = int.from_bytes(payload['channel_id'], 'big')
         self.remote_funding_locked[channel_id].set_result(payload)
 
     def on_node_announcement(self, payload):
@@ -684,12 +671,12 @@ class Peer(PrintError):
                 pass
             elif atype == 1:
                 ipv4_addr = '.'.join(map(lambda x: '%d'%x, read(4)))
-                port = int.from_bytes(read(2), byteorder="big")
+                port = int.from_bytes(read(2), 'big')
                 x = ipv4_addr, port, binascii.hexlify(pubkey)
                 addresses.append((ipv4_addr, port))
             elif atype == 2:
                 ipv6_addr = b':'.join([binascii.hexlify(read(2)) for i in range(4)])
-                port = int.from_bytes(read(2), byteorder="big")
+                port = int.from_bytes(read(2), 'big')
                 addresses.append((ipv6_addr, port))
             else:
                 pass
@@ -759,13 +746,11 @@ class Peer(PrintError):
             max_accepted_htlcs=5
         )
         # TODO derive this?
-        per_commitment_secret_seed = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100.to_bytes(32, "big")
+        per_commitment_secret_seed = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100.to_bytes(32, 'big')
         per_commitment_secret_index = 2**48 - 1
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index)
-        per_commitment_point_first = secret_to_pubkey(int.from_bytes(
-            per_commitment_secret_first,
-            byteorder="big"))
+        per_commitment_point_first = secret_to_pubkey(int.from_bytes(per_commitment_secret_first, 'big'))
         msg = gen_msg(
             "open_channel",
             temporary_channel_id=temp_channel_id,
@@ -796,15 +781,15 @@ class Peer(PrintError):
             htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
             delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
             revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
-            to_self_delay=int.from_bytes(payload['to_self_delay'], byteorder="big"),
-            dust_limit_sat=int.from_bytes(payload['dust_limit_satoshis'], byteorder="big"),
-            max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], "big"),
+            to_self_delay=int.from_bytes(payload['to_self_delay'], byteorder='big'),
+            dust_limit_sat=int.from_bytes(payload['dust_limit_satoshis'], byteorder='big'),
+            max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'),
             max_accepted_htlcs=payload["max_accepted_htlcs"]
         )
-        funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], byteorder="big")
+        funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], 'big')
         print('remote dust limit', remote_config.dust_limit_sat)
         assert remote_config.dust_limit_sat < 600
-        assert int.from_bytes(payload['htlc_minimum_msat'], "big") < 600 * 1000
+        assert int.from_bytes(payload['htlc_minimum_msat'], 'big') < 600 * 1000
         assert remote_config.max_htlc_value_in_flight_msat >= 500 * 1000 * 1000, remote_config.max_htlc_value_in_flight_msat
         self.print_error('remote delay', remote_config.to_self_delay)
         self.print_error('funding_txn_minimum_depth', funding_txn_minimum_depth)
@@ -844,7 +829,7 @@ class Peer(PrintError):
         r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
         sig_64 = sigencode_string_canonize(r, s, SECP256k1.generator.order())
         funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
-        channel_id = int.from_bytes(funding_txid_bytes, byteorder="big") ^ funding_index
+        channel_id = int.from_bytes(funding_txid_bytes, 'big') ^ funding_index
         self.send_message(gen_msg("funding_created",
             temporary_channel_id=temp_channel_id,
             funding_txid=funding_txid_bytes,
@@ -891,8 +876,7 @@ class Peer(PrintError):
             del self.local_funding_locked[channel_id]
         per_commitment_secret_index -= 1
         per_commitment_point_second = secret_to_pubkey(int.from_bytes(
-            get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index),
-            byteorder="big"))
+            get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index), 'big'))
         self.send_message(gen_msg("funding_locked", channel_id=channel_id, next_per_commitment_point=per_commitment_point_second))
         # wait until we receive funding_locked
         try:
@@ -930,18 +914,16 @@ class Peer(PrintError):
             del self.commitment_signed[channel_id]
 
         local_next_per_commitment_secret = get_per_commitment_secret_from_seed(local_per_commitment_secret_seed, local_next_pcs_index)
-        local_next_per_commitment_point = secret_to_pubkey(int.from_bytes(
-            local_next_per_commitment_secret,
-            byteorder="big"))
+        local_next_per_commitment_point = secret_to_pubkey(int.from_bytes(local_next_per_commitment_secret, 'big'))
 
         remote_htlc_pubkey = derive_pubkey(chan.remote_config.htlc_basepoint.pubkey, local_next_per_commitment_point)
         local_htlc_pubkey = derive_pubkey(chan.local_config.htlc_basepoint.pubkey, local_next_per_commitment_point)
-        htlc_id = int.from_bytes(self.unfulfilled_htlcs[0]["id"], "big")
+        htlc_id = int.from_bytes(self.unfulfilled_htlcs[0]["id"], 'big')
         assert htlc_id == 0, htlc_id
         payment_hash = self.unfulfilled_htlcs[0]["payment_hash"]
-        cltv_expiry = int.from_bytes(self.unfulfilled_htlcs[0]["cltv_expiry"],"big")
+        cltv_expiry = int.from_bytes(self.unfulfilled_htlcs[0]["cltv_expiry"], 'big')
         # TODO verify sanity of their cltv expiry
-        amount_msat = int.from_bytes(self.unfulfilled_htlcs[0]["amount_msat"], "big")
+        amount_msat = int.from_bytes(self.unfulfilled_htlcs[0]["amount_msat"], 'big')
 
         remote_revocation_pubkey = derive_blinded_pubkey(chan.remote_config.revocation_basepoint.pubkey, local_next_per_commitment_point)
 
@@ -980,9 +962,9 @@ class Peer(PrintError):
         their_local_htlc_pubkey = derive_pubkey(chan.remote_config.htlc_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
         their_remote_htlc_pubkey = derive_pubkey(chan.local_config.htlc_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
         their_remote_htlc_privkey_number = derive_privkey(
-            int.from_bytes(chan.local_config.htlc_basepoint.privkey, "big"),
+            int.from_bytes(chan.local_config.htlc_basepoint.privkey, 'big'),
             chan.remote_state.next_per_commitment_point)
-        their_remote_htlc_privkey = their_remote_htlc_privkey_number.to_bytes(32, "big")
+        their_remote_htlc_privkey = their_remote_htlc_privkey_number.to_bytes(32, 'big')
         # TODO check payment_hash
         revocation_pubkey = derive_blinded_pubkey(chan.local_config.revocation_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
         htlcs_in_remote = [(make_offered_htlc(revocation_pubkey, their_remote_htlc_pubkey, their_local_htlc_pubkey, payment_hash), amount_msat)]
@@ -1058,9 +1040,7 @@ class Peer(PrintError):
         local_last_per_commitment_secret = get_per_commitment_secret_from_seed(local_per_commitment_secret_seed, local_last_pcs_index - 1)
 
         local_next_per_commitment_secret = get_per_commitment_secret_from_seed(local_per_commitment_secret_seed, local_last_pcs_index - 2)
-        local_next_per_commitment_point = secret_to_pubkey(int.from_bytes(
-            local_next_per_commitment_secret,
-            byteorder="big"))
+        local_next_per_commitment_point = secret_to_pubkey(int.from_bytes(local_next_per_commitment_secret, 'big'))
 
         self.send_message(gen_msg("revoke_and_ack",
             channel_id=channel_id,
@@ -1070,7 +1050,7 @@ class Peer(PrintError):
 
     def on_commitment_signed(self, payload):
         self.print_error("commitment_signed", payload)
-        channel_id = int.from_bytes(payload['channel_id'], byteorder="big")
+        channel_id = int.from_bytes(payload['channel_id'], 'big')
         self.commitment_signed[channel_id].set_result(payload)
 
     def on_update_add_htlc(self, payload):
@@ -1080,7 +1060,7 @@ class Peer(PrintError):
         self.unfulfilled_htlcs.append(payload)
 
     def on_revoke_and_ack(self, payload):
-        channel_id = int.from_bytes(payload["channel_id"], "big")
+        channel_id = int.from_bytes(payload["channel_id"], 'big')
         self.revoke_and_ack[channel_id].set_result(payload)
 
 
@@ -1127,7 +1107,7 @@ class ChannelInfo(PrintError):
 
     def on_channel_update(self, msg_payload):
         assert self.channel_id == msg_payload['short_channel_id']
-        flags = int.from_bytes(msg_payload['flags'], byteorder="big")
+        flags = int.from_bytes(msg_payload['flags'], 'big')
         direction = bool(flags & 1)
         if direction == 0:
             self.policy_node1 = ChannelInfoDirectedPolicy(msg_payload)
