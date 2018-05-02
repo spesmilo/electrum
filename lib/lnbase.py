@@ -948,7 +948,31 @@ class Peer(PrintError):
         if htlc_sigs_len != 64:
             raise Exception("unexpected number of htlc signatures: " + str(htlc_sigs_len))
 
-        # TODO verify htlc_signature
+        local_last_per_commitment_secret = get_per_commitment_secret_from_seed(local_per_commitment_secret_seed, 2**48-2)
+        local_last_per_commitment_point = secret_to_pubkey(int.from_bytes(
+            local_last_per_commitment_secret,
+            byteorder="big"))
+        revocation_pubkey = derive_blinded_pubkey(chan.remote_config.revocation_basepoint.pubkey, local_last_per_commitment_point)
+        remote_delayedpubkey = derive_pubkey(chan.local_config.delayed_basepoint.pubkey, local_last_per_commitment_point)
+        htlc_tx_output = make_htlc_tx_output(
+            amount_msat = amount_msat,
+            local_feerate = chan.constraints.feerate,
+            revocationpubkey=revocation_pubkey,
+            local_delayedpubkey=remote_delayedpubkey,
+            success = True, # HTLC-success for the HTLC spending from a received HTLC output
+            to_self_delay = chan.remote_config.to_self_delay)
+        preimage_script = htlcs_in_local[0][0]
+        htlc_tx_inputs = make_htlc_tx_inputs(
+            new_commitment.txid(), new_commitment.htlc_output_indices[0],
+            revocationpubkey=revocation_pubkey,
+            local_delayedpubkey=remote_delayedpubkey,
+            amount_msat=amount_msat,
+            witness_script=bh2u(preimage_script))
+        htlc_tx = make_htlc_tx(0, inputs=htlc_tx_inputs, output=htlc_tx_output)
+        print("htlc tx preimage", htlc_tx.serialize_preimage(0))
+        pre_hash = bitcoin.Hash(bfh(htlc_tx.serialize_preimage(0)))
+        remote_htlc_pubkey = derive_pubkey(chan.remote_config.htlc_basepoint.pubkey, local_last_per_commitment_point)
+        assert bitcoin.verify_signature(remote_htlc_pubkey, commitment_signed_msg["htlc_signature"], pre_hash)
 
         local_last_pcs_index = 2**48 - chan.local_state.ctn - 1
         local_last_per_commitment_secret = get_per_commitment_secret_from_seed(local_per_commitment_secret_seed, local_last_pcs_index)
@@ -985,7 +1009,6 @@ class Peer(PrintError):
             success = False, # timeout for the one offering an HTLC
             to_self_delay = chan.local_config.to_self_delay)
         preimage_script = htlcs_in_remote[0][0]
-        htlc_output_txid = remote_ctx.txid()
         htlc_tx_inputs = make_htlc_tx_inputs(
             remote_ctx.txid(), remote_ctx.htlc_output_indices[0],
             revocationpubkey=revocation_pubkey,
@@ -1068,7 +1091,7 @@ class Peer(PrintError):
 class LNWorker:
 
     def __init__(self, wallet, network):
-        self.privkey = bitcoin.sha256('1234567890')
+        self.privkey = H256(str(time.time()).encode("ascii"))
         self.wallet = wallet
         self.network = network
         self.config = network.config
