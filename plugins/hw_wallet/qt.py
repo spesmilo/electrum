@@ -41,7 +41,7 @@ class QtHandlerBase(QObject, PrintError):
 
     passphrase_signal = pyqtSignal(object, object)
     message_signal = pyqtSignal(object, object)
-    error_signal = pyqtSignal(object)
+    error_signal = pyqtSignal(object, object)
     word_signal = pyqtSignal(object)
     clear_signal = pyqtSignal()
     query_signal = pyqtSignal(object, object)
@@ -90,8 +90,11 @@ class QtHandlerBase(QObject, PrintError):
     def show_message(self, msg, on_cancel=None):
         self.message_signal.emit(msg, on_cancel)
 
-    def show_error(self, msg):
-        self.error_signal.emit(msg)
+    def show_error(self, msg, blocking=False):
+        self.done.clear()
+        self.error_signal.emit(msg, blocking)
+        if blocking:
+            self.done.wait()
 
     def finished(self):
         self.clear_signal.emit()
@@ -154,8 +157,10 @@ class QtHandlerBase(QObject, PrintError):
             vbox.addLayout(Buttons(CancelButton(dialog)))
         dialog.show()
 
-    def error_dialog(self, msg):
+    def error_dialog(self, msg, blocking):
         self.win.show_error(msg, parent=self.top_level_window())
+        if blocking:
+            self.done.set()
 
     def clear_dialog(self):
         if self.dialog:
