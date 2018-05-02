@@ -347,7 +347,7 @@ def overall_weight(num_htlc):
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
 
-def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_delayedpubkey, success):
+def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_delayedpubkey, success, to_self_delay):
     assert type(amount_msat) is int
     assert type(local_feerate) is int
     assert type(revocationpubkey) is bytes
@@ -355,7 +355,7 @@ def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_dela
     script = bytes([opcodes.OP_IF]) \
         + bfh(push_script(bh2u(revocationpubkey))) \
         + bytes([opcodes.OP_ELSE]) \
-        + bitcoin.add_number_to_script(144) \
+        + bitcoin.add_number_to_script(to_self_delay) \
         + bytes([opcodes.OP_CSV, opcodes.OP_DROP]) \
         + bfh(push_script(bh2u(local_delayedpubkey))) \
         + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
@@ -753,7 +753,7 @@ class Peer(PrintError):
             htlc_basepoint=keypair_generator(keyfamilyhtlcbase, 0),
             delayed_basepoint=keypair_generator(keyfamilydelaybase, 0),
             revocation_basepoint=keypair_generator(keyfamilyrevocationbase, 0),
-            to_self_delay=144,
+            to_self_delay=143,
             dust_limit_sat=10,
             max_htlc_value_in_flight_msat=500000 * 1000,
             max_accepted_htlcs=5
@@ -1000,7 +1000,8 @@ class Peer(PrintError):
             local_feerate = chan.constraints.feerate,
             revocationpubkey=revocation_pubkey,
             local_delayedpubkey=remote_delayedpubkey,
-            success = False) # timeout for the one offering an HTLC
+            success = False, # timeout for the one offering an HTLC
+            to_self_delay = chan.local_config.to_self_delay)
         preimage_script = htlcs_in_remote[0][0]
         htlc_output_txid = remote_ctx.txid()
         htlc_tx_inputs = make_htlc_tx_inputs(
