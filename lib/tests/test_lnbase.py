@@ -196,7 +196,8 @@ class Test_LNBase(unittest.TestCase):
                 local_feerate=local_feerate_per_kw,
                 revocationpubkey=local_revocation_pubkey,
                 local_delayedpubkey=local_delayedpubkey,
-                success=success)
+                success=success,
+                to_self_delay=local_delay)
             our_htlc_tx_inputs = make_htlc_tx_inputs(
                 htlc_output_txid=our_commit_tx.txid(),
                 htlc_output_index=htlc_output_index,
@@ -256,7 +257,7 @@ class Test_LNBase(unittest.TestCase):
                      success=True, cltv_timeout=0)
 
     def test_find_path_for_payment(self):
-        p = Peer('', 0, 'a')
+        p = Peer('', 0, 'a', bitcoin.sha256('privkeyseed'))
         p.on_channel_announcement({'node_id_1': 'b', 'node_id_2': 'c', 'short_channel_id': bfh('0000000000000001')})
         p.on_channel_announcement({'node_id_1': 'b', 'node_id_2': 'e', 'short_channel_id': bfh('0000000000000002')})
         p.on_channel_announcement({'node_id_1': 'b', 'node_id_2': 'a', 'short_channel_id': bfh('0000000000000003')})
