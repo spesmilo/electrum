@@ -284,7 +284,7 @@ def create_ephemeral_key(privkey):
 Keypair = namedtuple("Keypair", ["pubkey", "privkey"])
 Outpoint = namedtuple("Outpoint", ["txid", "output_index"])
 ChannelConfig = namedtuple("ChannelConfig", [
-    "payment_key", "multisig_key", "htlc_key", "delayed_key", "revocation_key",
+    "payment_basepoint", "multisig_key", "htlc_basepoint", "delayed_basepoint", "revocation_basepoint",
     "to_self_delay", "dust_limit_sat", "max_htlc_value_in_flight_msat", "max_accepted_htlcs"])
 OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
 RemoteState = namedtuple("RemoteState", ["ctn", "next_per_commitment_point", "amount_sat"])
@@ -451,17 +451,17 @@ def make_received_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, p
 def make_commitment_using_open_channel(openchannel, ctn, for_us, pcp, local_sat, remote_sat, htlcs=[]):
     conf = openchannel.local_config if for_us else openchannel.remote_config
     other_conf = openchannel.local_config if not for_us else openchannel.remote_config
-    payment_pubkey = derive_pubkey(other_conf.payment_key.pubkey, pcp)
-    remote_revocation_pubkey = derive_blinded_pubkey(other_conf.revocation_key.pubkey, pcp)
+    payment_pubkey = derive_pubkey(other_conf.payment_basepoint.pubkey, pcp)
+    remote_revocation_pubkey = derive_blinded_pubkey(other_conf.revocation_basepoint.pubkey, pcp)
     return make_commitment(
         ctn,
         conf.multisig_key.pubkey,
         other_conf.multisig_key.pubkey,
         payment_pubkey,
-        openchannel.local_config.payment_key.pubkey,
-        openchannel.remote_config.payment_key.pubkey,
+        openchannel.local_config.payment_basepoint.pubkey,
+        openchannel.remote_config.payment_basepoint.pubkey,
         remote_revocation_pubkey,
-        derive_pubkey(conf.delayed_key.pubkey, pcp),
+        derive_pubkey(conf.delayed_basepoint.pubkey, pcp),
         other_conf.to_self_delay,
         *openchannel.funding_outpoint,
         openchannel.constraints.capacity,
@@ -746,10 +746,8 @@ class Peer(PrintError):
     @aiosafe
     async def channel_establishment_flow(self, wallet, config, funding_sat, push_msat, temp_channel_id, keypair_generator=None):
         await self.initialized
-
         if keypair_generator is None:
             keypair_generator = KeypairGenerator(b"testseed")
-
         # see lnd/keychain/derivation.go
         keyfamilymultisig = 0
         keyfamilyrevocationbase = 1
@@ -758,25 +756,32 @@ class Peer(PrintError):
         keyfamilydelaybase = 4
         keyfamilyrevocationroot = 5
         keyfamilynodekey = 6 # TODO currently unused
-
-        funding_key = keypair_generator.get(keyfamilymultisig, 0)
-        revocation_key = keypair_generator.get(keyfamilyrevocationbase, 0)
-        htlc_key = keypair_generator.get(keyfamilyhtlcbase, 0)
-        delayed_key = keypair_generator.get(keyfamilydelaybase, 0)
-        base_point = keypair_generator.get(keyfamilypaymentbase, 0)
-        per_commitment_secret_seed = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100.to_bytes(32, "big")
-        per_commitment_secret_index = 2**48 - 1
         # amounts
         local_feerate = 20000
         to_self_delay = 144
         dust_limit_sat = 10
-        #
+        local_max_htlc_value_in_flight_msat = 500000 * 1000
+        local_max_accepted_htlcs = 5
+        # key derivation
+        local_config=ChannelConfig(
+            payment_basepoint=keypair_generator.get(keyfamilypaymentbase, 0),
+            multisig_key=keypair_generator.get(keyfamilymultisig, 0),
+            htlc_basepoint=keypair_generator.get(keyfamilyhtlcbase, 0),
+            delayed_basepoint=keypair_generator.get(keyfamilydelaybase, 0),
+            revocation_basepoint=keypair_generator.get(keyfamilyrevocationbase, 0),
+            to_self_delay=to_self_delay,
+            dust_limit_sat=dust_limit_sat,
+            max_htlc_value_in_flight_msat=local_max_htlc_value_in_flight_msat,
+            max_accepted_htlcs=local_max_accepted_htlcs
+        )
+        # TODO derive this?
+        per_commitment_secret_seed = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100.to_bytes(32, "big")
+        per_commitment_secret_index = 2**48 - 1
+        # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index)
         per_commitment_point_first = secret_to_pubkey(int.from_bytes(
             per_commitment_secret_first,
             byteorder="big"))
-        local_max_htlc_value_in_flight_msat = 500000 * 1000
-        local_max_accepted_htlcs = 5
         msg = gen_msg(
             "open_channel",
             temporary_channel_id=temp_channel_id,
@@ -786,11 +791,11 @@ class Peer(PrintError):
             dust_limit_satoshis=dust_limit_sat,
             feerate_per_kw=local_feerate,
             max_accepted_htlcs=local_max_accepted_htlcs,
-            funding_pubkey=funding_key.pubkey,
-            revocation_basepoint=revocation_key.pubkey,
-            htlc_basepoint=htlc_key.pubkey,
-            payment_basepoint=base_point.pubkey,
-            delayed_payment_basepoint=delayed_key.pubkey,
+            funding_pubkey=local_config.multisig_key.pubkey,
+            revocation_basepoint=local_config.revocation_basepoint.pubkey,
+            htlc_basepoint=local_config.htlc_basepoint.pubkey,
+            payment_basepoint=local_config.payment_basepoint.pubkey,
+            delayed_payment_basepoint=local_config.delayed_basepoint.pubkey,
             first_per_commitment_point=per_commitment_point_first,
             to_self_delay=to_self_delay,
             max_htlc_value_in_flight_msat=local_max_htlc_value_in_flight_msat
@@ -801,26 +806,27 @@ class Peer(PrintError):
             payload = await self.channel_accepted[temp_channel_id]
         finally:
             del self.channel_accepted[temp_channel_id]
-        remote_max_accepted_htlcs = payload["max_accepted_htlcs"]
         remote_per_commitment_point = payload['first_per_commitment_point']
-        remote_funding_pubkey = payload["funding_pubkey"]
-        remote_delay = int.from_bytes(payload['to_self_delay'], byteorder="big")
-        remote_dust_limit_sat = int.from_bytes(payload['dust_limit_satoshis'], byteorder="big")
-        remote_revocation_basepoint = payload['revocation_basepoint']
-        remote_payment_basepoint = payload['payment_basepoint']
-        remote_delayed_payment_basepoint = payload['delayed_payment_basepoint']
-        remote_htlc_basepoint = payload['htlc_basepoint']
-        remote_htlc_minimum_msat = int.from_bytes(payload['htlc_minimum_msat'], "big")
-        remote_max_htlc_value_in_flight_msat = int.from_bytes(payload['max_htlc_value_in_flight_msat'], "big")
+        remote_config=ChannelConfig(
+            payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
+            multisig_key=OnlyPubkeyKeypair(payload["funding_pubkey"]),
+            htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
+            delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
+            revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
+            to_self_delay=int.from_bytes(payload['to_self_delay'], byteorder="big"),
+            dust_limit_sat=int.from_bytes(payload['dust_limit_satoshis'], byteorder="big"),
+            max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], "big"),
+            max_accepted_htlcs=payload["max_accepted_htlcs"]
+        )
         funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], byteorder="big")
-        print('remote dust limit', remote_dust_limit_sat)
-        assert remote_dust_limit_sat < 600
-        assert remote_htlc_minimum_msat < 600 * 1000
-        assert remote_max_htlc_value_in_flight_msat >= 500 * 1000 * 1000, remote_max_htlc_value_in_flight_msat
-        self.print_error('remote delay', remote_delay)
+        print('remote dust limit', remote_config.dust_limit_sat)
+        assert remote_config.dust_limit_sat < 600
+        assert int.from_bytes(payload['htlc_minimum_msat'], "big") < 600 * 1000
+        assert remote_config.max_htlc_value_in_flight_msat >= 500 * 1000 * 1000, remote_config.max_htlc_value_in_flight_msat
+        self.print_error('remote delay', remote_config.to_self_delay)
         self.print_error('funding_txn_minimum_depth', funding_txn_minimum_depth)
         # create funding tx
-        pubkeys = sorted([bh2u(funding_key.pubkey), bh2u(remote_funding_pubkey)])
+        pubkeys = sorted([bh2u(local_config.multisig_key.pubkey), bh2u(remote_config.multisig_key.pubkey)])
         redeem_script = transaction.multisig_script(pubkeys, 2)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         funding_output = (bitcoin.TYPE_ADDRESS, funding_address, funding_sat)
@@ -828,13 +834,13 @@ class Peer(PrintError):
         funding_txid = funding_tx.txid()
         funding_index = funding_tx.outputs().index(funding_output)
         # derive keys
-        local_payment_pubkey = derive_pubkey(base_point.pubkey, remote_per_commitment_point)
+        local_payment_pubkey = derive_pubkey(local_config.payment_basepoint.pubkey, remote_per_commitment_point)
         #local_payment_privkey = derive_privkey(base_secret, remote_per_commitment_point)
-        remote_payment_pubkey = derive_pubkey(remote_payment_basepoint, per_commitment_point_first)
-        revocation_pubkey = derive_blinded_pubkey(revocation_key.pubkey, remote_per_commitment_point)
-        remote_revocation_pubkey = derive_blinded_pubkey(remote_revocation_basepoint, per_commitment_point_first)
-        local_delayedpubkey = derive_pubkey(delayed_key.pubkey, per_commitment_point_first)
-        remote_delayedpubkey = derive_pubkey(remote_delayed_payment_basepoint, remote_per_commitment_point)
+        remote_payment_pubkey = derive_pubkey(remote_config.payment_basepoint.pubkey, per_commitment_point_first)
+        revocation_pubkey = derive_blinded_pubkey(local_config.revocation_basepoint.pubkey, remote_per_commitment_point)
+        remote_revocation_pubkey = derive_blinded_pubkey(remote_config.revocation_basepoint.pubkey, per_commitment_point_first)
+        local_delayedpubkey = derive_pubkey(local_config.delayed_basepoint.pubkey, per_commitment_point_first)
+        remote_delayedpubkey = derive_pubkey(remote_config.delayed_basepoint.pubkey, remote_per_commitment_point)
         # compute amounts
         htlcs = []
         to_local_msat = funding_sat*1000 - push_msat
@@ -844,20 +850,19 @@ class Peer(PrintError):
         # remote commitment transaction
         remote_ctx = make_commitment(
             0,
-            remote_funding_pubkey, funding_key.pubkey, local_payment_pubkey,
-            base_point.pubkey, remote_payment_basepoint,
+            remote_config.multisig_key.pubkey, local_config.multisig_key.pubkey, local_payment_pubkey,
+            local_config.payment_basepoint.pubkey, remote_config.payment_basepoint.pubkey,
             revocation_pubkey, remote_delayedpubkey, to_self_delay,
             funding_txid, funding_index, funding_sat,
-            remote_amount, local_amount, remote_dust_limit_sat, local_feerate, False, htlcs=[])
-        remote_ctx.sign({bh2u(funding_key.pubkey): (funding_key.privkey, True)})
-        sig_index = pubkeys.index(bh2u(funding_key.pubkey))
+            remote_amount, local_amount, remote_config.dust_limit_sat, local_feerate, False, htlcs=[])
+        remote_ctx.sign({bh2u(local_config.multisig_key.pubkey): (local_config.multisig_key.privkey, True)})
+        sig_index = pubkeys.index(bh2u(local_config.multisig_key.pubkey))
         sig = bytes.fromhex(remote_ctx.inputs()[0]["signatures"][sig_index])
         r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
         sig_64 = sigencode_string_canonize(r, s, SECP256k1.generator.order())
         funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
         channel_id = int.from_bytes(funding_txid_bytes, byteorder="big") ^ funding_index
         self.send_message(gen_msg("funding_created", temporary_channel_id=temp_channel_id, funding_txid=funding_txid_bytes, funding_output_index=funding_index, signature=sig_64))
-        #self.funding_signed[channel_id] = asyncio.Future()
         try:
             payload = await self.funding_signed[channel_id]
         finally:
@@ -867,17 +872,15 @@ class Peer(PrintError):
         # verify remote signature
         local_ctx = make_commitment(
             0,
-            funding_key.pubkey, remote_funding_pubkey, remote_payment_pubkey,
-            base_point.pubkey, remote_payment_basepoint,
-            remote_revocation_pubkey, local_delayedpubkey, remote_delay,
+            local_config.multisig_key.pubkey, remote_config.multisig_key.pubkey, remote_payment_pubkey,
+            local_config.payment_basepoint.pubkey, remote_config.payment_basepoint.pubkey,
+            remote_revocation_pubkey, local_delayedpubkey, remote_config.to_self_delay,
             funding_txid, funding_index, funding_sat,
             local_amount, remote_amount, dust_limit_sat, local_feerate, True, htlcs=[])
         pre_hash = bitcoin.Hash(bfh(local_ctx.serialize_preimage(0)))
-        if not bitcoin.verify_signature(remote_funding_pubkey, remote_sig, pre_hash):
+        if not bitcoin.verify_signature(remote_config.multisig_key.pubkey, remote_sig, pre_hash):
             raise Exception('verifying remote signature failed.')
         # broadcast funding tx
-        #self.local_funding_locked[channel_id] = asyncio.Future()
-        #self.remote_funding_locked[channel_id] = asyncio.Future()
         success, _txid = self.network.broadcast(funding_tx)
         assert success, success
         # wait until we see confirmations
@@ -910,33 +913,12 @@ class Peer(PrintError):
         finally:
             del self.remote_funding_locked[channel_id]
         self.print_error('Done waiting for remote_funding_locked', remote_funding_locked_msg)
-        #self.commitment_signed[channel_id] = asyncio.Future()
 
         return OpenChannel(
                 channel_id=channel_id,
                 funding_outpoint=Outpoint(funding_txid, funding_index),
-                local_config=ChannelConfig(
-                    payment_key=base_point,
-                    multisig_key=funding_key,
-                    htlc_key=htlc_key,
-                    delayed_key=delayed_key,
-                    revocation_key=revocation_key,
-                    to_self_delay=to_self_delay,
-                    dust_limit_sat=dust_limit_sat,
-                    max_htlc_value_in_flight_msat=local_max_htlc_value_in_flight_msat,
-                    max_accepted_htlcs=local_max_accepted_htlcs
-                ),
-                remote_config=ChannelConfig(
-                    payment_key=OnlyPubkeyKeypair(remote_payment_basepoint),
-                    multisig_key=OnlyPubkeyKeypair(remote_funding_pubkey),
-                    htlc_key=OnlyPubkeyKeypair(remote_htlc_basepoint),
-                    delayed_key=OnlyPubkeyKeypair(remote_delayed_payment_basepoint),
-                    revocation_key=OnlyPubkeyKeypair(remote_revocation_basepoint),
-                    to_self_delay=remote_delay,
-                    dust_limit_sat=remote_dust_limit_sat,
-                    max_htlc_value_in_flight_msat=remote_max_htlc_value_in_flight_msat,
-                    max_accepted_htlcs=remote_max_accepted_htlcs
-                ),
+                local_config=local_config,
+                remote_config=remote_config,
                 remote_state=RemoteState(
                     ctn = 0,
                     next_per_commitment_point=remote_funding_locked_msg["next_per_commitment_point"],
@@ -957,16 +939,16 @@ class Peer(PrintError):
         local_next_pcs_index = 2**48 - 2
         remote_funding_pubkey = openchannel.remote_config.multisig_key.pubkey
         remote_next_commitment_point = openchannel.remote_state.next_per_commitment_point
-        remote_revocation_basepoint = openchannel.remote_config.revocation_key.pubkey
-        remote_htlc_basepoint = openchannel.remote_config.htlc_key.pubkey
-        local_htlc_basepoint = openchannel.local_config.htlc_key.pubkey
-        delayed_payment_basepoint = openchannel.local_config.delayed_key.pubkey
-        revocation_basepoint = openchannel.local_config.revocation_key.pubkey
-        remote_delayed_payment_basepoint = openchannel.remote_config.delayed_key.pubkey
+        remote_revocation_basepoint = openchannel.remote_config.revocation_basepoint.pubkey
+        remote_htlc_basepoint = openchannel.remote_config.htlc_basepoint.pubkey
+        local_htlc_basepoint = openchannel.local_config.htlc_basepoint.pubkey
+        delayed_payment_basepoint = openchannel.local_config.delayed_basepoint.pubkey
+        revocation_basepoint = openchannel.local_config.revocation_basepoint.pubkey
+        remote_delayed_payment_basepoint = openchannel.remote_config.delayed_basepoint.pubkey
         remote_delay = openchannel.remote_config.to_self_delay
         remote_dust_limit_sat = openchannel.remote_config.dust_limit_sat
         funding_privkey = openchannel.local_config.multisig_key.privkey
-        htlc_privkey = openchannel.local_config.htlc_key.privkey
+        htlc_privkey = openchannel.local_config.htlc_basepoint.privkey
         try:
             commitment_signed_msg = await self.commitment_signed[channel_id]
         finally:
@@ -1055,7 +1037,6 @@ class Peer(PrintError):
         r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
         htlc_sig = sigencode_string_canonize(r, s, SECP256k1.generator.order())
 
-        #self.revoke_and_ack[channel_id] = asyncio.Future()
         self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sig))
 
         try:
@@ -1079,8 +1060,6 @@ class Peer(PrintError):
         r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
         sig_64 = sigencode_string_canonize(r, s, SECP256k1.generator.order())
 
-        #self.revoke_and_ack[channel_id] = asyncio.Future()
-        #self.commitment_signed[channel_id] = asyncio.Future() # we will also receive a new commitment transaction shortly after sending ours
         self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=0))
         try:
             revoke_and_ack_msg = await self.revoke_and_ack[channel_id]
