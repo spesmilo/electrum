@@ -41,7 +41,7 @@ if __name__ == "__main__":
     wallet = Wallet(storage)
     wallet.start_threads(network)
     # start peer
-    privkey = sha256('1234567890')
+    privkey = sha256(str(time.time()))
     peer = Peer(host, port, pubkey, privkey, request_initial_sync=False, network=network)
     network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), network.asyncio_loop))
 
