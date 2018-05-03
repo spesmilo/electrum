@@ -304,12 +304,13 @@ class Blockchain(util.PrintError):
         bits = last.get('bits')
         target = Blockchain.bits2target(bits)
         first = self.get_header(last_height - 15, height, headers)
-        nActualTimespanShort = (last.get('timestamp') - first.get('timestamp')) // 15
+        nActualTimespanShort = int((last.get('timestamp') - first.get('timestamp')) / 15)
         first = self.get_header(last_height - 120, height, headers)
-        nActualTimespanMedium = (last.get('timestamp') - first.get('timestamp')) // 120
+        nActualTimespanMedium = int((last.get('timestamp') - first.get('timestamp')) / 120)
         first = self.get_header(last_height - 480, height, headers)
-        nActualTimespanLong = (last.get('timestamp') - first.get('timestamp')) // 480
+        nActualTimespanLong = int((last.get('timestamp') - first.get('timestamp')) / 480)
         nActualTimespan = (nActualTimespanShort + nActualTimespanMedium + nActualTimespanLong) // 3
+        assert nActualTimespan >= 0
         nTargetTimespan = 60
         nActualTimespan = Blockchain.__damp(nActualTimespan, nTargetTimespan)
         return Blockchain.__get_target(target, nActualTimespan, nTargetTimespan, 453, 494)
