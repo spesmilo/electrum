@@ -41,6 +41,7 @@ import PyQt5.QtCore as QtCore
 from electrum.i18n import _, set_language
 from electrum.plugins import run_hook
 from electrum import WalletStorage
+from electrum.base_wizard import GoBack
 # from electrum.synchronizer import Synchronizer
 # from electrum.verifier import SPV
 # from electrum.util import DebugMem
@@ -48,7 +49,7 @@ from electrum.util import (UserCancelled, print_error,
                            WalletFileException, BitcoinException)
 # from electrum.wallet import Abstract_Wallet
 
-from .installwizard import InstallWizard, GoBack
+from .installwizard import InstallWizard
 
 
 try:

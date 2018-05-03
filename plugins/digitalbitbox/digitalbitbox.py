@@ -5,8 +5,9 @@
 
 try:
     import electrum
-    from electrum.bitcoin import TYPE_ADDRESS, push_script, var_int, msg_magic, Hash, verify_message, pubkey_from_signature, point_to_ser, public_key_to_p2pkh, EncodeAES, DecodeAES, MyVerifyingKey
+    from electrum.bitcoin import TYPE_ADDRESS, push_script, var_int, msg_magic, Hash, verify_message, pubkey_from_signature, point_to_ser, public_key_to_p2pkh, EncodeAES, DecodeAES, MyVerifyingKey, is_address
     from electrum.bitcoin import serialize_xpub, deserialize_xpub
+    from electrum.wallet import Standard_Wallet
     from electrum import constants
     from electrum.transaction import Transaction
     from electrum.i18n import _
@@ -91,11 +92,11 @@ class DigitalBitbox_Client():
 
     def _get_xpub(self, bip32_path):
         if self.check_device_dialog():
-            return self.hid_send_encrypt(b'{"xpub": "%s"}' % bip32_path.encode('utf8'))
+            return self.hid_send_encrypt(('{"xpub": "%s"}' % bip32_path).encode('utf8'))
 
 
     def get_xpub(self, bip32_path, xtype):
-        assert xtype in ('standard', 'p2wpkh-p2sh')
+        assert xtype in ('standard', 'p2wpkh-p2sh', 'p2wpkh')
         reply = self._get_xpub(bip32_path)
         if reply:
             xpub = reply['xpub']
@@ -107,7 +108,7 @@ class DigitalBitbox_Client():
                 xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
             return xpub
         else:
-            raise BaseException('no reply')
+            raise Exception('no reply')
 
 
     def dbb_has_password(self):
@@ -121,7 +122,7 @@ class DigitalBitbox_Client():
 
     def stretch_key(self, key):
         import pbkdf2, hmac
-        return binascii.hexlify(pbkdf2.PBKDF2(key, b'Digital Bitbox', iterations = 20480, macmodule = hmac, digestmodule = hashlib.sha512).read(64))
+        return to_hexstr(pbkdf2.PBKDF2(key, b'Digital Bitbox', iterations = 20480, macmodule = hmac, digestmodule = hashlib.sha512).read(64))
 
 
     def backup_password_dialog(self):
@@ -255,9 +256,14 @@ class DigitalBitbox_Client():
             return
 
         try:
+            # Python 3.5+
+            jsonDecodeError = json.JSONDecodeError
+        except AttributeError:
+            jsonDecodeError = ValueError
+        try:
             with open(os.path.join(dbb_user_dir, "config.dat")) as f:
                 dbb_config = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except (FileNotFoundError, jsonDecodeError):
             return
 
         if 'encryptionprivkey' not in dbb_config or 'comserverchannelid' not in dbb_config:
@@ -265,7 +271,7 @@ class DigitalBitbox_Client():
 
         choices = [
             _('Do not pair'),
-            _('Import pairing from the digital bitbox desktop app'),
+            _('Import pairing from the Digital Bitbox desktop app'),
         ]
         try:
             reply = self.handler.win.query_choice(_('Mobile pairing options'), choices)
@@ -284,8 +290,8 @@ class DigitalBitbox_Client():
 
     def dbb_generate_wallet(self):
         key = self.stretch_key(self.password)
-        filename = ("Electrum-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf").encode('utf8')
-        msg = b'{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, b'Digital Bitbox Electrum Plugin')
+        filename = ("Electrum-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf")
+        msg = ('{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, 'Digital Bitbox Electrum Plugin')).encode('utf8')
         reply = self.hid_send_encrypt(msg)
         if 'error' in reply:
             raise Exception(reply['error']['message'])
@@ -320,7 +326,7 @@ class DigitalBitbox_Client():
             self.handler.show_message(_("Loading backup...") + "\n\n" +
                                       _("To continue, touch the Digital Bitbox's light for 3 seconds.") + "\n\n" +
                                       _("To cancel, briefly touch the light or wait for the timeout."))
-        msg = b'{"seed":{"source": "backup", "key": "%s", "filename": "%s"}}' % (key, backups['backup'][f].encode('utf8'))
+        msg = ('{"seed":{"source": "backup", "key": "%s", "filename": "%s"}}' % (key, backups['backup'][f])).encode('utf8')
         hid_reply = self.hid_send_encrypt(msg)
         self.handler.finished()
         if 'error' in hid_reply:
@@ -448,7 +454,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             hasharray.append({'hash': inputHash, 'keypath': inputPath})
             hasharray = json.dumps(hasharray)
 
-            msg = b'{"sign":{"meta":"sign message", "data":%s}}' % hasharray.encode('utf8')
+            msg = ('{"sign":{"meta":"sign message", "data":%s}}' % hasharray).encode('utf8')
 
             dbb_client = self.plugin.get_client(self)
 
@@ -638,7 +644,8 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     sig_r = int(signed['sig'][:64], 16)
                     sig_s = int(signed['sig'][64:], 16)
                     sig = sigencode_der(sig_r, sig_s, generator_secp256k1.order())
-                    txin['signatures'][ii] = to_hexstr(sig) + '01'
+                    sig = to_hexstr(sig) + '01'
+                    Transaction.add_signature_to_txin(txin, ii, sig)
                     tx._inputs[i] = txin
         except UserCancelled:
             raise
@@ -713,7 +720,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in ('standard', 'p2wpkh-p2sh'):
+        if xtype not in ('standard', 'p2wpkh-p2sh', 'p2wpkh'):
             raise ScriptTypeNotSupported(_('This type of script is not supported with the Digital Bitbox.'))
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
@@ -732,7 +739,20 @@ class DigitalBitboxPlugin(HW_PluginBase):
             client.check_device_dialog()
         return client
 
-    def show_address(self, wallet, keystore, address):
+    def show_address(self, wallet, address, keystore=None):
+        if keystore is None:
+            keystore = wallet.get_keystore()
+        if not self.show_address_helper(wallet, address, keystore):
+            return
+        if type(wallet) is not Standard_Wallet:
+            keystore.handler.show_error(_('This function is only available for standard wallets when using {}.').format(self.device))
+            return
+        if not self.is_mobile_paired():
+            keystore.handler.show_error(_('This function is only available after pairing your {} with a mobile device.').format(self.device))
+            return
+        if not keystore.is_p2pkh():
+            keystore.handler.show_error(_('This function is only available for p2pkh keystores when using {}.').format(self.device))
+            return
         change, index = wallet.get_address_index(address)
         keypath = '%s/%d/%d' % (keystore.derivation, change, index)
         xpub = self.get_client(keystore)._get_xpub(keypath)

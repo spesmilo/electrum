@@ -115,6 +115,9 @@ class Plugin(TrustedCoinPlugin):
         if wallet.can_sign_without_server():
             return
         if wallet.billing_info is None:
+            self.start_request_thread(wallet)
+            window.show_error(_('Requesting account info from TrustedCoin server...') + '\n' +
+                                _('Please try again.'))
             return True
         return False
 
@@ -149,7 +152,7 @@ class Plugin(TrustedCoinPlugin):
         vbox.addLayout(hbox)
         vbox.addStretch(10)
 
-        msg = _('TrustedCoin charges a small fee to co-sign transactions. The fee depends on how many prepaid transactions you buy. An extra output is added to your transaction everytime you run out of prepaid transactions.') + '<br/>'
+        msg = _('TrustedCoin charges a small fee to co-sign transactions. The fee depends on how many prepaid transactions you buy. An extra output is added to your transaction every time you run out of prepaid transactions.') + '<br/>'
         label = QLabel(msg)
         label.setWordWrap(1)
         vbox.addWidget(label)
@@ -258,7 +261,7 @@ class Plugin(TrustedCoinPlugin):
             msg = _('Then, enter your Google Authenticator code:')
         else:
             label = QLabel(
-                "This wallet is already registered with Trustedcoin. "
+                "This wallet is already registered with TrustedCoin. "
                 "To finalize wallet creation, please enter your Google Authenticator Code. "
             )
             label.setWordWrap(1)

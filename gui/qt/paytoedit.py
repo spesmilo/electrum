@@ -23,16 +23,15 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from PyQt5.QtCore import *
 from PyQt5.QtGui import *
-from PyQt5.QtWidgets import QCompleter, QPlainTextEdit
-from .qrtextedit import ScanQRTextEdit
-
 import re
 from decimal import Decimal
+
 from electrum import bitcoin
 from electrum.util import bfh
 
+from .qrtextedit import ScanQRTextEdit
+from .completion_text_edit import CompletionTextEdit
 from . import util
 
 RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
@@ -41,9 +40,10 @@ RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
 frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
 
-class PayToEdit(ScanQRTextEdit):
+class PayToEdit(CompletionTextEdit, ScanQRTextEdit):
 
     def __init__(self, win):
+        CompletionTextEdit.__init__(self)
         ScanQRTextEdit.__init__(self)
         self.win = win
         self.amount_edit = win.amount_e
@@ -197,70 +197,6 @@ class PayToEdit(ScanQRTextEdit):
             self.setMinimumHeight(h)
             self.setMaximumHeight(h)
         self.verticalScrollBar().hide()
-
-
-    def setCompleter(self, completer):
-        self.c = completer
-        self.c.setWidget(self)
-        self.c.setCompletionMode(QCompleter.PopupCompletion)
-        self.c.activated.connect(self.insertCompletion)
-
-
-    def insertCompletion(self, completion):
-        if self.c.widget() != self:
-            return
-        tc = self.textCursor()
-        extra = len(completion) - len(self.c.completionPrefix())
-        tc.movePosition(QTextCursor.Left)
-        tc.movePosition(QTextCursor.EndOfWord)
-        tc.insertText(completion[-extra:])
-        self.setTextCursor(tc)
-
-
-    def textUnderCursor(self):
-        tc = self.textCursor()
-        tc.select(QTextCursor.WordUnderCursor)
-        return tc.selectedText()
-
-
-    def keyPressEvent(self, e):
-        if self.isReadOnly():
-            return
-
-        if self.c.popup().isVisible():
-            if e.key() in [Qt.Key_Enter, Qt.Key_Return]:
-                e.ignore()
-                return
-
-        if e.key() in [Qt.Key_Tab]:
-            e.ignore()
-            return
-
-        if e.key() in [Qt.Key_Down, Qt.Key_Up] and not self.is_multiline():
-            e.ignore()
-            return
-
-        QPlainTextEdit.keyPressEvent(self, e)
-
-        ctrlOrShift = e.modifiers() and (Qt.ControlModifier or Qt.ShiftModifier)
-        if self.c is None or (ctrlOrShift and not e.text()):
-            return
-
-        eow = "~!@#$%^&*()_+{}|:\"<>?,./;'[]\\-="
-        hasModifier = (e.modifiers() != Qt.NoModifier) and not ctrlOrShift
-        completionPrefix = self.textUnderCursor()
-
-        if hasModifier or not e.text() or len(completionPrefix) < 1 or eow.find(e.text()[-1]) >= 0:
-            self.c.popup().hide()
-            return
-
-        if completionPrefix != self.c.completionPrefix():
-            self.c.setCompletionPrefix(completionPrefix)
-            self.c.popup().setCurrentIndex(self.c.completionModel().index(0, 0))
-
-        cr = self.cursorRect()
-        cr.setWidth(self.c.popup().sizeHintForColumn(0) + self.c.popup().verticalScrollBar().sizeHint().width())
-        self.c.complete(cr)
 
     def qr_input(self):
         data = super(PayToEdit,self).qr_input()

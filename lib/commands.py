@@ -34,7 +34,7 @@ from functools import wraps
 from decimal import Decimal
 
 from .import util
-from .util import bfh, bh2u, format_satoshis, json_decode, print_error
+from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode
 from .import bitcoin
 from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
@@ -81,7 +81,7 @@ def command(s):
             wallet = args[0].wallet
             password = kwargs.get('password')
             if c.requires_wallet and wallet is None:
-                raise BaseException("wallet not loaded. Use 'electrum daemon load_wallet'")
+                raise Exception("wallet not loaded. Use 'electrum daemon load_wallet'")
             if c.requires_password and password is None and wallet.has_password():
                 return {'error': 'Password required' }
             return func(*args, **kwargs)
@@ -125,7 +125,7 @@ class Commands:
     @command('')
     def create(self, segwit=False):
         """Create a new wallet"""
-        raise BaseException('Not a JSON-RPC command')
+        raise Exception('Not a JSON-RPC command')
 
     @command('wn')
     def restore(self, text):
@@ -133,7 +133,7 @@ class Commands:
         public key, a master private key, a list of bitcoin addresses
         or bitcoin private keys. If you want to be prompted for your
         seed, type '?' or ':' (concealed) """
-        raise BaseException('Not a JSON-RPC command')
+        raise Exception('Not a JSON-RPC command')
 
     @command('wp')
     def password(self, password=None, new_password=None):
@@ -150,11 +150,20 @@ class Commands:
         """Return a configuration variable. """
         return self.config.get(key)
 
+    @classmethod
+    def _setconfig_normalize_value(cls, key, value):
+        if key not in ('rpcuser', 'rpcpassword'):
+            value = json_decode(value)
+            try:
+                value = ast.literal_eval(value)
+            except:
+                pass
+        return value
+
     @command('')
     def setconfig(self, key, value):
         """Set a configuration variable. 'value' may be a string or a Python expression."""
-        if key not in ('rpcuser', 'rpcpassword'):
-            value = json_decode(value)
+        value = self._setconfig_normalize_value(key, value)
         self.config.set_key(key, value)
         return True
 
@@ -331,7 +340,7 @@ class Commands:
 
     @command('')
     def version(self):
-        """Return the version of electrum."""
+        """Return the version of Electrum."""
         from .version import ELECTRUM_VERSION
         return ELECTRUM_VERSION
 
@@ -368,7 +377,7 @@ class Commands:
             return None
         out = self.wallet.contacts.resolve(x)
         if out.get('type') == 'openalias' and self.nocheck is False and out.get('validated') is False:
-            raise BaseException('cannot verify alias', x)
+            raise Exception('cannot verify alias', x)
         return out['address']
 
     @command('n')
@@ -412,6 +421,8 @@ class Commands:
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
         if locktime != None: 
             tx.locktime = locktime
+        if rbf is None:
+            rbf = self.config.get('use_rbf', True)
         if rbf:
             tx.set_rbf(True)
         if not unsigned:
@@ -420,7 +431,7 @@ class Commands:
         return tx
 
     @command('wp')
-    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
+    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
         """Create a transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
@@ -428,7 +439,7 @@ class Commands:
         return tx.as_dict()
 
     @command('wp')
-    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
+    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
         """Create a multi-output transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
@@ -449,7 +460,7 @@ class Commands:
             from .exchange_rate import FxThread
             fx = FxThread(self.config, None)
             kwargs['fx'] = fx
-        return self.wallet.get_full_history(**kwargs)
+        return json_encode(self.wallet.get_full_history(**kwargs))
 
     @command('w')
     def setlabel(self, key, label):
@@ -511,7 +522,7 @@ class Commands:
             if raw:
                 tx = Transaction(raw)
             else:
-                raise BaseException("Unknown transaction")
+                raise Exception("Unknown transaction")
         return tx.as_dict()
 
     @command('')
@@ -540,7 +551,7 @@ class Commands:
         """Return a payment request"""
         r = self.wallet.get_payment_request(key, self.config)
         if not r:
-            raise BaseException("Request not found")
+            raise Exception("Request not found")
         return self._format_request(r)
 
     #@command('w')
@@ -578,7 +589,7 @@ class Commands:
     @command('w')
     def addrequest(self, amount, memo='', expiration=None, force=False):
         """Create a payment request, using the first unused address of the wallet.
-        The address will be condidered as used after this operation.
+        The address will be considered as used after this operation.
         If no payment is received, the address will be considered as unused if the payment request is deleted from the wallet."""
         addr = self.wallet.get_unused_address()
         if addr is None:
@@ -607,7 +618,7 @@ class Commands:
         "Sign payment request with an OpenAlias"
         alias = self.config.get('alias')
         if not alias:
-            raise BaseException('No alias in your configuration')
+            raise Exception('No alias in your configuration')
         alias_addr = self.wallet.contacts.resolve(alias)['address']
         self.wallet.sign_payment_request(address, alias, alias_addr, password)
 
@@ -624,7 +635,7 @@ class Commands:
 
     @command('n')
     def notify(self, address, URL):
-        """Watch an address. Everytime the address changes, a http POST is sent to the URL."""
+        """Watch an address. Every time the address changes, a http POST is sent to the URL."""
         def callback(x):
             import urllib.request
             headers = {'content-type':'application/json'}
@@ -795,7 +806,7 @@ argparse._SubParsersAction.__call__ = subparser_call
 
 
 def add_network_options(parser):
-    parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
+    parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=None, help="connect to one server only")
     parser.add_argument("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
     parser.add_argument("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
 
@@ -806,6 +817,7 @@ def add_global_options(parser):
     group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
     group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
+    group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
 
 def get_parser():
     # create main parser

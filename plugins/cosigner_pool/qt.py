@@ -30,7 +30,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import QPushButton
 
-from electrum import bitcoin, util
+from electrum import bitcoin, util, keystore
 from electrum import transaction
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
@@ -179,9 +179,10 @@ class Plugin(BasePlugin):
                 server.put(_hash, message)
             except Exception as e:
                 traceback.print_exc(file=sys.stdout)
-                window.show_message("Failed to send transaction to cosigning pool.")
+                window.show_error(_("Failed to send transaction to cosigning pool") + ':\n' + str(e))
                 return
-            window.show_message("Your transaction was sent to the cosigning pool.\nOpen your cosigner wallet to retrieve it.")
+            window.show_message(_("Your transaction was sent to the cosigning pool.") + '\n' +
+                                _("Open your cosigner wallet to retrieve it."))
 
     def on_receive(self, keyhash, message):
         self.print_error("signal arrived for", keyhash)
@@ -193,13 +194,20 @@ class Plugin(BasePlugin):
             return
 
         wallet = window.wallet
-        if wallet.has_keystore_encryption():
-            password = window.password_dialog('An encrypted transaction was retrieved from cosigning pool.\nPlease enter your password to decrypt it.')
+        if isinstance(wallet.keystore, keystore.Hardware_KeyStore):
+            window.show_warning(_('An encrypted transaction was retrieved from cosigning pool.') + '\n' +
+                                _('However, hardware wallets do not support message decryption, '
+                                  'which makes them not compatible with the current design of cosigner pool.'))
+            return
+        elif wallet.has_keystore_encryption():
+            password = window.password_dialog(_('An encrypted transaction was retrieved from cosigning pool.') + '\n' +
+                                              _('Please enter your password to decrypt it.'))
             if not password:
                 return
         else:
             password = None
-            if not window.question(_("An encrypted transaction was retrieved from cosigning pool.\nDo you want to open it now?")):
+            if not window.question(_("An encrypted transaction was retrieved from cosigning pool.") + '\n' +
+                                   _("Do you want to open it now?")):
                 return
 
         xprv = wallet.keystore.get_master_private_key(password)
@@ -211,7 +219,7 @@ class Plugin(BasePlugin):
             message = bh2u(EC.decrypt_message(message))
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
-            window.show_message(str(e))
+            window.show_error(_('Error decrypting message') + ':\n' + str(e))
             return
 
         self.listener.clear(keyhash)

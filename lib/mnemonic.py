@@ -159,7 +159,7 @@ class Mnemonic(object):
 
     def make_seed(self, seed_type='standard', num_bits=132):
         prefix = version.seed_prefix(seed_type)
-        # increase num_bits in order to obtain a uniform distibution for the last word
+        # increase num_bits in order to obtain a uniform distribution for the last word
         bpw = math.log(len(self.wordlist), 2)
         # rounding
         n = int(math.ceil(num_bits/bpw) * bpw)
@@ -173,7 +173,8 @@ class Mnemonic(object):
             nonce += 1
             i = entropy + nonce
             seed = self.mnemonic_encode(i)
-            assert i == self.mnemonic_decode(seed)
+            if i != self.mnemonic_decode(seed):
+                raise Exception('Cannot extract same entropy from mnemonic!')
             if is_old_seed(seed):
                 continue
             if is_new_seed(seed, prefix):

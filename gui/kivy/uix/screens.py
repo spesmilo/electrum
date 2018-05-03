@@ -17,7 +17,7 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.utils import platform
 
-from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds
+from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum import bitcoin
 from electrum.util import timestamp_to_datetime
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
@@ -131,7 +131,6 @@ class HistoryScreen(CScreen):
         status, status_str = self.app.wallet.get_tx_status(tx_hash, height, conf, timestamp)
         icon = "atlas://gui/kivy/theming/light/" + TX_ICONS[status]
         label = self.app.wallet.get_label(tx_hash) if tx_hash else _('Pruned transaction outputs')
-        date = timestamp_to_datetime(timestamp)
         ri = self.cards.get(tx_hash)
         if ri is None:
             ri = Factory.HistoryItem()
@@ -146,8 +145,11 @@ class HistoryScreen(CScreen):
             ri.is_mine = value < 0
             if value < 0: value = - value
             ri.amount = self.app.format_amount_and_units(value)
-            if self.app.fiat_unit and date:
-                ri.quote_text = self.app.fx.historical_value_str(value, date) + ' ' + self.app.fx.ccy
+            if self.app.fiat_unit:
+                fx = self.app.fx
+                fiat_value = value / Decimal(bitcoin.COIN) * self.app.wallet.price_at_timestamp(tx_hash, fx.timestamp_rate)
+                fiat_value = Fiat(fiat_value, fx.ccy)
+                ri.quote_text = str(fiat_value)
         return ri
 
     def update(self, see_all=False):
@@ -207,7 +209,7 @@ class SendScreen(CScreen):
         if not self.screen.address:
             return
         if self.screen.is_pr:
-            # it sould be already saved
+            # it should be already saved
             return
         # save address as invoice
         from electrum.paymentrequest import make_unsigned_request, PaymentRequest
@@ -458,7 +460,7 @@ class TabbedCarousel(Factory.TabbedPanel):
         self.current_tab.state = "normal"
         header.state = 'down'
         self._current_tab = header
-        # set the carousel to load  the appropriate slide
+        # set the carousel to load the appropriate slide
         # saved in the screen attribute of the tab head
         slide = carousel.slides[header.slide]
         if carousel.current_slide != slide:

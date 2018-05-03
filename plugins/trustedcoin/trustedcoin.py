@@ -82,6 +82,11 @@ class TrustedCoinException(Exception):
         Exception.__init__(self, message)
         self.status_code = status_code
 
+
+class ErrorConnectingServer(Exception):
+    pass
+
+
 class TrustedCoinCosignerClient(object):
     def __init__(self, user_agent=None, base_url='https://api.trustedcoin.com/2/'):
         self.base_url = base_url
@@ -100,7 +105,10 @@ class TrustedCoinCosignerClient(object):
         url = urljoin(self.base_url, relative_url)
         if self.debug:
             print('%s %s %s' % (method, url, data))
-        response = requests.request(method, url, **kwargs)
+        try:
+            response = requests.request(method, url, **kwargs)
+        except Exception as e:
+            raise ErrorConnectingServer(e)
         if self.debug:
             print(response.text)
         if response.status_code != 200:
@@ -176,7 +184,7 @@ class TrustedCoinCosignerClient(object):
 
     def transfer_credit(self, id, recipient, otp, signature_callback):
         """
-        Tranfer a cosigner's credits to another cosigner.
+        Transfer a cosigner's credits to another cosigner.
         :param id: the id of the sending cosigner
         :param recipient: the id of the recipient cosigner
         :param otp: the one time password (of the sender)
@@ -250,7 +258,7 @@ class Wallet_2fa(Multisig_Wallet):
             try:
                 tx = mk_tx(outputs + [fee_output])
             except NotEnoughFunds:
-                # trustedcoin won't charge if the total inputs is
+                # TrustedCoin won't charge if the total inputs is
                 # lower than their fee
                 tx = mk_tx(outputs)
                 if tx.input_value() >= fee:
@@ -336,17 +344,29 @@ class TrustedCoinPlugin(BasePlugin):
             if _type == TYPE_ADDRESS and addr == address:
                 return address, amount
 
+    def finish_requesting(func):
+        def f(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            finally:
+                self.requesting = False
+        return f
+
+    @finish_requesting
     def request_billing_info(self, wallet):
         if wallet.can_sign_without_server():
             return
         self.print_error("request billing info")
-        billing_info = server.get(wallet.get_user_id()[1])
+        try:
+            billing_info = server.get(wallet.get_user_id()[1])
+        except ErrorConnectingServer as e:
+            self.print_error('cannot connect to TrustedCoin server: {}'.format(e))
+            return
         billing_address = make_billing_address(wallet, billing_info['billing_index'])
         assert billing_address == billing_info['billing_address']
         wallet.billing_info = billing_info
         wallet.price_per_tx = dict(billing_info['price_per_tx'])
         wallet.price_per_tx.pop(1)
-        self.requesting = False
         return True
 
     def start_request_thread(self, wallet):
@@ -398,7 +418,10 @@ class TrustedCoinPlugin(BasePlugin):
         words = seed.split()
         n = len(words)
         # old version use long seed phrases
-        if n >= 24:
+        if n >= 20:
+            # note: pre-2.7 2fa seeds were typically 24-25 words, however they
+            # could probabilistically be arbitrarily shorter due to a bug. (see #3611)
+            # the probability of it being < 20 words is about 2^(-(256+12-19*11)) = 2^(-59)
             assert passphrase == ''
             xprv1, xpub1 = self.get_xkeys(' '.join(words[0:12]), '', "m/")
             xprv2, xpub2 = self.get_xkeys(' '.join(words[12:]), '', "m/")
@@ -406,7 +429,7 @@ class TrustedCoinPlugin(BasePlugin):
             xprv1, xpub1 = self.get_xkeys(seed, passphrase, "m/0'/")
             xprv2, xpub2 = self.get_xkeys(seed, passphrase, "m/1'/")
         else:
-            raise BaseException('unrecognized seed length: {} words'.format(n))
+            raise Exception('unrecognized seed length: {} words'.format(n))
         return xprv1, xpub1, xprv2, xpub2
 
     def create_keystore(self, wizard, seed, passphrase):

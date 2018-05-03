@@ -1,15 +1,31 @@
+# Release 3.1.3 - (April 16, 2018)
+
+ * Qt GUI: seed word auto-complete during restore
+ * Android: fix some crashes
+ * performance improvements (wallet, and Qt GUI)
+ * hardware wallets: show debug message during device scan
+ * Digital Bitbox: enabled BIP84 (p2wpkh) wallet creation
+ * add regtest support (via --regtest flag)
+ * other minor bugfixes and usability improvements
+
+# Release 3.1.2 - (March 28, 2018)
+
+ * Kivy/android: request PIN on startup
+ * Improve OSX build process
+ * Fix various bugs with hardware wallets
+ * Other minor bugfixes
 
 # Release 3.1.1 - (March 12, 2018)
 
-  * fix #4031: Trezor T support
-  * partial fix #4060: proxy and hardware wallet can't be used together
-  * fix #4039: can't set address labels
-  * fix crash related to coinbase transactions
-  * MacOS: use internal graphics card
-  * fix openalias related crashes
-  * speed-up capital gains calculations
-  * hw wallet encryption: re-prompt for passphrase if incorrect
-  * other minor fixes.
+ * fix #4031: Trezor T support
+ * partial fix #4060: proxy and hardware wallet can't be used together
+ * fix #4039: can't set address labels
+ * fix crash related to coinbase transactions
+ * MacOS: use internal graphics card
+ * fix openalias related crashes
+ * speed-up capital gains calculations
+ * hw wallet encryption: re-prompt for passphrase if incorrect
+ * other minor fixes.
 
 
 

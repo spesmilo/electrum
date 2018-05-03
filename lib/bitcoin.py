@@ -143,7 +143,8 @@ def rev_hex(s):
 
 
 def int_to_hex(i, length=1):
-    assert isinstance(i, int)
+    if not isinstance(i, int):
+        raise TypeError('{} instead of int'.format(i))
     if i < 0:
         # two's complement
         i = pow(256, length) + i
@@ -151,8 +152,31 @@ def int_to_hex(i, length=1):
     s = "0"*(2*length - len(s)) + s
     return rev_hex(s)
 
+def script_num_to_hex(i: int) -> str:
+    """See CScriptNum in Bitcoin Core.
+    Encodes an integer as hex, to be used in script.
 
-def var_int(i):
+    ported from https://github.com/bitcoin/bitcoin/blob/8cbc5c4be4be22aca228074f087a374a7ec38be8/src/script/script.h#L326
+    """
+    if i == 0:
+        return ''
+
+    result = bytearray()
+    neg = i < 0
+    absvalue = abs(i)
+    while absvalue > 0:
+        result.append(absvalue & 0xff)
+        absvalue >>= 8
+
+    if result[-1] & 0x80:
+        result.append(0x80 if neg else 0x00)
+    elif neg:
+        result[-1] |= 0x80
+
+    return bh2u(result)
+
+
+def var_int(i: int) -> str:
     # https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
     if i<0xfd:
         return int_to_hex(i)
@@ -164,18 +188,50 @@ def var_int(i):
         return "ff"+int_to_hex(i,8)
 
 
-def op_push(i):
-    if i<0x4c:
+def witness_push(item: str) -> str:
+    """Returns data in the form it should be present in the witness.
+    hex -> hex
+    """
+    return var_int(len(item) // 2) + item
+
+
+def op_push(i: int) -> str:
+    if i<0x4c:  # OP_PUSHDATA1
         return int_to_hex(i)
-    elif i<0xff:
+    elif i<=0xff:
         return '4c' + int_to_hex(i)
-    elif i<0xffff:
+    elif i<=0xffff:
         return '4d' + int_to_hex(i,2)
     else:
         return '4e' + int_to_hex(i,4)
 
-def push_script(x):
-    return op_push(len(x)//2) + x
+
+def push_script(data: str) -> str:
+    """Returns pushed data to the script, automatically
+    choosing canonical opcodes depending on the length of the data.
+    hex -> hex
+
+    ported from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptbuilder.go#L128
+    """
+    data = bfh(data)
+    from .transaction import opcodes
+
+    data_len = len(data)
+
+    # "small integer" opcodes
+    if data_len == 0 or data_len == 1 and data[0] == 0:
+        return bh2u(bytes([opcodes.OP_0]))
+    elif data_len == 1 and data[0] <= 16:
+        return bh2u(bytes([opcodes.OP_1 - 1 + data[0]]))
+    elif data_len == 1 and data[0] == 0x81:
+        return bh2u(bytes([opcodes.OP_1NEGATE]))
+
+    return op_push(data_len) + bh2u(data)
+
+
+def add_number_to_script(i: int) -> bytes:
+    return bfh(push_script(script_num_to_hex(i)))
+
 
 def sha256(x):
     x = to_bytes(x, 'utf8')
@@ -342,7 +398,8 @@ def address_to_script(addr, *, net=None):
         net = constants.net
     witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
     if witprog is not None:
-        assert (0 <= witver <= 16)
+        if not (0 <= witver <= 16):
+            raise BitcoinException('impossible witness version: {}'.format(witver))
         OP_n = witver + 0x50 if witver > 0 else 0
         script = bh2u(bytes([OP_n]))
         script += push_script(bh2u(bytes(witprog)))
@@ -383,7 +440,8 @@ assert len(__b43chars) == 43
 def base_encode(v, base):
     """ encode v, which is a string of bytes, to base58."""
     assert_bytes(v)
-    assert base in (58, 43)
+    if base not in (58, 43):
+        raise ValueError('not supported base: {}'.format(base))
     chars = __b58chars
     if base == 43:
         chars = __b43chars
@@ -413,7 +471,8 @@ def base_decode(v, length, base):
     """ decode v into a string of len bytes."""
     # assert_bytes(v)
     v = to_bytes(v, 'ascii')
-    assert base in (58, 43)
+    if base not in (58, 43):
+        raise ValueError('not supported base: {}'.format(base))
     chars = __b58chars
     if base == 43:
         chars = __b43chars
@@ -497,7 +556,8 @@ def deserialize_privkey(key):
     txin_type = None
     if ':' in key:
         txin_type, key = key.split(sep=':', maxsplit=1)
-        assert txin_type in SCRIPT_TYPES
+        if txin_type not in SCRIPT_TYPES:
+            raise BitcoinException('unknown script type: {}'.format(txin_type))
     try:
         vch = DecodeBase58Check(key)
     except BaseException:
@@ -509,9 +569,12 @@ def deserialize_privkey(key):
         # keys exported in version 3.0.x encoded script type in first byte
         txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - constants.net.WIF_PREFIX]
     else:
-        assert vch[0] == constants.net.WIF_PREFIX
+        # all other keys must have a fixed first byte
+        if vch[0] != constants.net.WIF_PREFIX:
+            raise BitcoinException('invalid prefix ({}) for WIF key'.format(vch[0]))
 
-    assert len(vch) in [33, 34]
+    if len(vch) not in [33, 34]:
+        raise BitcoinException('invalid vch len for WIF key: {}'.format(len(vch)))
     compressed = len(vch) == 34
     return txin_type, vch[1:33], compressed
 
@@ -963,7 +1026,8 @@ def xpub_from_pubkey(xtype, cK):
 
 
 def bip32_derivation(s):
-    assert s.startswith('m/')
+    if not s.startswith('m/'):
+        raise ValueError('invalid bip32 derivation path: {}'.format(s))
     s = s[2:]
     for n in s.split('/'):
         if n == '': continue
@@ -978,7 +1042,9 @@ def is_bip32_derivation(x):
         return False
 
 def bip32_private_derivation(xprv, branch, sequence):
-    assert sequence.startswith(branch)
+    if not sequence.startswith(branch):
+        raise ValueError('incompatible branch ({}) and sequence ({})'
+                         .format(branch, sequence))
     if branch == sequence:
         return xprv, xpub_from_xprv(xprv)
     xtype, depth, fingerprint, child_number, c, k = deserialize_xprv(xprv)
@@ -1000,7 +1066,9 @@ def bip32_private_derivation(xprv, branch, sequence):
 
 def bip32_public_derivation(xpub, branch, sequence):
     xtype, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub)
-    assert sequence.startswith(branch)
+    if not sequence.startswith(branch):
+        raise ValueError('incompatible branch ({}) and sequence ({})'
+                         .format(branch, sequence))
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
         if n == '': continue

@@ -1,5 +1,6 @@
 from electrum.util import print_msg, print_error, raw_input
 
+
 class CmdLineHandler:
 
     def get_passphrase(self, msg, confirm):
@@ -12,7 +13,10 @@ class CmdLineHandler:
         print_msg(msg)
         print_msg("a b c\nd e f\ng h i\n-----")
         o = raw_input()
-        return ''.join(map(lambda x: t[x], o))
+        try:
+            return ''.join(map(lambda x: t[x], o))
+        except KeyError as e:
+            raise Exception("Character {} not in matrix!".format(e)) from e
 
     def prompt_auth(self, msg):
         import getpass
@@ -32,11 +36,11 @@ class CmdLineHandler:
     def show_message(self, msg, on_cancel=None):
         print_msg(msg)
 
-    def show_error(self, msg):
+    def show_error(self, msg, blocking=False):
         print_msg(msg)
 
     def update_status(self, b):
-        print_error('trezor status', b)
+        print_error('hw device status', b)
 
     def finished(self):
         pass

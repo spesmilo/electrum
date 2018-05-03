@@ -11,9 +11,14 @@ from lib.bitcoin import (
     var_int, op_push, address_to_script, regenerate_key,
     verify_message, deserialize_privkey, serialize_privkey, is_segwit_address,
     is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
-    xpub_type, is_xprv, is_bip32_derivation, seed_type)
-from lib.util import bfh
+    xpub_type, is_xprv, is_bip32_derivation, seed_type, EncodeBase58Check,
+    script_num_to_hex, push_script, add_number_to_script)
+from lib.transaction import opcodes
+from lib.util import bfh, bh2u
 from lib import constants
+
+from . import TestCaseForTestnet
+
 
 try:
     import ecdsa
@@ -139,13 +144,65 @@ class Test_bitcoin(unittest.TestCase):
         self.assertEqual(op_push(0x4b), '4b')
         self.assertEqual(op_push(0x4c), '4c4c')
         self.assertEqual(op_push(0xfe), '4cfe')
-        self.assertEqual(op_push(0xff), '4dff00')
+        self.assertEqual(op_push(0xff), '4cff')
         self.assertEqual(op_push(0x100), '4d0001')
         self.assertEqual(op_push(0x1234), '4d3412')
         self.assertEqual(op_push(0xfffe), '4dfeff')
-        self.assertEqual(op_push(0xffff), '4effff0000')
+        self.assertEqual(op_push(0xffff), '4dffff')
         self.assertEqual(op_push(0x10000), '4e00000100')
         self.assertEqual(op_push(0x12345678), '4e78563412')
+
+    def test_script_num_to_hex(self):
+        # test vectors from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptnum.go#L77
+        self.assertEqual(script_num_to_hex(127), '7f')
+        self.assertEqual(script_num_to_hex(-127), 'ff')
+        self.assertEqual(script_num_to_hex(128), '8000')
+        self.assertEqual(script_num_to_hex(-128), '8080')
+        self.assertEqual(script_num_to_hex(129), '8100')
+        self.assertEqual(script_num_to_hex(-129), '8180')
+        self.assertEqual(script_num_to_hex(256), '0001')
+        self.assertEqual(script_num_to_hex(-256), '0081')
+        self.assertEqual(script_num_to_hex(32767), 'ff7f')
+        self.assertEqual(script_num_to_hex(-32767), 'ffff')
+        self.assertEqual(script_num_to_hex(32768), '008000')
+        self.assertEqual(script_num_to_hex(-32768), '008080')
+
+    def test_push_script(self):
+        # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#push-operators
+        self.assertEqual(push_script(''), bh2u(bytes([opcodes.OP_0])))
+        self.assertEqual(push_script('07'), bh2u(bytes([opcodes.OP_7])))
+        self.assertEqual(push_script('10'), bh2u(bytes([opcodes.OP_16])))
+        self.assertEqual(push_script('81'), bh2u(bytes([opcodes.OP_1NEGATE])))
+        self.assertEqual(push_script('11'), '0111')
+        self.assertEqual(push_script(75 * '42'), '4b' + 75 * '42')
+        self.assertEqual(push_script(76 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('4c' + 76 * '42')))
+        self.assertEqual(push_script(100 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('64' + 100 * '42')))
+        self.assertEqual(push_script(255 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA1]) + bfh('ff' + 255 * '42')))
+        self.assertEqual(push_script(256 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA2]) + bfh('0001' + 256 * '42')))
+        self.assertEqual(push_script(520 * '42'), bh2u(bytes([opcodes.OP_PUSHDATA2]) + bfh('0802' + 520 * '42')))
+
+    def test_add_number_to_script(self):
+        # https://github.com/bitcoin/bips/blob/master/bip-0062.mediawiki#numbers
+        self.assertEqual(add_number_to_script(0), bytes([opcodes.OP_0]))
+        self.assertEqual(add_number_to_script(7), bytes([opcodes.OP_7]))
+        self.assertEqual(add_number_to_script(16), bytes([opcodes.OP_16]))
+        self.assertEqual(add_number_to_script(-1), bytes([opcodes.OP_1NEGATE]))
+        self.assertEqual(add_number_to_script(-127), bfh('01ff'))
+        self.assertEqual(add_number_to_script(-2), bfh('0182'))
+        self.assertEqual(add_number_to_script(17), bfh('0111'))
+        self.assertEqual(add_number_to_script(127), bfh('017f'))
+        self.assertEqual(add_number_to_script(-32767), bfh('02ffff'))
+        self.assertEqual(add_number_to_script(-128), bfh('028080'))
+        self.assertEqual(add_number_to_script(128), bfh('028000'))
+        self.assertEqual(add_number_to_script(32767), bfh('02ff7f'))
+        self.assertEqual(add_number_to_script(-8388607), bfh('03ffffff'))
+        self.assertEqual(add_number_to_script(-32768), bfh('03008080'))
+        self.assertEqual(add_number_to_script(32768), bfh('03008000'))
+        self.assertEqual(add_number_to_script(8388607), bfh('03ffff7f'))
+        self.assertEqual(add_number_to_script(-2147483647), bfh('04ffffffff'))
+        self.assertEqual(add_number_to_script(-8388608 ), bfh('0400008080'))
+        self.assertEqual(add_number_to_script(8388608), bfh('0400008000'))
+        self.assertEqual(add_number_to_script(2147483647), bfh('04ffffff7f'))
 
     def test_address_to_script(self):
         # bech32 native segwit
@@ -164,17 +221,7 @@ class Test_bitcoin(unittest.TestCase):
         self.assertEqual(address_to_script('3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji'), 'a914f47c8954e421031ad04ecd8e7752c9479206b9d387')
 
 
-class Test_bitcoin_testnet(unittest.TestCase):
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        constants.set_testnet()
-
-    @classmethod
-    def tearDownClass(cls):
-        super().tearDownClass()
-        constants.set_mainnet()
+class Test_bitcoin_testnet(TestCaseForTestnet):
 
     def test_address_to_script(self):
         # bech32 native segwit
@@ -266,6 +313,79 @@ class Test_xprv_xpub(unittest.TestCase):
         self.assertFalse(is_bip32_derivation("n/"))
         self.assertFalse(is_bip32_derivation(""))
         self.assertFalse(is_bip32_derivation("m/q8462"))
+
+    def test_version_bytes(self):
+        xprv_headers_b58 = {
+            'standard':    'xprv',
+            'p2wpkh-p2sh': 'yprv',
+            'p2wsh-p2sh':  'Yprv',
+            'p2wpkh':      'zprv',
+            'p2wsh':       'Zprv',
+        }
+        xpub_headers_b58 = {
+            'standard':    'xpub',
+            'p2wpkh-p2sh': 'ypub',
+            'p2wsh-p2sh':  'Ypub',
+            'p2wpkh':      'zpub',
+            'p2wsh':       'Zpub',
+        }
+        for xtype, xkey_header_bytes in constants.net.XPRV_HEADERS.items():
+            xkey_header_bytes = bfh("%08x" % xkey_header_bytes)
+            xkey_bytes = xkey_header_bytes + bytes([0] * 74)
+            xkey_b58 = EncodeBase58Check(xkey_bytes)
+            self.assertTrue(xkey_b58.startswith(xprv_headers_b58[xtype]))
+
+            xkey_bytes = xkey_header_bytes + bytes([255] * 74)
+            xkey_b58 = EncodeBase58Check(xkey_bytes)
+            self.assertTrue(xkey_b58.startswith(xprv_headers_b58[xtype]))
+
+        for xtype, xkey_header_bytes in constants.net.XPUB_HEADERS.items():
+            xkey_header_bytes = bfh("%08x" % xkey_header_bytes)
+            xkey_bytes = xkey_header_bytes + bytes([0] * 74)
+            xkey_b58 = EncodeBase58Check(xkey_bytes)
+            self.assertTrue(xkey_b58.startswith(xpub_headers_b58[xtype]))
+
+            xkey_bytes = xkey_header_bytes + bytes([255] * 74)
+            xkey_b58 = EncodeBase58Check(xkey_bytes)
+            self.assertTrue(xkey_b58.startswith(xpub_headers_b58[xtype]))
+
+
+class Test_xprv_xpub_testnet(TestCaseForTestnet):
+
+    def test_version_bytes(self):
+        xprv_headers_b58 = {
+            'standard':    'tprv',
+            'p2wpkh-p2sh': 'uprv',
+            'p2wsh-p2sh':  'Uprv',
+            'p2wpkh':      'vprv',
+            'p2wsh':       'Vprv',
+        }
+        xpub_headers_b58 = {
+            'standard':    'tpub',
+            'p2wpkh-p2sh': 'upub',
+            'p2wsh-p2sh':  'Upub',
+            'p2wpkh':      'vpub',
+            'p2wsh':       'Vpub',
+        }
+        for xtype, xkey_header_bytes in constants.net.XPRV_HEADERS.items():
+            xkey_header_bytes = bfh("%08x" % xkey_header_bytes)
+            xkey_bytes = xkey_header_bytes + bytes([0] * 74)
+            xkey_b58 = EncodeBase58Check(xkey_bytes)
+            self.assertTrue(xkey_b58.startswith(xprv_headers_b58[xtype]))
+
+            xkey_bytes = xkey_header_bytes + bytes([255] * 74)
+            xkey_b58 = EncodeBase58Check(xkey_bytes)
+            self.assertTrue(xkey_b58.startswith(xprv_headers_b58[xtype]))
+
+        for xtype, xkey_header_bytes in constants.net.XPUB_HEADERS.items():
+            xkey_header_bytes = bfh("%08x" % xkey_header_bytes)
+            xkey_bytes = xkey_header_bytes + bytes([0] * 74)
+            xkey_b58 = EncodeBase58Check(xkey_bytes)
+            self.assertTrue(xkey_b58.startswith(xpub_headers_b58[xtype]))
+
+            xkey_bytes = xkey_header_bytes + bytes([255] * 74)
+            xkey_b58 = EncodeBase58Check(xkey_bytes)
+            self.assertTrue(xkey_b58.startswith(xpub_headers_b58[xtype]))
 
 
 class Test_keyImport(unittest.TestCase):
@@ -438,7 +558,7 @@ class Test_seeds(unittest.TestCase):
         ('  fRoSt pig brisk excIte novel rePort CamEra enlist axis nation nOVeL dEsert ', 'segwit'),
         ('9dk', 'segwit'),
     }
-    
+
     def test_new_seed(self):
         seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform able"
         self.assertTrue(is_new_seed(seed))

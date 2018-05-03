@@ -63,7 +63,7 @@ class Exception_Window(QWidget, MessageBoxMixin):
         self.exc_args = (exctype, value, tb)
         self.main_window = main_window
         QWidget.__init__(self)
-        self.setWindowTitle('Electrum - ' + _('An Error Occured'))
+        self.setWindowTitle('Electrum - ' + _('An Error Occurred'))
         self.setMinimumSize(600, 300)
 
         main_box = QVBoxLayout()
@@ -186,7 +186,8 @@ class Exception_Window(QWidget, MessageBoxMixin):
     @staticmethod
     def get_git_version():
         dir = os.path.dirname(os.path.realpath(sys.argv[0]))
-        version = subprocess.check_output(['git', 'describe', '--always'], cwd=dir)
+        version = subprocess.check_output(
+            ['git', 'describe', '--always', '--dirty'], cwd=dir)
         return str(version, "utf8").strip()
 
 

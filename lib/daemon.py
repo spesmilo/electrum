@@ -173,7 +173,8 @@ class Daemon(DaemonThread):
         elif sub == 'load_wallet':
             path = config.get_wallet_path()
             wallet = self.load_wallet(path, config.get('password'))
-            self.cmd_runner.wallet = wallet
+            if wallet is not None:
+                self.cmd_runner.wallet = wallet
             response = wallet is not None
         elif sub == 'close_wallet':
             path = config.get_wallet_path()
@@ -185,6 +186,9 @@ class Daemon(DaemonThread):
         elif sub == 'status':
             if self.network:
                 p = self.network.get_parameters()
+                current_wallet = self.cmd_runner.wallet
+                current_wallet_path = current_wallet.storage.path \
+                                      if current_wallet else None
                 response = {
                     'path': self.network.config.path,
                     'server': p[0],
@@ -196,6 +200,7 @@ class Daemon(DaemonThread):
                     'version': ELECTRUM_VERSION,
                     'wallets': {k: w.is_up_to_date()
                                 for k, w in self.wallets.items()},
+                    'current_wallet': current_wallet_path,
                     'fee_per_kb': self.config.fee_per_kb(),
                 }
             else:

@@ -480,7 +480,9 @@ class WalletStorage(PrintError):
     def convert_version_15(self):
         if not self._is_upgrade_method_needed(14, 14):
             return
-        assert self.get('seed_type') != 'segwit'  # unsupported derivation
+        if self.get('seed_type') == 'segwit':
+            # should not get here; get_seed_version should have caught this
+            raise Exception('unsupported derivation (development segwit, v14)')
         self.put('seed_version', 15)
 
     def convert_version_16(self):

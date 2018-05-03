@@ -44,6 +44,9 @@ setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
     install_requires=requirements,
+    extras_require={
+        'full': requirements_hw + ['pycryptodomex'],
+    },
     packages=[
         'electrum',
         'electrum_gui',
@@ -71,6 +74,7 @@ setup(
         'electrum': [
             'servers.json',
             'servers_testnet.json',
+            'servers_regtest.json',
             'currencies.json',
             'checkpoints.json',
             'checkpoints_testnet.json',
@@ -88,8 +92,3 @@ setup(
     url="https://electrum.org",
     long_description="""Lightweight Bitcoin Wallet"""
 )
-
-# Optional modules (not required to run Electrum)
-import pip
-opt_modules = requirements_hw + ['pycryptodomex']
-[ pip.main(['install', m]) for m in opt_modules ]
