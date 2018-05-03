@@ -558,6 +558,7 @@ class Peer(PrintError):
             "local_funding_locked",
             "remote_funding_locked",
             "revoke_and_ack",
+            "channel_reestablish",
             "commitment_signed"]
         self.channel_accepted = defaultdict(asyncio.Future)
         self.funding_signed = defaultdict(asyncio.Future)
@@ -565,6 +566,7 @@ class Peer(PrintError):
         self.remote_funding_locked = defaultdict(asyncio.Future)
         self.revoke_and_ack = defaultdict(asyncio.Future)
         self.commitment_signed = defaultdict(asyncio.Future)
+        self.channel_reestablish = defaultdict(asyncio.Future)
         self.initialized = asyncio.Future()
         self.localfeatures = (0x08 if request_initial_sync else 0)
         # view of the network
@@ -684,6 +686,9 @@ class Peer(PrintError):
     def on_ping(self, payload):
         l = int.from_bytes(payload['num_pong_bytes'], 'big')
         self.send_message(gen_msg('pong', byteslen=l))
+
+    def on_channel_reestablish(self, payload):
+        self.channel_reestablish[payload["channel_id"]].set_result(payload)
 
     def on_accept_channel(self, payload):
         self.channel_accepted[payload["temporary_channel_id"]].set_result(payload)
@@ -826,7 +831,7 @@ class Peer(PrintError):
             to_self_delay=int.from_bytes(payload['to_self_delay'], byteorder='big'),
             dust_limit_sat=int.from_bytes(payload['dust_limit_satoshis'], byteorder='big'),
             max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'),
-            max_accepted_htlcs=payload["max_accepted_htlcs"]
+            max_accepted_htlcs=int.from_bytes(payload["max_accepted_htlcs"], 'big')
         )
         funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], 'big')
         print('remote dust limit', remote_config.dust_limit_sat)
@@ -912,27 +917,36 @@ class Peer(PrintError):
         )
         return chan
 
+    async def reestablish_channel(self, chan, m, n):
+        await self.initialized
+        self.send_message(gen_msg("channel_reestablish", channel_id=chan.channel_id, next_local_commitment_number=m, next_remote_revocation_number=n))
+        channel_reestablish_msg = await self.channel_reestablish[chan.channel_id]
+        print(channel_reestablish_msg)
+
     async def wait_for_funding_locked(self, chan, wallet):
         channel_id = chan.channel_id
-        # wait until we see confirmations
-        def on_network_update(event, *args):
-            conf = wallet.get_tx_height(chan.funding_outpoint.txid)[1]
-            if conf >= chan.constraints.funding_txn_minimum_depth:
-                async def set_local_funding_locked_result():
-                    try:
-                        self.local_funding_locked[channel_id].set_result(1)
-                    except (asyncio.InvalidStateError, KeyError) as e:
-                        # FIXME race condition if updates come in quickly, set_result might be called multiple times
-                        # or self.local_funding_locked[channel_id] might be deleted already
-                        self.print_error('local_funding_locked.set_result error for channel {}: {}'.format(channel_id, e))
-                asyncio.run_coroutine_threadsafe(set_local_funding_locked_result(), asyncio.get_event_loop())
-                self.network.unregister_callback(on_network_update)
-        self.network.register_callback(on_network_update, ['updated']) # thread safe
+        conf = wallet.get_tx_height(chan.funding_outpoint.txid)[1]
+        if conf < chan.constraints.funding_txn_minimum_depth:
+            # wait until we see confirmations
+            def on_network_update(event, *args):
+                conf = wallet.get_tx_height(chan.funding_outpoint.txid)[1]
+                if conf >= chan.constraints.funding_txn_minimum_depth:
+                    async def set_local_funding_locked_result():
+                        try:
+                            self.local_funding_locked[channel_id].set_result(1)
+                        except (asyncio.InvalidStateError, KeyError) as e:
+                            # FIXME race condition if updates come in quickly, set_result might be called multiple times
+                            # or self.local_funding_locked[channel_id] might be deleted already
+                            self.print_error('local_funding_locked.set_result error for channel {}: {}'.format(channel_id, e))
+                    asyncio.run_coroutine_threadsafe(set_local_funding_locked_result(), asyncio.get_event_loop())
+                    self.network.unregister_callback(on_network_update)
+            self.network.register_callback(on_network_update, ['updated']) # thread safe
 
-        try:
-            await self.local_funding_locked[channel_id]
-        finally:
-            del self.local_funding_locked[channel_id]
+            try:
+                await self.local_funding_locked[channel_id]
+            finally:
+                del self.local_funding_locked[channel_id]
+
         per_commitment_secret_index = 2**48 - (chan.local_state.ctn + 1) - 1
         per_commitment_point_second = secret_to_pubkey(int.from_bytes(
             get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, per_commitment_secret_index), 'big'))
@@ -1094,7 +1108,7 @@ class Peer(PrintError):
 class LNWorker:
 
     def __init__(self, wallet, network):
-        self.privkey = H256(str(time.time()).encode("ascii"))
+        self.privkey = H256(b"0123456789")
         self.wallet = wallet
         self.network = network
         self.config = network.config
