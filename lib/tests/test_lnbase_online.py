@@ -13,20 +13,71 @@ from lib.simple_config import SimpleConfig
 from lib.network import Network
 from lib.storage import WalletStorage
 from lib.wallet import Wallet
-from lib.lnbase import Peer, node_list
+from lib.lnbase import Peer, node_list, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints
 from lib.lightning_payencode.lnaddr import lnencode, LnAddr
 import lib.constants as constants
 
+is_key = lambda k: k.endswith("_basepoint") or k.endswith("_key")
+
+def maybeDecode(k, v):
+    if k in ["pubkey", "privkey", "next_per_commitment_point", "per_commitment_secret_seed"] and v is not None:
+        return binascii.unhexlify(v)
+    return v
+
+def decodeAll(v):
+    return {i: maybeDecode(i, j) for i, j in v.items()} if isinstance(v, dict) else v
+
+def typeWrap(k, v, local):
+    if is_key(k):
+        if local:
+            return Keypair(**v)
+        else:
+            return OnlyPubkeyKeypair(**v)
+    return v
+
+def reconstruct_namedtuples(openingchannel):
+    openingchannel=OpenChannel(**openingchannel)
+    openingchannel = openingchannel._replace(funding_outpoint=Outpoint(**openingchannel.funding_outpoint))
+    new_local_config = {k: typeWrap(k, decodeAll(v), True) for k, v in openingchannel.local_config.items()}
+    openingchannel = openingchannel._replace(local_config=ChannelConfig(**new_local_config))
+    new_remote_config = {k: typeWrap(k, decodeAll(v), False) for k, v in openingchannel.remote_config.items()}
+    openingchannel = openingchannel._replace(remote_config=ChannelConfig(**new_remote_config))
+    new_local_state = decodeAll(openingchannel.local_state)
+    openingchannel = openingchannel._replace(local_state=LocalState(**new_local_state))
+    new_remote_state = decodeAll(openingchannel.remote_state)
+    openingchannel = openingchannel._replace(remote_state=RemoteState(**new_remote_state))
+    openingchannel = openingchannel._replace(constraints=ChannelConstraints(**openingchannel.constraints))
+    return openingchannel
+
+def serialize_channels(channels):
+    serialized_channels = []
+    for chan in channels:
+        namedtuples_to_dict = lambda v: {i: j._asdict() if isinstance(j, tuple) else j for i, j in v._asdict().items()}
+        serialized_channels.append({k: namedtuples_to_dict(v) if isinstance(v, tuple) else v for k, v in chan._asdict().items()})
+    class MyJsonEncoder(json.JSONEncoder):
+        def default(self, o):
+            if isinstance(o, bytes):
+                return binascii.hexlify(o).decode("ascii")
+            return super(MyJsonEncoder, self)
+    dumped = MyJsonEncoder().encode(serialized_channels)
+    roundtripped = json.loads(dumped)
+    reconstructed = [reconstruct_namedtuples(x) for x in roundtripped]
+    if reconstructed != channels:
+        raise Exception("Channels did not roundtrip serialization without changes:\n" + repr(reconstructed) + "\n" + repr(channels))
+    return dumped
+
 if __name__ == "__main__":
-    if len(sys.argv) > 2:
-        host, port, pubkey = sys.argv[2:5]
+    if len(sys.argv) > 3:
+        host, port, pubkey = sys.argv[3:6]
     else:
         host, port, pubkey = node_list[0]
     pubkey = binascii.unhexlify(pubkey)
     port = int(port)
-    if sys.argv[1] not in ["simnet", "testnet"]:
-        raise Exception("first argument must be simnet or testnet")
-    if sys.argv[1] == "simnet":
+    if sys.argv[1] not in ["new_channel", "reestablish_channel"]:
+        raise Exception("first argument must be new_channel or reestablish_channel")
+    if sys.argv[2] not in ["simnet", "testnet"]:
+        raise Exception("second argument must be simnet or testnet")
+    if sys.argv[2] == "simnet":
         set_simnet()
         config = SimpleConfig({'lnbase':True, 'simnet':True})
     else:
@@ -41,7 +92,7 @@ if __name__ == "__main__":
     wallet = Wallet(storage)
     wallet.start_threads(network)
     # start peer
-    privkey = sha256(str(time.time()))
+    privkey = sha256("0123456789")
     peer = Peer(host, port, pubkey, privkey, request_initial_sync=False, network=network)
     network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), network.asyncio_loop))
 
@@ -52,7 +103,18 @@ if __name__ == "__main__":
     async def async_test():
         payment_preimage = bytes.fromhex("01"*32)
         RHASH = sha256(payment_preimage)
-        openingchannel = await peer.channel_establishment_flow(wallet, config, None, funding_satoshis, push_msat, temp_channel_id=os.urandom(32))
+        channels = wallet.storage.get("channels", None)
+
+        if sys.argv[1] == "new_channel":
+            openingchannel = await peer.channel_establishment_flow(wallet, config, None, funding_satoshis, push_msat, temp_channel_id=os.urandom(32))
+            dumped = serialize_channels([openingchannel])
+            wallet.storage.put("channels", dumped)
+            return
+        else:
+            openingchannel = json.loads(channels)[0]
+            openingchannel = reconstruct_namedtuples(openingchannel)
+            next_local_commitment_number, next_remote_revocation_number = 1, 1
+            await peer.reestablish_channel(openingchannel, next_local_commitment_number, next_remote_revocation_number)
         openchannel = await peer.wait_for_funding_locked(openingchannel, wallet)
         expected_received_sat = 400000
         pay_req = lnencode(LnAddr(RHASH, amount=Decimal("0.00000001")*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
