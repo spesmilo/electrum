@@ -384,6 +384,15 @@ def parse_scriptSig(d, _bytes):
                 bh2u(_bytes))
 
 
+def _revise_txin_type_guess_for_txin(txin):
+    _type = txin.get('type', 'unknown')
+    # fix incorrect guess of p2sh-segwit
+    we_guessed_segwit_input_type = Transaction.is_segwit_inputtype(_type)
+    has_zero_witness = txin.get('witness', '00') in ('00', None)
+    if we_guessed_segwit_input_type and has_zero_witness:
+        txin['type'] = 'unknown'
+
+
 def parse_redeemScript_multisig(redeem_script: bytes):
     dec2 = [ x for x in script_GetOp(redeem_script) ]
     try:
@@ -567,6 +576,9 @@ def deserialize(raw):
             txin = d['inputs'][i]
             parse_witness(vds, txin)
     d['lockTime'] = vds.read_uint32()
+    for i in range(n_vin):
+        txin = d['inputs'][i]
+        _revise_txin_type_guess_for_txin(txin)
     return d
 
 

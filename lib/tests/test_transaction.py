@@ -290,6 +290,11 @@ class TestTransaction(unittest.TestCase):
         txid = 'c659729a7fea5071361c2c1a68551ca2bf77679b27086cc415adeeb03852e369'
         self._run_naive_tests_on_tx(raw_tx, txid)
 
+    def test_txid_regression_issue_4333(self):
+        raw_tx = '0100000001a300499298b3f03200c05d1a15aa111a33c769aff6fb355c6bf52ebdb58ca37100000000171600756161616161616161616161616161616161616151fdffffff01c40900000000000017a914001975d5f07f3391674416c1fcd67fd511d257ff871bc71300'
+        txid = '9b9f39e314662a7433aadaa5c94a2f1e24c7e7bf55fc9e1f83abd72be933eb95'
+        self._run_naive_tests_on_tx(raw_tx, txid)
+
 
 # these transactions are from Bitcoin Core unit tests --->
 # https://github.com/bitcoin/bitcoin/blob/11376b5583a283772c82f6d32d0007cdbf5b8ef0/src/test/data/tx_valid.json
