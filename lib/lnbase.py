@@ -275,7 +275,7 @@ ChannelConfig = namedtuple("ChannelConfig", [
 OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
 RemoteState = namedtuple("RemoteState", ["ctn", "next_per_commitment_point", "amount_sat"])
 LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amount_sat"])
-ChannelConstraints = namedtuple("ChannelConstraints", ["feerate", "capacity", "is_initiator"])
+ChannelConstraints = namedtuple("ChannelConstraints", ["feerate", "capacity", "is_initiator", "funding_txn_minimum_depth"])
 OpenChannel = namedtuple("OpenChannel", ["channel_id", "funding_outpoint", "local_config", "remote_config", "remote_state", "local_state", "constraints"])
 
 
@@ -535,6 +535,14 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remote_pay
 
     return tx
 
+def sign_and_get_sig_string(tx, local_config, remote_config):
+        pubkeys = sorted([bh2u(local_config.multisig_key.pubkey), bh2u(remote_config.multisig_key.pubkey)])
+        tx.sign({bh2u(local_config.multisig_key.pubkey): (local_config.multisig_key.privkey, True)})
+        sig_index = pubkeys.index(bh2u(local_config.multisig_key.pubkey))
+        sig = bytes.fromhex(tx.inputs()[0]["signatures"][sig_index])
+        r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
+        sig_64 = sigencode_string_canonize(r, s, SECP256k1.generator.order())
+        return sig_64
 
 class Peer(PrintError):
     def __init__(self, host, port, pubkey, privkey, request_initial_sync=False, network=None):
@@ -857,11 +865,7 @@ class Peer(PrintError):
             revocation_pubkey, remote_delayedpubkey, local_config.to_self_delay,
             funding_txid, funding_index, funding_sat,
             remote_amount, local_amount, remote_config.dust_limit_sat, local_feerate, False, htlcs=[])
-        remote_ctx.sign({bh2u(local_config.multisig_key.pubkey): (local_config.multisig_key.privkey, True)})
-        sig_index = pubkeys.index(bh2u(local_config.multisig_key.pubkey))
-        sig = bytes.fromhex(remote_ctx.inputs()[0]["signatures"][sig_index])
-        r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
-        sig_64 = sigencode_string_canonize(r, s, SECP256k1.generator.order())
+        sig_64 = sign_and_get_sig_string(remote_ctx, local_config, remote_config)
         funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
         channel_id = int.from_bytes(funding_txid_bytes, 'big') ^ funding_index
         self.send_message(gen_msg("funding_created",
@@ -889,10 +893,31 @@ class Peer(PrintError):
         # broadcast funding tx
         success, _txid = self.network.broadcast(funding_tx)
         assert success, success
+        chan = OpenChannel(
+                channel_id=channel_id,
+                funding_outpoint=Outpoint(funding_txid, funding_index),
+                local_config=local_config,
+                remote_config=remote_config,
+                remote_state=RemoteState(
+                    ctn = 0,
+                    next_per_commitment_point=None,
+                    amount_sat=remote_amount
+                ),
+                local_state=LocalState(
+                    ctn = 0,
+                    per_commitment_secret_seed=per_commitment_secret_seed,
+                    amount_sat=local_amount
+                ),
+                constraints=ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
+        )
+        return chan
+
+    async def wait_for_funding_locked(self, chan, wallet):
+        channel_id = chan.channel_id
         # wait until we see confirmations
         def on_network_update(event, *args):
-            conf = wallet.get_tx_height(funding_txid)[1]
-            if conf >= funding_txn_minimum_depth:
+            conf = wallet.get_tx_height(chan.funding_outpoint.txid)[1]
+            if conf >= chan.constraints.funding_txn_minimum_depth:
                 async def set_local_funding_locked_result():
                     try:
                         self.local_funding_locked[channel_id].set_result(1)
@@ -908,9 +933,9 @@ class Peer(PrintError):
             await self.local_funding_locked[channel_id]
         finally:
             del self.local_funding_locked[channel_id]
-        per_commitment_secret_index -= 1
+        per_commitment_secret_index = 2**48 - (chan.local_state.ctn + 1) - 1
         per_commitment_point_second = secret_to_pubkey(int.from_bytes(
-            get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index), 'big'))
+            get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, per_commitment_secret_index), 'big'))
         self.send_message(gen_msg("funding_locked", channel_id=channel_id, next_per_commitment_point=per_commitment_point_second))
         # wait until we receive funding_locked
         try:
@@ -919,23 +944,7 @@ class Peer(PrintError):
             del self.remote_funding_locked[channel_id]
         self.print_error('Done waiting for remote_funding_locked', remote_funding_locked_msg)
 
-        return OpenChannel(
-                channel_id=channel_id,
-                funding_outpoint=Outpoint(funding_txid, funding_index),
-                local_config=local_config,
-                remote_config=remote_config,
-                remote_state=RemoteState(
-                    ctn = 0,
-                    next_per_commitment_point=remote_funding_locked_msg["next_per_commitment_point"],
-                    amount_sat=remote_amount
-                ),
-                local_state=LocalState(
-                    ctn = 0,
-                    per_commitment_secret_seed=per_commitment_secret_seed,
-                    amount_sat=local_amount
-                ),
-                constraints=ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=True)
-        )
+        return chan._replace(remote_state=chan.remote_state._replace(next_per_commitment_point=remote_funding_locked_msg["next_per_commitment_point"]))
 
     async def receive_commitment_revoke_ack(self, chan, expected_received_sat, payment_preimage):
         channel_id = chan.channel_id
@@ -1000,7 +1009,6 @@ class Peer(PrintError):
             per_commitment_secret=local_last_per_commitment_secret,
             next_per_commitment_point=local_next_per_commitment_point))
 
-        pubkeys = sorted([bh2u(chan.local_config.multisig_key.pubkey), bh2u(chan.remote_config.multisig_key.pubkey)])
         their_local_htlc_pubkey = derive_pubkey(chan.remote_config.htlc_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
         their_remote_htlc_pubkey = derive_pubkey(chan.local_config.htlc_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
         their_remote_htlc_privkey_number = derive_privkey(
@@ -1012,11 +1020,7 @@ class Peer(PrintError):
         htlcs_in_remote = [(make_offered_htlc(revocation_pubkey, their_remote_htlc_pubkey, their_local_htlc_pubkey, payment_hash), amount_msat)]
         remote_ctx = make_commitment_using_open_channel(chan, 1, False, chan.remote_state.next_per_commitment_point,
             chan.remote_state.amount_sat - expected_received_sat, chan.local_state.amount_sat, htlcs_in_remote)
-        remote_ctx.sign({bh2u(chan.local_config.multisig_key.pubkey): (chan.local_config.multisig_key.privkey, True)})
-        sig_index = pubkeys.index(bh2u(chan.local_config.multisig_key.pubkey))
-        sig = bytes.fromhex(remote_ctx.inputs()[0]["signatures"][sig_index])
-        r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
-        sig_64 = sigencode_string_canonize(r, s, SECP256k1.generator.order())
+        sig_64 = sign_and_get_sig_string(remote_ctx, chan.local_config, chan.remote_config)
 
         htlc_tx = make_htlc_tx_with_open_channel(chan, chan.remote_state.next_per_commitment_point, False, True, amount_msat, cltv_expiry, payment_hash, remote_ctx, 0)
 
@@ -1042,11 +1046,7 @@ class Peer(PrintError):
         bare_ctx = make_commitment_using_open_channel(chan, 2, False, remote_next_commitment_point,
             chan.remote_state.amount_sat - expected_received_sat, chan.local_state.amount_sat + expected_received_sat)
 
-        bare_ctx.sign({bh2u(chan.local_config.multisig_key.pubkey): (chan.local_config.multisig_key.privkey, True)})
-        sig_index = pubkeys.index(bh2u(chan.local_config.multisig_key.pubkey))
-        sig = bytes.fromhex(bare_ctx.inputs()[0]["signatures"][sig_index])
-        r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
-        sig_64 = sigencode_string_canonize(r, s, SECP256k1.generator.order())
+        sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
 
         self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=0))
         try:
