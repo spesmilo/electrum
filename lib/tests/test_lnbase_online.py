@@ -52,7 +52,8 @@ if __name__ == "__main__":
     async def async_test():
         payment_preimage = bytes.fromhex("01"*32)
         RHASH = sha256(payment_preimage)
-        openchannel = await peer.channel_establishment_flow(wallet, config, None, funding_satoshis, push_msat, temp_channel_id=os.urandom(32))
+        openingchannel = await peer.channel_establishment_flow(wallet, config, None, funding_satoshis, push_msat, temp_channel_id=os.urandom(32))
+        openchannel = await peer.wait_for_funding_locked(openingchannel, wallet)
         expected_received_sat = 400000
         pay_req = lnencode(LnAddr(RHASH, amount=Decimal("0.00000001")*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
         print("payment request", pay_req)
