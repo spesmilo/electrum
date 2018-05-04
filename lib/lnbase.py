@@ -31,7 +31,7 @@ from .bitcoin import (public_key_from_private_key, ser_to_point, point_to_ser,
 from . import bitcoin
 from . import constants
 from . import transaction
-from .util import PrintError, bh2u, print_error, bfh, profiler
+from .util import PrintError, bh2u, print_error, bfh, profiler, xor_bytes
 from .transaction import opcodes, Transaction
 
 from collections import namedtuple, defaultdict
@@ -1306,7 +1306,6 @@ NUM_MAX_HOPS_IN_PATH = 20
 HOPS_DATA_SIZE = 1300      # also sometimes called routingInfoSize in bolt-04
 PER_HOP_FULL_SIZE = 65     # HOPS_DATA_SIZE / 20
 NUM_STREAM_BYTES = HOPS_DATA_SIZE + PER_HOP_FULL_SIZE
-PER_HOP_PAYLOAD_SIZE = 32  # PER_HOP_FULL_SIZE - len(realm) - len(HMAC)
 PER_HOP_HMAC_SIZE = 32
 
 
@@ -1379,8 +1378,8 @@ def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
         ephemeral_key = ephemeral_key_int.to_bytes(32, byteorder="big")
 
     filler = generate_filler(b'rho', num_hops, PER_HOP_FULL_SIZE, hop_shared_secrets)
-    mix_header = bytearray(HOPS_DATA_SIZE)
-    next_hmac = bytearray(PER_HOP_HMAC_SIZE)
+    mix_header = bytes(HOPS_DATA_SIZE)
+    next_hmac = bytes(PER_HOP_HMAC_SIZE)
 
     # compute routing info and MAC for each hop
     for i in range(num_hops-1, -1, -1):
@@ -1390,8 +1389,7 @@ def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
         stream_bytes = generate_cipher_stream(rho_key, NUM_STREAM_BYTES)
         mix_header = mix_header[:-PER_HOP_FULL_SIZE]
         mix_header = hops_data[i].to_bytes() + mix_header
-        mix_header = ((int.from_bytes(mix_header, "big") ^ int.from_bytes(stream_bytes[:HOPS_DATA_SIZE], "big"))
-                      .to_bytes(HOPS_DATA_SIZE, "big"))
+        mix_header = xor_bytes(mix_header, stream_bytes)
         if i == num_hops - 1:
             mix_header = mix_header[:-len(filler)] + filler
         packet = mix_header + associated_data
@@ -1399,7 +1397,7 @@ def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
 
     return OnionPacket(
         public_key=bfh(EC_KEY(session_key).get_public_key()),
-        hops_data=bytes(mix_header),
+        hops_data=mix_header,
         hmac=next_hmac)
 
 
@@ -1413,8 +1411,7 @@ def generate_filler(key_type: bytes, num_hops: int, hop_size: int,
         filler += bytearray(hop_size)
         stream_key = get_bolt04_onion_key(key_type, shared_secrets[i])
         stream_bytes = generate_cipher_stream(stream_key, filler_size)
-        filler = ((int.from_bytes(filler, "big") ^ int.from_bytes(stream_bytes, "big"))
-                  .to_bytes(filler_size, "big"))
+        filler = xor_bytes(filler, stream_bytes)
 
     return filler[(NUM_MAX_HOPS_IN_PATH-num_hops+2)*hop_size:]
 
