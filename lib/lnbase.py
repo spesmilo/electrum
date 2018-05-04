@@ -242,7 +242,7 @@ def get_bolt8_hkdf(salt, ikm):
     assert len(T1 + T2) == 64
     return T1, T2
 
-def get_ecdh(priv, pub):
+def get_ecdh(priv: bytes, pub: bytes) -> bytes:
     s = string_to_number(priv)
     pk = ser_to_point(pub)
     pt = point_to_ser(pk * s)
@@ -1309,6 +1309,10 @@ NUM_STREAM_BYTES = HOPS_DATA_SIZE + PER_HOP_FULL_SIZE
 PER_HOP_HMAC_SIZE = 32
 
 
+class UnsupportedOnionPacketVersion(Exception): pass
+class InvalidOnionMac(Exception): pass
+
+
 class OnionPerHop:
 
     def __init__(self, short_channel_id: bytes, amt_to_forward: bytes, outgoing_cltv_value: bytes):
@@ -1321,12 +1325,24 @@ class OnionPerHop:
         ret += self.amt_to_forward
         ret += self.outgoing_cltv_value
         ret += bytes(12)  # padding
+        if len(ret) != 32:
+            raise Exception('unexpected length {}'.format(len(ret)))
         return ret
 
+    @classmethod
+    def from_bytes(cls, b: bytes):
+        if len(b) != 32:
+            raise Exception('unexpected length {}'.format(len(b)))
+        return OnionPerHop(
+            short_channel_id=b[:8],
+            amt_to_forward=b[8:16],
+            outgoing_cltv_value=b[16:20]
+        )
 
-class OnionHopsDataSingle:
 
-    def __init__(self, per_hop: OnionPerHop):
+class OnionHopsDataSingle:  # called HopData in lnd
+
+    def __init__(self, per_hop: OnionPerHop = None):
         self.realm = 0
         self.per_hop = per_hop
         self.hmac = None
@@ -1335,6 +1351,20 @@ class OnionHopsDataSingle:
         ret = bytes([self.realm])
         ret += self.per_hop.to_bytes()
         ret += self.hmac if self.hmac is not None else bytes(PER_HOP_HMAC_SIZE)
+        if len(ret) != PER_HOP_FULL_SIZE:
+            raise Exception('unexpected length {}'.format(len(ret)))
+        return ret
+
+    @classmethod
+    def from_bytes(cls, b: bytes):
+        if len(b) != PER_HOP_FULL_SIZE:
+            raise Exception('unexpected length {}'.format(len(b)))
+        ret = OnionHopsDataSingle()
+        ret.realm = b[0]
+        if ret.realm != 0:
+            raise Exception('only realm 0 is supported')
+        ret.per_hop = OnionPerHop.from_bytes(b[1:33])
+        ret.hmac = b[33:]
         return ret
 
 
@@ -1351,7 +1381,22 @@ class OnionPacket:
         ret += self.public_key
         ret += self.hops_data
         ret += self.hmac
+        if len(ret) != 1366:
+            raise Exception('unexpected length {}'.format(len(ret)))
         return ret
+
+    @classmethod
+    def from_bytes(cls, b: bytes):
+        if len(b) != 1366:
+            raise Exception('unexpected length {}'.format(len(b)))
+        version = b[0]
+        if version != 0:
+            raise UnsupportedOnionPacketVersion('version {} is not supported'.format(version))
+        return OnionPacket(
+            public_key=b[1:34],
+            hops_data=b[34:1334],
+            hmac=b[1334:]
+        )
 
 
 def get_bolt04_onion_key(key_type: bytes, secret: bytes) -> bytes:
@@ -1421,3 +1466,47 @@ def generate_cipher_stream(stream_key: bytes, num_bytes: int) -> bytes:
     cipher = Cipher(algo, mode=None, backend=default_backend())
     encryptor = cipher.encryptor()
     return encryptor.update(bytes(num_bytes))
+
+
+ProcessedOnionPacket = namedtuple("ProcessedOnionPacket", ["are_we_final", "hop_data", "next_packet"])
+
+
+# TODO replay protection
+def process_onion_packet(onion_packet: OnionPacket, associated_data: bytes,
+                         our_onion_private_key: bytes) -> ProcessedOnionPacket:
+    shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
+
+    # check message integrity
+    mu_key = get_bolt04_onion_key(b'mu', shared_secret)
+    calculated_mac = hmac.new(mu_key, msg=onion_packet.hops_data+associated_data,
+                              digestmod=hashlib.sha256).digest()
+    if onion_packet.hmac != calculated_mac:
+        raise InvalidOnionMac()
+
+    # peel an onion layer off
+    rho_key = get_bolt04_onion_key(b'rho', shared_secret)
+    stream_bytes = generate_cipher_stream(rho_key, NUM_STREAM_BYTES)
+    padded_header = onion_packet.hops_data + bytes(PER_HOP_FULL_SIZE)
+    next_hops_data = xor_bytes(padded_header, stream_bytes)
+
+    # calc next ephemeral key
+    blinding_factor = H256(onion_packet.public_key + shared_secret)
+    blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
+    next_public_key_int = ser_to_point(onion_packet.public_key) * blinding_factor_int
+    next_public_key = point_to_ser(next_public_key_int)
+
+    hop_data = OnionHopsDataSingle.from_bytes(next_hops_data[:PER_HOP_FULL_SIZE])
+    next_onion_packet = OnionPacket(
+        public_key=next_public_key,
+        hops_data=next_hops_data[PER_HOP_FULL_SIZE:],
+        hmac=hop_data.hmac
+    )
+    if hop_data.hmac == bytes(PER_HOP_HMAC_SIZE):
+        # we are the destination / exit node
+        are_we_final = True
+    else:
+        # we are an intermediate node; forwarding
+        are_we_final = False
+    return ProcessedOnionPacket(are_we_final, hop_data, next_onion_packet)
+
+
