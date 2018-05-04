@@ -1,4 +1,5 @@
 Cython>=0.27
+rlp==0.6.0
 trezor[hidapi]>=0.9.0
 keepkey
 btchip-python
