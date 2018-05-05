@@ -10,6 +10,7 @@ from electrum.bitcoin import serialize_xpub
 class GuiMixin(object):
     # Requires: self.proto, self.device
 
+    # ref: https://github.com/trezor/trezor-common/blob/44dfb07cfaafffada4b2ce0d15ba1d90d17cf35e/protob/types.proto#L89
     messages = {
         3: _("Confirm the transaction output on your {} device"),
         4: _("Confirm internal entropy on your {} device to begin"),
@@ -19,6 +20,7 @@ class GuiMixin(object):
         8: _("Confirm the total amount spent and the transaction fee on your "
              "{} device"),
         10: _("Confirm wallet address on your {} device"),
+        14: _("Choose on your {} device where to enter your passphrase"),
         'default': _("Check your {} device to continue"),
     }
 
