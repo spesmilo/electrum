@@ -224,6 +224,9 @@ class KeepKeyPlugin(HW_PluginBase):
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
+        if client is None:
+            raise Exception(_('Failed to create a client for this device.') + '\n' +
+                            _('Make sure it is in the correct state.'))
         # fixme: we should use: client.handler = wizard
         client.handler = self.create_handler(wizard)
         if not device_info.initialized:
