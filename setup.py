@@ -47,7 +47,7 @@ class BuildPyCommand(build_py):
                                                   'build/lib/electrum_ftc_gui/qt/icons_rc.py',
                                                   False):
                 raise RuntimeError('Failed to generate icons_rc.py')
-        except ModuleNotFoundError:
+        except ImportError:
             import subprocess
             subprocess.run(['pyrcc5', 'icons.qrc', '-o', 'build/lib/electrum_ftc_gui/qt/icons_rc.py'])
         with open('build/lib/electrum_ftc/version.py', 'r+') as fp:
