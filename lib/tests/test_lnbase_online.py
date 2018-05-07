@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
     # run blocking test
     async def async_test():
-        payment_preimage = bytes.fromhex("01"*32)
+        payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
         channels = wallet.storage.get("channels", None)
 
@@ -118,11 +118,13 @@ if __name__ == "__main__":
         openchannel = channels[0]
         openchannel = reconstruct_namedtuples(openchannel)
         openchannel = await peer.reestablish_channel(openchannel)
-        expected_received_sat = 400000
+        expected_received_sat = 200000
         pay_req = lnencode(LnAddr(RHASH, amount=Decimal("0.00000001")*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
         print("payment request", pay_req)
-        last_pcs_index = 2**48 - 1
-        await peer.receive_commitment_revoke_ack(openchannel, expected_received_sat, payment_preimage)
+        advanced_channel = await peer.receive_commitment_revoke_ack(openchannel, expected_received_sat, payment_preimage)
+        dumped = serialize_channels([advanced_channel])
+        wallet.storage.put("channels", dumped)
+        wallet.storage.write()
     fut = asyncio.run_coroutine_threadsafe(async_test(), network.asyncio_loop)
     while not fut.done():
         time.sleep(1)
