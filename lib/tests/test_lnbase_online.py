@@ -84,6 +84,7 @@ if __name__ == "__main__":
         set_testnet()
         config = SimpleConfig({'lnbase':True, 'testnet':True})
     # start network
+    config.set_key('lightning_peers', [])
     network = Network(config)
     network.start()
     asyncio.set_event_loop(network.asyncio_loop)
