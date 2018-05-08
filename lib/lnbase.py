@@ -913,7 +913,7 @@ class Peer(PrintError):
                 local_config=local_config,
                 remote_config=remote_config,
                 remote_state=RemoteState(
-                    ctn = -1,
+                    ctn = 0,
                     next_per_commitment_point=None,
                     amount_sat=remote_amount,
                     commitment_points=[bh2u(remote_per_commitment_point)]
@@ -944,7 +944,7 @@ class Peer(PrintError):
         self.send_message(gen_msg("channel_reestablish",
             channel_id=chan.channel_id,
             next_local_commitment_number=chan.local_state.ctn+1,
-            next_remote_revocation_number=chan.remote_state.ctn+1
+            next_remote_revocation_number=chan.remote_state.ctn
         ))
         return chan
 
@@ -1062,7 +1062,7 @@ class Peer(PrintError):
         # TODO check payment_hash
         revocation_pubkey = derive_blinded_pubkey(chan.local_config.revocation_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
         htlcs_in_remote = [(make_offered_htlc(revocation_pubkey, their_remote_htlc_pubkey, their_local_htlc_pubkey, payment_hash), amount_msat)]
-        remote_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 2, False, chan.remote_state.next_per_commitment_point,
+        remote_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
             chan.remote_state.amount_sat - expected_received_sat, chan.local_state.amount_sat, htlcs_in_remote)
         sig_64 = sign_and_get_sig_string(remote_ctx, chan.local_config, chan.remote_config)
 
@@ -1087,7 +1087,7 @@ class Peer(PrintError):
         remote_next_commitment_point = revoke_and_ack_msg["next_per_commitment_point"]
 
         # remote commitment transaction without htlcs
-        bare_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 3, False, remote_next_commitment_point,
+        bare_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 2, False, remote_next_commitment_point,
             chan.remote_state.amount_sat - expected_received_sat, chan.local_state.amount_sat + expected_received_sat)
 
         sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
