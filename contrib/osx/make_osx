@@ -40,26 +40,15 @@ else
     warn "Code signing DISABLED. Specify a valid macOS Developer identity installed on the system as the first argument to this script to enable signing."
 fi
 
-info "Installing Python $PYTHON_VERSION"
-export PATH="~/.pyenv/bin:~/.pyenv/shims:~/Library/Python/3.6/bin:$PATH"
-if [ -d "~/.pyenv" ]; then
-  pyenv update
-else
-  curl -L https://raw.githubusercontent.com/pyenv/pyenv-installer/master/bin/pyenv-installer | bash > /dev/null 2>&1
-fi
-PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s $PYTHON_VERSION && \
-pyenv global $PYTHON_VERSION || \
-fail "Unable to use Python $PYTHON_VERSION"
-
 
 info "install dependencies specific to binaries"
 # note that this also installs pinned versions of both pip and setuptools
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements-binaries.txt --user \
+python3 -m pip install -Ir ./contrib/deterministic-build/requirements-binaries.txt \
     || fail "Could not install pyinstaller"
 
 
 info "Installing pyinstaller"
-python3 -m pip install -I --user pyinstaller==3.4 --no-use-pep517 || fail "Could not install pyinstaller"
+python3 -m pip install -I pyinstaller==3.4 --no-use-pep517 || fail "Could not install pyinstaller"
 
 info "Using these versions for building $PACKAGE:"
 sw_vers
@@ -119,15 +108,15 @@ DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app" "$A
 
 
 info "Installing requirements..."
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user || \
+python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt || \
 fail "Could not install requirements"
 
 info "Installing hardware wallet requirements..."
-python3 -m pip install -Ir ./contrib/deterministic-build/requirements-hw.txt --user || \
+python3 -m pip install -Ir ./contrib/deterministic-build/requirements-hw.txt || \
 fail "Could not install hardware wallet requirements"
 
 info "Building $PACKAGE..."
-python3 -m pip install --user . > /dev/null || fail "Could not build $PACKAGE"
+python3 -m pip install . > /dev/null || fail "Could not build $PACKAGE"
 
 info "Faking timestamps..."
 for d in ~/Library/Python/ ~/.pyenv .; do
