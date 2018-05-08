@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 from functools import partial
+import threading
 from threading import Thread
 import re
 from decimal import Decimal
@@ -37,12 +38,45 @@ from electrum_gui.qt.amountedit import AmountEdit
 from electrum_gui.qt.main_window import StatusBarButton
 from electrum.i18n import _
 from electrum.plugins import hook
+from electrum.util import PrintError
 from .trustedcoin import TrustedCoinPlugin, server
 
 
 class TOS(QTextEdit):
     tos_signal = pyqtSignal()
     error_signal = pyqtSignal(object)
+
+
+class HandlerTwoFactor(QObject, PrintError):
+    otp_start_signal = pyqtSignal(object, object)
+
+    def __init__(self, plugin, window):
+        super().__init__()
+        self.plugin = plugin
+        self.window = window
+        self.otp_start_signal.connect(self._prompt_user_for_otp)
+        self.otp_done = threading.Event()
+
+    def prompt_user_for_otp(self, wallet, tx):
+        self.otp_done.clear()
+        self.otp_start_signal.emit(wallet, tx)
+        self.otp_done.wait()
+
+    def _prompt_user_for_otp(self, wallet, tx):
+        try:
+            window = self.window.top_level_window()
+            if not isinstance(wallet, self.plugin.wallet_class):
+                return
+            if not wallet.can_sign_without_server():
+                self.print_error("twofactor:sign_tx")
+                auth_code = None
+                if wallet.keystores['x3/'].get_tx_derivations(tx):
+                    auth_code = self.plugin.auth_dialog(window)
+                else:
+                    self.print_error("twofactor: xpub3 not needed")
+                wallet.auth_code = auth_code
+        finally:
+            self.otp_done.set()
 
 
 class Plugin(TrustedCoinPlugin):
@@ -55,6 +89,7 @@ class Plugin(TrustedCoinPlugin):
         wallet = window.wallet
         if not isinstance(wallet, self.wallet_class):
             return
+        wallet.handler_2fa = HandlerTwoFactor(self, window)
         if wallet.can_sign_without_server():
             msg = ' '.join([
                 _('This wallet was restored from seed, and it contains two master private keys.'),
@@ -88,19 +123,8 @@ class Plugin(TrustedCoinPlugin):
             return
         return pw.get_amount()
 
-    @hook
-    def sign_tx(self, window, tx):
-        wallet = window.wallet
-        if not isinstance(wallet, self.wallet_class):
-            return
-        if not wallet.can_sign_without_server():
-            self.print_error("twofactor:sign_tx")
-            auth_code = None
-            if wallet.keystores['x3/'].get_tx_derivations(tx):
-                auth_code = self.auth_dialog(window)
-            else:
-                self.print_error("twofactor: xpub3 not needed")
-            window.wallet.auth_code = auth_code
+    def prompt_user_for_otp(self, wallet, tx):
+        wallet.handler_2fa.prompt_user_for_otp(wallet, tx)
 
     def waiting_dialog(self, window, on_finished=None):
         task = partial(self.request_billing_info, window.wallet)

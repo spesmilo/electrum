@@ -27,10 +27,10 @@ from electrum.i18n import _
 from electrum.plugins import hook
 from .trustedcoin import TrustedCoinPlugin
 
+
 class Plugin(TrustedCoinPlugin):
 
-    @hook
-    def sign_tx(self, wallet, tx):
+    def prompt_user_for_otp(self, wallet, tx):
         if not isinstance(wallet, self.wallet_class):
             return
         if not wallet.can_sign_without_server():
