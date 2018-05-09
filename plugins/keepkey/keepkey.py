@@ -327,7 +327,7 @@ class KeepKeyPlugin(HW_PluginBase):
             txinputtype.prev_hash = prev_hash
             txinputtype.prev_index = prev_index
 
-            if 'scriptSig' in txin:
+            if txin.get('scriptSig') is not None:
                 script_sig = bfh(txin['scriptSig'])
                 txinputtype.script_sig = script_sig
 
