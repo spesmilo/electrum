@@ -17,6 +17,7 @@ from ..hw_wallet import HW_PluginBase
 
 # TREZOR initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
+RECOVERY_TYPE_SCRAMBLED_WORDS, RECOVERY_TYPE_MATRIX = range(0, 2)
 
 # script "generation"
 SCRIPT_GEN_LEGACY, SCRIPT_GEN_P2SH_SEGWIT, SCRIPT_GEN_NATIVE_SEGWIT = range(0, 3)
@@ -192,9 +193,12 @@ class TrezorPlugin(HW_PluginBase):
             (TIM_MNEMONIC, _("Upload a BIP39 mnemonic to generate the seed")),
             (TIM_PRIVKEY, _("Upload a master private key"))
         ]
+        devmgr = self.device_manager()
+        client = devmgr.client_by_id(device_id)
+        model = client.get_trezor_model()
         def f(method):
             import threading
-            settings = self.request_trezor_init_settings(wizard, method, self.device)
+            settings = self.request_trezor_init_settings(wizard, method, model)
             t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
             t.setDaemon(True)
             t.start()
@@ -213,9 +217,9 @@ class TrezorPlugin(HW_PluginBase):
             wizard.loop.exit(0)
 
     def _initialize_device(self, settings, method, device_id, wizard, handler):
-        item, label, pin_protection, passphrase_protection = settings
+        item, label, pin_protection, passphrase_protection, recovery_type = settings
 
-        if method == TIM_RECOVER:
+        if method == TIM_RECOVER and recovery_type == RECOVERY_TYPE_SCRAMBLED_WORDS:
             handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
                 "seed's actual length.  If you enter a word incorrectly or "
@@ -238,8 +242,15 @@ class TrezorPlugin(HW_PluginBase):
         elif method == TIM_RECOVER:
             word_count = 6 * (item + 2)  # 12, 18 or 24
             client.step = 0
+            if recovery_type == RECOVERY_TYPE_SCRAMBLED_WORDS:
+                recovery_type_trezor = self.types.RecoveryDeviceType.ScrambledWords
+            else:
+                recovery_type_trezor = self.types.RecoveryDeviceType.Matrix
             client.recovery_device(word_count, passphrase_protection,
-                                       pin_protection, label, language)
+                                   pin_protection, label, language,
+                                   type=recovery_type_trezor)
+            if recovery_type == RECOVERY_TYPE_MATRIX:
+                handler.close_matrix_dialog()
         elif method == TIM_MNEMONIC:
             pin = pin_protection  # It's the pin, not a boolean
             client.load_device_by_mnemonic(str(item), pin,
