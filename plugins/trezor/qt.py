@@ -181,7 +181,7 @@ class QtPlugin(QtPluginBase):
         if device_id:
             SettingsDialog(window, self, keystore, device_id).exec_()
 
-    def request_trezor_init_settings(self, wizard, method, device):
+    def request_trezor_init_settings(self, wizard, method, model):
         vbox = QVBoxLayout()
         next_enabled = True
         label = QLabel(_("Enter a label to name your device:"))
@@ -251,7 +251,7 @@ class QtPlugin(QtPluginBase):
         vbox.addWidget(cb_phrase)
 
         # ask for recovery type (random word order OR matrix)
-        if method == TIM_RECOVER:
+        if method == TIM_RECOVER and not model == 'T':
             gb_rectype = QGroupBox()
             hbox_rectype = QHBoxLayout()
             gb_rectype.setLayout(hbox_rectype)
@@ -271,13 +271,15 @@ class QtPlugin(QtPluginBase):
             bg_rectype.addButton(rb2)
             bg_rectype.setId(rb2, RECOVERY_TYPE_MATRIX)
             hbox_rectype.addWidget(rb2)
+        else:
+            bg_rectype = None
 
         wizard.exec_layout(vbox, next_enabled=next_enabled)
 
         if method in [TIM_NEW, TIM_RECOVER]:
             item = bg_numwords.checkedId()
             pin = cb_pin.isChecked()
-            recovery_type = bg_rectype.checkedId()
+            recovery_type = bg_rectype.checkedId() if bg_rectype else None
         else:
             item = ' '.join(str(clean_text(text)).split())
             pin = str(pin.text())

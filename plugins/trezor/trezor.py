@@ -196,9 +196,12 @@ class TrezorPlugin(HW_PluginBase):
             (TIM_MNEMONIC, _("Upload a BIP39 mnemonic to generate the seed")),
             (TIM_PRIVKEY, _("Upload a master private key"))
         ]
+        devmgr = self.device_manager()
+        client = devmgr.client_by_id(device_id)
+        model = client.get_trezor_model()
         def f(method):
             import threading
-            settings = self.request_trezor_init_settings(wizard, method, self.device)
+            settings = self.request_trezor_init_settings(wizard, method, model)
             t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
             t.setDaemon(True)
             t.start()

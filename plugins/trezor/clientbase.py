@@ -233,6 +233,10 @@ class TrezorClientBase(GuiMixin, PrintError):
     def atleast_version(self, major, minor=0, patch=0):
         return self.firmware_version() >= (major, minor, patch)
 
+    def get_trezor_model(self):
+        """Returns '1' for Trezor One, 'T' for Trezor T."""
+        return self.features.model
+
     @staticmethod
     def wrapper(func):
         '''Wrap methods to clear any message box they opened.'''
