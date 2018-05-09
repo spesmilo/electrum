@@ -9,7 +9,7 @@ from electrum import constants
 from electrum.i18n import _
 from electrum.plugins import BasePlugin, Device
 from electrum.transaction import deserialize, Transaction
-from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
+from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey, xtype_from_derivation
 
 from ..hw_wallet import HW_PluginBase
 
@@ -29,15 +29,10 @@ class TrezorKeyStore(Hardware_KeyStore):
         return self.derivation
 
     def get_script_gen(self):
-        def is_p2sh_segwit():
-            return self.derivation.startswith("m/49'/")
-
-        def is_native_segwit():
-            return self.derivation.startswith("m/84'/")
-
-        if is_native_segwit():
+        xtype = xtype_from_derivation(self.derivation)
+        if xtype in ('p2wpkh', 'p2wsh'):
             return SCRIPT_GEN_NATIVE_SEGWIT
-        elif is_p2sh_segwit():
+        elif xtype in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
             return SCRIPT_GEN_P2SH_SEGWIT
         else:
             return SCRIPT_GEN_LEGACY
@@ -275,6 +270,17 @@ class TrezorPlugin(HW_PluginBase):
         client.used()
         return xpub
 
+    def get_trezor_input_script_type(self, script_gen, is_multisig):
+        if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
+            return self.types.InputScriptType.SPENDWITNESS
+        elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
+            return self.types.InputScriptType.SPENDP2SHWITNESS
+        else:
+            if is_multisig:
+                return self.types.InputScriptType.SPENDMULTISIG
+            else:
+                return self.types.InputScriptType.SPENDADDRESS
+
     def sign_transaction(self, keystore, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx
         self.xpub_path = xpub_path
@@ -301,12 +307,7 @@ class TrezorPlugin(HW_PluginBase):
         xpubs = wallet.get_master_public_keys()
         if len(xpubs) == 1:
             script_gen = keystore.get_script_gen()
-            if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
-                script_type = self.types.InputScriptType.SPENDWITNESS
-            elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
-                script_type = self.types.InputScriptType.SPENDP2SHWITNESS
-            else:
-                script_type = self.types.InputScriptType.SPENDADDRESS
+            script_type = self.get_trezor_input_script_type(script_gen, is_multisig=False)
             client.get_address(self.get_coin_name(), address_n, True, script_type=script_type)
         else:
             def f(xpub):
@@ -321,7 +322,9 @@ class TrezorPlugin(HW_PluginBase):
                signatures=[b''] * wallet.n,
                m=wallet.m,
             )
-            client.get_address(self.get_coin_name(), address_n, True, multisig=multisig)
+            script_gen = keystore.get_script_gen()
+            script_type = self.get_trezor_input_script_type(script_gen, is_multisig=True)
+            client.get_address(self.get_coin_name(), address_n, True, multisig=multisig, script_type=script_type)
 
     def tx_inputs(self, tx, for_sig=False, script_gen=SCRIPT_GEN_LEGACY):
         inputs = []
@@ -338,12 +341,7 @@ class TrezorPlugin(HW_PluginBase):
                         xpub, s = parse_xpubkey(x_pubkey)
                         xpub_n = self.client_class.expand_path(self.xpub_path[xpub])
                         txinputtype._extend_address_n(xpub_n + s)
-                        if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
-                            txinputtype.script_type = self.types.InputScriptType.SPENDWITNESS
-                        elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
-                            txinputtype.script_type = self.types.InputScriptType.SPENDP2SHWITNESS
-                        else:
-                            txinputtype.script_type = self.types.InputScriptType.SPENDADDRESS
+                        txinputtype.script_type = self.get_trezor_input_script_type(script_gen, is_multisig=False)
                     else:
                         def f(x_pubkey):
                             if is_xpubkey(x_pubkey):
@@ -359,12 +357,7 @@ class TrezorPlugin(HW_PluginBase):
                             signatures=list(map(lambda x: bfh(x)[:-1] if x else b'', txin.get('signatures'))),
                             m=txin.get('num_sig'),
                         )
-                        if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
-                            script_type = self.types.InputScriptType.SPENDWITNESS
-                        elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
-                            script_type = self.types.InputScriptType.SPENDP2SHWITNESS
-                        else:
-                            script_type = self.types.InputScriptType.SPENDMULTISIG
+                        script_type = self.get_trezor_input_script_type(script_gen, is_multisig=True)
                         txinputtype = self.types.TxInputType(
                             script_type=script_type,
                             multisig=multisig
