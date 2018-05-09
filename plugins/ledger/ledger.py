@@ -12,6 +12,7 @@ from electrum_ltc.transaction import Transaction
 from electrum_ltc.wallet import Standard_Wallet
 from ..hw_wallet import HW_PluginBase
 from electrum_ltc.util import print_error, is_verbose, bfh, bh2u, versiontuple
+from electrum_ltc.base_wizard import ScriptTypeNotSupported
 
 try:
     import hid
@@ -550,6 +551,7 @@ class LedgerPlugin(HW_PluginBase):
                    (0x2c97, 0x0000), # Blue
                    (0x2c97, 0x0001)  # Nano-S
                  ]
+    SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
 
     def __init__(self, parent, config, name):
         self.segwit = config.get("segwit")
@@ -593,6 +595,8 @@ class LedgerPlugin(HW_PluginBase):
         client.get_xpub("m/44'/2'", 'standard') # TODO replace by direct derivation once Nano S > 1.1
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
+        if xtype not in self.SUPPORTED_XTYPES:
+            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
         client.handler = self.create_handler(wizard)

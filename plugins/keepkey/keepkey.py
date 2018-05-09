@@ -78,6 +78,7 @@ class KeepKeyPlugin(HW_PluginBase):
     libraries_URL = 'https://github.com/keepkey/python-keepkey'
     minimum_firmware = (1, 0, 0)
     keystore_class = KeepKey_KeyStore
+    SUPPORTED_XTYPES = ('standard', )
 
     MAX_LABEL_LEN = 32
 
@@ -235,8 +236,8 @@ class KeepKeyPlugin(HW_PluginBase):
         client.used()
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in ('standard',):
-            raise ScriptTypeNotSupported(_('This type of script is not supported with KeepKey.'))
+        if xtype not in self.SUPPORTED_XTYPES:
+            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
         client.handler = wizard
@@ -327,7 +328,7 @@ class KeepKeyPlugin(HW_PluginBase):
             txinputtype.prev_hash = prev_hash
             txinputtype.prev_index = prev_index
 
-            if 'scriptSig' in txin:
+            if txin.get('scriptSig') is not None:
                 script_sig = bfh(txin['scriptSig'])
                 txinputtype.script_sig = script_sig
 

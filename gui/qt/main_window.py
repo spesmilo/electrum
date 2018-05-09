@@ -49,7 +49,7 @@ from electrum_ltc.util import (format_time, format_satoshis, format_fee_satoshis
                                UserCancelled, NoDynamicFeeEstimates, profiler,
                                export_meta, import_meta, bh2u, bfh, InvalidPassword,
                                base_units, base_units_list, base_unit_name_to_decimal_point,
-                               decimal_point_to_base_unit_name)
+                               decimal_point_to_base_unit_name, quantize_feerate)
 from electrum_ltc import Transaction
 from electrum_ltc import util, bitcoin, commands, coinchooser
 from electrum_ltc import paymentrequest
@@ -1102,7 +1102,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.config.set_key('fee_per_kb', fee_rate, False)
 
             if fee_rate:
-                self.feerate_e.setAmount(fee_rate // 1000)
+                fee_rate = Decimal(fee_rate)
+                self.feerate_e.setAmount(quantize_feerate(fee_rate / 1000))
             else:
                 self.feerate_e.setAmount(None)
             self.fee_e.setModified(False)
@@ -1334,12 +1335,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if freeze_feerate or self.fee_slider.is_active():
                 displayed_feerate = self.feerate_e.get_amount()
                 if displayed_feerate:
-                    displayed_feerate = displayed_feerate // 1000
+                    displayed_feerate = quantize_feerate(displayed_feerate / 1000)
                 else:
                     # fallback to actual fee
-                    displayed_feerate = fee // size if fee is not None else None
+                    displayed_feerate = quantize_feerate(fee / size) if fee is not None else None
                     self.feerate_e.setAmount(displayed_feerate)
-                displayed_fee = displayed_feerate * size if displayed_feerate is not None else None
+                displayed_fee = round(displayed_feerate * size) if displayed_feerate is not None else None
                 self.fee_e.setAmount(displayed_fee)
             else:
                 if freeze_fee:
@@ -1349,14 +1350,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     displayed_fee = fee
                     self.fee_e.setAmount(displayed_fee)
                 displayed_fee = displayed_fee if displayed_fee else 0
-                displayed_feerate = displayed_fee // size if displayed_fee is not None else None
+                displayed_feerate = quantize_feerate(displayed_fee / size) if displayed_fee is not None else None
                 self.feerate_e.setAmount(displayed_feerate)
 
             # show/hide fee rounding icon
             feerounding = (fee - displayed_fee) if fee else 0
-            self.set_feerounding_text(feerounding)
+            self.set_feerounding_text(int(feerounding))
             self.feerounding_icon.setToolTip(self.feerounding_text)
-            self.feerounding_icon.setVisible(bool(feerounding))
+            self.feerounding_icon.setVisible(abs(feerounding) >= 1)
 
             if self.is_max:
                 amount = tx.output_value()

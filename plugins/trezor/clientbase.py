@@ -86,6 +86,15 @@ class GuiMixin(object):
         return self.proto.PassphraseStateAck()
 
     def callback_WordRequest(self, msg):
+        if (msg.type is not None
+            and msg.type in (self.types.WordRequestType.Matrix9,
+                             self.types.WordRequestType.Matrix6)):
+            num = 9 if msg.type == self.types.WordRequestType.Matrix9 else 6
+            char = self.handler.get_matrix(num)
+            if char == 'x':
+                return self.proto.Cancel()
+            return self.proto.WordAck(word=char)
+
         self.step += 1
         msg = _("Step {}/24.  Enter seed word as explained on "
                 "your {}:").format(self.step, self.device)
@@ -225,6 +234,10 @@ class TrezorClientBase(GuiMixin, PrintError):
 
     def atleast_version(self, major, minor=0, patch=0):
         return self.firmware_version() >= (major, minor, patch)
+
+    def get_trezor_model(self):
+        """Returns '1' for Trezor One, 'T' for Trezor T."""
+        return self.features.model
 
     @staticmethod
     def wrapper(func):
