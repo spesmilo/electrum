@@ -319,6 +319,20 @@ def derive_blinded_pubkey(basepoint, per_commitment_point):
     k2 = ser_to_point(per_commitment_point) * bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
     return point_to_ser(k1 + k2)
 
+def shachain_derive(element, toIndex):
+    """ compact per-commitment secret storage, taken from lnd """
+    fromIndex = element.index
+    positions = derive_bit_transformations(fromIndex, toIndex)
+    buf = bytearray(element.secret)
+    for position in positions:
+        byteNumber = position // 8
+        bitNumber = position % 8
+        buf[byteNumber] ^= 1 << bitNumber
+        h = bitcoin.sha256(buf)
+        buf = bytearray(h)
+
+    return ShachainElement(index=toIndex, secret=bytes(buf))
+
 
 def get_per_commitment_secret_from_seed(seed: bytes, i: int, bits: int = 47) -> bytes:
     """Generate per commitment secret."""
@@ -328,7 +342,9 @@ def get_per_commitment_secret_from_seed(seed: bytes, i: int, bits: int = 47) -> 
         if i & mask:
             per_commitment_secret[bitindex // 8] ^= 1 << (bitindex % 8)
             per_commitment_secret = bytearray(bitcoin.sha256(per_commitment_secret))
-    return bytes(per_commitment_secret)
+    bajts = bytes(per_commitment_secret)
+    assert shachain_derive(ShachainElement(index=0, secret=seed), i).secret == bajts
+    return bajts
 
 
 def overall_weight(num_htlc):
@@ -1127,7 +1143,6 @@ class Peer(PrintError):
             )
         )
 
-
     def on_commitment_signed(self, payload):
         self.print_error("commitment_signed", payload)
         channel_id = int.from_bytes(payload['channel_id'], 'big')
@@ -1546,4 +1561,52 @@ def process_onion_packet(onion_packet: OnionPacket, associated_data: bytes,
         are_we_final = False
     return ProcessedOnionPacket(are_we_final, hop_data, next_onion_packet)
 
+def count_trailing_zeros(index):
+    """ BOLT-03 (where_to_put_secret) """
+    try:
+        return list(reversed(bin(index)[2:])).index("1")
+    except ValueError:
+        return 48
 
+ShachainElement = namedtuple("ShachainElement", ["secret", "index"])
+
+class RevocationStore:
+    """ taken from lnd """
+    def __init__(self):
+        self.buckets = {}
+        self.index = 2**48 - 1
+    def set_index(self, index):
+        self.index = index
+    def add_next_entry(self, hsh):
+        new_element = ShachainElement(index=self.index, secret=hsh)
+        bucket = count_trailing_zeros(self.index)
+        for i in range(0, bucket):
+            if i not in self.buckets: return
+            this_bucket = self.buckets[i]
+            e = shachain_derive(new_element, this_bucket.index)
+
+            if e != this_bucket:
+                return "hash is not derivable: {} {} {}".format(bh2u(e.secret), bh2u(this_bucket.secret), this_bucket.index)
+        self.buckets[bucket] = new_element
+        self.index -= 1
+        return
+
+def get_prefix(index, position):
+    """ taken from lnd """
+    mask = (1<<64)-1 - ((1<<position)-1)
+    return index & mask
+
+def derive_bit_transformations(fromm, to):
+    """ taken from lnd """
+    positions = []
+    if fromm == to: return positions
+
+    zeros = count_trailing_zeros(fromm)
+    if fromm > (1<<64)-1: raise Exception("fromm too big")
+    if fromm != get_prefix(to, zeros):
+        raise Exception("prefixes are different, indexes are not derivable")
+
+    for position in range(zeros, -1, -1):
+        if to >> position & 1 == 1:
+            positions.append(position)
+    return positions
