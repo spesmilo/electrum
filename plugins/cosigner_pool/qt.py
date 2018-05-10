@@ -30,7 +30,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import QPushButton
 
-from electrum import bitcoin, util, keystore
+from electrum import bitcoin, util, keystore, ecc
 from electrum import transaction
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
@@ -174,7 +174,8 @@ class Plugin(BasePlugin):
             if not self.cosigner_can_sign(tx, xpub):
                 continue
             raw_tx_bytes = bfh(str(tx))
-            message = bitcoin.encrypt_message(raw_tx_bytes, bh2u(K)).decode('ascii')
+            public_key = ecc.ECPubkey(K)
+            message = public_key.encrypt_message(raw_tx_bytes).decode('ascii')
             try:
                 server.put(_hash, message)
             except Exception as e:
@@ -214,8 +215,8 @@ class Plugin(BasePlugin):
         if not xprv:
             return
         try:
-            k = bh2u(bitcoin.deserialize_xprv(xprv)[-1])
-            EC = bitcoin.EC_KEY(bfh(k))
+            k = bitcoin.deserialize_xprv(xprv)[-1]
+            EC = ecc.ECPrivkey(k)
             message = bh2u(EC.decrypt_message(message))
         except Exception as e:
             traceback.print_exc(file=sys.stdout)

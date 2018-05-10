@@ -26,6 +26,7 @@ hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
+hiddenimports += collect_submodules('coincurve')
 
 datas = [
     (electrum+'lib/currencies.json', PYPKG),
@@ -40,6 +41,7 @@ datas = [
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
+datas += collect_data_files('coincurve')
 
 # Add libusb so Trezor will work
 binaries = [(electrum + "contrib/build-osx/libusb-1.0.dylib", ".")]

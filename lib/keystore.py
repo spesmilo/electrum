@@ -26,8 +26,10 @@
 
 from unicodedata import normalize
 
-from . import bitcoin
+from . import bitcoin, ecc
 from .bitcoin import *
+from .ecc import string_to_number, number_to_string
+from .crypto import pw_decode, pw_encode
 from . import constants
 from .util import (PrintError, InvalidPassword, hfu, WalletFileException,
                    BitcoinException)
@@ -90,12 +92,12 @@ class Software_KeyStore(KeyStore):
 
     def sign_message(self, sequence, message, password):
         privkey, compressed = self.get_private_key(sequence, password)
-        key = regenerate_key(privkey)
+        key = ecc.ECPrivkey(privkey)
         return key.sign_message(message, compressed)
 
     def decrypt_message(self, sequence, message, password):
         privkey, compressed = self.get_private_key(sequence, password)
-        ec = regenerate_key(privkey)
+        ec = ecc.ECPrivkey(privkey)
         decrypted = ec.decrypt_message(message)
         return decrypted
 
@@ -141,7 +143,7 @@ class Imported_KeyStore(Software_KeyStore):
 
     def import_privkey(self, sec, password):
         txin_type, privkey, compressed = deserialize_privkey(sec)
-        pubkey = public_key_from_private_key(privkey, compressed)
+        pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
         # re-serialize the key so the internal storage format is consistent
         serialized_privkey = serialize_privkey(
             privkey, compressed, txin_type, internal_use=True)
@@ -159,7 +161,7 @@ class Imported_KeyStore(Software_KeyStore):
         sec = pw_decode(self.keypairs[pubkey], password)
         txin_type, privkey, compressed = deserialize_privkey(sec)
         # this checks the password
-        if pubkey != public_key_from_private_key(privkey, compressed):
+        if pubkey != ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed):
             raise InvalidPassword()
         return privkey, compressed
 
@@ -381,9 +383,8 @@ class Old_KeyStore(Deterministic_KeyStore):
     @classmethod
     def mpk_from_seed(klass, seed):
         secexp = klass.stretch_key(seed)
-        master_private_key = ecdsa.SigningKey.from_secret_exponent(secexp, curve = SECP256k1)
-        master_public_key = master_private_key.get_verifying_key().to_string()
-        return bh2u(master_public_key)
+        privkey = ecc.ECPrivkey.from_secret_scalar(secexp)
+        return privkey.get_public_key_hex(compressed=False)[2:]
 
     @classmethod
     def stretch_key(self, seed):
@@ -399,18 +400,16 @@ class Old_KeyStore(Deterministic_KeyStore):
     @classmethod
     def get_pubkey_from_mpk(self, mpk, for_change, n):
         z = self.get_sequence(mpk, for_change, n)
-        master_public_key = ecdsa.VerifyingKey.from_string(bfh(mpk), curve = SECP256k1)
-        pubkey_point = master_public_key.pubkey.point + z*SECP256k1.generator
-        public_key2 = ecdsa.VerifyingKey.from_public_point(pubkey_point, curve = SECP256k1)
-        return '04' + bh2u(public_key2.to_string())
+        master_public_key = ecc.ECPubkey(bfh('04'+mpk))
+        public_key = master_public_key + z*ecc.generator()
+        return public_key.get_public_key_hex(compressed=False)
 
     def derive_pubkey(self, for_change, n):
         return self.get_pubkey_from_mpk(self.mpk, for_change, n)
 
     def get_private_key_from_stretched_exponent(self, for_change, n, secexp):
-        order = generator_secp256k1.order()
-        secexp = (secexp + self.get_sequence(self.mpk, for_change, n)) % order
-        pk = number_to_string(secexp, generator_secp256k1.order())
+        secexp = (secexp + self.get_sequence(self.mpk, for_change, n)) % ecc.CURVE_ORDER
+        pk = number_to_string(secexp, ecc.CURVE_ORDER)
         return pk
 
     def get_private_key(self, sequence, password):
@@ -423,8 +422,8 @@ class Old_KeyStore(Deterministic_KeyStore):
 
     def check_seed(self, seed):
         secexp = self.stretch_key(seed)
-        master_private_key = ecdsa.SigningKey.from_secret_exponent( secexp, curve = SECP256k1 )
-        master_public_key = master_private_key.get_verifying_key().to_string()
+        master_private_key = ecc.ECPrivkey.from_secret_scalar(secexp)
+        master_public_key = master_private_key.get_public_key_bytes(compressed=False)[1:]
         if master_public_key != bfh(self.mpk):
             print_error('invalid password (mpk)', self.mpk, bh2u(master_public_key))
             raise InvalidPassword()
