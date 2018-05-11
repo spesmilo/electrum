@@ -13,14 +13,14 @@ from lib.simple_config import SimpleConfig
 from lib.network import Network
 from lib.storage import WalletStorage
 from lib.wallet import Wallet
-from lib.lnbase import Peer, node_list, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints
+from lib.lnbase import Peer, node_list, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore
 from lib.lightning_payencode.lnaddr import lnencode, LnAddr
 import lib.constants as constants
 
 is_key = lambda k: k.endswith("_basepoint") or k.endswith("_key")
 
 def maybeDecode(k, v):
-    if k in ["pubkey", "privkey", "next_per_commitment_point", "per_commitment_secret_seed"] and v is not None:
+    if k in ["pubkey", "privkey", "last_per_commitment_point", "next_per_commitment_point", "per_commitment_secret_seed"] and v is not None:
         return binascii.unhexlify(v)
     return v
 
@@ -45,6 +45,7 @@ def reconstruct_namedtuples(openingchannel):
     new_local_state = decodeAll(openingchannel.local_state)
     openingchannel = openingchannel._replace(local_state=LocalState(**new_local_state))
     new_remote_state = decodeAll(openingchannel.remote_state)
+    new_remote_state["revocation_store"] = RevocationStore.from_json_obj(new_remote_state["revocation_store"])
     openingchannel = openingchannel._replace(remote_state=RemoteState(**new_remote_state))
     openingchannel = openingchannel._replace(constraints=ChannelConstraints(**openingchannel.constraints))
     return openingchannel
@@ -58,6 +59,8 @@ def serialize_channels(channels):
         def default(self, o):
             if isinstance(o, bytes):
                 return binascii.hexlify(o).decode("ascii")
+            if isinstance(o, RevocationStore):
+                return o.serialize()
             return super(MyJsonEncoder, self)
     dumped = MyJsonEncoder().encode(serialized_channels)
     roundtripped = json.loads(dumped)
