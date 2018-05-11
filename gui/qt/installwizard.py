@@ -227,10 +227,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.name_e.setText(n)
 
         while True:
-            if self.storage.file_exists() and not self.storage.is_encrypted():
-                break
             if self.loop.exec_() != 2:  # 2 = next
                 return
+            if self.storage.file_exists() and not self.storage.is_encrypted():
+                break
             if not self.storage.file_exists():
                 break
             wallet_from_memory = get_wallet_from_daemon(self.storage.path)

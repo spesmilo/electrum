@@ -185,7 +185,7 @@ class ElectrumGui:
         run_hook('on_new_window', w)
         return w
 
-    def start_new_window(self, path, uri):
+    def start_new_window(self, path, uri, app_is_starting=False):
         '''Raises the window for the wallet if it is open.  Otherwise
         opens the wallet and creates a new window for it'''
         try:
@@ -195,7 +195,11 @@ class ElectrumGui:
             d = QMessageBox(QMessageBox.Warning, _('Error'),
                             _('Cannot load wallet') + ' (1):\n' + str(e))
             d.exec_()
-            return
+            if app_is_starting:
+                # do not return so that the wizard can appear
+                wallet = None
+            else:
+                return
         if not wallet:
             storage = WalletStorage(path, manual_upgrades=True)
             wizard = InstallWizard(self.config, self.app, self.plugins, storage)
@@ -270,7 +274,7 @@ class ElectrumGui:
         self.timer.start()
         self.config.open_last_wallet()
         path = self.config.get_wallet_path()
-        if not self.start_new_window(path, self.config.get('url')):
+        if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
             return
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
 
