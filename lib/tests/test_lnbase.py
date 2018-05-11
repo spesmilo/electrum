@@ -7,7 +7,7 @@ from lib.lnbase import make_commitment, get_obscured_ctn, Peer, make_offered_htl
 from lib.lnbase import secret_to_pubkey, derive_pubkey, derive_privkey, derive_blinded_pubkey, overall_weight
 from lib.lnbase import make_htlc_tx_output, make_htlc_tx_inputs, get_per_commitment_secret_from_seed
 from lib.lnbase import make_htlc_tx_witness, OnionHopsDataSingle, new_onion_packet, OnionPerHop
-from lib.lnbase import RevocationStore, ShachainElement, shachain_derive
+from lib.lnbase import RevocationStore
 from lib.transaction import Transaction
 from lib import bitcoin
 import ecdsa.ellipticcurve
@@ -790,8 +790,9 @@ class Test_LNBase(unittest.TestCase):
         seed = bitcoin.sha256(b"shachaintest")
         consumer = RevocationStore()
         for i in range(10000):
-            secret = shachain_derive(ShachainElement(seed, 0), 2**48 - i - 1).secret
+            secret = get_per_commitment_secret_from_seed(seed, 2**48 - i - 1)
             try:
                 consumer.add_next_entry(secret)
             except Exception as e:
                 raise Exception("iteration " + str(i) + ": " + str(e))
+            if i % 1000 == 0: self.assertEqual(consumer.serialize(), RevocationStore.from_json_obj(json.loads(json.dumps(consumer.serialize()))).serialize())
