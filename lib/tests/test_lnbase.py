@@ -7,7 +7,7 @@ from lib.lnbase import make_commitment, get_obscured_ctn, Peer, make_offered_htl
 from lib.lnbase import secret_to_pubkey, derive_pubkey, derive_privkey, derive_blinded_pubkey, overall_weight
 from lib.lnbase import make_htlc_tx_output, make_htlc_tx_inputs, get_per_commitment_secret_from_seed
 from lib.lnbase import make_htlc_tx_witness, OnionHopsDataSingle, new_onion_packet, OnionPerHop
-from lib.lnbase import RevocationStore, derive_bit_transformations
+from lib.lnbase import RevocationStore, ShachainElement, shachain_derive
 from lib.transaction import Transaction
 from lib import bitcoin
 import ecdsa.ellipticcurve
@@ -384,27 +384,6 @@ class Test_LNBase(unittest.TestCase):
             processed_packet = lnbase.process_onion_packet(packet, associated_data, privkey)
             self.assertEqual(hops_data[i].per_hop.to_bytes(), processed_packet.hop_data.per_hop.to_bytes())
             packet = processed_packet.next_packet
-
-    def test_shachain_producer(self):
-        from collections import namedtuple
-        tests = []
-        DeriveTest = namedtuple("DeriveTest", ["name", "fromm", "to", "position", "should_fail"])
-        tests.append(DeriveTest("zero 'from' 'to'", 0, 0, [], False))
-        tests.append(DeriveTest("same indexes #1", 0b100, 0b100, [], False))
-        tests.append(DeriveTest("same indexes #2", 0b1, 0b0, None, True))
-        tests.append(DeriveTest("test seed 'from'", 0b0, 0b10, [1], False))
-        tests.append(DeriveTest("not the same indexes", 0b1100, 0b0100, None, True))
-        tests.append(DeriveTest("'from' index greater than 'to' index", 0b1010, 0b1000, None, True))
-        tests.append(DeriveTest("zero number trailing zeros", 0b1, 0b1, [], False))
-        for test in tests:
-            try:
-                pos = derive_bit_transformations(test.fromm, test.to)
-                if test.should_fail:
-                    raise Exception("test did not fail")
-                self.assertEqual(test.position, pos)
-            except:
-                if not test.should_fail:
-                    raise Exception(test.name)
 
     def test_shachain_store(self):
         tests = [
@@ -792,23 +771,27 @@ class Test_LNBase(unittest.TestCase):
         ]
 
         for test in tests:
-            old_receiver = None
-            receiver = None
+            receiver = RevocationStore()
             for insert in test["inserts"]:
-                old_receiver = receiver
-                receiver = RevocationStore()
                 secret = bytes.fromhex(insert["secret"])
-                if not insert["successful"]:
-                    receiver.set_index(old_receiver.index)
-                    receiver.buckets = old_receiver.buckets
-                secret = secret[::-1]
 
-                err = receiver.add_next_entry(secret)
-                if isinstance(err, str):
+                try:
+                    receiver.add_next_entry(secret)
+                except Exception as e:
                     if insert["successful"]:
-                        raise Exception("Failed ({}): error was received but it shouldn't: {}".format(test["name"], err))
+                        raise Exception("Failed ({}): error was received but it shouldn't: {}".format(test["name"], e))
                 else:
                     if not insert["successful"]:
                         raise Exception("Failed ({}): error wasn't received".format(test["name"]))
 
             print("Passed ({})".format(test["name"]))
+
+    def test_shachain_produce_consume(self):
+        seed = bitcoin.sha256(b"shachaintest")
+        consumer = RevocationStore()
+        for i in range(10000):
+            secret = shachain_derive(ShachainElement(seed, 0), 2**48 - i - 1).secret
+            try:
+                consumer.add_next_entry(secret)
+            except Exception as e:
+                raise Exception("iteration " + str(i) + ": " + str(e))
