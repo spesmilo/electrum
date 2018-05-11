@@ -276,7 +276,7 @@ ChannelConfig = namedtuple("ChannelConfig", [
     "payment_basepoint", "multisig_key", "htlc_basepoint", "delayed_basepoint", "revocation_basepoint",
     "to_self_delay", "dust_limit_sat", "max_htlc_value_in_flight_msat", "max_accepted_htlcs"])
 OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
-RemoteState = namedtuple("RemoteState", ["ctn", "next_per_commitment_point", "amount_sat", "commitment_points"])
+RemoteState = namedtuple("RemoteState", ["ctn", "next_per_commitment_point", "amount_sat", "revocation_store", "last_per_commitment_point"])
 LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amount_sat"])
 ChannelConstraints = namedtuple("ChannelConstraints", ["feerate", "capacity", "is_initiator", "funding_txn_minimum_depth"])
 OpenChannel = namedtuple("OpenChannel", ["channel_id", "funding_outpoint", "local_config", "remote_config", "remote_state", "local_state", "constraints"])
@@ -911,6 +911,7 @@ class Peer(PrintError):
         # broadcast funding tx
         success, _txid = self.network.broadcast(funding_tx)
         assert success, success
+        their_revocation_store = RevocationStore()
         chan = OpenChannel(
                 channel_id=channel_id,
                 funding_outpoint=Outpoint(funding_txid, funding_index),
@@ -919,8 +920,9 @@ class Peer(PrintError):
                 remote_state=RemoteState(
                     ctn = 0,
                     next_per_commitment_point=None,
+                    last_per_commitment_point=remote_per_commitment_point,
                     amount_sat=remote_amount,
-                    commitment_points=[bh2u(remote_per_commitment_point)]
+                    revocation_store=their_revocation_store
                 ),
                 local_state=LocalState(
                     ctn = 0,
@@ -943,7 +945,15 @@ class Peer(PrintError):
         #   'your_last_per_commitment_secret': b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
         #   'my_current_per_commitment_point': b'\x03\x18\xb9\x1b\x99\xd4\xc3\xf1\x92\x0f\xfe\xe4c\x9e\xae\xa4\xf1\xdeX\xcf4\xa9[\xd1\tAh\x80\x88\x01b*['
         # }
-        if channel_reestablish_msg["my_current_per_commitment_point"] != bfh(chan.remote_state.commitment_points[-1]):
+        remote_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
+        if remote_ctn != chan.remote_state.ctn + 1:
+            raise Exception("expected remote ctn {}, got {}".format(chan.remote_state.ctn + 1, remote_ctn))
+
+        local_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
+        if local_ctn != chan.local_state.ctn:
+            raise Exception("expected local ctn {}, got {}".format(chan.local_state.ctn, local_ctn))
+
+        if channel_reestablish_msg["my_current_per_commitment_point"] != chan.remote_state.last_per_commitment_point:
             raise Exception("Remote PCP mismatch")
         self.send_message(gen_msg("channel_reestablish",
             channel_id=chan.channel_id,
@@ -991,10 +1001,10 @@ class Peer(PrintError):
         return chan._replace(remote_state=chan.remote_state._replace(next_per_commitment_point=remote_funding_locked_msg["next_per_commitment_point"]))
 
     async def receive_commitment_revoke_ack(self, chan, expected_received_sat, payment_preimage):
-        def derive_and_incr():
+        def derive_and_incr(last = False):
             nonlocal chan
             last_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-chan.local_state.ctn-1)
-            next_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-chan.local_state.ctn-2)
+            next_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-chan.local_state.ctn-(2 if not last else 3))
             next_point = secret_to_pubkey(int.from_bytes(next_secret, 'big'))
             chan = chan._replace(
                 local_state=chan.local_state._replace(
@@ -1002,6 +1012,9 @@ class Peer(PrintError):
                 )
             )
             return last_secret, next_point
+
+        their_revstore = chan.remote_state.revocation_store
+
         channel_id = chan.channel_id
         try:
             commitment_signed_msg = await self.commitment_signed[channel_id]
@@ -1051,6 +1064,8 @@ class Peer(PrintError):
             raise Exception("failed verifying signature an HTLC tx spending from one of our commit tx'es HTLC outputs")
 
         print("SENDING FIRST REVOKE AND ACK")
+
+        their_revstore.add_next_entry(last_secret)
 
         self.send_message(gen_msg("revoke_and_ack",
             channel_id=channel_id,
@@ -1111,7 +1126,9 @@ class Peer(PrintError):
 
         # TODO check commitment_signed results
 
-        last_secret, next_point = derive_and_incr()
+        last_secret, next_point = derive_and_incr(True)
+
+        their_revstore.add_next_entry(last_secret)
 
         print("SENDING SECOND REVOKE AND ACK")
         self.send_message(gen_msg("revoke_and_ack",
@@ -1125,7 +1142,8 @@ class Peer(PrintError):
             ),
             remote_state=chan.remote_state._replace(
                 ctn=chan.remote_state.ctn + 2,
-                commitment_points=chan.remote_state.commitment_points + [bh2u(remote_next_commitment_point)],
+                revocation_store=their_revstore,
+                last_per_commitment_point=remote_next_commitment_point,
                 next_per_commitment_point=revoke_and_ack_msg["next_per_commitment_point"],
                 amount_sat=chan.remote_state.amount_sat - expected_received_sat
             )
@@ -1575,3 +1593,14 @@ class RevocationStore:
                 raise Exception("hash is not derivable: {} {} {}".format(bh2u(e.secret), bh2u(this_bucket.secret), this_bucket.index))
         self.buckets[bucket] = new_element
         self.index -= 1
+    def serialize(self):
+        return {"index": self.index, "buckets": [[bh2u(k.secret), k.index] if k is not None else None for k in self.buckets]}
+    @staticmethod
+    def from_json_obj(decoded_json_obj):
+        store = RevocationStore()
+        decode = lambda to_decode: ShachainElement(bfh(to_decode[0]), int(to_decode[1]))
+        store.buckets = [k if k is None else decode(k) for k in decoded_json_obj["buckets"]]
+        store.index = decoded_json_obj["index"]
+        return store
+    def __eq__(self, o):
+        return self.buckets == o.buckets and self.index == o.index
