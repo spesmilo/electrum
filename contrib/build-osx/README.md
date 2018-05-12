@@ -1,7 +1,7 @@
 Building Mac OS binaries
 ========================
 
-This guide explains how to build Electrum binaries for macOS systems.
+This guide explains how to build Electrum-LTC binaries for macOS systems.
 
 The build process consists of two steps:
 

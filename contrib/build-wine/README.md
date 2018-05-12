@@ -1,7 +1,7 @@
 Windows Binary Builds
 =====================
 
-These scripts can be used for cross-compilation of Windows Electrum executables from Linux/Wine.
+These scripts can be used for cross-compilation of Windows Electrum-LTC executables from Linux/Wine.
 Produced binaries are deterministic, so you should be able to generate binaries that match the official releases. 
 
 
