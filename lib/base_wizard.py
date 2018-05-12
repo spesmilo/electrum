@@ -206,7 +206,7 @@ class BaseWizard(object):
         self.choice_dialog(title=title, message=msg, choices=choices, run_next=self.on_device)
 
     def on_device(self, name, device_info):
-        self.plugin = self.plugins.get_plugin(name)
+        self.plugin = self.plugins.find_plugin(name, force_load=True)
         try:
             self.plugin.setup_device(device_info, self)
         except OSError as e:

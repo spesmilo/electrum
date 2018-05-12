@@ -5,7 +5,7 @@ import os
 import stat
 
 from copy import deepcopy
-from .util import user_dir, print_error, PrintError
+from .util import user_dir, make_dir, print_error, PrintError
 
 from .bitcoin import MAX_FEE_RATE, FEE_TARGETS
 
@@ -90,14 +90,6 @@ class SimpleConfig(PrintError):
         path = self.get('electron_cash_path')
         if path is None:
             path = self.user_dir()
-
-        def make_dir(path):
-            # Make directory if it does not yet exist.
-            if not os.path.exists(path):
-                if os.path.islink(path):
-                    raise BaseException('Dangling link: ' + path)
-                os.mkdir(path)
-                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
         make_dir(path)
         if self.get('testnet'):
@@ -220,11 +212,7 @@ class SimpleConfig(PrintError):
 
         # default path
         dirpath = os.path.join(self.path, "wallets")
-        if not os.path.exists(dirpath):
-            if os.path.islink(dirpath):
-                raise BaseException('Dangling link: ' + dirpath)
-            os.mkdir(dirpath)
-            os.chmod(dirpath, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        make_dir(dirpath)
 
         new_path = os.path.join(self.path, "wallets", "default_wallet")
 
