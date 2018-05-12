@@ -8,7 +8,7 @@ from decimal import Decimal
 from copy import deepcopy
 
 from . import util
-from .util import (user_dir, print_error, PrintError,
+from .util import (user_dir, print_error, PrintError, make_dir,
                    NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate)
 from .i18n import _
 
@@ -105,21 +105,13 @@ class SimpleConfig(PrintError):
         if path is None:
             path = self.user_dir()
 
-        def make_dir(path):
-            # Make directory if it does not yet exist.
-            if not os.path.exists(path):
-                if os.path.islink(path):
-                    raise Exception('Dangling link: ' + path)
-                os.mkdir(path)
-                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
-
-        make_dir(path)
+        make_dir(path, allow_symlink=False)
         if self.get('testnet'):
             path = os.path.join(path, 'testnet')
-            make_dir(path)
+            make_dir(path, allow_symlink=False)
         elif self.get('regtest'):
             path = os.path.join(path, 'regtest')
-            make_dir(path)
+            make_dir(path, allow_symlink=False)
 
         self.print_error("electrum directory", path)
         return path
@@ -240,11 +232,7 @@ class SimpleConfig(PrintError):
         # default path
         util.assert_datadir_available(self.path)
         dirpath = os.path.join(self.path, "wallets")
-        if not os.path.exists(dirpath):
-            if os.path.islink(dirpath):
-                raise Exception('Dangling link: ' + dirpath)
-            os.mkdir(dirpath)
-            os.chmod(dirpath, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        make_dir(dirpath, allow_symlink=False)
 
         new_path = os.path.join(self.path, "wallets", "default_wallet")
 
