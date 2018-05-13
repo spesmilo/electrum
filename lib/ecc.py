@@ -26,6 +26,9 @@
 import base64
 import hmac
 import hashlib
+from typing import Union
+
+
 import ecdsa
 from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
 from ecdsa.curves import SECP256k1
@@ -297,18 +300,25 @@ def verify_message_with_address(address: str, sig65: bytes, message: bytes):
         return False
 
 
+def is_secret_within_curve_range(secret: Union[int, bytes]) -> bool:
+    if isinstance(secret, bytes):
+        secret = string_to_number(secret)
+    return 0 < secret < CURVE_ORDER
+
+
 class ECPrivkey(ECPubkey):
 
     def __init__(self, privkey_bytes: bytes):
         assert_bytes(privkey_bytes)
-        assert len(privkey_bytes) == 32, 'unexpected size for secret'
-        secret = self.secret_bytes_to_scalar(privkey_bytes)
+        if len(privkey_bytes) != 32:
+            raise Exception('unexpected size for secret. should be 32 bytes, not {}'.format(len(privkey_bytes)))
+        secret = string_to_number(privkey_bytes)
+        if not is_secret_within_curve_range(secret):
+            raise Exception('Invalid secret scalar (not within curve order)')
         self.secret_scalar = secret
 
         if coincurve:
-            cu = coincurve.utils
-            padded_sec_bytes = cu.int_to_bytes_padded(secret)
-            self._privkey = coincurve.keys.PrivateKey(padded_sec_bytes)
+            self._privkey = coincurve.keys.PrivateKey.from_int(secret)
             super().__init__(self._privkey.public_key.format())
         else:
             point = generator_secp256k1 * secret
@@ -321,17 +331,20 @@ class ECPrivkey(ECPubkey):
         return ECPrivkey(secret_bytes)
 
     @classmethod
-    def secret_bytes_to_scalar(cls, b: bytes):
-        return string_to_number(b) % CURVE_ORDER
-
-    @classmethod
     def from_arbitrary_size_secret(cls, privkey_bytes: bytes):
         """This method is only for legacy reasons. Do not introduce new code that uses it.
-        Unlike the default constructor, this method does not require len(privkey_bytes) == 32.
+        Unlike the default constructor, this method does not require len(privkey_bytes) == 32,
+        and the secret does not need to be within the curve order either.
         """
-        scalar = cls.secret_bytes_to_scalar(privkey_bytes)
+        return ECPrivkey(cls.normalize_secret_bytes(privkey_bytes))
+
+    @classmethod
+    def normalize_secret_bytes(cls, privkey_bytes: bytes) -> bytes:
+        scalar = string_to_number(privkey_bytes) % CURVE_ORDER
+        if scalar == 0:
+            raise Exception('invalid EC private key scalar: zero')
         privkey_32bytes = number_to_string(scalar, CURVE_ORDER)
-        return ECPrivkey(privkey_32bytes)
+        return privkey_32bytes
 
     def sign_transaction(self, hashed_preimage):
         if coincurve:

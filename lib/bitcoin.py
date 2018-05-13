@@ -406,7 +406,10 @@ SCRIPT_TYPES = {
 }
 
 
-def serialize_privkey(secret, compressed, txin_type, internal_use=False):
+def serialize_privkey(secret: bytes, compressed: bool, txin_type: str,
+                      internal_use: bool=False) -> str:
+    # we only export secrets inside curve range
+    secret = ecc.ECPrivkey.normalize_secret_bytes(secret)
     if internal_use:
         prefix = bytes([(SCRIPT_TYPES[txin_type] + constants.net.WIF_PREFIX) & 255])
     else:
@@ -420,7 +423,7 @@ def serialize_privkey(secret, compressed, txin_type, internal_use=False):
         return '{}:{}'.format(txin_type, base58_wif)
 
 
-def deserialize_privkey(key):
+def deserialize_privkey(key: str) -> (str, bytes, bool):
     if is_minikey(key):
         return 'p2pkh', minikey_to_private_key(key), True
 
@@ -452,7 +455,10 @@ def deserialize_privkey(key):
     if len(vch) not in [33, 34]:
         raise BitcoinException('invalid vch len for WIF key: {}'.format(len(vch)))
     compressed = len(vch) == 34
-    return txin_type, vch[1:33], compressed
+    secret_bytes = vch[1:33]
+    # we accept secrets outside curve range; cast into range here:
+    secret_bytes = ecc.ECPrivkey.normalize_secret_bytes(secret_bytes)
+    return txin_type, secret_bytes, compressed
 
 
 def is_compressed(sec):
@@ -570,7 +576,7 @@ def xpub_header(xtype, *, net=None):
 
 def serialize_xprv(xtype, c, k, depth=0, fingerprint=b'\x00'*4,
                    child_number=b'\x00'*4, *, net=None):
-    if not (0 < string_to_number(k) < SECP256k1.order):
+    if not ecc.is_secret_within_curve_range(k):
         raise BitcoinException('Impossible xprv (not within curve order)')
     xprv = xprv_header(xtype, net=net) \
            + bytes([depth]) + fingerprint + child_number + c + bytes([0]) + k
@@ -603,7 +609,7 @@ def deserialize_xkey(xkey, prv, *, net=None):
     xtype = list(headers.keys())[list(headers.values()).index(header)]
     n = 33 if prv else 32
     K_or_k = xkey[13+n:]
-    if prv and not (0 < string_to_number(K_or_k) < SECP256k1.order):
+    if prv and not ecc.is_secret_within_curve_range(K_or_k):
         raise BitcoinException('Impossible xprv (not within curve order)')
     return xtype, depth, fingerprint, child_number, c, K_or_k
 
@@ -644,8 +650,9 @@ def bip32_root(seed, xtype):
     I = hmac.new(b"Bitcoin seed", seed, hashlib.sha512).digest()
     master_k = I[0:32]
     master_c = I[32:]
-    cK = ecc.ECPrivkey(master_k).get_public_key_bytes(compressed=True)
+    # create xprv first, as that will check if master_k is within curve order
     xprv = serialize_xprv(xtype, master_c, master_k)
+    cK = ecc.ECPrivkey(master_k).get_public_key_bytes(compressed=True)
     xpub = serialize_xpub(xtype, master_c, cK)
     return xprv, xpub
 
