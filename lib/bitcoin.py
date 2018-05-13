@@ -567,11 +567,16 @@ def deserialize_privkey(key):
 
     if txin_type is None:
         # keys exported in version 3.0.x encoded script type in first byte
-        txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - constants.net.WIF_PREFIX]
+        prefix_value = vch[0] - constants.net.WIF_PREFIX
+        inverse_script_types = inv_dict(SCRIPT_TYPES)
+        try:
+            txin_type = inverse_script_types[prefix_value]
+        except KeyError:
+            raise BitcoinException('invalid prefix ({}) for WIF key (1)'.format(vch[0]))
     else:
         # all other keys must have a fixed first byte
         if vch[0] != constants.net.WIF_PREFIX:
-            raise BitcoinException('invalid prefix ({}) for WIF key'.format(vch[0]))
+            raise BitcoinException('invalid prefix ({}) for WIF key (2)'.format(vch[0]))
 
     if len(vch) not in [33, 34]:
         raise BitcoinException('invalid vch len for WIF key: {}'.format(len(vch)))
@@ -944,6 +949,8 @@ def xpub_header(xtype, *, net=None):
 
 def serialize_xprv(xtype, c, k, depth=0, fingerprint=b'\x00'*4,
                    child_number=b'\x00'*4, *, net=None):
+    if not (0 < string_to_number(k) < SECP256k1.order):
+        raise BitcoinException('Impossible xprv (not within curve order)')
     xprv = xprv_header(xtype, net=net) \
            + bytes([depth]) + fingerprint + child_number + c + bytes([0]) + k
     return EncodeBase58Check(xprv)
@@ -975,6 +982,8 @@ def deserialize_xkey(xkey, prv, *, net=None):
     xtype = list(headers.keys())[list(headers.values()).index(header)]
     n = 33 if prv else 32
     K_or_k = xkey[13+n:]
+    if prv and not (0 < string_to_number(K_or_k) < SECP256k1.order):
+        raise BitcoinException('Impossible xprv (not within curve order)')
     return xtype, depth, fingerprint, child_number, c, K_or_k
 
 

@@ -12,7 +12,8 @@ from electrum.util import PrintError, UserCancelled, bh2u
 from electrum.wallet import Wallet, Standard_Wallet
 
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
-from .trezor import TrezorPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
+from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC,
+                     RECOVERY_TYPE_SCRAMBLED_WORDS, RECOVERY_TYPE_MATRIX)
 
 
 PASSPHRASE_HELP_SHORT =_(
@@ -30,22 +31,110 @@ PASSPHRASE_NOT_PIN = _(
     "If you forget a passphrase you will be unable to access any "
     "bitcoins in the wallet behind it.  A passphrase is not a PIN. "
     "Only change this if you are sure you understand it.")
+MATRIX_RECOVERY = _(
+    "Enter the recovery words by pressing the buttons according to what "
+    "the device shows on its display.  You can also use your NUMPAD.\n"
+    "Press BACKSPACE to go back a choice or word.\n")
+
+
+class MatrixDialog(WindowModalDialog):
+
+    def __init__(self, parent):
+        super(MatrixDialog, self).__init__(parent)
+        self.setWindowTitle(_("Trezor Matrix Recovery"))
+        self.num = 9
+        self.loop = QEventLoop()
+
+        vbox = QVBoxLayout(self)
+        vbox.addWidget(WWLabel(MATRIX_RECOVERY))
+
+        grid = QGridLayout()
+        grid.setSpacing(0)
+        self.char_buttons = []
+        for y in range(3):
+            for x in range(3):
+                button = QPushButton('?')
+                button.clicked.connect(partial(self.process_key, ord('1') + y * 3 + x))
+                grid.addWidget(button, 3 - y, x)
+                self.char_buttons.append(button)
+        vbox.addLayout(grid)
+
+        self.backspace_button = QPushButton("<=")
+        self.backspace_button.clicked.connect(partial(self.process_key, Qt.Key_Backspace))
+        self.cancel_button = QPushButton(_("Cancel"))
+        self.cancel_button.clicked.connect(partial(self.process_key, Qt.Key_Escape))
+        buttons = Buttons(self.backspace_button, self.cancel_button)
+        vbox.addSpacing(40)
+        vbox.addLayout(buttons)
+        self.refresh()
+        self.show()
+
+    def refresh(self):
+        for y in range(3):
+            self.char_buttons[3 * y + 1].setEnabled(self.num == 9)
+
+    def is_valid(self, key):
+        return key >= ord('1') and key <= ord('9')
+
+    def process_key(self, key):
+        self.data = None
+        if key == Qt.Key_Backspace:
+            self.data = '\010'
+        elif key == Qt.Key_Escape:
+            self.data = 'x'
+        elif self.is_valid(key):
+            self.char_buttons[key - ord('1')].setFocus()
+            self.data = '%c' % key
+        if self.data:
+            self.loop.exit(0)
+
+    def keyPressEvent(self, event):
+        self.process_key(event.key())
+        if not self.data:
+            QDialog.keyPressEvent(self, event)
+
+    def get_matrix(self, num):
+        self.num = num
+        self.refresh()
+        self.loop.exec_()
 
 
 class QtHandler(QtHandlerBase):
 
     pin_signal = pyqtSignal(object)
+    matrix_signal = pyqtSignal(object)
+    close_matrix_dialog_signal = pyqtSignal()
 
     def __init__(self, win, pin_matrix_widget_class, device):
         super(QtHandler, self).__init__(win, device)
         self.pin_signal.connect(self.pin_dialog)
+        self.matrix_signal.connect(self.matrix_recovery_dialog)
+        self.close_matrix_dialog_signal.connect(self._close_matrix_dialog)
         self.pin_matrix_widget_class = pin_matrix_widget_class
+        self.matrix_dialog = None
 
     def get_pin(self, msg):
         self.done.clear()
         self.pin_signal.emit(msg)
         self.done.wait()
         return self.response
+
+    def get_matrix(self, msg):
+        self.done.clear()
+        self.matrix_signal.emit(msg)
+        self.done.wait()
+        data = self.matrix_dialog.data
+        if data == 'x':
+            self.close_matrix_dialog()
+        return data
+
+    def _close_matrix_dialog(self):
+        if self.matrix_dialog:
+            self.matrix_dialog.accept()
+            self.matrix_dialog = None
+
+    def close_matrix_dialog(self):
+        self.close_matrix_dialog_signal.emit()
 
     def pin_dialog(self, msg):
         # Needed e.g. when resetting a device
@@ -59,6 +148,12 @@ class QtHandler(QtHandlerBase):
         dialog.setLayout(vbox)
         dialog.exec_()
         self.response = str(matrix.get_value())
+        self.done.set()
+
+    def matrix_recovery_dialog(self, msg):
+        if not self.matrix_dialog:
+            self.matrix_dialog = MatrixDialog(self.top_level_window())
+        self.matrix_dialog.get_matrix(msg)
         self.done.set()
 
 
@@ -86,7 +181,7 @@ class QtPlugin(QtPluginBase):
         if device_id:
             SettingsDialog(window, self, keystore, device_id).exec_()
 
-    def request_trezor_init_settings(self, wizard, method, device):
+    def request_trezor_init_settings(self, wizard, method, model):
         vbox = QVBoxLayout()
         next_enabled = True
         label = QLabel(_("Enter a label to name your device:"))
@@ -107,12 +202,12 @@ class QtPlugin(QtPluginBase):
             gb.setLayout(hbox1)
             vbox.addWidget(gb)
             gb.setTitle(_("Select your seed length:"))
-            bg = QButtonGroup()
+            bg_numwords = QButtonGroup()
             for i, count in enumerate([12, 18, 24]):
                 rb = QRadioButton(gb)
                 rb.setText(_("%d words") % count)
-                bg.addButton(rb)
-                bg.setId(rb, i)
+                bg_numwords.addButton(rb)
+                bg_numwords.setId(rb, i)
                 hbox1.addWidget(rb)
                 rb.setChecked(True)
             cb_pin = QCheckBox(_('Enable PIN protection'))
@@ -155,16 +250,42 @@ class QtPlugin(QtPluginBase):
         vbox.addWidget(passphrase_warning)
         vbox.addWidget(cb_phrase)
 
+        # ask for recovery type (random word order OR matrix)
+        if method == TIM_RECOVER and not model == 'T':
+            gb_rectype = QGroupBox()
+            hbox_rectype = QHBoxLayout()
+            gb_rectype.setLayout(hbox_rectype)
+            vbox.addWidget(gb_rectype)
+            gb_rectype.setTitle(_("Select recovery type:"))
+            bg_rectype = QButtonGroup()
+
+            rb1 = QRadioButton(gb_rectype)
+            rb1.setText(_('Scrambled words'))
+            bg_rectype.addButton(rb1)
+            bg_rectype.setId(rb1, RECOVERY_TYPE_SCRAMBLED_WORDS)
+            hbox_rectype.addWidget(rb1)
+            rb1.setChecked(True)
+
+            rb2 = QRadioButton(gb_rectype)
+            rb2.setText(_('Matrix'))
+            bg_rectype.addButton(rb2)
+            bg_rectype.setId(rb2, RECOVERY_TYPE_MATRIX)
+            hbox_rectype.addWidget(rb2)
+        else:
+            bg_rectype = None
+
         wizard.exec_layout(vbox, next_enabled=next_enabled)
 
         if method in [TIM_NEW, TIM_RECOVER]:
-            item = bg.checkedId()
+            item = bg_numwords.checkedId()
             pin = cb_pin.isChecked()
+            recovery_type = bg_rectype.checkedId() if bg_rectype else None
         else:
             item = ' '.join(str(clean_text(text)).split())
             pin = str(pin.text())
+            recovery_type = None
 
-        return (item, name.text(), pin, cb_phrase.isChecked())
+        return (item, name.text(), pin, cb_phrase.isChecked(), recovery_type)
 
 
 class Plugin(TrezorPlugin, QtPlugin):

@@ -1,3 +1,2 @@
 PyQt5
 pycryptodomex
-websocket-client

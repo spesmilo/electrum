@@ -16,7 +16,7 @@ after_success:
     - coveralls
 jobs:
   include:
-    - stage: windows build
+    - stage: binary builds
       sudo: true
       python: 3.5
       install:
@@ -28,4 +28,11 @@ jobs:
         - sudo apt-get install -qq winehq-stable dirmngr gnupg2 p7zip-full
       before_script: ls -lah /tmp/electrum-build
       script: ./contrib/build-wine/build.sh
+      after_success: true
+    - os: osx
+      language: c
+      python: false
+      install: true
+      script: ./contrib/build-osx/make_osx
+      after_script: ls -lah dist && md5 dist/*
       after_success: true

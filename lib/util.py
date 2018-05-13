@@ -24,6 +24,7 @@ import binascii
 import os, sys, re, json
 from collections import defaultdict
 from datetime import datetime
+import decimal
 from decimal import Decimal
 import traceback
 import urllib
@@ -40,7 +41,26 @@ def inv_dict(d):
     return {v: k for k, v in d.items()}
 
 
-base_units = {'BTC':8, 'mBTC':5, 'uBTC':2}
+base_units = {'BTC':8, 'mBTC':5, 'bits':2, 'sat':0}
+base_units_inverse = inv_dict(base_units)
+base_units_list = ['BTC', 'mBTC', 'bits', 'sat']  # list(dict) does not guarantee order
+
+
+def decimal_point_to_base_unit_name(dp: int) -> str:
+    # e.g. 8 -> "BTC"
+    try:
+        return base_units_inverse[dp]
+    except KeyError:
+        raise Exception('Unknown base unit')
+
+
+def base_unit_name_to_decimal_point(unit_name: str) -> int:
+    # e.g. "BTC" -> 8
+    try:
+        return base_units[unit_name]
+    except KeyError:
+        raise Exception('Unknown base unit')
+
 
 def normalize_version(v):
     return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
@@ -453,8 +473,21 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
         result = " " * (15 - len(result)) + result
     return result
 
+
+FEERATE_PRECISION = 1  # num fractional decimal places for sat/byte fee rates
+_feerate_quanta = Decimal(10) ** (-FEERATE_PRECISION)
+
+
 def format_fee_satoshis(fee, num_zeros=0):
-    return format_satoshis(fee, num_zeros, 0, precision=1)
+    return format_satoshis(fee, num_zeros, 0, precision=FEERATE_PRECISION)
+
+
+def quantize_feerate(fee):
+    """Strip sat/byte fee rate of excess precision."""
+    if fee is None:
+        return None
+    return Decimal(fee).quantize(_feerate_quanta, rounding=decimal.ROUND_HALF_DOWN)
+
 
 def timestamp_to_datetime(timestamp):
     if timestamp is None:

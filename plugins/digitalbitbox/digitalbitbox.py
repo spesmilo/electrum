@@ -96,7 +96,7 @@ class DigitalBitbox_Client():
 
 
     def get_xpub(self, bip32_path, xtype):
-        assert xtype in ('standard', 'p2wpkh-p2sh', 'p2wpkh')
+        assert xtype in self.plugin.SUPPORTED_XTYPES
         reply = self._get_xpub(bip32_path)
         if reply:
             xpub = reply['xpub']
@@ -664,6 +664,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
     DEVICE_IDS = [
                    (0x03eb, 0x2402) # Digital Bitbox
                  ]
+    SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
 
     def __init__(self, parent, config, name):
         HW_PluginBase.__init__(self, parent, config, name)
@@ -695,6 +696,9 @@ class DigitalBitboxPlugin(HW_PluginBase):
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
+        if client is None:
+            raise Exception(_('Failed to create a client for this device.') + '\n' +
+                            _('Make sure it is in the correct state.'))
         client.handler = self.create_handler(wizard)
         if purpose == HWD_SETUP_NEW_WALLET:
             client.setupRunning = True
@@ -720,8 +724,8 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
-        if xtype not in ('standard', 'p2wpkh-p2sh', 'p2wpkh'):
-            raise ScriptTypeNotSupported(_('This type of script is not supported with the Digital Bitbox.'))
+        if xtype not in self.SUPPORTED_XTYPES:
+            raise ScriptTypeNotSupported(_('This type of script is not supported with {}.').format(self.device))
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
         client.handler = self.create_handler(wizard)

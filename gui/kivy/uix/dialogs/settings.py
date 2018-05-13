@@ -3,7 +3,7 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 
-from electrum.util import base_units
+from electrum.util import base_units_list
 from electrum.i18n import languages
 from electrum_gui.kivy.i18n import _
 from electrum.plugins import run_hook
@@ -136,7 +136,8 @@ class SettingsDialog(Factory.Popup):
             def cb(text):
                 self.app._set_bu(text)
                 item.bu = self.app.base_unit
-            self._unit_dialog = ChoiceDialog(_('Denomination'), list(base_units.keys()), self.app.base_unit, cb)
+            self._unit_dialog = ChoiceDialog(_('Denomination'), base_units_list,
+                                             self.app.base_unit, cb, keep_choice_order=True)
         self._unit_dialog.open()
 
     def coinselect_status(self):
