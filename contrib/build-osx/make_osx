@@ -16,14 +16,14 @@ VERSION=`git describe --tags --dirty`
 
 info "Installing Python $PYTHON_VERSION"
 export PATH="~/.pyenv/bin:~/.pyenv/shims:~/Library/Python/3.6/bin:$PATH"
-#if [ -d "~/.pyenv" ]; then
-#  pyenv update
-#else
-#  curl -L https://raw.githubusercontent.com/pyenv/pyenv-installer/master/bin/pyenv-installer | bash > /dev/null 2>&1
-#fi
-#PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s $PYTHON_VERSION && \
-#pyenv global $PYTHON_VERSION || \
-#fail "Unable to use Python $PYTHON_VERSION"
+if [ -d "~/.pyenv" ]; then
+  pyenv update
+else
+  curl -L https://raw.githubusercontent.com/pyenv/pyenv-installer/master/bin/pyenv-installer | bash > /dev/null 2>&1
+fi
+PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s $PYTHON_VERSION && \
+pyenv global $PYTHON_VERSION || \
+fail "Unable to use Python $PYTHON_VERSION"
 
 
 info "Installing pyinstaller"
