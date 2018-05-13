@@ -19,30 +19,28 @@ set -e
 mkdir -p tmp
 cd tmp
 
-for repo in electrum-ltc electrum-ltc-locale electrum-ltc-icons; do
-    if [ -d $repo ]; then
-	cd $repo
-	git pull
-	git checkout master
-	cd ..
-    else
-	URL=https://github.com/pooler/$repo.git
-	git clone -b master $URL $repo
-    fi
-done
+if [ -d ./electrum-ltc ]; then
+  rm ./electrum-ltc -rf
+fi
 
-pushd electrum-ltc-locale
+git clone https://github.com/pooler/electrum-ltc -b master
+
+pushd electrum-ltc
+if [ ! -z "$1" ]; then
+    git checkout $1
+fi
+
+# Load electrum-icons and electrum-locale for this release
+git submodule init
+git submodule update
+
+pushd ./contrib/deterministic-build/electrum-ltc-locale
 for i in ./locale/*; do
     dir=$i/LC_MESSAGES
     mkdir -p $dir
     msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
 done
 popd
-
-pushd electrum-ltc
-if [ ! -z "$1" ]; then
-    git checkout $1
-fi
 
 VERSION=`git describe --tags --dirty`
 echo "Last commit: $VERSION"
@@ -52,8 +50,8 @@ popd
 rm -rf $WINEPREFIX/drive_c/electrum-ltc
 cp -r electrum-ltc $WINEPREFIX/drive_c/electrum-ltc
 cp electrum-ltc/LICENCE .
-cp -r electrum-ltc-locale/locale $WINEPREFIX/drive_c/electrum-ltc/lib/
-cp electrum-ltc-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-ltc/gui/qt/
+cp -r ./electrum-ltc/contrib/deterministic-build/electrum-ltc-locale/locale $WINEPREFIX/drive_c/electrum-ltc/lib/
+cp ./electrum-ltc/contrib/deterministic-build/electrum-ltc-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-ltc/gui/qt/
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt

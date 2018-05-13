@@ -37,17 +37,14 @@ pyinstaller --version
 
 rm -rf ./dist
 
+git submodule init
+git submodule update
 
 rm  -rf $BUILDDIR > /dev/null 2>&1
 mkdir $BUILDDIR
 
-info "Downloading icons and locale..."
-for repo in icons locale; do
-  git clone $GIT_REPO-$repo $BUILDDIR/electrum-ltc-$repo
-done
-
-cp -R $BUILDDIR/electrum-ltc-locale/locale/ ./lib/locale/
-cp    $BUILDDIR/electrum-ltc-icons/icons_rc.py ./gui/qt/
+cp -R ./contrib/deterministic-build/electrum-ltc-locale/locale/ ./lib/locale/
+cp    ./contrib/deterministic-build/electrum-ltc-icons/icons_rc.py ./gui/qt/
 
 
 info "Downloading libusb..."
