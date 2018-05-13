@@ -567,11 +567,16 @@ def deserialize_privkey(key):
 
     if txin_type is None:
         # keys exported in version 3.0.x encoded script type in first byte
-        txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - constants.net.WIF_PREFIX]
+        prefix_value = vch[0] - constants.net.WIF_PREFIX
+        inverse_script_types = inv_dict(SCRIPT_TYPES)
+        try:
+            txin_type = inverse_script_types[prefix_value]
+        except KeyError:
+            raise BitcoinException('invalid prefix ({}) for WIF key (1)'.format(vch[0]))
     else:
         # all other keys must have a fixed first byte
         if vch[0] != constants.net.WIF_PREFIX:
-            raise BitcoinException('invalid prefix ({}) for WIF key'.format(vch[0]))
+            raise BitcoinException('invalid prefix ({}) for WIF key (2)'.format(vch[0]))
 
     if len(vch) not in [33, 34]:
         raise BitcoinException('invalid vch len for WIF key: {}'.format(len(vch)))
