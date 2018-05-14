@@ -100,8 +100,8 @@ if __name__ == "__main__":
     peer = Peer(host, port, pubkey, privkey, request_initial_sync=False, network=network)
     network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), network.asyncio_loop))
 
-    funding_satoshis = 1000000
-    push_msat = 610000000
+    funding_satoshis = 2000000
+    push_msat = 1000000000
 
     # run blocking test
     async def async_test():
