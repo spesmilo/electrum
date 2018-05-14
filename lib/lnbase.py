@@ -9,7 +9,6 @@ from ecdsa import VerifyingKey
 from ecdsa.curves import SECP256k1
 import queue
 import traceback
-import itertools
 import json
 from collections import OrderedDict, defaultdict
 import asyncio
@@ -80,11 +79,11 @@ def calcexp(exp, ma):
     """
     exp = str(exp)
     if "*" in exp:
-      assert "+" not in exp
-      result = 1
-      for term in exp.split("*"):
-        result *= handlesingle(term, ma)
-      return result
+        assert "+" not in exp
+        result = 1
+        for term in exp.split("*"):
+            result *= handlesingle(term, ma)
+        return result
     return sum(handlesingle(x, ma) for x in exp.split("+"))
 
 def make_handler(k, v):
@@ -105,7 +104,7 @@ def make_handler(k, v):
         pos = 0
         for fieldname in v["payload"]:
             poslenMap = v["payload"][fieldname]
-            if "feature" in poslenMap and pos==len(data):
+            if "feature" in poslenMap and pos == len(data):
                 continue
             #print(poslenMap["position"], ma)
             assert pos == calcexp(poslenMap["position"], ma)
@@ -505,13 +504,13 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remote_pay
     c_inputs = [{
         'type': 'p2wsh',
         'x_pubkeys': pubkeys,
-        'signatures':[None, None],
+        'signatures': [None, None],
         'num_sig': 2,
         'prevout_n': funding_pos,
         'prevout_hash': funding_txid,
         'value': funding_sat,
         'coinbase': False,
-        'sequence':sequence
+        'sequence': sequence
     }]
     # commitment tx outputs
     local_script = bytes([opcodes.OP_IF]) + bfh(push_script(bh2u(revocation_pubkey))) + bytes([opcodes.OP_ELSE]) + add_number_to_script(to_self_delay) \
@@ -543,13 +542,13 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remote_pay
     return tx
 
 def sign_and_get_sig_string(tx, local_config, remote_config):
-        pubkeys = sorted([bh2u(local_config.multisig_key.pubkey), bh2u(remote_config.multisig_key.pubkey)])
-        tx.sign({bh2u(local_config.multisig_key.pubkey): (local_config.multisig_key.privkey, True)})
-        sig_index = pubkeys.index(bh2u(local_config.multisig_key.pubkey))
-        sig = bytes.fromhex(tx.inputs()[0]["signatures"][sig_index])
-        r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
-        sig_64 = sigencode_string_canonize(r, s, SECP256k1.generator.order())
-        return sig_64
+    pubkeys = sorted([bh2u(local_config.multisig_key.pubkey), bh2u(remote_config.multisig_key.pubkey)])
+    tx.sign({bh2u(local_config.multisig_key.pubkey): (local_config.multisig_key.privkey, True)})
+    sig_index = pubkeys.index(bh2u(local_config.multisig_key.pubkey))
+    sig = bytes.fromhex(tx.inputs()[0]["signatures"][sig_index])
+    r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
+    sig_64 = sigencode_string_canonize(r, s, SECP256k1.generator.order())
+    return sig_64
 
 class Peer(PrintError):
     def __init__(self, host, port, pubkey, privkey, request_initial_sync=False, network=None):
@@ -730,7 +729,7 @@ class Peer(PrintError):
             if atype == 0:
                 pass
             elif atype == 1:
-                ipv4_addr = '.'.join(map(lambda x: '%d'%x, read(4)))
+                ipv4_addr = '.'.join(map(lambda x: '%d' % x, read(4)))
                 port = int.from_bytes(read(2), 'big')
                 x = ipv4_addr, port, binascii.hexlify(pubkey)
                 addresses.append((ipv4_addr, port))
