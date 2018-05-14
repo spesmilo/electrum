@@ -515,6 +515,13 @@ class SettingsDialog(WindowModalDialog):
             homescreen_change_button = QPushButton(_("Change..."))
             homescreen_clear_button = QPushButton(_("Reset"))
             homescreen_change_button.clicked.connect(change_homescreen)
+            try:
+                import PIL
+            except ImportError:
+                homescreen_change_button.setDisabled(True)
+                homescreen_change_button.setToolTip(
+                    _("Required package 'PIL' is not available - Please install it or use the Trezor website instead.")
+                )
             homescreen_clear_button.clicked.connect(clear_homescreen)
             homescreen_msg = QLabel(_("You can set the homescreen on your "
                                       "device to personalize it.  You must "
