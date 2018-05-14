@@ -52,6 +52,7 @@ class ExternalPluginCodes:
     NAME_ALREADY_IN_USE = 2
     UNABLE_TO_COPY_FILE = 3
     INSTALLED_BUT_FAILED_LOAD = 4
+    INCOMPATIBLE_VERSION = 5
 
     
 INTERNAL_USE_PREFIX = 'use_'
@@ -328,6 +329,9 @@ class Plugins(DaemonThread):
         # Ensure it is not already installed.
         if package_name in self.external_plugins or package_name in self.external_plugin_metadata:
             return ExternalPluginCodes.NAME_ALREADY_IN_USE
+            
+        if not is_same_or_later_version(version.PACKAGE_VERSION, metadata['minimum_ec_version']):
+            return ExternalPluginCodes.INCOMPATIBLE_VERSION
             
         # Copy the original file to the external plugin hosting dir.
         install_dir = self.get_external_plugin_dir()

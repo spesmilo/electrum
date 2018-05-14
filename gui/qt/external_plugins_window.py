@@ -39,6 +39,7 @@ INSTALL_ERROR_MESSAGES = {
     ExternalPluginCodes.NAME_ALREADY_IN_USE: _("There is already a plugin installed using the internal package name of the plugin you selected. It was therefore not possible to install it."),
     ExternalPluginCodes.UNABLE_TO_COPY_FILE: _("It was not possible to copy the plugin archive into Electron Cash's plugin storage location. It was therefore not possible to install it."),
     ExternalPluginCodes.INSTALLED_BUT_FAILED_LOAD: _("The plugin is installed, but in the process of enabling and loading it, an error occurred. Restart Electron Cash and try again, or uninstall it and report it to it's developers."),
+    ExternalPluginCodes.INCOMPATIBLE_VERSION: _("The plugin is targeted at a later version of Electron Cash."),
 }
 
 use_tree_widget = True
