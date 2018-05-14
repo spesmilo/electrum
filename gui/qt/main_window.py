@@ -3167,17 +3167,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.show_transaction(new_tx, tx_label)
 
     def save_transaction_into_wallet(self, tx):
+        win = self.top_level_window()
         try:
             if not self.wallet.add_transaction(tx.txid(), tx):
-                self.show_error(_("Transaction could not be saved.") + "\n" +
-                                       _("It conflicts with current history."))
+                win.show_error(_("Transaction could not be saved.") + "\n" +
+                               _("It conflicts with current history."))
                 return False
         except AddTransactionException as e:
-            self.show_error(e)
+            win.show_error(e)
             return False
         else:
             self.wallet.save_transactions(write=True)
             # need to update at least: history_list, utxo_list, address_list
             self.need_update.set()
-            self.msg_box(QPixmap(":icons/offline_tx.png"), None, _('Success'), _("Transaction added to wallet history"))
+            msg = (_("Transaction added to wallet history.") + '\n\n' +
+                   _("Note: this is an offline transaction, if you want the network "
+                     "to see it, you need to broadcast it."))
+            win.msg_box(QPixmap(":icons/offline_tx.png"), None, _('Success'), msg)
             return True
