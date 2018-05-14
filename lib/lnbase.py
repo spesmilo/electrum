@@ -1003,8 +1003,10 @@ class Peer(PrintError):
     async def receive_commitment_revoke_ack(self, chan, expected_received_sat, payment_preimage):
         def derive_and_incr():
             nonlocal chan
-            last_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-chan.local_state.ctn-1)
-            next_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-chan.local_state.ctn-(2 if chan.local_state.ctn < 2 else 0)-1)
+            last_small_num = chan.local_state.ctn
+            next_small_num = last_small_num + 2
+            last_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-last_small_num-1)
+            next_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-next_small_num-1)
             next_point = secret_to_pubkey(int.from_bytes(next_secret, 'big'))
             chan = chan._replace(
                 local_state=chan.local_state._replace(
