@@ -90,7 +90,7 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         self.checksumLabel = QLabel()
         self.checksumLabel.setAlignment(Qt.AlignRight)
         self.checksumLabel.setToolTip(_("If the official source for this plugin has a checksum for this plugin, ensure that the value shown here is the same."))
-        securityFormLayout.addRow(_("MD5 Hash Value"), self.checksumLabel)
+        securityFormLayout.addRow(_("Archive MD5 Checksum"), self.checksumLabel)
 
         groupBox = QGroupBox(_("Security"))
         groupBox.setLayout(securityFormLayout)
@@ -305,7 +305,6 @@ class ExternalPluginTable(QTableWidget):
 
         QTableWidget.__init__(self)
 
-        print("setAcceptDrops")
         self.setAcceptDrops(True)
         
         self.setSelectionMode(QAbstractItemView.SingleSelection)

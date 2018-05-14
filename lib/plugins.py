@@ -34,10 +34,12 @@ import shutil
 import threading
 import zipimport
 
-from .util import print_error, user_dir, make_dir
 from .i18n import _
+from .util import print_error, user_dir, make_dir
 from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
+from .util import is_same_or_later_version, versiontuple
 from . import bitcoin
+from . import version
 
 plugin_loaders = {}
 hook_names = set()
@@ -293,16 +295,22 @@ class Plugins(DaemonThread):
             return None                
 
         expected_keys = {
-            'display_name': str, 'description': str, 'version': float,
-            'minimum_ec_version': float, 'package_name': str,
+            'display_name': str, 'description': str, 'version': versiontuple,
+            'minimum_ec_version': versiontuple, 'package_name': str,
         }
         for k, expected_type in expected_keys.items():
             v = metadata.get(k, None)
             if v is None:
                 self.print_error("missing metadata key %s (zip plugin %s)" % (k, file_name))
                 return None                
-            if type(metadata[k]) is not expected_type:
-                self.print_error("metadata %s value %s, expected %s (zip plugin %s)" % (k, type(metadata[k]), expected_type, file_name))
+            if expected_type is versiontuple:
+                try:
+                    v = versiontuple(v)
+                except ValueError:
+                    self.print_error("metadata %s = %s, expected a.b.c version string (zip plugin %s)" % (k, v, file_name))
+                    return None
+            elif type(metadata[k]) is not expected_type:
+                self.print_error("metadata %s = %s, expected %s (zip plugin %s)" % (k, v, expected_type, file_name))
                 return None
         
         return metadata

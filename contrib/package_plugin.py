@@ -40,6 +40,10 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
+## Start copied from .util
+def versiontuple(v):
+    return tuple(map(int, (v.split("."))))
+## End copied from .util
 
 def write_plugin_archive(metadata, source_package_path, archive_file_path):
     suffixless_path = archive_file_path.strip()
@@ -67,27 +71,25 @@ def write_plugin_archive(metadata, source_package_path, archive_file_path):
         hash_md5.update(f.read())
     return hash_md5.hexdigest()
 
-
 def write_manifest(metadata, manifest_file_path):
     with open(manifest_file_path, "w") as f:
         json.dump(metadata, f, indent=4)
 
-
 def build_manifest(display_name, version, description, minimum_ec_version, package_name, available_for_qt, available_for_cmdline):
     metadata = {}
     metadata["display_name"] = display_name
-    version_value = version
+    version_value = version.strip()
     try:
-        version_value = float(version_value)
+        versiontuple(version_value)
     except ValueError:
-        version_value = 0.0 
+        version_value = "0.0"
     metadata["version"] = version_value
     metadata["description"] = description
-    version_value = minimum_ec_version
+    version_value = minimum_ec_version.strip()
     try:
-        version_value = float(version_value)
+        versiontuple(version_value)
     except ValueError:
-        version_value = 0.0 
+        version_value = "0.0"
     metadata["minimum_ec_version"] = version_value
     if package_name is not None:
         metadata["package_name"] = package_name
@@ -193,13 +195,13 @@ class App(QWidget):
     def refresh_ui(self):
         versionText = self.versionEdit.text().strip()
         try:
-            float(versionText)
+            versiontuple(versionText)
         except ValueError:
             versionText = ""
             
         minimumElectronCashVersionText = self.minimumElectronCashVersionEdit.text().strip()
         try:
-            float(minimumElectronCashVersionText)
+            versiontuple(minimumElectronCashVersionText)
         except ValueError:
             minimumElectronCashVersionText = ""
             
