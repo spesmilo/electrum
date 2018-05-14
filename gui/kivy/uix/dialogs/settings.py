@@ -61,7 +61,7 @@ Builder.load_string('''
                     action: partial(root.fx_dialog, self)
                 CardSeparator
                 SettingsItem:
-                    status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
+                    status: 'ON' if bool(app.plugins.get_internal_plugin('labels')) else 'OFF'
                     title: _('Labels Sync') + ': ' + self.status
                     description: _("Save and synchronize your labels.")
                     action: partial(root.plugin_dialog, 'labels', self)
@@ -169,10 +169,10 @@ class SettingsDialog(Factory.Popup):
     def plugin_dialog(self, name, label, dt):
         from .checkbox_dialog import CheckBoxDialog
         def callback(status):
-            self.plugins.enable(name) if status else self.plugins.disable(name)
+            self.plugins.enable_internal_plugin(name) if status else self.plugins.disable_internal_plugin(name)
             label.status = 'ON' if status else 'OFF'
-        status = bool(self.plugins.get(name))
-        dd = self.plugins.descriptions.get(name)
+        status = bool(self.plugins.get_internal_plugin(name))
+        dd = self.plugins.internal_plugin_metadata.get(name)
         descr = dd.get('description')
         fullname = dd.get('fullname')
         d = CheckBoxDialog(fullname, descr, status, callback)

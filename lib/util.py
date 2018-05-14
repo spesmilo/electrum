@@ -29,6 +29,7 @@ from decimal import Decimal
 import traceback
 import threading
 import hmac
+import stat
 
 from .i18n import _
 
@@ -351,18 +352,30 @@ def bh2u(x):
     return hfu(x).decode('ascii')
 
 
-def user_dir():
+def user_dir(prefer_local=False):
     if 'ANDROID_DATA' in os.environ:
         return android_check_data_dir()
     elif os.name == 'posix':
         return os.path.join(os.environ["HOME"], ".electron-cash" )
-    elif "APPDATA" in os.environ:
-        return os.path.join(os.environ["APPDATA"], "ElectronCash")
-    elif "LOCALAPPDATA" in os.environ:
-        return os.path.join(os.environ["LOCALAPPDATA"], "ElectronCash")
+    elif "APPDATA" in os.environ or "LOCALAPPDATA" in os.environ:
+        app_dir = os.environ.get("APPDATA")
+        localapp_dir = os.environ.get("LOCALAPPDATA")         
+        # Prefer APPDATA, but may get LOCALAPPDATA if present and req'd.
+        if localapp_dir is not None and prefer_local or app_dir is None:
+            app_dir = localapp_dir
+        return os.path.join(app_dir, "ElectronCash")
     else:
         #raise Exception("No home directory found in environment variables.")
         return
+
+
+def make_dir(path):
+    # Make directory if it does not yet exist.
+    if not os.path.exists(path):
+        if os.path.islink(path):
+            raise BaseException('Dangling link: ' + path)
+        os.mkdir(path)
+        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
 
 def format_satoshis_plain(x, decimal_point = 8):
@@ -618,6 +631,25 @@ def setup_thread_excepthook():
 
     threading.Thread.__init__ = init
 
+def is_same_or_later_version(that_version, this_version):
+    """
+    Reflects `that_version` is same or later than `this_version`.
+    """
+    if type(that_version) is str:
+        that_version = versiontuple(that_version)
+    if type(this_version) is str:
+        this_version = versiontuple(this_version)
+    dimension_count = max(len(this_version), len(that_version))
+    for i in range(dimension_count):
+        that_value = that_version[i] if i < len(that_version) else 0
+        this_value = this_version[i] if i < len(this_version) else 0
+        # Either we need to go more precise.
+        if that_value == this_value:
+            continue
+        # Or this is the defining level.
+        return that_value > this_value
+    # Must be the same.
+    return True
 
 def versiontuple(v):
     return tuple(map(int, (v.split("."))))
