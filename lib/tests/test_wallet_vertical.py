@@ -2,6 +2,7 @@ import unittest
 from unittest import mock
 import shutil
 import tempfile
+from typing import Sequence
 
 import lib
 from lib import storage, bitcoin, keystore, constants
@@ -42,16 +43,12 @@ class WalletIntegrityHelper:
         return w
 
     @classmethod
-    def create_multisig_wallet(cls, ks1, ks2, ks3=None, gap_limit=None):
-        """Creates a 2-of-2 or 2-of-3 multisig wallet."""
+    def create_multisig_wallet(cls, keystores: Sequence, multisig_type: str, gap_limit=None):
+        """Creates a multisig wallet."""
         store = storage.WalletStorage('if_this_exists_mocking_failed_648151893')
-        store.put('x%d/' % 1, ks1.dump())
-        store.put('x%d/' % 2, ks2.dump())
-        if ks3 is None:
-            multisig_type = "%dof%d" % (2, 2)
-        else:
-            multisig_type = "%dof%d" % (2, 3)
-            store.put('x%d/' % 3, ks3.dump())
+        for i, ks in enumerate(keystores):
+            cosigner_index = i + 1
+            store.put('x%d/' % cosigner_index, ks.dump())
         store.put('wallet_type', multisig_type)
         store.put('gap_limit', gap_limit or cls.gap_limit)
         w = lib.wallet.Multisig_Wallet(store)
@@ -145,7 +142,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         WalletIntegrityHelper.check_xpub_keystore_sanity(self, ks3)
         self.assertTrue(isinstance(ks3, keystore.BIP32_KeyStore))
 
-        w = WalletIntegrityHelper.create_multisig_wallet(ks1, ks2, ks3)
+        w = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2, ks3], '2of3')
         self.assertEqual(w.txin_type, 'p2sh')
 
         self.assertEqual(w.get_receiving_addresses()[0], '35L8XmCDoEBKeaWRjvmZvoZvhp8BXMMMPV')
@@ -222,7 +219,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         WalletIntegrityHelper.check_xpub_keystore_sanity(self, ks2)
         self.assertTrue(isinstance(ks2, keystore.BIP32_KeyStore))
 
-        w = WalletIntegrityHelper.create_multisig_wallet(ks1, ks2)
+        w = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2], '2of2')
         self.assertEqual(w.txin_type, 'p2sh')
 
         self.assertEqual(w.get_receiving_addresses()[0], '32ji3QkAgXNz6oFoRfakyD3ys1XXiERQYN')
@@ -244,7 +241,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         WalletIntegrityHelper.check_xpub_keystore_sanity(self, ks2)
         self.assertTrue(isinstance(ks2, keystore.BIP32_KeyStore))
 
-        w = WalletIntegrityHelper.create_multisig_wallet(ks1, ks2)
+        w = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2], '2of2')
         self.assertEqual(w.txin_type, 'p2wsh')
 
         self.assertEqual(w.get_receiving_addresses()[0], 'bc1qvzezdcv6vs5h45ugkavp896e0nde5c5lg5h0fwe2xyfhnpkxq6gq7pnwlc')
@@ -266,7 +263,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         WalletIntegrityHelper.check_xpub_keystore_sanity(self, ks2)
         self.assertTrue(isinstance(ks2, keystore.BIP32_KeyStore))
 
-        w = WalletIntegrityHelper.create_multisig_wallet(ks1, ks2)
+        w = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2], '2of2')
         self.assertEqual(w.txin_type, 'p2sh')
 
         self.assertEqual(w.get_receiving_addresses()[0], '3JPTQ2nitVxXBJ1yhMeDwH6q417UifE3bN')
@@ -287,7 +284,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(unittest.TestCase):
         WalletIntegrityHelper.check_xpub_keystore_sanity(self, ks2)
         self.assertTrue(isinstance(ks2, keystore.BIP32_KeyStore))
 
-        w = WalletIntegrityHelper.create_multisig_wallet(ks1, ks2)
+        w = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2], '2of2')
         self.assertEqual(w.txin_type, 'p2wsh-p2sh')
 
         self.assertEqual(w.get_receiving_addresses()[0], '35LeC45QgCVeRor1tJD6LiDgPbybBXisns')
@@ -311,7 +308,7 @@ class TestWalletKeystoreAddressIntegrityForTestnet(TestCaseForTestnet):
         WalletIntegrityHelper.check_xpub_keystore_sanity(self, ks2)
         self.assertTrue(isinstance(ks2, keystore.BIP32_KeyStore))
 
-        w = WalletIntegrityHelper.create_multisig_wallet(ks1, ks2)
+        w = WalletIntegrityHelper.create_multisig_wallet([ks1, ks2], '2of2')
         self.assertEqual(w.txin_type, 'p2wsh-p2sh')
 
         self.assertEqual(w.get_receiving_addresses()[0], '2MzsfTfTGomPRne6TkctMmoDj6LwmVkDrMt')
@@ -388,16 +385,20 @@ class TestWalletSending(TestCaseForTestnet):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_sending_between_p2sh_2of3_and_uncompressed_p2pkh(self, mock_write):
         wallet1a = WalletIntegrityHelper.create_multisig_wallet(
-            keystore.from_seed('blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure', '', True),
-            keystore.from_xpub('tpubD6NzVbkrYhZ4YTPEgwk4zzr8wyo7pXGmbbVUnfYNtx6SgAMF5q3LN3Kch58P9hxGNsTmP7Dn49nnrmpE6upoRb1Xojg12FGLuLHkVpVtS44'),
-            keystore.from_xpub('tpubD6NzVbkrYhZ4XJzYkhsCbDCcZRmDAKSD7bXi9mdCni7acVt45fxbTVZyU6jRGh29ULKTjoapkfFsSJvQHitcVKbQgzgkkYsAmaovcro7Mhf'),
-            gap_limit=2
+            [
+                keystore.from_seed('blast uniform dragon fiscal ensure vast young utility dinosaur abandon rookie sure', '', True),
+                keystore.from_xpub('tpubD6NzVbkrYhZ4YTPEgwk4zzr8wyo7pXGmbbVUnfYNtx6SgAMF5q3LN3Kch58P9hxGNsTmP7Dn49nnrmpE6upoRb1Xojg12FGLuLHkVpVtS44'),
+                keystore.from_xpub('tpubD6NzVbkrYhZ4XJzYkhsCbDCcZRmDAKSD7bXi9mdCni7acVt45fxbTVZyU6jRGh29ULKTjoapkfFsSJvQHitcVKbQgzgkkYsAmaovcro7Mhf')
+            ],
+            '2of3', gap_limit=2
         )
         wallet1b = WalletIntegrityHelper.create_multisig_wallet(
-            keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', '', True),
-            keystore.from_xpub('tpubD6NzVbkrYhZ4YTPEgwk4zzr8wyo7pXGmbbVUnfYNtx6SgAMF5q3LN3Kch58P9hxGNsTmP7Dn49nnrmpE6upoRb1Xojg12FGLuLHkVpVtS44'),
-            keystore.from_xpub('tpubD6NzVbkrYhZ4YARFMEZPckrqJkw59GZD1PXtQnw14ukvWDofR7Z1HMeSCxfYEZVvg4VdZ8zGok5VxHwdrLqew5cMdQntWc5mT7mh1CSgrnX'),
-            gap_limit=2
+            [
+                keystore.from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song', '', True),
+                keystore.from_xpub('tpubD6NzVbkrYhZ4YTPEgwk4zzr8wyo7pXGmbbVUnfYNtx6SgAMF5q3LN3Kch58P9hxGNsTmP7Dn49nnrmpE6upoRb1Xojg12FGLuLHkVpVtS44'),
+                keystore.from_xpub('tpubD6NzVbkrYhZ4YARFMEZPckrqJkw59GZD1PXtQnw14ukvWDofR7Z1HMeSCxfYEZVvg4VdZ8zGok5VxHwdrLqew5cMdQntWc5mT7mh1CSgrnX')
+            ],
+            '2of3', gap_limit=2
         )
         # ^ third seed: ghost into match ivory badge robot record tackle radar elbow traffic loud
         wallet2 = self.create_standard_wallet_from_seed('powerful random nobody notice nothing important anyway look away hidden message over')
@@ -453,29 +454,37 @@ class TestWalletSending(TestCaseForTestnet):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_sending_between_p2wsh_2of3_and_p2wsh_p2sh_2of2(self, mock_write):
         wallet1a = WalletIntegrityHelper.create_multisig_wallet(
-            keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
-            keystore.from_xpub('Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf'),
-            keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra'),
-            gap_limit=2
+            [
+                keystore.from_seed('bitter grass shiver impose acquire brush forget axis eager alone wine silver', '', True),
+                keystore.from_xpub('Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf'),
+                keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra')
+            ],
+            '2of3', gap_limit=2
         )
         wallet1b = WalletIntegrityHelper.create_multisig_wallet(
-            keystore.from_seed('snow nest raise royal more walk demise rotate smooth spirit canyon gun', '', True),
-            keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra'),
-            keystore.from_xpub('Vpub5gSKXzxK7FeKQedu2q1z9oJWxqvX72AArW3HSWpEhc8othDH8xMDu28gr7gf17sp492BuJod8Tn7anjvJrKpETwqnQqX7CS8fcYyUtedEMk'),
-            gap_limit=2
+            [
+                keystore.from_seed('snow nest raise royal more walk demise rotate smooth spirit canyon gun', '', True),
+                keystore.from_xpub('Vpub5fjkKyYnvSS4wBuakWTkNvZDaBM2vQ1MeXWq368VJHNr2eT8efqhpmZ6UUkb7s2dwCXv2Vuggjdhk4vZVyiAQTwUftvff73XcUGq2NQmWra'),
+                keystore.from_xpub('Vpub5gSKXzxK7FeKQedu2q1z9oJWxqvX72AArW3HSWpEhc8othDH8xMDu28gr7gf17sp492BuJod8Tn7anjvJrKpETwqnQqX7CS8fcYyUtedEMk')
+            ],
+            '2of3', gap_limit=2
         )
         # ^ third seed: hedgehog sunset update estate number jungle amount piano friend donate upper wool
         wallet2a = WalletIntegrityHelper.create_multisig_wallet(
-            # bip39: finish seminar arrange erosion sunny coil insane together pretty lunch lunch rose, der: m/1234'/1'/0', p2wsh-p2sh multisig
-            keystore.from_xprv('Uprv9CvELvByqm8k2dpecJVjgLMX1z5DufEjY4fBC5YvdGF5WjGCa7GVJJ2fYni1tyuF7Hw83E6W2ZBjAhaFLZv2ri3rEsubkCd5avg4EHKoDBN'),
-            keystore.from_xpub('Upub5Qb8ik4Cnu8g97KLXKgVXHqY6tH8emQvqtBncjSKsyfTZuorPtTZgX7ovKKZHuuVGBVd1MTTBkWez1XXt2weN1sWBz6SfgRPQYEkNgz81QF'),
-            gap_limit=2
+            [
+                # bip39: finish seminar arrange erosion sunny coil insane together pretty lunch lunch rose, der: m/1234'/1'/0', p2wsh-p2sh multisig
+                keystore.from_xprv('Uprv9CvELvByqm8k2dpecJVjgLMX1z5DufEjY4fBC5YvdGF5WjGCa7GVJJ2fYni1tyuF7Hw83E6W2ZBjAhaFLZv2ri3rEsubkCd5avg4EHKoDBN'),
+                keystore.from_xpub('Upub5Qb8ik4Cnu8g97KLXKgVXHqY6tH8emQvqtBncjSKsyfTZuorPtTZgX7ovKKZHuuVGBVd1MTTBkWez1XXt2weN1sWBz6SfgRPQYEkNgz81QF')
+            ],
+            '2of2', gap_limit=2
         )
         wallet2b = WalletIntegrityHelper.create_multisig_wallet(
-            # bip39: square page wood spy oil story rebel give milk screen slide shuffle, der: m/1234'/1'/0', p2wsh-p2sh multisig
-            keystore.from_xprv('Uprv9BbnKEXJxXaNvdEsRJ9VA9toYrSeFJh5UfGBpM2iKe8Uh7UhrM9K8ioL53s8gvCoGfirHHaqpABDAE7VUNw8LNU1DMJKVoWyeNKu9XcDC19'),
-            keystore.from_xpub('Upub5RuakRisg8h3F7u7iL2k3UJFa1uiK7xauHamzTxYBbn4PXbM7eajr6M9Q2VCr6cVGhfhqWQqxnABvtSATuVM1xzxk4nA189jJwzaMn1QX7V'),
-            gap_limit=2
+            [
+                # bip39: square page wood spy oil story rebel give milk screen slide shuffle, der: m/1234'/1'/0', p2wsh-p2sh multisig
+                keystore.from_xprv('Uprv9BbnKEXJxXaNvdEsRJ9VA9toYrSeFJh5UfGBpM2iKe8Uh7UhrM9K8ioL53s8gvCoGfirHHaqpABDAE7VUNw8LNU1DMJKVoWyeNKu9XcDC19'),
+                keystore.from_xpub('Upub5RuakRisg8h3F7u7iL2k3UJFa1uiK7xauHamzTxYBbn4PXbM7eajr6M9Q2VCr6cVGhfhqWQqxnABvtSATuVM1xzxk4nA189jJwzaMn1QX7V')
+            ],
+            '2of2', gap_limit=2
         )
 
         # bootstrap wallet1
@@ -528,3 +537,64 @@ class TestWalletSending(TestCaseForTestnet):
         # wallet level checks
         self.assertEqual((0, funding_output_value - 165000 - 5000 + 100000, 0), wallet1a.get_balance())
         self.assertEqual((0, 165000 - 5000 - 100000, 0), wallet2a.get_balance())
+
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_sending_between_p2sh_1of2_and_p2wpkh_p2sh(self, mock_write):
+        wallet1a = WalletIntegrityHelper.create_multisig_wallet(
+            [
+                keystore.from_seed('phone guilt ancient scan defy gasp off rotate approve ill word exchange', '', True),
+                keystore.from_xpub('tpubD6NzVbkrYhZ4YPZ3ntVjqSCxiUUv2jikrUBU73Q3iJ7Y8iR41oYf991L5fanv7ciHjbjokdK2bjYqg1BzEUDxucU9qM5WRdBiY738wmgLP4')
+            ],
+            '1of2', gap_limit=2
+        )
+        # ^ second seed: kingdom now gift initial age right velvet exotic harbor enforce kingdom kick
+        wallet2 = WalletIntegrityHelper.create_standard_wallet(
+            # bip39: uniform tank success logic lesson awesome stove elegant regular desert drip device, der: m/49'/1'/0'
+            keystore.from_xprv('uprv91HGbrNZTK4x8u22nbdYGzEuWPxjaHMREUi7CNhY64KsG5ZGnVM99uCa16EMSfrnaPTFxjbRdBZ2WiBkokoM8anzAy3Vpc52o88WPkitnxi'),
+            gap_limit=2
+        )
+
+        # bootstrap wallet1
+        funding_tx = Transaction('010000000001027e20990282eb29588375ad04936e1e991af3bc5b9c6f1ab62eca8c25becaef6a01000000171600140e6a17fadc8bafba830f3467a889f6b211d69a00fdffffff51847fd6bcbdfd1d1ea2c2d95c2d8de1e34c5f2bd9493e88a96a4e229f564e800100000017160014ecdf9fa06856f9643b1a73144bc76c24c67774a6fdffffff021e8501000000000017a91451991bfa68fbcb1e28aa0b1e060b7d24003352e38700093d000000000017a914b0b9f31bace76cdfae2c14abc03e223403d7dc4b870247304402205e19721b92c6afd70cd932acb50815a36ee32ab46a934147d62f02c13aeacf4702207289c4a4131ef86e27058ff70b6cb6bf0e8e81c6cbab6dddd7b0a9bc732960e4012103fe504411c21f7663caa0bbf28931f03fae7e0def7bc54851e0194dfb1e2c85ef02483045022100e969b65096fba4f8b24eb5bc622d2282076241621f3efe922cc2067f7a8a6be702203ec4047dd2a71b9c83eb6a0875a6d66b4d65864637576c06ed029d3d1a8654b0012102bbc8100dca67ba0297aba51296a4184d714204a5fc2eda34708360f37019a3dccfcc1300')
+        funding_txid = funding_tx.txid()
+        funding_output_value = 4000000
+        self.assertEqual('1137c12de4ce0f5b08de8846ba14c0814351a7f0f31457c8ea51a5d4b3c891a3', funding_txid)
+        wallet1a.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        # wallet1 -> wallet2
+        outputs = [(bitcoin.TYPE_ADDRESS, wallet2.get_receiving_address(), 1000000)]
+        tx = wallet1a.mktx(outputs=outputs, password=None, config=self.config, fee=5000)
+
+        self.assertTrue(tx.is_complete())
+        self.assertFalse(tx.is_segwit())
+        self.assertEqual(1, len(tx.inputs()))
+        tx_copy = Transaction(tx.serialize())
+        self.assertEqual(wallet1a.is_mine(tx.inputs()[0]['address']), wallet1a.is_mine(tx_copy.inputs()[0]['address']))
+        self.assertTrue(wallet1a.is_mine(tx.inputs()[0]['address']))
+        self.assertEqual(wallet1a.txin_type, tx_copy.inputs()[0]['type'])
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+        self.assertEqual('1b7e94860b9681d4e371928d40fdbd4641e991aa74f1a211f239c887047e4a2a', tx_copy.txid())
+
+        wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
+        wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
+
+        # wallet2 -> wallet1
+        outputs = [(bitcoin.TYPE_ADDRESS, wallet1a.get_receiving_address(), 300000)]
+        tx = wallet2.mktx(outputs=outputs, password=None, config=self.config, fee=5000)
+
+        self.assertTrue(tx.is_complete())
+        self.assertTrue(tx.is_segwit())
+        self.assertEqual(1, len(tx.inputs()))
+        tx_copy = Transaction(tx.serialize())
+        self.assertEqual(wallet2.is_mine(tx.inputs()[0]['address']), wallet2.is_mine(tx_copy.inputs()[0]['address']))
+        self.assertTrue(wallet2.is_mine(tx.inputs()[0]['address']))
+        self.assertEqual(wallet2.txin_type, tx_copy.inputs()[0]['type'])
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+        self.assertEqual('f65edb0843ff44436dc5964fb6b298e157502b9b4a83dac6b82dd2d2a3247d0a', tx_copy.txid())
+
+        wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
+        wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
+
+        # wallet level checks
+        self.assertEqual((0, funding_output_value - 1000000 - 5000 + 300000, 0), wallet1a.get_balance())
+        self.assertEqual((0, 1000000 - 5000 - 300000, 0), wallet2.get_balance())
