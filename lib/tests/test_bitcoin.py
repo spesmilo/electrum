@@ -65,7 +65,7 @@ class Test_bitcoin(SequentialTestCase):
     def _do_test_crypto(self, message):
         G = ecc.generator()
         _r  = G.order()
-        pvk = ecdsa.util.randrange( pow(2,256) ) %_r
+        pvk = ecdsa.util.randrange(_r)
 
         Pub = pvk*G
         pubkey_c = Pub.get_public_key_bytes(True)
