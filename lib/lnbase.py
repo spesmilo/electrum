@@ -1005,7 +1005,10 @@ class Peer(PrintError):
             nonlocal chan
             last_small_num = chan.local_state.ctn
             next_small_num = last_small_num + 2
+            this_small_num = last_small_num + 1
             last_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-last_small_num-1)
+            this_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-this_small_num-1)
+            this_point = secret_to_pubkey(int.from_bytes(this_secret, 'big'))
             next_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-next_small_num-1)
             next_point = secret_to_pubkey(int.from_bytes(next_secret, 'big'))
             chan = chan._replace(
@@ -1013,7 +1016,7 @@ class Peer(PrintError):
                     ctn=chan.local_state.ctn + 1
                 )
             )
-            return last_secret, next_point
+            return last_secret, this_point, next_point
 
         their_revstore = chan.remote_state.revocation_store
 
@@ -1031,12 +1034,12 @@ class Peer(PrintError):
         assert amount_msat // 1000 == expected_received_sat
         payment_hash = htlc["payment_hash"]
 
-        last_secret, next_point = derive_and_incr()
+        last_secret, this_point, next_point = derive_and_incr()
 
-        remote_htlc_pubkey = derive_pubkey(chan.remote_config.htlc_basepoint.pubkey, next_point)
-        local_htlc_pubkey = derive_pubkey(chan.local_config.htlc_basepoint.pubkey, next_point)
+        remote_htlc_pubkey = derive_pubkey(chan.remote_config.htlc_basepoint.pubkey, this_point)
+        local_htlc_pubkey = derive_pubkey(chan.local_config.htlc_basepoint.pubkey, this_point)
 
-        remote_revocation_pubkey = derive_blinded_pubkey(chan.remote_config.revocation_basepoint.pubkey, next_point)
+        remote_revocation_pubkey = derive_blinded_pubkey(chan.remote_config.revocation_basepoint.pubkey, this_point)
 
         htlcs_in_local = [
             (
@@ -1045,29 +1048,29 @@ class Peer(PrintError):
             )
         ]
 
-        new_commitment = make_commitment_using_open_channel(chan, chan.local_state.ctn, True, next_point,
+        new_commitment = make_commitment_using_open_channel(chan, chan.local_state.ctn, True, this_point,
             chan.local_state.amount_sat,
             chan.remote_state.amount_sat - expected_received_sat,
             htlcs_in_local)
 
         preimage_hex = new_commitment.serialize_preimage(0)
         pre_hash = bitcoin.Hash(bfh(preimage_hex))
-        #if not bitcoin.verify_signature(chan.remote_config.multisig_key.pubkey, commitment_signed_msg["signature"], pre_hash):
-        #    raise Exception('failed verifying signature of our updated commitment transaction')
+        if not bitcoin.verify_signature(chan.remote_config.multisig_key.pubkey, commitment_signed_msg["signature"], pre_hash):
+            raise Exception('failed verifying signature of our updated commitment transaction')
 
         htlc_sigs_len = len(commitment_signed_msg["htlc_signature"])
-        #if htlc_sigs_len != 64:
-        #    raise Exception("unexpected number of htlc signatures: " + str(htlc_sigs_len))
+        if htlc_sigs_len != 64:
+            raise Exception("unexpected number of htlc signatures: " + str(htlc_sigs_len))
 
-        htlc_tx = make_htlc_tx_with_open_channel(chan, next_point, True, True, amount_msat, cltv_expiry, payment_hash, new_commitment, 0)
+        htlc_tx = make_htlc_tx_with_open_channel(chan, this_point, True, True, amount_msat, cltv_expiry, payment_hash, new_commitment, 0)
         pre_hash = bitcoin.Hash(bfh(htlc_tx.serialize_preimage(0)))
-        remote_htlc_pubkey = derive_pubkey(chan.remote_config.htlc_basepoint.pubkey, next_point)
-        #if not bitcoin.verify_signature(remote_htlc_pubkey, commitment_signed_msg["htlc_signature"], pre_hash):
-        #    raise Exception("failed verifying signature an HTLC tx spending from one of our commit tx'es HTLC outputs")
+        remote_htlc_pubkey = derive_pubkey(chan.remote_config.htlc_basepoint.pubkey, this_point)
+        if not bitcoin.verify_signature(remote_htlc_pubkey, commitment_signed_msg["htlc_signature"], pre_hash):
+            raise Exception("failed verifying signature an HTLC tx spending from one of our commit tx'es HTLC outputs")
 
         print("SENDING FIRST REVOKE AND ACK")
 
-        #their_revstore.add_next_entry(last_secret)
+        their_revstore.add_next_entry(last_secret)
 
         self.send_message(gen_msg("revoke_and_ack",
             channel_id=channel_id,
@@ -1128,9 +1131,9 @@ class Peer(PrintError):
 
         # TODO check commitment_signed results
 
-        last_secret, next_point = derive_and_incr()
+        last_secret, _, next_point = derive_and_incr()
 
-        #their_revstore.add_next_entry(last_secret)
+        their_revstore.add_next_entry(last_secret)
 
         print("SENDING SECOND REVOKE AND ACK")
         self.send_message(gen_msg("revoke_and_ack",
