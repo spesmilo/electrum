@@ -397,9 +397,9 @@ class AddressSynchronizer(Logger):
                 return verified_tx_mined_info.height, verified_tx_mined_info.txpos
             elif tx_hash in self.unverified_tx:
                 height = self.unverified_tx[tx_hash]
-                return (height, 0) if height > 0 else ((1e9 - height), 0)
+                return (height, -1) if height > 0 else ((1e9 - height), -1)
             else:
-                return (1e9+1, 0)
+                return (1e9+1, -1)
 
     def with_local_height_cached(func):
         # get local height only once, as it's relatively expensive.
