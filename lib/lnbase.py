@@ -546,6 +546,14 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey, remote_pay
 
     return tx
 
+
+def calc_short_channel_id(block_height: int, tx_pos_in_block: int, output_index: int) -> bytes:
+    bh = block_height.to_bytes(3, byteorder='big')
+    tpos = tx_pos_in_block.to_bytes(3, byteorder='big')
+    oi = output_index.to_bytes(2, byteorder='big')
+    return bh + tpos + oi
+
+
 def sign_and_get_sig_string(tx, local_config, remote_config):
     pubkeys = sorted([bh2u(local_config.multisig_key.pubkey), bh2u(remote_config.multisig_key.pubkey)])
     tx.sign({bh2u(local_config.multisig_key.pubkey): (local_config.multisig_key.privkey, True)})
@@ -979,17 +987,23 @@ class Peer(PrintError):
                 if conf >= chan.constraints.funding_txn_minimum_depth:
                     async def set_local_funding_locked_result():
                         try:
-                            self.local_funding_locked[channel_id].set_result(1)
+                            self.local_funding_locked[channel_id].set_result(short_channel_id)
                         except (asyncio.InvalidStateError, KeyError) as e:
                             # FIXME race condition if updates come in quickly, set_result might be called multiple times
                             # or self.local_funding_locked[channel_id] might be deleted already
                             self.print_error('local_funding_locked.set_result error for channel {}: {}'.format(channel_id, e))
+                    block_height, tx_pos = wallet.get_txpos(chan.funding_outpoint.txid)
+                    if tx_pos == -1:
+                        self.print_error('funding tx is not yet SPV verified.. but there are '
+                                         'already enough confirmations (currently {})'.format(conf))
+                        return
+                    short_channel_id = calc_short_channel_id(block_height, tx_pos, chan.funding_outpoint.output_index)
                     asyncio.run_coroutine_threadsafe(set_local_funding_locked_result(), asyncio.get_event_loop())
                     self.network.unregister_callback(on_network_update)
-            self.network.register_callback(on_network_update, ['updated']) # thread safe
+            self.network.register_callback(on_network_update, ['updated', 'verified']) # thread safe
 
             try:
-                await self.local_funding_locked[channel_id]
+                short_channel_id = await self.local_funding_locked[channel_id]
             finally:
                 del self.local_funding_locked[channel_id]
 
