@@ -101,8 +101,6 @@ class BCDataStream(object):
         except IndexError:
             raise SerializationError("attempt to read past end of buffer")
 
-        return ''
-
     def read_boolean(self): return self.read_bytes(1)[0] != chr(0)
     def read_int16(self): return self._read_num('<h')
     def read_uint16(self): return self._read_num('<H')
@@ -458,21 +456,17 @@ def parse_input(vds):
     d['signatures'] = {}
     d['address'] = None
     d['num_sig'] = 0
+    d['scriptSig'] = bh2u(scriptSig)
     if prevout_hash == '00'*32:
         d['type'] = 'coinbase'
-        d['scriptSig'] = bh2u(scriptSig)
     else:
         d['type'] = 'unknown'
         if scriptSig:
-            d['scriptSig'] = bh2u(scriptSig)
             try:
                 parse_scriptSig(d, scriptSig)
             except BaseException:
                 traceback.print_exc(file=sys.stderr)
                 print_error('failed to parse scriptSig', bh2u(scriptSig))
-        else:
-            d['scriptSig'] = ''
-
     return d
 
 
@@ -804,8 +798,12 @@ class Transaction:
         if _type == 'coinbase':
             return txin['scriptSig']
 
+        # If there is already a saved scriptSig, just return that.
+        # This allows manual creation of txins of any custom type.
+        # However, if the txin is not complete, we might have some garbage
+        # saved from our partial txn ser format, so we re-serialize then.
         script_sig = txin.get('scriptSig', None)
-        if script_sig is not None:
+        if script_sig is not None and self.is_txin_complete(txin):
             return script_sig
 
         pubkeys, sig_list = self.get_siglist(txin, estimate_size)
