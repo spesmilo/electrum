@@ -509,16 +509,19 @@ class Abstract_Wallet(PrintError):
                 return TX_HEIGHT_LOCAL, 0, None
 
     def get_txpos(self, tx_hash):
-        "return position, even if the tx is unverified"
+        """Return (block_height, tx_pos_in_block).
+
+        If tx is unverified, tx_pos_in_block is -1.
+        """
         with self.lock:
             if tx_hash in self.verified_tx:
                 height, timestamp, pos = self.verified_tx[tx_hash]
                 return height, pos
             elif tx_hash in self.unverified_tx:
                 height = self.unverified_tx[tx_hash]
-                return (height, 0) if height > 0 else ((1e9 - height), 0)
+                return (height, -1) if height > 0 else ((1e9 - height), -1)
             else:
-                return (1e9+1, 0)
+                return (1e9+1, -1)
 
     def is_found(self):
         return self.history.values() != [[]] * len(self.history)
