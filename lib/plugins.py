@@ -35,9 +35,8 @@ import threading
 import zipimport
 
 from .i18n import _
-from .util import print_error, user_dir, make_dir
+from .util import print_error, user_dir, make_dir, versiontuple
 from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
-from .util import is_same_or_later_version, versiontuple
 from . import bitcoin
 from . import version
 
@@ -54,7 +53,7 @@ class ExternalPluginCodes:
     INSTALLED_BUT_FAILED_LOAD = 4
     INCOMPATIBLE_VERSION = 5
 
-    
+
 INTERNAL_USE_PREFIX = 'use_'
 EXTERNAL_USE_PREFIX = 'use_external_'
 
@@ -111,7 +110,7 @@ class Plugins(DaemonThread):
                 except BaseException as e:
                     traceback.print_exc(file=sys.stdout)
                     self.print_error("cannot initialize plugin %s:" % name, str(e))
-                    
+
     def load_external_plugins(self):
         external_plugin_dir = self.get_external_plugin_dir()
         for file_name in os.listdir(external_plugin_dir):
@@ -119,19 +118,18 @@ class Plugins(DaemonThread):
             leading_name, ext = os.path.splitext(file_name)
             if ext.lower() != ".zip" or not os.path.isfile(plugin_file_path):
                 continue
-            metadata = self.get_metadata_from_external_plugin_zip_file(plugin_file_path)                
+            metadata = self.get_metadata_from_external_plugin_zip_file(plugin_file_path)
             if metadata is None:
-                continue                
+                continue
             package_name = metadata['package_name']
             if package_name in self.internal_plugin_metadata:
                 self.print_error("internal plugin also named '%s', external '%s' rejected" % (package_name, file_name))
                 continue
             if not self.register_plugin(package_name, metadata, is_external=True):
-                continue                
-            metadata["__file__"] = plugin_file_path            
-            # We never load external plugins with the same package name as an internal plugin.
+                continue
+            metadata["__file__"] = plugin_file_path
             self.external_plugin_metadata[package_name] = metadata
-            
+
             if not metadata.get('requires_wallet_type') and self.config.get(EXTERNAL_USE_PREFIX + package_name):
                 try:
                     self.load_external_plugin(package_name)
@@ -148,17 +146,17 @@ class Plugins(DaemonThread):
         if force_load and name not in self.external_plugins:
             return self.load_external_plugin(name)
         return self.external_plugins.get(name)
-        
+
     def get_internal_plugin_count(self):
         return len(self.internal_plugins)
-        
+
     def get_external_plugin_count(self):
         return len(self.external_plugins)
 
     def load_internal_plugin(self, name):
         if name in self.internal_plugins:
             return self.internal_plugins[name]
-            
+
         full_name = 'electroncash_plugins.' + name + '.' + self.gui_name
         loader = pkgutil.find_loader(full_name)
         if not loader:
@@ -188,13 +186,13 @@ class Plugins(DaemonThread):
         except zipimport.ZipImportError:
             self.print_error("unable to load zip plugin '%s'" % plugin_file_path)
             return
-        
+
         try:
             module = zipfile.load_module(name)
         except zipimport.ZipImportError:
             self.print_error("unable to load zip plugin '%s' package '%s'" % (plugin_file_path, name), str(e))
             return
-            
+
         sys.modules['electroncash_external_plugins.'+ name] = module
 
         full_name = 'electroncash_external_plugins.' + name + '.' + self.gui_name
@@ -209,14 +207,14 @@ class Plugins(DaemonThread):
         self.external_plugins[name] = plugin
         self.print_error("loaded external plugin", name)
         return plugin
-                
+
     def close_plugin(self, plugin):
         self.remove_jobs(plugin.thread_jobs())
 
     def enable_internal_plugin(self, name):
         self.config.set_key(INTERNAL_USE_PREFIX + name, True, True)
         return self.get_internal_plugin(name, force_load=True)
-        
+
     def enable_external_plugin(self, name):
         self.config.set_key(EXTERNAL_USE_PREFIX + name, True, True)
         return self.get_external_plugin(name, force_load=True)
@@ -229,7 +227,7 @@ class Plugins(DaemonThread):
         self.internal_plugins.pop(name)
         p.close()
         self.print_error("closed", name)
-        
+
     def disable_external_plugin(self, name):
         self.config.set_key(EXTERNAL_USE_PREFIX + name, False, True)
         p = self.get_external_plugin(name)
@@ -242,11 +240,11 @@ class Plugins(DaemonThread):
     def toggle_internal_plugin(self, name):
         p = self.get_internal_plugin(name)
         return self.disable_internal_plugin(name) if p else self.enable_internal_plugin(name)
-        
+
     def toggle_external_plugin(self, name):
         p = self.get_external_plugin(name)
         return self.disable_external_plugin(name) if p else self.enable_external_plugin(name)
-        
+
     def is_plugin_available(self, metadata, w):
         if not metadata:
             return False
@@ -258,22 +256,22 @@ class Plugins(DaemonThread):
                 return False
         requires = metadata.get('requires_wallet_type', [])
         return not requires or w.wallet_type in requires
-        
+
     def is_internal_plugin_available(self, name, w):
         d = self.internal_plugin_metadata.get(name)
         return self.is_plugin_available(d, w)
-        
+
     def is_external_plugin_available(self, name, w):
         d = self.external_plugin_metadata.get(name)
         return self.is_plugin_available(d, w)
-        
+
     def get_external_plugin_dir(self):
         # It's possible the plugins are being stored in a local directory
-        # and the rest of the data is being stored in the non-local directory.        
+        # and the rest of the data is being stored in the non-local directory.
         local_user_dir = user_dir(prefer_local=True)
         make_dir(local_user_dir)
         external_plugin_dir = os.path.join(local_user_dir, "external_plugins")
-        make_dir(external_plugin_dir)        
+        make_dir(external_plugin_dir)
         return external_plugin_dir
 
     def get_metadata_from_external_plugin_zip_file(self, plugin_file_path):
@@ -282,18 +280,18 @@ class Plugins(DaemonThread):
             zipfile = zipimport.zipimporter(plugin_file_path)
         except zipimport.ZipImportError:
             self.print_error("unable to load zip plugin for %s" % file_name)
-            return None                
+            return None
         try:
             metadata_text = zipfile.get_data("manifest.json")
         except OSError:
             self.print_error("missing 'manifest.json' (zip plugin %s)" % file_name)
-            return None                
-            
+            return None
+
         try:
             metadata = json.loads(metadata_text)
         except json.JSONDecodeError:
             self.print_error("invalid json in 'manifest.json' (zip plugin %s)" % file_name)
-            return None                
+            return None
 
         expected_keys = {
             'display_name': str, 'description': str, 'version': versiontuple,
@@ -303,7 +301,7 @@ class Plugins(DaemonThread):
             v = metadata.get(k, None)
             if v is None:
                 self.print_error("missing metadata key %s (zip plugin %s)" % (k, file_name))
-                return None                
+                return None
             if expected_type is versiontuple:
                 try:
                     v = versiontuple(v)
@@ -313,9 +311,9 @@ class Plugins(DaemonThread):
             elif type(metadata[k]) is not expected_type:
                 self.print_error("metadata %s = %s, expected %s (zip plugin %s)" % (k, v, expected_type, file_name))
                 return None
-        
+
         return metadata
-        
+
     def install_external_plugin(self, plugin_original_path):
         # Do the minimum verification necessary to check if the archive looks
         # like a valid plugin zip archive.
@@ -329,10 +327,10 @@ class Plugins(DaemonThread):
         # Ensure it is not already installed.
         if package_name in self.external_plugins or package_name in self.external_plugin_metadata:
             return ExternalPluginCodes.NAME_ALREADY_IN_USE
-            
-        if not is_same_or_later_version(version.PACKAGE_VERSION, metadata['minimum_ec_version']):
+
+        if versiontuple(metadata['minimum_ec_version']) > versiontuple(version.PACKAGE_VERSION):
             return ExternalPluginCodes.INCOMPATIBLE_VERSION
-            
+
         # Copy the original file to the external plugin hosting dir.
         install_dir = self.get_external_plugin_dir()
         plugin_file_path = os.path.join(install_dir, file_name)
@@ -340,7 +338,7 @@ class Plugins(DaemonThread):
             shutil.copyfile(plugin_original_path, plugin_file_path)
         except OSError:
             return ExternalPluginCodes.UNABLE_TO_COPY_FILE
-        metadata["__file__"] = plugin_file_path            
+        metadata["__file__"] = plugin_file_path
 
         # Register the existence of the newly placed plugin archive.
         # This would otherwise be recorded in `load_external_plugins`.
@@ -358,18 +356,18 @@ class Plugins(DaemonThread):
             traceback.print_exc(file=sys.stdout)
             self.print_error("cannot enable/load external plugin %s:" % package_name, str(e))
             return ExternalPluginCodes.INSTALLED_BUT_FAILED_LOAD
-            
+
         return ExternalPluginCodes.SUCCESS
-        
+
     def uninstall_external_plugin(self, name):
         self.disable_external_plugin(name)
         if 'electroncash_external_plugins.'+ name in sys.modules:
             del sys.modules['electroncash_external_plugins.'+ name]
 
         metadata = self.external_plugin_metadata[name]
-        plugin_file_path = metadata["__file__"]        
+        plugin_file_path = metadata["__file__"]
         del self.external_plugin_metadata[name]
-        
+
         os.remove(plugin_file_path)
 
     def find_plugin(self, name, force_load=False):
@@ -377,7 +375,7 @@ class Plugins(DaemonThread):
             return self.get_internal_plugin(name, force_load)
         else:
             return self.get_external_plugin(name, force_load)
-        
+
     def get_hardware_support(self):
         out = []
         for name, (gui_good, details) in self.hw_wallets.items():
@@ -458,7 +456,7 @@ class BasePlugin(PrintError):
                 l = hooks.get(k, [])
                 l.append((self, getattr(self, k)))
                 hooks[k] = l
-                
+
     def set_enabled_prefix(self, prefix):
         # This is set via a method in order not to break the existing API.
         self.enabled_use_prefix = prefix

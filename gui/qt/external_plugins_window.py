@@ -59,8 +59,8 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         self.main_window = main_window
         self.plugin_dialog = plugin_dialog
 
-        self.setMinimumWidth(400)
-        self.setMaximumWidth(400)
+        self.setMinimumWidth(600)
+        self.setMaximumWidth(600)
 
         vbox = QVBoxLayout()
         self.setLayout(vbox)
