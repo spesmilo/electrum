@@ -37,7 +37,8 @@ jobs:
         - TARGET_OS=macOS
       python: false
       install:
-        - git fetch origin
+        - git fetch --all --tags -v
+        - git tag -l
       script: ./contrib/build-osx/make_osx
       after_script: ls -lah dist && md5 dist/*
       after_success: true
