@@ -278,7 +278,7 @@ OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
 RemoteState = namedtuple("RemoteState", ["ctn", "next_per_commitment_point", "amount_sat", "revocation_store", "last_per_commitment_point"])
 LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amount_sat"])
 ChannelConstraints = namedtuple("ChannelConstraints", ["feerate", "capacity", "is_initiator", "funding_txn_minimum_depth"])
-OpenChannel = namedtuple("OpenChannel", ["channel_id", "funding_outpoint", "local_config", "remote_config", "remote_state", "local_state", "constraints"])
+OpenChannel = namedtuple("OpenChannel", ["channel_id", "short_channel_id", "funding_outpoint", "local_config", "remote_config", "remote_state", "local_state", "constraints"])
 
 
 def aiosafe(f):
@@ -928,6 +928,7 @@ class Peer(PrintError):
         their_revocation_store = RevocationStore()
         chan = OpenChannel(
                 channel_id=channel_id,
+                short_channel_id=None,
                 funding_outpoint=Outpoint(funding_txid, funding_index),
                 local_config=local_config,
                 remote_config=remote_config,
@@ -979,33 +980,35 @@ class Peer(PrintError):
 
     async def wait_for_funding_locked(self, chan, wallet):
         channel_id = chan.channel_id
-        conf = wallet.get_tx_height(chan.funding_outpoint.txid)[1]
-        if conf < chan.constraints.funding_txn_minimum_depth:
-            # wait until we see confirmations
-            def on_network_update(event, *args):
-                conf = wallet.get_tx_height(chan.funding_outpoint.txid)[1]
-                if conf >= chan.constraints.funding_txn_minimum_depth:
-                    async def set_local_funding_locked_result():
-                        try:
-                            self.local_funding_locked[channel_id].set_result(short_channel_id)
-                        except (asyncio.InvalidStateError, KeyError) as e:
-                            # FIXME race condition if updates come in quickly, set_result might be called multiple times
-                            # or self.local_funding_locked[channel_id] might be deleted already
-                            self.print_error('local_funding_locked.set_result error for channel {}: {}'.format(channel_id, e))
-                    block_height, tx_pos = wallet.get_txpos(chan.funding_outpoint.txid)
-                    if tx_pos == -1:
-                        self.print_error('funding tx is not yet SPV verified.. but there are '
-                                         'already enough confirmations (currently {})'.format(conf))
-                        return
-                    short_channel_id = calc_short_channel_id(block_height, tx_pos, chan.funding_outpoint.output_index)
-                    asyncio.run_coroutine_threadsafe(set_local_funding_locked_result(), asyncio.get_event_loop())
-                    self.network.unregister_callback(on_network_update)
-            self.network.register_callback(on_network_update, ['updated', 'verified']) # thread safe
 
-            try:
-                short_channel_id = await self.local_funding_locked[channel_id]
-            finally:
-                del self.local_funding_locked[channel_id]
+        def on_network_update(event, *args):
+            conf = wallet.get_tx_height(chan.funding_outpoint.txid)[1]
+            if conf >= chan.constraints.funding_txn_minimum_depth:
+                async def set_local_funding_locked_result():
+                    try:
+                        self.local_funding_locked[channel_id].set_result(short_channel_id)
+                    except (asyncio.InvalidStateError, KeyError) as e:
+                        # FIXME race condition if updates come in quickly, set_result might be called multiple times
+                        # or self.local_funding_locked[channel_id] might be deleted already
+                        self.print_error('local_funding_locked.set_result error for channel {}: {}'.format(channel_id, e))
+                block_height, tx_pos = wallet.get_txpos(chan.funding_outpoint.txid)
+                if tx_pos == -1:
+                    self.print_error('funding tx is not yet SPV verified.. but there are '
+                                     'already enough confirmations (currently {})'.format(conf))
+                    return
+                short_channel_id = calc_short_channel_id(block_height, tx_pos, chan.funding_outpoint.output_index)
+                asyncio.run_coroutine_threadsafe(set_local_funding_locked_result(), asyncio.get_event_loop())
+                self.network.unregister_callback(on_network_update)
+
+        # wait until we see confirmations
+        self.network.register_callback(on_network_update, ['updated', 'verified']) # thread safe
+
+        on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
+
+        try:
+            short_channel_id = await self.local_funding_locked[channel_id]
+        finally:
+            del self.local_funding_locked[channel_id]
 
         per_commitment_secret_index = 2**48 - 2
         per_commitment_point_second = secret_to_pubkey(int.from_bytes(
@@ -1018,7 +1021,7 @@ class Peer(PrintError):
             del self.remote_funding_locked[channel_id]
         self.print_error('Done waiting for remote_funding_locked', remote_funding_locked_msg)
 
-        return chan._replace(remote_state=chan.remote_state._replace(next_per_commitment_point=remote_funding_locked_msg["next_per_commitment_point"]))
+        return chan._replace(short_channel_id=short_channel_id, remote_state=chan.remote_state._replace(next_per_commitment_point=remote_funding_locked_msg["next_per_commitment_point"]))
 
     async def pay(self, wallet, chan, sat, payment_hash):
         def derive_and_incr():
@@ -1042,14 +1045,11 @@ class Peer(PrintError):
         assert sat > 0, "sat is not positive"
         amount_msat = sat * 1000
 
-        #def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
-        #                     hops_data: Sequence[OnionHopsDataSingle], associated_data: bytes) -> OnionPacket:
-        #assert type(peer.pubkey) is bytes
-        #hops_data = [OnionHopsDataSingle(OnionPerHop(derive_short_channel_id(chan).to_bytes(8, "big"), amount_msat.to_bytes(8, "big"), cltv_expiry.to_bytes(4, "big")))]
-        #associated_data = b""
-        #onion = new_onion_packet([peer.pubkey], peer.privkey, hops_data, associated_data)
-        class onion:
-            to_bytes = lambda: b"\x00" * 1366
+        assert type(self.pubkey) is bytes
+        hops_data = [OnionHopsDataSingle(OnionPerHop(chan.short_channel_id, amount_msat.to_bytes(8, "big"), cltv_expiry.to_bytes(4, "big")))]
+        associated_data = b""
+        onion = new_onion_packet([self.pubkey], self.privkey, hops_data, associated_data)
+
         self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=0, cltv_expiry=cltv_expiry, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
 
         their_local_htlc_pubkey = derive_pubkey(chan.remote_config.htlc_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
@@ -1619,7 +1619,7 @@ def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
         mix_header = mix_header[:-PER_HOP_FULL_SIZE]
         mix_header = hops_data[i].to_bytes() + mix_header
         mix_header = xor_bytes(mix_header, stream_bytes)
-        if i == num_hops - 1:
+        if i == num_hops - 1 and len(filler) != 0:
             mix_header = mix_header[:-len(filler)] + filler
         packet = mix_header + associated_data
         next_hmac = hmac.new(mu_key, msg=packet, digestmod=hashlib.sha256).digest()

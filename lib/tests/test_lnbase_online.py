@@ -20,7 +20,7 @@ import lib.constants as constants
 is_key = lambda k: k.endswith("_basepoint") or k.endswith("_key")
 
 def maybeDecode(k, v):
-    if k in ["pubkey", "privkey", "last_per_commitment_point", "next_per_commitment_point", "per_commitment_secret_seed"] and v is not None:
+    if k in ["short_channel_id", "pubkey", "privkey", "last_per_commitment_point", "next_per_commitment_point", "per_commitment_secret_seed"] and v is not None:
         return binascii.unhexlify(v)
     return v
 
@@ -36,6 +36,7 @@ def typeWrap(k, v, local):
     return v
 
 def reconstruct_namedtuples(openingchannel):
+    openingchannel = decodeAll(openingchannel)
     openingchannel=OpenChannel(**openingchannel)
     openingchannel = openingchannel._replace(funding_outpoint=Outpoint(**openingchannel.funding_outpoint))
     new_local_config = {k: typeWrap(k, decodeAll(v), True) for k, v in openingchannel.local_config.items()}
