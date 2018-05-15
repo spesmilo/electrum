@@ -67,21 +67,29 @@ where it can be conveniently launched.
 Development version
 ===================
 
+**WARNING** use development version at own risk!
+
+First the dependencies need to be installed. For Ubuntu/Debian::
+
+    sudo apt-get install git libssl-dev python3-pip libudev-dev libusb-1.0.0-dev
+    sudo apt-get build-dep python3-pyqt5
+    sudo pip3 install pipenv
+
 Check out the code from Github::
 
     git clone https://github.com/Feathercoin-Foundation/electrum-ftc.git
     cd electrum-ftc
 
-Run install (this should install dependencies)::
+Install Python requirements::
 
-    sudo apt-get install libssl-dev python3-pyqt5 pyqt5-dev-tools
-    python3 setup.py install
+    pipenv install --three -r contrib/requirements.txt
+    pipenv install pyqt5
+    pipenv run python neoscrypt_module/setup.py install
 
 Compile the icons file for Qt::
 
-    pyrcc5 icons.qrc -o gui/qt/icons_rc.py
+    pipenv run pyrcc5 icons.qrc -o gui/qt/icons_rc.py
 
-Create translations (optional)::
+Run electrum-ftc::
 
-    sudo apt-get install python-pycurl gettext
-    ./contrib/make_locale
+    pipenv run python ./electrum-ftc
