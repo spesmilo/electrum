@@ -6,7 +6,7 @@ import asyncio
 import time
 import os
 
-from lib.bitcoin import sha256
+from lib.bitcoin import sha256, COIN
 from decimal import Decimal
 from lib.constants import set_testnet, set_simnet
 from lib.simple_config import SimpleConfig
@@ -14,7 +14,7 @@ from lib.network import Network
 from lib.storage import WalletStorage
 from lib.wallet import Wallet
 from lib.lnbase import Peer, node_list, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore
-from lib.lightning_payencode.lnaddr import lnencode, LnAddr
+from lib.lightning_payencode.lnaddr import lnencode, LnAddr, lndecode
 import lib.constants as constants
 
 is_key = lambda k: k.endswith("_basepoint") or k.endswith("_key")
@@ -76,8 +76,8 @@ if __name__ == "__main__":
         host, port, pubkey = node_list[0]
     pubkey = binascii.unhexlify(pubkey)
     port = int(port)
-    if sys.argv[1] not in ["new_channel", "reestablish_channel"]:
-        raise Exception("first argument must be new_channel or reestablish_channel")
+    if sys.argv[1] not in ["new_channel", "reestablish_channel", "pay"]:
+        raise Exception("first argument must be new_channel or reestablish_channel or pay")
     if sys.argv[2] not in ["simnet", "testnet"]:
         raise Exception("second argument must be simnet or testnet")
     if sys.argv[2] == "simnet":
@@ -116,13 +116,23 @@ if __name__ == "__main__":
             wallet.storage.put("channels", dumped)
             wallet.storage.write()
             return openchannel.channel_id
+
         if channels is None or len(channels) < 1:
             raise Exception("Can't reestablish: No channel saved")
         openchannel = channels[0]
         openchannel = reconstruct_namedtuples(openchannel)
         openchannel = await peer.reestablish_channel(openchannel)
+
+        if sys.argv[1] == "pay":
+            addr = lndecode(sys.argv[6], expected_hrp="sb" if sys.argv[2] == "simnet" else "tb")
+            payment_hash = addr.paymenthash
+            amt = int(addr.amount * COIN)
+            print("amt", amt)
+            await peer.pay(wallet, openchannel, amt, payment_hash)
+            return
+
         expected_received_sat = 200000
-        pay_req = lnencode(LnAddr(RHASH, amount=Decimal("0.00000001")*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
+        pay_req = lnencode(LnAddr(RHASH, amount=1/Decimal(COIN)*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
         print("payment request", pay_req)
         advanced_channel = await peer.receive_commitment_revoke_ack(openchannel, expected_received_sat, payment_preimage)
         dumped = serialize_channels([advanced_channel])
