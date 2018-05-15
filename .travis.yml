@@ -18,7 +18,9 @@ jobs:
   include:
     - stage: binary builds
       sudo: true
-      python: 3.5
+      env:
+        - TARGET_OS=Windows
+      python: 3.6
       install:
         - sudo dpkg --add-architecture i386
         - wget -nc https://dl.winehq.org/wine-builds/Release.key
@@ -31,8 +33,11 @@ jobs:
       after_success: true
     - os: osx
       language: c
+      env:
+        - TARGET_OS=macOS
       python: false
-      install: true
+      install:
+        - git fetch origin
       script: ./contrib/build-osx/make_osx
       after_script: ls -lah dist && md5 dist/*
       after_success: true
