@@ -43,8 +43,7 @@ from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
                    InvalidPassword, format_satoshis, format_fee_satoshis,
                    NoDynamicFeeEstimates, TimeoutException,
-                   WalletFileException, BitcoinException)
-
+                   WalletFileException, BitcoinException, bfh, bh2u)
 from .bitcoin import TYPE_ADDRESS, TYPE_PUBKEY, COIN, COINBASE_MATURITY
 from .version import ELECTRUM_VERSION
 from .keystore import load_keystore, Hardware_KeyStore
@@ -785,7 +784,7 @@ class Abstract_Wallet(PrintError):
         if _type == TYPE_ADDRESS:
             addr = x
         elif _type == TYPE_PUBKEY:
-            addr = bitcoin.public_key_to_p2pkh(bitcoin.bfh(x))
+            addr = bitcoin.public_key_to_p2pkh(bfh(x))
         else:
             addr = None
         return addr
@@ -1609,7 +1608,7 @@ class Abstract_Wallet(PrintError):
 
     def make_payment_request(self, addr, amount, message, expiration):
         timestamp = int(time.time())
-        _id = bitcoin.bh2u(bitcoin.Hash(addr + "%d" % timestamp))[0:10]
+        _id = bh2u(bitcoin.Hash(addr + "%d" % timestamp))[0:10]
         r = {'time': timestamp, 'amount': amount, 'exp':expiration,
              'address':addr, 'memo':message, 'id':_id}
         return r
@@ -1620,7 +1619,7 @@ class Abstract_Wallet(PrintError):
         pr = paymentrequest.make_unsigned_request(req)
         paymentrequest.sign_request_with_alias(pr, alias, alias_privkey)
         req['name'] = pr.pki_data
-        req['sig'] = bitcoin.bh2u(pr.signature)
+        req['sig'] = bh2u(pr.signature)
         self.receive_requests[key] = req
         self.storage.put('payment_requests', self.receive_requests)
 
