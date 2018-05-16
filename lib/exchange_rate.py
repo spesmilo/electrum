@@ -114,6 +114,13 @@ class ExchangeBase(PrintError):
         rates = self.get_rates('')
         return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
 
+class ArenaBitcoin(ExchangeBase):
+
+    def get_rates(self,ccy):
+        json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        return {'BRL': Decimal(json['ticker_1h']['exchanges']['ARN']['last'])}
+
+
 class BitcoinAverage(ExchangeBase):
 
     def get_rates(self, ccy):
@@ -187,12 +194,24 @@ class BitPay(ExchangeBase):
         json = self.get_json('bitpay.com', '/api/rates')
         return dict([(r['code'], Decimal(r['rate'])) for r in json])
 
+class BitcoinTrade(ExchangeBase):
+
+    def get_rates(self,ccy):
+        json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        return {'BRL': Decimal(json['ticker_1h']['exchanges']['BTD']['last'])}
+
 
 class Bitso(ExchangeBase):
 
     def get_rates(self, ccy):
         json = self.get_json('api.bitso.com', '/v2/ticker')
         return {'MXN': Decimal(json['last'])}
+
+class Bitsquare(ExchangeBase):
+
+    def get_rates(self,ccy):
+        json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        return {'BRL': Decimal(json['ticker_1h']['exchanges']['BSQ']['last'])}
 
 
 class BitStamp(ExchangeBase):
@@ -214,6 +233,13 @@ class BlockchainInfo(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('blockchain.info', '/ticker')
         return dict([(r, Decimal(json[r]['15m'])) for r in json])
+
+
+class Braziliex(ExchangeBase):
+
+    def get_rates(self,ccy):
+        json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        return {'BRL': Decimal(json['ticker_1h']['exchanges']['BZX']['last'])}
 
 
 class BTCChina(ExchangeBase):
@@ -280,6 +306,12 @@ class Foxbit(ExchangeBase):
     def get_rates(self,ccy):
         json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
         return {'BRL': Decimal(json['ticker_1h']['exchanges']['FOX']['last'])}
+
+class FlowBtc(ExchangeBase):
+
+    def get_rates(self,ccy):
+        json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
+        return {'BRL': Decimal(json['ticker_1h']['exchanges']['FLW']['last'])}
 
 
 class itBit(ExchangeBase):
