@@ -311,7 +311,7 @@ class FlowBtc(ExchangeBase):
 
     def get_rates(self,ccy):
         json = self.get_json('api.bitvalor.com', '/v1/ticker.json')
-        return {'BRL': Decimal(json['ticker_1h']['exchanges']['FLW']['last'])}
+        return {'BRL': Decimal(json['ticker_12h']['exchanges']['FLW']['last'])}
 
 
 class itBit(ExchangeBase):
