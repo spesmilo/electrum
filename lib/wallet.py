@@ -215,10 +215,10 @@ class Abstract_Wallet(PrintError):
         self.load_addresses()
         self.test_addresses_sanity()
         self.load_transactions()
-        self.check_history()
-        self.load_unverified_transactions()
         self.load_local_history()
         self.build_spent_outpoints()
+        self.check_history()
+        self.load_unverified_transactions()
         self.remove_local_transactions_we_dont_have()
 
         # there is a difference between wallet.up_to_date and interface.is_up_to_date()
