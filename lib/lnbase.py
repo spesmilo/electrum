@@ -1030,7 +1030,7 @@ class Peer(PrintError):
 
         return chan._replace(short_channel_id=short_channel_id, remote_state=chan.remote_state._replace(next_per_commitment_point=remote_funding_locked_msg["next_per_commitment_point"]))
 
-    async def pay(self, wallet, chan, sat, payment_hash):
+    async def pay(self, wallet, chan, sat, payment_hash, pubkey_in_invoice):
         def derive_and_incr():
             nonlocal chan
             last_small_num = chan.local_state.ctn
