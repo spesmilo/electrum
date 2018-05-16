@@ -3,47 +3,18 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 
-from electrum.util import base_units
+from electrum.util import base_units_list
 from electrum.i18n import languages
 from electrum_gui.kivy.i18n import _
 from electrum.plugins import run_hook
 from electrum import coinchooser
 from electrum.util import fee_levels
 
-from choice_dialog import ChoiceDialog
+from .choice_dialog import ChoiceDialog
 
 Builder.load_string('''
 #:import partial functools.partial
 #:import _ electrum_gui.kivy.i18n._
-
-<SettingsItem@ButtonBehavior+BoxLayout>
-    orientation: 'vertical'
-    title: ''
-    description: ''
-    size_hint: 1, None
-    height: '60dp'
-
-    canvas.before:
-        Color:
-            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 0)
-        Rectangle:
-            size: self.size
-            pos: self.pos
-    on_release:
-        Clock.schedule_once(self.action)
-
-    Widget
-    TopLabel:
-        id: title
-        text: self.parent.title
-        bold: True
-        halign: 'left'
-    TopLabel:
-        text: self.parent.description
-        color: 0.8, 0.8, 0.8, 1
-        halign: 'left'
-    Widget
-
 
 <SettingsDialog@Popup>
     id: settings
@@ -66,9 +37,8 @@ Builder.load_string('''
                     action: partial(root.language_dialog, self)
                 CardSeparator
                 SettingsItem:
-                    status: '' if root.disable_pin else ('ON' if root.use_encryption else 'OFF')
                     disabled: root.disable_pin
-                    title: _('PIN code') + ': ' + self.status
+                    title: _('PIN code')
                     description: _("Change your PIN code.")
                     action: partial(root.change_password, self)
                 CardSeparator
@@ -79,22 +49,10 @@ Builder.load_string('''
                     action: partial(root.unit_dialog, self)
                 CardSeparator
                 SettingsItem:
-                    status: root.fee_status()
-                    title: _('Fees') + ': ' + self.status
-                    description: _("Fees paid to the Bitcoin miners.")
-                    action: partial(root.fee_dialog, self)
-                CardSeparator
-                SettingsItem:
                     status: root.fx_status()
                     title: _('Fiat Currency') + ': ' + self.status
                     description: _("Display amounts in fiat currency.")
                     action: partial(root.fx_dialog, self)
-                CardSeparator
-                SettingsItem:
-                    status: root.network_status()
-                    title: _('Network') + ': ' + self.status
-                    description: _("Network status and server selection.")
-                    action: partial(root.network_dialog, self)
                 CardSeparator
                 SettingsItem:
                     status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
@@ -103,16 +61,36 @@ Builder.load_string('''
                     action: partial(root.plugin_dialog, 'labels', self)
                 CardSeparator
                 SettingsItem:
-                    status: root.rbf_status()
+                    status: 'ON' if app.use_rbf else 'OFF'
                     title: _('Replace-by-fee') + ': ' + self.status
                     description: _("Create replaceable transactions.")
-                    action: partial(root.rbf_dialog, self)
+                    message:
+                        _('If you check this box, your transactions will be marked as non-final,') \
+                        + ' ' + _('and you will have the possibility, while they are unconfirmed, to replace them with transactions that pays higher fees.') \
+                        + ' ' + _('Note that some merchants do not accept non-final transactions until they are confirmed.')
+                    action: partial(root.boolean_dialog, 'use_rbf', _('Replace by fee'), self.message)
                 CardSeparator
                 SettingsItem:
-                    status: root.coinselect_status()
-                    title: _('Coin selection') + ': ' + self.status
-                    description: "Coin selection method"
-                    action: partial(root.coinselect_dialog, self)
+                    status: _('Yes') if app.use_unconfirmed else _('No')
+                    title: _('Spend unconfirmed') + ': ' + self.status
+                    description: _("Use unconfirmed coins in transactions.")
+                    message: _('Spend unconfirmed coins')
+                    action: partial(root.boolean_dialog, 'use_unconfirmed', _('Use unconfirmed'), self.message)
+                CardSeparator
+                SettingsItem:
+                    status: _('Yes') if app.use_change else _('No')
+                    title: _('Use change addresses') + ': ' + self.status
+                    description: _("Send your change to separate addresses.")
+                    message: _('Send excess coins to change addresses')
+                    action: partial(root.boolean_dialog, 'use_change', _('Use change addresses'), self.message)
+
+                # disabled: there is currently only one coin selection policy
+                #CardSeparator
+                #SettingsItem:
+                #    status: root.coinselect_status()
+                #    title: _('Coin selection') + ': ' + self.status
+                #    description: "Coin selection method"
+                #    action: partial(root.coinselect_dialog, self)
 ''')
 
 
@@ -128,9 +106,7 @@ class SettingsDialog(Factory.Popup):
         layout.bind(minimum_height=layout.setter('height'))
         # cached dialogs
         self._fx_dialog = None
-        self._fee_dialog = None
-        self._rbf_dialog = None
-        self._network_dialog = None
+        self._proxy_dialog = None
         self._language_dialog = None
         self._unit_dialog = None
         self._coinselect_dialog = None
@@ -161,7 +137,8 @@ class SettingsDialog(Factory.Popup):
             def cb(text):
                 self.app._set_bu(text)
                 item.bu = self.app.base_unit
-            self._unit_dialog = ChoiceDialog(_('Denomination'), base_units.keys(), self.app.base_unit, cb)
+            self._unit_dialog = ChoiceDialog(_('Denomination'), base_units_list,
+                                             self.app.base_unit, cb, keep_choice_order=True)
         self._unit_dialog.open()
 
     def coinselect_status(self):
@@ -177,31 +154,41 @@ class SettingsDialog(Factory.Popup):
             self._coinselect_dialog = ChoiceDialog(_('Coin selection'), choosers, chooser_name, cb)
         self._coinselect_dialog.open()
 
-    def network_dialog(self, item, dt):
-        if self._network_dialog is None:
-            server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
-            def cb(popup):
-                server = popup.ids.host.text
-                auto_connect = popup.ids.auto_connect.active
-                self.app.network.set_parameters(server, port, protocol, proxy, auto_connect)
-                item.status = self.network_status()
-            popup = Builder.load_file('gui/kivy/uix/ui_screens/network.kv')
-            popup.ids.host.text = server
-            popup.ids.auto_connect.active = auto_connect
-            popup.on_dismiss = lambda: cb(popup)
-            self._network_dialog = popup
-        self._network_dialog.open()
-
-    def network_status(self):
+    def proxy_status(self):
         server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
-        return 'auto-connect' if auto_connect else server
+        return proxy.get('host') +':' + proxy.get('port') if proxy else _('None')
+
+    def proxy_dialog(self, item, dt):
+        if self._proxy_dialog is None:
+            server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
+            def callback(popup):
+                if popup.ids.mode.text != 'None':
+                    proxy = {
+                        'mode':popup.ids.mode.text,
+                        'host':popup.ids.host.text,
+                        'port':popup.ids.port.text,
+                        'user':popup.ids.user.text,
+                        'password':popup.ids.password.text
+                    }
+                else:
+                    proxy = None
+                self.app.network.set_parameters(server, port, protocol, proxy, auto_connect)
+                item.status = self.proxy_status()
+            popup = Builder.load_file('gui/kivy/uix/ui_screens/proxy.kv')
+            popup.ids.mode.text = proxy.get('mode') if proxy else 'None'
+            popup.ids.host.text = proxy.get('host') if proxy else ''
+            popup.ids.port.text = proxy.get('port') if proxy else ''
+            popup.ids.user.text = proxy.get('user') if proxy else ''
+            popup.ids.password.text = proxy.get('password') if proxy else ''
+            popup.on_dismiss = lambda: callback(popup)
+            self._proxy_dialog = popup
+        self._proxy_dialog.open()
 
     def plugin_dialog(self, name, label, dt):
-        from checkbox_dialog import CheckBoxDialog
+        from .checkbox_dialog import CheckBoxDialog
         def callback(status):
             self.plugins.enable(name) if status else self.plugins.disable(name)
             label.status = 'ON' if status else 'OFF'
-
         status = bool(self.plugins.get(name))
         dd = self.plugins.descriptions.get(name)
         descr = dd.get('description')
@@ -210,34 +197,11 @@ class SettingsDialog(Factory.Popup):
         d.open()
 
     def fee_status(self):
-        if self.config.get('dynamic_fees', True):
-            return fee_levels[self.config.get('fee_level', 2)]
-        else:
-            return self.app.format_amount_and_units(self.config.fee_per_kb()) + '/kB'
+        return self.config.get_fee_status()
 
-    def fee_dialog(self, label, dt):
-        if self._fee_dialog is None:
-            from fee_dialog import FeeDialog
-            def cb():
-                label.status = self.fee_status()
-            self._fee_dialog = FeeDialog(self.app, self.config, cb)
-        self._fee_dialog.open()
-
-    def rbf_status(self):
-        return 'ON' if self.config.get('use_rbf') else 'OFF'
-
-    def rbf_dialog(self, label, dt):
-        if self._rbf_dialog is None:
-            from checkbox_dialog import CheckBoxDialog
-            def cb(x):
-                self.config.set_key('use_rbf', x, True)
-                label.status = self.rbf_status()
-            msg = [_('If you check this box, your transactions will be marked as non-final,'),
-                   _('and you will have the possiblity, while they are unconfirmed, to replace them with transactions that pays higher fees.'),
-                   _('Note that some merchants do not accept non-final transactions until they are confirmed.')]
-            fullname = _('Replace by fee')
-            self._rbf_dialog = CheckBoxDialog(fullname, ' '.join(msg), self.config.get('use_rbf', False), cb)
-        self._rbf_dialog.open()
+    def boolean_dialog(self, name, title, message, dt):
+        from .checkbox_dialog import CheckBoxDialog
+        CheckBoxDialog(title, message, getattr(self.app, name), lambda x: setattr(self.app, name, x)).open()
 
     def fx_status(self):
         fx = self.app.fx
@@ -246,11 +210,11 @@ class SettingsDialog(Factory.Popup):
             ccy = fx.get_currency()
             return '%s [%s]' %(ccy, source)
         else:
-            return 'Disabled'
+            return _('None')
 
     def fx_dialog(self, label, dt):
         if self._fx_dialog is None:
-            from fx_dialog import FxDialog
+            from .fx_dialog import FxDialog
             def cb():
                 label.status = self.fx_status()
             self._fx_dialog = FxDialog(self.app, self.plugins, self.config, cb)

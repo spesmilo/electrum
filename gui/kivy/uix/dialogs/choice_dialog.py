@@ -44,18 +44,26 @@ Builder.load_string('''
 
 class ChoiceDialog(Factory.Popup):
 
-    def __init__(self, title, choices, key, callback):
+    def __init__(self, title, choices, key, callback, keep_choice_order=False):
         Factory.Popup.__init__(self)
+        print(choices, type(choices))
+        if keep_choice_order:
+            orig_index = {choice: i for (i, choice) in enumerate(choices)}
+            sort_key = lambda x: orig_index[x[0]]
+        else:
+            sort_key = lambda x: x
         if type(choices) is list:
             choices = dict(map(lambda x: (x,x), choices))
         layout = self.ids.choices
         layout.bind(minimum_height=layout.setter('height'))
-        for k, v in sorted(choices.items()):
+        for k, v in sorted(choices.items(), key=sort_key):
             l = Label(text=v)
             l.height = '48dp'
+            l.size_hint_x = 4
             cb = CheckBox(group='choices')
             cb.value = k
             cb.height = '48dp'
+            cb.size_hint_x = 1
             def f(cb, x):
                 if x: self.value = cb.value
             cb.bind(active=f)

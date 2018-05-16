@@ -24,11 +24,11 @@
 # SOFTWARE.
 
 import base64
-import urllib
+import urllib.parse
 import sys
 import requests
 
-from PyQt4.QtGui import QApplication, QPushButton
+from PyQt5.QtWidgets import QApplication, QPushButton
 
 from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
@@ -64,10 +64,15 @@ class Plugin(BasePlugin):
     def do_verify(self, d):
         tx = d.tx
         wallet = d.wallet
-        window = d.parent
+        window = d.main_window
+
+        if wallet.is_watching_only():
+            d.show_critical(_('This feature is not available for watch-only wallets.'))
+            return
+
         # 1. get the password and sign the verification request
         password = None
-        if wallet.use_encryption:
+        if wallet.has_keystore_encryption():
             msg = _('GreenAddress requires your signature \n'
                     'to verify that transaction is instant.\n'
                     'Please enter your password to sign a\n'
@@ -80,20 +85,20 @@ class Plugin(BasePlugin):
             QApplication.processEvents()  # update the button label
 
             addr = self.get_my_addr(d)
-            message = "Please verify if %s is GreenAddress instant confirmed" % tx.hash()
+            message = "Please verify if %s is GreenAddress instant confirmed" % tx.txid()
             sig = wallet.sign_message(addr, message, password)
-            sig = base64.b64encode(sig)
+            sig = base64.b64encode(sig).decode('ascii')
 
             # 2. send the request
-            response = requests.request("GET", ("https://greenaddress.it/verify/?signature=%s&txhash=%s" % (urllib.quote(sig), tx.hash())),
+            response = requests.request("GET", ("https://greenaddress.it/verify/?signature=%s&txhash=%s" % (urllib.parse.quote(sig), tx.txid())),
                                         headers = {'User-Agent': 'Electrum'})
             response = response.json()
 
             # 3. display the result
             if response.get('verified'):
-                d.show_message(_('%s is covered by GreenAddress instant confirmation') % (tx.hash()), title=_('Verification successful!'))
+                d.show_message(_('{} is covered by GreenAddress instant confirmation').format(tx.txid()), title=_('Verification successful!'))
             else:
-                d.show_critical(_('%s is not covered by GreenAddress instant confirmation') % (tx.hash()), title=_('Verification failed!'))
+                d.show_critical(_('{} is not covered by GreenAddress instant confirmation').format(tx.txid()), title=_('Verification failed!'))
         except BaseException as e:
             import traceback
             traceback.print_exc(file=sys.stdout)

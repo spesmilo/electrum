@@ -22,141 +22,138 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-
-from datetime import datetime
-import sys
-import util
-from util import profiler, print_error
+from . import util
+from .util import profiler, bh2u
 import ecdsa
 import hashlib
 
-
 # algo OIDs
-ALGO_RSA_SHA1   = '1.2.840.113549.1.1.5'
+ALGO_RSA_SHA1 = '1.2.840.113549.1.1.5'
 ALGO_RSA_SHA256 = '1.2.840.113549.1.1.11'
 ALGO_RSA_SHA384 = '1.2.840.113549.1.1.12'
 ALGO_RSA_SHA512 = '1.2.840.113549.1.1.13'
 ALGO_ECDSA_SHA256 = '1.2.840.10045.4.3.2'
 
 # prefixes, see http://stackoverflow.com/questions/3713774/c-sharp-how-to-calculate-asn-1-der-encoding-of-a-particular-hash-algorithm
-PREFIX_RSA_SHA256 = bytearray([0x30,0x31,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x01,0x05,0x00,0x04,0x20])
-PREFIX_RSA_SHA384 = bytearray([0x30,0x41,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x02,0x05,0x00,0x04,0x30])
-PREFIX_RSA_SHA512 = bytearray([0x30,0x51,0x30,0x0d,0x06,0x09,0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x03,0x05,0x00,0x04,0x40])
+PREFIX_RSA_SHA256 = bytearray(
+    [0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20])
+PREFIX_RSA_SHA384 = bytearray(
+    [0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30])
+PREFIX_RSA_SHA512 = bytearray(
+    [0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40])
 
 # types used in ASN1 structured data
 ASN1_TYPES = {
-    'BOOLEAN':           0x01,
-    'INTEGER':           0x02,
-    'BIT STRING':        0x03,
-    'OCTET STRING':      0x04,
-    'NULL':              0x05,
+    'BOOLEAN'          : 0x01,
+    'INTEGER'          : 0x02,
+    'BIT STRING'       : 0x03,
+    'OCTET STRING'     : 0x04,
+    'NULL'             : 0x05,
     'OBJECT IDENTIFIER': 0x06,
-    'SEQUENCE':          0x70,
-    'SET':               0x71,
-    'PrintableString':   0x13,
-    'IA5String':         0x16,
-    'UTCTime':           0x17,
-    'ENUMERATED':        0x0A,
-    'UTF8String':        0x0C,
-    'PrintableString':   0x13,
+    'SEQUENCE'         : 0x70,
+    'SET'              : 0x71,
+    'PrintableString'  : 0x13,
+    'IA5String'        : 0x16,
+    'UTCTime'          : 0x17,
+    'GeneralizedTime'  : 0x18,
+    'ENUMERATED'       : 0x0A,
+    'UTF8String'       : 0x0C,
 }
+
 
 class CertificateError(Exception):
     pass
 
-# helper functions
 
+# helper functions
 def bitstr_to_bytestr(s):
-    if s[0] != '\x00':
-        raise BaseException('no padding')
+    if s[0] != 0x00:
+        raise TypeError('no padding')
     return s[1:]
+
 
 def bytestr_to_int(s):
     i = 0
     for char in s:
         i <<= 8
-        i |= ord(char)
+        i |= char
     return i
 
+
 def decode_OID(s):
-    s = map(ord, s)
     r = []
-    r.append(s[0] / 40)
+    r.append(s[0] // 40)
     r.append(s[0] % 40)
     k = 0
     for i in s[1:]:
         if i < 128:
-            r.append(i + 128*k)
+            r.append(i + 128 * k)
             k = 0
         else:
-            k = (i - 128) + 128*k
+            k = (i - 128) + 128 * k
     return '.'.join(map(str, r))
 
 
 def encode_OID(oid):
-    x = map(int, oid.split('.'))
-    s = chr(x[0]*40 + x[1])
+    x = [int(i) for i in oid.split('.')]
+    s = chr(x[0] * 40 + x[1])
     for i in x[2:]:
         ss = chr(i % 128)
         while i > 128:
-            i = i / 128
+            i //= 128
             ss = chr(128 + i % 128) + ss
         s += ss
     return s
 
 
-
-
-class ASN1_Node(str):
-
+class ASN1_Node(bytes):
     def get_node(self, ix):
         # return index of first byte, first content byte and last byte.
-	first = ord(self[ix+1])
-	if (ord(self[ix+1]) & 0x80) == 0:
+        first = self[ix + 1]
+        if (first & 0x80) == 0:
             length = first
             ixf = ix + 2
             ixl = ixf + length - 1
-	else:
+        else:
             lengthbytes = first & 0x7F
-            length = bytestr_to_int(self[ix+2:ix+2+lengthbytes])
+            length = bytestr_to_int(self[ix + 2:ix + 2 + lengthbytes])
             ixf = ix + 2 + lengthbytes
-            ixl = ixf + length -1
-	return (ix, ixf, ixl)
+            ixl = ixf + length - 1
+        return ix, ixf, ixl
 
     def root(self):
-	return self.get_node(0)
+        return self.get_node(0)
 
     def next_node(self, node):
         ixs, ixf, ixl = node
-	return self.get_node(ixl + 1)
+        return self.get_node(ixl + 1)
 
     def first_child(self, node):
         ixs, ixf, ixl = node
-	if ord(self[ixs]) & 0x20 != 0x20:
-            raise BaseException('Can only open constructed types.', hex(ord(self[ixs])))
+        if self[ixs] & 0x20 != 0x20:
+            raise TypeError('Can only open constructed types.', hex(self[ixs]))
         return self.get_node(ixf)
 
     def is_child_of(node1, node2):
         ixs, ixf, ixl = node1
         jxs, jxf, jxl = node2
-	return ( (ixf <= jxs) and (jxl <= ixl) ) or ( (jxf <= ixs) and (ixl <= jxl) )
+        return ((ixf <= jxs) and (jxl <= ixl)) or ((jxf <= ixs) and (ixl <= jxl))
 
     def get_all(self, node):
         # return type + length + value
         ixs, ixf, ixl = node
-	return self[ixs:ixl+1]
+        return self[ixs:ixl + 1]
 
     def get_value_of_type(self, node, asn1_type):
         # verify type byte and return content
         ixs, ixf, ixl = node
-	if ASN1_TYPES[asn1_type] != ord(self[ixs]):
-            raise BaseException('Wrong type:', hex(ord(self[ixs])),  hex(ASN1_TYPES[asn1_type]) )
-	return self[ixf:ixl+1]
+        if ASN1_TYPES[asn1_type] != self[ixs]:
+            raise TypeError('Wrong type:', hex(self[ixs]), hex(ASN1_TYPES[asn1_type]))
+        return self[ixf:ixl + 1]
 
     def get_value(self, node):
         ixs, ixf, ixl = node
-	return self[ixf:ixl+1]
+        return self[ixf:ixl + 1]
 
     def get_children(self, node):
         nodes = []
@@ -168,7 +165,7 @@ class ASN1_Node(str):
         return nodes
 
     def get_sequence(self):
-        return map(lambda j: self.get_value(j), self.get_children(self.root()))
+        return list(map(lambda j: self.get_value(j), self.get_children(self.root())))
 
     def get_dict(self, node):
         p = {}
@@ -183,19 +180,18 @@ class ASN1_Node(str):
 
 
 class X509(object):
-
     def __init__(self, b):
 
         self.bytes = bytearray(b)
 
-        der = ASN1_Node(str(b))
+        der = ASN1_Node(b)
         root = der.root()
         cert = der.first_child(root)
         # data for signature
         self.data = der.get_all(cert)
 
         # optional version field
-        if der.get_value(cert)[0] == chr(0xa0):
+        if der.get_value(cert)[0] == 0xa0:
             version = der.first_child(cert)
             serial_number = der.next_node(version)
         else:
@@ -214,9 +210,15 @@ class X509(object):
         # validity
         validity = der.next_node(issuer)
         ii = der.first_child(validity)
-        self.notBefore = der.get_value_of_type(ii, 'UTCTime')
+        try:
+            self.notBefore = der.get_value_of_type(ii, 'UTCTime')
+        except TypeError:
+            self.notBefore = der.get_value_of_type(ii, 'GeneralizedTime')[2:]  # strip year
         ii = der.next_node(ii)
-        self.notAfter = der.get_value_of_type(ii, 'UTCTime')
+        try:
+            self.notAfter = der.get_value_of_type(ii, 'UTCTime')
+        except TypeError:
+            self.notAfter = der.get_value_of_type(ii, 'GeneralizedTime')[2:]  # strip year
 
         # subject
         subject = der.next_node(validity)
@@ -226,17 +228,22 @@ class X509(object):
         ii = der.first_child(public_key_algo)
         self.public_key_algo = decode_OID(der.get_value_of_type(ii, 'OBJECT IDENTIFIER'))
 
-        # pubkey modulus and exponent
-        subject_public_key = der.next_node(public_key_algo)
-        spk = der.get_value_of_type(subject_public_key, 'BIT STRING')
-        spk = ASN1_Node(bitstr_to_bytestr(spk))
-        r = spk.root()
-        modulus = spk.first_child(r)
-        exponent = spk.next_node(modulus)
-        rsa_n = spk.get_value_of_type(modulus, 'INTEGER')
-        rsa_e = spk.get_value_of_type(exponent, 'INTEGER')
-        self.modulus = ecdsa.util.string_to_number(rsa_n)
-        self.exponent = ecdsa.util.string_to_number(rsa_e)
+        if self.public_key_algo != '1.2.840.10045.2.1':  # for non EC public key
+            # pubkey modulus and exponent
+            subject_public_key = der.next_node(public_key_algo)
+            spk = der.get_value_of_type(subject_public_key, 'BIT STRING')
+            spk = ASN1_Node(bitstr_to_bytestr(spk))
+            r = spk.root()
+            modulus = spk.first_child(r)
+            exponent = spk.next_node(modulus)
+            rsa_n = spk.get_value_of_type(modulus, 'INTEGER')
+            rsa_e = spk.get_value_of_type(exponent, 'INTEGER')
+            self.modulus = ecdsa.util.string_to_number(rsa_n)
+            self.exponent = ecdsa.util.string_to_number(rsa_e)
+        else:
+            subject_public_key = der.next_node(public_key_algo)
+            spk = der.get_value_of_type(subject_public_key, 'BIT STRING')
+            self.ec_public_key = spk
 
         # extensions
         self.CA = False
@@ -255,10 +262,10 @@ class X509(object):
                     # Subject Key Identifier
                     r = value.root()
                     value = value.get_value_of_type(r, 'OCTET STRING')
-                    self.SKI = value.encode('hex')
+                    self.SKI = bh2u(value)
                 elif oid == '2.5.29.35':
                     # Authority Key Identifier
-                    self.AKI = value.get_sequence()[0].encode('hex')
+                    self.AKI = bh2u(value.get_sequence()[0])
                 else:
                     pass
 
@@ -277,7 +284,7 @@ class X509(object):
         return self.AKI if self.AKI else repr(self.issuer)
 
     def get_common_name(self):
-        return self.subject.get('2.5.4.3', 'unknown')
+        return self.subject.get('2.5.4.3', b'unknown').decode()
 
     def get_signature(self):
         return self.cert_sig_algo, self.signature, self.data
@@ -289,26 +296,24 @@ class X509(object):
         import time
         now = time.time()
         TIMESTAMP_FMT = '%y%m%d%H%M%SZ'
-        not_before = time.mktime(time.strptime(self.notBefore, TIMESTAMP_FMT))
-        not_after = time.mktime(time.strptime(self.notAfter, TIMESTAMP_FMT))
+        not_before = time.mktime(time.strptime(self.notBefore.decode('ascii'), TIMESTAMP_FMT))
+        not_after = time.mktime(time.strptime(self.notAfter.decode('ascii'), TIMESTAMP_FMT))
         if not_before > now:
-            raise CertificateError('Certificate has not entered its valid date range. (%s)'%self.get_common_name())
+            raise CertificateError('Certificate has not entered its valid date range. (%s)' % self.get_common_name())
         if not_after <= now:
-            raise CertificateError('Certificate has expired. (%s)'%self.get_common_name())
+            raise CertificateError('Certificate has expired. (%s)' % self.get_common_name())
 
     def getFingerprint(self):
         return hashlib.sha1(self.bytes).digest()
 
 
-
-
-
 @profiler
 def load_certificates(ca_path):
-    import pem
+    from . import pem
     ca_list = {}
     ca_keyID = {}
-    with open(ca_path, 'r') as f:
+    # ca_path = '/tmp/tmp.txt'
+    with open(ca_path, 'r', encoding='utf-8') as f:
         s = f.read()
     bList = pem.dePemList(s, "CERTIFICATE")
     for b in bList:
@@ -316,6 +321,8 @@ def load_certificates(ca_path):
             x = X509(b)
             x.check_date()
         except BaseException as e:
+            # with open('/tmp/tmp.txt', 'w') as f:
+            #     f.write(pem.pem(b, 'CERTIFICATE').decode('ascii'))
             util.print_error("cert error:", e)
             continue
 
@@ -328,7 +335,7 @@ def load_certificates(ca_path):
 
 if __name__ == "__main__":
     import requests
+
     util.set_verbosity(True)
     ca_path = requests.certs.where()
     ca_list, ca_keyID = load_certificates(ca_path)
-

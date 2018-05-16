@@ -11,6 +11,9 @@ Popup:
     description: ''
     status: ''
     signature: ''
+    isaddr: ''
+    fund: 0
+    pk: ''
     title: _('Invoice') if popup.is_invoice else _('Request')
     tx_hash: ''
     BoxLayout:
@@ -28,10 +31,10 @@ Popup:
                     height: self.minimum_height
                     spacing: '10dp'
                     BoxLabel:
-                        text: (_('Status') if popup.amount or popup.is_invoice else _('Amount received')) if root.status else ''
+                        text: (_('Status') if popup.amount or popup.is_invoice or popup.isaddr == 'y' else _('Amount received')) if root.status else ''
                         value: root.status
                     BoxLabel:
-                        text: _('Amount') if root.amount else ''
+                        text: _('Request amount') if root.amount else ''
                         value: app.format_amount_and_units(root.amount) if root.amount else ''
                     BoxLabel:
                         text: _('Requestor') if popup.is_invoice else _('Address')
@@ -45,6 +48,15 @@ Popup:
                     BoxLabel:
                         text: _('Description') if root.description else ''
                         value: root.description
+                    BoxLabel:
+                        text: _('Balance') if popup.fund else ''
+                        value: app.format_amount_and_units(root.fund) if root.fund else ''
+                    TopLabel:
+                        text: _('Private Key') 
+                    RefLabel:
+                        id: pk_label
+                        touched: True if not self.touched else True
+                        data: root.pk
 
                 TopLabel:
                     text: _('Outputs') if popup.is_invoice else ''
@@ -65,7 +77,13 @@ Popup:
                 size_hint: 0.5, None
                 height: '48dp'
             Button:
-                size_hint: 0.5, None
+                size_hint: 2, None
                 height: '48dp'
                 text: _('Close')
                 on_release: popup.dismiss()
+            Button:
+                size_hint: 2, None
+                height: '48dp'
+                text: _('Hide private key') if pk_label.data else _('Export private key')
+                on_release:
+                    setattr(pk_label, 'data', '') if pk_label.data else popup.export(pk_label, popup.requestor)

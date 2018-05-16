@@ -22,8 +22,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-
 import os
 import re
 import socket
@@ -34,27 +32,31 @@ import time
 import traceback
 
 import requests
+
+from .util import print_error
+
 ca_path = requests.certs.where()
 
-import util
-import x509
-import pem
+from . import util
+from . import x509
+from . import pem
 
 
 def Connection(server, queue, config_path):
-    """Makes asynchronous connections to a remote electrum server.
+    """Makes asynchronous connections to a remote Electrum server.
     Returns the running thread that is making the connection.
 
     Once the thread has connected, it finishes, placing a tuple on the
     queue of the form (server, socket), where socket is None if
     connection failed.
     """
-    host, port, protocol = server.split(':')
+    host, port, protocol = server.rsplit(':', 2)
     if not protocol in 'st':
         raise Exception('Unknown protocol: %s' % protocol)
     c = TcpConnection(server, queue, config_path)
     c.start()
     return c
+
 
 class TcpConnection(threading.Thread, util.PrintError):
 
@@ -63,7 +65,7 @@ class TcpConnection(threading.Thread, util.PrintError):
         self.config_path = config_path
         self.queue = queue
         self.server = server
-        self.host, self.port, self.protocol = self.server.split(':')
+        self.host, self.port, self.protocol = self.server.rsplit(':', 2)
         self.host = str(self.host)
         self.port = int(self.port)
         self.use_ssl = (self.protocol == 's')
@@ -80,7 +82,7 @@ class TcpConnection(threading.Thread, util.PrintError):
         # None/{} is not acceptable.
         if not peercert:
             return False
-        if peercert.has_key("subjectAltName"):
+        if 'subjectAltName' in peercert:
             for typ, val in peercert["subjectAltName"]:
                 if typ == "DNS" and val == name:
                     return True
@@ -102,6 +104,7 @@ class TcpConnection(threading.Thread, util.PrintError):
         except socket.gaierror:
             self.print_error("cannot resolve hostname")
             return
+        e = None
         for res in l:
             try:
                 s = socket.socket(res[0], socket.SOCK_STREAM)
@@ -110,10 +113,23 @@ class TcpConnection(threading.Thread, util.PrintError):
                 s.settimeout(2)
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
                 return s
-            except BaseException as e:
+            except BaseException as _e:
+                e = _e
                 continue
         else:
             self.print_error("failed to connect", str(e))
+
+    @staticmethod
+    def get_ssl_context(cert_reqs, ca_certs):
+        context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_certs)
+        context.check_hostname = False
+        context.verify_mode = cert_reqs
+
+        context.options |= ssl.OP_NO_SSLv2
+        context.options |= ssl.OP_NO_SSLv3
+        context.options |= ssl.OP_NO_TLSv1
+
+        return context
 
     def get_socket(self):
         if self.use_ssl:
@@ -125,9 +141,14 @@ class TcpConnection(threading.Thread, util.PrintError):
                     return
                 # try with CA first
                 try:
-                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path, do_handshake_on_connect=True)
-                except ssl.SSLError, e:
+                    context = self.get_ssl_context(cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path)
+                    s = context.wrap_socket(s, do_handshake_on_connect=True)
+                except ssl.SSLError as e:
+                    self.print_error(e)
                     s = None
+                except:
+                    return
+
                 if s and self.check_host_name(s.getpeercert(), self.host):
                     self.print_error("SSL certificate signed by CA")
                     return s
@@ -137,9 +158,12 @@ class TcpConnection(threading.Thread, util.PrintError):
                 if s is None:
                     return
                 try:
-                    s = ssl.wrap_socket(s, ssl_version=ssl.PROTOCOL_SSLv23, cert_reqs=ssl.CERT_NONE, ca_certs=None)
-                except ssl.SSLError, e:
+                    context = self.get_ssl_context(cert_reqs=ssl.CERT_NONE, ca_certs=None)
+                    s = context.wrap_socket(s)
+                except ssl.SSLError as e:
                     self.print_error("SSL error retrieving SSL certificate:", e)
+                    return
+                except:
                     return
 
                 dercert = s.getpeercert(True)
@@ -148,8 +172,11 @@ class TcpConnection(threading.Thread, util.PrintError):
                 # workaround android bug
                 cert = re.sub("([^\n])-----END CERTIFICATE-----","\\1\n-----END CERTIFICATE-----",cert)
                 temporary_path = cert_path + '.temp'
-                with open(temporary_path,"w") as f:
+                util.assert_datadir_available(self.config_path)
+                with open(temporary_path, "w", encoding='utf-8') as f:
                     f.write(cert)
+                    f.flush()
+                    os.fsync(f.fileno())
             else:
                 is_new = False
 
@@ -159,12 +186,13 @@ class TcpConnection(threading.Thread, util.PrintError):
 
         if self.use_ssl:
             try:
-                s = ssl.wrap_socket(s,
-                                    ssl_version=ssl.PROTOCOL_SSLv23,
-                                    cert_reqs=ssl.CERT_REQUIRED,
-                                    ca_certs= (temporary_path if is_new else cert_path),
-                                    do_handshake_on_connect=True)
-            except ssl.SSLError, e:
+                context = self.get_ssl_context(cert_reqs=ssl.CERT_REQUIRED,
+                                               ca_certs=(temporary_path if is_new else cert_path))
+                s = context.wrap_socket(s, do_handshake_on_connect=True)
+            except socket.timeout:
+                self.print_error('timeout')
+                return
+            except ssl.SSLError as e:
                 self.print_error("SSL error:", e)
                 if e.errno != 1:
                     return
@@ -174,7 +202,8 @@ class TcpConnection(threading.Thread, util.PrintError):
                         os.unlink(rej)
                     os.rename(temporary_path, rej)
                 else:
-                    with open(cert_path) as f:
+                    util.assert_datadir_available(self.config_path)
+                    with open(cert_path, encoding='utf-8') as f:
                         cert = f.read()
                     try:
                         b = pem.dePem(cert, 'CERTIFICATE')
@@ -190,11 +219,11 @@ class TcpConnection(threading.Thread, util.PrintError):
                         os.unlink(cert_path)
                         return
                     self.print_error("wrong certificate")
-                return
-            except BaseException, e:
-                self.print_error(e)
                 if e.errno == 104:
                     return
+                return
+            except BaseException as e:
+                self.print_error(e)
                 traceback.print_exc(file=sys.stderr)
                 return
 
@@ -210,9 +239,10 @@ class TcpConnection(threading.Thread, util.PrintError):
             self.print_error("connected")
         self.queue.put((self.server, socket))
 
+
 class Interface(util.PrintError):
     """The Interface class handles a socket connected to a single remote
-    electrum server.  It's exposed API is:
+    Electrum server.  Its exposed API is:
 
     - Member functions close(), fileno(), get_responses(), has_timed_out(),
       ping_required(), queue_request(), send_requests()
@@ -221,7 +251,7 @@ class Interface(util.PrintError):
 
     def __init__(self, server, socket):
         self.server = server
-        self.host, _, _ = server.split(':')
+        self.host, _, _ = server.rsplit(':', 2)
         self.socket = socket
 
         self.pipe = util.SocketPipe(socket)
@@ -264,13 +294,13 @@ class Interface(util.PrintError):
 
     def send_requests(self):
         '''Sends queued requests.  Returns False on failure.'''
-        make_dict = lambda (m, p, i): {'method': m, 'params': p, 'id': i}
+        make_dict = lambda m, p, i: {'method': m, 'params': p, 'id': i}
         n = self.num_requests()
         wire_requests = self.unsent_requests[0:n]
         try:
-            self.pipe.send_all(map(make_dict, wire_requests))
-        except socket.error, e:
-            self.print_error("socket error:", e)
+            self.pipe.send_all([make_dict(*r) for r in wire_requests])
+        except BaseException as e:
+            self.print_error("pipe send error:", e)
             return False
         self.unsent_requests = self.unsent_requests[n:]
         for request in wire_requests:
@@ -313,10 +343,11 @@ class Interface(util.PrintError):
                 response = self.pipe.get()
             except util.timeout:
                 break
-            if response is None:
+            if not type(response) is dict:
                 responses.append((None, None))
-                self.closed_remotely = True
-                self.print_error("connection closed remotely")
+                if response is None:
+                    self.closed_remotely = True
+                    self.print_error("connection closed remotely")
                 break
             if self.debug:
                 self.print_error("<--", response)
@@ -361,15 +392,15 @@ def _match_hostname(name, val):
 
     return val.startswith('*.') and name.endswith(val[1:])
 
+
 def test_certificates():
-    from simple_config import SimpleConfig
+    from .simple_config import SimpleConfig
     config = SimpleConfig()
     mydir = os.path.join(config.path, "certs")
     certs = os.listdir(mydir)
     for c in certs:
-        print c
         p = os.path.join(mydir,c)
-        with open(p) as f:
+        with open(p, encoding='utf-8') as f:
             cert = f.read()
         check_cert(c, cert)
 

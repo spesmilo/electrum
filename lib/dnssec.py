@@ -23,8 +23,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-
-
 # Check DNSSEC trust chain.
 # Todo: verify expiration dates
 #
@@ -33,8 +31,8 @@
 #  https://github.com/rthalley/dnspython/blob/master/tests/test_dnssec.py
 
 
-import traceback
-import sys
+# import traceback
+# import sys
 import time
 import struct
 
@@ -58,28 +56,23 @@ import dns.rdtypes.ANY.SOA
 import dns.rdtypes.ANY.TXT
 import dns.rdtypes.IN.A
 import dns.rdtypes.IN.AAAA
-from dns.exception import DNSException
 
 
-
-"""
-Pure-Python version of dns.dnssec._validate_rsig
-"""
-
+# Pure-Python version of dns.dnssec._validate_rsig
 import ecdsa
-import rsakey
+from . import rsakey
 
 
 def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
     from dns.dnssec import ValidationFailure, ECDSAP256SHA256, ECDSAP384SHA384
     from dns.dnssec import _find_candidate_keys, _make_hash, _is_ecdsa, _is_rsa, _to_rdata, _make_algorithm_id
 
-    if isinstance(origin, (str, unicode)):
+    if isinstance(origin, str):
         origin = dns.name.from_text(origin, dns.name.root)
 
     for candidate_key in _find_candidate_keys(keys, rrsig):
         if not candidate_key:
-            raise ValidationFailure, 'unknown key'
+            raise ValidationFailure('unknown key')
 
         # For convenience, allow the rrset to be specified as a (name, rdataset)
         # tuple as well as a proper rrset
@@ -93,9 +86,9 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
         if now is None:
             now = time.time()
         if rrsig.expiration < now:
-            raise ValidationFailure, 'expired'
+            raise ValidationFailure('expired')
         if rrsig.inception > now:
-            raise ValidationFailure, 'not yet valid'
+            raise ValidationFailure('not yet valid')
 
         hash = _make_hash(rrsig.algorithm)
 
@@ -124,7 +117,7 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
                 digest_len = 48
             else:
                 # shouldn't happen
-                raise ValidationFailure, 'unknown ECDSA curve'
+                raise ValidationFailure('unknown ECDSA curve')
             keyptr = candidate_key.key
             x = ecdsa.util.string_to_number(keyptr[0:key_len])
             y = ecdsa.util.string_to_number(keyptr[key_len:key_len * 2])
@@ -137,7 +130,7 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
                                         ecdsa.util.string_to_number(s))
 
         else:
-            raise ValidationFailure, 'unknown algorithm %u' % rrsig.algorithm
+            raise ValidationFailure('unknown algorithm %u' % rrsig.algorithm)
 
         hash.update(_to_rdata(rrsig, origin)[:18])
         hash.update(rrsig.signer.to_digestable(origin))
@@ -170,9 +163,9 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
                 return
 
         else:
-            raise ValidationFailure, 'unknown algorithm %u' % rrsig.algorithm
+            raise ValidationFailure('unknown algorithm %s' % rrsig.algorithm)
 
-    raise ValidationFailure, 'verify failure'
+    raise ValidationFailure('verify failure')
 
 
 # replace validate_rrsig
@@ -182,12 +175,16 @@ dns.dnssec.validate = dns.dnssec._validate
 
 
 
-from util import print_error
+from .util import print_error
 
 
-# hard-coded root KSK
-root_KSK = dns.rrset.from_text('.', 15202, 'IN', 'DNSKEY', '257 3 8 AwEAAagAIKlVZrpC6Ia7gEzahOR+9W29euxhJhVVLOyQbSEW0O8gcCjF FVQUTf6v58fLjwBd0YI0EzrAcQqBGCzh/RStIoO8g0NfnfL2MTJRkxoX bfDaUeVPQuYEhg37NZWAJQ9VnMVDxP/VHL496M/QZxkjf5/Efucp2gaD X6RS6CXpoY68LsvPVjR0ZSwzz1apAzvN9dlzEheX7ICJBBtuA6G3LQpz W5hOA2hzCTMjJPJ8LbqF6dsV6DoBQzgul0sGIcGOYl7OyQdXfZ57relS Qageu+ipAdTTJ25AsRTAoub8ONGcLmqrAmRLKBP1dfwhYB4N7knNnulq QxA+Uk1ihz0=')
-
+# hard-coded trust anchors (root KSKs)
+trust_anchors = [
+    # KSK-2017:
+    dns.rrset.from_text('.', 1    , 'IN', 'DNSKEY', '257 3 8 AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTOiW1vkIbzxeF3+/4RgWOq7HrxRixHlFlExOLAJr5emLvN7SWXgnLh4+B5xQlNVz8Og8kvArMtNROxVQuCaSnIDdD5LKyWbRd2n9WGe2R8PzgCmr3EgVLrjyBxWezF0jLHwVN8efS3rCj/EWgvIWgb9tarpVUDK/b58Da+sqqls3eNbuv7pr+eoZG+SrDK6nWeL3c6H5Apxz7LjVc1uTIdsIXxuOLYA4/ilBmSVIzuDWfdRUfhHdY6+cn8HFRm+2hM8AnXGXws9555KrUB5qihylGa8subX2Nn6UwNR1AkUTV74bU='),
+    # KSK-2010:
+    dns.rrset.from_text('.', 15202, 'IN', 'DNSKEY', '257 3 8 AwEAAagAIKlVZrpC6Ia7gEzahOR+9W29euxhJhVVLOyQbSEW0O8gcCjF FVQUTf6v58fLjwBd0YI0EzrAcQqBGCzh/RStIoO8g0NfnfL2MTJRkxoX bfDaUeVPQuYEhg37NZWAJQ9VnMVDxP/VHL496M/QZxkjf5/Efucp2gaD X6RS6CXpoY68LsvPVjR0ZSwzz1apAzvN9dlzEheX7ICJBBtuA6G3LQpz W5hOA2hzCTMjJPJ8LbqF6dsV6DoBQzgul0sGIcGOYl7OyQdXfZ57relS Qageu+ipAdTTJ25AsRTAoub8ONGcLmqrAmRLKBP1dfwhYB4N7knNnulq QxA+Uk1ihz0='),
+]
 
 
 def check_query(ns, sub, _type, keys):
@@ -202,7 +199,7 @@ def check_query(ns, sub, _type, keys):
     elif answer[1].rdtype == dns.rdatatype.RRSIG:
         rrset, rrsig = answer
     else:
-        raise BaseException('No signature set in record')
+        raise Exception('No signature set in record')
     if keys is None:
         keys = {dns.name.from_text(sub):rrset}
     dns.dnssec.validate(rrset, rrsig, keys)
@@ -210,8 +207,18 @@ def check_query(ns, sub, _type, keys):
 
 
 def get_and_validate(ns, url, _type):
-    # get trusted root keys
-    root_rrset = check_query(ns, '', dns.rdatatype.DNSKEY, {dns.name.root: root_KSK})
+    # get trusted root key
+    root_rrset = None
+    for dnskey_rr in trust_anchors:
+        try:
+            # Check if there is a valid signature for the root dnskey
+            root_rrset = check_query(ns, '', dns.rdatatype.DNSKEY, {dns.name.root: dnskey_rr})
+            break
+        except dns.dnssec.ValidationFailure:
+            # It's OK as long as one key validates
+            continue
+    if not root_rrset:
+        raise dns.dnssec.ValidationFailure('None of the trust anchors found in DNS')
     keys = {dns.name.root: root_rrset}
     # top-down verification
     parts = url.split('.')
@@ -241,7 +248,7 @@ def get_and_validate(ns, url, _type):
                 continue
             break
         else:
-            raise BaseException("DS does not match DNSKEY")
+            raise Exception("DS does not match DNSKEY")
         # set key for next iteration
         keys = {name: rrset}
     # get TXT record (signed by zone)

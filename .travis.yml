@@ -1,8 +1,44 @@
 sudo: false
 language: python
 python:
-    - "2.7"
+    - 3.5
+    - 3.6
 install:
-    - pip install tox
+  - pip install -r contrib/requirements/requirements-travis.txt
+cache:
+  - pip: true
+  - directories:
+    - /tmp/electrum-build
 script:
     - tox
+after_success:
+    - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install pycurl requests && contrib/make_locale; fi
+    - coveralls
+jobs:
+  include:
+    - stage: binary builds
+      sudo: true
+      env:
+        - TARGET_OS=Windows
+      python: 3.6
+      install:
+        - sudo dpkg --add-architecture i386
+        - wget -nc https://dl.winehq.org/wine-builds/Release.key
+        - sudo apt-key add Release.key
+        - sudo apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/
+        - sudo apt-get update -qq
+        - sudo apt-get install -qq winehq-stable dirmngr gnupg2 p7zip-full
+      before_script: ls -lah /tmp/electrum-build
+      script: ./contrib/build-wine/build.sh
+      after_success: true
+    - os: osx
+      language: c
+      env:
+        - TARGET_OS=macOS
+      python: false
+      install:
+        - git fetch --all --tags
+        - git fetch origin --unshallow
+      script: ./contrib/build-osx/make_osx
+      after_script: ls -lah dist && md5 dist/*
+      after_success: true

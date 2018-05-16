@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-
 from decimal import Decimal
-from electrum.util import format_satoshis_plain
+
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame)
+
+from electrum.util import format_satoshis_plain, decimal_point_to_base_unit_name, FEERATE_PRECISION
+
 
 class MyLineEdit(QLineEdit):
     frozen = pyqtSignal()
@@ -17,7 +20,7 @@ class MyLineEdit(QLineEdit):
 class AmountEdit(MyLineEdit):
     shortcut = pyqtSignal()
 
-    def __init__(self, base_unit, is_int = False, parent=None):
+    def __init__(self, base_unit, is_int=False, parent=None):
         QLineEdit.__init__(self, parent)
         # This seems sufficient for hundred-BTC amounts with 8 decimals
         self.setFixedWidth(140)
@@ -26,12 +29,16 @@ class AmountEdit(MyLineEdit):
         self.is_int = is_int
         self.is_shortcut = False
         self.help_palette = QPalette()
+        self.extra_precision = 0
 
     def decimal_point(self):
         return 8
 
+    def max_precision(self):
+        return self.decimal_point() + self.extra_precision
+
     def numbify(self):
-        text = unicode(self.text()).strip()
+        text = self.text().strip()
         if text == '!':
             self.shortcut.emit()
             return
@@ -43,7 +50,7 @@ class AmountEdit(MyLineEdit):
             if '.' in s:
                 p = s.find('.')
                 s = s.replace('.','')
-                s = s[:p] + '.' + s[p:p+self.decimal_point()]
+                s = s[:p] + '.' + s[p:p+self.max_precision()]
         self.setText(s)
         # setText sets Modified to False.  Instead we want to remember
         # if updates were because of user modification.
@@ -53,7 +60,7 @@ class AmountEdit(MyLineEdit):
     def paintEvent(self, event):
         QLineEdit.paintEvent(self, event)
         if self.base_unit:
-            panel = QStyleOptionFrameV2()
+            panel = QStyleOptionFrame()
             self.initStyleOption(panel)
             textRect = self.style().subElementRect(QStyle.SE_LineEditContents, panel, self)
             textRect.adjust(2, 0, -10, 0)
@@ -67,31 +74,33 @@ class AmountEdit(MyLineEdit):
         except:
             return None
 
+    def setAmount(self, x):
+        self.setText("%d"%x)
+
 
 class BTCAmountEdit(AmountEdit):
 
-    def __init__(self, decimal_point, is_int = False, parent=None):
+    def __init__(self, decimal_point, is_int=False, parent=None):
         AmountEdit.__init__(self, self._base_unit, is_int, parent)
         self.decimal_point = decimal_point
 
     def _base_unit(self):
-        p = self.decimal_point()
-        assert p in [2, 5, 8]
-        if p == 8:
-            return 'BTC'
-        if p == 5:
-            return 'mBTC'
-        if p == 2:
-            return 'bits'
-        raise Exception('Unknown base unit')
+        return decimal_point_to_base_unit_name(self.decimal_point())
 
     def get_amount(self):
         try:
             x = Decimal(str(self.text()))
         except:
             return None
-        p = pow(10, self.decimal_point())
-        return int( p * x )
+        # scale it to max allowed precision, make it an int
+        power = pow(10, self.max_precision())
+        max_prec_amount = int(power * x)
+        # if the max precision is simply what unit conversion allows, just return
+        if self.max_precision() == self.decimal_point():
+            return max_prec_amount
+        # otherwise, scale it back to the expected unit
+        amount = Decimal(max_prec_amount) / pow(10, self.max_precision()-self.decimal_point())
+        return Decimal(amount) if not self.is_int else int(amount)
 
     def setAmount(self, amount):
         if amount is None:
@@ -99,6 +108,18 @@ class BTCAmountEdit(AmountEdit):
         else:
             self.setText(format_satoshis_plain(amount, self.decimal_point()))
 
-class BTCkBEdit(BTCAmountEdit):
+
+class FeerateEdit(BTCAmountEdit):
+
+    def __init__(self, decimal_point, is_int=False, parent=None):
+        super().__init__(decimal_point, is_int, parent)
+        self.extra_precision = FEERATE_PRECISION
+
     def _base_unit(self):
-        return BTCAmountEdit._base_unit(self) + '/kB'
+        return 'sat/byte'
+
+    def get_amount(self):
+        sat_per_byte_amount = BTCAmountEdit.get_amount(self)
+        if sat_per_byte_amount is None:
+            return None
+        return 1000 * sat_per_byte_amount

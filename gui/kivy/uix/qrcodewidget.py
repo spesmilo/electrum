@@ -104,7 +104,7 @@ class QRCodeWidget(FloatLayout):
             for c in range(k):
                 bext([0, 0, 0] if matrix[k-1-r][c] else [cr, cg, cb])
         # then blit the buffer
-        buff = ''.join(map(chr, buff))
+        buff = bytes(buff)
         # update texture
         self._upd_texture(buff)
 

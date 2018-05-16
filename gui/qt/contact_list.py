@@ -22,19 +22,21 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+import webbrowser
 
 from electrum.i18n import _
 from electrum.bitcoin import is_address
-from electrum.util import block_explorer_URL, format_satoshis, format_time, age
+from electrum.util import block_explorer_URL
 from electrum.plugins import run_hook
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-from util import MyTreeWidget, pr_tooltips, pr_icons
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import (
+    QAbstractItemView, QFileDialog, QMenu, QTreeWidgetItem)
+from .util import MyTreeWidget, import_meta_gui, export_meta_gui
 
 
 class ContactList(MyTreeWidget):
+    filter_columns = [0, 1]  # Key, Value
 
     def __init__(self, parent):
         MyTreeWidget.__init__(self, parent, self.create_menu, [_('Name'), _('Address')], 0, [0])
@@ -48,24 +50,31 @@ class ContactList(MyTreeWidget):
     def on_edited(self, item, column, prior):
         if column == 0:  # Remove old contact if renamed
             self.parent.contacts.pop(prior)
-        self.parent.set_contact(unicode(item.text(0)), unicode(item.text(1)))
+        self.parent.set_contact(item.text(0), item.text(1))
+
+    def import_contacts(self):
+        import_meta_gui(self.parent, _('contacts'), self.parent.contacts.import_file, self.on_update)
+
+    def export_contacts(self):
+        export_meta_gui(self.parent, _('contacts'), self.parent.contacts.export_file)
 
     def create_menu(self, position):
         menu = QMenu()
         selected = self.selectedItems()
         if not selected:
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
+            menu.addAction(_("Import file"), lambda: self.import_contacts())
+            menu.addAction(_("Export file"), lambda: self.export_contacts())
         else:
-            names = [unicode(item.text(0)) for item in selected]
-            keys = [unicode(item.text(1)) for item in selected]
+            names = [item.text(0) for item in selected]
+            keys = [item.text(1) for item in selected]
             column = self.currentColumn()
             column_title = self.headerItem().text(column)
-            column_data = '\n'.join([unicode(item.text(column)) for item in selected])
-
-            menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))
+            column_data = '\n'.join([item.text(column) for item in selected])
+            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
             if column in self.editable_columns:
-                menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, column))
-
+                item = self.currentItem()
+                menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(item, column))
             menu.addAction(_("Pay to"), lambda: self.parent.payto_contacts(keys))
             menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(keys))
             URLs = [block_explorer_URL(self.config, 'addr', key) for key in filter(is_address, keys)]
@@ -77,7 +86,7 @@ class ContactList(MyTreeWidget):
 
     def on_update(self):
         item = self.currentItem()
-        current_key = item.data(0, Qt.UserRole).toString() if item else None
+        current_key = item.data(0, Qt.UserRole) if item else None
         self.clear()
         for key in sorted(self.parent.contacts.keys()):
             _type, name = self.parent.contacts[key]

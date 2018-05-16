@@ -20,6 +20,7 @@ Builder.load_string('''
     can_rbf: False
     fee_str: ''
     date_str: ''
+    date_label:''
     amount_str: ''
     tx_hash: ''
     status_str: ''
@@ -46,7 +47,7 @@ Builder.load_string('''
                         text: _('Description') if root.description else ''
                         value: root.description
                     BoxLabel:
-                        text: _('Date') if root.date_str else ''
+                        text: root.date_label
                         value: root.date_str
                     BoxLabel:
                         text: _('Amount sent') if root.is_mine else _('Amount received')
@@ -110,10 +111,13 @@ class TxDialog(Factory.Popup):
         tx_hash, self.status_str, self.description, self.can_broadcast, self.can_rbf, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
         self.tx_hash = tx_hash or ''
         if timestamp:
+            self.date_label = _('Date')
             self.date_str = datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
         elif exp_n:
-            self.date_str = _('Within %d blocks') % exp_n if exp_n > 0 else _('unknown (low fee)')
+            self.date_label = _('Mempool depth')
+            self.date_str = _('{} from tip').format('%.2f MB'%(exp_n/1000000))
         else:
+            self.date_label = ''
             self.date_str = ''
 
         if amount is None:
@@ -129,8 +133,11 @@ class TxDialog(Factory.Popup):
         self.ids.output_list.update(self.tx.outputs())
 
     def do_rbf(self):
-        from bump_fee_dialog import BumpFeeDialog
+        from .bump_fee_dialog import BumpFeeDialog
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
+        if fee is None:
+            self.app.show_error(_("Can't bump fee: unknown fee for original transaction."))
+            return
         size = self.tx.estimated_size()
         d = BumpFeeDialog(self.app, fee, size, self._do_rbf)
         d.open()
@@ -148,7 +155,7 @@ class TxDialog(Factory.Popup):
             self.app.show_error(str(e))
             return
         if is_final:
-            new_tx.set_sequence(0xffffffff)
+            new_tx.set_rbf(False)
         self.tx = new_tx
         self.update()
         self.do_sign()
@@ -171,7 +178,7 @@ class TxDialog(Factory.Popup):
         self.app.broadcast(self.tx)
 
     def show_qr(self):
-        from electrum.bitcoin import base_encode
-        text = str(self.tx).decode('hex')
+        from electrum.bitcoin import base_encode, bfh
+        text = bfh(str(self.tx))
         text = base_encode(text, base=43)
         self.app.qr_dialog(_("Raw Transaction"), text)

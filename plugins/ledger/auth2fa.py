@@ -1,19 +1,28 @@
-import threading
+import os
+import hashlib
+import logging
+import json
+import copy
+from binascii import hexlify, unhexlify
 
-from PyQt4.Qt import (QDialog, QInputDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel, SIGNAL)
-import PyQt4.QtCore as QtCore
+import websocket
+
+from PyQt5.Qt import QDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel
+import PyQt5.QtCore as QtCore
+from PyQt5.QtWidgets import *
+
+from btchip.btchip import *
 
 from electrum.i18n import _
 from electrum_gui.qt.util import *
 from electrum.util import print_msg
+from electrum import constants, bitcoin
+from electrum_gui.qt.qrcodewidget import QRCodeWidget
 
-import os, hashlib, websocket, threading, logging, json, copy
-from electrum_gui.qt.qrcodewidget import QRCodeWidget, QRDialog
-from btchip.btchip import *
 
 DEBUG = False
 
-helpTxt = [_("Your Ledger Wallet wants tell you a one-time PIN code.<br><br>" \
+helpTxt = [_("Your Ledger Wallet wants to tell you a one-time PIN code.<br><br>" \
             "For best security you should unplug your device, open a text editor on another computer, " \
             "put your cursor into it, and plug your device into that computer. " \
             "It will output a summary of the transaction being signed and a one-time PIN.<br><br>" \
@@ -23,7 +32,7 @@ helpTxt = [_("Your Ledger Wallet wants tell you a one-time PIN code.<br><br>" \
         _("Waiting for authentication on your mobile phone"),
         _("Transaction accepted by mobile phone. Waiting for confirmation."),
         _("Click Pair button to begin pairing a mobile phone."),
-        _("Scan this QR code with your LedgerWallet phone app to pair it with this Ledger device.<br>" 
+        _("Scan this QR code with your Ledger Wallet phone app to pair it with this Ledger device.<br>" 
             "To complete pairing you will need your security card to answer a challenge." )
         ]
 
@@ -36,7 +45,7 @@ class LedgerAuthDialog(QDialog):
         self.handler = handler
         self.txdata = data
         self.idxs = self.txdata['keycardData'] if self.txdata['confirmationType'] > 1 else ''
-        self.setMinimumWidth(600)
+        self.setMinimumWidth(650)
         self.setWindowTitle(_("Ledger Wallet Authentication"))
         self.cfg = copy.deepcopy(self.handler.win.wallet.get_keystore().cfg)
         self.dongle = self.handler.win.wallet.get_keystore().get_client().dongle
@@ -109,17 +118,23 @@ class LedgerAuthDialog(QDialog):
         card = QVBoxLayout()
         self.cardbox.setLayout(card)
         self.addrtext = QTextEdit()
-        self.addrtext.setStyleSheet("QTextEdit { color:blue; background-color:lightgray; padding:15px 10px; border:none; font-size:20pt; }")
+        self.addrtext.setStyleSheet("QTextEdit { color:blue; background-color:lightgray; padding:15px 10px; border:none; font-size:20pt; font-family:monospace; }")
         self.addrtext.setReadOnly(True)
-        self.addrtext.setMaximumHeight(120)
+        self.addrtext.setMaximumHeight(130)
         card.addWidget(self.addrtext)
         
         def pin_changed(s):
             if len(s) < len(self.idxs):
                 i = self.idxs[len(s)]
                 addr = self.txdata['address']
-                addr = addr[:i] + '<u><b>' + addr[i:i+1] + '</u></b>' + addr[i+1:]
-                self.addrtext.setHtml(str(addr))
+                if not constants.net.TESTNET:
+                    text = addr[:i] + '<u><b>' + addr[i:i+1] + '</u></b>' + addr[i+1:]
+                else:
+                    # pin needs to be created from mainnet address
+                    addr_mainnet = bitcoin.script_to_address(bitcoin.address_to_script(addr), net=constants.BitcoinMainnet)
+                    addr_mainnet = addr_mainnet[:i] + '<u><b>' + addr_mainnet[i:i+1] + '</u></b>' + addr_mainnet[i+1:]
+                    text = str(addr) + '\n' + str(addr_mainnet)
+                self.addrtext.setHtml(str(text))
             else:
                 self.addrtext.setHtml(_("Press Enter"))
                 
@@ -163,7 +178,7 @@ class LedgerAuthDialog(QDialog):
             if not self.cfg['pair']:
                 self.modes.addItem(_("Mobile - Not paired")) 
             else:
-                self.modes.addItem(_("Mobile - %s") % self.cfg['pair'][1]) 
+                self.modes.addItem(_("Mobile - {}").format(self.cfg['pair'][1]))
         self.modes.blockSignals(False)
         
     def update_dlg(self):
@@ -178,11 +193,11 @@ class LedgerAuthDialog(QDialog):
         self.pinbox.setVisible(self.cfg['mode'] == 0)
         self.cardbox.setVisible(self.cfg['mode'] == 1)
         self.pintxt.setFocus(True) if self.cfg['mode'] == 0 else self.cardtxt.setFocus(True)
-        self.setMaximumHeight(200)
-        
+        self.setMaximumHeight(400)
+
     def do_pairing(self):
         rng = os.urandom(16)
-        pairID = rng.encode('hex') + hashlib.sha256(rng).digest()[0].encode('hex')
+        pairID = (hexlify(rng) + hexlify(hashlib.sha256(rng).digest()[0:1])).decode('utf-8')
         self.pairqr.setData(pairID)
         self.modebox.setVisible(False)
         self.helpmsg.setVisible(False)
@@ -225,7 +240,7 @@ class LedgerAuthDialog(QDialog):
         try:
             mode = self.dongle.exchange( bytearray(apdu) )
             return mode
-        except BTChipException, e:
+        except BTChipException as e:
             debug_msg('Device getMode Failed')
         return 0x11
     
@@ -245,7 +260,7 @@ class LedgerWebSocket(QThread):
         QThread.__init__(self)
         self.stopping = False
         self.pairID = pairID
-        self.txreq = '{"type":"request","second_factor_data":"' + str(txdata['secureScreenData']).encode('hex')  + '"}' if txdata else None
+        self.txreq = '{"type":"request","second_factor_data":"' + hexlify(txdata['secureScreenData']).decode('utf-8') + '"}' if txdata else None
         self.dlg = dlg
         self.dongle = self.dlg.dongle
         self.data = None
@@ -269,25 +284,25 @@ class LedgerWebSocket(QThread):
         if data['type'] == 'identify':
             debug_msg('Identify')
             apdu = [0xe0, 0x12, 0x01, 0x00, 0x41] # init pairing
-            apdu.extend(data['public_key'].decode('hex'))
+            apdu.extend(unhexlify(data['public_key']))
             try:
                 challenge = self.dongle.exchange( bytearray(apdu) )
-                ws.send( '{"type":"challenge","data":"%s" }' % str(challenge).encode('hex') )
+                ws.send( '{"type":"challenge","data":"%s" }' % hexlify(challenge).decode('utf-8') )
                 self.data = data
-            except BTChipException, e:
+            except BTChipException as e:
                 debug_msg('Identify Failed')
                 
         if data['type'] == 'challenge':
             debug_msg('Challenge')
             apdu = [0xe0, 0x12, 0x02, 0x00, 0x10] # confirm pairing
-            apdu.extend(data['data'].decode('hex'))
+            apdu.extend(unhexlify(data['data']))
             try:
                 self.dongle.exchange( bytearray(apdu) )
                 debug_msg('Pairing Successful')
                 ws.send( '{"type":"pairing","is_successful":"true"}' )
                 self.data['pairid'] = self.pairID
                 self.pairing_done.emit(self.data)
-            except BTChipException, e:
+            except BTChipException as e:
                 debug_msg('Pairing Failed')
                 ws.send( '{"type":"pairing","is_successful":"false"}' ) 
                 self.pairing_done.emit(None)
@@ -337,11 +352,7 @@ class LedgerWebSocket(QThread):
             ws.send( self.txreq )
             debug_msg("Req Sent", self.txreq)
 
+
 def debug_msg(*args):
     if DEBUG:
         print_msg(*args)        
-
-    
-        
-        
-        

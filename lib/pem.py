@@ -30,7 +30,7 @@
 
 import binascii
 
-from x509 import ASN1_Node, bytestr_to_int, decode_OID
+from .x509 import ASN1_Node, bytestr_to_int, decode_OID
 
 
 def a2b_base64(s):
@@ -122,12 +122,12 @@ def pem(b, name):
     -----END CERTIFICATE-----    
     """
     s1 = b2a_base64(b)[:-1] # remove terminating \n
-    s2 = ""
+    s2 = b""
     while s1:
-        s2 += s1[:64] + "\n"
+        s2 += s1[:64] + b"\n"
         s1 = s1[64:]
-    s = ("-----BEGIN %s-----\n" % name) + s2 + \
-        ("-----END %s-----\n" % name)     
+    s = ("-----BEGIN %s-----\n" % name).encode('ascii') + s2 + \
+        ("-----END %s-----\n" % name).encode('ascii')
     return s
 
 def pemSniff(inStr, name):
@@ -147,8 +147,8 @@ def parse_private_key(s):
         raise SyntaxError("Not a PEM private key file")
 
 
-def _parsePKCS8(bytes):
-    s = ASN1_Node(str(bytes))
+def _parsePKCS8(_bytes):
+    s = ASN1_Node(_bytes)
     root = s.root()
     version_node = s.first_child(root)
     version = bytestr_to_int(s.get_value_of_type(version_node, 'INTEGER'))
@@ -165,7 +165,7 @@ def _parsePKCS8(bytes):
 
 
 def _parseSSLeay(bytes):
-    return _parseASN1PrivateKey(ASN1_Node(str(bytes)))
+    return _parseASN1PrivateKey(ASN1_Node(bytes))
 
 
 def bytesToNumber(s):
@@ -187,5 +187,5 @@ def _parseASN1PrivateKey(s):
     dP = s.next_node(q)
     dQ = s.next_node(dP)
     qInv = s.next_node(dQ)
-    return map(lambda x: bytesToNumber(s.get_value_of_type(x, 'INTEGER')), [n, e, d, p, q, dP, dQ, qInv])
+    return list(map(lambda x: bytesToNumber(s.get_value_of_type(x, 'INTEGER')), [n, e, d, p, q, dP, dQ, qInv]))
 

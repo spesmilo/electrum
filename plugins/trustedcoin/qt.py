@@ -28,8 +28,8 @@ from threading import Thread
 import re
 from decimal import Decimal
 
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
 
 from electrum_gui.qt.util import *
 from electrum_gui.qt.qrcodewidget import QRCodeWidget
@@ -37,10 +37,18 @@ from electrum_gui.qt.amountedit import AmountEdit
 from electrum_gui.qt.main_window import StatusBarButton
 from electrum.i18n import _
 from electrum.plugins import hook
-from trustedcoin import TrustedCoinPlugin, server
+from .trustedcoin import TrustedCoinPlugin, server
+
+
+class TOS(QTextEdit):
+    tos_signal = pyqtSignal()
+    error_signal = pyqtSignal(object)
 
 
 class Plugin(TrustedCoinPlugin):
+
+    def __init__(self, parent, config, name):
+        super().__init__(parent, config, name)
 
     @hook
     def on_new_window(self, window):
@@ -49,7 +57,7 @@ class Plugin(TrustedCoinPlugin):
             return
         if wallet.can_sign_without_server():
             msg = ' '.join([
-                _('This wallet is was restored from seed, and it contains two master private keys.'),
+                _('This wallet was restored from seed, and it contains two master private keys.'),
                 _('Therefore, two-factor authentication is disabled.')
             ])
             action = lambda: window.show_message(msg)
@@ -58,9 +66,7 @@ class Plugin(TrustedCoinPlugin):
         button = StatusBarButton(QIcon(":icons/trustedcoin-status.png"),
                                  _("TrustedCoin"), action)
         window.statusBar().addPermanentWidget(button)
-        t = Thread(target=self.request_billing_info, args=(wallet,))
-        t.setDaemon(True)
-        t.start()
+        self.start_request_thread(window.wallet)
 
     def auth_dialog(self, window):
         d = WindowModalDialog(window, _("Authorization"))
@@ -73,6 +79,10 @@ class Plugin(TrustedCoinPlugin):
         grid.addWidget(QLabel(_('Code')), 1, 0)
         grid.addWidget(pw, 1, 1)
         vbox.addLayout(grid)
+        msg = _('If you have lost your second factor, you need to restore your wallet from seed in order to request a new code.')
+        label = QLabel(msg)
+        label.setWordWrap(1)
+        vbox.addWidget(label)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():
             return
@@ -102,13 +112,13 @@ class Plugin(TrustedCoinPlugin):
         wallet = window.wallet
         if not isinstance(wallet, self.wallet_class):
             return
-        if not wallet.can_sign_without_server():
-            if wallet.billing_info is None:
-                # request billing info before forming the transaction
-                waiting_dialog(self, window).wait()
-                if wallet.billing_info is None:
-                    window.show_message('Could not contact server')
-                    return True
+        if wallet.can_sign_without_server():
+            return
+        if wallet.billing_info is None:
+            self.start_request_thread(wallet)
+            window.show_error(_('Requesting account info from TrustedCoin server...') + '\n' +
+                                _('Please try again.'))
+            return True
         return False
 
 
@@ -142,7 +152,7 @@ class Plugin(TrustedCoinPlugin):
         vbox.addLayout(hbox)
         vbox.addStretch(10)
 
-        msg = _('TrustedCoin charges a fee per co-signed transaction. You may pay on each transaction (an extra output will be added to your transaction), or you may purchase prepaid transaction using this dialog.') + '<br/>'
+        msg = _('TrustedCoin charges a small fee to co-sign transactions. The fee depends on how many prepaid transactions you buy. An extra output is added to your transaction every time you run out of prepaid transactions.') + '<br/>'
         label = QLabel(msg)
         label.setWordWrap(1)
         vbox.addWidget(label)
@@ -152,35 +162,21 @@ class Plugin(TrustedCoinPlugin):
         vbox.addLayout(grid)
 
         price_per_tx = wallet.price_per_tx
-        v = price_per_tx.get(1)
-        grid.addWidget(QLabel(_("Price per transaction (not prepaid):")), 0, 0)
-        grid.addWidget(QLabel(window.format_amount(v) + ' ' + window.base_unit()), 0, 1)
-
-        i = 1
-
+        n_prepay = wallet.num_prepay(self.config)
+        i = 0
         for k, v in sorted(price_per_tx.items()):
             if k == 1:
                 continue
-            grid.addWidget(QLabel("Price for %d prepaid transactions:"%k), i, 0)
-            grid.addWidget(QLabel("%d x "%k + window.format_amount(v/k) + ' ' + window.base_unit()), i, 1)
-            b = QPushButton(_("Buy"))
-            b.clicked.connect(lambda b, k=k, v=v: self.on_buy(window, k, v, d))
+            grid.addWidget(QLabel("Pay every %d transactions:"%k), i, 0)
+            grid.addWidget(QLabel(window.format_amount(v/k) + ' ' + window.base_unit() + "/tx"), i, 1)
+            b = QRadioButton()
+            b.setChecked(k == n_prepay)
+            b.clicked.connect(lambda b, k=k: self.config.set_key('trustedcoin_prepay', k, True))
             grid.addWidget(b, i, 2)
             i += 1
 
         n = wallet.billing_info.get('tx_remaining', 0)
-        grid.addWidget(QLabel(_("Your wallet has %d prepaid transactions.")%n), i, 0)
-
-        # tranfer button
-        #def on_transfer():
-        #    server.transfer_credit(self.user_id, recipient, otp, signature_callback)
-        #    pass
-        #b = QPushButton(_("Transfer"))
-        #b.clicked.connect(on_transfer)
-        #grid.addWidget(b, 1, 2)
-
-        #grid.addWidget(QLabel(_("Next Billing Address:")), i, 0)
-        #grid.addWidget(QLabel(self.billing_info['billing_address']), i, 1)
+        grid.addWidget(QLabel(_("Your wallet has {} prepaid transactions.").format(n)), i, 0)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
@@ -200,9 +196,10 @@ class Plugin(TrustedCoinPlugin):
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(_("Terms of Service")))
 
-        tos_e = QTextEdit()
+        tos_e = TOS()
         tos_e.setReadOnly(True)
         vbox.addWidget(tos_e)
+        tos_received = False
 
         vbox.addWidget(QLabel(_("Please enter your e-mail address")))
         email_e = QLineEdit()
@@ -213,17 +210,33 @@ class Plugin(TrustedCoinPlugin):
         next_button.setText(_('Accept'))
 
         def request_TOS():
-            tos = server.get_terms_of_service()
+            try:
+                tos = server.get_terms_of_service()
+            except Exception as e:
+                import traceback
+                traceback.print_exc(file=sys.stderr)
+                tos_e.error_signal.emit(_('Could not retrieve Terms of Service:')
+                                        + '\n' + str(e))
+                return
             self.TOS = tos
-            window.emit(SIGNAL('twofactor:TOS'))
+            tos_e.tos_signal.emit()
 
         def on_result():
             tos_e.setText(self.TOS)
+            nonlocal tos_received
+            tos_received = True
+            set_enabled()
+
+        def on_error(msg):
+            window.show_error(str(msg))
+            window.terminate()
 
         def set_enabled():
-            next_button.setEnabled(re.match(regexp,email_e.text()) is not None)
+            valid_email = re.match(regexp, email_e.text()) is not None
+            next_button.setEnabled(tos_received and valid_email)
 
-        window.connect(window, SIGNAL('twofactor:TOS'), on_result)
+        tos_e.tos_signal.connect(on_result)
+        tos_e.error_signal.connect(on_error)
         t = Thread(target=request_TOS)
         t.setDaemon(True)
         t.start()
@@ -232,7 +245,7 @@ class Plugin(TrustedCoinPlugin):
         email_e.textChanged.connect(set_enabled)
         email_e.setFocus(True)
 
-        window.set_main_layout(vbox, next_enabled=False)
+        window.exec_layout(vbox, next_enabled=False)
         next_button.setText(prior_button_text)
         return str(email_e.text())
 
@@ -248,7 +261,7 @@ class Plugin(TrustedCoinPlugin):
             msg = _('Then, enter your Google Authenticator code:')
         else:
             label = QLabel(
-                "This wallet is already registered with Trustedcoin. "
+                "This wallet is already registered with TrustedCoin. "
                 "To finalize wallet creation, please enter your Google Authenticator Code. "
             )
             label.setWordWrap(1)
@@ -275,7 +288,7 @@ class Plugin(TrustedCoinPlugin):
         pw.textChanged.connect(set_enabled)
         cb_lost.toggled.connect(set_enabled)
 
-        window.set_main_layout(vbox, next_enabled=False,
+        window.exec_layout(vbox, next_enabled=False,
                                raise_on_cancel=False)
         return pw.get_amount(), cb_lost.isChecked()
 

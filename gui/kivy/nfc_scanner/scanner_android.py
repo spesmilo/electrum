@@ -1,4 +1,4 @@
-'''This is the Android implementatoin of NFC Scanning using the
+'''This is the Android implementation of NFC Scanning using the
 built in NFC adapter of some android phones.
 '''
 
@@ -33,8 +33,8 @@ app = None
 
 
 class ScannerAndroid(NFCBase):
-    ''' This is the class responsible for handling the interace with the
-    Android NFC adapter. See Module Documentation for deatils.
+    ''' This is the class responsible for handling the interface with the
+    Android NFC adapter. See Module Documentation for details.
     '''
 
     name = 'NFCAndroid'
@@ -56,7 +56,7 @@ class ScannerAndroid(NFCBase):
         if not self.nfc_adapter:
             return False
         
-        # specify that we want our activity to remain on top whan a new intent
+        # specify that we want our activity to remain on top when a new intent
         # is fired
         self.nfc_pending_intent = PendingIntent.getActivity(context, 0,
             Intent(context, context.getClass()).addFlags(
@@ -123,12 +123,12 @@ class ScannerAndroid(NFCBase):
 
             details['recTypes'] = recTypes
         except Exception as err:
-            print str(err)
+            print(str(err))
 
         return details
 
     def on_new_intent(self, intent):
-        ''' This functions is called when the application receives a
+        ''' This function is called when the application receives a
         new intent, for the ones the application has registered previously,
         either in the manifest or in the foreground dispatch setup in the
         nfc_init function above. 
@@ -141,7 +141,7 @@ class ScannerAndroid(NFCBase):
         #details = self.get_ndef_details(tag)
 
         if intent.getAction() not in action_list:
-            print 'unknow action, avoid.'
+            print('unknow action, avoid.')
             return
 
         rawmsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)
@@ -150,7 +150,7 @@ class ScannerAndroid(NFCBase):
         for message in rawmsgs:
             message = cast(NdefMessage, message)
             payload = message.getRecords()[0].getPayload()
-            print 'payload: {}'.format(''.join(map(chr, payload)))
+            print('payload: {}'.format(''.join(map(chr, payload))))
 
     def nfc_disable(self):
         '''Disable app from handling tags.
@@ -184,7 +184,7 @@ class ScannerAndroid(NFCBase):
         return extRecord
 
     def create_ndef_message(self, *recs):
-        ''' Create the Ndef message that will written to tag
+        ''' Create the Ndef message that will be written to tag
         '''
         records = []
         for record in recs:

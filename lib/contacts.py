@@ -20,21 +20,27 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-import sys
 import re
 import dns
+from dns.exception import DNSException
+import json
+import traceback
+import sys
 
-import bitcoin
-import dnssec
-from util import StoreDict, print_error
-from i18n import _
+from . import bitcoin
+from . import dnssec
+from .util import export_meta, import_meta, print_error, to_string
 
 
-class Contacts(StoreDict):
+class Contacts(dict):
 
-    def __init__(self, config):
-        StoreDict.__init__(self, config, 'contacts')
+    def __init__(self, storage):
+        self.storage = storage
+        d = self.storage.get('contacts', {})
+        try:
+            self.update(d)
+        except:
+            return
         # backward compatibility
         for k, v in self.items():
             _type, n = v
@@ -42,6 +48,27 @@ class Contacts(StoreDict):
                 self.pop(k)
                 self[n] = ('address', k)
 
+    def save(self):
+        self.storage.put('contacts', dict(self))
+
+    def import_file(self, path):
+        import_meta(path, self._validate, self.load_meta)
+
+    def load_meta(self, data):
+        self.update(data)
+        self.save()
+
+    def export_file(self, filename):
+        export_meta(self, filename)
+
+    def __setitem__(self, key, value):
+        dict.__setitem__(self, key, value)
+        self.save()
+
+    def pop(self, key):
+        if key in self.keys():
+            dict.pop(self, key)
+            self.save()
 
     def resolve(self, k):
         if bitcoin.is_address(k):
@@ -70,10 +97,14 @@ class Contacts(StoreDict):
     def resolve_openalias(self, url):
         # support email-style addresses, per the OA standard
         url = url.replace('@', '.')
-        records, validated = dnssec.query(url, dns.rdatatype.TXT)
+        try:
+            records, validated = dnssec.query(url, dns.rdatatype.TXT)
+        except DNSException as e:
+            print_error('Error resolving openalias: ', str(e))
+            return None
         prefix = 'btc'
         for record in records:
-            string = record.strings[0]
+            string = to_string(record.strings[0], 'utf8')
             if string.startswith('oa1:' + prefix):
                 address = self.find_regex(string, r'recipient_address=([A-Za-z0-9]+)')
                 name = self.find_regex(string, r'recipient_name=([^;]+)')
@@ -89,4 +120,16 @@ class Contacts(StoreDict):
             return regex.search(haystack).groups()[0]
         except AttributeError:
             return None
+            
+    def _validate(self, data):
+        for k, v in list(data.items()):
+            if k == 'contacts':
+                return self._validate(v)
+            if not bitcoin.is_address(k):
+                data.pop(k)
+            else:
+                _type, _ = v
+                if _type != 'address':
+                    data.pop(k)
+        return data
 

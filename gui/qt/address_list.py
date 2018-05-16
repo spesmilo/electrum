@@ -22,68 +22,115 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-
 import webbrowser
 
-from util import *
 from electrum.i18n import _
-from electrum.util import block_explorer_URL, format_satoshis, format_time
+from electrum.util import block_explorer_URL
 from electrum.plugins import run_hook
 from electrum.bitcoin import is_address
 
+from .util import *
+
 
 class AddressList(MyTreeWidget):
+    filter_columns = [0, 1, 2, 3]  # Type, Address, Label, Balance
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Balance'), _('Tx')], 1)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [], 2)
+        self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSortingEnabled(True)
+        self.show_change = 0
+        self.show_used = 0
+        self.change_button = QComboBox(self)
+        self.change_button.currentIndexChanged.connect(self.toggle_change)
+        for t in [_('All'), _('Receiving'), _('Change')]:
+            self.change_button.addItem(t)
+        self.used_button = QComboBox(self)
+        self.used_button.currentIndexChanged.connect(self.toggle_used)
+        for t in [_('All'), _('Unused'), _('Funded'), _('Used')]:
+            self.used_button.addItem(t)
+
+    def get_toolbar_buttons(self):
+        return QLabel(_("Filter:")), self.change_button, self.used_button
+
+    def on_hide_toolbar(self):
+        self.show_change = 0
+        self.show_used = 0
+        self.update()
+
+    def save_toolbar_state(self, state, config):
+        config.set_key('show_toolbar_addresses', state)
+
+    def refresh_headers(self):
+        headers = [_('Type'), _('Address'), _('Label'), _('Balance')]
+        fx = self.parent.fx
+        if fx and fx.get_fiat_address_config():
+            headers.extend([_(fx.get_currency()+' Balance')])
+        headers.extend([_('Tx')])
+        self.update_headers(headers)
+
+    def toggle_change(self, state):
+        if state == self.show_change:
+            return
+        self.show_change = state
+        self.update()
+
+    def toggle_used(self, state):
+        if state == self.show_used:
+            return
+        self.show_used = state
+        self.update()
 
     def on_update(self):
         self.wallet = self.parent.wallet
         item = self.currentItem()
-        current_address = item.data(0, Qt.UserRole).toString() if item else None
+        current_address = item.data(0, Qt.UserRole) if item else None
+        if self.show_change == 1:
+            addr_list = self.wallet.get_receiving_addresses()
+        elif self.show_change == 2:
+            addr_list = self.wallet.get_change_addresses()
+        else:
+            addr_list = self.wallet.get_addresses()
         self.clear()
-        receiving_addresses = self.wallet.get_receiving_addresses()
-        change_addresses = self.wallet.get_change_addresses()
-        if True:
-            account_item = self
-            sequences = [0,1] if change_addresses else [0]
-            for is_change in sequences:
-                if len(sequences) > 1:
-                    name = _("Receiving") if not is_change else _("Change")
-                    seq_item = QTreeWidgetItem( [ name, '', '', '', ''] )
-                    account_item.addChild(seq_item)
-                    if not is_change:
-                        seq_item.setExpanded(True)
-                else:
-                    seq_item = account_item
-                used_item = QTreeWidgetItem( [ _("Used"), '', '', '', ''] )
-                used_flag = False
-                addr_list = change_addresses if is_change else receiving_addresses
-                for address in addr_list:
-                    num = len(self.wallet.history.get(address,[]))
-                    is_used = self.wallet.is_used(address)
-                    label = self.wallet.labels.get(address,'')
-                    c, u, x = self.wallet.get_addr_balance(address)
-                    balance = self.parent.format_amount(c + u + x)
-                    address_item = QTreeWidgetItem([address, label, balance, "%d"%num])
-                    address_item.setFont(0, QFont(MONOSPACE_FONT))
-                    address_item.setData(0, Qt.UserRole, address)
-                    address_item.setData(0, Qt.UserRole+1, True) # label can be edited
-                    if self.wallet.is_frozen(address):
-                        address_item.setBackgroundColor(0, QColor('lightblue'))
-                    if self.wallet.is_beyond_limit(address, is_change):
-                        address_item.setBackgroundColor(0, QColor('red'))
-                    if is_used:
-                        if not used_flag:
-                            seq_item.insertChild(0, used_item)
-                            used_flag = True
-                        used_item.addChild(address_item)
-                    else:
-                        seq_item.addChild(address_item)
-                    if address == current_address:
-                        self.setCurrentItem(address_item)
+        for address in addr_list:
+            num = len(self.wallet.get_address_history(address))
+            is_used = self.wallet.is_used(address)
+            label = self.wallet.labels.get(address, '')
+            c, u, x = self.wallet.get_addr_balance(address)
+            balance = c + u + x
+            if self.show_used == 1 and (balance or is_used):
+                continue
+            if self.show_used == 2 and balance == 0:
+                continue
+            if self.show_used == 3 and not is_used:
+                continue
+            balance_text = self.parent.format_amount(balance, whitespaces=True)
+            fx = self.parent.fx
+            if fx and fx.get_fiat_address_config():
+                rate = fx.exchange_rate()
+                fiat_balance = fx.value_str(balance, rate)
+                address_item = SortableTreeWidgetItem(['', address, label, balance_text, fiat_balance, "%d"%num])
+                address_item.setTextAlignment(4, Qt.AlignRight)
+                address_item.setFont(4, QFont(MONOSPACE_FONT))
+            else:
+                address_item = SortableTreeWidgetItem(['', address, label, balance_text, "%d"%num])
+            address_item.setFont(3, QFont(MONOSPACE_FONT))
+            if self.wallet.is_change(address):
+                address_item.setText(0, _('change'))
+                address_item.setBackground(0, ColorScheme.YELLOW.as_color(True))
+            else:
+                address_item.setText(0, _('receiving'))
+                address_item.setBackground(0, ColorScheme.GREEN.as_color(True))
+            address_item.setFont(1, QFont(MONOSPACE_FONT))
+            address_item.setData(0, Qt.UserRole, address)  # column 0; independent from address column
+            if self.wallet.is_frozen(address):
+                address_item.setBackground(1, ColorScheme.BLUE.as_color(True))
+            if self.wallet.is_beyond_limit(address):
+                address_item.setBackground(1, ColorScheme.RED.as_color(True))
+            self.addChild(address_item)
+            if address == current_address:
+                self.setCurrentItem(address_item)
 
     def create_menu(self, position):
         from electrum.wallet import Multisig_Wallet
@@ -91,7 +138,7 @@ class AddressList(MyTreeWidget):
         can_delete = self.wallet.can_delete_address()
         selected = self.selectedItems()
         multi_select = len(selected) > 1
-        addrs = [unicode(item.text(0)) for item in selected]
+        addrs = [item.text(1) for item in selected]
         if not addrs:
             return
         if not multi_select:
@@ -107,12 +154,12 @@ class AddressList(MyTreeWidget):
         menu = QMenu()
         if not multi_select:
             column_title = self.headerItem().text(col)
-            menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(item.text(col)))
+            copy_text = item.text(col)
+            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(copy_text))
+            menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             if col in self.editable_columns:
-                menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, col))
+                menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(item, col))
             menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
-            menu.addAction(_('History'), lambda: self.parent.show_address(addr))
-            menu.addAction(_('Public Keys'), lambda: self.parent.show_public_keys(addr))
             if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.parent.show_private_key(addr))
             if not is_multisig and not self.wallet.is_watching_only():
@@ -124,6 +171,18 @@ class AddressList(MyTreeWidget):
             if addr_URL:
                 menu.addAction(_("View on block explorer"), lambda: webbrowser.open(addr_URL))
 
+            if not self.wallet.is_frozen(addr):
+                menu.addAction(_("Freeze"), lambda: self.parent.set_frozen_state([addr], True))
+            else:
+                menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state([addr], False))
+
+        coins = self.wallet.get_utxos(addrs)
+        if coins:
+            menu.addAction(_("Spend from"), lambda: self.parent.spend_coins(coins))
+
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
 
+    def on_permit_edit(self, item, column):
+        # labels for headings, e.g. "receiving" or "used" should not be editable
+        return item.childCount() == 0

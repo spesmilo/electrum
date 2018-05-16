@@ -1,3 +1,306 @@
+# Release 3.1.3 - (April 16, 2018)
+
+ * Qt GUI: seed word auto-complete during restore
+ * Android: fix some crashes
+ * performance improvements (wallet, and Qt GUI)
+ * hardware wallets: show debug message during device scan
+ * Digital Bitbox: enabled BIP84 (p2wpkh) wallet creation
+ * add regtest support (via --regtest flag)
+ * other minor bugfixes and usability improvements
+
+# Release 3.1.2 - (March 28, 2018)
+
+ * Kivy/android: request PIN on startup
+ * Improve OSX build process
+ * Fix various bugs with hardware wallets
+ * Other minor bugfixes
+
+# Release 3.1.1 - (March 12, 2018)
+
+ * fix #4031: Trezor T support
+ * partial fix #4060: proxy and hardware wallet can't be used together
+ * fix #4039: can't set address labels
+ * fix crash related to coinbase transactions
+ * MacOS: use internal graphics card
+ * fix openalias related crashes
+ * speed-up capital gains calculations
+ * hw wallet encryption: re-prompt for passphrase if incorrect
+ * other minor fixes.
+
+
+
+# Release 3.1.0 - (March 5, 2018)
+
+ * Memory-pool based fee estimation. Dynamic fees can target a desired
+   depth in the memory pool. This feature is optional, and ETA-based
+   estimates from Bitcoin Core are still available. Note that miners
+   could exploit this feature, if they conspired and filled the memory
+   pool with expensive transactions that never get mined. However,
+   since the Electrum client already trusts an Electrum server with
+   fee estimates, activating this feature does not introduce any new
+   vulnerability. In addition, the client uses a hard threshold to
+   protect itself from servers sending excessive fee estimates. In
+   practice, ETA-based estimates have resulted in sticky fees, and
+   caused many users to overpay for transactions. Advanced users tend
+   to visit (and trust) websites that display memory-pool data in
+   order to set their fees.
+ * Capital gains: For each outgoing transaction, the difference
+   between the acquisition and liquidation prices of outgoing coins is
+   displayed in the wallet history. By default, historical exchange
+   rates are used to compute acquisition and liquidation prices. These
+   values can also be entered manually, in order to match the actual
+   price realized by the user. The order of liquidation of coins is
+   the natural order defined by the blockchain; this results in
+   capital gain values that are invariant to changes in the set of
+   addresses that are in the wallet. Any other ordering strategy (such
+   as FIFO, LIFO) would result in capital gain values that depend on
+   the presence of other addresses in the wallet.
+ * Local transactions: Transactions can be saved in the wallet without
+   being broadcast. The inputs of local transactions are considered as
+   spent, and their change outputs can be re-used in subsequent
+   transactions. This can be combined with cold storage, in order to
+   create several transactions before broadcasting them. Outgoing
+   transactions that have been removed from the memory pool are also
+   saved in the wallet, and can be broadcast again.
+ * Checkpoints: The initial download of a headers file was replaced
+   with hardcoded checkpoints. The wallet uses one checkpoint per
+   retargeting period. The headers for a retargeting period are
+   downloaded only if transactions need to be verified in this period.
+ * The 'privacy' and 'priority' coin selection policies have been
+   merged into one. Previously, the 'privacy' policy has been unusable
+   because it was was not prioritizing confirmed coins. The new policy
+   is similar to 'privacy', except that it de-prioritizes addresses
+   that have unconfirmed coins.
+ * The 'Send' tab of the Qt GUI displays how transaction fees are
+   computed from transaction size.
+ * The wallet history can be filtered by time interval.
+ * Replace-by-fee is enabled by default. Note that this might cause
+   some issues with wallets that do not display RBF transactions until
+   they are confirmed.
+ * Watching-only wallets and hardware wallets can be encrypted.
+ * Semi-automated crash reporting
+ * The SSL checkbox option was removed from the GUI.
+ * The Trezor T hardware wallet is now supported.
+ * BIP84: native segwit p2wpkh scripts for bip39 seeds and hardware
+   wallets can now be created when specifying a BIP84 derivation
+   path. This is usable with Trezor and Ledger.
+ * Windows: the binaries now include ZBar, and QR code scanning should work.
+ * The Wallet Import Format (WIF) for private keys that was extended in 3.0
+   is changed. Keys in the previous format can be imported, compatibility
+   is maintained. Newly exported keys will be serialized as
+   "script_type:original_wif_format_key".
+ * BIP32 master keys for testnet once again have different version bytes than
+   on mainnet. For the mainnet prefixes {x,y,Y,z,Z}|{pub,prv}, the
+   corresponding testnet prefixes are   {t,u,U,v,V}|{pub,prv}.
+   More details and exact version bytes are specified at:
+   https://github.com/spesmilo/electrum-docs/blob/master/xpub_version_bytes.rst
+   Note that due to this change, testnet wallet files created with previous
+   versions of Electrum must be considered broken, and they need to be
+   recreated from seed words.
+ * A new version of the Electrum protocol is required by the client
+   (version 1.2). Servers using older versions of the protocol will
+   not be displayed in the GUI.
+
+
+# Release 3.0.6 :
+  * Fix transaction parsing bug #3788
+
+# Release 3.0.5 : (Security update)
+
+This is a follow-up to the 3.0.4 release, which did not completely fix
+issue #3374. Users should upgrade to 3.0.5.
+
+ * The JSONRPC interface is password protected
+ * JSONRPC commands are disabled if the GUI is running, except 'ping',
+   which is used to determine if a GUI is already running
+
+
+# Release 3.0.4 : (Security update)
+
+ * Fix a vulnerability caused by Cross-Origin Resource Sharing (CORS)
+   in the JSONRPC interface. Previous versions of Electrum are
+   vulnerable to port scanning and deanonimization attacks from
+   malicious websites. Wallets that are not password-protected are
+   vulnerable to theft.
+ * Bundle QR scanner with Android app
+ * Minor bug fixes
+
+# Release 3.0.3
+  * Qt GUI: sweeping now uses the Send tab, allowing fees to be set
+  * Windows: if using the installer binary, there is now a separate shortcut
+    for "Electrum Testnet"
+  * Digital Bitbox: added suport for p2sh-segwit
+  * OS notifications for incoming transactions
+  * better transaction size estimation:
+    - fees for segwit txns were somewhat underestimated (#3347)
+    - some multisig txns were underestimated
+    - handle uncompressed pubkeys
+  * fix #3321: testnet for Windows binaries
+  * fix #3264: Ledger/dbb signing on some platforms
+  * fix #3407: KeepKey sending to p2sh output
+  * other minor fixes and usability improvements
+
+# Release 3.0.2
+  * Android: replace requests tab with address tab, with access to
+    private keys
+  * sweeping minikeys: search for both compressed and uncompressed
+    pubkeys
+  * fix wizard crash when attempting to reset Google Authenticator
+  * fix #3248: fix Ledger+segwit signing
+  * fix #3262: fix SSL payment request signing
+  * other minor fixes.
+
+# Release 3.0.1
+  * minor bug and usability fixes
+
+# Release 3.0 - Uncanny Valley (November 1st, 2017)
+
+  * The project was migrated to Python3 and Qt5. Python2 is no longer
+    supported. If you cloned the source repository, you will need to
+    run "python3 setup.py install" in order to install the new
+    dependencies.
+
+  * Segwit support: 
+
+    - Native segwit scripts are supported using a new type of
+      seed. The version number for segwit seeds is 0x100. The install
+      wizard will not create segwit seeds by default; users must
+      opt-in with the segwit option.
+
+    - Native segwit scripts are represented using bech32 addresses,
+      following BIP173. Please note that BIP173 is still in draft
+      status, and that other wallets/websites may not support
+      it. Thus, you should keep a non-segwit wallet in order to be
+      able to receive bitcoins during the transition period. If BIP173
+      ends up being rejected or substantially modified, your wallet
+      may have to be restored from seed. This will not affect funds
+      sent to bech32 addresses, and it will not affect the capacity of
+      Electrum to spend these funds.
+
+    - Segwit scripts embedded in p2sh are supported with hardware
+      wallets or bip39 seeds. To create a segwit-in-p2sh wallet,
+      trezor/ledger users will need to enter a BIP49 derivation path.
+
+    - The BIP32 master keys of segwit wallets are serialized using new
+      version numbers. The new version numbers encode the script type,
+      and they result in the following prefixes:
+
+         * xpub/xprv : p2pkh or p2sh
+         * ypub/yprv : p2wpkh-in-p2sh
+         * Ypub/Yprv : p2wsh-in-p2sh
+         * zpub/zprv : p2wpkh
+         * Zpub/Zprv : p2wsh
+
+      These values are identical for mainnet and testnet; tpub/tprv
+      prefixes are no longer used in testnet wallets.
+
+    - The Wallet Import Format (WIF) is similarly extended for segwit
+      scripts. After a base58-encoded key is decoded to binary, its
+      first byte encodes the script type:
+
+         * 128 + 0: p2pkh
+         * 128 + 1: p2wpkh
+         * 128 + 2: p2wpkh-in-p2sh
+         * 128 + 5: p2sh
+         * 128 + 6: p2wsh
+         * 128 + 7: p2wsh-in-p2sh
+
+      The distinction between p2sh and p2pkh in private key means that
+      it is not possible to import a p2sh private key and associate it
+      to a p2pkh address.
+
+  * A new version of the Electrum protocol is required by the client
+    (version 1.1). Servers using older versions of the protocol will
+    not be displayed in the GUI.
+
+  * By default, transactions are time-locked to the height of the
+    current block. Other values of locktime may be passed using the
+    command line.
+
+
+# Release 2.9.3
+  * fix configuration file issue #2719
+  * fix ledger signing of non-RBF transactions
+  * disable 'spend confirmed only' option by default
+
+# Release 2.9.2
+  * force headers download if headers file is corrupted
+  * add websocket to windows builds
+
+# Release 2.9.1
+  * fix initial headers download
+  * validate contacts on import
+  * command-line option for locktime
+
+# Release 2.9 - Independence (July 27th, 2017)
+  * Multiple Chain Validation: Electrum will download and validate
+    block headers sent by servers that may follow different branches
+    of a fork in the Bitcoin blockchain. Instead of a linear sequence,
+    block headers are organized in a tree structure. Branching points
+    are located efficiently using binary search. The purpose of MCV is
+    to detect and handle blockchain forks that are invisible to the
+    classical SPV model.
+  * The desired branch of a blockchain fork can be selected using the
+    network dialog. Branches are identified by the hash and height of
+    the diverging block. Coin splitting is possible using RBF
+    transaction (a tutorial will be added).
+  * Multibit support: If the user enters a BIP39 seed (or uses a
+    hardware wallet), the full derivation path is configurable in the
+    install wizard.
+  * Option to send only confirmed coins
+  * Qt GUI:
+    - Network dialog uses tabs and gets updated by network events.
+    - The gui tabs use icons
+  * Kivy GUI:
+    - separation between network dialog and wallet settings dialog.
+    - option for manual server entry
+    - proxy configuration
+  * Daemon: The wallet password can be passed as parameter to the
+    JSONRPC API.
+  * Various other bugfixes and improvements.
+
+
+# Release 2.8.3
+  * Fix crash on reading older wallet formats.
+  * TrustedCoin: remove pay-per-tx option
+
+# Release 2.8.2
+  * show paid invoices in history tab
+  * improve CPFP dialog
+  * fixes for trezor, keepkey
+  * other minor bugfixes
+
+# Release 2.8.1
+  * fix Digital Bitbox plugin
+  * fix daemon jsonrpc
+  * fix trustedcoin wallet creation
+  * other minor bugfixes
+
+# Release 2.8.0 (March 9, 2017)
+  * Wallet file encryption using ECIES: A keypair is derived from the
+    wallet password. Once the wallet is decrypted, only the public key
+    is retained in memory, in order to save the encrypted file.
+  * The daemon requires wallets to be explicitly loaded before
+    commands can use them. Wallets can be loaded using: 'electrum
+    daemon load_wallet [-w path]'. This command will require a
+    password if the wallet is encrypted.
+  * Invoices and contacts are stored in the wallet file and are no
+    longer shared between wallets. Previously created invoices and
+    contacts files may be imported from the menu.
+  * Fees improvements:
+    - Dynamic fees are enabled by default.
+    - Child Pays For Parent (CPFP) dialog in the GUI.
+    - RBF is automatically proposed for low fee transactions.
+  * Support for Segregated Witness (testnet only).
+  * Support for Digital Bitbox hardware wallet.
+  * The GUI shows a blue icon when connected using a proxy.
+
+# Release 2.7.18
+  * enforce https on exchange rate APIs
+  * use hardcoded list of exchanges
+  * move 'Freeze' menu to Coins (utxo) tab
+  * various bugfixes
+
 # Release 2.7.17
   * fix a few minor regressions in the Qt GUI
 

@@ -17,6 +17,7 @@
 
 <TextInput>
     on_focus: app._focused_widget = root
+    font_size: '18sp'
 
 <Button>
     on_parent: self.MIN_STATE_TIME = 0.1
@@ -190,6 +191,31 @@
             pos: self.pos
 
 
+<AddressFilter@GridLayout>
+	item_height: dp(42)
+	item_width: dp(60)
+	foreground_color: .843, .914, .972, 1
+	cols: 1
+	canvas.before:
+		Color:
+			rgba: 0.192, .498, 0.745, 1
+		BorderImage:
+			source: 'atlas://gui/kivy/theming/light/card_bottom'
+			size: self.size
+			pos: self.pos
+
+<SearchBox@GridLayout>
+	item_height: dp(42)
+	foreground_color: .843, .914, .972, 1
+	cols: 1
+	padding: '12dp', 0
+	canvas.before:
+		Color:
+			rgba: 0.192, .498, 0.745, 1
+        BorderImage:
+            source: 'atlas://gui/kivy/theming/light/card_bottom'
+            size: self.size
+            pos: self.pos
 
 <CardSeparator@Widget>
     size_hint: 1, None
@@ -213,7 +239,7 @@
         self.screen.show_menu(args[0]) if self.state == 'down' else self.screen.hide_menu()
     canvas.before:
         Color:
-            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 1)
+            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.15, 0.15, 0.17, 1)
         Rectangle:
             size: self.size
             pos: self.pos
@@ -237,10 +263,30 @@
             size: self.size
             pos: self.pos
 
+<AddressButton@Button>:
+	background_color: 1, .585, .878, 0
+	halign: 'center'
+	text_size: (self.width, None)
+	shorten: True
+	size_hint: 0.5, None
+	default_text: ''
+	text: self.default_text
+	padding: '5dp', '5dp'
+	height: '40dp'
+	text_color: self.foreground_color
+	disabled_color: 1, 1, 1, 1
+	foreground_color: 1, 1, 1, 1
+	canvas.before:
+		Color:
+			rgba: (0.9, .498, 0.745, 1) if self.state == 'down' else self.background_color
+		Rectangle:
+			size: self.size
+			pos: self.pos
 
 <KButton@Button>:
     size_hint: 1, None
-    height: '48dp'
+    height: '60dp'
+    font_size: '30dp'
     on_release:
         self.parent.update_amount(self.text)
 
@@ -292,6 +338,34 @@
             size: self.width - sp(4), self.height - sp(4)
 
 
+<SettingsItem@ButtonBehavior+BoxLayout>
+    orientation: 'vertical'
+    title: ''
+    description: ''
+    size_hint: 1, None
+    height: '60dp'
+    canvas.before:
+        Color:
+            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 0)
+        Rectangle:
+            size: self.size
+            pos: self.pos
+    on_release:
+        Clock.schedule_once(self.action)
+    Widget
+    TopLabel:
+        id: title
+        text: self.parent.title
+        bold: True
+        halign: 'left'
+    TopLabel:
+        text: self.parent.description
+        color: 0.8, 0.8, 0.8, 1
+        halign: 'left'
+    Widget
+
+
+
 
 <ScreenTabs@Screen>
     TabbedCarousel:
@@ -299,9 +373,6 @@
         tab_height: '48dp'
         tab_width: panel.width/3
         strip_border: 0, 0, 0, 0
-        InvoicesScreen:
-            id: invoices_screen
-            tab: invoices_tab
         SendScreen:
             id: send_screen
             tab: send_tab
@@ -311,34 +382,23 @@
         ReceiveScreen:
             id: receive_screen
             tab: receive_tab
-        RequestsScreen:
-            id: requests_screen
-            tab: requests_tab
-        CleanHeader:
-            id: invoices_tab
-            text: _('Invoices')
-            slide: 0
         CleanHeader:
             id: send_tab
             text: _('Send')
-            slide: 1
+            slide: 0
         CleanHeader:
             id: history_tab
-            text: _('History')
-            slide: 2
+            text: _('Balance')
+            slide: 1
         CleanHeader:
             id: receive_tab
             text: _('Receive')
-            slide: 3
-        CleanHeader:
-            id: requests_tab
-            text: _('Requests')
-            slide: 4
+            slide: 2
 
 
 <ActionOvrButton@ActionButton>
     #on_release:
-        # fixme: the following line was commented out because it does no seem to do what it is intended
+        # fixme: the following line was commented out because it does not seem to do what it is intended
         # Clock.schedule_once(lambda dt: self.parent.parent.dismiss() if self.parent else None, 0.05)
     on_press:
         Clock.schedule_once(lambda dt: app.popup_dialog(self.name), 0.05)
@@ -364,7 +424,7 @@ BoxLayout:
                 app_icon_width: '100dp'
                 with_previous: False
                 size_hint_x: None
-                on_release: app.popup_dialog('status')
+                on_release: app.popup_dialog('network')
 
             ActionButton:
                 id: action_status
@@ -385,6 +445,9 @@ BoxLayout:
                 ActionOvrButton:
                     name: 'wallets'
                     text: _('Wallets')
+                ActionOvrButton:
+                    name: 'network'
+                    text: _('Network')
                 ActionOvrButton:
                     name: 'settings'
                     text: _('Settings')

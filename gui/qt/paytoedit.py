@@ -23,15 +23,16 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from qrtextedit import ScanQRTextEdit
-
+from PyQt5.QtGui import *
 import re
 from decimal import Decimal
-from electrum import bitcoin
 
-import util
+from electrum import bitcoin
+from electrum.util import bfh
+
+from .qrtextedit import ScanQRTextEdit
+from .completion_text_edit import CompletionTextEdit
+from . import util
 
 RE_ADDRESS = '[1-9A-HJ-NP-Za-km-z]{26,}'
 RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
@@ -39,9 +40,10 @@ RE_ALIAS = '(.*?)\s*\<([1-9A-HJ-NP-Za-km-z]{26,})\>'
 frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
 
-class PayToEdit(ScanQRTextEdit):
+class PayToEdit(CompletionTextEdit, ScanQRTextEdit):
 
     def __init__(self, win):
+        CompletionTextEdit.__init__(self)
         ScanQRTextEdit.__init__(self)
         self.win = win
         self.amount_edit = win.amount_e
@@ -67,10 +69,10 @@ class PayToEdit(ScanQRTextEdit):
             button.setHidden(b)
 
     def setGreen(self):
-        self.setStyleSheet(util.GREEN_BG)
+        self.setStyleSheet(util.ColorScheme.GREEN.as_stylesheet(True))
 
     def setExpired(self):
-        self.setStyleSheet(util.RED_BG)
+        self.setStyleSheet(util.ColorScheme.RED.as_stylesheet(True))
 
     def parse_address_and_amount(self, line):
         x, y = line.split(',')
@@ -92,9 +94,12 @@ class PayToEdit(ScanQRTextEdit):
         for word in x.split():
             if word[0:3] == 'OP_':
                 assert word in opcodes.lookup
-                script += chr(opcodes.lookup[word])
+                opcode_int = opcodes.lookup[word]
+                assert opcode_int < 256  # opcode is single-byte
+                script += bitcoin.int_to_hex(opcode_int)
             else:
-                script += push_script(word).decode('hex')
+                bfh(word)  # to test it is hex data
+                script += push_script(word)
         return script
 
     def parse_amount(self, x):
@@ -115,7 +120,7 @@ class PayToEdit(ScanQRTextEdit):
         if self.is_pr:
             return
         # filter out empty lines
-        lines = filter(lambda x: x, self.lines())
+        lines = [i for i in self.lines() if i]
         outputs = []
         total = 0
         self.payto_address = None
@@ -175,7 +180,7 @@ class PayToEdit(ScanQRTextEdit):
         return self.outputs[:]
 
     def lines(self):
-        return unicode(self.toPlainText()).split('\n')
+        return self.toPlainText().split('\n')
 
     def is_multiline(self):
         return len(self.lines()) > 1
@@ -185,77 +190,13 @@ class PayToEdit(ScanQRTextEdit):
         self.update_size()
 
     def update_size(self):
+        lineHeight = QFontMetrics(self.document().defaultFont()).height()
         docHeight = self.document().size().height()
-        h = docHeight*17 + 11
+        h = docHeight * lineHeight + 11
         if self.heightMin <= h <= self.heightMax:
             self.setMinimumHeight(h)
             self.setMaximumHeight(h)
         self.verticalScrollBar().hide()
-
-
-    def setCompleter(self, completer):
-        self.c = completer
-        self.c.setWidget(self)
-        self.c.setCompletionMode(QCompleter.PopupCompletion)
-        self.c.activated.connect(self.insertCompletion)
-
-
-    def insertCompletion(self, completion):
-        if self.c.widget() != self:
-            return
-        tc = self.textCursor()
-        extra = completion.length() - self.c.completionPrefix().length()
-        tc.movePosition(QTextCursor.Left)
-        tc.movePosition(QTextCursor.EndOfWord)
-        tc.insertText(completion.right(extra))
-        self.setTextCursor(tc)
-
-
-    def textUnderCursor(self):
-        tc = self.textCursor()
-        tc.select(QTextCursor.WordUnderCursor)
-        return tc.selectedText()
-
-
-    def keyPressEvent(self, e):
-        if self.isReadOnly():
-            return
-
-        if self.c.popup().isVisible():
-            if e.key() in [Qt.Key_Enter, Qt.Key_Return]:
-                e.ignore()
-                return
-
-        if e.key() in [Qt.Key_Tab]:
-            e.ignore()
-            return
-
-        if e.key() in [Qt.Key_Down, Qt.Key_Up] and not self.is_multiline():
-            e.ignore()
-            return
-
-        QPlainTextEdit.keyPressEvent(self, e)
-
-        ctrlOrShift = e.modifiers() and (Qt.ControlModifier or Qt.ShiftModifier)
-        if self.c is None or (ctrlOrShift and e.text().isEmpty()):
-            return
-
-        eow = QString("~!@#$%^&*()_+{}|:\"<>?,./;'[]\\-=")
-        hasModifier = (e.modifiers() != Qt.NoModifier) and not ctrlOrShift;
-        completionPrefix = self.textUnderCursor()
-
-        if hasModifier or e.text().isEmpty() or completionPrefix.length() < 1 or eow.contains(e.text().right(1)):
-            self.c.popup().hide()
-            return
-
-        if completionPrefix != self.c.completionPrefix():
-            self.c.setCompletionPrefix(completionPrefix);
-            self.c.popup().setCurrentIndex(self.c.completionModel().index(0, 0))
-
-        cr = self.cursorRect()
-        cr.setWidth(self.c.popup().sizeHintForColumn(0) + self.c.popup().verticalScrollBar().sizeHint().width())
-        self.c.complete(cr)
-
 
     def qr_input(self):
         data = super(PayToEdit,self).qr_input()
@@ -276,6 +217,9 @@ class PayToEdit(ScanQRTextEdit):
             return
         self.previous_payto = key
         if not (('.' in key) and (not '<' in key) and (not ' ' in key)):
+            return
+        parts = key.split(sep=',')  # assuming single line
+        if parts and len(parts) > 0 and bitcoin.is_address(parts[0]):
             return
         try:
             data = self.win.contacts.resolve(key)

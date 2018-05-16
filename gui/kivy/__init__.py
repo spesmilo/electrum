@@ -32,14 +32,13 @@ try:
     sys.argv = ['']
     import kivy
 except ImportError:
-    # This error ideally shouldn't raised with pre-built packages
+    # This error ideally shouldn't be raised with pre-built packages
     sys.exit("Error: Could not import kivy. Please install it using the" + \
              "instructions mentioned here `http://kivy.org/#download` .")
 
 # minimum required version for kivy
 kivy.require('1.8.0')
 from kivy.logger import Logger
-from main_window import ElectrumWindow
 
 
 
@@ -54,6 +53,7 @@ class ElectrumGui:
         self.plugins = plugins
 
     def main(self):
+        from .main_window import ElectrumWindow
         self.config.open_last_wallet()
         w = ElectrumWindow(config=self.config,
                            network=self.network,
