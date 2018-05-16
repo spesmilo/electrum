@@ -24,13 +24,23 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import hashlib
+import ecdsa
+from ecdsa.ecdsa import generator_secp256k1
+from ecdsa.curves import SECP256k1
+from ecdsa.util import string_to_number, number_to_string
 from unicodedata import normalize
 
 from . import bitcoin
-from .bitcoin import *
+from .bitcoin import (regenerate_key, deserialize_privkey, serialize_privkey,
+                      pw_decode, pw_encode, public_key_from_private_key,
+                      bip32_public_derivation, deserialize_xpub, CKD_pub,
+                      Hash, deserialize_xprv, bip32_root, public_key_to_p2pkh,
+                      bip32_private_key, bip32_private_derivation, seed_type,
+                      is_seed, is_xprv, is_xpub)
 from . import constants
 from .util import (PrintError, InvalidPassword, hfu, WalletFileException,
-                   BitcoinException)
+                   BitcoinException, bfh, bh2u, print_error)
 from .mnemonic import Mnemonic, load_wordlist
 from .plugins import run_hook
 
