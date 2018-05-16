@@ -7,6 +7,7 @@ import time
 import os
 
 from lib.bitcoin import sha256, COIN
+from lib.util import bh2u, bfh
 from decimal import Decimal
 from lib.constants import set_testnet, set_simnet
 from lib.simple_config import SimpleConfig
@@ -77,8 +78,8 @@ if __name__ == "__main__":
         host, port, pubkey = node_list[0]
     pubkey = binascii.unhexlify(pubkey)
     port = int(port)
-    if sys.argv[1] not in ["new_channel", "reestablish_channel", "pay"]:
-        raise Exception("first argument must be new_channel or reestablish_channel or pay")
+    if not any(x in sys.argv[1] for x in ["new_channel", "reestablish_channel"]):
+        raise Exception("first argument must contain new_channel or reestablish_channel")
     if sys.argv[2] not in ["simnet", "testnet"]:
         raise Exception("second argument must be simnet or testnet")
     if sys.argv[2] == "simnet":
@@ -97,8 +98,15 @@ if __name__ == "__main__":
     wallet = Wallet(storage)
     wallet.start_threads(network)
     # start peer
-    privkey = sha256("0123456789")
-    peer = Peer(host, port, pubkey, privkey, request_initial_sync=False, network=network)
+    if "new_channel" in sys.argv[1]:
+        privkey = sha256(os.urandom(32))
+        wallet.storage.put("channels_privkey", bh2u(privkey))
+        wallet.storage.write()
+    elif "reestablish_channel" in sys.argv[1]:
+        privkey = wallet.storage.get("channels_privkey", None)
+        assert privkey is not None
+        privkey = bfh(privkey)
+    peer = Peer(host, port, pubkey, privkey, request_initial_sync=True, network=network)
     network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), network.asyncio_loop))
 
     funding_satoshis = 2000000
@@ -110,26 +118,26 @@ if __name__ == "__main__":
         RHASH = sha256(payment_preimage)
         channels = wallet.storage.get("channels", None)
 
-        if sys.argv[1] == "new_channel":
+        if "new_channel" in sys.argv[1]:
             openingchannel = await peer.channel_establishment_flow(wallet, config, None, funding_satoshis, push_msat, temp_channel_id=os.urandom(32))
             openchannel = await peer.wait_for_funding_locked(openingchannel, wallet)
             dumped = serialize_channels([openchannel])
             wallet.storage.put("channels", dumped)
             wallet.storage.write()
-            return openchannel.channel_id
+        elif "reestablish_channel" in sys.argv[1]:
+            if channels is None or len(channels) < 1:
+                raise Exception("Can't reestablish: No channel saved")
+            openchannel = channels[0]
+            openchannel = reconstruct_namedtuples(openchannel)
+            openchannel = await peer.reestablish_channel(openchannel)
 
-        if channels is None or len(channels) < 1:
-            raise Exception("Can't reestablish: No channel saved")
-        openchannel = channels[0]
-        openchannel = reconstruct_namedtuples(openchannel)
-        openchannel = await peer.reestablish_channel(openchannel)
-
-        if sys.argv[1] == "pay":
+        if "pay" in sys.argv[1]:
             addr = lndecode(sys.argv[6], expected_hrp="sb" if sys.argv[2] == "simnet" else "tb")
             payment_hash = addr.paymenthash
+            pubkey = addr.pubkey.serialize()
             amt = int(addr.amount * COIN)
-            advanced_channel = await peer.pay(wallet, openchannel, amt, payment_hash)
-        else:
+            advanced_channel = await peer.pay(wallet, openchannel, amt, payment_hash, pubkey)
+        elif "get_paid" in sys.argv[1]:
             expected_received_sat = 200000
             pay_req = lnencode(LnAddr(RHASH, amount=1/Decimal(COIN)*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
             print("payment request", pay_req)
