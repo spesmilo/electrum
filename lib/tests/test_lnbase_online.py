@@ -128,14 +128,13 @@ if __name__ == "__main__":
             addr = lndecode(sys.argv[6], expected_hrp="sb" if sys.argv[2] == "simnet" else "tb")
             payment_hash = addr.paymenthash
             amt = int(addr.amount * COIN)
-            print("amt", amt)
-            await peer.pay(wallet, openchannel, amt, payment_hash)
-            return
+            advanced_channel = await peer.pay(wallet, openchannel, amt, payment_hash)
+        else:
+            expected_received_sat = 200000
+            pay_req = lnencode(LnAddr(RHASH, amount=1/Decimal(COIN)*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
+            print("payment request", pay_req)
+            advanced_channel = await peer.receive_commitment_revoke_ack(openchannel, expected_received_sat, payment_preimage)
 
-        expected_received_sat = 200000
-        pay_req = lnencode(LnAddr(RHASH, amount=1/Decimal(COIN)*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
-        print("payment request", pay_req)
-        advanced_channel = await peer.receive_commitment_revoke_ack(openchannel, expected_received_sat, payment_preimage)
         dumped = serialize_channels([advanced_channel])
         wallet.storage.put("channels", dumped)
         wallet.storage.write()
