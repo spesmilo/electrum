@@ -24,19 +24,19 @@ import os
 import threading
 
 from . import util
-from . import bitcoin
+from .bitcoin import Hash, hash_encode, int_to_hex, rev_hex
 from . import constants
 from .util import bfh, bh2u
 
 MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
 
 def serialize_header(res):
-    s = bitcoin.int_to_hex(res.get('version'), 4) \
-        + bitcoin.rev_hex(res.get('prev_block_hash')) \
-        + bitcoin.rev_hex(res.get('merkle_root')) \
-        + bitcoin.int_to_hex(int(res.get('timestamp')), 4) \
-        + bitcoin.int_to_hex(int(res.get('bits')), 4) \
-        + bitcoin.int_to_hex(int(res.get('nonce')), 4)
+    s = int_to_hex(res.get('version'), 4) \
+        + rev_hex(res.get('prev_block_hash')) \
+        + rev_hex(res.get('merkle_root')) \
+        + int_to_hex(int(res.get('timestamp')), 4) \
+        + int_to_hex(int(res.get('bits')), 4) \
+        + int_to_hex(int(res.get('nonce')), 4)
     return s
 
 def deserialize_header(s, height):
@@ -47,8 +47,8 @@ def deserialize_header(s, height):
     hex_to_int = lambda s: int('0x' + bh2u(s[::-1]), 16)
     h = {}
     h['version'] = hex_to_int(s[0:4])
-    h['prev_block_hash'] = bitcoin.hash_encode(s[4:36])
-    h['merkle_root'] = bitcoin.hash_encode(s[36:68])
+    h['prev_block_hash'] = hash_encode(s[4:36])
+    h['merkle_root'] = hash_encode(s[36:68])
     h['timestamp'] = hex_to_int(s[68:72])
     h['bits'] = hex_to_int(s[72:76])
     h['nonce'] = hex_to_int(s[76:80])
@@ -60,7 +60,7 @@ def hash_header(header):
         return '0' * 64
     if header.get('prev_block_hash') is None:
         header['prev_block_hash'] = '00'*32
-    return bitcoin.hash_encode(bitcoin.Hash(bfh(serialize_header(header))))
+    return hash_encode(Hash(bfh(serialize_header(header))))
 
 
 blockchains = {}

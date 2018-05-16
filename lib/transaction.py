@@ -23,8 +23,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-
-
 # Note: The deserialization code originally comes from ABE.
 import struct
 import traceback
@@ -37,7 +35,12 @@ from ecdsa.curves import SECP256k1
 
 from .util import print_error, profiler, to_bytes, bh2u, bfh
 from . import bitcoin
-from .bitcoin import TYPE_ADDRESS, TYPE_PUBKEY, TYPE_SCRIPT
+from .bitcoin import (TYPE_ADDRESS, TYPE_PUBKEY, TYPE_SCRIPT, Hash,
+                      hash_160, hash_encode, hash_to_segwit_addr,
+                      hash160_to_p2sh, hash160_to_p2pkh, int_to_hex,
+                      public_key_from_private_key, push_script, regenerate_key,
+                      var_int)
+
 
 #
 # Workalike python implementation of Bitcoin's CDataStream class.
@@ -313,7 +316,7 @@ def parse_scriptSig(d, _bytes):
         if item[0] == 0:
             # segwit embedded into p2sh
             # witness version 0
-            d['address'] = bitcoin.hash160_to_p2sh(bitcoin.hash_160(item))
+            d['address'] = hash160_to_p2sh(hash_160(item))
             if len(item) == 22:
                 d['type'] = 'p2wpkh-p2sh'
             elif len(item) == 34:
@@ -377,7 +380,7 @@ def parse_scriptSig(d, _bytes):
         d['x_pubkeys'] = x_pubkeys
         d['pubkeys'] = pubkeys
         d['redeem_script'] = redeem_script
-        d['address'] = bitcoin.hash160_to_p2sh(bitcoin.hash_160(bfh(redeem_script)))
+        d['address'] = hash160_to_p2sh(hash_160(bfh(redeem_script)))
         return
 
     print_error("parse_scriptSig: cannot find address in input script (unknown)",
@@ -427,26 +430,26 @@ def get_address_from_output_script(_bytes, *, net=None):
     # DUP HASH160 20 BYTES:... EQUALVERIFY CHECKSIG
     match = [ opcodes.OP_DUP, opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG ]
     if match_decoded(decoded, match):
-        return TYPE_ADDRESS, bitcoin.hash160_to_p2pkh(decoded[2][1], net=net)
+        return TYPE_ADDRESS, hash160_to_p2pkh(decoded[2][1], net=net)
 
     # p2sh
     match = [ opcodes.OP_HASH160, opcodes.OP_PUSHDATA4, opcodes.OP_EQUAL ]
     if match_decoded(decoded, match):
-        return TYPE_ADDRESS, bitcoin.hash160_to_p2sh(decoded[1][1], net=net)
+        return TYPE_ADDRESS, hash160_to_p2sh(decoded[1][1], net=net)
 
     # segwit address
     possible_witness_versions = [opcodes.OP_0] + list(range(opcodes.OP_1, opcodes.OP_16 + 1))
     for witver, opcode in enumerate(possible_witness_versions):
         match = [ opcode, opcodes.OP_PUSHDATA4 ]
         if match_decoded(decoded, match):
-            return TYPE_ADDRESS, bitcoin.hash_to_segwit_addr(decoded[1][1], witver=witver, net=net)
+            return TYPE_ADDRESS, hash_to_segwit_addr(decoded[1][1], witver=witver, net=net)
 
     return TYPE_SCRIPT, bh2u(_bytes)
 
 
 def parse_input(vds):
     d = {}
-    prevout_hash = bitcoin.hash_encode(vds.read_bytes(32))
+    prevout_hash = hash_encode(vds.read_bytes(32))
     prevout_n = vds.read_uint32()
     scriptSig = vds.read_bytes(vds.read_compact_size())
     sequence = vds.read_uint32()
@@ -474,7 +477,7 @@ def parse_input(vds):
 
 def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
     """Constructs a witness from the given stack items."""
-    witness = bitcoin.var_int(len(items))
+    witness = var_int(len(items))
     for item in items:
         if type(item) is int:
             item = bitcoin.script_num_to_hex(item)
@@ -654,7 +657,7 @@ class Transaction:
             for sig in sigs2:
                 if sig in sigs1:
                     continue
-                pre_hash = bitcoin.Hash(bfh(self.serialize_preimage(i)))
+                pre_hash = Hash(bfh(self.serialize_preimage(i)))
                 # der to string
                 order = ecdsa.ecdsa.generator_secp256k1.order()
                 r, s = ecdsa.util.sigdecode_der(bfh(sig[:-2]), order)
@@ -782,7 +785,7 @@ class Transaction:
         if self.is_txin_complete(txin) or estimate_size:
             value_field = ''
         else:
-            value_field = bitcoin.var_int(0xffffffff) + bitcoin.int_to_hex(txin['value'], 8)
+            value_field = var_int(0xffffffff) + int_to_hex(txin['value'], 8)
         return value_field + witness
 
     @classmethod
@@ -809,28 +812,28 @@ class Transaction:
             return script_sig
 
         pubkeys, sig_list = self.get_siglist(txin, estimate_size)
-        script = ''.join(bitcoin.push_script(x) for x in sig_list)
+        script = ''.join(push_script(x) for x in sig_list)
         if _type == 'p2pk':
             pass
         elif _type == 'p2sh':
             # put op_0 before script
             script = '00' + script
             redeem_script = multisig_script(pubkeys, txin['num_sig'])
-            script += bitcoin.push_script(redeem_script)
+            script += push_script(redeem_script)
         elif _type == 'p2pkh':
-            script += bitcoin.push_script(pubkeys[0])
+            script += push_script(pubkeys[0])
         elif _type in ['p2wpkh', 'p2wsh']:
             return ''
         elif _type == 'p2wpkh-p2sh':
             pubkey = safe_parse_pubkey(pubkeys[0])
             scriptSig = bitcoin.p2wpkh_nested_script(pubkey)
-            return bitcoin.push_script(scriptSig)
+            return push_script(scriptSig)
         elif _type == 'p2wsh-p2sh':
             witness_script = self.get_preimage_script(txin)
             scriptSig = bitcoin.p2wsh_nested_script(witness_script)
-            return bitcoin.push_script(scriptSig)
+            return push_script(scriptSig)
         elif _type == 'address':
-            script += bitcoin.push_script(pubkeys[0])
+            script += push_script(pubkeys[0])
         elif _type == 'unknown':
             return txin['scriptSig']
         return script
@@ -857,8 +860,8 @@ class Transaction:
             return multisig_script(pubkeys, txin['num_sig'])
         elif txin['type'] in ['p2wpkh', 'p2wpkh-p2sh']:
             pubkey = pubkeys[0]
-            pkh = bh2u(bitcoin.hash_160(bfh(pubkey)))
-            return '76a9' + bitcoin.push_script(pkh) + '88ac'
+            pkh = bh2u(hash_160(bfh(pubkey)))
+            return '76a9' + push_script(pkh) + '88ac'
         elif txin['type'] == 'p2pk':
             pubkey = pubkeys[0]
             return bitcoin.public_key_to_p2pk_script(pubkey)
@@ -867,7 +870,7 @@ class Transaction:
 
     @classmethod
     def serialize_outpoint(self, txin):
-        return bh2u(bfh(txin['prevout_hash'])[::-1]) + bitcoin.int_to_hex(txin['prevout_n'], 4)
+        return bh2u(bfh(txin['prevout_hash'])[::-1]) + int_to_hex(txin['prevout_n'], 4)
 
     @classmethod
     def get_outpoint_from_txin(cls, txin):
@@ -882,9 +885,9 @@ class Transaction:
         # Prev hash and index
         s = self.serialize_outpoint(txin)
         # Script length, script, sequence
-        s += bitcoin.var_int(len(script)//2)
+        s += var_int(len(script)//2)
         s += script
-        s += bitcoin.int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
+        s += int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
         return s
 
     def set_rbf(self, rbf):
@@ -899,33 +902,33 @@ class Transaction:
 
     def serialize_output(self, output):
         output_type, addr, amount = output
-        s = bitcoin.int_to_hex(amount, 8)
+        s = int_to_hex(amount, 8)
         script = self.pay_script(output_type, addr)
-        s += bitcoin.var_int(len(script)//2)
+        s += var_int(len(script)//2)
         s += script
         return s
 
     def serialize_preimage(self, i):
-        nVersion = bitcoin.int_to_hex(self.version, 4)
-        nHashType = bitcoin.int_to_hex(1, 4)
-        nLocktime = bitcoin.int_to_hex(self.locktime, 4)
+        nVersion = int_to_hex(self.version, 4)
+        nHashType = int_to_hex(1, 4)
+        nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
         txin = inputs[i]
         # TODO: py3 hex
         if self.is_segwit_input(txin):
-            hashPrevouts = bh2u(bitcoin.Hash(bfh(''.join(self.serialize_outpoint(txin) for txin in inputs))))
-            hashSequence = bh2u(bitcoin.Hash(bfh(''.join(bitcoin.int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs))))
-            hashOutputs = bh2u(bitcoin.Hash(bfh(''.join(self.serialize_output(o) for o in outputs))))
+            hashPrevouts = bh2u(Hash(bfh(''.join(self.serialize_outpoint(txin) for txin in inputs))))
+            hashSequence = bh2u(Hash(bfh(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs))))
+            hashOutputs = bh2u(Hash(bfh(''.join(self.serialize_output(o) for o in outputs))))
             outpoint = self.serialize_outpoint(txin)
             preimage_script = self.get_preimage_script(txin)
-            scriptCode = bitcoin.var_int(len(preimage_script) // 2) + preimage_script
-            amount = bitcoin.int_to_hex(txin['value'], 8)
-            nSequence = bitcoin.int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
+            scriptCode = var_int(len(preimage_script) // 2) + preimage_script
+            amount = int_to_hex(txin['value'], 8)
+            nSequence = int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
         else:
-            txins = bitcoin.var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.get_preimage_script(txin) if i==k else '') for k, txin in enumerate(inputs))
-            txouts = bitcoin.var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
+            txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.get_preimage_script(txin) if i==k else '') for k, txin in enumerate(inputs))
+            txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
             preimage = nVersion + txins + txouts + nLocktime + nHashType
         return preimage
 
@@ -933,12 +936,12 @@ class Transaction:
         return any(self.is_segwit_input(x) for x in self.inputs())
 
     def serialize(self, estimate_size=False, witness=True):
-        nVersion = bitcoin.int_to_hex(self.version, 4)
-        nLocktime = bitcoin.int_to_hex(self.locktime, 4)
+        nVersion = int_to_hex(self.version, 4)
+        nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
-        txins = bitcoin.var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size)) for txin in inputs)
-        txouts = bitcoin.var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
+        txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size)) for txin in inputs)
+        txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
         if witness and self.is_segwit():
             marker = '00'
             flag = '01'
@@ -956,11 +959,11 @@ class Transaction:
         if not all_segwit and not self.is_complete():
             return None
         ser = self.serialize(witness=False)
-        return bh2u(bitcoin.Hash(bfh(ser))[::-1])
+        return bh2u(Hash(bfh(ser))[::-1])
 
     def wtxid(self):
         ser = self.serialize(witness=True)
-        return bh2u(bitcoin.Hash(bfh(ser))[::-1])
+        return bh2u(Hash(bfh(ser))[::-1])
 
     def add_inputs(self, inputs):
         self._inputs.extend(inputs)
@@ -1069,7 +1072,7 @@ class Transaction:
                 if x_pubkey in keypairs.keys():
                     print_error("adding signature for", x_pubkey)
                     sec, compressed = keypairs.get(x_pubkey)
-                    pubkey = bitcoin.public_key_from_private_key(sec, compressed)
+                    pubkey = public_key_from_private_key(sec, compressed)
                     # add signature
                     sig = self.sign_txin(i, sec)
                     self.add_signature_to_txin(txin, j, sig)
@@ -1080,8 +1083,8 @@ class Transaction:
         self.raw = self.serialize()
 
     def sign_txin(self, txin_index, privkey_bytes):
-        pre_hash = bitcoin.Hash(bfh(self.serialize_preimage(txin_index)))
-        pkey = bitcoin.regenerate_key(privkey_bytes)
+        pre_hash = Hash(bfh(self.serialize_preimage(txin_index)))
+        pkey = regenerate_key(privkey_bytes)
         secexp = pkey.secret
         private_key = bitcoin.MySigningKey.from_secret_exponent(secexp, curve=SECP256k1)
         public_key = private_key.get_verifying_key()
