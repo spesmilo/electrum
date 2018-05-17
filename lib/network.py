@@ -625,7 +625,7 @@ class Network(util.DaemonThread):
             # Response is now in canonical form
             self.process_response(interface, response, callbacks)
 
-    def overload_cb(self, callback):
+    def map_scripthash_to_address(self, callback):
         def cb2(x):
             x2 = x.copy()
             p = x2.pop('params')
@@ -638,12 +638,12 @@ class Network(util.DaemonThread):
         hash2address = {bitcoin.address_to_scripthash(address): address for address in addresses}
         self.h2addr.update(hash2address)
         msgs = [('blockchain.scripthash.subscribe', [x]) for x in hash2address.keys()]
-        self.send(msgs, self.overload_cb(callback))
+        self.send(msgs, self.map_scripthash_to_address(callback))
 
     def request_address_history(self, address, callback):
         h = bitcoin.address_to_scripthash(address)
         self.h2addr.update({h: address})
-        self.send([('blockchain.scripthash.get_history', [h])], self.overload_cb(callback))
+        self.send([('blockchain.scripthash.get_history', [h])], self.map_scripthash_to_address(callback))
 
     def send(self, messages, callback):
         '''Messages is a list of (method, params) tuples'''
