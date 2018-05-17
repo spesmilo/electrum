@@ -18,7 +18,7 @@ import time
 import binascii
 import hashlib
 import hmac
-from typing import Sequence, Union
+from typing import Sequence, Union, Tuple
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
 from cryptography.hazmat.backends import default_backend
@@ -1480,11 +1480,12 @@ class LNPathFinder(PrintError):
 
     @profiler
     def find_path_for_payment(self, from_node_id: bytes, to_node_id: bytes,
-                              amount_msat: int=None) -> Sequence[bytes, bytes]:
+                              amount_msat: int=None) -> Sequence[Tuple[bytes, bytes]]:
         """Return a path between from_node_id and to_node_id.
 
         Returns a list of (node_id, short_channel_id) representing a path.
-        To get from node ret[n][0] to ret[n+1][0], use channel ret[n][1]
+        To get from node ret[n][0] to ret[n+1][0], use channel ret[n+1][1];
+        i.e. an element reads as, "to get to node_id, travel through short_channel_id"
         """
         # TODO find multiple paths??
 
@@ -1519,10 +1520,11 @@ class LNPathFinder(PrintError):
 
         # backtrack from end to start
         cur_node = to_node_id
-        path = [(cur_node, None)]
+        path = []
         while cur_node != from_node_id:
-            cur_node, edge_taken = prev_node[cur_node]
+            prev_node_id, edge_taken = prev_node[cur_node]
             path += [(cur_node, edge_taken)]
+            cur_node = prev_node_id
         path.reverse()
         return path
 
