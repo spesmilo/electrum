@@ -570,6 +570,7 @@ def is_synced(network):
 
 class Peer(PrintError):
     def __init__(self, host, port, pubkey, privkey, request_initial_sync=False, network=None):
+        self.channel_update_event = asyncio.Event()
         self.host = host
         self.port = port
         self.privkey = privkey
@@ -771,10 +772,15 @@ class Peer(PrintError):
         pass
 
     def on_channel_update(self, payload):
+        print("ON_CHANNEL_UPDATE")
+        print(payload)
         self.channel_db.on_channel_update(payload)
+        self.channel_update_event.set()
 
     def on_channel_announcement(self, payload):
+        print("ON_CHANNEL_ANNOUNCEMENT", payload)
         self.channel_db.on_channel_announcement(payload)
+        self.channel_update_event.set()
 
     #def open_channel(self, funding_sat, push_msat):
     #    self.send_message(gen_msg('open_channel', funding_sat=funding_sat, push_msat=push_msat))
@@ -1030,6 +1036,9 @@ class Peer(PrintError):
 
         return chan._replace(short_channel_id=short_channel_id, remote_state=chan.remote_state._replace(next_per_commitment_point=remote_funding_locked_msg["next_per_commitment_point"]))
 
+    def on_update_fail_htlc(self, payload):
+        print("UPDATE_FAIL_HTLC", decode_onion_error(payload["reason"], self.node_keys, self.secret_key))
+
     async def pay(self, wallet, chan, sat, payment_hash, pubkey_in_invoice):
         def derive_and_incr():
             nonlocal chan
@@ -1057,10 +1066,35 @@ class Peer(PrintError):
         assert sat > 0, "sat is not positive"
         amount_msat = sat * 1000
 
-        assert type(self.pubkey) is bytes
-        hops_data = [OnionHopsDataSingle(OnionPerHop(chan.short_channel_id, amount_msat.to_bytes(8, "big"), cltv_expiry.to_bytes(4, "big")))]
+        our_pubkey = bfh(EC_KEY(self.privkey).get_public_key(True))
+        sorted_keys = list(sorted([self.pubkey, our_pubkey]))
+        self.channel_db.on_channel_announcement({"short_channel_id": chan.short_channel_id, "node_id_1": sorted_keys[0], "node_id_2": sorted_keys[1]})
+        self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'flags': b'\x01', 'cltv_expiry_delta': b'\x90', 'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01'})
+        self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'flags': b'\x00', 'cltv_expiry_delta': b'\x90', 'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01'})
+
+        print("our short chan id", chan.short_channel_id)
+        while True:
+            path = self.path_finder.find_path_for_payment(our_pubkey, pubkey_in_invoice, amount_msat)
+            print(path)
+            print(self.channel_db.get_channels_for_node(pubkey_in_invoice))
+            print(self.channel_db.get_channels_for_node(our_pubkey))
+            if path is not None:
+                break
+            print("waiting for path")
+            await self.channel_update_event.wait()
+            self.channel_update_event.clear()
+
+        route = self.path_finder.create_route_from_path(path, our_pubkey)
+
+        hops_data = []
+        substract = (len(route))*9
+        for route_edge in route:
+            hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id, amount_msat.to_bytes(8, "big"), (cltv_expiry+(len(route))*9-substract).to_bytes(4, "big")))]
+            substract -= 9
         associated_data = payment_hash
-        onion = new_onion_packet([self.pubkey], os.urandom(32), hops_data, associated_data)
+        self.secret_key = os.urandom(32)
+        self.node_keys = [x.node_id for x in route]
+        onion = new_onion_packet(self.node_keys, self.secret_key, hops_data, associated_data)
 
         self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=chan.local_state.next_htlc_id, cltv_expiry=cltv_expiry, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
 
@@ -1356,6 +1390,9 @@ class ChannelInfo(PrintError):
         self.channel_id = channel_announcement_payload['short_channel_id']
         self.node_id_1 = channel_announcement_payload['node_id_1']
         self.node_id_2 = channel_announcement_payload['node_id_2']
+        assert type(self.node_id_1) is bytes
+        assert type(self.node_id_2) is bytes
+        assert list(sorted([self.node_id_1, self.node_id_2])) == [self.node_id_1, self.node_id_2]
 
         self.capacity_sat = None
         self.policy_node1 = None
@@ -1368,12 +1405,12 @@ class ChannelInfo(PrintError):
     def on_channel_update(self, msg_payload):
         assert self.channel_id == msg_payload['short_channel_id']
         flags = int.from_bytes(msg_payload['flags'], 'big')
-        direction = bool(flags & 1)
+        direction = flags & 1
         if direction == 0:
             self.policy_node1 = ChannelInfoDirectedPolicy(msg_payload)
         else:
             self.policy_node2 = ChannelInfoDirectedPolicy(msg_payload)
-        self.print_error('channel update', binascii.hexlify(self.channel_id), flags)
+        self.print_error('channel update', binascii.hexlify(self.channel_id).decode("ascii"), flags)
 
     def get_policy_for_node(self, node_id):
         if node_id == self.node_id_1:
@@ -1391,7 +1428,10 @@ class ChannelInfoDirectedPolicy:
         self.htlc_minimum_msat           = channel_update_payload['htlc_minimum_msat']
         self.fee_base_msat               = channel_update_payload['fee_base_msat']
         self.fee_proportional_millionths = channel_update_payload['fee_proportional_millionths']
-
+        self.cltv_expiry_delta = int.from_bytes(self.cltv_expiry_delta, "big")
+        self.htlc_minimum_msat = int.from_bytes(self.htlc_minimum_msat, "big")
+        self.fee_base_msat = int.from_bytes(self.fee_base_msat, "big")
+        self.fee_proportional_millionths = int.from_bytes(self.fee_proportional_millionths, "big")
 
 class ChannelDB(PrintError):
 
@@ -1408,7 +1448,7 @@ class ChannelDB(PrintError):
 
     def on_channel_announcement(self, msg_payload):
         short_channel_id = msg_payload['short_channel_id']
-        self.print_error('channel announcement', binascii.hexlify(short_channel_id))
+        self.print_error('channel announcement', binascii.hexlify(short_channel_id).decode("ascii"))
         channel_info = ChannelInfo(msg_payload)
         self._id_to_channel_info[short_channel_id] = channel_info
         self._channels_for_node[channel_info.node_id_1].add(short_channel_id)
@@ -1419,7 +1459,7 @@ class ChannelDB(PrintError):
         try:
             channel_info = self._id_to_channel_info[short_channel_id]
         except KeyError:
-            pass  # ignore channel update
+            print("could not find", short_channel_id)
         else:
             channel_info.on_channel_update(msg_payload)
 
@@ -1460,6 +1500,7 @@ class LNPathFinder(PrintError):
             return float('inf')
 
         channel_policy = channel_info.get_policy_for_node(start_node)
+        if channel_policy is None: return float('inf')
         cltv_expiry_delta           = channel_policy.cltv_expiry_delta
         htlc_minimum_msat           = channel_policy.htlc_minimum_msat
         fee_base_msat               = channel_policy.fee_base_msat
@@ -1487,6 +1528,7 @@ class LNPathFinder(PrintError):
         To get from node ret[n][0] to ret[n+1][0], use channel ret[n+1][1];
         i.e. an element reads as, "to get to node_id, travel through short_channel_id"
         """
+        if amount_msat is not None: assert type(amount_msat) is int
         # TODO find multiple paths??
 
         # run Dijkstra
@@ -1528,18 +1570,21 @@ class LNPathFinder(PrintError):
         path.reverse()
         return path
 
-    def create_route_from_path(self, path) -> Sequence[RouteEdge]:
+    def create_route_from_path(self, path, from_node_id: bytes) -> Sequence[RouteEdge]:
+        assert type(from_node_id) is bytes
         if path is None:
             raise Exception('cannot create route from None path')
         route = []
+        prev_node_id = from_node_id
         for node_id, short_channel_id in path:
             channel_info = self.channel_db.get_channel_info(short_channel_id)
             if channel_info is None:
                 raise Exception('cannot find channel info for short_channel_id: {}'.format(bh2u(short_channel_id)))
-            channel_policy = channel_info.get_policy_for_node(node_id)
+            channel_policy = channel_info.get_policy_for_node(prev_node_id)
             if channel_policy is None:
                 raise Exception('cannot find channel policy for short_channel_id: {}'.format(bh2u(short_channel_id)))
             route.append(RouteEdge(node_id, short_channel_id, channel_policy))
+            prev_node_id = node_id
         return route
 
 
@@ -1767,6 +1812,8 @@ class OnionRoutingFailureMessage:
     def __init__(self, code: int, data: bytes):
         self.code = code
         self.data = data
+    def __repr__(self):
+        return repr((self.code, self.data))
 
 
 def _decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[bytes],
