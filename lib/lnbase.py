@@ -1437,12 +1437,21 @@ class ChannelDB(PrintError):
                 pass
 
 
+class RouteEdge:
+
+    def __init__(self, node_id: bytes, short_channel_id: bytes,
+                 channel_policy: ChannelInfoDirectedPolicy):
+        self.node_id = node_id
+        self.short_channel_id = short_channel_id
+        self.channel_policy = channel_policy
+
+
 class LNPathFinder(PrintError):
 
     def __init__(self, channel_db):
         self.channel_db = channel_db
 
-    def _edge_cost(self, short_channel_id, start_node, payment_amt_msat):
+    def _edge_cost(self, short_channel_id: bytes, start_node: bytes, payment_amt_msat: int) -> float:
         """Heuristic cost of going through a channel.
         direction: 0 or 1. --- 0 means node_id_1 -> node_id_2
         """
@@ -1470,7 +1479,8 @@ class LNPathFinder(PrintError):
         return cltv_cost + fee_cost + 1
 
     @profiler
-    def find_path_for_payment(self, from_node_id, to_node_id, amount_msat=None):
+    def find_path_for_payment(self, from_node_id: bytes, to_node_id: bytes,
+                              amount_msat: int=None) -> Sequence[bytes, bytes]:
         """Return a path between from_node_id and to_node_id.
 
         Returns a list of (node_id, short_channel_id) representing a path.
@@ -1515,6 +1525,20 @@ class LNPathFinder(PrintError):
             path += [(cur_node, edge_taken)]
         path.reverse()
         return path
+
+    def create_route_from_path(self, path) -> Sequence[RouteEdge]:
+        if path is None:
+            raise Exception('cannot create route from None path')
+        route = []
+        for node_id, short_channel_id in path:
+            channel_info = self.channel_db.get_channel_info(short_channel_id)
+            if channel_info is None:
+                raise Exception('cannot find channel info for short_channel_id: {}'.format(bh2u(short_channel_id)))
+            channel_policy = channel_info.get_policy_for_node(node_id)
+            if channel_policy is None:
+                raise Exception('cannot find channel policy for short_channel_id: {}'.format(bh2u(short_channel_id)))
+            route.append(RouteEdge(node_id, short_channel_id, channel_policy))
+        return route
 
 
 # bolt 04, "onion"  ----->
