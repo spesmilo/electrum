@@ -34,6 +34,7 @@ from .util import PrintError, bh2u, print_error, bfh, profiler, xor_bytes
 from .transaction import opcodes, Transaction
 
 from collections import namedtuple, defaultdict
+import decimal
 
 # hardcoded nodes
 node_list = [
@@ -570,6 +571,7 @@ def is_synced(network):
 
 class Peer(PrintError):
     def __init__(self, host, port, pubkey, privkey, request_initial_sync=False, network=None):
+        self.update_add_htlc_event = asyncio.Event()
         self.channel_update_event = asyncio.Event()
         self.host = host
         self.port = port
@@ -1089,16 +1091,23 @@ class Peer(PrintError):
         hops_data = []
         next_hop_cltv_expiry = sum(route_edge.channel_policy.cltv_expiry_delta for route_edge in route[1:])
         computed_cltv_expiry = height + 9 # TODO use c tag in invoice (min_final_cltv_expiry)
+        total_fee = 0
         print("traversing route")
         for idx, route_edge in enumerate(route):
             print("unused delta", route_edge.channel_policy.cltv_expiry_delta)
             hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id, amount_msat.to_bytes(8, "big"), computed_cltv_expiry.to_bytes(4, "big")))]
+            if idx != 0:
+                total_fee += route_edge.channel_policy.fee_base_msat + ( amount_msat * route_edge.channel_policy.fee_proportional_millionths // 1000000 )
         associated_data = payment_hash
         self.secret_key = os.urandom(32)
         self.node_keys = [x.node_id for x in route]
         onion = new_onion_packet(self.node_keys, self.secret_key, hops_data, associated_data)
 
         cltv_expiry = height + next_hop_cltv_expiry + 9 # TODO use min_final_cltv_expiry
+
+        print("total fee", total_fee)
+        amount_msat += total_fee
+        sat = int((decimal.Decimal(amount_msat) / 1000).to_integral_value(rounding=decimal.ROUND_UP))
 
         self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=chan.local_state.next_htlc_id, cltv_expiry=cltv_expiry, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
 
@@ -1117,7 +1126,7 @@ class Peer(PrintError):
         sig_64 = sign_and_get_sig_string(remote_ctx, chan.local_config, chan.remote_config)
 
         htlc_tx = make_htlc_tx_with_open_channel(chan, chan.remote_state.next_per_commitment_point, False, False, amount_msat, cltv_expiry, payment_hash, remote_ctx, 0)
-        # htlc_sig signs the HTLC transaction that spends from THEIR commitment transaction's offered_htlc output
+        # htlc_sig signs the HTLC transaction that spends from THEIR commitment transaction's received_htlc output
         sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
         r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
         htlc_sig = sigencode_string_canonize(r, s, SECP256k1.generator.order())
@@ -1137,20 +1146,13 @@ class Peer(PrintError):
             per_commitment_secret=last_secret,
             next_per_commitment_point=next_point))
 
-        try:
-            update_fulfill_htlc_msg = await self.update_fulfill_htlc[chan.channel_id]
-        finally:
-            del self.update_fulfill_htlc[chan.channel_id]
-
-        # TODO use other fields too
-        next_per_commitment_point = revoke_and_ack_msg["next_per_commitment_point"]
+        # we receive update_add_htlc
+        print("receiving commitment_signed")
 
         try:
             commitment_signed_msg = await self.commitment_signed[chan.channel_id]
         finally:
             del self.commitment_signed[chan.channel_id]
-
-        # TODO check commitment_signed results
 
         last_secret, _, next_point = derive_and_incr()
         their_revstore.add_next_entry(last_secret)
@@ -1159,12 +1161,31 @@ class Peer(PrintError):
             per_commitment_secret=last_secret,
             next_per_commitment_point=next_point))
 
+        # TODO use other fields too
+        next_per_commitment_point = revoke_and_ack_msg["next_per_commitment_point"]
+
+        # TODO check commitment_signed results
+
+        await self.update_add_htlc_event.wait()
+        self.update_add_htlc_event.clear()
+        print("we should use the htlc", self.unfulfilled_htlcs)
+        received_payment_hash = self.unfulfilled_htlcs[0]["payment_hash"]
+        assert received_payment_hash == payment_hash
+        print("PAYMENT HASHES MATCHED")
+
+        # TODO should include the htlc they added
         bare_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 2, False, next_per_commitment_point,
             chan.remote_state.amount_sat + sat, chan.local_state.amount_sat - sat)
 
         sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
 
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=0))
+
+        try:
+            update_fulfill_htlc_msg = await self.update_fulfill_htlc[chan.channel_id]
+        finally:
+            del self.update_fulfill_htlc[chan.channel_id]
+
         try:
             revoke_and_ack_msg = await self.revoke_and_ack[chan.channel_id]
         finally:
@@ -1356,6 +1377,7 @@ class Peer(PrintError):
         self.print_error('on_update_add_htlc', payload)
         assert self.unfulfilled_htlcs == []
         self.unfulfilled_htlcs.append(payload)
+        self.update_add_htlc_event.set()
 
     def on_revoke_and_ack(self, payload):
         channel_id = int.from_bytes(payload["channel_id"], 'big')
