@@ -1062,7 +1062,7 @@ class Peer(PrintError):
         while not is_synced(wallet.network):
             await asyncio.sleep(1)
             print("sleeping more")
-        cltv_expiry = wallet.get_local_height() + chan.remote_config.to_self_delay
+        height = wallet.get_local_height()
         assert sat > 0, "sat is not positive"
         amount_msat = sat * 1000
 
@@ -1087,14 +1087,18 @@ class Peer(PrintError):
         route = self.path_finder.create_route_from_path(path, our_pubkey)
 
         hops_data = []
-        substract = (len(route))*9
-        for route_edge in route:
-            hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id, amount_msat.to_bytes(8, "big"), (cltv_expiry+(len(route))*9-substract).to_bytes(4, "big")))]
-            substract -= 9
+        next_hop_cltv_expiry = sum(route_edge.channel_policy.cltv_expiry_delta for route_edge in route[1:])
+        computed_cltv_expiry = height + 9 # TODO use c tag in invoice (min_final_cltv_expiry)
+        print("traversing route")
+        for idx, route_edge in enumerate(route):
+            print("unused delta", route_edge.channel_policy.cltv_expiry_delta)
+            hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id, amount_msat.to_bytes(8, "big"), computed_cltv_expiry.to_bytes(4, "big")))]
         associated_data = payment_hash
         self.secret_key = os.urandom(32)
         self.node_keys = [x.node_id for x in route]
         onion = new_onion_packet(self.node_keys, self.secret_key, hops_data, associated_data)
+
+        cltv_expiry = height + next_hop_cltv_expiry + 9 # TODO use min_final_cltv_expiry
 
         self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=chan.local_state.next_htlc_id, cltv_expiry=cltv_expiry, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
 
