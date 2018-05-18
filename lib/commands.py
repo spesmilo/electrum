@@ -647,7 +647,7 @@ class Commands:
                 util.print_error('Got Response for %s' % address)
             except BaseException as e:
                 util.print_error(str(e))
-        self.network.subscribe_to_addresses([addr], callback)
+        self.network.subscribe_to_addresses([address], callback)
         return True
 
     @command('wn')
