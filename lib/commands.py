@@ -426,7 +426,6 @@ class Commands:
         if rbf:
             tx.set_rbf(True)
         if not unsigned:
-            run_hook('sign_tx', self.wallet, tx)
             self.wallet.sign_transaction(tx, password)
         return tx
 
