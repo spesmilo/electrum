@@ -92,13 +92,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     synchronized_signal = pyqtSignal(str)
 
     def __init__(self, config, app, plugins, storage):
-        BaseWizard.__init__(self, config, storage)
+        BaseWizard.__init__(self, config, plugins, storage)
         QDialog.__init__(self, None)
         self.setWindowTitle('Electrum  -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
         # Set for base base class
-        self.plugins = plugins
         self.language_for_seed = config.get('language')
         self.setMinimumSize(600, 400)
         self.accept_signal.connect(self.accept)

@@ -505,7 +505,7 @@ class ElectrumWindow(App):
         else:
             Logger.debug('Electrum: Wallet not found. Launching install wizard')
             storage = WalletStorage(path, manual_upgrades=True)
-            wizard = Factory.InstallWizard(self.electrum_config, storage)
+            wizard = Factory.InstallWizard(self.electrum_config, self.plugins, storage)
             wizard.bind(on_wizard_complete=self.on_wizard_complete)
             action = wizard.storage.get_action()
             wizard.run(action)
@@ -823,6 +823,7 @@ class ElectrumWindow(App):
         except InvalidPassword:
             Clock.schedule_once(lambda dt: on_failure(_("Invalid PIN")))
             return
+        on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
         Clock.schedule_once(lambda dt: on_success(tx))
 
     def _broadcast_thread(self, tx, on_complete):

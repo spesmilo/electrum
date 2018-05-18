@@ -1513,6 +1513,7 @@ class Abstract_Wallet(PrintError):
                     k.sign_transaction(tx, password)
             except UserCancelled:
                 continue
+        return tx
 
     def get_unused_addresses(self):
         # fixme: use slots from expired requests

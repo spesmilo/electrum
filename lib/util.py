@@ -446,6 +446,10 @@ def user_dir():
         #raise Exception("No home directory found in environment variables.")
         return
 
+def is_valid_email(s):
+    regexp = r"[^@]+@[^@]+\.[^@]+"
+    return re.match(regexp, s) is not None
+
 
 def format_satoshis_plain(x, decimal_point = 8):
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal

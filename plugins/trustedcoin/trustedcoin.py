@@ -75,6 +75,18 @@ DISCLAIMER = [
       "To be safe from malware, you may want to do this on an offline "
       "computer, and move your wallet later to an online computer."),
 ]
+
+KIVY_DISCLAIMER = [
+    _("Two-factor authentication is a service provided by TrustedCoin. "
+      "To use it, you must have a separate device with Google Authenticator."),
+    _("This service uses a multi-signature wallet, where you own 2 of 3 keys.  "
+      "The third key is stored on a remote server that signs transactions on "
+      "your behalf.A small fee will be charged on each transaction that uses the "
+      "remote server."),
+    _("Note that your coins are not locked in this service.  You may withdraw "
+      "your funds at any time and at no cost, without the remote server, by "
+      "using the 'restore wallet' option with your wallet seed."),
+]
 RESTORE_MSG = _("Enter the seed for your 2-factor wallet:")
 
 class TrustedCoinException(Exception):
@@ -215,7 +227,6 @@ class Wallet_2fa(Multisig_Wallet):
         Deterministic_Wallet.__init__(self, storage)
         self.is_billing = False
         self.billing_info = None
-        self.auth_code = None
 
     def can_sign_without_server(self):
         return not self.keystores['x2/'].is_watching_only()
@@ -269,25 +280,22 @@ class Wallet_2fa(Multisig_Wallet):
             tx = mk_tx(outputs)
         return tx
 
-    def sign_transaction(self, tx, password):
-        Multisig_Wallet.sign_transaction(self, tx, password)
-        if tx.is_complete():
-            return
-        self.plugin.prompt_user_for_otp(self, tx)
-        if not self.auth_code:
+    def on_otp(self, tx, otp):
+        if not otp:
             self.print_error("sign_transaction: no auth code")
             return
+        otp = int(otp)
         long_user_id, short_id = self.get_user_id()
         tx_dict = tx.as_dict()
         raw_tx = tx_dict["hex"]
-        r = server.sign(short_id, raw_tx, self.auth_code)
+        r = server.sign(short_id, raw_tx, otp)
         if r:
             raw_tx = r.get('transaction')
             tx.update(raw_tx)
         self.print_error("twofactor: is complete", tx.is_complete())
         # reset billing_info
         self.billing_info = None
-        self.auth_code = None
+
 
 
 # Utility functions
@@ -316,6 +324,7 @@ def make_billing_address(wallet, num):
 
 class TrustedCoinPlugin(BasePlugin):
     wallet_class = Wallet_2fa
+    disclaimer_msg = DISCLAIMER
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
@@ -334,6 +343,21 @@ class TrustedCoinPlugin(BasePlugin):
 
     def can_user_disable(self):
         return False
+
+    @hook
+    def tc_sign_wrapper(self, wallet, tx, on_success, on_failure):
+        if not isinstance(wallet, self.wallet_class):
+            return
+        if tx.is_complete():
+            return
+        if wallet.can_sign_without_server():
+            return
+        if not wallet.keystores['x3/'].get_tx_derivations(tx):
+            self.print_error("twofactor: xpub3 not needed")
+            return
+        def wrapper(tx):
+            self.prompt_user_for_otp(wallet, tx, on_success, on_failure)
+        return wrapper
 
     @hook
     def get_tx_extra_fee(self, wallet, tx):
@@ -391,7 +415,7 @@ class TrustedCoinPlugin(BasePlugin):
     def show_disclaimer(self, wizard):
         wizard.set_icon(':icons/trustedcoin-wizard.png')
         wizard.stack = []
-        wizard.confirm_dialog(title='Disclaimer', message='\n\n'.join(DISCLAIMER), run_next = lambda x: wizard.run('choose_seed'))
+        wizard.confirm_dialog(title='Disclaimer', message='\n\n'.join(self.disclaimer_msg), run_next = lambda x: wizard.run('choose_seed'))
 
     def choose_seed(self, wizard):
         title = _('Create or restore')
@@ -450,18 +474,7 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.storage.put('x1/', k1.dump())
         wizard.storage.put('x2/', k2.dump())
         wizard.storage.write()
-        msg = [
-            _("Your wallet file is: {}.").format(os.path.abspath(wizard.storage.path)),
-            _("You need to be online in order to complete the creation of "
-              "your wallet.  If you generated your seed on an offline "
-              'computer, click on "{}" to close this window, move your '
-              "wallet file to an online computer, and reopen it with "
-              "Electrum.").format(_('Cancel')),
-            _('If you are online, click on "{}" to continue.').format(_('Next'))
-        ]
-        msg = '\n\n'.join(msg)
-        wizard.stack = []
-        wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('create_remote_key'))
+        self.go_online_dialog(wizard)
 
     def restore_wallet(self, wizard):
         wizard.opt_bip39 = False
@@ -516,8 +529,8 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.wallet = Wallet_2fa(storage)
         wizard.create_addresses()
 
-    def create_remote_key(self, wizard):
-        email = self.accept_terms_of_use(wizard)
+
+    def create_remote_key(self, email, wizard):
         xpub1 = wizard.storage.get('x1/')['xpub']
         xpub2 = wizard.storage.get('x2/')['xpub']
         # Generate third key deterministically.
@@ -550,10 +563,9 @@ class TrustedCoinPlugin(BasePlugin):
             except Exception as e:
                 wizard.show_message(str(e))
                 return
-        self.check_otp(wizard, short_id, otp_secret, xpub3)
+        self.request_otp_dialog(wizard, short_id, otp_secret, xpub3)
 
-    def check_otp(self, wizard, short_id, otp_secret, xpub3):
-        otp, reset = self.request_otp_dialog(wizard, short_id, otp_secret)
+    def check_otp(self, wizard, short_id, otp_secret, xpub3, otp, reset):
         if otp:
             self.do_auth(wizard, short_id, otp, xpub3)
         elif reset:
@@ -569,8 +581,8 @@ class TrustedCoinPlugin(BasePlugin):
     def do_auth(self, wizard, short_id, otp, xpub3):
         try:
             server.auth(short_id, otp)
-        except:
-            wizard.show_message(_('Incorrect password'))
+        except Exception as e:
+            wizard.show_message(str(e))
             return
         k3 = keystore.from_xpub(xpub3)
         wizard.storage.put('x3/', k3.dump())
@@ -603,7 +615,7 @@ class TrustedCoinPlugin(BasePlugin):
         if not new_secret:
             wizard.show_message(_('Request rejected by server'))
             return
-        self.check_otp(wizard, short_id, new_secret, xpub3)
+        self.request_otp_dialog(wizard, short_id, new_secret, xpub3)
 
     @hook
     def get_action(self, storage):
@@ -614,4 +626,4 @@ class TrustedCoinPlugin(BasePlugin):
         if not storage.get('x2/'):
             return self, 'show_disclaimer'
         if not storage.get('x3/'):
-            return self, 'create_remote_key'
+            return self, 'accept_terms_of_use'

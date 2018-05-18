@@ -1577,20 +1577,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
-
-        def on_signed(result):
+        def on_success(result):
             callback(True)
-        def on_failed(exc_info):
+        def on_failure(exc_info):
             self.on_error(exc_info)
             callback(False)
-
+        on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
         if self.tx_external_keypairs:
             # can sign directly
             task = partial(Transaction.sign, tx, self.tx_external_keypairs)
         else:
             task = partial(self.wallet.sign_transaction, tx, password)
-        WaitingDialog(self, _('Signing transaction...'), task,
-                      on_signed, on_failed)
+        msg = _('Signing transaction...')
+        WaitingDialog(self, msg, task, on_success, on_failure)
 
     def broadcast_transaction(self, tx, tx_desc):
 

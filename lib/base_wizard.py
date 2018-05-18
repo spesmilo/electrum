@@ -48,9 +48,10 @@ class GoBack(Exception): pass
 
 class BaseWizard(object):
 
-    def __init__(self, config, storage):
+    def __init__(self, config, plugins, storage):
         super(BaseWizard, self).__init__()
         self.config = config
+        self.plugins = plugins
         self.storage = storage
         self.wallet = None
         self.stack = []
@@ -58,6 +59,9 @@ class BaseWizard(object):
         self.keystores = []
         self.is_kivy = config.get('gui') == 'kivy'
         self.seed_type = None
+
+    def set_icon(self, icon):
+        pass
 
     def run(self, *args):
         action = args[0]
@@ -369,12 +373,8 @@ class BaseWizard(object):
         elif self.seed_type == 'old':
             self.run('create_keystore', seed, '')
         elif self.seed_type == '2fa':
-            if self.is_kivy:
-                self.show_error(_('2FA seeds are not supported in this version'))
-                self.run('restore_from_seed')
-            else:
-                self.load_2fa()
-                self.run('on_restore_seed', seed, is_ext)
+            self.load_2fa()
+            self.run('on_restore_seed', seed, is_ext)
         else:
             raise Exception('Unknown seed type', self.seed_type)
 
