@@ -569,6 +569,8 @@ def is_synced(network):
     synced = server_height != 0 and network.is_up_to_date() and local_height >= server_height
     return synced
 
+msat_to_sat_round_up = lambda amount_msat: int((decimal.Decimal(amount_msat) / 1000).to_integral_value(rounding=decimal.ROUND_UP))
+
 class Peer(PrintError):
     def __init__(self, host, port, pubkey, privkey, request_initial_sync=False, network=None):
         self.update_add_htlc_event = asyncio.Event()
@@ -695,6 +697,7 @@ class Peer(PrintError):
 
     def process_message(self, message):
         message_type, payload = decode_msg(message)
+        self.print_error("Received '%s'" % message_type.upper())
         try:
             f = getattr(self, 'on_' + message_type)
         except AttributeError:
@@ -774,13 +777,10 @@ class Peer(PrintError):
         pass
 
     def on_channel_update(self, payload):
-        print("ON_CHANNEL_UPDATE")
-        print(payload)
         self.channel_db.on_channel_update(payload)
         self.channel_update_event.set()
 
     def on_channel_announcement(self, payload):
-        print("ON_CHANNEL_ANNOUNCEMENT", payload)
         self.channel_db.on_channel_announcement(payload)
         self.channel_update_event.set()
 
@@ -1077,9 +1077,6 @@ class Peer(PrintError):
         print("our short chan id", chan.short_channel_id)
         while True:
             path = self.path_finder.find_path_for_payment(our_pubkey, pubkey_in_invoice, amount_msat)
-            print(path)
-            print(self.channel_db.get_channels_for_node(pubkey_in_invoice))
-            print(self.channel_db.get_channels_for_node(our_pubkey))
             if path is not None:
                 break
             print("waiting for path")
@@ -1090,24 +1087,22 @@ class Peer(PrintError):
 
         hops_data = []
         next_hop_cltv_expiry = sum(route_edge.channel_policy.cltv_expiry_delta for route_edge in route[1:])
-        computed_cltv_expiry = height + 9 # TODO use c tag in invoice (min_final_cltv_expiry)
+        print("next_hop_cltv_expiry", next_hop_cltv_expiry)
+        computed_cltv_expiry = height + next_hop_cltv_expiry # TODO use c tag in invoice (min_final_cltv_expiry)
         total_fee = 0
-        print("traversing route")
-        for idx, route_edge in enumerate(route):
-            print("unused delta", route_edge.channel_policy.cltv_expiry_delta)
+        for idx, route_edge in enumerate(route[1:]):
             hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id, amount_msat.to_bytes(8, "big"), computed_cltv_expiry.to_bytes(4, "big")))]
-            if idx != 0:
-                total_fee += route_edge.channel_policy.fee_base_msat + ( amount_msat * route_edge.channel_policy.fee_proportional_millionths // 1000000 )
+            total_fee += route_edge.channel_policy.fee_base_msat + ( amount_msat * route_edge.channel_policy.fee_proportional_millionths // 1000000 )
+        hops_data += [OnionHopsDataSingle(OnionPerHop(b"\x00"*8, amount_msat.to_bytes(8, "big"), (computed_cltv_expiry + next_hop_cltv_expiry).to_bytes(4, "big")))]
         associated_data = payment_hash
         self.secret_key = os.urandom(32)
         self.node_keys = [x.node_id for x in route]
         onion = new_onion_packet(self.node_keys, self.secret_key, hops_data, associated_data)
 
-        cltv_expiry = height + next_hop_cltv_expiry + 9 # TODO use min_final_cltv_expiry
+        cltv_expiry = computed_cltv_expiry + chan.remote_config.to_self_delay # TODO use min_final_cltv_expiry
 
-        print("total fee", total_fee)
         amount_msat += total_fee
-        sat = int((decimal.Decimal(amount_msat) / 1000).to_integral_value(rounding=decimal.ROUND_UP))
+        sat = msat_to_sat_round_up(amount_msat)
 
         self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=chan.local_state.next_htlc_id, cltv_expiry=cltv_expiry, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
 
@@ -1146,9 +1141,14 @@ class Peer(PrintError):
             per_commitment_secret=last_secret,
             next_per_commitment_point=next_point))
 
-        # we receive update_add_htlc
-        print("receiving commitment_signed")
+        print("waiting for update_fulfill")
 
+        try:
+            update_fulfill_htlc_msg = await self.update_fulfill_htlc[chan.channel_id]
+        finally:
+            del self.update_fulfill_htlc[chan.channel_id]
+
+        print("waiting for commitment_signed")
         try:
             commitment_signed_msg = await self.commitment_signed[chan.channel_id]
         finally:
@@ -1161,30 +1161,14 @@ class Peer(PrintError):
             per_commitment_secret=last_secret,
             next_per_commitment_point=next_point))
 
-        # TODO use other fields too
         next_per_commitment_point = revoke_and_ack_msg["next_per_commitment_point"]
 
-        # TODO check commitment_signed results
-
-        await self.update_add_htlc_event.wait()
-        self.update_add_htlc_event.clear()
-        print("we should use the htlc", self.unfulfilled_htlcs)
-        received_payment_hash = self.unfulfilled_htlcs[0]["payment_hash"]
-        assert received_payment_hash == payment_hash
-        print("PAYMENT HASHES MATCHED")
-
-        # TODO should include the htlc they added
         bare_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 2, False, next_per_commitment_point,
             chan.remote_state.amount_sat + sat, chan.local_state.amount_sat - sat)
 
         sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
 
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=0))
-
-        try:
-            update_fulfill_htlc_msg = await self.update_fulfill_htlc[chan.channel_id]
-        finally:
-            del self.update_fulfill_htlc[chan.channel_id]
 
         try:
             revoke_and_ack_msg = await self.revoke_and_ack[chan.channel_id]
