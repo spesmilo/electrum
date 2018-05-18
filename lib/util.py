@@ -207,39 +207,66 @@ def profiler(func):
         return o
     return lambda *args, **kw_args: do_profile(func, args, kw_args)
 
+class ForkData:
+    after_chunk_size = 200
+    fork_height = 499200
+    pre_fork_max_index = 247
+    superblockendnumber = 499276
+    superblockstartnumber = 498777
+
+    second_fork_chunk_size = 10
+    second_fork_height = 506400
+    second_fork_max_index = 283
+
+    third_fork_chunk_size = 1
+    third_fork_height = 524000
+    third_fork_max_index = 2043
+    MINING_TYPE_POW = 0x02000000
+    MINING_TYPE_POS = 0x01000000
+
+
+
+
+def IsProofOfStake(version):
+    return version&ForkData.MINING_TYPE_POS
+
+def IsProofOfWork(version):
+    return version&ForkData.MINING_TYPE_POW
+
 
 def ub_height_to_index(height):
-    after_chunk_size = 200
-    fork_height = 499200
-    pre_fork_max_index = fork_height // 2016
-    second_fork_chunk_size = 10
-    second_fork_height = 506400
-    second_fork_max_index = 283
 
 
-    if height <= (pre_fork_max_index*2016 -1):
+    if height <= (ForkData.pre_fork_max_index*2016 -1):
         return height // 2016
-    elif height< second_fork_height:
-        return pre_fork_max_index + (height - fork_height)//after_chunk_size
+    elif height< ForkData.second_fork_height:
+        return ForkData.pre_fork_max_index + (height - ForkData.fork_height)//ForkData.after_chunk_size
+    elif height< ForkData.third_fork_height:
+        return ForkData.second_fork_max_index + (height - ForkData.second_fork_height)//ForkData.second_fork_chunk_size
     else:
-        return second_fork_max_index + (height - second_fork_height)//second_fork_chunk_size
+        return ForkData.third_fork_max_index+ (height - ForkData.third_fork_height)//ForkData.third_fork_chunk_size
+
+
+
+
+
 
 def ub_start_height_of_index(index):
-    after_chunk_size = 200
-    fork_height = 499200
-    pre_fork_max_index = fork_height // 2016
 
-    second_fork_chunk_size = 10
-    second_fork_height = 506400
-    second_fork_max_index = 283
-
-    if index <= pre_fork_max_index:
+    if index <= ForkData.pre_fork_max_index:
         return index * 2016
-    elif index < second_fork_max_index:
-        return (index - pre_fork_max_index) * after_chunk_size + fork_height
+    elif index < ForkData.second_fork_max_index:
+        return (index - ForkData.pre_fork_max_index) * ForkData.after_chunk_size + ForkData.fork_height
+    elif index < ForkData.third_fork_max_index:
+        return (index - ForkData.second_fork_max_index) * ForkData.second_fork_chunk_size + ForkData.second_fork_height
     else:
-        return (index - second_fork_max_index)*second_fork_chunk_size + second_fork_height
+        return (index - ForkData.third_fork_max_index) * ForkData.third_fork_chunk_size + ForkData.third_fork_height
 
+def ub_default_diffculty(is_pos):
+    if is_pos == 0:
+        return 0x00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    else:
+        return 0x0fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 
 def android_ext_dir():

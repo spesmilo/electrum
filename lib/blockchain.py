@@ -159,16 +159,23 @@ class Blockchain(util.PrintError):
     def verify_chunk(self, index, data):
 
         num = len(data) // 80
-        if index ==247:
-            num = 499276 - 247*2016
+        if index == util.ForkData.pre_fork_max_index:
+            num = util.ForkData.superblockendnumber - util.ForkData.pre_fork_max_index*2016
         prev_hash = self.get_hash(util.ub_start_height_of_index(index) - 1)
-        target = self.get_target(index-1)
-        for i in range(num):
-            raw_header = data[i*80:(i+1) * 80]
-            header = deserialize_header(raw_header, util.ub_start_height_of_index(index) + i)
-            if not (util.ub_start_height_of_index(index) + i >=498777 and util.ub_start_height_of_index(index) + i<499277):
-                self.verify_header(header, prev_hash, target)
-            prev_hash = hash_header(header)
+        if index >=util.ForkData.third_fork_max_index:
+            raw_header = data[0:80]
+            header = deserialize_header(raw_header, util.ub_start_height_of_index(index))
+            target = self.get_target(index -1,util.IsProofOfStake(header["version"]))
+            self.verify_header(header, prev_hash, target)
+            #prev_hash = hash_header(header)
+        else:
+            target = self.get_target(index-1)
+            for i in range(num):
+                raw_header = data[i*80:(i+1) * 80]
+                header = deserialize_header(raw_header, util.ub_start_height_of_index(index) + i)
+                if not (util.ub_start_height_of_index(index) + i >=util.ForkData.superblockstartnumber and util.ub_start_height_of_index(index) + i<=util.ForkData.superblockendnumber):
+                    self.verify_header(header, prev_hash, target)
+                prev_hash = hash_header(header)
 
     def path(self):
         d = util.get_headers_dir(self.config)
@@ -262,7 +269,7 @@ class Blockchain(util.PrintError):
             return '0000000000000000000000000000000000000000000000000000000000000000'
         elif height == 0:
             return bitcoin.NetworkConstants.GENESIS
-        elif len(self.checkpoints)<247 :
+        elif len(self.checkpoints)<util.ForkData.pre_fork_max_index :
             if height < len(self.checkpoints) * 2016:
                 assert (height+1) % 2016 == 0
                 index = height // 2016
@@ -270,8 +277,8 @@ class Blockchain(util.PrintError):
                 return h
             else:
                 return hash_header(self.read_header(height))
-        elif len(self.checkpoints)>=247 and len(self.checkpoints <283):
-            if height < 247*2016:
+        elif len(self.checkpoints)>=util.ForkData.pre_fork_max_index and len(self.checkpoints <util.ForkData.second_fork_max_index):
+            if height < util.ForkData.pre_fork_max_index*2016:
                 assert (height+1) % 2016 == 0
                 index = height // 2016
                 h, t = self.checkpoints[index]
@@ -283,27 +290,67 @@ class Blockchain(util.PrintError):
                 return h
             else:
                 return hash_header(self.read_header(height))
-        elif len(self.checkpoints)>=283:
-            if height < 247*2016:
+        elif len(self.checkpoints)>=util.ForkData.second_fork_max_index:
+            if height < util.ForkData.pre_fork_max_index*2016:
                 assert (height+1) % 2016 == 0
                 index = height // 2016
                 h, t = self.checkpoints[index]
                 return h
-            elif height < 499200+(len(self.checkpoints) -247 )* 200:
-                assert (height -499200 + 1) % 200 == 0
-                index = 247 + ((height-499200) // 200)
+            elif height < util.ForkData.fork_height+(len(self.checkpoints) -util.ForkData.pre_fork_max_index )* util.ForkData.after_chunk_size:
+                assert (height -util.ForkData.fork_height + 1) % util.ForkData.after_chunk_size == 0
+                index = util.ForkData.pre_fork_max_index + ((height-util.ForkData.fork_height) // util.ForkData.after_chunk_size)
                 h, t = self.checkpoints[index]
                 return h
-            elif height< 506400 + (len(self.checkpoints)-283)*10:
-                assert (height - 506400 + 1) % 10 == 0
-                index = 283 + ((height - 506400) // 10)
+            elif height< util.ForkData.second_fork_height + (len(self.checkpoints)-util.ForkData.second_fork_max_index)*util.ForkData.second_fork_chunk_size:
+                assert (height - util.ForkData.second_fork_height + 1) % util.ForkData.second_fork_chunk_size == 0
+                index = util.ForkData.second_fork_max_index + ((height - util.ForkData.second_fork_height) // util.ForkData.second_fork_chunk_size)
                 h, t = self.checkpoints[index]
                 return h
             else:
                 return hash_header(self.read_header(height))
 
 
-    def get_target(self, index):
+    def get_last_block_header(self,height,is_pos):
+        start_header = self.read_header(height)
+        while(height > util.ForkData.third_fork_height-util.ForkData.second_fork_chunk_size):
+            if util.IsProofOfStake(start_header["version"]) != is_pos:
+                return start_header,height
+            height -=1
+            start_header = self.read_header(height)
+        return None,height
+
+
+    def get_next_target_require(self,height,is_pos):
+        first,height = self.get_last_block_header(height,is_pos)
+        if first == None:
+            return util.ub_default_diffculty(is_pos)
+        nTargetTimespan = 2*10*60
+        print("first",height)
+        tNbits = []
+        tempBits = set()
+        for i in range(10):
+            last_header,height = self.get_last_block_header(height-1,is_pos)
+            if last_header is None :
+                return util.ub_default_diffculty(is_pos)
+            if len(tempBits)>1:
+                return first["bits"]
+            tNbits.append(last_header)
+            tempBits.add(last_header["bits"])
+        print(tNbits)
+        print(tempBits)
+        nLastPowTime = last_header["timestamp"]
+        nFirstBlockTime = first["timestamp"]
+        nActualTimespan = nLastPowTime - nFirstBlockTime
+        nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
+        nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
+        target = self.bits_to_target(first["bits"])
+        new_target = min(util.ub_default_diffculty(is_pos), (target * nActualTimespan) // nTargetTimespan)
+        return new_target
+
+
+
+
+    def get_target(self, index,is_pos = False):
         # compute target from chunk x, used in chunk x+1
         if bitcoin.NetworkConstants.TESTNET:
             return 0, 0
@@ -312,10 +359,11 @@ class Blockchain(util.PrintError):
         if index < len(self.checkpoints):
             h, t = self.checkpoints[index]
             return t
-        old_check_index_count = 247
-        first_block_num = 499200
-        second_block_num = 506400
-        second_check_index_count = 283   # means first block 506200 last block 506399
+        old_check_index_count = util.ForkData.pre_fork_max_index
+        first_block_num = util.ForkData.fork_height
+        second_block_num = util.ForkData.second_fork_height
+        second_check_index_count = util.ForkData.second_fork_max_index   # means first block 506200 last block 506399
+
         # new target
         if index <old_check_index_count:
             first = self.read_header(index * 2016)
@@ -330,9 +378,9 @@ class Blockchain(util.PrintError):
             return new_target
         elif index < second_check_index_count:
             print("block num",first_block_num+ (index-old_check_index_count) * 200)
-            if first_block_num+ (index-old_check_index_count) * 200 < 498777:
+            if first_block_num+ (index-old_check_index_count) * 200 < util.ForkData.superblockstartnumber:
                 return self.bits_to_target(0x1800b0ed)
-            elif first_block_num+ (index-old_check_index_count) * 200 < 499277:
+            elif first_block_num+ (index-old_check_index_count) * 200 <= util.ForkData.superblockendnumber:
                 return self.bits_to_target(0x18451c94)
             if index == second_check_index_count-1:
                 return self.bits_to_target(0x191a37d1)
@@ -346,8 +394,8 @@ class Blockchain(util.PrintError):
             nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
             new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
             return new_target
-        else:
-            print("second block num", first_block_num + (index - second_check_index_count) * 200)
+        elif index < util.ForkData.third_fork_max_index:
+            print("second block num", second_block_num + (index - second_check_index_count) * 10)
 
             first = self.read_header(second_block_num + (index - second_check_index_count) * 10)
             last = self.read_header(second_block_num + (index - second_check_index_count) * 10 + 9)
@@ -359,6 +407,14 @@ class Blockchain(util.PrintError):
             nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
             new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
             return new_target
+        else:
+            print("third fork block num ",util.ForkData.third_fork_height + index-util.ForkData.third_fork_max_index)
+#修改为新的难度调整算法
+
+            if index - util.ForkData.third_fork_max_index <10:
+                return util.ub_default_diffculty(is_pos)
+
+            return self.get_next_target_require(util.ub_start_height_of_index(index),is_pos)
 
 
     def bits_to_target(self, bits):
@@ -394,7 +450,7 @@ class Blockchain(util.PrintError):
         if prev_hash != header.get('prev_block_hash'):
             self.print_error("bad hash", height, prev_hash, header.get('prev_block_hash'))
             return False
-        target = self.get_target(util.ub_height_to_index(height) - 1)
+        target = self.get_target(util.ub_height_to_index(height) - 1,util.IsProofOfStake(header["version"]))
         try:
             self.verify_header(header, prev_hash, target)
         except BaseException as e:
@@ -415,40 +471,65 @@ class Blockchain(util.PrintError):
     def get_checkpoints(self):
         # for each chunk, store the hash of the last block and the target after the chunk
         cp = []
-        second_fork_height = 506400
-        second_fork_index = 283
-        if self.height() <499277:
+        second_fork_height = util.ForkData.second_fork_height
+        second_fork_index = util.ForkData.second_fork_max_index
+        if self.height() <=util.ForkData.superblockendnumber:
             n = self.height() // 2016
             for index in range(n):
                 h = self.get_hash((index+1) * 2016 -1)
                 target = self.get_target(index)
                 cp.append((h, target))
             return cp
-        elif self.height()<second_fork_height:
-            n = 247 + ((self.height()-499200) // 200)
+        elif self.height()<util.ForkData.second_fork_height:
+            n = util.ForkData.pre_fork_max_index + ((self.height()-util.ForkData.fork_height) // util.ForkData.after_chunk_size)
             for index in range(n):
-                if n <=246:
+                if n <util.ForkData.pre_fork_max_index:
                     h = self.get_hash((index + 1) * 2016 - 1)
                     target = self.get_target(index)
                     cp.append((h, target))
                 else:
-                    h = self.get_hash(499200 + (index - 247 ) * 200 - 1)
+                    h = self.get_hash(util.ForkData.fork_height + (index - util.ForkData.pre_fork_max_index ) * util.ForkData.after_chunk_size - 1)
                     target = self.get_target(index)
                     cp.append((h, target))
             return cp
-        else:
-            n = second_fork_index + ((self.height() - second_fork_height) // 10)
+        elif self.height() <util.ForkData.third_fork_height:
+            n = second_fork_index + ((self.height() - second_fork_height) // util.ForkData.second_fork_chunk_size)
             for index in range(n):
-                if n <= 246:
+                if n <util.ForkData.pre_fork_max_index:
                     h = self.get_hash((index + 1) * 2016 - 1)
                     target = self.get_target(index)
                     cp.append((h, target))
                 elif n <=second_fork_index -1:
-                    h = self.get_hash(499200 + (index - 247) * 200 - 1)
+                    h = self.get_hash(util.ForkData.fork_height + (index - util.ForkData.pre_fork_max_index ) * util.ForkData.after_chunk_size - 1)
                     target = self.get_target(index)
                     cp.append((h, target))
                 else:
-                    h = self.get_hash(second_fork_height + (index - second_fork_index) * 10 - 1)
+                    h = self.get_hash(second_fork_height + (index - second_fork_index) * util.ForkData.second_fork_chunk_size - 1)
                     target = self.get_target(index)
+                    cp.append((h, target))
+            return cp
+        else:
+            n = util.ForkData.third_fork_max_index + ((self.height() - second_fork_height) // util.ForkData.second_fork_chunk_size)
+            for index in range(n):
+                if n < util.ForkData.pre_fork_max_index:
+                    h = self.get_hash((index + 1) * 2016 - 1)
+                    target = self.get_target(index)
+                    cp.append((h, target))
+                elif n <= second_fork_index - 1:
+                    h = self.get_hash(util.ForkData.fork_height + (
+                    index - util.ForkData.pre_fork_max_index) * util.ForkData.after_chunk_size - 1)
+                    target = self.get_target(index)
+                    cp.append((h, target))
+                elif n :
+                    h = self.get_hash(
+                        second_fork_height + (index - second_fork_index) * util.ForkData.second_fork_chunk_size - 1)
+                    target = self.get_target(index)
+                    cp.append((h, target))
+                else:
+                    if index == util.ForkData.third_fork_max_index:
+                        continue
+                    header = self.read_header(util.ub_start_height_of_index(index))
+                    h = header["prev_block_hash"]
+                    target = self.target_to_bits(header["bits"])
                     cp.append((h, target))
             return cp
