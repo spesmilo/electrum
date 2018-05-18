@@ -215,6 +215,7 @@ class Wallet_2fa(Multisig_Wallet):
         Deterministic_Wallet.__init__(self, storage)
         self.is_billing = False
         self.billing_info = None
+        self.auth_code = None
 
     def can_sign_without_server(self):
         return not self.keystores['x2/'].is_watching_only()
@@ -272,6 +273,7 @@ class Wallet_2fa(Multisig_Wallet):
         Multisig_Wallet.sign_transaction(self, tx, password)
         if tx.is_complete():
             return
+        self.plugin.prompt_user_for_otp(self, tx)
         if not self.auth_code:
             self.print_error("sign_transaction: no auth code")
             return
@@ -285,6 +287,7 @@ class Wallet_2fa(Multisig_Wallet):
         self.print_error("twofactor: is complete", tx.is_complete())
         # reset billing_info
         self.billing_info = None
+        self.auth_code = None
 
 
 # Utility functions
