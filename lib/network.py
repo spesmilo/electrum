@@ -1283,6 +1283,10 @@ class Network(util.DaemonThread):
 
         return Network.__with_default_synchronous_callback(invocation, callback)
 
+    def history_for_scripthash(self, hash):
+        command = 'blockchain.scripthash.get_history'
+        return (command, [hash])
+
     def export_checkpoints(self, path):
         # run manually from the console to generate checkpoints
         cp = self.blockchain().get_checkpoints()
