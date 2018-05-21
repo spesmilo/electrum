@@ -1473,9 +1473,8 @@ class Abstract_Wallet(PrintError):
         # all the input txs, in which case we ask the network.
         tx = self.transactions.get(tx_hash, None)
         if not tx and self.network:
-            request = self.network.get_transaction(tx_hash)
             try:
-                tx = Transaction(self.network.synchronous_send(request))
+                tx = Transaction(self.network.get_transaction(tx_hash))
             except TimeoutException as e:
                 self.print_error('getting input txn from network timed out for {}'.format(tx_hash))
                 if not ignore_timeout:

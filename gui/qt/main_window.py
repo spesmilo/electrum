@@ -2359,8 +2359,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if ok and txid:
             txid = str(txid).strip()
             try:
-                request = self.network.get_transaction(txid)
-                r = self.network.synchronous_send(request)
+                r = self.network.get_transaction(txid)
             except BaseException as e:
                 self.show_message(str(e))
                 return

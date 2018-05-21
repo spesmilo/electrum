@@ -1045,6 +1045,20 @@ class Network(util.DaemonThread):
             raise Exception(r.get('error'))
         return r.get('result')
 
+    def wait_for(it):
+        """Wait for the result of calling lambda `it`."""
+        q = queue.Queue()
+        it(q.put)
+        try:
+            result = q.get(block=True, timeout=30)
+        except queue.Empty:
+            raise util.TimeoutException(_('Server did not answer'))
+
+        if result.get('error'):
+            raise Exception(result.get('error'))
+
+        return result.get('result')
+
     def request_header(self, interface, height):
         #interface.print_error("requesting header %d" % height)
         self.queue_request('blockchain.block.get_header', [height], interface)
@@ -1101,9 +1115,22 @@ class Network(util.DaemonThread):
         command = 'blockchain.scripthash.subscribe'
         return (command, [scripthash])
 
-    def get_transaction(transaction_hash):
+    def get_transaction(self, transaction_hash, callback=None):
         command = 'blockchain.transaction.get'
-        return (command, [transaction_hash])
+        invocation = lambda c: self.send((command, [transaction_hash]), c)
+        if not callback:
+            return wait_for(invocation)
+
+        invocation(callback)
+
+    def get_transactions(self, transaction_hashes, callback=None):
+        command = 'blockchain.transaction.get'
+        messages = [(command, tx_hash) for tx_hash in transaction_hashes]
+        invocation = lambda c: self.send(messages, c)
+        if not callback:
+            return wait_for(invocation)
+
+        invocation(callback)
 
     def listunspent_for_scripthash(scripthash):
         command = 'blockchain.scripthash.listunspent'

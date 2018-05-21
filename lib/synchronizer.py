@@ -160,15 +160,16 @@ class Synchronizer(ThreadJob):
 
     def request_missing_txs(self, hist):
         # "hist" is a list of [tx_hash, tx_height] lists
-        requests = []
+        transaction_hashes = []
         for tx_hash, tx_height in hist:
             if tx_hash in self.requested_tx:
                 continue
             if tx_hash in self.wallet.transactions:
                 continue
-            requests.append(self.network.get_transaction(tx_hash))
+            transaction_hashes.append(tx_hash)
             self.requested_tx[tx_hash] = tx_height
-        self.network.send(requests, self.on_tx_response)
+
+        self.network.get_transactions(transaction_hashs, self.tx_response)
 
     def initialize(self):
         '''Check the initial state of the wallet.  Subscribe to all its
