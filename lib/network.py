@@ -1083,6 +1083,18 @@ class Network(util.DaemonThread):
             return False, "error: " + out
         return True, out
 
+    def history_for_scripthash(self, hash):
+        command = 'blockchain.scripthash.get_history'
+        return (command, [hash])
+
+    def subscribe_to_headers(self):
+        command = 'blockchain.headers.subscribe'
+        return (command, [])
+
+    def subscribe_to_address(self, address):
+        command = 'blockchain.address.subscribe'
+        return (command, [address])
+
     def export_checkpoints(self, path):
         # run manually from the console to generate checkpoints
         cp = self.blockchain().get_checkpoints()
