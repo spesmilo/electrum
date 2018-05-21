@@ -673,6 +673,7 @@ class Network(util.DaemonThread):
                     self.subscriptions[k] = l
                     # check cached response for subscriptions
                     r = self.sub_cache.get(k)
+
                 if r is not None:
                     self.print_error("cache hit", k)
                     callback(r)
@@ -1083,7 +1084,7 @@ class Network(util.DaemonThread):
             return False, "error: " + out
         return True, out
 
-    def history_for_scripthash(self, hash):
+    def get_history_for_scripthash(self, hash):
         command = 'blockchain.scripthash.get_history'
         return (command, [hash])
 
@@ -1101,6 +1102,18 @@ class Network(util.DaemonThread):
 
     def subscribe_to_scripthash(scripthash):
         command = 'blockchain.scripthash.subscribe'
+        return (command, [scripthash])
+
+    def get_transaction(transaction_hash):
+        command = 'blockchain.transaction.get'
+        return (command, [transaction_hash])
+
+    def listunspent_for_scripthash(scripthash):
+        command = 'blockchain.scripthash.listunspent'
+        return (command, [scripthash])
+
+    def get_balance_for_scripthash(scripthash):
+        command = 'blockchain.scripthash.get_balance'
         return (command, [scripthash])
 
     def export_checkpoints(self, path):
