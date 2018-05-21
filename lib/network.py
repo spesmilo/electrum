@@ -1059,7 +1059,7 @@ class Network(util.DaemonThread):
     def get_local_height(self):
         return self.blockchain().height()
 
-    def synchronous_get(self, request, timeout=30):
+    def synchronous_send(self, request, timeout=30):
         q = queue.Queue()
         self.send([request], q.put)
         try:
@@ -1073,7 +1073,7 @@ class Network(util.DaemonThread):
     def broadcast(self, tx, timeout=30):
         tx_hash = tx.txid()
         try:
-            out = self.synchronous_get(('blockchain.transaction.broadcast', [str(tx)]), timeout)
+            out = self.synchronous_send(('blockchain.transaction.broadcast', [str(tx)]), timeout)
         except BaseException as e:
             return False, "error: " + str(e)
         if out != tx_hash:
