@@ -1095,6 +1095,14 @@ class Network(util.DaemonThread):
         command = 'blockchain.address.subscribe'
         return (command, [address])
 
+    def get_merkle_for_transaction(transaction_hash, transaction_height):
+        command = 'blockchain.transaction.get_merkle'
+        return (command, [transaction_hash, transaction_height])
+
+    def subscribe_to_scripthash(scripthash):
+        command = 'blockchain.scripthash.subscribe'
+        return (command, [scripthash])
+
     def export_checkpoints(self, path):
         # run manually from the console to generate checkpoints
         cp = self.blockchain().get_checkpoints()
