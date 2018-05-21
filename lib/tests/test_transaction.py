@@ -773,5 +773,5 @@ class NetworkMock(object):
     def __init__(self, unspent):
         self.unspent = unspent
 
-    def synchronous_get(self, arg):
+    def synchronous_send(self, arg):
         return self.unspent

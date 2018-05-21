@@ -2359,7 +2359,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if ok and txid:
             txid = str(txid).strip()
             try:
-                r = self.network.synchronous_get(('blockchain.transaction.get',[txid]))
+                r = self.network.synchronous_send(('blockchain.transaction.get',[txid]))
             except BaseException as e:
                 self.show_message(str(e))
                 return
