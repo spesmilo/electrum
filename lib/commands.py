@@ -521,8 +521,7 @@ class Commands:
         if self.wallet and txid in self.wallet.transactions:
             tx = self.wallet.transactions[txid]
         else:
-            request = self.network.get_transaction(txid)
-            raw = self.network.synchronous_send(request)
+            raw = self.network.get_transaction(txid)
             if raw:
                 tx = Transaction(raw)
             else:
