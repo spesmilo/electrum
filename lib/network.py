@@ -623,26 +623,6 @@ class Network(util.DaemonThread):
             # Response is now in canonical form
             self.process_response(interface, response, callbacks)
 
-    def map_scripthash_to_address(self, callback):
-        def cb2(x):
-            x2 = x.copy()
-            p = x2.pop('params')
-            addr = self.h2addr[p[0]]
-            x2['params'] = [addr]
-            callback(x2)
-        return cb2
-
-    def subscribe_to_addresses(self, addresses, callback):
-        hash2address = {bitcoin.address_to_scripthash(address): address for address in addresses}
-        self.h2addr.update(hash2address)
-        msgs = [('blockchain.scripthash.subscribe', [x]) for x in hash2address.keys()]
-        self.send(msgs, self.map_scripthash_to_address(callback))
-
-    def request_address_history(self, address, callback):
-        h = bitcoin.address_to_scripthash(address)
-        self.h2addr.update({h: address})
-        self.send([('blockchain.scripthash.get_history', [h])], self.map_scripthash_to_address(callback))
-
     def send(self, messages, callback):
         '''Messages is a list of (method, params) tuples'''
         messages = list(messages)
@@ -799,12 +779,6 @@ class Network(util.DaemonThread):
             interface.print_error('catch up done', blockchain.height())
             blockchain.catch_up = None
         self.notify('updated')
-
-    def request_header(self, interface, height):
-        #interface.print_error("requesting header %d" % height)
-        self.queue_request('blockchain.block.get_header', [height], interface)
-        interface.request = height
-        interface.req_time = time.time()
 
     def on_get_header(self, interface, response):
         '''Handle receiving a single block header'''
@@ -1070,6 +1044,32 @@ class Network(util.DaemonThread):
         if r.get('error'):
             raise Exception(r.get('error'))
         return r.get('result')
+
+    def request_header(self, interface, height):
+        #interface.print_error("requesting header %d" % height)
+        self.queue_request('blockchain.block.get_header', [height], interface)
+        interface.request = height
+        interface.req_time = time.time()
+
+    def map_scripthash_to_address(self, callback):
+        def cb2(x):
+            x2 = x.copy()
+            p = x2.pop('params')
+            addr = self.h2addr[p[0]]
+            x2['params'] = [addr]
+            callback(x2)
+        return cb2
+
+    def subscribe_to_addresses(self, addresses, callback):
+        hash2address = {bitcoin.address_to_scripthash(address): address for address in addresses}
+        self.h2addr.update(hash2address)
+        msgs = [('blockchain.scripthash.subscribe', [x]) for x in hash2address.keys()]
+        self.send(msgs, self.map_scripthash_to_address(callback))
+
+    def request_address_history(self, address, callback):
+        h = bitcoin.address_to_scripthash(address)
+        self.h2addr.update({h: address})
+        self.send([('blockchain.scripthash.get_history', [h])], self.map_scripthash_to_address(callback))
 
     def broadcast(self, tx, timeout=30):
         tx_hash = tx.txid()
