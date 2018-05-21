@@ -97,7 +97,7 @@ def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
         script = bitcoin.public_key_to_p2pk_script(pubkey)
         sh = bitcoin.script_to_scripthash(script)
         address = '(pubkey)'
-    u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
+    u = network.synchronous_send(('blockchain.scripthash.listunspent', [sh]))
     for item in u:
         if len(inputs) >= imax:
             break
@@ -1460,7 +1460,7 @@ class Abstract_Wallet(PrintError):
         if not tx and self.network:
             request = ('blockchain.transaction.get', [tx_hash])
             try:
-                tx = Transaction(self.network.synchronous_get(request))
+                tx = Transaction(self.network.synchronous_send(request))
             except TimeoutException as e:
                 self.print_error('getting input txn from network timed out for {}'.format(tx_hash))
                 if not ignore_timeout:
