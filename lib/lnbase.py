@@ -625,7 +625,7 @@ class Peer(PrintError):
         rn_l, rk_l = self.rn()
         rn_m, rk_m = self.rn()
         while True:
-            s = await self.reader.read(2**10)
+            s = await self.reader.read(1)
             if not s:
                 raise Exception('connection closed')
             self.read_buffer += s
@@ -851,7 +851,8 @@ class Peer(PrintError):
             delayed_payment_basepoint=local_config.delayed_basepoint.pubkey,
             first_per_commitment_point=per_commitment_point_first,
             to_self_delay=local_config.to_self_delay,
-            max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat
+            max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
+            channel_reserve_satoshis=10
         )
         self.send_message(msg)
         try:
