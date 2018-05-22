@@ -1035,17 +1035,6 @@ class Network(util.DaemonThread):
     def get_local_height(self):
         return self.blockchain().height()
 
-    def synchronous_send(self, request, timeout=30):
-        q = queue.Queue()
-        self.send([request], q.put)
-        try:
-            r = q.get(True, timeout)
-        except queue.Empty:
-            raise util.TimeoutException(_('Server did not answer'))
-        if r.get('error'):
-            raise Exception(r.get('error'))
-        return r.get('result')
-
     def __wait_for(it):
         """Wait for the result of calling lambda `it`."""
         q = queue.Queue()
@@ -1092,14 +1081,23 @@ class Network(util.DaemonThread):
         self.h2addr.update({h: address})
         self.send([('blockchain.scripthash.get_history', [h])], self.map_scripthash_to_address(callback))
 
+    # NOTE this method handles exceptions and a special edge case, counter to
+    # what the other ElectrumX methods do. This is unexpected.
     def broadcast_transaction(self, transaction, callback=None):
-        tx_hash = tx.txid()
+        command = 'blockchain.transaction.broadcast'
+        invocation = lambda c: self.send((command, [str(transaction)]), c)
+
+        if callback:
+            invocation(callback)
+
         try:
-            out = self.synchronous_send(('blockchain.transaction.broadcast', [str(tx)]), timeout)
+            out = Network.__wait_for(invocation)
         except BaseException as e:
             return False, "error: " + str(e)
-        if out != tx_hash:
+
+        if out != transaction.txid():
             return False, "error: " + out
+
         return True, out
 
     def get_history_for_scripthash(self, hash, callback=None):
