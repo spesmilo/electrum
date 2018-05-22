@@ -92,3 +92,6 @@ class TestBolt11(unittest.TestCase):
         databits.invert(-1)
         lnaddr = lndecode(bech32_encode(hrp, bitarray_to_u5(databits)), True)
         assert lnaddr.pubkey.serialize() == PUBKEY
+
+    def test_min_final_cltv_expiry(self):
+        self.assertEquals(lndecode("lnsb500u1pdsgyf3pp5nmrqejdsdgs4n9ukgxcp2kcq265yhrxd4k5dyue58rxtp5y83s3qdqqcqzystrggccm9yvkr5yqx83jxll0qjpmgfg9ywmcd8g33msfgmqgyfyvqhku80qmqm8q6v35zvck2y5ccxsz5avtrauz8hgjj3uahppyq20qp6dvwxe", expected_hrp="sb").min_final_cltv_expiry, 144)
