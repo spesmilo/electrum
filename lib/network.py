@@ -1057,7 +1057,6 @@ class Network(util.DaemonThread):
         invocation(callback)
 
     def request_header(self, interface, height):
-        #interface.print_error("requesting header %d" % height)
         self.queue_request('blockchain.block.get_header', [height], interface)
         interface.request = height
         interface.req_time = time.time()
@@ -1072,9 +1071,13 @@ class Network(util.DaemonThread):
         return cb2
 
     def subscribe_to_addresses(self, addresses, callback):
-        hash2address = {bitcoin.address_to_scripthash(address): address for address in addresses}
+        hash2address = {
+            bitcoin.address_to_scripthash(address): address
+            for address in addresses}
         self.h2addr.update(hash2address)
-        msgs = [('blockchain.scripthash.subscribe', [x]) for x in hash2address.keys()]
+        msgs = [
+            ('blockchain.scripthash.subscribe', [x])
+            for x in hash2address.keys()]
         self.send(msgs, self.map_scripthash_to_address(callback))
 
     def request_address_history(self, address, callback):
@@ -1119,9 +1122,9 @@ class Network(util.DaemonThread):
 
         return Network.__with_default_synchronous_callback(invocation, callback)
 
-    def get_merkle_for_transaction(self, transaction_hash, transaction_height, callback=None):
+    def get_merkle_for_transaction(self, tx_hash, tx_height, callback=None):
         command = 'blockchain.transaction.get_merkle'
-        invocation = lambda c: self.send((command, [transaction_hash, transaction_height]), c)
+        invocation = lambda c: self.send((command, [tx_hash, tx_height]), c)
 
         return Network.__with_default_synchronous_callback(invocation, callback)
 
@@ -1142,7 +1145,7 @@ class Network(util.DaemonThread):
         messages = [(command, tx_hash) for tx_hash in transaction_hashes]
         invocation = lambda c: self.send(messages, c)
 
-	return Network.__with_default_synchronous_callback(invocation, callback)
+        return Network.__with_default_synchronous_callback(invocation, callback)
 
     def listunspent_for_scripthash(self, scripthash, callback=None):
         command = 'blockchain.scripthash.listunspent'

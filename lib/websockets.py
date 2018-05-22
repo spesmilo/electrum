@@ -100,11 +100,13 @@ class WsClientThread(util.DaemonThread):
             if result is None:
                 continue    
             if method == 'blockchain.scripthash.subscribe':
-                self.network.subscribe_to_scripthash(scripthash, self.response_queue.put)
+                self.network.subscribe_to_scripthash(
+                        scripthash, self.response_queue.put)
             elif method == 'blockchain.scripthash.get_balance':
                 addr = self.network.h2addr.get(scripthash, None)
                 if addr is None:
-                    util.print_error("can't find address for scripthash: %s" % scripthash)
+                    util.print_error(
+                        "can't find address for scripthash: %s" % scripthash)
                 l = self.subscriptions.get(addr, [])
                 for ws, amount in l:
                     if not ws.closed:
