@@ -34,7 +34,6 @@ from .util import PrintError, bh2u, print_error, bfh, profiler, xor_bytes
 from .transaction import opcodes, Transaction
 
 from collections import namedtuple, defaultdict
-import decimal
 
 # hardcoded nodes
 node_list = [
@@ -569,8 +568,6 @@ def is_synced(network):
     synced = server_height != 0 and network.is_up_to_date() and local_height >= server_height
     return synced
 
-msat_to_sat_round_up = lambda amount_msat: int((decimal.Decimal(amount_msat) / 1000).to_integral_value(rounding=decimal.ROUND_UP))
-
 class Peer(PrintError):
     def __init__(self, host, port, pubkey, privkey, request_initial_sync=False, network=None):
         self.update_add_htlc_event = asyncio.Event()
@@ -966,6 +963,11 @@ class Peer(PrintError):
     async def reestablish_channel(self, chan):
 
         await self.initialized
+        self.send_message(gen_msg("channel_reestablish",
+            channel_id=chan.channel_id,
+            next_local_commitment_number=chan.local_state.ctn+1,
+            next_remote_revocation_number=chan.remote_state.ctn
+        ))
         channel_reestablish_msg = await self.channel_reestablish[chan.channel_id]
         print(channel_reestablish_msg)
         # {
@@ -985,11 +987,6 @@ class Peer(PrintError):
 
         if channel_reestablish_msg["my_current_per_commitment_point"] != chan.remote_state.last_per_commitment_point:
             raise Exception("Remote PCP mismatch")
-        self.send_message(gen_msg("channel_reestablish",
-            channel_id=chan.channel_id,
-            next_local_commitment_number=chan.local_state.ctn+1,
-            next_remote_revocation_number=chan.remote_state.ctn
-        ))
         return chan
 
 
@@ -1093,16 +1090,27 @@ class Peer(PrintError):
         for idx, route_edge in enumerate(route[1:]):
             hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id, amount_msat.to_bytes(8, "big"), computed_cltv_expiry.to_bytes(4, "big")))]
             total_fee += route_edge.channel_policy.fee_base_msat + ( amount_msat * route_edge.channel_policy.fee_proportional_millionths // 1000000 )
-        hops_data += [OnionHopsDataSingle(OnionPerHop(b"\x00"*8, amount_msat.to_bytes(8, "big"), (computed_cltv_expiry + next_hop_cltv_expiry).to_bytes(4, "big")))]
         associated_data = payment_hash
         self.secret_key = os.urandom(32)
         self.node_keys = [x.node_id for x in route]
+
+        if next_hop_cltv_expiry == 0:
+            computed_cltv_expiry = height + chan.remote_config.to_self_delay
+            hops_data += [OnionHopsDataSingle(OnionPerHop(b"\x00"*8, amount_msat.to_bytes(8, "big"), (computed_cltv_expiry).to_bytes(4, "big")))]
+            cltv_expiry = computed_cltv_expiry
+        else:
+            hops_data += [OnionHopsDataSingle(OnionPerHop(b"\x00"*8, amount_msat.to_bytes(8, "big"), (computed_cltv_expiry).to_bytes(4, "big")))]
+            cltv_expiry = computed_cltv_expiry + chan.remote_config.to_self_delay # TODO use min_final_cltv_expiry
+
         onion = new_onion_packet(self.node_keys, self.secret_key, hops_data, associated_data)
 
-        cltv_expiry = computed_cltv_expiry + chan.remote_config.to_self_delay # TODO use min_final_cltv_expiry
+        msat_local = (chan.local_state.amount_sat * 1000) - amount_msat - total_fee
+        sat_local = msat_local // 1000
+
+        msat_remote = (chan.remote_state.amount_sat * 1000) + amount_msat + total_fee
+        sat_remote = msat_remote // 1000
 
         amount_msat += total_fee
-        sat = msat_to_sat_round_up(amount_msat)
 
         self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=chan.local_state.next_htlc_id, cltv_expiry=cltv_expiry, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
 
@@ -1115,9 +1123,8 @@ class Peer(PrintError):
         # TODO check payment_hash
         revocation_pubkey = derive_blinded_pubkey(chan.local_config.revocation_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
         htlcs_in_remote = [(make_received_htlc(revocation_pubkey, their_remote_htlc_pubkey, their_local_htlc_pubkey, payment_hash, cltv_expiry), amount_msat)]
-        new_local = chan.local_state.amount_sat - sat
         remote_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
-            chan.remote_state.amount_sat, new_local, htlcs_in_remote)
+            chan.remote_state.amount_sat, sat_local, htlcs_in_remote)
         sig_64 = sign_and_get_sig_string(remote_ctx, chan.local_config, chan.remote_config)
 
         htlc_tx = make_htlc_tx_with_open_channel(chan, chan.remote_state.next_per_commitment_point, False, False, amount_msat, cltv_expiry, payment_hash, remote_ctx, 0)
@@ -1164,7 +1171,7 @@ class Peer(PrintError):
         next_per_commitment_point = revoke_and_ack_msg["next_per_commitment_point"]
 
         bare_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 2, False, next_per_commitment_point,
-            chan.remote_state.amount_sat + sat, chan.local_state.amount_sat - sat)
+            sat_remote, sat_local)
 
         sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
 
@@ -1178,7 +1185,7 @@ class Peer(PrintError):
 
         return chan._replace(
             local_state=chan.local_state._replace(
-                amount_sat=chan.local_state.amount_sat - sat,
+                amount_sat=sat_local,
                 next_htlc_id=chan.local_state.next_htlc_id + 1
             ),
             remote_state=chan.remote_state._replace(
@@ -1186,7 +1193,7 @@ class Peer(PrintError):
                 revocation_store=their_revstore,
                 last_per_commitment_point=next_per_commitment_point,
                 next_per_commitment_point=revoke_and_ack_msg["next_per_commitment_point"],
-                amount_sat=chan.remote_state.amount_sat + sat
+                amount_sat=sat_remote
             )
         )
 
