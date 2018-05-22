@@ -252,7 +252,7 @@ class Commands:
         return tx.deserialize()
 
     @command('n')
-    def broadcast(self, tx, timeout=30):
+    def broadcast(self, tx):
         """Broadcast a transaction to the network. """
         tx = Transaction(tx)
         return self.network.broadcast(tx, timeout)
