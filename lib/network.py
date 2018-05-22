@@ -1143,9 +1143,11 @@ class Network(util.DaemonThread):
 
 	return Network.__invoke(invocation, callback)
 
-    def listunspent_for_scripthash(scripthash):
+    def listunspent_for_scripthash(self, scripthash, callback=None):
         command = 'blockchain.scripthash.listunspent'
-        return (command, [scripthash])
+        invocation = lambda c: self.send(command, [scripthash], c)
+
+        return Network.__invoke(invocation, callback)
 
     def get_balance_for_scripthash(scripthash):
         command = 'blockchain.scripthash.get_balance'
