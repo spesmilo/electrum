@@ -1092,7 +1092,7 @@ class Network(util.DaemonThread):
         self.h2addr.update({h: address})
         self.send([('blockchain.scripthash.get_history', [h])], self.map_scripthash_to_address(callback))
 
-    def broadcast(self, tx, timeout=30):
+    def broadcast_transaction(self, transaction, callback=None):
         tx_hash = tx.txid()
         try:
             out = self.synchronous_send(('blockchain.transaction.broadcast', [str(tx)]), timeout)
