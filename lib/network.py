@@ -1102,9 +1102,11 @@ class Network(util.DaemonThread):
             return False, "error: " + out
         return True, out
 
-    def get_history_for_scripthash(self, hash):
+    def get_history_for_scripthash(self, hash, callback=None):
         command = 'blockchain.scripthash.get_history'
-        return (command, [hash])
+        invocation = lambda c: self.send((command, [hash]), c)
+
+        return Network.__invoke(invocation, callback)
 
     def subscribe_to_headers(self, callback=None):
         command = 'blockchain.headers.subscribe'
@@ -1149,9 +1151,11 @@ class Network(util.DaemonThread):
 
         return Network.__invoke(invocation, callback)
 
-    def get_balance_for_scripthash(scripthash):
+    def get_balance_for_scripthash(self, scripthash, callback=None):
         command = 'blockchain.scripthash.get_balance'
-        return (command, [scripthash])
+        invocation = lambda c: self.send(command, [scripthash], c)
+
+        return Network.__invoke(invocation, callback)
 
     def export_checkpoints(self, path):
         # run manually from the console to generate checkpoints

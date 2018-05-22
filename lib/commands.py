@@ -181,8 +181,7 @@ class Commands:
         walletless server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        request = self.network.get_history_for_scripthash(sh)
-        return self.network.synchronous_send(request)
+        return self.network.get_history_for_scripthash(sh)
 
     @command('w')
     def listunspent(self):
@@ -200,8 +199,7 @@ class Commands:
         is a walletless server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        request = self.network.listunspent_for_scripthash(sh)
-        return self.network.synchronous_send(request)
+        return self.network.listunspent_for_scripthash(sh)
 
     @command('')
     def serialize(self, jsontx):
@@ -324,8 +322,7 @@ class Commands:
         server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        request = self.network.get_balance_for_scripthash(sh)
-        out = self.network.synchronous_send(request)
+        out = self.network.get_balance_for_scripthash(sh)
         out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
         out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
         return out
@@ -334,8 +331,7 @@ class Commands:
     def getmerkle(self, txid, height):
         """Get Merkle branch of a transaction included in a block. Electrum
         uses this to verify transactions (Simple Payment Verification)."""
-        request = self.network.get_merkle_for_transaction(txid, int(height))
-        return self.network.synchronous_send(request)
+        return self.network.get_merkle_for_transaction(txid, int(height))
 
     @command('n')
     def getservers(self):
