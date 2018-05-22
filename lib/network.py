@@ -1119,9 +1119,11 @@ class Network(util.DaemonThread):
 
         return Network.__invoke(invocation, callback)
 
-    def subscribe_to_scripthash(scripthash):
+    def subscribe_to_scripthash(self, scripthash, callback=None):
         command = 'blockchain.scripthash.subscribe'
-        return (command, [scripthash])
+        invocation = lambda c: self.send((command, [scripthash]), c)
+
+        return Network.__invoke(invocation, callback)
 
     def get_transaction(self, transaction_hash, callback=None):
         command = 'blockchain.transaction.get'
