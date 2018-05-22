@@ -240,6 +240,7 @@ class LnAddr(object):
         self.pubkey = None
         self.currency = constants.net.SEGWIT_HRP if currency is None else currency
         self.amount = amount
+        self.min_final_cltv_expiry = 9
 
     def __str__(self):
         return "LnAddr[{}, amount={}{} tags=[{}]]".format(
@@ -350,6 +351,8 @@ def lndecode(a, verbose=False, expected_hrp=constants.net.SEGWIT_HRP):
                 continue
             pubkeybytes = trim_to_bytes(tagdata)
             addr.pubkey = pubkeybytes
+        elif tag == 'c':
+            addr.min_final_cltv_expiry = tagdata.int
         else:
             addr.unknown_tags.append((tag, tagdata))
 

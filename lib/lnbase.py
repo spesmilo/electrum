@@ -1038,7 +1038,7 @@ class Peer(PrintError):
     def on_update_fail_htlc(self, payload):
         print("UPDATE_FAIL_HTLC", decode_onion_error(payload["reason"], self.node_keys, self.secret_key))
 
-    async def pay(self, wallet, chan, sat, payment_hash, pubkey_in_invoice):
+    async def pay(self, wallet, chan, sat, payment_hash, pubkey_in_invoice, min_final_cltv_expiry):
         def derive_and_incr():
             nonlocal chan
             last_small_num = chan.local_state.ctn
@@ -1083,24 +1083,19 @@ class Peer(PrintError):
         route = self.path_finder.create_route_from_path(path, our_pubkey)
 
         hops_data = []
-        next_hop_cltv_expiry = sum(route_edge.channel_policy.cltv_expiry_delta for route_edge in route[1:])
-        print("next_hop_cltv_expiry", next_hop_cltv_expiry)
-        computed_cltv_expiry = height + next_hop_cltv_expiry # TODO use c tag in invoice (min_final_cltv_expiry)
+        sum_of_deltas = sum(route_edge.channel_policy.cltv_expiry_delta for route_edge in route[1:])
+        print("sum of deltas", sum_of_deltas)
         total_fee = 0
+        final_cltv_expiry_without_deltas = (height + min_final_cltv_expiry)
+        final_cltv_expiry_with_deltas = final_cltv_expiry_without_deltas + sum_of_deltas
         for idx, route_edge in enumerate(route[1:]):
-            hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id, amount_msat.to_bytes(8, "big"), computed_cltv_expiry.to_bytes(4, "big")))]
+            hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id, amount_msat.to_bytes(8, "big"), final_cltv_expiry_without_deltas.to_bytes(4, "big")))]
             total_fee += route_edge.channel_policy.fee_base_msat + ( amount_msat * route_edge.channel_policy.fee_proportional_millionths // 1000000 )
         associated_data = payment_hash
         self.secret_key = os.urandom(32)
         self.node_keys = [x.node_id for x in route]
 
-        if next_hop_cltv_expiry == 0:
-            computed_cltv_expiry = height + chan.remote_config.to_self_delay
-            hops_data += [OnionHopsDataSingle(OnionPerHop(b"\x00"*8, amount_msat.to_bytes(8, "big"), (computed_cltv_expiry).to_bytes(4, "big")))]
-            cltv_expiry = computed_cltv_expiry
-        else:
-            hops_data += [OnionHopsDataSingle(OnionPerHop(b"\x00"*8, amount_msat.to_bytes(8, "big"), (computed_cltv_expiry).to_bytes(4, "big")))]
-            cltv_expiry = computed_cltv_expiry + chan.remote_config.to_self_delay # TODO use min_final_cltv_expiry
+        hops_data += [OnionHopsDataSingle(OnionPerHop(b"\x00"*8, amount_msat.to_bytes(8, "big"), (final_cltv_expiry_without_deltas).to_bytes(4, "big")))]
 
         onion = new_onion_packet(self.node_keys, self.secret_key, hops_data, associated_data)
 
@@ -1112,7 +1107,7 @@ class Peer(PrintError):
 
         amount_msat += total_fee
 
-        self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=chan.local_state.next_htlc_id, cltv_expiry=cltv_expiry, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
+        self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=chan.local_state.next_htlc_id, cltv_expiry=final_cltv_expiry_with_deltas, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
 
         their_local_htlc_pubkey = derive_pubkey(chan.remote_config.htlc_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
         their_remote_htlc_pubkey = derive_pubkey(chan.local_config.htlc_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
@@ -1122,12 +1117,12 @@ class Peer(PrintError):
         their_remote_htlc_privkey = their_remote_htlc_privkey_number.to_bytes(32, 'big')
         # TODO check payment_hash
         revocation_pubkey = derive_blinded_pubkey(chan.local_config.revocation_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
-        htlcs_in_remote = [(make_received_htlc(revocation_pubkey, their_remote_htlc_pubkey, their_local_htlc_pubkey, payment_hash, cltv_expiry), amount_msat)]
+        htlcs_in_remote = [(make_received_htlc(revocation_pubkey, their_remote_htlc_pubkey, their_local_htlc_pubkey, payment_hash, final_cltv_expiry_with_deltas), amount_msat)]
         remote_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
             chan.remote_state.amount_sat, sat_local, htlcs_in_remote)
         sig_64 = sign_and_get_sig_string(remote_ctx, chan.local_config, chan.remote_config)
 
-        htlc_tx = make_htlc_tx_with_open_channel(chan, chan.remote_state.next_per_commitment_point, False, False, amount_msat, cltv_expiry, payment_hash, remote_ctx, 0)
+        htlc_tx = make_htlc_tx_with_open_channel(chan, chan.remote_state.next_per_commitment_point, False, False, amount_msat, final_cltv_expiry_with_deltas, payment_hash, remote_ctx, 0)
         # htlc_sig signs the HTLC transaction that spends from THEIR commitment transaction's received_htlc output
         sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
         r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
