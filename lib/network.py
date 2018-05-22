@@ -1106,13 +1106,17 @@ class Network(util.DaemonThread):
         command = 'blockchain.scripthash.get_history'
         return (command, [hash])
 
-    def subscribe_to_headers(self):
+    def subscribe_to_headers(self, callback=None):
         command = 'blockchain.headers.subscribe'
-        return (command, [])
+        invocation = lambda c: self.send((command, []), c)
 
-    def subscribe_to_address(self, address):
+        return Network.__invoke(invocation, callback)
+
+    def subscribe_to_address(self, address, callback=None):
         command = 'blockchain.address.subscribe'
-        return (command, [address])
+        invocation = lambda c: self.send((command, [address]), c)
+
+        return Network.__invoke(invocation, callback)
 
     def get_merkle_for_transaction(self, transaction_hash, transaction_height, callback=None):
         command = 'blockchain.transaction.get_merkle'
