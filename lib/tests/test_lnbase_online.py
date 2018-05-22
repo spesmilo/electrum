@@ -136,7 +136,7 @@ if __name__ == "__main__":
             payment_hash = addr.paymenthash
             pubkey = addr.pubkey.serialize()
             amt = int(addr.amount * COIN)
-            advanced_channel = await peer.pay(wallet, openchannel, amt, payment_hash, pubkey)
+            advanced_channel = await peer.pay(wallet, openchannel, amt, payment_hash, pubkey, addr.min_final_cltv_expiry)
         elif "get_paid" in sys.argv[1]:
             expected_received_sat = 200000
             pay_req = lnencode(LnAddr(RHASH, amount=1/Decimal(COIN)*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
