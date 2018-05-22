@@ -870,7 +870,7 @@ class Network(util.DaemonThread):
                         next_height = None
                     else:
                         interface.print_error('checkpoint conflicts with existing fork', branch.path())
-                        branch.write('', 0)
+                        branch.write(b'', 0)
                         branch.save_header(interface.bad_header)
                         interface.mode = 'catch_up'
                         interface.blockchain = branch
