@@ -1046,7 +1046,7 @@ class Network(util.DaemonThread):
             raise Exception(r.get('error'))
         return r.get('result')
 
-    def wait_for(it):
+    def __wait_for(it):
         """Wait for the result of calling lambda `it`."""
         q = queue.Queue()
         it(q.put)
@@ -1059,6 +1059,12 @@ class Network(util.DaemonThread):
             raise Exception(result.get('error'))
 
         return result.get('result')
+
+    def __invoke(invocation, callback):
+        if not callback:
+            return Network.__wait_for(invocation)
+
+        invocation(callback)
 
     def request_header(self, interface, height):
         #interface.print_error("requesting header %d" % height)
@@ -1108,9 +1114,11 @@ class Network(util.DaemonThread):
         command = 'blockchain.address.subscribe'
         return (command, [address])
 
-    def get_merkle_for_transaction(transaction_hash, transaction_height):
+    def get_merkle_for_transaction(self, transaction_hash, transaction_height, callback=None):
         command = 'blockchain.transaction.get_merkle'
-        return (command, [transaction_hash, transaction_height])
+        invocation = lambda c: self.send((command, [transaction_hash, transaction_height]), c)
+
+        return Network.__invoke(invocation, callback)
 
     def subscribe_to_scripthash(scripthash):
         command = 'blockchain.scripthash.subscribe'
@@ -1119,19 +1127,15 @@ class Network(util.DaemonThread):
     def get_transaction(self, transaction_hash, callback=None):
         command = 'blockchain.transaction.get'
         invocation = lambda c: self.send((command, [transaction_hash]), c)
-        if not callback:
-            return wait_for(invocation)
 
-        invocation(callback)
+        return Network.__invoke(invocation, callback)
 
     def get_transactions(self, transaction_hashes, callback=None):
         command = 'blockchain.transaction.get'
         messages = [(command, tx_hash) for tx_hash in transaction_hashes]
         invocation = lambda c: self.send(messages, c)
-        if not callback:
-            return wait_for(invocation)
 
-        invocation(callback)
+	return Network.__invoke(invocation, callback)
 
     def listunspent_for_scripthash(scripthash):
         command = 'blockchain.scripthash.listunspent'
