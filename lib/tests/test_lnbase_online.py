@@ -136,14 +136,14 @@ if __name__ == "__main__":
             payment_hash = addr.paymenthash
             pubkey = addr.pubkey.serialize()
             amt = int(addr.amount * COIN)
-            advanced_channel = await peer.pay(wallet, openchannel, amt, payment_hash, pubkey, addr.min_final_cltv_expiry)
+            openchannel = await peer.pay(wallet, openchannel, amt, payment_hash, pubkey, addr.min_final_cltv_expiry)
         elif "get_paid" in sys.argv[1]:
             expected_received_sat = 200000
             pay_req = lnencode(LnAddr(RHASH, amount=1/Decimal(COIN)*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
             print("payment request", pay_req)
-            advanced_channel = await peer.receive_commitment_revoke_ack(openchannel, expected_received_sat, payment_preimage)
+            openchannel = await peer.receive_commitment_revoke_ack(openchannel, expected_received_sat, payment_preimage)
 
-        dumped = serialize_channels([advanced_channel])
+        dumped = serialize_channels([openchannel])
         wallet.storage.put("channels", dumped)
         wallet.storage.write()
     fut = asyncio.run_coroutine_threadsafe(async_test(), network.asyncio_loop)
