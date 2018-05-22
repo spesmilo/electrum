@@ -1049,7 +1049,9 @@ class Network(util.DaemonThread):
 
         return result.get('result')
 
-    def __invoke(invocation, callback):
+    def __with_default_synchronous_callback(invocation, callback):
+        """ Use this method if you want to make the network request
+        synchronous. """
         if not callback:
             return Network.__wait_for(invocation)
 
@@ -1104,56 +1106,56 @@ class Network(util.DaemonThread):
         command = 'blockchain.scripthash.get_history'
         invocation = lambda c: self.send((command, [hash]), c)
 
-        return Network.__invoke(invocation, callback)
+        return Network.__with_default_synchronous_callback(invocation, callback)
 
     def subscribe_to_headers(self, callback=None):
         command = 'blockchain.headers.subscribe'
         invocation = lambda c: self.send((command, []), c)
 
-        return Network.__invoke(invocation, callback)
+        return Network.__with_default_synchronous_callback(invocation, callback)
 
     def subscribe_to_address(self, address, callback=None):
         command = 'blockchain.address.subscribe'
         invocation = lambda c: self.send((command, [address]), c)
 
-        return Network.__invoke(invocation, callback)
+        return Network.__with_default_synchronous_callback(invocation, callback)
 
     def get_merkle_for_transaction(self, transaction_hash, transaction_height, callback=None):
         command = 'blockchain.transaction.get_merkle'
         invocation = lambda c: self.send((command, [transaction_hash, transaction_height]), c)
 
-        return Network.__invoke(invocation, callback)
+        return Network.__with_default_synchronous_callback(invocation, callback)
 
     def subscribe_to_scripthash(self, scripthash, callback=None):
         command = 'blockchain.scripthash.subscribe'
         invocation = lambda c: self.send((command, [scripthash]), c)
 
-        return Network.__invoke(invocation, callback)
+        return Network.__with_default_synchronous_callback(invocation, callback)
 
     def get_transaction(self, transaction_hash, callback=None):
         command = 'blockchain.transaction.get'
         invocation = lambda c: self.send((command, [transaction_hash]), c)
 
-        return Network.__invoke(invocation, callback)
+        return Network.__with_default_synchronous_callback(invocation, callback)
 
     def get_transactions(self, transaction_hashes, callback=None):
         command = 'blockchain.transaction.get'
         messages = [(command, tx_hash) for tx_hash in transaction_hashes]
         invocation = lambda c: self.send(messages, c)
 
-	return Network.__invoke(invocation, callback)
+	return Network.__with_default_synchronous_callback(invocation, callback)
 
     def listunspent_for_scripthash(self, scripthash, callback=None):
         command = 'blockchain.scripthash.listunspent'
         invocation = lambda c: self.send(command, [scripthash], c)
 
-        return Network.__invoke(invocation, callback)
+        return Network.__with_default_synchronous_callback(invocation, callback)
 
     def get_balance_for_scripthash(self, scripthash, callback=None):
         command = 'blockchain.scripthash.get_balance'
         invocation = lambda c: self.send(command, [scripthash], c)
 
-        return Network.__invoke(invocation, callback)
+        return Network.__with_default_synchronous_callback(invocation, callback)
 
     def export_checkpoints(self, path):
         # run manually from the console to generate checkpoints
