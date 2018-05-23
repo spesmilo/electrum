@@ -4,8 +4,8 @@ import binascii
 from PyQt5 import QtCore, QtWidgets
 from collections import OrderedDict
 import logging
-from electrum.lightning import lightningCall
 from .qrcodewidget import QRDialog
+from PyQt5.QtCore import pyqtSignal, pyqtSlot
 
 mapping = {0: "r_hash", 1: "pay_req", 2: "settled"}
 revMapp = {"r_hash": 0, "pay_req": 1, "settled": 2}
@@ -38,23 +38,29 @@ def addInvoiceRow(new):
     datatable.move_to_end(new["r_hash"], last=False)
     return made
 
-def clickHandler(numInput, treeView, lightningRpc):
-    amt = numInput.value()
-    if amt < 1:
-        print("value too small")
-        return
-    print("creating invoice with value {}".format(amt))
-    global idx
-    #obj = {
-    #    "r_hash": binascii.hexlify((int.from_bytes(bytearray.fromhex("9500edb0994b7bc23349193486b25c82097045db641f35fa988c0e849acdec29"), "big")+idx).to_bytes(byteorder="big", length=32)).decode("ascii"),
-    #    "pay_req": "lntb81920n1pdf258s" + str(idx),
-    #    "settled": False
-    #}
-    #treeView.insertTopLevelItem(0, addInvoiceRow(obj))
-    idx += 1
-    lightningCall(lightningRpc, "addinvoice")("--amt=" + str(amt))
-
 class LightningInvoiceList(QtWidgets.QWidget):
+    invoice_added_signal = QtCore.pyqtSignal(dict)
+
+    @QtCore.pyqtSlot(dict)
+    def invoice_added_handler(self, di):
+        self._tv.insertTopLevelItem(0, addInvoiceRow(invoice))
+
+    def clickHandler(self, numInput, treeView, lnworker):
+        amt = numInput.value()
+        if amt < 1:
+            print("value too small")
+            return
+        print("creating invoice with value {}".format(amt))
+        global idx
+        #obj = {
+        #    "r_hash": binascii.hexlify((int.from_bytes(bytearray.fromhex("9500edb0994b7bc23349193486b25c82097045db641f35fa988c0e849acdec29"), "big")+idx).to_bytes(byteorder="big", length=32)).decode("ascii"),
+        #    "pay_req": "lntb81920n1pdf258s" + str(idx),
+        #    "settled": False
+        #}
+        #treeView.insertTopLevelItem(0, addInvoiceRow(obj))
+        idx += 1
+        lnworker.add_invoice_from_other_thread(amt)
+
     def create_menu(self, position):
         menu = QtWidgets.QMenu()
         pay_req = self._tv.currentItem()["pay_req"]
@@ -68,14 +74,11 @@ class LightningInvoiceList(QtWidgets.QWidget):
         menu.addAction("Copy payment request", copy)
         menu.addAction("Show payment request as QR code", qr)
         menu.exec_(self._tv.viewport().mapToGlobal(position))
-    def lightningWorkerHandler(self, sourceClassName, obj):
-        new = {}
-        for k, v in obj.items():
-            try:
-                v = binascii.hexlify(base64.b64decode(v)).decode("ascii")
-            except:
-                pass
-            new[k] = v
+
+    payment_received_signal = pyqtSignal(dict)
+
+    @pyqtSlot(dict)
+    def paymentReceived(self, new):
         try:
             obj = datatable[new["r_hash"]]
         except KeyError:
@@ -86,17 +89,15 @@ class LightningInvoiceList(QtWidgets.QWidget):
                     if obj[k] != v: obj[k] = v
                 except KeyError:
                     obj[k] = v
-    def lightningRpcHandler(self, methodName, obj):
-        if methodName != "addinvoice":
-            print("ignoring reply {} to {}".format(obj, methodName))
-            return
-        self._tv.insertTopLevelItem(0, addInvoiceRow(obj))
-        
-    def __init__(self, parent, lightningWorker, lightningRpc):
+
+    def __init__(self, parent, lnworker):
         QtWidgets.QWidget.__init__(self, parent)
 
-        lightningWorker.subscribe(self.lightningWorkerHandler)
-        lightningRpc.subscribe(self.lightningRpcHandler)
+        self.payment_received_signal.connect(self.paymentReceived)
+        self.invoice_added_signal.connect(self.invoice_added_handler)
+
+        lnworker.subscribe_payment_received_from_other_thread(self.payment_received_signal.emit)
+        lnworker.subscribe_invoice_added_from_other_thread(self.invoice_added_signal.emit)
 
         self._tv=QtWidgets.QTreeWidget(self)
         self._tv.setHeaderLabels([mapping[i] for i in range(len(mapping))])
@@ -108,12 +109,12 @@ class LightningInvoiceList(QtWidgets.QWidget):
             def keyPressEvent(self2, e):
                 super(SatoshiCountSpinBox, self2).keyPressEvent(e)
                 if QtCore.Qt.Key_Return == e.key():
-                    clickHandler(self2, self._tv, lightningRpc)
+                    self.clickHandler(self2, self._tv, lnworker)
 
         numInput = SatoshiCountSpinBox(self)
 
         button = QtWidgets.QPushButton('Add invoice', self)
-        button.clicked.connect(lambda: clickHandler(numInput, self._tv, lightningRpc))
+        button.clicked.connect(lambda: self.clickHandler(numInput, self._tv, lnworker))
 
         l=QtWidgets.QVBoxLayout(self)
         h=QtWidgets.QGridLayout(self)

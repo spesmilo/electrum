@@ -23,7 +23,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import queue
 import sys
 import datetime
 import copy
@@ -48,7 +47,6 @@ from .storage import WalletStorage
 from . import keystore
 from .wallet import Wallet, Imported_Wallet, Abstract_Wallet
 from .mnemonic import Mnemonic
-from .import lightning
 
 if TYPE_CHECKING:
     from .network import Network
@@ -767,22 +765,6 @@ class Commands:
         # for the python console
         return sorted(known_commands.keys())
 
-    @command("wn")
-    def lightning(self, lcmd, lightningargs=None):
-        q = queue.Queue()
-        class FakeQtSignal:
-            def emit(self, data):
-                q.put(data)
-        class MyConsole:
-            new_lightning_result = FakeQtSignal()
-        self.wallet.network.lightningrpc.setConsole(MyConsole())
-        if lightningargs:
-            lightningargs = json_decode(lightningargs)
-        else:
-            lightningargs = []
-        lightning.lightningCall(self.wallet.network.lightningrpc, lcmd)(*lightningargs)
-        return q.get(block=True, timeout=600)
-
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
     if x == 'true': return True
@@ -847,8 +829,7 @@ command_options = {
     'show_fees':   (None, "Show miner fees paid by transactions"),
     'year':        (None, "Show history for a given year"),
     'fee_method':  (None, "Fee estimation method to use"),
-    'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
-    'lightningargs':(None, "Arguments for an lncli subcommand, encoded as a JSON array"),
+    'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position")
 }
 
 
@@ -956,7 +937,6 @@ def add_global_options(parser):
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
     group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
     group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
-    group.add_argument("--lightning", action="store_true", dest="lightning", default=False, help="Enable Lightning support via hub")
     group.add_argument("--lnbase", action="store_true", dest="lnbase", default=False, help="Enable Lightning support")
 
 def get_parser():
