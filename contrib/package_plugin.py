@@ -66,15 +66,15 @@ def write_plugin_archive(metadata, source_package_path, archive_file_path):
         shutil.make_archive(suffixless_path, 'zip', temp_path)
         
     plugin_path = suffixless_path +".zip"
-    hash_md5 = hashlib.md5()
+    hasher = hashlib.sha256()
     with open(plugin_path, "rb") as f:
-        hash_md5.update(f.read())
+        hasher.update(f.read())
 
     base_name = os.path.basename(plugin_path)
-    with open(plugin_path +".md5", "w") as f:
-        f.write("{0} *{1}".format(hash_md5.hexdigest(), base_name))
+    with open(plugin_path +".sha256", "w") as f:
+        f.write("{0} *{1}".format(hasher.hexdigest(), base_name))
 
-    return hash_md5.hexdigest()
+    return hasher.hexdigest()
 
 def write_manifest(metadata, manifest_file_path):
     with open(manifest_file_path, "w") as f:
@@ -109,11 +109,6 @@ def build_manifest(display_name, version, description, minimum_ec_version, packa
     
     return metadata
 
-# A line edit that can be selected and copied, but not edited.
-class XLineEdit(QLineEdit):
-    def keyPressEvent(self, event):
-        event.ignore()
-
 class App(QWidget):
     def __init__(self):
         super().__init__()
@@ -121,8 +116,8 @@ class App(QWidget):
         self.directory_path = None
          
         self.setWindowTitle('Electron Cash Plugin Packager')
-        self.setMinimumWidth(400)
-        self.setMaximumWidth(400)
+        self.setMinimumWidth(450)
+        self.setMaximumWidth(450)
         
         outerVLayout = QVBoxLayout()
         self.setLayout(outerVLayout)
@@ -179,9 +174,9 @@ class App(QWidget):
         outerVLayout.addLayout(buttonsHLayout)
         
         self.closeButton = QPushButton("Close")
-        self.checksumLineEdit = XLineEdit()
-        self.checksumLineEdit.setPlaceholderText("Computed checksum of plugin archive..")
-        self.checksumLineEdit.setMinimumWidth(250)
+        self.checksumLineEdit = QLineEdit()
+        self.checksumLineEdit.setPlaceholderText("Computed SHA256 checksum of plugin archive..")
+        self.checksumLineEdit.setMinimumWidth(350)
         buttonsHLayout = QHBoxLayout()
         buttonsHLayout.addWidget(self.checksumLineEdit)
         buttonsHLayout.addStretch(1)

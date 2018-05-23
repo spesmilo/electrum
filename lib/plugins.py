@@ -52,7 +52,13 @@ class ExternalPluginCodes:
     UNABLE_TO_COPY_FILE = 3
     INSTALLED_BUT_FAILED_LOAD = 4
     INCOMPATIBLE_VERSION = 5
-
+    INCOMPATIBLE_ZIP_FORMAT = 6
+    INVALID_MANIFEST_JSON = 7
+    INVALID_MAMIFEST_DISPLAY_NAME = 8
+    INVALID_MAMIFEST_DESCRIPTION = 9
+    INVALID_MAMIFEST_VERSION = 10
+    INVALID_MAMIFEST_MINIMUM_EC_VERSION = 11
+    INVALID_MAMIFEST_PACKAGE_NAME = 12
 
 INTERNAL_USE_PREFIX = 'use_'
 EXTERNAL_USE_PREFIX = 'use_external_'
@@ -118,7 +124,7 @@ class Plugins(DaemonThread):
             leading_name, ext = os.path.splitext(file_name)
             if ext.lower() != ".zip" or not os.path.isfile(plugin_file_path):
                 continue
-            metadata = self.get_metadata_from_external_plugin_zip_file(plugin_file_path)
+            metadata, error_code = self.get_metadata_from_external_plugin_zip_file(plugin_file_path)
             if metadata is None:
                 continue
             package_name = metadata['package_name']
@@ -280,46 +286,50 @@ class Plugins(DaemonThread):
             zipfile = zipimport.zipimporter(plugin_file_path)
         except zipimport.ZipImportError:
             self.print_error("unable to load zip plugin for %s" % file_name)
-            return None
+            return None, ExternalPluginCodes.INCOMPATIBLE_ZIP_FORMAT
+
         try:
             metadata_text = zipfile.get_data("manifest.json")
         except OSError:
             self.print_error("missing 'manifest.json' (zip plugin %s)" % file_name)
-            return None
+            return None, ExternalPluginCodes.MISSING_MANIFEST
 
         try:
             metadata = json.loads(metadata_text)
         except json.JSONDecodeError:
             self.print_error("invalid json in 'manifest.json' (zip plugin %s)" % file_name)
-            return None
+            return None, ExternalPluginCodes.INVALID_MANIFEST_JSON
 
         expected_keys = {
-            'display_name': str, 'description': str, 'version': versiontuple,
-            'minimum_ec_version': versiontuple, 'package_name': str,
+            'display_name': (str, ExternalPluginCodes.INVALID_MAMIFEST_DISPLAY_NAME),
+            'description': (str, ExternalPluginCodes.INVALID_MAMIFEST_DESCRIPTION),
+            'version': (versiontuple, ExternalPluginCodes.INVALID_MAMIFEST_VERSION),
+            'minimum_ec_version': (versiontuple, ExternalPluginCodes.INVALID_MAMIFEST_MINIMUM_EC_VERSION),
+            'package_name': (str, ExternalPluginCodes.INVALID_MAMIFEST_PACKAGE_NAME),
         }
-        for k, expected_type in expected_keys.items():
+        for k, (expected_type, error_code) in expected_keys.items():
             v = metadata.get(k, None)
             if v is None:
                 self.print_error("missing metadata key %s (zip plugin %s)" % (k, file_name))
-                return None
+                return None, error_code
             if expected_type is versiontuple:
                 try:
                     v = versiontuple(v)
                 except ValueError:
                     self.print_error("metadata %s = %s, expected a.b.c version string (zip plugin %s)" % (k, v, file_name))
-                    return None
+                    return None, error_code
             elif type(metadata[k]) is not expected_type:
                 self.print_error("metadata %s = %s, expected %s (zip plugin %s)" % (k, v, expected_type, file_name))
-                return None
+                return None, error_code
 
-        return metadata
+        return metadata, ExternalPluginCodes.SUCCESS
 
     def install_external_plugin(self, plugin_original_path):
         # Do the minimum verification necessary to check if the archive looks
         # like a valid plugin zip archive.
-        metadata = self.get_metadata_from_external_plugin_zip_file(plugin_original_path)
+        metadata, error_code = self.get_metadata_from_external_plugin_zip_file(plugin_original_path)
         if metadata is None:
-            return ExternalPluginCodes.MISSING_MANIFEST
+            return error_code
 
         file_name = os.path.basename(plugin_original_path)
         leading_name, ext = os.path.splitext(file_name)
