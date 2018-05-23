@@ -569,7 +569,7 @@ def is_synced(network):
     return synced
 
 class Peer(PrintError):
-    def __init__(self, host, port, pubkey, privkey, request_initial_sync=False, network=None):
+    def __init__(self, host, port, pubkey, privkey, network, request_initial_sync=False):
         self.update_add_htlc_event = asyncio.Event()
         self.channel_update_event = asyncio.Event()
         self.host = host
@@ -648,7 +648,7 @@ class Peer(PrintError):
         # act 1
         self.writer.write(msg)
         rspns = await self.reader.read(2**10)
-        assert len(rspns) == 50
+        assert len(rspns) == 50, "Lightning handshake act 1 response has bad length, are you sure this is the right pubkey? " + str(bh2u(self.pubkey))
         hver, alice_epub, tag = rspns[0], rspns[1:34], rspns[34:]
         assert bytes([hver]) == hs.handshake_version
         # act 2
@@ -875,7 +875,7 @@ class Peer(PrintError):
         print('remote dust limit', remote_config.dust_limit_sat)
         assert remote_config.dust_limit_sat < 600
         assert int.from_bytes(payload['htlc_minimum_msat'], 'big') < 600 * 1000
-        assert remote_config.max_htlc_value_in_flight_msat >= 500 * 1000 * 1000, remote_config.max_htlc_value_in_flight_msat
+        assert remote_config.max_htlc_value_in_flight_msat >= 198 * 1000 * 1000, remote_config.max_htlc_value_in_flight_msat
         self.print_error('remote delay', remote_config.to_self_delay)
         self.print_error('funding_txn_minimum_depth', funding_txn_minimum_depth)
         # create funding tx
@@ -1370,32 +1370,69 @@ class Peer(PrintError):
         channel_id = int.from_bytes(payload["channel_id"], 'big')
         self.revoke_and_ack[channel_id].set_result(payload)
 
+class ConsoleInterface:
+    def __init__(self, lnworker):
+        self.lnworker = lnworker
+    def __repr__(self):
+        return str(dir(self))
 
 # replacement for lightningCall
 class LNWorker:
 
     def __init__(self, wallet, network):
-        self.privkey = H256(b"0123456789")
         self.wallet = wallet
         self.network = network
+        self.privkey = H256(b"0123456789")
         self.config = network.config
         self.peers = {}
         self.channels = {}
         peer_list = network.config.get('lightning_peers', node_list)
+        print("Adding", len(peer_list), "peers")
         for host, port, pubkey in peer_list:
             self.add_peer(host, port, pubkey)
+        self.console_interface = ConsoleInterface(self)
 
     def add_peer(self, host, port, pubkey):
-        peer = Peer(host, int(port), binascii.unhexlify(pubkey), self.privkey)
+        peer = Peer(host, int(port), binascii.unhexlify(pubkey), self.privkey, self.network)
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[pubkey] = peer
 
-    def open_channel(self, pubkey, amount, push_msat, password):
-        keystore = self.wallet.keystore
-        peer = self.peers.get(pubkey)
+    def open_channel(self, peer, amount, push_msat, password):
         coro = peer.channel_establishment_flow(self.wallet, self.config, password, amount, push_msat, temp_channel_id=os.urandom(32))
-        fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
+    def open_channel_from_other_thread(self, node_id, local_amt, push_amt, emit_function, get_password):
+        pw = get_password()
+        if pw is None:
+            # user pressed cancel
+            return
+        # TODO this could race on peers
+        peer = self.peers.get(node_id)
+        if peer is None:
+            if len(self.peers) != 1:
+                print("Peer not found, and peer list is empty or has multiple peers.")
+                return
+            peer = next(iter(self.peers.values()))
+        fut = self.open_channel(peer, local_amt, push_amt, None if pw == "" else pw)
+        chan = fut.result()
+        # https://api.lightning.community/#listchannels
+        std_chan = {"chan_id": chan.channel_id}
+        emit_function({"channels": [std_chan]})
+
+    def subscribe_payment_received_from_other_thread(self, emit_function):
+        pass
+
+    def subscribe_channel_list_updates_from_other_thread(self, emit_function):
+        pass
+
+    def subscribe_single_channel_update_from_other_thread(self, emit_function):
+        pass
+
+    def add_invoice_from_other_thread(self, amt):
+        pass
+
+    def subscribe_invoice_added_from_other_thread(self, emit_function):
+        pass
 
 class ChannelInfo(PrintError):
 
