@@ -44,7 +44,7 @@ INSTALL_ERROR_MESSAGES = {
     ExternalPluginCodes.INVALID_MANIFEST_JSON: _("The plugin manifest is not recognized as valid JSON."),
     ExternalPluginCodes.INVALID_MAMIFEST_DISPLAY_NAME: _("The plugin manifest lacks a valid display name."),
     ExternalPluginCodes.INVALID_MAMIFEST_DESCRIPTION: _("The plugin manifest lacks a valid description."),
-    ExternalPluginCodes.INVALID_MAMIFEST_VERSION: _("The plugin manifest lacks a valid vesion."),
+    ExternalPluginCodes.INVALID_MAMIFEST_VERSION: _("The plugin manifest lacks a valid version."),
     ExternalPluginCodes.INVALID_MAMIFEST_MINIMUM_EC_VERSION: _("The plugin manifest lacks a valid minimum Electron Cash version."),
     ExternalPluginCodes.INVALID_MAMIFEST_PACKAGE_NAME: _("The plugin manifest lacks a valid package name."),
 }
