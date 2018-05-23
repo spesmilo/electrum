@@ -152,35 +152,6 @@ def deserialize_server(server_str):
 def serialize_server(host, port, protocol):
     return str(':'.join([host, port, protocol]))
 
-class QLock:
-    def __init__(self):
-        self.lock = threading.Lock()
-        self.waiters = deque()
-        self.count = 0
-
-    def acquire(self):
-        self.lock.acquire()
-        if self.count:
-            new_lock = threading.Lock()
-            new_lock.acquire()
-            self.waiters.append(new_lock)
-            self.lock.release()
-            new_lock.acquire()
-            self.lock.acquire()
-        self.count += 1
-        self.lock.release()
-
-    def release(self):
-        with self.lock:
-            if not self.count:
-                raise ValueError("lock not acquired")
-            self.count -= 1
-            if self.waiters:
-                self.waiters.popleft().release()
-
-    def locked(self):
-        return self.count > 0
-
 class Network(util.DaemonThread):
     """The Network class manages a set of connections to remote electrum
     servers, each connected socket is handled by an Interface() object.
@@ -195,8 +166,6 @@ class Network(util.DaemonThread):
     """
 
     def __init__(self, config=None):
-        self.lightninglock = threading.Lock()
-        self.lightninglock.acquire()
         if config is None:
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
@@ -1065,25 +1034,16 @@ class Network(util.DaemonThread):
     def run(self):
         asyncio.set_event_loop(self.asyncio_loop)
         self.init_headers_file()
-        networkAndWalletLock = QLock()
         def asyncioThread():
-            if self.config.get("lightning", False):
-                asyncio.set_event_loop(self.asyncio_loop)
-                self.lightninglock.acquire()
-                if self.lightningrpc is not None and self.lightningworker is not None:
-                    task = asyncio.ensure_future(asyncio.gather(self.lightningrpc.run(networkAndWalletLock), self.lightningworker.run(networkAndWalletLock)))
             self.asyncio_loop.run_forever()
 
         threading.Thread(target=asyncioThread).start()
-        networkAndWalletLock.acquire()
         while self.is_running():
             self.maintain_sockets()
             self.wait_on_sockets()
             self.maintain_requests()
             self.run_jobs()    # Synchronizer and Verifier
             self.process_pending_sends()
-            networkAndWalletLock.release()
-            networkAndWalletLock.acquire()
         # cancel tasks
         [f.cancel() for f in self.futures]
         async def loopstop():

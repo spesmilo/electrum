@@ -67,9 +67,6 @@ from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .paymentrequest import InvoiceStore
 from .contacts import Contacts
 
-from .lightning import LightningRPC
-from .lightning import LightningWorker
-
 TX_STATUS = [
     _('Unconfirmed'),
     _('Unconfirmed parent'),
@@ -1310,12 +1307,6 @@ class Abstract_Wallet(PrintError):
             self.verifier = SPV(self.network, self)
             self.synchronizer = Synchronizer(self, network)
             network.add_jobs([self.verifier, self.synchronizer])
-            network.lightningworker = None
-            network.lightningrpc = None
-            if network.config.get("lightning", False):
-                network.lightningworker = LightningWorker(self, network, network.config)
-                network.lightningrpc = LightningRPC()
-                network.lightninglock.release()
             if network.config.get("lnbase", False):
                 asyncio.set_event_loop(network.asyncio_loop)
                 from .lnbase import LNWorker

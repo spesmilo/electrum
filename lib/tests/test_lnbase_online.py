@@ -106,7 +106,7 @@ if __name__ == "__main__":
         privkey = wallet.storage.get("channels_privkey", None)
         assert privkey is not None
         privkey = bfh(privkey)
-    peer = Peer(host, port, pubkey, privkey, request_initial_sync=True, network=network)
+    peer = Peer(host, port, pubkey, privkey, network, request_initial_sync=True)
     network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), network.asyncio_loop))
 
     funding_satoshis = 2000000

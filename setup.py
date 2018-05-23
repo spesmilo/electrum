@@ -56,8 +56,6 @@ setup(
     packages=[
         'electrum',
         'electrum.lightning_payencode',
-        'electrum.ln.google.api',
-        'electrum.ln',
         'electrum_gui',
         'electrum_gui.qt',
         'electrum_plugins',
