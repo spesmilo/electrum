@@ -392,16 +392,20 @@ class SettingsDialog(WindowModalDialog):
         def change_homescreen():
             dialog = QFileDialog(self, _("Choose Homescreen"))
             filename, __ = dialog.getOpenFileName()
+            if not filename:
+                return  # user cancelled
 
             if filename.endswith('.toif'):
                 img = open(filename, 'rb').read()
                 if img[:8] != b'TOIf\x90\x00\x90\x00':
-                    raise Exception('File is not a TOIF file with size of 144x144')
+                    handler.show_error('File is not a TOIF file with size of 144x144')
+                    return
             else:
                 from PIL import Image # FIXME
                 im = Image.open(filename)
                 if im.size != (128, 64):
-                    raise Exception('Image must be 128 x 64 pixels')
+                    handler.show_error('Image must be 128 x 64 pixels')
+                    return
                 im = im.convert('1')
                 pix = im.load()
                 img = bytearray(1024)
@@ -411,7 +415,7 @@ class SettingsDialog(WindowModalDialog):
                             o = (i + j * 128)
                             img[o // 8] |= (1 << (7 - o % 8))
                 img = bytes(img)
-                invoke_client('change_homescreen', img)
+            invoke_client('change_homescreen', img)
 
         def clear_homescreen():
             invoke_client('change_homescreen', b'\x00')
@@ -509,29 +513,27 @@ class SettingsDialog(WindowModalDialog):
         settings_glayout.addWidget(pin_msg, 3, 1, 1, -1)
 
         # Settings tab - Homescreen
-        if plugin.device != 'KeepKey':   # Not yet supported by KK firmware
-            homescreen_layout = QHBoxLayout()
-            homescreen_label = QLabel(_("Homescreen"))
-            homescreen_change_button = QPushButton(_("Change..."))
-            homescreen_clear_button = QPushButton(_("Reset"))
-            homescreen_change_button.clicked.connect(change_homescreen)
-            try:
-                import PIL
-            except ImportError:
-                homescreen_change_button.setDisabled(True)
-                homescreen_change_button.setToolTip(
-                    _("Required package 'PIL' is not available - Please install it or use the Trezor website instead.")
-                )
-            homescreen_clear_button.clicked.connect(clear_homescreen)
-            homescreen_msg = QLabel(_("You can set the homescreen on your "
-                                      "device to personalize it.  You must "
-                                      "choose a {} x {} monochrome black and "
-                                      "white image.").format(hs_rows, hs_cols))
-            homescreen_msg.setWordWrap(True)
-            settings_glayout.addWidget(homescreen_label, 4, 0)
-            settings_glayout.addWidget(homescreen_change_button, 4, 1)
-            settings_glayout.addWidget(homescreen_clear_button, 4, 2)
-            settings_glayout.addWidget(homescreen_msg, 5, 1, 1, -1)
+        homescreen_label = QLabel(_("Homescreen"))
+        homescreen_change_button = QPushButton(_("Change..."))
+        homescreen_clear_button = QPushButton(_("Reset"))
+        homescreen_change_button.clicked.connect(change_homescreen)
+        try:
+            import PIL
+        except ImportError:
+            homescreen_change_button.setDisabled(True)
+            homescreen_change_button.setToolTip(
+                _("Required package 'PIL' is not available - Please install it or use the Trezor website instead.")
+            )
+        homescreen_clear_button.clicked.connect(clear_homescreen)
+        homescreen_msg = QLabel(_("You can set the homescreen on your "
+                                  "device to personalize it.  You must "
+                                  "choose a {} x {} monochrome black and "
+                                  "white image.").format(hs_rows, hs_cols))
+        homescreen_msg.setWordWrap(True)
+        settings_glayout.addWidget(homescreen_label, 4, 0)
+        settings_glayout.addWidget(homescreen_change_button, 4, 1)
+        settings_glayout.addWidget(homescreen_clear_button, 4, 2)
+        settings_glayout.addWidget(homescreen_msg, 5, 1, 1, -1)
 
         # Settings tab - Session Timeout
         timeout_label = QLabel(_("Session Timeout"))
