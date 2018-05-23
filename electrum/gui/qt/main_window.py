@@ -173,7 +173,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.utxo_tab = self.create_utxo_tab()
         self.console_tab = self.create_console_tab()
         self.contacts_tab = self.create_contacts_tab()
-        if config.get("lightning", False):
+        tabs.addTab(self.create_history_tab(), QIcon(":icons/tab_history.png"), _('History'))
+        tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
+        tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
+        if config.get("lnbase", False):
             self.lightning_invoices_tab = self.create_lightning_invoices_tab(wallet)
             tabs.addTab(self.lightning_invoices_tab, _("Lightning Invoices"))
 
@@ -879,11 +882,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.update_completions()
 
     def create_lightning_invoices_tab(self, wallet):
-        self.lightning_invoice_list = LightningInvoiceList(self, wallet.network.lightningworker, wallet.network.lightningrpc)
+        self.lightning_invoice_list = LightningInvoiceList(self, wallet.lnworker)
         return self.lightning_invoice_list
 
     def create_lightning_channels_tab(self, wallet):
-        self.lightning_channels_list = LightningChannelsList(self, wallet.network.lightningworker, wallet.network.lightningrpc)
+        self.lightning_channels_list = LightningChannelsList(self, wallet.lnworker)
         return self.lightning_channels_list
 
     def create_history_tab(self):
@@ -2089,7 +2092,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             'wallet': self.wallet,
             'network': self.network,
             'plugins': self.gui_object.plugins,
-            'l': self.gui_object.lightning,
+            'lightning' : self.wallet.lnworker.console_interface,
             'window': self,
             'config': self.config,
             'electrum': electrum,

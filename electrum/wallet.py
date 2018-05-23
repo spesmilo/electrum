@@ -73,9 +73,6 @@ if TYPE_CHECKING:
 
 _logger = get_logger(__name__)
 
-from .lightning import LightningRPC
-from .lightning import LightningWorker
-
 TX_STATUS = [
     _('Unconfirmed'),
     _('Unconfirmed parent'),
