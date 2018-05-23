@@ -2,7 +2,7 @@ import binascii
 from kivy.lang import Builder
 from kivy.factory import Factory
 from electrum_gui.kivy.i18n import _
-import electrum.lightning as lightning
+from kivy.clock import mainthread
 from electrum.lightning_payencode.lnaddr import lndecode
 
 Builder.load_string('''
@@ -49,36 +49,45 @@ class LightningPayerDialog(Factory.Popup):
     def __init__(self, app):
         super(LightningPayerDialog, self).__init__()
         self.app = app
-    def open(self, *args, **kwargs):
-        super(LightningPayerDialog, self).open(*args, **kwargs)
-        class FakeQtSignal:
-            def emit(self2, data):
-                self.app.show_info(data)
-        class MyConsole:
-            new_lightning_result = FakeQtSignal()
-        self.app.wallet.network.lightningrpc.setConsole(MyConsole())
-    def dismiss(self, *args, **kwargs):
-        super(LightningPayerDialog, self).dismiss(*args, **kwargs)
-        self.app.wallet.network.lightningrpc.setConsole(None)
+
+    #def open(self, *args, **kwargs):
+    #    super(LightningPayerDialog, self).open(*args, **kwargs)
+    #def dismiss(self, *args, **kwargs):
+    #    super(LightningPayerDialog, self).dismiss(*args, **kwargs)
+
     def do_paste_xclip(self):
         import subprocess
         proc = subprocess.run(["xclip","-sel","clipboard","-o"], stdout=subprocess.PIPE)
         self.invoice_data = proc.stdout.decode("ascii")
+
     def do_paste(self):
         contents = self.app._clipboard.paste()
         if not contents:
             self.app.show_info(_("Clipboard is empty"))
             return
         self.invoice_data = contents
+
     def do_clear(self):
         self.invoice_data = ""
+
     def do_open_channel(self):
         compressed_pubkey_bytes = lndecode(self.invoice_data).pubkey.serialize()
         hexpubkey = binascii.hexlify(compressed_pubkey_bytes).decode("ascii")
-        local_amt = 100000
-        push_amt = 0
-        lightning.lightningCall(self.app.wallet.network.lightningrpc, "openchannel")(hexpubkey, local_amt, push_amt)
+        local_amt = 200000
+        push_amt = 100000
+
+        def on_success(pw):
+            # node_id, local_amt, push_amt, emit_function, get_password
+            self.app.wallet.lnworker.open_channel_from_other_thread(hexpubkey, local_amt, push_amt, mainthread(lambda parent: self.app.show_info(_("Channel open, waiting for locking..."))), lambda: pw)
+
+        if self.app.wallet.has_keystore_encryption():
+            # wallet, msg, on_success (Tuple[str, str] -> ()), on_failure (() -> ())
+            self.app.password_dialog(self.app.wallet, _("Password needed for opening channel"), on_success, lambda: self.app.show_error(_("Failed getting password from you")))
+        else:
+            on_success("")
+
     def do_pay(self):
-        lightning.lightningCall(self.app.wallet.network.lightningrpc, "sendpayment")("--pay_req=" + self.invoice_data)
+        self.app.wallet.lnworker.pay_invoice_from_other_thread(self.invoice_data)
+
     def on_lightning_qr(self, data):
         self.invoice_data = str(data)
