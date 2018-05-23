@@ -3,16 +3,15 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.uix.popup import Popup
 from kivy.clock import Clock
-import electrum.lightning as lightning
 from electrum_gui.kivy.uix.context_menu import ContextMenu
 
 Builder.load_string('''
 <LightningChannelItem@CardItem>
     details: {}
     active: False
-    channelPoint: '<channelPoint not set>'
+    channelId: '<channelId not set>'
     Label:
-        text: root.channelPoint
+        text: root.channelId
 
 <LightningChannelsDialog@Popup>:
     name: 'lightning_channels'
@@ -87,6 +86,7 @@ class LightningChannelsDialog(Factory.Popup):
         self.clocks = []
         self.app = app
         self.context_menu = None
+        self.app.wallet.lnworker.subscribe_channel_list_updates_from_other_thread(self.rpc_result_handler)
 
     def show_channel_details(self, obj):
         p = Factory.ChannelDetailsPopup()
@@ -94,8 +94,7 @@ class LightningChannelsDialog(Factory.Popup):
         p.open()
 
     def close_channel(self, obj):
-        print("asked to close channel", obj.channelPoint)
-        lightning.lightningCall(self.app.wallet.network.lightningrpc, "closechannel")(*([obj.channelPoint] + (["--force"] if not obj.active else [])))
+        print("UNIMPLEMENTED asked to close channel", obj.channelId) # TODO
 
     def show_menu(self, obj):
         self.hide_menu()
@@ -108,24 +107,7 @@ class LightningChannelsDialog(Factory.Popup):
             self.ids.box.remove_widget(self.context_menu)
             self.context_menu = None
 
-    def open(self, *args, **kwargs):
-        super(LightningChannelsDialog, self).open(*args, **kwargs)
-        for i in self.clocks: i.cancel()
-        self.clocks.append(Clock.schedule_interval(self.fetch_channels, 10))
-        self.app.wallet.network.lightningrpc.subscribe(self.rpc_result_handler)
-
-    def dismiss(self, *args, **kwargs):
-        self.hide_menu()
-        super(LightningChannelsDialog, self).dismiss(*args, **kwargs)
-        self.app.wallet.network.lightningrpc.clearSubscribers()
-
-    def fetch_channels(self, dw):
-        lightning.lightningCall(self.app.wallet.network.lightningrpc, "listchannels")()
-
-    def rpc_result_handler(self, methodName, res):
-        print("got result", methodName)
-        if isinstance(res, Exception):
-            raise res
+    def rpc_result_handler(self, res):
         channel_cards = self.ids.lightning_channels_container
         channel_cards.clear_widgets()
         if "channels" in res:
@@ -133,7 +115,7 @@ class LightningChannelsDialog(Factory.Popup):
             item = Factory.LightningChannelItem()
             item.screen = self
             print(i)
-            item.channelPoint = i["channel_point"].split(":")[0]
+            item.channelId = i["chan_id"]
             item.active = i["active"]
             item.details = i
             channel_cards.add_widget(item)
