@@ -1434,6 +1434,9 @@ class LNWorker:
     def subscribe_invoice_added_from_other_thread(self, emit_function):
         pass
 
+    def pay_invoice_from_other_thread(self, lnaddr):
+        pass
+
 class ChannelInfo(PrintError):
 
     def __init__(self, channel_announcement_payload):

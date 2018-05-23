@@ -1966,8 +1966,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         console.updateNamespace({'wallet' : self.wallet,
                                  'network' : self.network,
                                  'plugins' : self.gui_object.plugins,
-                                 'lightning' : self.wallet.lnworker.console_interface,
                                  'window': self})
+        if self.config.get('lnbase', False): console.updateNamespace({'lightning' : self.wallet.lnworker.console_interface})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
 
         c = commands.Commands(self.config, self.wallet, self.network, lambda: self.console.set_json(True))
