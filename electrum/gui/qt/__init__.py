@@ -48,8 +48,6 @@ from electrum.util import (UserCancelled, PrintError, profiler,
 
 from .installwizard import InstallWizard
 
-from electrum.lightning import LightningUI
-
 try:
     from . import icons_rc
 except Exception as e:
@@ -135,11 +133,6 @@ class ElectrumGui(PrintError):
         # the OS/window manager/etc might set *a dark theme*.
         # Hence, try to choose colors accordingly:
         ColorScheme.update_from_widget(QWidget(), force_dark=use_dark_theme)
-        self.lightning = LightningUI(self.set_console_and_return_lightning)
-
-    def set_console_and_return_lightning(self):
-        self.windows[0].wallet.network.lightningrpc.setConsole(self.windows[0].console)
-        return self.windows[0].wallet.network.lightningrpc
 
     def build_tray_menu(self):
         # Avoid immediate GC of old menu when window closed via its action
