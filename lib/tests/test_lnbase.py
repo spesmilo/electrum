@@ -62,15 +62,13 @@ class Test_LNBase(unittest.TestCase):
         remote_signature = "3045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c0"
         # local_signature = 3044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c3836939
         htlcs=[]
-        local_amount = to_local_msat // 1000
-        remote_amount = to_remote_msat // 1000
         our_commit_tx = make_commitment(
             commitment_number,
             local_funding_pubkey, remote_funding_pubkey, remotepubkey,
             local_payment_basepoint, remote_payment_basepoint,
             local_revocation_pubkey, local_delayedpubkey, local_delay,
             funding_tx_id, funding_output_index, funding_amount_satoshi,
-            local_amount, remote_amount, local_dust_limit_satoshi,
+            to_local_msat, to_remote_msat, local_dust_limit_satoshi,
             local_feerate_per_kw, True, htlcs=[])
         self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
         ref_commit_tx_str = '02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8002c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de84311054a56a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e0400473044022051b75c73198c6deee1a875871c3961832909acd297c6b908d59e3319e5185a46022055c419379c5051a78d00dbbce11b5b664a0c22815fbcc6fcef6b1937c383693901483045022100f51d2e566a70ba740fc5d8c0f07b9b93d2ed741c3c0860c613173de7d39e7968022041376d520e9c0e1ad52248ddf4b22e12be8763007df977253ef45a4ca3bdb7c001475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220'
@@ -151,15 +149,13 @@ class Test_LNBase(unittest.TestCase):
         htlc4_msat = 4000 * 1000
         htlcs = [(htlc2, htlc2_msat), (htlc3, htlc3_msat), (htlc0, htlc0_msat), (htlc1, htlc1_msat), (htlc4, htlc4_msat)]
 
-        local_amount = to_local_msat // 1000
-        remote_amount = to_remote_msat // 1000
         our_commit_tx = make_commitment(
             commitment_number,
             local_funding_pubkey, remote_funding_pubkey, remotepubkey,
             local_payment_basepoint, remote_payment_basepoint,
             local_revocation_pubkey, local_delayedpubkey, local_delay,
             funding_tx_id, funding_output_index, funding_amount_satoshi,
-            local_amount, remote_amount, local_dust_limit_satoshi,
+            to_local_msat, to_remote_msat, local_dust_limit_satoshi,
             local_feerate_per_kw, True, htlcs=htlcs)
         self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
         self.assertEqual(str(our_commit_tx), output_commit_tx)
@@ -258,24 +254,24 @@ class Test_LNBase(unittest.TestCase):
                      success=True, cltv_timeout=0)
 
     def test_find_path_for_payment(self):
-        p = Peer('', 0, 'a', bitcoin.sha256('privkeyseed'))
-        p.on_channel_announcement({'node_id_1': 'b', 'node_id_2': 'c', 'short_channel_id': bfh('0000000000000001')})
-        p.on_channel_announcement({'node_id_1': 'b', 'node_id_2': 'e', 'short_channel_id': bfh('0000000000000002')})
-        p.on_channel_announcement({'node_id_1': 'b', 'node_id_2': 'a', 'short_channel_id': bfh('0000000000000003')})
-        p.on_channel_announcement({'node_id_1': 'd', 'node_id_2': 'c', 'short_channel_id': bfh('0000000000000004')})
-        p.on_channel_announcement({'node_id_1': 'e', 'node_id_2': 'd', 'short_channel_id': bfh('0000000000000005')})
-        p.on_channel_announcement({'node_id_1': 'a', 'node_id_2': 'd', 'short_channel_id': bfh('0000000000000006')})
+        p = Peer('', 0, 'a', bitcoin.sha256('privkeyseed'), None)
+        p.on_channel_announcement({'node_id_1': b'b', 'node_id_2': b'c', 'short_channel_id': bfh('0000000000000001')})
+        p.on_channel_announcement({'node_id_1': b'b', 'node_id_2': b'e', 'short_channel_id': bfh('0000000000000002')})
+        p.on_channel_announcement({'node_id_1': b'a', 'node_id_2': b'b', 'short_channel_id': bfh('0000000000000003')})
+        p.on_channel_announcement({'node_id_1': b'c', 'node_id_2': b'd', 'short_channel_id': bfh('0000000000000004')})
+        p.on_channel_announcement({'node_id_1': b'd', 'node_id_2': b'e', 'short_channel_id': bfh('0000000000000005')})
+        p.on_channel_announcement({'node_id_1': b'a', 'node_id_2': b'd', 'short_channel_id': bfh('0000000000000006')})
         o = lambda i: i.to_bytes(8, "big")
         p.on_channel_update({'short_channel_id': bfh('0000000000000001'), 'flags': b'\x00', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150)})
         p.on_channel_update({'short_channel_id': bfh('0000000000000001'), 'flags': b'\x01', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150)})
         p.on_channel_update({'short_channel_id': bfh('0000000000000002'), 'flags': b'\x00', 'cltv_expiry_delta': o(99), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150)})
         p.on_channel_update({'short_channel_id': bfh('0000000000000002'), 'flags': b'\x01', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150)})
-        p.on_channel_update({'short_channel_id': bfh('0000000000000003'), 'flags': b'\x00', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150)})
         p.on_channel_update({'short_channel_id': bfh('0000000000000003'), 'flags': b'\x01', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150)})
-        p.on_channel_update({'short_channel_id': bfh('0000000000000004'), 'flags': b'\x00', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150)})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000003'), 'flags': b'\x00', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150)})
         p.on_channel_update({'short_channel_id': bfh('0000000000000004'), 'flags': b'\x01', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150)})
-        p.on_channel_update({'short_channel_id': bfh('0000000000000005'), 'flags': b'\x00', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150)})
-        p.on_channel_update({'short_channel_id': bfh('0000000000000005'), 'flags': b'\x01', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(999)})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000004'), 'flags': b'\x00', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150)})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000005'), 'flags': b'\x01', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150)})
+        p.on_channel_update({'short_channel_id': bfh('0000000000000005'), 'flags': b'\x00', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(999)})
         p.on_channel_update({'short_channel_id': bfh('0000000000000006'), 'flags': b'\x00', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(99999999)})
         p.on_channel_update({'short_channel_id': bfh('0000000000000006'), 'flags': b'\x01', 'cltv_expiry_delta': o(10), 'htlc_minimum_msat': o(250), 'fee_base_msat': o(100), 'fee_proportional_millionths': o(150)})
         print(p.path_finder.find_path_for_payment('a', 'e', 100000))
