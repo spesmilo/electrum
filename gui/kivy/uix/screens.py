@@ -170,7 +170,7 @@ class SendScreen(CScreen):
     def set_URI(self, text):
         import electrum_grs
         try:
-            uri = electrum.util.parse_URI(text, self.app.on_pr)
+            uri = electrum_grs.util.parse_URI(text, self.app.on_pr)
         except:
             self.app.show_info(_("Not a Groestlcoin URI"))
             return
