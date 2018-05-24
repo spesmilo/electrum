@@ -3,6 +3,12 @@ language: python
 python:
     - 3.5
     - 3.6
+addons:
+  apt:
+    sources:
+      - sourceline: 'ppa:tah83/secp256k1'
+    packages:
+      - libsecp256k1-0
 install:
   - pip install -r contrib/requirements/requirements-travis.txt
 cache:

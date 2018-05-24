@@ -40,13 +40,18 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
         (os.path.join(usr_share, icons_dirname), ['icons/electrum.png'])
     ]
 
+extras_require = {
+    'hardware': requirements_hw,
+    'fast': ['pycryptodomex'],
+}
+extras_require['full'] = extras_require['hardware'] + extras_require['fast']
+
+
 setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
     install_requires=requirements,
-    extras_require={
-        'full': requirements_hw + ['pycryptodomex'],
-    },
+    extras_require=extras_require,
     packages=[
         'electrum',
         'electrum_gui',

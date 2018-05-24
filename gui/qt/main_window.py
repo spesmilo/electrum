@@ -39,7 +39,7 @@ import PyQt5.QtCore as QtCore
 from .exception_window import Exception_Hook
 from PyQt5.QtWidgets import *
 
-from electrum import keystore, simple_config
+from electrum import keystore, simple_config, ecc
 from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
 from electrum import constants
 from electrum.plugins import run_hook
@@ -2177,7 +2177,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             # This can throw on invalid base64
             sig = base64.b64decode(str(signature.toPlainText()))
-            verified = bitcoin.verify_message(address, sig, message)
+            verified = ecc.verify_message_with_address(address, sig, message)
         except Exception as e:
             verified = False
         if verified:
@@ -2243,7 +2243,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         message = message_e.toPlainText()
         message = message.encode('utf-8')
         try:
-            encrypted = bitcoin.encrypt_message(message, pubkey_e.text())
+            public_key = ecc.ECPubkey(bfh(pubkey_e.text()))
+            encrypted = public_key.encrypt_message(message)
             encrypted_e.setText(encrypted.decode('ascii'))
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
