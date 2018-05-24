@@ -285,7 +285,7 @@ class DigitalBitbox_Client():
     def dbb_generate_wallet(self):
         key = self.stretch_key(self.password)
         filename = ("Electrum-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf").encode('utf8')
-        msg = b'{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, b'Digital Bitbox Electrum Plugin')
+        msg = b'{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, b'Digital Bitbox Electrum-GRS Plugin')
         reply = self.hid_send_encrypt(msg)
         if 'error' in reply:
             raise Exception(reply['error']['message'])
