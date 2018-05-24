@@ -116,7 +116,7 @@ class SimpleConfig(PrintError):
             path = os.path.join(path, 'testnet')
             make_dir(path)
 
-        self.print_error("electrum directory", path)
+        self.print_error("electrum-grs directory", path)
         return path
 
     def rename_config_keys(self, config, keypairs, deprecation_warning=False):
@@ -235,7 +235,7 @@ class SimpleConfig(PrintError):
         # default path
         if not os.path.exists(self.path):
             raise FileNotFoundError(
-                _('Electrum datadir does not exist. Was it deleted while running?') + '\n' +
+                _('Electrum-GRS datadir does not exist. Was it deleted while running?') + '\n' +
                 _('Should be at {}').format(self.path))
         dirpath = os.path.join(self.path, "wallets")
         if not os.path.exists(dirpath):
