@@ -51,13 +51,7 @@ Builder.load_string('''
                     status: root.fx_status()
                     title: _('Fiat Currency') + ': ' + self.status
                     description: _("Display amounts in fiat currency.")
-                    action: partial(root.fx_dialog, self)
-                CardSeparator
-                SettingsItem:
-                    status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
-                    title: _('Labels Sync') + ': ' + self.status
-                    description: _("Save and synchronize your labels.")
-                    action: partial(root.plugin_dialog, 'labels', self)
+                    action: partial(root.fx_dialog, self)                
                 CardSeparator
                 SettingsItem:
                     status: 'ON' if app.use_rbf else 'OFF'
@@ -90,6 +84,12 @@ Builder.load_string('''
                 #    title: _('Coin selection') + ': ' + self.status
                 #    description: "Coin selection method"
                 #    action: partial(root.coinselect_dialog, self)
+                #CardSeparator
+                #SettingsItem:
+                #    status: 'ON' if bool(app.plugins.get('labels')) else 'OFF'
+                #    title: _('Labels Sync') + ': ' + self.status
+                #    description: _("Save and synchronize your labels.")
+                #    action: partial(root.plugin_dialog, 'labels', self)
 ''')
 
 
