@@ -193,7 +193,7 @@ def init_daemon(config_options):
     storage = WalletStorage(config.get_wallet_path())
     if not storage.file_exists():
         print_msg("Error: Wallet file not found.")
-        print_msg("Type 'electrum create' to create a new wallet, or provide a path to a wallet with the -w option")
+        print_msg("Type 'electrum-grs create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
     if storage.is_encrypted():
         if storage.is_encrypted_with_hw_device():
