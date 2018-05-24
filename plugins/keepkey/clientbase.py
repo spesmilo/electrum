@@ -115,8 +115,8 @@ class KeepKeyClientBase(GuiMixin, PrintError):
 
     def has_usable_connection_with_device(self):
         try:
-            res = self.ping("electrum pinging device")
-            assert res == "electrum pinging device"
+            res = self.ping("electrum-grs pinging device")
+            assert res == "electrum-grs pinging device"
         except BaseException:
             return False
         return True
