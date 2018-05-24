@@ -33,11 +33,11 @@ class TestUtil(unittest.TestCase):
 
     def test_parse_URI_address_label(self):
         self._do_test_parse_URI('groestlcoin:FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9?label=electrum%20test',
-                                {'address': 'FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9', 'label': 'electrum test'})
+                                {'address': 'FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9', 'label': 'electrum-grs test'})
 
     def test_parse_URI_address_message(self):
         self._do_test_parse_URI('groestlcoin:FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9?message=electrum%20test',
-                                {'address': 'FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9', 'message': 'electrum test', 'memo': 'electrum test'})
+                                {'address': 'FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9', 'message': 'electrum-grs test', 'memo': 'electrum-grs test'})
 
     def test_parse_URI_address_amount(self):
         self._do_test_parse_URI('groestlcoin:FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9?amount=0.0003',
@@ -53,7 +53,7 @@ class TestUtil(unittest.TestCase):
 
     def test_parse_URI_multiple_args(self):
         self._do_test_parse_URI('groestlcoin:FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9?amount=0.00004&label=electrum-test&message=electrum%20test&test=none&r=http://domain.tld/page',
-                                {'address': 'FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9', 'amount': 4000, 'label': 'electrum-test', 'message': u'electrum test', 'memo': u'electrum test', 'r': 'http://domain.tld/page', 'test': 'none'})
+                                {'address': 'FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9', 'amount': 4000, 'label': 'electrum-grs-test', 'message': u'electrum-grs test', 'memo': u'electrum test', 'r': 'http://domain.tld/page', 'test': 'none'})
 
     def test_parse_URI_no_address_request_url(self):
         self._do_test_parse_URI('groestlcoin:?r=http://domain.tld/page?h%3D2a8628fc2fbe',
