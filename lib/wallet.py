@@ -2323,6 +2323,8 @@ class Multisig_Wallet(Deterministic_Wallet):
 wallet_types = ['standard', 'multisig', 'imported']
 
 def register_wallet_type(category):
+    if category in wallet_types:
+        return
     wallet_types.append(category)
 
 wallet_constructors = {

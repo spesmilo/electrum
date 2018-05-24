@@ -58,12 +58,13 @@ class Plugins(DaemonThread):
         self.gui_name = gui_name
         self.descriptions = {}
         self.device_manager = DeviceMgr(config)
-        self.load_plugins()
+        self.load_plugins(self.pkgpath)
+        self.load_custom_plugins()
         self.add_jobs(self.device_manager.thread_jobs())
         self.start()
 
-    def load_plugins(self):
-        for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
+    def load_plugins(self, pkgpath):
+        for loader, name, ispkg in pkgutil.iter_modules([pkgpath]):
             # do not load deprecated plugins
             if name in ['plot', 'exchange_rate']:
                 continue
@@ -86,6 +87,20 @@ class Plugins(DaemonThread):
                     traceback.print_exc(file=sys.stdout)
                     self.print_error("cannot initialize plugin %s:" % name, str(e))
 
+    def load_custom_plugins(self):
+        custom_plugins_folder = self.config.get('custom_plugins_folder', None)
+        if custom_plugins_folder is not None and os.path.exists(custom_plugins_folder):
+            path = os.path.abspath(custom_plugins_folder)
+            try:
+                find = imp.find_module(os.path.basename(path), [os.path.dirname(path)])
+                imp.load_module('electrum_plugins_custom', *find)
+            except ImportError as e:
+                self.print_error('failed loading custom plugins: {}'.format(e))
+                return False
+            else:
+                self.load_plugins(path)
+                return True
+
     def get(self, name):
         return self.plugins.get(name)
 
@@ -95,8 +110,12 @@ class Plugins(DaemonThread):
     def load_plugin(self, name):
         if name in self.plugins:
             return self.plugins[name]
-        full_name = 'electrum_plugins.' + name + '.' + self.gui_name
-        loader = pkgutil.find_loader(full_name)
+        try:
+            full_name = 'electrum_plugins.' + name + '.' + self.gui_name
+            loader = pkgutil.find_loader(full_name)
+        except ImportError:
+            full_name = 'electrum_plugins_custom.' + name + '.' + self.gui_name
+            loader = pkgutil.find_loader(full_name)
         if not loader:
             raise RuntimeError("%s implementation for %s plugin not found"
                                % (self.gui_name, name))

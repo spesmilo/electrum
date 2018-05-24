@@ -3070,6 +3070,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.print_msg("error: cannot display plugin", name)
                 traceback.print_exc(file=sys.stdout)
         grid.setRowStretch(len(plugins.descriptions.values()), 1)
+
+        def on_path_select():
+            default_path = self.config.get('custom_plugins_folder', self.config.path)
+            path = QFileDialog.getExistingDirectory(self, "Select folder of custom plugins", default_path)
+            if path:
+                self.config.set_key('custom_plugins_folder', path, True)
+                load_successful = plugins.load_custom_plugins()
+                if load_successful:
+                    self.show_message(_('Custom plugins loaded successfully.'))
+                else:
+                    self.show_warning(_('Failed to load plugins from folder.') + '\n' +
+                                      _('Note') + ': ' +
+                                      _('The folder needs to contain a file named __init__.py'))
+
+        custom_plugins_button = QPushButton(_('Select folder for custom plugins'))
+        custom_plugins_button.setToolTip(_('The folder needs to contain a file named __init__.py'))
+        custom_plugins_button.clicked.connect(on_path_select)
+        vbox.addWidget(custom_plugins_button)
+
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
