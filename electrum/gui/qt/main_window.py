@@ -2104,7 +2104,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             'util': util,
             'bitcoin': bitcoin,
         })
-        if self.config.get('lnbase', False): console.updateNamespace({'lightning' : self.wallet.lnworker.console_interface})
 
         c = commands.Commands(self.config, self.wallet, self.network, lambda: self.console.set_json(True))
         methods = {}
