@@ -1363,12 +1363,6 @@ class Peer(PrintError):
         channel_id = int.from_bytes(payload["channel_id"], 'big')
         self.revoke_and_ack[channel_id].set_result(payload)
 
-class ConsoleInterface:
-    def __init__(self, lnworker):
-        self.lnworker = lnworker
-    def __repr__(self):
-        return str(dir(self))
-
 # replacement for lightningCall
 class LNWorker:
 
@@ -1383,7 +1377,6 @@ class LNWorker:
         print("Adding", len(peer_list), "peers")
         for host, port, pubkey in peer_list:
             self.add_peer(host, port, pubkey)
-        self.console_interface = ConsoleInterface(self)
 
     def add_peer(self, host, port, pubkey):
         peer = Peer(host, int(port), binascii.unhexlify(pubkey), self.privkey, self.network)
