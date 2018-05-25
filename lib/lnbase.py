@@ -883,7 +883,7 @@ class Peer(PrintError):
         redeem_script = transaction.multisig_script(pubkeys, 2)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         funding_output = (bitcoin.TYPE_ADDRESS, funding_address, funding_sat)
-        funding_tx = wallet.mktx([funding_output], None, config, 1000)
+        funding_tx = wallet.mktx([funding_output], password, config, 1000)
         funding_txid = funding_tx.txid()
         funding_index = funding_tx.outputs().index(funding_output)
         # derive keys
