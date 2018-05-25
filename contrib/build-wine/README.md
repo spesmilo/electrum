@@ -14,13 +14,14 @@ Usage:
  - gpg
  - 7Zip
  - Wine (>= v2)
+ - mingw-w64
 
 
 For example:
 
 
 ```
-$ sudo apt-get install wine-development dirmngr gnupg2 p7zip-full
+$ sudo apt-get install wine-development dirmngr gnupg2 p7zip-full mingw-w64
 $ wine --version
  wine-2.0 (Debian 2.0-3+b2)
 ```

@@ -8,6 +8,8 @@ import json
 from io import StringIO
 from lib.storage import WalletStorage, FINAL_SEED_VERSION
 
+from . import SequentialTestCase
+
 
 class FakeSynchronizer(object):
 
@@ -18,7 +20,7 @@ class FakeSynchronizer(object):
         self.store.append(address)
 
 
-class WalletTestCase(unittest.TestCase):
+class WalletTestCase(SequentialTestCase):
 
     def setUp(self):
         super(WalletTestCase, self).setUp()

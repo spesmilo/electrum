@@ -33,10 +33,11 @@ import pbkdf2, hmac, hashlib
 import base64
 import zlib
 
-from .util import PrintError, profiler, InvalidPassword, WalletFileException
+from .util import PrintError, profiler, InvalidPassword, WalletFileException, bfh
 from .plugins import run_hook, plugin_loaders
 from .keystore import bip44_derivation
 from . import bitcoin
+from . import ecc
 
 
 # seed_version is now used for the version of the wallet file
@@ -162,9 +163,10 @@ class WalletStorage(PrintError):
     def file_exists(self):
         return self.path and os.path.exists(self.path)
 
-    def get_key(self, password):
-        secret = pbkdf2.PBKDF2(password, '', iterations = 1024, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
-        ec_key = bitcoin.EC_KEY(secret)
+    @staticmethod
+    def get_eckey_from_password(password):
+        secret = pbkdf2.PBKDF2(password, '', iterations=1024, macmodule=hmac, digestmodule=hashlib.sha512).read(64)
+        ec_key = ecc.ECPrivkey.from_arbitrary_size_secret(secret)
         return ec_key
 
     def _get_encryption_magic(self):
@@ -177,13 +179,13 @@ class WalletStorage(PrintError):
             raise WalletFileException('no encryption magic for version: %s' % v)
 
     def decrypt(self, password):
-        ec_key = self.get_key(password)
+        ec_key = self.get_eckey_from_password(password)
         if self.raw:
             enc_magic = self._get_encryption_magic()
             s = zlib.decompress(ec_key.decrypt_message(self.raw, enc_magic))
         else:
             s = None
-        self.pubkey = ec_key.get_public_key()
+        self.pubkey = ec_key.get_public_key_hex()
         s = s.decode('utf8')
         self.load_data(s)
 
@@ -191,7 +193,7 @@ class WalletStorage(PrintError):
         """Raises an InvalidPassword exception on invalid password"""
         if not self.is_encrypted():
             return
-        if self.pubkey and self.pubkey != self.get_key(password).get_public_key():
+        if self.pubkey and self.pubkey != self.get_eckey_from_password(password).get_public_key_hex():
             raise InvalidPassword()
 
     def set_keystore_encryption(self, enable):
@@ -202,8 +204,8 @@ class WalletStorage(PrintError):
         if enc_version is None:
             enc_version = self._encryption_version
         if password and enc_version != STO_EV_PLAINTEXT:
-            ec_key = self.get_key(password)
-            self.pubkey = ec_key.get_public_key()
+            ec_key = self.get_eckey_from_password(password)
+            self.pubkey = ec_key.get_public_key_hex()
             self._encryption_version = enc_version
         else:
             self.pubkey = None
@@ -253,7 +255,8 @@ class WalletStorage(PrintError):
             s = bytes(s, 'utf8')
             c = zlib.compress(s)
             enc_magic = self._get_encryption_magic()
-            s = bitcoin.encrypt_message(c, self.pubkey, enc_magic)
+            public_key = ecc.ECPubkey(bfh(self.pubkey))
+            s = public_key.encrypt_message(c, enc_magic)
             s = s.decode('utf8')
 
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
