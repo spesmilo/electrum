@@ -46,7 +46,7 @@ CURVE_ORDER = SECP256k1.order
 
 
 def generator():
-    return ECPubkey(bfh('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'))
+    return ECPubkey.from_point(generator_secp256k1)
 
 
 def sig_string_from_der_sig(der_sig):
