@@ -2,8 +2,10 @@ import unittest
 
 from lib import interface
 
+from . import SequentialTestCase
 
-class TestInterface(unittest.TestCase):
+
+class TestInterface(SequentialTestCase):
 
     def test_match_host_name(self):
         self.assertTrue(interface._match_hostname('asd.fgh.com', 'asd.fgh.com'))

@@ -21,6 +21,7 @@ hiddenimports += collect_submodules('trezorlib')
 hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
+hiddenimports += collect_submodules('coincurve')
 
 # Add libusb binary
 binaries = [(PYHOME+"/libusb-1.0.dll", ".")]
@@ -42,6 +43,7 @@ datas = [
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
+datas += collect_data_files('coincurve')
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
 a = Analysis([home+'electrum',

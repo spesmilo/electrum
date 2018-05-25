@@ -31,7 +31,7 @@ from urllib.parse import urljoin
 from urllib.parse import quote
 
 import electrum
-from electrum import bitcoin
+from electrum import bitcoin, ecc
 from electrum import constants
 from electrum import keystore
 from electrum.bitcoin import *
@@ -593,7 +593,7 @@ class TrustedCoinPlugin(BasePlugin):
         def f(xprv):
             _, _, _, _, c, k = deserialize_xprv(xprv)
             pk = bip32_private_key([0, 0], k, c)
-            key = regenerate_key(pk)
+            key = ecc.ECPrivkey(pk)
             sig = key.sign_message(message, True)
             return base64.b64encode(sig).decode()
 
