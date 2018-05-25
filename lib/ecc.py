@@ -109,13 +109,7 @@ def ser_to_point(ser: bytes) -> (int, int):
 
 
 def _ser_to_python_ecdsa_point(ser: bytes) -> ecdsa.ellipticcurve.Point:
-    if ser[0] not in (0x02, 0x03, 0x04):
-        raise ValueError('Unexpected first byte: {}'.format(ser[0]))
-    x = string_to_number(ser[1:33])
-    if ser[0] == 0x04:
-        y = string_to_number(ser[33:])
-    else:
-        y = get_y_coord_from_x(x, ser[0] == 0x03)
+    x, y = ser_to_point(ser)
     return Point(curve_secp256k1, x, y, CURVE_ORDER)
 
 

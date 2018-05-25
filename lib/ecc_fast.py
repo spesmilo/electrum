@@ -32,18 +32,13 @@ SECP256K1_EC_COMPRESSED = (SECP256K1_FLAGS_TYPE_COMPRESSION | SECP256K1_FLAGS_BI
 SECP256K1_EC_UNCOMPRESSED = (SECP256K1_FLAGS_TYPE_COMPRESSION)
 
 
-# TODO double check ctypes arg/return value types against https://github.com/bitcoin-core/secp256k1/blob/master/src/secp256k1.c
 def load_library():
-    library_path = ctypes.util.find_library('libsecp256k1') or \
-                   ctypes.util.find_library('secp256k1')
-    if not library_path:
-        print_error('[ecc] info: libsecp256k1 library was not found, trying fallback name')
-        if sys.platform == 'darwin':
-            library_path = 'libsecp256k1.dylib'
-        elif sys.platform in ('windows', 'win32'):
-            library_path = 'libsecp256k1.dll'
-        else:
-            library_path = 'libsecp256k1.so.0'
+    if sys.platform == 'darwin':
+        library_path = 'libsecp256k1.dylib'
+    elif sys.platform in ('windows', 'win32'):
+        library_path = 'libsecp256k1.dll'
+    else:
+        library_path = 'libsecp256k1.so.0'
 
     secp256k1 = ctypes.cdll.LoadLibrary(library_path)
     if not secp256k1:
