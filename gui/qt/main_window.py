@@ -406,7 +406,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_warning(msg, title=_('Information'))
 
     def open_wallet(self):
-        wallet_folder = self.get_wallet_folder()
+        try:
+            wallet_folder = self.get_wallet_folder()
+        except FileNotFoundError as e:
+            self.show_error(str(e))
+            return
+        if not os.path.exists(wallet_folder):
+            wallet_folder = None
         filename, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
         if not filename:
             return
@@ -451,7 +457,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return os.path.dirname(os.path.abspath(self.config.get_wallet_path()))
 
     def new_wallet(self):
-        wallet_folder = self.get_wallet_folder()
+        try:
+            wallet_folder = self.get_wallet_folder()
+        except FileNotFoundError as e:
+            self.show_error(str(e))
+            return
         i = 1
         while True:
             filename = "wallet_%d" % i

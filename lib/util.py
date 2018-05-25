@@ -291,6 +291,24 @@ def android_check_data_dir():
 def get_headers_dir(config):
     return android_headers_dir() if 'ANDROID_DATA' in os.environ else config.path
 
+def assert_datadir_available(config_path):
+    path = config_path
+    if os.path.exists(path):
+        return
+    else:
+        raise FileNotFoundError(
+            'Electron Cash datadir does not exist. Was it deleted while running?' + '\n' +
+            'Should be at {}'.format(path))
+
+def assert_file_in_datadir_available(path, config_path):
+    if os.path.exists(path):
+        return
+    else:
+        assert_datadir_available(config_path)
+        raise FileNotFoundError(
+            'Cannot find file but datadir is there.' + '\n' +
+            'Should be at {}'.format(path))
+
 def assert_bytes(*args):
     """
     porting helper, assert args type
