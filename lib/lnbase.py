@@ -1394,11 +1394,7 @@ class LNWorker:
         coro = peer.channel_establishment_flow(self.wallet, self.config, password, amount, push_msat, temp_channel_id=os.urandom(32))
         return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
-    def open_channel_from_other_thread(self, node_id, local_amt, push_amt, emit_function, get_password):
-        pw = get_password()
-        if pw is None:
-            # user pressed cancel
-            return
+    def open_channel_from_other_thread(self, node_id, local_amt, push_amt, emit_function, pw):
         # TODO this could race on peers
         peer = self.peers.get(node_id)
         if peer is None:
