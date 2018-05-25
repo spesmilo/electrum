@@ -58,9 +58,9 @@
         "t":"51001",
         "s":"51002"
     },
-    "electron.ueo.ch": {
+    "electroncash.ueo.ch": {
         "pruning": "-",
-        "version": "1.1",
+        "version": "1.4.3",
         "t":"51001",
         "s":"51002"
     },
