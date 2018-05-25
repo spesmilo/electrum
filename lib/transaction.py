@@ -23,19 +23,24 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-
-
 # Note: The deserialization code originally comes from ABE.
-
-from typing import Sequence, Union
-
-from .util import print_error, profiler
-
-from . import bitcoin
-from .bitcoin import *
 import struct
 import traceback
 import sys
+from typing import Sequence, Union
+import hashlib
+
+import ecdsa
+from ecdsa.curves import SECP256k1
+
+from .util import print_error, profiler, to_bytes, bh2u, bfh
+from . import bitcoin
+from .bitcoin import (TYPE_ADDRESS, TYPE_PUBKEY, TYPE_SCRIPT, Hash,
+                      hash_160, hash_encode, hash_to_segwit_addr,
+                      hash160_to_p2sh, hash160_to_p2pkh, int_to_hex,
+                      public_key_from_private_key, push_script, regenerate_key,
+                      var_int)
+
 
 #
 # Workalike python implementation of Bitcoin's CDataStream class.
@@ -311,7 +316,7 @@ def parse_scriptSig(d, _bytes):
         if item[0] == 0:
             # segwit embedded into p2sh
             # witness version 0
-            d['address'] = bitcoin.hash160_to_p2sh(bitcoin.hash_160(item))
+            d['address'] = hash160_to_p2sh(hash_160(item))
             if len(item) == 22:
                 d['type'] = 'p2wpkh-p2sh'
             elif len(item) == 34:
@@ -586,7 +591,7 @@ def multisig_script(public_keys: Sequence[str], m: int) -> str:
     assert m <= n
     op_m = format(opcodes.OP_1 + m - 1, 'x')
     op_n = format(opcodes.OP_1 + n - 1, 'x')
-    keylist = [op_push(len(k)//2) + k for k in public_keys]
+    keylist = [bitcoin.op_push(len(k)//2) + k for k in public_keys]
     return op_m + ''.join(keylist) + op_n + 'ae'
 
 
@@ -659,8 +664,8 @@ class Transaction:
                 sig_string = ecdsa.util.sigencode_string(r, s, order)
                 compressed = True
                 for recid in range(4):
-                    public_key = MyVerifyingKey.from_signature(sig_string, recid, pre_hash, curve = SECP256k1)
-                    pubkey = bh2u(point_to_ser(public_key.pubkey.point, compressed))
+                    public_key = bitcoin.MyVerifyingKey.from_signature(sig_string, recid, pre_hash, curve = SECP256k1)
+                    pubkey = bh2u(bitcoin.point_to_ser(public_key.pubkey.point, compressed))
                     if pubkey in pubkeys:
                         public_key.verify_digest(sig_string, pre_hash, sigdecode = ecdsa.util.sigdecode_string)
                         j = pubkeys.index(pubkey)
@@ -855,7 +860,7 @@ class Transaction:
             return multisig_script(pubkeys, txin['num_sig'])
         elif txin['type'] in ['p2wpkh', 'p2wpkh-p2sh']:
             pubkey = pubkeys[0]
-            pkh = bh2u(bitcoin.hash_160(bfh(pubkey)))
+            pkh = bh2u(hash_160(bfh(pubkey)))
             return '76a9' + push_script(pkh) + '88ac'
         elif txin['type'] == 'p2pk':
             pubkey = pubkeys[0]

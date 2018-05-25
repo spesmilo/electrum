@@ -34,22 +34,18 @@ import time
 import json
 import copy
 import errno
-import traceback
-from functools import partial
 from collections import defaultdict
 from numbers import Number
 from decimal import Decimal
 import itertools
 
-import sys
-
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
-                   format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
-                   TimeoutException, WalletFileException, BitcoinException)
-
-from .bitcoin import *
-from .version import *
+                   InvalidPassword, format_satoshis, format_fee_satoshis,
+                   NoDynamicFeeEstimates, TimeoutException,
+                   WalletFileException, BitcoinException, bfh, bh2u)
+from .bitcoin import TYPE_ADDRESS, TYPE_PUBKEY, COIN, COINBASE_MATURITY
+from .version import ELECTRUM_VERSION
 from .keystore import load_keystore, Hardware_KeyStore
 from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW
 
@@ -123,7 +119,7 @@ def sweep_preparations(privkeys, network, imax=100):
         txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
         find_utxos_for_privkey(txin_type, privkey, compressed)
         # do other lookups to increase support coverage
-        if is_minikey(sec):
+        if bitcoin.is_minikey(sec):
             # minikeys don't have a compressed byte
             # we lookup both compressed and uncompressed pubkeys
             find_utxos_for_privkey(txin_type, privkey, not compressed)
@@ -199,8 +195,8 @@ class Abstract_Wallet(PrintError):
         self.use_change            = storage.get('use_change', True)
         self.multiple_change       = storage.get('multiple_change', False)
         self.labels                = storage.get('labels', {})
-        self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
-        self.history               = storage.get('addr_history',{})        # address -> list(txid, height)
+        self.frozen_addresses      = set(storage.get('frozen_addresses', []))
+        self.history               = storage.get('addr_history', {})        # address -> list(txid, height)
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
 
@@ -1204,7 +1200,7 @@ class Abstract_Wallet(PrintError):
         for i, o in enumerate(outputs):
             _type, data, value = o
             if _type == TYPE_ADDRESS:
-                if not is_address(data):
+                if not bitcoin.is_address(data):
                     raise Exception("Invalid bitcoin address: {}".format(data))
             if value == '!':
                 if i_max is not None:
@@ -1612,8 +1608,9 @@ class Abstract_Wallet(PrintError):
 
     def make_payment_request(self, addr, amount, message, expiration):
         timestamp = int(time.time())
-        _id = bh2u(Hash(addr + "%d"%timestamp))[0:10]
-        r = {'time':timestamp, 'amount':amount, 'exp':expiration, 'address':addr, 'memo':message, 'id':_id}
+        _id = bh2u(bitcoin.Hash(addr + "%d" % timestamp))[0:10]
+        r = {'time': timestamp, 'amount': amount, 'exp':expiration,
+             'address':addr, 'memo':message, 'id':_id}
         return r
 
     def sign_payment_request(self, key, alias, alias_addr, password):
@@ -2028,7 +2025,7 @@ class Imported_Wallet(Simple_Wallet):
 
     def add_input_sig_info(self, txin, address):
         if self.is_watching_only():
-            x_pubkey = 'fd' + address_to_script(address)
+            x_pubkey = 'fd' + bitcoin.address_to_script(address)
             txin['x_pubkeys'] = [x_pubkey]
             txin['signatures'] = [None]
             return

@@ -36,7 +36,7 @@ import json
 import socks
 from . import util
 from . import bitcoin
-from .bitcoin import *
+from .bitcoin import COIN
 from . import constants
 from .interface import Connection, Interface
 from . import blockchain
@@ -50,7 +50,6 @@ SERVER_RETRY_INTERVAL = 10
 
 def parse_servers(result):
     """ parse servers list into dict format"""
-    from .version import PROTOCOL_VERSION
     servers = {}
     for item in result:
         host = item[1]
