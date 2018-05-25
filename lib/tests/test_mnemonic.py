@@ -4,8 +4,10 @@ from lib import mnemonic
 from lib import old_mnemonic
 from lib.util import bh2u
 
+from . import SequentialTestCase
 
-class Test_NewMnemonic(unittest.TestCase):
+
+class Test_NewMnemonic(SequentialTestCase):
 
     def test_to_seed(self):
         seed = mnemonic.Mnemonic.mnemonic_to_seed(mnemonic='foobar', passphrase='none')
@@ -22,7 +24,7 @@ class Test_NewMnemonic(unittest.TestCase):
             self.assertEqual(m.mnemonic_encode(i), seed)
 
 
-class Test_OldMnemonic(unittest.TestCase):
+class Test_OldMnemonic(SequentialTestCase):
 
     def test(self):
         seed = '8edad31a95e7d59f8837667510d75a4d'
@@ -31,7 +33,7 @@ class Test_OldMnemonic(unittest.TestCase):
         self.assertEqual(result, words.split())
         self.assertEqual(old_mnemonic.mn_decode(result), seed)
 
-class Test_BIP39Checksum(unittest.TestCase):
+class Test_BIP39Checksum(SequentialTestCase):
 
     def test(self):
         mnemonic = u'gravity machine north sort system female filter attitude volume fold club stay feature office ecology stable narrow fog'

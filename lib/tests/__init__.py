@@ -1,9 +1,24 @@
 import unittest
+import threading
 
 from lib import constants
 
 
-class TestCaseForTestnet(unittest.TestCase):
+# some unit tests are modifying globals; sorry.
+class SequentialTestCase(unittest.TestCase):
+
+    test_lock = threading.Lock()
+
+    def setUp(self):
+        super().setUp()
+        self.test_lock.acquire()
+
+    def tearDown(self):
+        super().tearDown()
+        self.test_lock.release()
+
+
+class TestCaseForTestnet(SequentialTestCase):
 
     @classmethod
     def setUpClass(cls):
