@@ -33,21 +33,19 @@ def addChannelRow(new):
     datatable.move_to_end(new["chan_id"], last=False)
     return made
 
+
 class LightningChannelsList(QtWidgets.QWidget):
     update_rows = QtCore.pyqtSignal(dict)
     update_single_row = QtCore.pyqtSignal(dict)
 
-    def clickHandler(self, nodeIdInput, local_amt_inp, push_amt_inp, lnworker):
-        nodeId = nodeIdInput.text()
-        print("creating channel with connstr {}".format(nodeId))
+    def open_channel(self, nodeIdInput, local_amt_inp, push_amt_inp, password):
+        node_id = str(nodeIdInput.text())
+        print("creating channel with {}".format(node_id))
         local_amt = int(local_amt_inp.text())
-        try:
-            push_amt = int(push_amt_inp.text())
-        except ValueError:
-            push_amt = 0
+        push_amt = int(push_amt_inp.text())
         assert local_amt >= 200000
         assert local_amt >= push_amt
-        obj = lnworker.open_channel_from_other_thread(node_id=str(nodeId), local_amt=local_amt, push_amt=push_amt, emit_function=self.update_rows.emit, get_password=self.main_window.password_dialog)
+        obj = self.lnworker.open_channel_from_other_thread(node_id, local_amt, push_amt, self.update_rows.emit, password)
 
     @QtCore.pyqtSlot(dict)
     def do_update_single_row(self, new):
@@ -95,11 +93,10 @@ class LightningChannelsList(QtWidgets.QWidget):
         self._tv.customContextMenuRequested.connect(self.create_menu)
 
         nodeid_inp = QtWidgets.QLineEdit(self)
-        local_amt_inp = QtWidgets.QLineEdit(self)
-        push_amt_inp = QtWidgets.QLineEdit(self)
-
+        local_amt_inp = QtWidgets.QLineEdit(self, text='200000')
+        push_amt_inp = QtWidgets.QLineEdit(self, text='0')
         button = QtWidgets.QPushButton('Open channel', self)
-        button.clicked.connect(lambda: self.clickHandler(nodeid_inp, local_amt_inp, push_amt_inp, lnworker))
+        button.clicked.connect(lambda: self.main_window.protect(self.open_channel, (nodeid_inp, local_amt_inp, push_amt_inp)))
 
         l=QtWidgets.QVBoxLayout(self)
         h=QtWidgets.QGridLayout(self)
