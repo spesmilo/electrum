@@ -1582,6 +1582,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             return func(self, *args, **kwargs)
         return request_password
 
+    @protected
+    def protect(self, func, args, password):
+        return func(*args, password)
+
     def is_send_fee_frozen(self):
         return self.fee_e.isVisible() and self.fee_e.isModified() \
                and (self.fee_e.text() or self.fee_e.hasFocus())
