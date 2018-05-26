@@ -23,11 +23,13 @@ import cryptography.hazmat.primitives.ciphers.aead as AEAD
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
 from cryptography.hazmat.backends import default_backend
 
-from .bitcoin import (public_key_from_private_key, ser_to_point, point_to_ser,
-                      string_to_number, deserialize_privkey, EC_KEY, rev_hex, int_to_hex,
+from .ecc import ser_to_point, point_to_ser, string_to_number
+from .bitcoin import (deserialize_privkey, rev_hex, int_to_hex,
                       push_script, script_num_to_hex,
                       add_number_to_script, var_int)
 from . import bitcoin
+from . import ecc
+from . import crypto
 from . import constants
 from . import transaction
 from .util import PrintError, bh2u, print_error, bfh, profiler, xor_bytes
@@ -242,10 +244,8 @@ def get_bolt8_hkdf(salt, ikm):
     return T1, T2
 
 def get_ecdh(priv: bytes, pub: bytes) -> bytes:
-    s = string_to_number(priv)
-    pk = ser_to_point(pub)
-    pt = point_to_ser(pk * s)
-    return H256(pt)
+    pt = ecc.ECPubkey(pub) * string_to_number(priv)
+    return H256(pt.get_public_key_bytes())
 
 def act1_initiator_message(hs, my_privkey):
     #Get a new ephemeral key
@@ -262,8 +262,7 @@ def act1_initiator_message(hs, my_privkey):
     return msg
 
 def privkey_to_pubkey(priv):
-    pub = public_key_from_private_key(priv[:32], True)
-    return bytes.fromhex(pub)
+    return ecc.ECPrivkey(priv[:32]).get_public_key_bytes()
 
 def create_ephemeral_key(privkey):
     pub = privkey_to_pubkey(privkey)
@@ -303,20 +302,20 @@ def secret_to_pubkey(secret):
     return point_to_ser(SECP256k1.generator * secret)
 
 def derive_pubkey(basepoint, per_commitment_point):
-    p = ser_to_point(basepoint) + SECP256k1.generator * bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
-    return point_to_ser(p)
+    p = ecc.ECPubkey(basepoint) + ecc.generator() * ecc.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
+    return p.get_public_key_bytes()
 
 def derive_privkey(secret, per_commitment_point):
     assert type(secret) is int
     basepoint = point_to_ser(SECP256k1.generator * secret)
-    basepoint = secret + bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
+    basepoint = secret + ecc.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
     basepoint %= SECP256k1.order
     return basepoint
 
 def derive_blinded_pubkey(basepoint, per_commitment_point):
-    k1 = ser_to_point(basepoint) * bitcoin.string_to_number(bitcoin.sha256(basepoint + per_commitment_point))
-    k2 = ser_to_point(per_commitment_point) * bitcoin.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
-    return point_to_ser(k1 + k2)
+    k1 = ecc.ECPubkey(basepoint) * ecc.string_to_number(bitcoin.sha256(basepoint + per_commitment_point))
+    k2 = ecc.ECPubkey(per_commitment_point) * ecc.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
+    return (k1 + k2).get_public_key_bytes()
 
 def shachain_derive(element, toIndex):
     return ShachainElement(get_per_commitment_secret_from_seed(element.secret, toIndex, count_trailing_zeros(element.index)), toIndex)
@@ -407,7 +406,7 @@ def make_offered_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, pa
         + bytes([opcodes.OP_SWAP, opcodes.OP_SIZE]) + bitcoin.add_number_to_script(32) + bytes([opcodes.OP_EQUAL, opcodes.OP_NOTIF, opcodes.OP_DROP])\
         + bitcoin.add_number_to_script(2) + bytes([opcodes.OP_SWAP]) + bfh(push_script(bh2u(local_htlcpubkey))) + bitcoin.add_number_to_script(2)\
         + bytes([opcodes.OP_CHECKMULTISIG, opcodes.OP_ELSE, opcodes.OP_HASH160])\
-        + bfh(push_script(bh2u(bitcoin.ripemd(payment_hash)))) + bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF, opcodes.OP_ENDIF])
+        + bfh(push_script(bh2u(crypto.ripemd(payment_hash)))) + bytes([opcodes.OP_EQUALVERIFY, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF, opcodes.OP_ENDIF])
 
 def make_received_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_hash, cltv_expiry):
     for i in [revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_hash]:
@@ -421,7 +420,7 @@ def make_received_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, p
         + bytes([opcodes.OP_SWAP, opcodes.OP_SIZE]) \
         + bitcoin.add_number_to_script(32) \
         + bytes([opcodes.OP_EQUAL, opcodes.OP_IF, opcodes.OP_HASH160]) \
-        + bfh(push_script(bh2u(bitcoin.ripemd(payment_hash)))) \
+        + bfh(push_script(bh2u(crypto.ripemd(payment_hash)))) \
         + bytes([opcodes.OP_EQUALVERIFY]) \
         + bitcoin.add_number_to_script(2) \
         + bytes([opcodes.OP_SWAP]) \
@@ -1062,7 +1061,7 @@ class Peer(PrintError):
         height = wallet.get_local_height()
         assert amount_msat > 0, "amount_msat is not greater zero"
 
-        our_pubkey = bfh(EC_KEY(self.privkey).get_public_key(True))
+        our_pubkey = ecc.ECPrivkey(self.privkey).get_public_key_bytes()
         sorted_keys = list(sorted([self.pubkey, our_pubkey]))
         self.channel_db.on_channel_announcement({"short_channel_id": chan.short_channel_id, "node_id_1": sorted_keys[0], "node_id_2": sorted_keys[1]})
         self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'flags': b'\x01', 'cltv_expiry_delta': b'\x90', 'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01'})
@@ -1737,7 +1736,7 @@ def get_shared_secrets_along_route(payment_path_pubkeys: Sequence[bytes],
     # compute shared key for each hop
     for i in range(0, num_hops):
         hop_shared_secrets[i] = get_ecdh(ephemeral_key, payment_path_pubkeys[i])
-        ephemeral_pubkey = bfh(EC_KEY(ephemeral_key).get_public_key())
+        ephemeral_pubkey = ecc.ECPrivkey(ephemeral_key).get_public_key_bytes()
         blinding_factor = H256(ephemeral_pubkey + hop_shared_secrets[i])
         blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
         ephemeral_key_int = int.from_bytes(ephemeral_key, byteorder="big")
@@ -1770,7 +1769,7 @@ def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
         next_hmac = hmac.new(mu_key, msg=packet, digestmod=hashlib.sha256).digest()
 
     return OnionPacket(
-        public_key=bfh(EC_KEY(session_key).get_public_key()),
+        public_key=ecc.ECPrivkey(session_key).get_public_key_bytes(),
         hops_data=mix_header,
         hmac=next_hmac)
 
@@ -1821,8 +1820,8 @@ def process_onion_packet(onion_packet: OnionPacket, associated_data: bytes,
     # calc next ephemeral key
     blinding_factor = H256(onion_packet.public_key + shared_secret)
     blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
-    next_public_key_int = ser_to_point(onion_packet.public_key) * blinding_factor_int
-    next_public_key = point_to_ser(next_public_key_int)
+    next_public_key_int = ecc.ECPubkey(onion_packet.public_key) * blinding_factor_int
+    next_public_key = next_public_key_int.get_public_key_bytes()
 
     hop_data = OnionHopsDataSingle.from_bytes(next_hops_data[:PER_HOP_FULL_SIZE])
     next_onion_packet = OnionPacket(
