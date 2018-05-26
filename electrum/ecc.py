@@ -256,9 +256,9 @@ class ECPubkey(object):
     def __ne__(self, other):
         return not (self == other)
 
-    def verify_message_for_address(self, sig65: bytes, message: bytes) -> None:
+    def verify_message_for_address(self, sig65: bytes, message: bytes, algo=lambda x: sha256d(msg_magic(x))) -> None:
         assert_bytes(message)
-        h = sha256d(msg_magic(message))
+        h = algo(message)
         public_key, compressed = self.from_signature65(sig65, h)
         # check public key
         if public_key != self:
@@ -403,12 +403,12 @@ class ECPrivkey(ECPubkey):
                          sigencode=der_sig_from_r_and_s,
                          sigdecode=get_r_and_s_from_der_sig)
 
-    def sign_message(self, message: bytes, is_compressed: bool) -> bytes:
+    def sign_message(self, message: bytes, is_compressed: bool, algo=lambda x: sha256d(msg_magic(x))) -> bytes:
         def bruteforce_recid(sig_string):
             for recid in range(4):
                 sig65 = construct_sig65(sig_string, recid, is_compressed)
                 try:
-                    self.verify_message_for_address(sig65, message)
+                    self.verify_message_for_address(sig65, message, algo)
                     return sig65, recid
                 except Exception as e:
                     continue
@@ -416,7 +416,7 @@ class ECPrivkey(ECPubkey):
                 raise Exception("error: cannot sign message. no recid fits..")
 
         message = to_bytes(message, 'utf8')
-        msg_hash = sha256d(msg_magic(message))
+        msg_hash = algo(message)
         sig_string = self.sign(msg_hash,
                                sigencode=sig_string_from_r_and_s,
                                sigdecode=get_r_and_s_from_sig_string)
