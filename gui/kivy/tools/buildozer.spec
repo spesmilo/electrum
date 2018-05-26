@@ -31,7 +31,7 @@ source.exclude_patterns = Makefile,setup*
 version = 3.1.2
 
 # (list) Application requirements
-requirements = python3crystax==3.6, android, openssl, plyer, kivy==master
+requirements = python3crystax==3.6, android, openssl, plyer, groestlcoin_hash, kivy==master
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/gui/kivy/theming/splash.png
