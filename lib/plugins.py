@@ -296,7 +296,7 @@ class Plugins(DaemonThread):
             return None, ExternalPluginCodes.MISSING_MANIFEST
 
         # START: json.loads for Python < 3.6 does not support bytes.  Delete this when we upgrade to 3.6.
-        if True or not (sys.version_info.major > 3 or sys.version_info.major == 3 and sys.version_info.minor >= 6):
+        if not (sys.version_info.major > 3 or sys.version_info.major == 3 and sys.version_info.minor >= 6):
             # Copied from `json\__init__.py` in the 3.6 standard library.
             # Python standard license applies to this if statement.
             if isinstance(metadata_text, (bytes, bytearray)):
