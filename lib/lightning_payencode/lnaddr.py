@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 import ecdsa.curves
 from ecdsa.ecdsa import generator_secp256k1
-from ..bitcoin import MyVerifyingKey, GetPubKey, regenerate_key, hash160_to_b58_address, b58_address_to_hash160, ser_to_point, verify_signature
+from ..bitcoin import hash160_to_b58_address, b58_address_to_hash160
 from hashlib import sha256
 from ..segwit_addr import bech32_encode, bech32_decode, CHARSET
 from binascii import hexlify, unhexlify
@@ -9,6 +9,7 @@ from bitstring import BitArray
 from decimal import Decimal
 from .. import constants
 
+from .. import ecc
 import bitstring
 import hashlib
 import re
@@ -222,8 +223,8 @@ def lnencode(addr, privkey):
 
     # We actually sign the hrp, then data (padded to 8 bits with zeroes).
     msg = hrp.encode("ascii") + data.tobytes()
-    privkey = regenerate_key(privkey)
-    sig = privkey.sign_message(msg, is_compressed=False, algo=lambda x: sha256(x).digest())
+    privkey = ecc.ECPrivkey(privkey)
+    sig = privkey.sign_message(msg, is_compressed=False, algo=lambda x:sha256(x).digest())
     recovery_flag = bytes([sig[0] - 27])
     sig = bytes(sig[1:]) + recovery_flag
     data += sig
@@ -369,19 +370,19 @@ def lndecode(a, verbose=False, expected_hrp=constants.net.SEGWIT_HRP):
     # A reader MUST check that the `signature` is valid (see the `n` tagged
     # field specified below).
     addr.signature = sigdecoded[:65]
+    hrp_hash = sha256(hrp.encode("ascii") + data.tobytes()).digest()
     if addr.pubkey: # Specified by `n`
         # BOLT #11:
         #
         # A reader MUST use the `n` field to validate the signature instead of
         # performing signature recovery if a valid `n` field is provided.
-        if not verify_signature(addr.pubkey, sigdecoded[:64], sha256(hrp.encode("ascii") + data.tobytes()).digest()):
-            raise ValueError('Invalid signature')
+        ecc.ECPubkey(addr.pubkey).verify_message_hash(sigdecoded[:64], hrp_hash)
         pubkey_copy = addr.pubkey
         class WrappedBytesKey:
             serialize = lambda: pubkey_copy
         addr.pubkey = WrappedBytesKey
     else: # Recover pubkey from signature.
-        addr.pubkey = SerializableKey(MyVerifyingKey.from_signature(sigdecoded[:64], sigdecoded[64], sha256(hrp.encode("ascii") + data.tobytes()).digest(), curve = ecdsa.curves.SECP256k1))
+        addr.pubkey = SerializableKey(ecc.ECPubkey.from_sig_string(sigdecoded[:64], sigdecoded[64], hrp_hash))
 
     return addr
 
@@ -389,4 +390,4 @@ class SerializableKey:
     def __init__(self, pubkey):
         self.pubkey = pubkey
     def serialize(self):
-        return GetPubKey(self.pubkey.pubkey, True)
+        return self.pubkey.get_public_key_bytes(True)
