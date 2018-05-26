@@ -23,12 +23,13 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 from collections import namedtuple
+import codecs
 import traceback
-import sys
 import os
 import imp
 import json
 import pkgutil
+import sys
 import time
 import shutil
 import threading
@@ -293,6 +294,42 @@ class Plugins(DaemonThread):
         except OSError:
             self.print_error("missing 'manifest.json' (zip plugin %s)" % file_name)
             return None, ExternalPluginCodes.MISSING_MANIFEST
+
+        # START: json.loads for Python < 3.6 does not support bytes.  Delete this when we upgrade to 3.6.
+        if True or not (sys.version_info.major > 3 or sys.version_info.major == 3 and sys.version_info.minor >= 6):
+            # Copied from `json\__init__.py` in the 3.6 standard library.
+            # Python standard license applies to this if statement.
+            if isinstance(metadata_text, (bytes, bytearray)):
+                def detect_encoding(b):
+                    bstartswith = b.startswith
+                    if bstartswith((codecs.BOM_UTF32_BE, codecs.BOM_UTF32_LE)):
+                        return 'utf-32'
+                    if bstartswith((codecs.BOM_UTF16_BE, codecs.BOM_UTF16_LE)):
+                        return 'utf-16'
+                    if bstartswith(codecs.BOM_UTF8):
+                        return 'utf-8-sig'
+
+                    if len(b) >= 4:
+                        if not b[0]:
+                            # 00 00 -- -- - utf-32-be
+                            # 00 XX -- -- - utf-16-be
+                            return 'utf-16-be' if b[1] else 'utf-32-be'
+                        if not b[1]:
+                            # XX 00 00 00 - utf-32-le
+                            # XX 00 00 XX - utf-16-le
+                            # XX 00 XX -- - utf-16-le
+                            return 'utf-16-le' if b[2] or b[3] else 'utf-32-le'
+                    elif len(b) == 2:
+                        if not b[0]:
+                            # 00 XX - utf-16-be
+                            return 'utf-16-be'
+                        if not b[1]:
+                            # XX 00 - utf-16-le
+                            return 'utf-16-le'
+                    # default
+                    return 'utf-8'            
+                metadata_text = metadata_text.decode(detect_encoding(metadata_text), 'surrogatepass')
+        # END
 
         try:
             metadata = json.loads(metadata_text)
