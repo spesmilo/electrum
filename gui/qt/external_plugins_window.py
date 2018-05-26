@@ -40,6 +40,13 @@ INSTALL_ERROR_MESSAGES = {
     ExternalPluginCodes.UNABLE_TO_COPY_FILE: _("It was not possible to copy the plugin archive into Electron Cash's plugin storage location. It was therefore not possible to install it."),
     ExternalPluginCodes.INSTALLED_BUT_FAILED_LOAD: _("The plugin is installed, but in the process of enabling and loading it, an error occurred. Restart Electron Cash and try again, or uninstall it and report it to it's developers."),
     ExternalPluginCodes.INCOMPATIBLE_VERSION: _("The plugin is targeted at a later version of Electron Cash."),
+    ExternalPluginCodes.INCOMPATIBLE_ZIP_FORMAT: _("The plugin archive is not recognized as a valid Zip file."),
+    ExternalPluginCodes.INVALID_MANIFEST_JSON: _("The plugin manifest is not recognized as valid JSON."),
+    ExternalPluginCodes.INVALID_MAMIFEST_DISPLAY_NAME: _("The plugin manifest lacks a valid display name."),
+    ExternalPluginCodes.INVALID_MAMIFEST_DESCRIPTION: _("The plugin manifest lacks a valid description."),
+    ExternalPluginCodes.INVALID_MAMIFEST_VERSION: _("The plugin manifest lacks a valid version."),
+    ExternalPluginCodes.INVALID_MAMIFEST_MINIMUM_EC_VERSION: _("The plugin manifest lacks a valid minimum Electron Cash version."),
+    ExternalPluginCodes.INVALID_MAMIFEST_PACKAGE_NAME: _("The plugin manifest lacks a valid package name."),
 }
 
 use_tree_widget = True
@@ -47,7 +54,7 @@ use_tree_widget = True
 class FixedCheckBox(QCheckBox):
     def mousePressEvent(self, event):
         event.ignore()
-        
+
     def mouseReleaseEvent(self, event):
         event.ignore()
 
@@ -59,8 +66,8 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         self.main_window = main_window
         self.plugin_dialog = plugin_dialog
 
-        self.setMinimumWidth(400)
-        self.setMaximumWidth(400)
+        self.setMinimumWidth(600)
+        self.setMaximumWidth(600)
 
         vbox = QVBoxLayout()
         self.setLayout(vbox)
@@ -77,7 +84,7 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         self.supportedInterfacesLabel = QLabel(_("Integration"))
         self.supportedInterfacesLabel.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         self.metadataFormLayout.addRow(self.supportedInterfacesLabel, self.supportedInterfacesLayout)
-        
+
         self.qtInterfaceCheckBox = FixedCheckBox("User interface.")
         self.supportedInterfacesLayout.addWidget(self.qtInterfaceCheckBox)
         self.cmdLineInterfaceCheckBox = FixedCheckBox("Command-line.")
@@ -91,7 +98,7 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         self.checksumLabel = QLabel()
         self.checksumLabel.setAlignment(Qt.AlignRight)
         self.checksumLabel.setToolTip(_("If the official source for this plugin has a checksum for this plugin, ensure that the value shown here is the same."))
-        securityFormLayout.addRow(_("Archive MD5 Checksum"), self.checksumLabel)
+        securityFormLayout.addRow(_("Archive SHA256 Checksum"), self.checksumLabel)
 
         groupBox = QGroupBox(_("Security"))
         groupBox.setLayout(securityFormLayout)
@@ -122,26 +129,26 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         self.versionLabel.setText(_("Unavailable."))
         self.descriptionLabel.setText(_("Unavailable."))
         self.checksumLabel.setText(_("Unavailable."))
-            
+
         self.refresh_plugin(plugin_path)
         self.refresh_ui()
 
     def refresh_plugin(self, plugin_path):
         self.plugin_path = plugin_path
-        
-        plugin_manager = self.main_window.gui_object.plugins
-        self.plugin_metadata = plugin_manager.get_metadata_from_external_plugin_zip_file(plugin_path)
 
-        hash_md5 = hashlib.md5()
+        plugin_manager = self.main_window.gui_object.plugins
+        self.plugin_metadata, error_code = plugin_manager.get_metadata_from_external_plugin_zip_file(plugin_path)
+
+        hasher = hashlib.sha256()
         with open(plugin_path, "rb") as f:
-            hash_md5.update(f.read())
-        self.checksumLabel.setText(hash_md5.hexdigest())
-        
+            hasher.update(f.read())
+        self.checksumLabel.setText(hasher.hexdigest())
+
         self.pluginNameLabel.setText(self.plugin_metadata["display_name"])
         if "version" in self.plugin_metadata:
             self.versionLabel.setText(str(self.plugin_metadata["version"]))
         self.descriptionLabel.setText(self.plugin_metadata["description"])
-        
+
         available_for = self.plugin_metadata.get("available_for", [])
         self.qtInterfaceCheckBox.setChecked("qt" in available_for)
         self.cmdLineInterfaceCheckBox.setChecked("cmdline" in available_for)
@@ -161,7 +168,7 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
 
     def is_plugin_valid(self):
         return self.plugin_metadata is not None
-        
+
     def on_liability_toggled(self):
         self.refresh_ui()
 
@@ -220,7 +227,7 @@ class ExternalPluginsDialog(WindowModalDialog, MessageBoxMixin):
         # Do an initial prime of the UI based on current state. We share the same
         # logic as updates following changes in state, in order to be consistent.
         self.refresh_ui()
-        
+
     def refresh_ui(self):
         self.pluginsList.refresh_ui()
         selected_id = self.pluginsList.get_selected_key()
@@ -253,23 +260,29 @@ class ExternalPluginsDialog(WindowModalDialog, MessageBoxMixin):
             selected_file_paths = d.selectedFiles()
             if len(selected_file_paths):
                 self.show_install_plugin_preview_dialog(selected_file_paths[0])
-            
+
     def show_install_plugin_preview_dialog(self, file_path):
-        self.installWarningDialog = d = ExternalPluginsPreviewDialog(self, self.main_window, _("Plugin Preview"), file_path)
-        d.exec_()
+        plugin_manager = self.main_window.gui_object.plugins
+        # We need to poll the file to see if it is valid.
+        plugin_metadata, error_code = plugin_manager.get_metadata_from_external_plugin_zip_file(file_path)
+        if plugin_metadata is not None:
+            self.installWarningDialog = d = ExternalPluginsPreviewDialog(self, self.main_window, _("Plugin Preview"), file_path)
+            d.exec_()
+        else:
+            self.show_error(INSTALL_ERROR_MESSAGES.get(error_code, _("Unexpected error %d") % error_code))
 
     def install_plugin_confirmed(self, plugin_archive_path):
         plugin_manager = self.main_window.gui_object.plugins
         result_code = plugin_manager.install_external_plugin(plugin_archive_path)
         if result_code != ExternalPluginCodes.SUCCESS:
-            self.show_error(INSTALL_ERROR_MESSAGES[result_code])
+            self.show_error(INSTALL_ERROR_MESSAGES.get(result_code, _("Unexpected error %d") % error_code))
         else:
             run_hook('init_qt', self.main_window.gui_object)
         self.refresh_ui()
 
     def on_uninstall_plugin(self):
         package_name = self.pluginsList.get_selected_key()
-        if self.show_warning(_("Are you sure you want to uninstall the selected plugin?")):
+        if self.question(_("Are you sure you want to uninstall the selected plugin?")):
             plugin_manager = self.main_window.gui_object.plugins
             plugin_manager.uninstall_external_plugin(package_name)
             self.refresh_ui()
@@ -307,7 +320,7 @@ class ExternalPluginTable(QTableWidget):
         QTableWidget.__init__(self)
 
         self.setAcceptDrops(True)
-        
+
         self.setSelectionMode(QAbstractItemView.SingleSelection)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setSortingEnabled(False)
@@ -322,7 +335,7 @@ class ExternalPluginTable(QTableWidget):
         self.itemSelectionChanged.connect(self.on_item_selection_changed)
 
         self.row_keys = []
-        
+
     def get_file_path_from_dragdrop_event(self, event):
         mimeData = event.mimeData()
         if mimeData.hasUrls():

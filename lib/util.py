@@ -631,25 +631,6 @@ def setup_thread_excepthook():
 
     threading.Thread.__init__ = init
 
-def is_same_or_later_version(that_version, this_version):
-    """
-    Reflects `that_version` is same or later than `this_version`.
-    """
-    if type(that_version) is str:
-        that_version = versiontuple(that_version)
-    if type(this_version) is str:
-        this_version = versiontuple(this_version)
-    dimension_count = max(len(this_version), len(that_version))
-    for i in range(dimension_count):
-        that_value = that_version[i] if i < len(that_version) else 0
-        this_value = this_version[i] if i < len(this_version) else 0
-        # Either we need to go more precise.
-        if that_value == this_value:
-            continue
-        # Or this is the defining level.
-        return that_value > this_value
-    # Must be the same.
-    return True
 
 def versiontuple(v):
     return tuple(map(int, (v.split("."))))
