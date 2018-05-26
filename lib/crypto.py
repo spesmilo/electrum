@@ -132,7 +132,7 @@ def Hash(x: bytes) -> bytes:
 
 
 def hash_160(x: bytes) -> bytes:
-    return ripemd(sha256(public_key))
+    return ripemd(sha256(x))
 
 def ripemd(x):
     try:
