@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 import hashlib
+import urllib.parse
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -49,19 +50,12 @@ INSTALL_ERROR_MESSAGES = {
     ExternalPluginCodes.INVALID_MAMIFEST_PACKAGE_NAME: _("The plugin manifest lacks a valid package name."),
 }
 
-use_tree_widget = True
-
-class FixedCheckBox(QCheckBox):
-    def mousePressEvent(self, event):
-        event.ignore()
-
-    def mouseReleaseEvent(self, event):
-        event.ignore()
-
 
 class ExternalPluginsPreviewDialog(WindowModalDialog):
-    def __init__(self, plugin_dialog, main_window, title, plugin_path):
+    def __init__(self, plugin_dialog, main_window, title, plugin_path=None, plugin_metadata=None):
         WindowModalDialog.__init__(self, main_window, title)
+        
+        self.is_preview = plugin_metadata is None
 
         self.main_window = main_window
         self.plugin_dialog = plugin_dialog
@@ -77,94 +71,151 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         self.metadataFormLayout.addRow(_("Name"), self.pluginNameLabel)
         self.versionLabel = QLabel()
         self.metadataFormLayout.addRow(_("Version"), self.versionLabel)
+        self.projectUrlLabel = QLabel()
+        self.metadataFormLayout.addRow(_("Project URL"), self.projectUrlLabel)
         self.descriptionLabel = QLabel()
         self.descriptionLabel.setWordWrap(True)
         self.metadataFormLayout.addRow(_("Description"), self.descriptionLabel)
         self.supportedInterfacesLayout = QVBoxLayout()
         self.supportedInterfacesLabel = QLabel(_("Integration"))
         self.supportedInterfacesLabel.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self.supportedInterfacesLabel.setToolTip(_("Plugins should support one or more of these interfaces."))
         self.metadataFormLayout.addRow(self.supportedInterfacesLabel, self.supportedInterfacesLayout)
 
-        self.qtInterfaceCheckBox = FixedCheckBox("User interface.")
-        self.supportedInterfacesLayout.addWidget(self.qtInterfaceCheckBox)
-        self.cmdLineInterfaceCheckBox = FixedCheckBox("Command-line.")
-        self.supportedInterfacesLayout.addWidget(self.cmdLineInterfaceCheckBox)
+        self.qtInterfaceLabel = QLabel()
+        self.qtInterfaceLabel.setMaximumWidth(20)
+        row = QHBoxLayout()
+        row.addWidget(self.qtInterfaceLabel)
+        row.addWidget(QLabel(_("User interface.")))
+        self.supportedInterfacesLayout.addLayout(row)
+
+        self.cmdLineInterfaceLabel = QLabel()
+        self.cmdLineInterfaceLabel.setMaximumWidth(20)
+        row = QHBoxLayout()
+        row.addWidget(self.cmdLineInterfaceLabel)
+        row.addWidget(QLabel(_("Command-line.")))
+        self.supportedInterfacesLayout.addLayout(row)
+
+        self.checksumLabel = QLabel()
+        self.checksumLabel.setToolTip(_("If the official source for this plugin has a checksum for this plugin, ensure that the value shown here is the same."))
+        self.checksumLabel.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.metadataFormLayout.addRow(_("SHA256 Checksum"), self.checksumLabel)
 
         groupBox = QGroupBox(_("Plugin Metadata"))
         groupBox.setLayout(self.metadataFormLayout)
         vbox.addWidget(groupBox)
 
-        securityFormLayout = QFormLayout()
-        self.checksumLabel = QLabel()
-        self.checksumLabel.setAlignment(Qt.AlignRight)
-        self.checksumLabel.setToolTip(_("If the official source for this plugin has a checksum for this plugin, ensure that the value shown here is the same."))
-        securityFormLayout.addRow(_("Archive SHA256 Checksum"), self.checksumLabel)
+        if self.is_preview:
+            confirmLayout = QVBoxLayout()
+            confirmLayout.setAlignment(Qt.AlignHCenter)
+            confirmGroupBox = QGroupBox(_("Risks and Dangers"))
+            liabilityLabel = QLabel(_("I accept responsibility for any harm that comes from installing this plugin, and acknowledge:"))
+            rows = QVBoxLayout()
+            self.liabilityCheckbox1 = QCheckBox(_("Electron Cash do not vet plugins."))
+            self.liabilityCheckbox2 = QCheckBox(_("Plugins are risky.  They can steal funds or even damage your computer."))
+            self.liabilityCheckbox3 = QCheckBox(_("I should only install the most reputable plugins trusted by the community."))
+            confirmLayout.addWidget(liabilityLabel)
+            confirmLayout.addWidget(self.liabilityCheckbox1)
+            confirmLayout.addWidget(self.liabilityCheckbox2)
+            confirmLayout.addWidget(self.liabilityCheckbox3)
+            confirmGroupBox.setLayout(confirmLayout)
+            vbox.addWidget(confirmGroupBox)
 
-        groupBox = QGroupBox(_("Security"))
-        groupBox.setLayout(securityFormLayout)
-        vbox.addWidget(groupBox)
+            hbox = QHBoxLayout()
+            vbox.addLayout(hbox)
+            self.installButton = QPushButton("Install")
+            hbox.addWidget(self.installButton)
+            hbox.addStretch(1)
+            self.cancelButton = QPushButton("Close")
+            self.cancelButton.setDefault(True)
+            hbox.addWidget(self.cancelButton)
 
-        confirmLayout = QVBoxLayout()
-        confirmLayout.setAlignment(Qt.AlignHCenter)
-        confirmGroupBox = QGroupBox()
-        self.liabilityCheckbox = QCheckBox(_("I understand and accept the risk involved in installing this plugin."))
-        confirmLayout.addWidget(self.liabilityCheckbox)
-        confirmGroupBox.setLayout(confirmLayout)
-        vbox.addWidget(confirmGroupBox)
+            self.installButton.clicked.connect(self.on_install)
+            self.cancelButton.clicked.connect(self.close)
+            self.liabilityCheckbox1.clicked.connect(self.on_liability_toggled)
+            self.liabilityCheckbox2.clicked.connect(self.on_liability_toggled)
+            self.liabilityCheckbox3.clicked.connect(self.on_liability_toggled)
+        else:
+            hbox = QHBoxLayout()
+            vbox.addLayout(hbox)
+            self.cancelButton = QPushButton("Close")
+            self.cancelButton.setDefault(True)
+            hbox.addStretch(1)
+            hbox.addWidget(self.cancelButton)
 
-        hbox = QHBoxLayout()
-        vbox.addLayout(hbox)
-        self.installButton = QPushButton("Install")
-        hbox.addWidget(self.installButton)
-        hbox.addStretch(1)
-        self.cancelButton = QPushButton("Close")
-        self.cancelButton.setDefault(True)
-        hbox.addWidget(self.cancelButton)
-
-        self.installButton.clicked.connect(self.on_install)
-        self.cancelButton.clicked.connect(self.close)
-        self.liabilityCheckbox.clicked.connect(self.on_liability_toggled)
+            self.cancelButton.clicked.connect(self.close)
 
         self.pluginNameLabel.setText(_("Unavailable."))
+        self.projectUrlLabel.setText(_("Unavailable."))
         self.versionLabel.setText(_("Unavailable."))
         self.descriptionLabel.setText(_("Unavailable."))
         self.checksumLabel.setText(_("Unavailable."))
 
-        self.refresh_plugin(plugin_path)
+        if plugin_path is not None:
+            self.refresh_plugin_from_path(plugin_path)
+        elif plugin_metadata is not None:
+            self.refresh_plugin_from_metadata(plugin_metadata)
         self.refresh_ui()
+        
+    def refresh_plugin_from_metadata(self, metadata):
+        self.plugin_path = metadata["__file__"]
+        self.plugin_metadata = metadata        
+        self.refresh_plugin()
 
-    def refresh_plugin(self, plugin_path):
-        self.plugin_path = plugin_path
-
+    def refresh_plugin_from_path(self, plugin_path):
         plugin_manager = self.main_window.gui_object.plugins
+ 
+        self.plugin_path = plugin_path
         self.plugin_metadata, error_code = plugin_manager.get_metadata_from_external_plugin_zip_file(plugin_path)
+        self.refresh_plugin()
 
+    def refresh_plugin(self):
+        plugin_path = self.plugin_path
+        metadata = self.plugin_metadata
+    
         hasher = hashlib.sha256()
         with open(plugin_path, "rb") as f:
             hasher.update(f.read())
         self.checksumLabel.setText(hasher.hexdigest())
 
         self.pluginNameLabel.setText(self.plugin_metadata["display_name"])
+        if "project_url" in self.plugin_metadata:
+            # Only display the project URL if it passes some nominal validation.
+            url_components = urllib.parse.urlparse(self.plugin_metadata["project_url"])
+            if len(url_components.scheme) and len(url_components.netloc):
+                self.projectUrlLabel.setOpenExternalLinks(True)
+                self.projectUrlLabel.setText("<a href='"+ self.plugin_metadata["project_url"] +"'>"+ self.plugin_metadata["project_url"] +"</a>");
         if "version" in self.plugin_metadata:
             self.versionLabel.setText(str(self.plugin_metadata["version"]))
         self.descriptionLabel.setText(self.plugin_metadata["description"])
 
         available_for = self.plugin_metadata.get("available_for", [])
-        self.qtInterfaceCheckBox.setChecked("qt" in available_for)
-        self.cmdLineInterfaceCheckBox.setChecked("cmdline" in available_for)
+        if "qt" in available_for:
+            self.qtInterfaceLabel.setToolTip(_("This interface is supported."))
+            self.qtInterfaceLabel.setPixmap(QIcon(":icons/confirmed.png").pixmap(QSize(15, 15)))
+        if "cmdline" in available_for:
+            self.qtInterfaceLabel.setToolTip(_("This interface is supported."))
+            self.cmdLineInterfaceLabel.setPixmap(QIcon(":icons/confirmed.png").pixmap(QSize(15, 15)))
 
     def refresh_ui(self):
         are_widgets_enabled = self.is_plugin_valid()
-        was_liability_accepted = self.liabilityCheckbox.checkState() == Qt.Checked
 
         self.pluginNameLabel.setEnabled(are_widgets_enabled)
+        self.projectUrlLabel.setEnabled(are_widgets_enabled)
         self.versionLabel.setEnabled(are_widgets_enabled)
         self.descriptionLabel.setEnabled(are_widgets_enabled)
         self.checksumLabel.setEnabled(are_widgets_enabled)
-        self.installButton.setEnabled(was_liability_accepted and are_widgets_enabled)
-        self.qtInterfaceCheckBox.setEnabled(are_widgets_enabled)
-        self.cmdLineInterfaceCheckBox.setEnabled(are_widgets_enabled)
-        self.liabilityCheckbox.setEnabled(are_widgets_enabled)
+        if self.is_preview:
+            was_liability_accepted = self.does_user_accept_liability()
+            self.installButton.setEnabled(was_liability_accepted and are_widgets_enabled)
+            self.liabilityCheckbox1.setEnabled(are_widgets_enabled)
+            self.liabilityCheckbox2.setEnabled(are_widgets_enabled)
+            self.liabilityCheckbox3.setEnabled(are_widgets_enabled)
+
+    def does_user_accept_liability(self):
+        return self.liabilityCheckbox1.checkState() == Qt.Checked and \
+            self.liabilityCheckbox2.checkState() == Qt.Checked and \
+            self.liabilityCheckbox3.checkState() == Qt.Checked
 
     def is_plugin_valid(self):
         return self.plugin_metadata is not None
@@ -266,11 +317,11 @@ class ExternalPluginsDialog(WindowModalDialog, MessageBoxMixin):
         # We need to poll the file to see if it is valid.
         plugin_metadata, error_code = plugin_manager.get_metadata_from_external_plugin_zip_file(file_path)
         if plugin_metadata is not None:
-            self.installWarningDialog = d = ExternalPluginsPreviewDialog(self, self.main_window, _("Plugin Preview"), file_path)
+            self.installWarningDialog = d = ExternalPluginsPreviewDialog(self, self.main_window, _("Plugin Preview"), plugin_path=file_path)
             d.exec_()
         else:
             self.show_error(INSTALL_ERROR_MESSAGES.get(error_code, _("Unexpected error %d") % error_code))
-
+            
     def install_plugin_confirmed(self, plugin_archive_path):
         plugin_manager = self.main_window.gui_object.plugins
         result_code = plugin_manager.install_external_plugin(plugin_archive_path)
@@ -286,6 +337,14 @@ class ExternalPluginsDialog(WindowModalDialog, MessageBoxMixin):
             plugin_manager = self.main_window.gui_object.plugins
             plugin_manager.uninstall_external_plugin(package_name)
             self.refresh_ui()
+
+    def show_installed_plugin_about_dialog(self, package_name):
+        plugin_manager = self.main_window.gui_object.plugins
+        metadata = plugin_manager.external_plugin_metadata.get(package_name, None)
+        if metadata is None:
+            return
+        self.pluginAboutDialog = d = ExternalPluginsPreviewDialog(self, self.main_window, _("Plugin Details"), plugin_metadata=metadata)
+        d.exec_()
 
     def on_item_selected(self, package_name=None):
         if package_name is not None:
@@ -321,6 +380,9 @@ class ExternalPluginTable(QTableWidget):
 
         self.setAcceptDrops(True)
 
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.create_menu)
+
         self.setSelectionMode(QAbstractItemView.SingleSelection)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setSortingEnabled(False)
@@ -335,6 +397,15 @@ class ExternalPluginTable(QTableWidget):
         self.itemSelectionChanged.connect(self.on_item_selection_changed)
 
         self.row_keys = []
+        
+    def create_menu(self, position):
+        selected_id = self.get_selected_key()
+        if selected_id is None:
+            return
+        menu = QMenu()
+        menu.addAction(_("About"), lambda: self.parent_widget.show_installed_plugin_about_dialog(selected_id))
+
+        menu.exec_(self.viewport().mapToGlobal(position))
 
     def get_file_path_from_dragdrop_event(self, event):
         mimeData = event.mimeData()
@@ -409,56 +480,5 @@ class ExternalPluginTable(QTableWidget):
             enabledLabel = QLabel("Yes" if plugin is not None and plugin.is_enabled() else "No")
             enabledLabel.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
             self.setCellWidget(row_index, 3, enabledLabel)
-
-
-class ExternalPluginList(MyTreeWidget):
-    def __init__(self, parent, main_window):
-        self.main_window = main_window
-
-        MyTreeWidget.__init__(self, parent, self.create_menu, [
-            _('Name'),
-            _('Description'),
-            _('Version'),
-            _('Enabled'),
-        ], 0, [])
-        self.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.setSortingEnabled(False)
-
-        self.itemSelectionChanged.connect(self.on_item_selection_changed)
-
-    def create_menu(self, position):
-        pass
-
-    def get_selected_keys(self):
-        selected_items = self.selectedItems()
-        selected_ids = [ item.data(0, Qt.UserRole) for item in self.selectedItems() ]
-        return selected_ids
-
-    def on_item_selection_changed(self):
-        selection_keys = self.get_selected_keys()
-        self.parent.on_items_selected(selection_keys)
-
-    def on_update(self):
-        self.clear()
-
-        plugin_manager = self.main_window.gui_object.plugins
-        for package_name, metadata in plugin_manager.external_plugin_metadata.items():
-            row_key = package_name
-            plugin = plugin_manager.get_external_plugin(package_name)
-            fullname = metadata.get('display_name', package_name)
-            description = metadata.get('description', "")
-            version = metadata.get('version', 0)
-            values = [
-                fullname,
-                description + " Now is the time for all good men to come to the aid of the party.",
-                str(version),
-                "Yes" if plugin is not None and plugin.is_enabled() else "No",
-            ]
-            item = QTreeWidgetItem(values)
-            item.setSizeHint(1, QSize(200, 150))
-            # item.setToolTip(0, _("This scheduled payment is up-to-date."))
-            item.setData(0, Qt.UserRole, row_key)
-            item.setData(1, Qt.TextAlignmentRole, Qt.AlignRight | Qt.AlignVCenter) # Align amount to the right.
-            self.addTopLevelItem(item)
 
 

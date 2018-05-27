@@ -67,8 +67,7 @@ Create translations (optional)::
     sudo apt-get install python-requests gettext
     ./contrib/make_locale
 
-
-
+For plugin development, see the `plugin documentation <plugins/README.rst>`_.
 
 Creating Binaries
 =================
