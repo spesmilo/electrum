@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 import hashlib
+import urllib.parse
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -48,8 +49,6 @@ INSTALL_ERROR_MESSAGES = {
     ExternalPluginCodes.INVALID_MAMIFEST_MINIMUM_EC_VERSION: _("The plugin manifest lacks a valid minimum Electron Cash version."),
     ExternalPluginCodes.INVALID_MAMIFEST_PACKAGE_NAME: _("The plugin manifest lacks a valid package name."),
 }
-
-use_tree_widget = True
 
 class FixedCheckBox(QCheckBox):
     def mousePressEvent(self, event):
@@ -77,38 +76,52 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         self.metadataFormLayout.addRow(_("Name"), self.pluginNameLabel)
         self.versionLabel = QLabel()
         self.metadataFormLayout.addRow(_("Version"), self.versionLabel)
+        self.projectUrlLabel = QLabel()
+        self.metadataFormLayout.addRow(_("Project URL"), self.projectUrlLabel)
         self.descriptionLabel = QLabel()
         self.descriptionLabel.setWordWrap(True)
         self.metadataFormLayout.addRow(_("Description"), self.descriptionLabel)
         self.supportedInterfacesLayout = QVBoxLayout()
         self.supportedInterfacesLabel = QLabel(_("Integration"))
         self.supportedInterfacesLabel.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self.supportedInterfacesLabel.setToolTip(_("Plugins should support one or more of these interfaces."))
         self.metadataFormLayout.addRow(self.supportedInterfacesLabel, self.supportedInterfacesLayout)
 
-        self.qtInterfaceCheckBox = FixedCheckBox("User interface.")
-        self.supportedInterfacesLayout.addWidget(self.qtInterfaceCheckBox)
-        self.cmdLineInterfaceCheckBox = FixedCheckBox("Command-line.")
-        self.supportedInterfacesLayout.addWidget(self.cmdLineInterfaceCheckBox)
+        self.qtInterfaceLabel = QLabel()
+        self.qtInterfaceLabel.setMaximumWidth(20)
+        row = QHBoxLayout()
+        row.addWidget(self.qtInterfaceLabel)
+        row.addWidget(QLabel(_("User interface.")))
+        self.supportedInterfacesLayout.addLayout(row)
+
+        self.cmdLineInterfaceLabel = QLabel()
+        self.cmdLineInterfaceLabel.setMaximumWidth(20)
+        row = QHBoxLayout()
+        row.addWidget(self.cmdLineInterfaceLabel)
+        row.addWidget(QLabel(_("Command-line.")))
+        self.supportedInterfacesLayout.addLayout(row)
+
+        self.checksumLabel = QLabel()
+        self.checksumLabel.setToolTip(_("If the official source for this plugin has a checksum for this plugin, ensure that the value shown here is the same."))
+        self.checksumLabel.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.metadataFormLayout.addRow(_("SHA256 Checksum"), self.checksumLabel)
 
         groupBox = QGroupBox(_("Plugin Metadata"))
         groupBox.setLayout(self.metadataFormLayout)
         vbox.addWidget(groupBox)
 
-        securityFormLayout = QFormLayout()
-        self.checksumLabel = QLabel()
-        self.checksumLabel.setAlignment(Qt.AlignRight)
-        self.checksumLabel.setToolTip(_("If the official source for this plugin has a checksum for this plugin, ensure that the value shown here is the same."))
-        securityFormLayout.addRow(_("Archive SHA256 Checksum"), self.checksumLabel)
-
-        groupBox = QGroupBox(_("Security"))
-        groupBox.setLayout(securityFormLayout)
-        vbox.addWidget(groupBox)
-
         confirmLayout = QVBoxLayout()
         confirmLayout.setAlignment(Qt.AlignHCenter)
-        confirmGroupBox = QGroupBox()
-        self.liabilityCheckbox = QCheckBox(_("I understand and accept the risk involved in installing this plugin."))
-        confirmLayout.addWidget(self.liabilityCheckbox)
+        confirmGroupBox = QGroupBox(_("Risks and Dangers"))
+        liabilityLabel = QLabel(_("I accept responsibility for any harm that comes from installing this plugin, and acknowledge:"))
+        rows = QVBoxLayout()
+        self.liabilityCheckbox1 = QCheckBox(_("Electron Cash do not vet plugins."))
+        self.liabilityCheckbox2 = QCheckBox(_("Plugins are risky.  They can steal funds or even damage your computer."))
+        self.liabilityCheckbox3 = QCheckBox(_("I should only install the most reputable plugins trusted by the community."))
+        confirmLayout.addWidget(liabilityLabel)
+        confirmLayout.addWidget(self.liabilityCheckbox1)
+        confirmLayout.addWidget(self.liabilityCheckbox2)
+        confirmLayout.addWidget(self.liabilityCheckbox3)
         confirmGroupBox.setLayout(confirmLayout)
         vbox.addWidget(confirmGroupBox)
 
@@ -123,9 +136,12 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
 
         self.installButton.clicked.connect(self.on_install)
         self.cancelButton.clicked.connect(self.close)
-        self.liabilityCheckbox.clicked.connect(self.on_liability_toggled)
+        self.liabilityCheckbox1.clicked.connect(self.on_liability_toggled)
+        self.liabilityCheckbox2.clicked.connect(self.on_liability_toggled)
+        self.liabilityCheckbox3.clicked.connect(self.on_liability_toggled)
 
         self.pluginNameLabel.setText(_("Unavailable."))
+        self.projectUrlLabel.setText(_("Unavailable."))
         self.versionLabel.setText(_("Unavailable."))
         self.descriptionLabel.setText(_("Unavailable."))
         self.checksumLabel.setText(_("Unavailable."))
@@ -145,26 +161,42 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         self.checksumLabel.setText(hasher.hexdigest())
 
         self.pluginNameLabel.setText(self.plugin_metadata["display_name"])
+        if "project_url" in self.plugin_metadata:
+            # Only display the project URL if it passes some nominal validation.
+            url_components = urllib.parse.urlparse(self.plugin_metadata["project_url"])
+            if len(url_components.scheme) and len(url_components.netloc):
+                self.projectUrlLabel.setOpenExternalLinks(True)
+                self.projectUrlLabel.setText("<a href='"+ self.plugin_metadata["project_url"] +"'>"+ self.plugin_metadata["project_url"] +"</a>");
         if "version" in self.plugin_metadata:
             self.versionLabel.setText(str(self.plugin_metadata["version"]))
         self.descriptionLabel.setText(self.plugin_metadata["description"])
 
         available_for = self.plugin_metadata.get("available_for", [])
-        self.qtInterfaceCheckBox.setChecked("qt" in available_for)
-        self.cmdLineInterfaceCheckBox.setChecked("cmdline" in available_for)
+        if "qt" in available_for:
+            self.qtInterfaceLabel.setToolTip(_("This interface is supported."))
+            self.qtInterfaceLabel.setPixmap(QIcon(":icons/confirmed.png").pixmap(QSize(15, 15)))
+        if "cmdline" in available_for:
+            self.qtInterfaceLabel.setToolTip(_("This interface is supported."))
+            self.cmdLineInterfaceLabel.setPixmap(QIcon(":icons/confirmed.png").pixmap(QSize(15, 15)))
 
     def refresh_ui(self):
         are_widgets_enabled = self.is_plugin_valid()
-        was_liability_accepted = self.liabilityCheckbox.checkState() == Qt.Checked
+        was_liability_accepted = self.does_user_accept_liability()
 
         self.pluginNameLabel.setEnabled(are_widgets_enabled)
+        self.projectUrlLabel.setEnabled(are_widgets_enabled)
         self.versionLabel.setEnabled(are_widgets_enabled)
         self.descriptionLabel.setEnabled(are_widgets_enabled)
         self.checksumLabel.setEnabled(are_widgets_enabled)
         self.installButton.setEnabled(was_liability_accepted and are_widgets_enabled)
-        self.qtInterfaceCheckBox.setEnabled(are_widgets_enabled)
-        self.cmdLineInterfaceCheckBox.setEnabled(are_widgets_enabled)
-        self.liabilityCheckbox.setEnabled(are_widgets_enabled)
+        self.liabilityCheckbox1.setEnabled(are_widgets_enabled)
+        self.liabilityCheckbox2.setEnabled(are_widgets_enabled)
+        self.liabilityCheckbox3.setEnabled(are_widgets_enabled)
+
+    def does_user_accept_liability(self):
+        return self.liabilityCheckbox1.checkState() == Qt.Checked and \
+            self.liabilityCheckbox2.checkState() == Qt.Checked and \
+            self.liabilityCheckbox3.checkState() == Qt.Checked
 
     def is_plugin_valid(self):
         return self.plugin_metadata is not None
