@@ -179,7 +179,7 @@ class ECPubkey(object):
             raise ValueError('recid is {}, but should be 0 <= recid <= 3'.format(recid))
         ecdsa_verifying_key = _MyVerifyingKey.from_signature(sig_string, recid, msg_hash, curve=SECP256k1)
         ecdsa_point = ecdsa_verifying_key.pubkey.point
-        return ECPubkey(point_to_ser(ecdsa_point))
+        return ECPubkey.from_point(ecdsa_point)
 
     @classmethod
     def from_signature65(cls, sig: bytes, msg_hash: bytes):
@@ -396,7 +396,7 @@ class ECPrivkey(ECPubkey):
             raise Exception('invalid ciphertext: invalid ephemeral pubkey') from e
         if not ecdsa.ecdsa.point_is_valid(generator_secp256k1, ecdsa_point.x(), ecdsa_point.y()):
             raise Exception('invalid ciphertext: invalid ephemeral pubkey')
-        ephemeral_pubkey = ECPubkey(point_to_ser(ecdsa_point))
+        ephemeral_pubkey = ECPubkey.from_point(ecdsa_point)
         ecdh_key = (ephemeral_pubkey * self.secret_scalar).get_public_key_bytes(compressed=True)
         key = hashlib.sha512(ecdh_key).digest()
         iv, key_e, key_m = key[0:16], key[16:32], key[32:]
