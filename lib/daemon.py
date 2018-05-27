@@ -248,8 +248,10 @@ class Daemon(DaemonThread):
         return self.wallets.get(path)
 
     def stop_wallet(self, path):
-        wallet = self.wallets.pop(path)
-        wallet.stop_threads()
+        # Issue #659 wallet may already be stopped.
+        if path in self.wallets:
+            wallet = self.wallets.pop(path)
+            wallet.stop_threads()
 
     def run_cmdline(self, config_options):
         password = config_options.get('password')
