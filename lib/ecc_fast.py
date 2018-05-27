@@ -37,6 +37,8 @@ def load_library():
         library_path = 'libsecp256k1.dylib'
     elif sys.platform in ('windows', 'win32'):
         library_path = 'libsecp256k1.dll'
+    elif 'ANDROID_DATA' in os.environ:
+        library_path = 'libsecp256k1.so'
     else:
         library_path = 'libsecp256k1.so.0'
 
