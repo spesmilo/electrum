@@ -296,7 +296,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def on_error(self, exc_info):
         if not isinstance(exc_info[1], UserCancelled):
-            traceback.print_exception(*exc_info)
+            try:
+                traceback.print_exception(*exc_info)
+            except OSError:
+                # Issue #662, user got IO error.
+                # We want them to still get the error displayed to them.
+                pass
             self.show_error(str(exc_info[1]))
 
     def on_network(self, event, *args):
