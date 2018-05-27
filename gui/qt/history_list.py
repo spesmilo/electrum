@@ -163,7 +163,9 @@ class HistoryList(MyTreeWidget):
 
         menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
         if column in self.editable_columns:
-            menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(item, column))
+            # We grab a fresh reference to the current item, as it has been deleted in a reported issue.
+            menu.addAction(_("Edit {}").format(column_title),
+                lambda: self.currentItem() and self.editItem(self.currentItem(), column))
 
         menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx))
         if is_unconfirmed and tx:
