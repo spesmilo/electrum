@@ -27,6 +27,13 @@ git clone https://github.com/pooler/electrum-ltc -b master
 
 pushd electrum-ltc
 if [ ! -z "$1" ]; then
+    # a commit/tag/branch was specified
+    if ! git cat-file -e "$1" 2> /dev/null
+    then  # can't find target
+        # try pull requests
+        git config --local --add remote.origin.fetch '+refs/pull/*/head:refs/remotes/origin/pr/*'
+        git fetch --all
+    fi
     git checkout $1
 fi
 

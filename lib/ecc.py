@@ -49,27 +49,32 @@ def generator():
     return ECPubkey.from_point(generator_secp256k1)
 
 
-def sig_string_from_der_sig(der_sig):
-    r, s = ecdsa.util.sigdecode_der(der_sig, CURVE_ORDER)
-    return ecdsa.util.sigencode_string(r, s, CURVE_ORDER)
+def sig_string_from_der_sig(der_sig, order=CURVE_ORDER):
+    r, s = ecdsa.util.sigdecode_der(der_sig, order)
+    return ecdsa.util.sigencode_string(r, s, order)
 
 
-def der_sig_from_sig_string(sig_string):
-    r, s = ecdsa.util.sigdecode_string(sig_string, CURVE_ORDER)
-    return ecdsa.util.sigencode_der_canonize(r, s, CURVE_ORDER)
+def der_sig_from_sig_string(sig_string, order=CURVE_ORDER):
+    r, s = ecdsa.util.sigdecode_string(sig_string, order)
+    return ecdsa.util.sigencode_der_canonize(r, s, order)
 
 
-def der_sig_from_r_and_s(r, s):
-    return ecdsa.util.sigencode_der_canonize(r, s, CURVE_ORDER)
+def der_sig_from_r_and_s(r, s, order=CURVE_ORDER):
+    return ecdsa.util.sigencode_der_canonize(r, s, order)
 
 
-def get_r_and_s_from_sig_string(sig_string):
-    r, s = ecdsa.util.sigdecode_string(sig_string, CURVE_ORDER)
+def get_r_and_s_from_der_sig(der_sig, order=CURVE_ORDER):
+    r, s = ecdsa.util.sigdecode_der(der_sig, order)
     return r, s
 
 
-def sig_string_from_r_and_s(r, s):
-    return ecdsa.util.sigencode_string_canonize(r, s, CURVE_ORDER)
+def get_r_and_s_from_sig_string(sig_string, order=CURVE_ORDER):
+    r, s = ecdsa.util.sigdecode_string(sig_string, order)
+    return r, s
+
+
+def sig_string_from_r_and_s(r, s, order=CURVE_ORDER):
+    return ecdsa.util.sigencode_string_canonize(r, s, order)
 
 
 def point_to_ser(P, compressed=True) -> bytes:
@@ -174,7 +179,7 @@ class ECPubkey(object):
             raise ValueError('recid is {}, but should be 0 <= recid <= 3'.format(recid))
         ecdsa_verifying_key = _MyVerifyingKey.from_signature(sig_string, recid, msg_hash, curve=SECP256k1)
         ecdsa_point = ecdsa_verifying_key.pubkey.point
-        return ECPubkey(point_to_ser(ecdsa_point))
+        return ECPubkey.from_point(ecdsa_point)
 
     @classmethod
     def from_signature65(cls, sig: bytes, msg_hash: bytes):
@@ -338,24 +343,24 @@ class ECPrivkey(ECPubkey):
         privkey_32bytes = number_to_string(scalar, CURVE_ORDER)
         return privkey_32bytes
 
-    def sign_transaction(self, hashed_preimage):
+    def sign(self, data: bytes, sigencode=None, sigdecode=None) -> bytes:
+        if sigencode is None:
+            sigencode = sig_string_from_r_and_s
+        if sigdecode is None:
+            sigdecode = get_r_and_s_from_sig_string
         private_key = _MySigningKey.from_secret_exponent(self.secret_scalar, curve=SECP256k1)
-        sig = private_key.sign_digest_deterministic(hashed_preimage, hashfunc=hashlib.sha256,
-                                                    sigencode=ecdsa.util.sigencode_der)
+        sig = private_key.sign_digest_deterministic(data, hashfunc=hashlib.sha256, sigencode=sigencode)
         public_key = private_key.get_verifying_key()
-        if not public_key.verify_digest(sig, hashed_preimage, sigdecode=ecdsa.util.sigdecode_der):
+        if not public_key.verify_digest(sig, data, sigdecode=sigdecode):
             raise Exception('Sanity check verifying our own signature failed.')
         return sig
 
-    def sign_message(self, message, is_compressed):
-        def sign_with_python_ecdsa(msg_hash):
-            private_key = _MySigningKey.from_secret_exponent(self.secret_scalar, curve=SECP256k1)
-            public_key = private_key.get_verifying_key()
-            signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode=ecdsa.util.sigencode_string)
-            if not public_key.verify_digest(signature, msg_hash, sigdecode=ecdsa.util.sigdecode_string):
-                raise Exception('Sanity check verifying our own signature failed.')
-            return signature
+    def sign_transaction(self, hashed_preimage: bytes) -> bytes:
+        return self.sign(hashed_preimage,
+                         sigencode=der_sig_from_r_and_s,
+                         sigdecode=get_r_and_s_from_der_sig)
 
+    def sign_message(self, message: bytes, is_compressed: bool) -> bytes:
         def bruteforce_recid(sig_string):
             for recid in range(4):
                 sig65 = construct_sig65(sig_string, recid, is_compressed)
@@ -369,13 +374,11 @@ class ECPrivkey(ECPubkey):
 
         message = to_bytes(message, 'utf8')
         msg_hash = Hash(msg_magic(message))
-        sig_string = sign_with_python_ecdsa(msg_hash)
+        sig_string = self.sign(msg_hash,
+                               sigencode=sig_string_from_r_and_s,
+                               sigdecode=get_r_and_s_from_sig_string)
         sig65, recid = bruteforce_recid(sig_string)
-        try:
-            self.verify_message_for_address(sig65, message)
-            return sig65
-        except Exception as e:
-            raise Exception("error: cannot sign message. self-verify sanity check failed")
+        return sig65
 
     def decrypt_message(self, encrypted, magic=b'BIE1'):
         encrypted = base64.b64decode(encrypted)
@@ -393,7 +396,7 @@ class ECPrivkey(ECPubkey):
             raise Exception('invalid ciphertext: invalid ephemeral pubkey') from e
         if not ecdsa.ecdsa.point_is_valid(generator_secp256k1, ecdsa_point.x(), ecdsa_point.y()):
             raise Exception('invalid ciphertext: invalid ephemeral pubkey')
-        ephemeral_pubkey = ECPubkey(point_to_ser(ecdsa_point))
+        ephemeral_pubkey = ECPubkey.from_point(ecdsa_point)
         ecdh_key = (ephemeral_pubkey * self.secret_scalar).get_public_key_bytes(compressed=True)
         key = hashlib.sha512(ecdh_key).digest()
         iv, key_e, key_m = key[0:16], key[16:32], key[32:]
