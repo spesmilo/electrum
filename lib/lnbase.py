@@ -30,6 +30,7 @@ from .bitcoin import (deserialize_privkey, rev_hex, int_to_hex,
 from . import bitcoin
 from . import ecc
 from . import crypto
+from .crypto import sha256
 from . import constants
 from . import transaction
 from .util import PrintError, bh2u, print_error, bfh, profiler, xor_bytes
@@ -185,22 +186,21 @@ def gen_msg(msg_type, **kwargs):
         data += param
     return data
 
-def H256(data):
-    return hashlib.sha256(data).digest()
 
 class HandshakeState(object):
     prologue = b"lightning"
     protocol_name = b"Noise_XK_secp256k1_ChaChaPoly_SHA256"
     handshake_version = b"\x00"
+
     def __init__(self, responder_pub):
         self.responder_pub = responder_pub
-        self.h = H256(self.protocol_name)
+        self.h = sha256(self.protocol_name)
         self.ck = self.h
         self.update(self.prologue)
         self.update(self.responder_pub)
 
     def update(self, data):
-        self.h = H256(self.h + data)
+        self.h = sha256(self.h + data)
         return self.h
 
 def get_nonce_bytes(n):
@@ -240,7 +240,7 @@ def get_bolt8_hkdf(salt, ikm):
 
 def get_ecdh(priv: bytes, pub: bytes) -> bytes:
     pt = ecc.ECPubkey(pub) * string_to_number(priv)
-    return H256(pt.get_public_key_bytes())
+    return sha256(pt.get_public_key_bytes())
 
 def act1_initiator_message(hs, my_privkey):
     #Get a new ephemeral key
@@ -289,7 +289,7 @@ def aiosafe(f):
     return f2
 
 def get_obscured_ctn(ctn, local, remote):
-    mask = int.from_bytes(H256(local + remote)[-6:], 'big')
+    mask = int.from_bytes(sha256(local + remote)[-6:], 'big')
     return ctn ^ mask
 
 def secret_to_pubkey(secret):
@@ -297,19 +297,19 @@ def secret_to_pubkey(secret):
     return point_to_ser(SECP256k1.generator * secret)
 
 def derive_pubkey(basepoint, per_commitment_point):
-    p = ecc.ECPubkey(basepoint) + ecc.generator() * ecc.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
+    p = ecc.ECPubkey(basepoint) + ecc.generator() * ecc.string_to_number(sha256(per_commitment_point + basepoint))
     return p.get_public_key_bytes()
 
 def derive_privkey(secret, per_commitment_point):
     assert type(secret) is int
     basepoint = point_to_ser(SECP256k1.generator * secret)
-    basepoint = secret + ecc.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
+    basepoint = secret + ecc.string_to_number(sha256(per_commitment_point + basepoint))
     basepoint %= SECP256k1.order
     return basepoint
 
 def derive_blinded_pubkey(basepoint, per_commitment_point):
-    k1 = ecc.ECPubkey(basepoint) * ecc.string_to_number(bitcoin.sha256(basepoint + per_commitment_point))
-    k2 = ecc.ECPubkey(per_commitment_point) * ecc.string_to_number(bitcoin.sha256(per_commitment_point + basepoint))
+    k1 = ecc.ECPubkey(basepoint) * ecc.string_to_number(sha256(basepoint + per_commitment_point))
+    k2 = ecc.ECPubkey(per_commitment_point) * ecc.string_to_number(sha256(per_commitment_point + basepoint))
     return (k1 + k2).get_public_key_bytes()
 
 def shachain_derive(element, toIndex):
@@ -323,7 +323,7 @@ def get_per_commitment_secret_from_seed(seed: bytes, i: int, bits: int = 48) -> 
         mask = 1 << bitindex
         if i & mask:
             per_commitment_secret[bitindex // 8] ^= 1 << (bitindex % 8)
-            per_commitment_secret = bytearray(bitcoin.sha256(per_commitment_secret))
+            per_commitment_secret = bytearray(sha256(per_commitment_secret))
     bajts = bytes(per_commitment_secret)
     return bajts
 
@@ -1652,7 +1652,7 @@ def get_shared_secrets_along_route(payment_path_pubkeys: Sequence[bytes],
     for i in range(0, num_hops):
         hop_shared_secrets[i] = get_ecdh(ephemeral_key, payment_path_pubkeys[i])
         ephemeral_pubkey = ecc.ECPrivkey(ephemeral_key).get_public_key_bytes()
-        blinding_factor = H256(ephemeral_pubkey + hop_shared_secrets[i])
+        blinding_factor = sha256(ephemeral_pubkey + hop_shared_secrets[i])
         blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
         ephemeral_key_int = int.from_bytes(ephemeral_key, byteorder="big")
         ephemeral_key_int = ephemeral_key_int * blinding_factor_int % SECP256k1.order
@@ -1733,7 +1733,7 @@ def process_onion_packet(onion_packet: OnionPacket, associated_data: bytes,
     next_hops_data = xor_bytes(padded_header, stream_bytes)
 
     # calc next ephemeral key
-    blinding_factor = H256(onion_packet.public_key + shared_secret)
+    blinding_factor = sha256(onion_packet.public_key + shared_secret)
     blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
     next_public_key_int = ecc.ECPubkey(onion_packet.public_key) * blinding_factor_int
     next_public_key = next_public_key_int.get_public_key_bytes()
