@@ -775,8 +775,8 @@ class Commands:
         self.wallet.lnworker.reestablish_channel()
 
     @command('wn')
-    def lnpay():
-        self.wallet.lnworker.pay()
+    def lnpay(self, invoice):
+        self.wallet.lnworker.pay(invoice)
 
     @command('wn')
     def lnreceive(self):
