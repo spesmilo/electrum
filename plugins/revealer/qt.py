@@ -28,7 +28,7 @@ from electrum.plugins import BasePlugin, hook
 from electrum.i18n import _
 from electrum_gui.qt.util import *
 from electrum_gui.qt.qrtextedit import ScanQRTextEdit
-from electrum.util import to_bytes
+from electrum.util import to_bytes, make_dir
 
 
 class Plugin(BasePlugin):
@@ -52,8 +52,7 @@ class Plugin(BasePlugin):
         self.abstand_v = 34
         self.calibration_noise = int('10' * 128)
         self.rawnoise = False
-        if not os.path.exists(self.base_dir):
-            os.mkdir(self.base_dir)
+        make_dir(self.base_dir)
 
     @hook
     def set_seed(self, seed, parent):

@@ -202,9 +202,7 @@ class Network(util.DaemonThread):
         self.callbacks = defaultdict(list)
 
         dir_path = os.path.join( self.config.path, 'certs')
-        if not os.path.exists(dir_path):
-            os.mkdir(dir_path)
-            os.chmod(dir_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        util.make_dir(dir_path)
 
         # subscriptions and requests
         self.subscribed_addresses = set()
