@@ -768,7 +768,7 @@ class Commands:
     # lightning network commands
     @command('wpn')
     def open_channel(self, node_id, amount, push_msat=0, password=None):
-        self.wallet.lnworker.open_channel(node_id, amount, push_msat, password)
+        self.wallet.lnworker.open_channel(node_id, satoshis(amount), push_msat, password)
 
     @command('wn')
     def reestablish_channel(self):
@@ -779,8 +779,12 @@ class Commands:
         self.wallet.lnworker.pay()
 
     @command('wn')
-    def lnreceive():
+    def lnreceive(self):
         self.wallet.lnworker.get_paid()
+
+    @command('wn')
+    def listchannels(self):
+        return self.wallet.lnworker.list_channels()
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
