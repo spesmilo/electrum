@@ -37,6 +37,8 @@ def load_library():
         library_path = 'libsecp256k1.dylib'
     elif sys.platform in ('windows', 'win32'):
         library_path = 'libsecp256k1.dll'
+    elif 'ANDROID_DATA' in os.environ:
+        library_path = 'libsecp256k1.so'
     else:
         library_path = 'libsecp256k1.so.0'
 
@@ -211,6 +213,6 @@ try:
     _libsecp256k1 = load_library()
 except:
     _libsecp256k1 = None
-    traceback.print_exc(file=sys.stderr)
+    #traceback.print_exc(file=sys.stderr)
 
 _prepare_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
