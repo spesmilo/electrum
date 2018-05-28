@@ -18,7 +18,7 @@ from .simple_config import SimpleConfig
 from .network import Network
 from .storage import WalletStorage
 from .wallet import Wallet
-from .lnbase import Peer, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore
+from .lnbase import Peer, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore, aiosafe
 from .lightning_payencode.lnaddr import lnencode, LnAddr, lndecode
 
 
@@ -93,9 +93,8 @@ class LNWorker:
         self.privkey = H256(b"0123456789")
         self.config = network.config
         self.peers = {}
-        self.channels = {}
+        self.channels = wallet.storage.get("channels", {})
         peer_list = network.config.get('lightning_peers', node_list)
-        print("Adding", len(peer_list), "peers")
         for host, port, pubkey in peer_list:
             self.add_peer(host, port, pubkey)
 
@@ -104,9 +103,46 @@ class LNWorker:
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[pubkey] = peer
 
-    def open_channel(self, peer, amount, push_msat, password):
-        coro = peer.channel_establishment_flow(self.wallet, self.config, password, amount, push_msat, temp_channel_id=os.urandom(32))
-        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+    def save_channel(self, openchannel):
+        dumped = serialize_channels([openchannel])
+        self.wallet.storage.put("channels", dumped)
+        self.wallet.storage.write()
+
+    @aiosafe
+    async def open_channel(self, peer, amount, push_msat, password):
+        openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password, amount, push_msat, temp_channel_id=os.urandom(32))
+        self.save_channel(openingchannel)
+        openchannel = await peer.wait_for_funding_locked(openingchannel, self.wallet)
+        self.save_channel(openchannel)
+
+    @aiosafe
+    async def reestablish_channel(self):
+        if self.channels is None or len(self.channels) < 1:
+            raise Exception("Can't reestablish: No channel saved")
+        openchannel = self.channels[0]
+        openchannel = reconstruct_namedtuples(openchannel)
+        openchannel = await peer.reestablish_channel(openchannel)
+        self.save_channel(openchannel)
+
+    @aiosafe
+    async def pay(self):
+        addr = lndecode(sys.argv[6], expected_hrp="sb" if sys.argv[2] == "simnet" else "tb")
+        payment_hash = addr.paymenthash
+        pubkey = addr.pubkey.serialize()
+        msat_amt = int(addr.amount * COIN * 1000)
+        openchannel = await peer.pay(wallet, openchannel, msat_amt, payment_hash, pubkey, addr.min_final_cltv_expiry)
+        self.save_channel(openchannel)
+
+    @aiosafe
+    async def get_paid(self):
+        payment_preimage = os.urandom(32)
+        RHASH = sha256(payment_preimage)
+        expected_received_sat = 200000
+        expected_received_msat = expected_received_sat * 1000
+        pay_req = lnencode(LnAddr(RHASH, amount=1/Decimal(COIN)*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
+        print("payment request", pay_req)
+        openchannel = await peer.receive_commitment_revoke_ack(openchannel, expected_received_msat, payment_preimage)
+        self.save_channel(openchannel)
 
     def open_channel_from_other_thread(self, node_id, local_amt, push_amt, emit_function, pw):
         # TODO this could race on peers
@@ -116,7 +152,8 @@ class LNWorker:
                 print("Peer not found, and peer list is empty or has multiple peers.")
                 return
             peer = next(iter(self.peers.values()))
-        fut = self.open_channel(peer, local_amt, push_amt, None if pw == "" else pw)
+        coro = self.open_channel(peer, local_amt, push_amt, None if pw == "" else pw)
+        fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         chan = fut.result()
         # https://api.lightning.community/#listchannels
         std_chan = {"chan_id": chan.channel_id}
@@ -179,44 +216,16 @@ if __name__ == "__main__":
     peer = Peer(host, port, pubkey, privkey, network, request_initial_sync=True)
     network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), network.asyncio_loop))
 
-    funding_satoshis = 2000000
-    push_msat = 1000000000
-
     # run blocking test
     async def async_test():
-        payment_preimage = os.urandom(32)
-        RHASH = sha256(payment_preimage)
-        channels = wallet.storage.get("channels", None)
-
         if "new_channel" in sys.argv[1]:
-            openingchannel = await peer.channel_establishment_flow(wallet, config, None, funding_satoshis, push_msat, temp_channel_id=os.urandom(32))
-            openchannel = await peer.wait_for_funding_locked(openingchannel, wallet)
-            dumped = serialize_channels([openchannel])
-            wallet.storage.put("channels", dumped)
-            wallet.storage.write()
+            await wallet.lnworker.open_channel()
         elif "reestablish_channel" in sys.argv[1]:
-            if channels is None or len(channels) < 1:
-                raise Exception("Can't reestablish: No channel saved")
-            openchannel = channels[0]
-            openchannel = reconstruct_namedtuples(openchannel)
-            openchannel = await peer.reestablish_channel(openchannel)
-
+            await wallet.lnworker.reestablish_channel()
         if "pay" in sys.argv[1]:
-            addr = lndecode(sys.argv[6], expected_hrp="sb" if sys.argv[2] == "simnet" else "tb")
-            payment_hash = addr.paymenthash
-            pubkey = addr.pubkey.serialize()
-            msat_amt = int(addr.amount * COIN * 1000)
-            openchannel = await peer.pay(wallet, openchannel, msat_amt, payment_hash, pubkey, addr.min_final_cltv_expiry)
+            await lnworker.pay()
         elif "get_paid" in sys.argv[1]:
-            expected_received_sat = 200000
-            expected_received_msat = expected_received_sat * 1000
-            pay_req = lnencode(LnAddr(RHASH, amount=1/Decimal(COIN)*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey[:32])
-            print("payment request", pay_req)
-            openchannel = await peer.receive_commitment_revoke_ack(openchannel, expected_received_msat, payment_preimage)
-
-        dumped = serialize_channels([openchannel])
-        wallet.storage.put("channels", dumped)
-        wallet.storage.write()
+            await lnworker.get_paid()
     fut = asyncio.run_coroutine_threadsafe(async_test(), network.asyncio_loop)
     while not fut.done():
         time.sleep(1)
