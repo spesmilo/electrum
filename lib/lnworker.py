@@ -5,18 +5,22 @@ import binascii
 import asyncio
 import time
 import os
-
-from lib.bitcoin import sha256, COIN
-from lib.util import bh2u, bfh
 from decimal import Decimal
-from lib.constants import set_testnet, set_simnet
-from lib.simple_config import SimpleConfig
-from lib.network import Network
-from lib.storage import WalletStorage
-from lib.wallet import Wallet
-from lib.lnbase import Peer, node_list, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore
-from lib.lightning_payencode.lnaddr import lnencode, LnAddr, lndecode
-import lib.constants as constants
+import binascii
+import asyncio
+
+
+from .lnbase import Peer, H256
+from .bitcoin import sha256, COIN
+from .util import bh2u, bfh
+from .constants import set_testnet, set_simnet
+from .simple_config import SimpleConfig
+from .network import Network
+from .storage import WalletStorage
+from .wallet import Wallet
+from .lnbase import Peer, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore
+from .lightning_payencode.lnaddr import lnencode, LnAddr, lndecode
+
 
 is_key = lambda k: k.endswith("_basepoint") or k.endswith("_key")
 
@@ -70,6 +74,72 @@ def serialize_channels(channels):
     if reconstructed != channels:
         raise Exception("Channels did not roundtrip serialization without changes:\n" + repr(reconstructed) + "\n" + repr(channels))
     return roundtripped
+
+
+
+
+# hardcoded nodes
+node_list = [
+    ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff'),
+]
+
+
+
+class LNWorker:
+
+    def __init__(self, wallet, network):
+        self.wallet = wallet
+        self.network = network
+        self.privkey = H256(b"0123456789")
+        self.config = network.config
+        self.peers = {}
+        self.channels = {}
+        peer_list = network.config.get('lightning_peers', node_list)
+        print("Adding", len(peer_list), "peers")
+        for host, port, pubkey in peer_list:
+            self.add_peer(host, port, pubkey)
+
+    def add_peer(self, host, port, pubkey):
+        peer = Peer(host, int(port), binascii.unhexlify(pubkey), self.privkey, self.network)
+        self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
+        self.peers[pubkey] = peer
+
+    def open_channel(self, peer, amount, push_msat, password):
+        coro = peer.channel_establishment_flow(self.wallet, self.config, password, amount, push_msat, temp_channel_id=os.urandom(32))
+        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+
+    def open_channel_from_other_thread(self, node_id, local_amt, push_amt, emit_function, pw):
+        # TODO this could race on peers
+        peer = self.peers.get(node_id)
+        if peer is None:
+            if len(self.peers) != 1:
+                print("Peer not found, and peer list is empty or has multiple peers.")
+                return
+            peer = next(iter(self.peers.values()))
+        fut = self.open_channel(peer, local_amt, push_amt, None if pw == "" else pw)
+        chan = fut.result()
+        # https://api.lightning.community/#listchannels
+        std_chan = {"chan_id": chan.channel_id}
+        emit_function({"channels": [std_chan]})
+
+    def subscribe_payment_received_from_other_thread(self, emit_function):
+        pass
+
+    def subscribe_channel_list_updates_from_other_thread(self, emit_function):
+        pass
+
+    def subscribe_single_channel_update_from_other_thread(self, emit_function):
+        pass
+
+    def add_invoice_from_other_thread(self, amt):
+        pass
+
+    def subscribe_invoice_added_from_other_thread(self, emit_function):
+        pass
+
+    def pay_invoice_from_other_thread(self, lnaddr):
+        pass
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 3:
