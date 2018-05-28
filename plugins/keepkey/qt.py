@@ -503,24 +503,6 @@ class SettingsDialog(WindowModalDialog):
         pin_msg.setStyleSheet("color: red")
         settings_glayout.addWidget(pin_msg, 3, 1, 1, -1)
 
-        # Settings tab - Homescreen
-        if plugin.device != 'KeepKey':   # Not yet supported by KK firmware
-            homescreen_layout = QHBoxLayout()
-            homescreen_label = QLabel(_("Homescreen"))
-            homescreen_change_button = QPushButton(_("Change..."))
-            homescreen_clear_button = QPushButton(_("Reset"))
-            homescreen_change_button.clicked.connect(change_homescreen)
-            homescreen_clear_button.clicked.connect(clear_homescreen)
-            homescreen_msg = QLabel(_("You can set the homescreen on your "
-                                      "device to personalize it.  You must "
-                                      "choose a {} x {} monochrome black and "
-                                      "white image.").format(hs_rows, hs_cols))
-            homescreen_msg.setWordWrap(True)
-            settings_glayout.addWidget(homescreen_label, 4, 0)
-            settings_glayout.addWidget(homescreen_change_button, 4, 1)
-            settings_glayout.addWidget(homescreen_clear_button, 4, 2)
-            settings_glayout.addWidget(homescreen_msg, 5, 1, 1, -1)
-
         # Settings tab - Session Timeout
         timeout_label = QLabel(_("Session Timeout"))
         timeout_minutes = QLabel()

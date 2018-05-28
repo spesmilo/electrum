@@ -42,6 +42,11 @@ from electrum.transaction import SerializationError
 
 from .util import *
 
+
+SAVE_BUTTON_ENABLED_TOOLTIP = _("Save transaction offline")
+SAVE_BUTTON_DISABLED_TOOLTIP = _("Please sign this transaction in order to save it")
+
+
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
 
@@ -113,14 +118,14 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.broadcast_button = b = QPushButton(_("Broadcast"))
         b.clicked.connect(self.do_broadcast)
 
-        self.save_button = QPushButton(_("Save"))
+        self.save_button = b = QPushButton(_("Save"))
         save_button_disabled = not tx.is_complete()
-        self.save_button.setDisabled(save_button_disabled)
+        b.setDisabled(save_button_disabled)
         if save_button_disabled:
-            self.save_button.setToolTip(_("Please sign this transaction in order to save it"))
+            b.setToolTip(SAVE_BUTTON_DISABLED_TOOLTIP)
         else:
-            self.save_button.setToolTip("")
-        self.save_button.clicked.connect(self.save)
+            b.setToolTip(SAVE_BUTTON_ENABLED_TOOLTIP)
+        b.clicked.connect(self.save)
 
         self.export_button = b = QPushButton(_("Export"))
         b.clicked.connect(self.export)
@@ -136,9 +141,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.copy_button = CopyButton(lambda: str(self.tx), parent.app)
 
         # Action buttons
-        self.buttons = [self.sign_button, self.broadcast_button, self.save_button, self.cancel_button]
+        self.buttons = [self.sign_button, self.broadcast_button, self.cancel_button]
         # Transaction sharing buttons
-        self.sharing_buttons = [self.copy_button, self.qr_button, self.export_button]
+        self.sharing_buttons = [self.copy_button, self.qr_button, self.export_button, self.save_button]
 
         run_hook('transaction_dialog', self)
 
@@ -184,7 +189,7 @@ class TxDialog(QDialog, MessageBoxMixin):
                 self.prompt_if_unsaved = True
                 self.saved = False
                 self.save_button.setDisabled(False)
-                self.save_button.setToolTip("")
+                self.save_button.setToolTip(SAVE_BUTTON_ENABLED_TOOLTIP)
             self.update()
             self.main_window.pop_top_level_window(self)
 
@@ -193,9 +198,11 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.main_window.sign_tx(self.tx, sign_done)
 
     def save(self):
+        self.main_window.push_top_level_window(self)
         if self.main_window.save_transaction_into_wallet(self.tx):
             self.save_button.setDisabled(True)
             self.saved = True
+        self.main_window.pop_top_level_window(self)
 
 
     def export(self):

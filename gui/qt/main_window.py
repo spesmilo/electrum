@@ -39,7 +39,7 @@ import PyQt5.QtCore as QtCore
 from .exception_window import Exception_Hook
 from PyQt5.QtWidgets import *
 
-from electrum import keystore, simple_config
+from electrum import keystore, simple_config, ecc
 from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
 from electrum import constants
 from electrum.plugins import run_hook
@@ -723,7 +723,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 else:
                     icon = QIcon(":icons/status_connected_proxy.png")
         else:
-            text = _("Not connected")
+            if self.network.proxy:
+                text = "{} ({})".format(_("Not connected"), _("proxy enabled"))
+            else:
+                text = _("Not connected")
             icon = QIcon(":icons/status_disconnected.png")
 
         self.tray.setToolTip("%s (%s)" % (text, self.wallet.basename()))
@@ -1575,8 +1578,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # can sign directly
             task = partial(Transaction.sign, tx, self.tx_external_keypairs)
         else:
-            # call hook to see if plugin needs gui interaction
-            run_hook('sign_tx', self, tx)
             task = partial(self.wallet.sign_transaction, tx, password)
         WaitingDialog(self, _('Signing transaction...'), task,
                       on_signed, on_failed)
@@ -2166,7 +2167,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             # This can throw on invalid base64
             sig = base64.b64decode(str(signature.toPlainText()))
-            verified = bitcoin.verify_message(address, sig, message)
+            verified = ecc.verify_message_with_address(address, sig, message)
         except Exception as e:
             verified = False
         if verified:
@@ -2232,7 +2233,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         message = message_e.toPlainText()
         message = message.encode('utf-8')
         try:
-            encrypted = bitcoin.encrypt_message(message, pubkey_e.text())
+            public_key = ecc.ECPubkey(bfh(pubkey_e.text()))
+            encrypted = public_key.encrypt_message(message)
             encrypted_e.setText(encrypted.decode('ascii'))
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
@@ -3157,17 +3159,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.show_transaction(new_tx, tx_label)
 
     def save_transaction_into_wallet(self, tx):
+        win = self.top_level_window()
         try:
             if not self.wallet.add_transaction(tx.txid(), tx):
-                self.show_error(_("Transaction could not be saved.") + "\n" +
-                                       _("It conflicts with current history."))
+                win.show_error(_("Transaction could not be saved.") + "\n" +
+                               _("It conflicts with current history."))
                 return False
         except AddTransactionException as e:
-            self.show_error(e)
+            win.show_error(e)
             return False
         else:
             self.wallet.save_transactions(write=True)
             # need to update at least: history_list, utxo_list, address_list
             self.need_update.set()
-            self.msg_box(QPixmap(":icons/offline_tx.png"), None, _('Success'), _("Transaction added to wallet history"))
+            msg = (_("Transaction added to wallet history.") + '\n\n' +
+                   _("Note: this is an offline transaction, if you want the network "
+                     "to see it, you need to broadcast it."))
+            win.msg_box(QPixmap(":icons/offline_tx.png"), None, _('Success'), msg)
             return True

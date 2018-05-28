@@ -8,8 +8,8 @@ from decimal import Decimal
 from copy import deepcopy
 
 from . import util
-from .util import (user_dir, print_error, PrintError,
-                   NoDynamicFeeEstimates, format_fee_satoshis)
+from .util import (user_dir, print_error, PrintError, make_dir,
+                   NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate)
 from .i18n import _
 
 FEE_ETA_TARGETS = [25, 10, 5, 2]
@@ -105,21 +105,13 @@ class SimpleConfig(PrintError):
         if path is None:
             path = self.user_dir()
 
-        def make_dir(path):
-            # Make directory if it does not yet exist.
-            if not os.path.exists(path):
-                if os.path.islink(path):
-                    raise Exception('Dangling link: ' + path)
-                os.mkdir(path)
-                os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
-
-        make_dir(path)
+        make_dir(path, allow_symlink=False)
         if self.get('testnet'):
             path = os.path.join(path, 'testnet')
-            make_dir(path)
+            make_dir(path, allow_symlink=False)
         elif self.get('regtest'):
             path = os.path.join(path, 'regtest')
-            make_dir(path)
+            make_dir(path, allow_symlink=False)
 
         self.print_error("electrum directory", path)
         return path
@@ -240,11 +232,7 @@ class SimpleConfig(PrintError):
         # default path
         util.assert_datadir_available(self.path)
         dirpath = os.path.join(self.path, "wallets")
-        if not os.path.exists(dirpath):
-            if os.path.islink(dirpath):
-                raise Exception('Dangling link: ' + dirpath)
-            os.mkdir(dirpath)
-            os.chmod(dirpath, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        make_dir(dirpath, allow_symlink=False)
 
         new_path = os.path.join(self.path, "wallets", "default_wallet")
 
@@ -476,6 +464,9 @@ class SimpleConfig(PrintError):
     def estimate_fee_for_feerate(cls, fee_per_kb, size):
         fee_per_kb = Decimal(fee_per_kb)
         fee_per_byte = fee_per_kb / 1000
+        # to be consistent with what is displayed in the GUI,
+        # the calculation needs to use the same precision:
+        fee_per_byte = quantize_feerate(fee_per_byte)
         return round(fee_per_byte * size)
 
     def update_fee_estimates(self, key, value):

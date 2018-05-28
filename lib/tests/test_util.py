@@ -1,7 +1,10 @@
 import unittest
 from lib.util import format_satoshis, parse_URI
 
-class TestUtil(unittest.TestCase):
+from . import SequentialTestCase
+
+
+class TestUtil(SequentialTestCase):
 
     def test_format_satoshis(self):
         result = format_satoshis(1234)

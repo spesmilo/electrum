@@ -31,7 +31,7 @@ from urllib.parse import urljoin
 from urllib.parse import quote
 
 import electrum
-from electrum import bitcoin
+from electrum import bitcoin, ecc
 from electrum import constants
 from electrum import keystore
 from electrum.bitcoin import *
@@ -215,6 +215,7 @@ class Wallet_2fa(Multisig_Wallet):
         Deterministic_Wallet.__init__(self, storage)
         self.is_billing = False
         self.billing_info = None
+        self.auth_code = None
 
     def can_sign_without_server(self):
         return not self.keystores['x2/'].is_watching_only()
@@ -272,6 +273,7 @@ class Wallet_2fa(Multisig_Wallet):
         Multisig_Wallet.sign_transaction(self, tx, password)
         if tx.is_complete():
             return
+        self.plugin.prompt_user_for_otp(self, tx)
         if not self.auth_code:
             self.print_error("sign_transaction: no auth code")
             return
@@ -285,6 +287,7 @@ class Wallet_2fa(Multisig_Wallet):
         self.print_error("twofactor: is complete", tx.is_complete())
         # reset billing_info
         self.billing_info = None
+        self.auth_code = None
 
 
 # Utility functions
@@ -590,7 +593,7 @@ class TrustedCoinPlugin(BasePlugin):
         def f(xprv):
             _, _, _, _, c, k = deserialize_xprv(xprv)
             pk = bip32_private_key([0, 0], k, c)
-            key = regenerate_key(pk)
+            key = ecc.ECPrivkey(pk)
             sig = key.sign_message(message, True)
             return base64.b64encode(sig).decode()
 

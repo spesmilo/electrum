@@ -114,7 +114,7 @@ def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
 def sweep_preparations(privkeys, network, imax=100):
 
     def find_utxos_for_privkey(txin_type, privkey, compressed):
-        pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
+        pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
         append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax)
         keypairs[pubkey] = privkey, compressed
     inputs = []
@@ -215,10 +215,10 @@ class Abstract_Wallet(PrintError):
         self.load_addresses()
         self.test_addresses_sanity()
         self.load_transactions()
-        self.check_history()
-        self.load_unverified_transactions()
         self.load_local_history()
         self.build_spent_outpoints()
+        self.check_history()
+        self.load_unverified_transactions()
         self.remove_local_transactions_we_dont_have()
 
         # there is a difference between wallet.up_to_date and interface.is_up_to_date()

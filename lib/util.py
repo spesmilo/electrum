@@ -30,6 +30,7 @@ import traceback
 import urllib
 import threading
 import hmac
+import stat
 
 from .i18n import _
 
@@ -881,6 +882,7 @@ def export_meta(meta, fileName):
         traceback.print_exc(file=sys.stderr)
         raise FileExportFailed(e)
 
+
 def get_new_wallet_name(wallet_folder):
     i = 1
     while True:
@@ -893,3 +895,11 @@ def get_new_wallet_name(wallet_folder):
 
 def format_date(d):
     return str(datetime.date(d)) if d else _('None')
+
+def make_dir(path, allow_symlink=True):
+    """Make directory if it does not yet exist."""
+    if not os.path.exists(path):
+        if not allow_symlink and os.path.islink(path):
+            raise Exception('Dangling link: ' + path)
+        os.mkdir(path)
+        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)

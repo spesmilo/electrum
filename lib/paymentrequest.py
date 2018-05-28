@@ -38,6 +38,7 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto'")
 
 from . import bitcoin
+from . import ecc
 from . import util
 from .util import print_error, bh2u, bfh
 from .util import export_meta, import_meta
@@ -206,9 +207,9 @@ class PaymentRequest:
         if pr.pki_type == "dnssec+btc":
             self.requestor = alias
             address = info.get('address')
-            pr.signature = ''
+            pr.signature = b''
             message = pr.SerializeToString()
-            if bitcoin.verify_message(address, sig, message):
+            if ecc.verify_message_with_address(address, sig, message):
                 self.error = 'Verified with DNSSEC'
                 return True
             else:
@@ -321,10 +322,9 @@ def sign_request_with_alias(pr, alias, alias_privkey):
     pr.pki_type = 'dnssec+btc'
     pr.pki_data = str(alias)
     message = pr.SerializeToString()
-    ec_key = bitcoin.regenerate_key(alias_privkey)
-    address = bitcoin.address_from_private_key(alias_privkey)
+    ec_key = ecc.ECPrivkey(alias_privkey)
     compressed = bitcoin.is_compressed(alias_privkey)
-    pr.signature = ec_key.sign_message(message, compressed, address)
+    pr.signature = ec_key.sign_message(message, compressed)
 
 
 def verify_cert_chain(chain):
