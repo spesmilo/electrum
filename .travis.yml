@@ -48,3 +48,11 @@ jobs:
       script: ./contrib/build-osx/make_osx
       after_script: ls -lah dist && md5 dist/*
       after_success: true
+    - stage: release check
+      install:
+          - git fetch --all --tags
+          - git fetch origin --unshallow
+      script:
+        - ./contrib/deterministic-build/check_submodules.sh
+      after_success: true
+      if: tag IS present
