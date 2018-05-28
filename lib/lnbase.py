@@ -712,8 +712,10 @@ class Peer(PrintError):
 
     def on_channel_reestablish(self, payload):
         chan_id = int.from_bytes(payload["channel_id"], 'big')
-        if chan_id not in self.channel_reestablish: raise Exception("Got unknown channel_reestablish")
-        self.channel_reestablish[chan_id].set_result(payload)
+        if chan_id in self.channel_reestablish:
+            self.channel_reestablish[chan_id].set_result(payload)
+        else:
+            print("Warning: received unknown channel_reestablish")
 
     def on_accept_channel(self, payload):
         temp_chan_id = payload["temporary_channel_id"]
@@ -734,7 +736,7 @@ class Peer(PrintError):
         pubkey = payload['node_id']
         signature = payload['signature']
         h = bitcoin.Hash(payload['raw'][66:])
-        if not bitcoin.verify_signature(pubkey, signature, h):
+        if not ecc.verify_signature(pubkey, signature, h):
             return False
         self.s = payload['addresses']
         def read(n):
@@ -923,7 +925,7 @@ class Peer(PrintError):
             funding_txid, funding_index, funding_sat,
             local_amount, remote_amount, local_config.dust_limit_sat, local_feerate, True, htlcs=[])
         pre_hash = bitcoin.Hash(bfh(local_ctx.serialize_preimage(0)))
-        if not bitcoin.verify_signature(remote_config.multisig_key.pubkey, remote_sig, pre_hash):
+        if not ecc.verify_signature(remote_config.multisig_key.pubkey, remote_sig, pre_hash):
             raise Exception('verifying remote signature failed.')
         # broadcast funding tx
         success, _txid = self.network.broadcast(funding_tx)
@@ -1237,7 +1239,7 @@ class Peer(PrintError):
 
         preimage_hex = new_commitment.serialize_preimage(0)
         pre_hash = bitcoin.Hash(bfh(preimage_hex))
-        if not bitcoin.verify_signature(chan.remote_config.multisig_key.pubkey, commitment_signed_msg["signature"], pre_hash):
+        if not ecc.verify_signature(chan.remote_config.multisig_key.pubkey, commitment_signed_msg["signature"], pre_hash):
             raise Exception('failed verifying signature of our updated commitment transaction')
 
         htlc_sigs_len = len(commitment_signed_msg["htlc_signature"])
@@ -1247,7 +1249,7 @@ class Peer(PrintError):
         htlc_tx = make_htlc_tx_with_open_channel(chan, this_point, True, True, amount_msat, cltv_expiry, payment_hash, new_commitment, 0)
         pre_hash = bitcoin.Hash(bfh(htlc_tx.serialize_preimage(0)))
         remote_htlc_pubkey = derive_pubkey(chan.remote_config.htlc_basepoint.pubkey, this_point)
-        if not bitcoin.verify_signature(remote_htlc_pubkey, commitment_signed_msg["htlc_signature"], pre_hash):
+        if not ecc.verify_signature(remote_htlc_pubkey, commitment_signed_msg["htlc_signature"], pre_hash):
             raise Exception("failed verifying signature an HTLC tx spending from one of our commit tx'es HTLC outputs")
 
         their_revstore.add_next_entry(last_secret)
