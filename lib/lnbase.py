@@ -984,34 +984,7 @@ class Peer(PrintError):
             raise Exception("Remote PCP mismatch")
         return chan
 
-
-    async def wait_for_funding_locked(self, chan, wallet):
-        channel_id = chan.channel_id
-
-        def on_network_update(event, *args):
-            conf = wallet.get_tx_height(chan.funding_outpoint.txid)[1]
-            if conf >= chan.constraints.funding_txn_minimum_depth:
-                async def set_local_funding_locked_result():
-                    try:
-                        self.local_funding_locked[channel_id].set_result(short_channel_id)
-                    except (asyncio.InvalidStateError, KeyError) as e:
-                        # FIXME race condition if updates come in quickly, set_result might be called multiple times
-                        # or self.local_funding_locked[channel_id] might be deleted already
-                        self.print_error('local_funding_locked.set_result error for channel {}: {}'.format(channel_id, e))
-                block_height, tx_pos = wallet.get_txpos(chan.funding_outpoint.txid)
-                if tx_pos == -1:
-                    self.print_error('funding tx is not yet SPV verified.. but there are '
-                                     'already enough confirmations (currently {})'.format(conf))
-                    return
-                short_channel_id = calc_short_channel_id(block_height, tx_pos, chan.funding_outpoint.output_index)
-                asyncio.run_coroutine_threadsafe(set_local_funding_locked_result(), asyncio.get_event_loop())
-                self.network.unregister_callback(on_network_update)
-
-        # wait until we see confirmations
-        self.network.register_callback(on_network_update, ['updated', 'verified']) # thread safe
-
-        on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
-
+    async def on_funding_locked(self):
         try:
             short_channel_id = await self.local_funding_locked[channel_id]
         finally:
