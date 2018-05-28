@@ -4,6 +4,13 @@ import threading
 from lib import constants
 
 
+# Set this locally to make the test suite run faster.
+# If set, unit tests that would normally test functions with multiple implementations,
+# will only be run once, using the fastest implementation.
+# e.g. libsecp256k1 vs python-ecdsa. pycryptodomex vs pyaes.
+FAST_TESTS = False
+
+
 # some unit tests are modifying globals; sorry.
 class SequentialTestCase(unittest.TestCase):
 

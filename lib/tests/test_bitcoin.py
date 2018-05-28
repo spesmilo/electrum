@@ -21,8 +21,8 @@ from lib import constants
 from lib.storage import WalletStorage
 
 from . import SequentialTestCase
-
 from . import TestCaseForTestnet
+from . import FAST_TESTS
 
 
 try:
@@ -39,6 +39,9 @@ def needs_test_with_all_ecc_implementations(func):
     tests running in parallel would break things
     """
     def run_test(*args, **kwargs):
+        if FAST_TESTS:  # if set, only run tests once, using fastest implementation
+            func(*args, **kwargs)
+            return
         ecc_fast.undo_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
         try:
             # first test without libsecp
@@ -61,6 +64,9 @@ def needs_test_with_all_aes_implementations(func):
     tests running in parallel would break things
     """
     def run_test(*args, **kwargs):
+        if FAST_TESTS:  # if set, only run tests once, using fastest implementation
+            func(*args, **kwargs)
+            return
         _aes = crypto.AES
         crypto.AES = None
         try:
