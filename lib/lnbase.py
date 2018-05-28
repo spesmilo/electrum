@@ -39,8 +39,10 @@ from .lnrouter import new_onion_packet, OnionHopsDataSingle, OnionPerHop
 
 from collections import namedtuple, defaultdict
 
-
 class LightningError(Exception):
+    pass
+
+class LightningPeerConnectionClosed(LightningError):
     pass
 
 message_types = {}
@@ -566,7 +568,8 @@ def is_synced(network):
 
 class Peer(PrintError):
 
-    def __init__(self, host, port, pubkey, privkey, network, channel_db, path_finder, request_initial_sync=False):
+    def __init__(self, host, port, pubkey, privkey, network, channel_db, path_finder, channel_state, handle_channel_reestablish, request_initial_sync=False):
+        self.handle_channel_reestablish = handle_channel_reestablish
         self.update_add_htlc_event = asyncio.Event()
         self.channel_update_event = asyncio.Event()
         self.host = host
@@ -576,7 +579,6 @@ class Peer(PrintError):
         self.network = network
         self.channel_db = channel_db
         self.path_finder = path_finder
-        self.read_buffer = b''
         self.ping_time = 0
         self.futures = ["channel_accepted",
             "funding_signed",
@@ -597,6 +599,8 @@ class Peer(PrintError):
         self.initialized = asyncio.Future()
         self.localfeatures = (0x08 if request_initial_sync else 0)
         self.unfulfilled_htlcs = []
+        self.channel_state = channel_state
+        self.nodes = {}
 
     def diagnostic_name(self):
         return self.host
@@ -619,21 +623,22 @@ class Peer(PrintError):
     async def read_message(self):
         rn_l, rk_l = self.rn()
         rn_m, rk_m = self.rn()
+        read_buffer = b''
         while True:
             s = await self.reader.read(1)
             if not s:
-                raise Exception('connection closed')
-            self.read_buffer += s
-            if len(self.read_buffer) < 18:
+                raise LightningPeerConnectionClosed()
+            read_buffer += s
+            if len(read_buffer) < 18:
                 continue
-            lc = self.read_buffer[:18]
+            lc = read_buffer[:18]
             l = aead_decrypt(rk_l, rn_l, b'', lc)
             length = int.from_bytes(l, 'big')
             offset = 18 + length + 16
-            if len(self.read_buffer) < offset:
+            if len(read_buffer) < offset:
                 continue
-            c = self.read_buffer[18:offset]
-            self.read_buffer = self.read_buffer[offset:]
+            c = read_buffer[18:offset]
+            read_buffer = read_buffer[offset:]
             msg = aead_decrypt(rk_m, rn_m, b'', c)
             return msg
 
@@ -716,7 +721,7 @@ class Peer(PrintError):
         if chan_id in self.channel_reestablish:
             self.channel_reestablish[chan_id].set_result(payload)
         else:
-            print("Warning: received unknown channel_reestablish")
+            asyncio.run_coroutine_threadsafe(self.handle_channel_reestablish(chan_id, payload), self.network.asyncio_loop).result()
 
     def on_accept_channel(self, payload):
         temp_chan_id = payload["temporary_channel_id"]
@@ -906,6 +911,7 @@ class Peer(PrintError):
         sig_64 = sign_and_get_sig_string(remote_ctx, local_config, remote_config)
         funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
         channel_id = int.from_bytes(funding_txid_bytes, 'big') ^ funding_index
+        self.channel_state[channel_id] = "OPENING"
         self.send_message(gen_msg("funding_created",
             temporary_channel_id=temp_channel_id,
             funding_txid=funding_txid_bytes,
@@ -958,6 +964,7 @@ class Peer(PrintError):
         return chan
 
     async def reestablish_channel(self, chan):
+        assert chan.channel_id not in self.channel_state
 
         await self.initialized
         self.send_message(gen_msg("channel_reestablish",
@@ -984,9 +991,11 @@ class Peer(PrintError):
 
         if channel_reestablish_msg["my_current_per_commitment_point"] != chan.remote_state.last_per_commitment_point:
             raise Exception("Remote PCP mismatch")
-        return chan
 
-    async def on_funding_locked(self):
+        self.channel_state[chan.channel_id] = "OPEN"
+
+    async def funding_locked(self, chan):
+        channel_id = chan.channel_id
         try:
             short_channel_id = await self.local_funding_locked[channel_id]
         finally:
@@ -1002,6 +1011,8 @@ class Peer(PrintError):
         finally:
             del self.remote_funding_locked[channel_id]
         self.print_error('Done waiting for remote_funding_locked', remote_funding_locked_msg)
+
+        self.channel_state[chan.channel_id] = "OPEN"
 
         return chan._replace(short_channel_id=short_channel_id, remote_state=chan.remote_state._replace(next_per_commitment_point=remote_funding_locked_msg["next_per_commitment_point"]))
 
@@ -1025,11 +1036,16 @@ class Peer(PrintError):
                 )
             )
             return last_secret, this_point, next_point
+        assert self.channel_state[chan.channel_id] == "OPEN"
         their_revstore = chan.remote_state.revocation_store
-        await asyncio.sleep(1)
         while not is_synced(wallet.network):
             await asyncio.sleep(1)
             print("sleeping more")
+
+        if chan.channel_id in self.commitment_signed:
+            print("too many commitments signed")
+            del self.commitment_signed[chan.channel_id]
+
         height = wallet.get_local_height()
         assert amount_msat > 0, "amount_msat is not greater zero"
 
@@ -1175,6 +1191,8 @@ class Peer(PrintError):
             )
             return last_secret, this_point, next_point
 
+        assert self.channel_state[chan.channel_id] == "OPEN"
+
         their_revstore = chan.remote_state.revocation_store
 
         channel_id = chan.channel_id
@@ -1183,8 +1201,15 @@ class Peer(PrintError):
         finally:
             del self.commitment_signed[channel_id]
 
-        assert len(self.unfulfilled_htlcs) == 1
-        htlc = self.unfulfilled_htlcs.pop()
+        if int.from_bytes(commitment_signed_msg["num_htlcs"], "big") < 1:
+            while len(self.unfulfilled_htlcs) < 1:
+                print("waiting for add_update_htlc")
+                await asyncio.sleep(1)
+        else:
+            print("commitment signed message had htlcs")
+            assert len(self.unfulfilled_htlcs) == 1
+
+        htlc = self.unfulfilled_htlcs.pop(0)
         htlc_id = int.from_bytes(htlc["id"], 'big')
         assert htlc_id == chan.remote_state.next_htlc_id, (htlc_id, chan.remote_state.next_htlc_id)
         cltv_expiry = int.from_bytes(htlc["cltv_expiry"], 'big')
