@@ -213,6 +213,6 @@ try:
     _libsecp256k1 = load_library()
 except:
     _libsecp256k1 = None
-    traceback.print_exc(file=sys.stderr)
+    #traceback.print_exc(file=sys.stderr)
 
 _prepare_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
