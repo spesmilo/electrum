@@ -315,6 +315,13 @@ def msg_magic(message: bytes) -> bytes:
     return b"\x18Bitcoin Signed Message:\n" + length + message
 
 
+def verify_signature(pubkey, sig, h):
+    try:
+        ECPubkey(pubkey).verify_message_hash(sig, h)
+    except:
+        return False
+    return True
+
 def verify_message_with_address(address: str, sig65: bytes, message: bytes, *, net=None):
     from .bitcoin import pubkey_to_address
     assert_bytes(sig65, message)

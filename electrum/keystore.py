@@ -385,7 +385,7 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
     def get_keypair(self, sequence, password):
         k, _ = self.get_private_key(sequence, password)
-        K, cK = get_pubkeys_from_secret(k)
+        cK = ecc.ECPrivkey(k).get_public_key_bytes()
         return cK, k
 
 class Old_KeyStore(Deterministic_KeyStore):
