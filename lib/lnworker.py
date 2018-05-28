@@ -10,7 +10,6 @@ import binascii
 import asyncio
 
 
-from .lnbase import Peer, H256
 from .bitcoin import sha256, COIN
 from .util import bh2u, bfh
 from .constants import set_testnet, set_simnet
@@ -20,6 +19,7 @@ from .storage import WalletStorage
 from .wallet import Wallet
 from .lnbase import Peer, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore, aiosafe
 from .lightning_payencode.lnaddr import lnencode, LnAddr, lndecode
+from . import lnrouter
 
 
 is_key = lambda k: k.endswith("_basepoint") or k.endswith("_key")
@@ -90,9 +90,14 @@ class LNWorker:
     def __init__(self, wallet, network):
         self.wallet = wallet
         self.network = network
-        self.privkey = H256(b"0123456789")
+        self.privkey = sha256(b"0123456789")
         self.config = network.config
         self.peers = {}
+        # view of the network
+        self.nodes = {}  # received node announcements
+        self.channel_db = lnrouter.ChannelDB()
+        self.path_finder = lnrouter.LNPathFinder(self.channel_db)
+
         self.channels = wallet.storage.get("channels", {})
         peer_list = network.config.get('lightning_peers', node_list)
         for host, port, pubkey in peer_list:
@@ -102,7 +107,8 @@ class LNWorker:
         self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
 
     def add_peer(self, host, port, pubkey):
-        peer = Peer(host, int(port), binascii.unhexlify(pubkey), self.privkey, self.network)
+        peer = Peer(host, int(port), binascii.unhexlify(pubkey), self.privkey,
+                    self.network, self.channel_db, self.path_finder)
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[pubkey] = peer
 
