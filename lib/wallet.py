@@ -1309,7 +1309,7 @@ class Abstract_Wallet(PrintError):
             network.add_jobs([self.verifier, self.synchronizer])
             if network.config.get("lnbase", False):
                 asyncio.set_event_loop(network.asyncio_loop)
-                from .lnbase import LNWorker
+                from .lnworker import LNWorker
                 self.lnworker = LNWorker(self, network)
         else:
             self.verifier = None

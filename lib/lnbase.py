@@ -37,11 +37,6 @@ from .transaction import opcodes, Transaction
 
 from collections import namedtuple, defaultdict
 
-# hardcoded nodes
-node_list = [
-    ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff'),
-]
-
 
 class LightningError(Exception):
     pass
@@ -1362,61 +1357,6 @@ class Peer(PrintError):
         channel_id = int.from_bytes(payload["channel_id"], 'big')
         self.revoke_and_ack[channel_id].set_result(payload)
 
-# replacement for lightningCall
-class LNWorker:
-
-    def __init__(self, wallet, network):
-        self.wallet = wallet
-        self.network = network
-        self.privkey = H256(b"0123456789")
-        self.config = network.config
-        self.peers = {}
-        self.channels = {}
-        peer_list = network.config.get('lightning_peers', node_list)
-        print("Adding", len(peer_list), "peers")
-        for host, port, pubkey in peer_list:
-            self.add_peer(host, port, pubkey)
-
-    def add_peer(self, host, port, pubkey):
-        peer = Peer(host, int(port), binascii.unhexlify(pubkey), self.privkey, self.network)
-        self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
-        self.peers[pubkey] = peer
-
-    def open_channel(self, peer, amount, push_msat, password):
-        coro = peer.channel_establishment_flow(self.wallet, self.config, password, amount, push_msat, temp_channel_id=os.urandom(32))
-        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-
-    def open_channel_from_other_thread(self, node_id, local_amt, push_amt, emit_function, pw):
-        # TODO this could race on peers
-        peer = self.peers.get(node_id)
-        if peer is None:
-            if len(self.peers) != 1:
-                print("Peer not found, and peer list is empty or has multiple peers.")
-                return
-            peer = next(iter(self.peers.values()))
-        fut = self.open_channel(peer, local_amt, push_amt, None if pw == "" else pw)
-        chan = fut.result()
-        # https://api.lightning.community/#listchannels
-        std_chan = {"chan_id": chan.channel_id}
-        emit_function({"channels": [std_chan]})
-
-    def subscribe_payment_received_from_other_thread(self, emit_function):
-        pass
-
-    def subscribe_channel_list_updates_from_other_thread(self, emit_function):
-        pass
-
-    def subscribe_single_channel_update_from_other_thread(self, emit_function):
-        pass
-
-    def add_invoice_from_other_thread(self, amt):
-        pass
-
-    def subscribe_invoice_added_from_other_thread(self, emit_function):
-        pass
-
-    def pay_invoice_from_other_thread(self, lnaddr):
-        pass
 
 class ChannelInfo(PrintError):
 
