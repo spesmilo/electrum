@@ -681,6 +681,24 @@ class Commands:
         # for the python console
         return sorted(known_commands.keys())
 
+    # lightning network commands
+    @command('wpn')
+    def open_channel(self, node_id, amount, push_msat=0, password=None):
+        self.wallet.lnworker.open_channel(node_id, amount, push_msat, password)
+
+    @command('wn')
+    def reestablish_channel(self):
+        self.wallet.lnworker.reestablish_channel()
+
+    @command('wn')
+    def lnpay():
+        self.wallet.lnworker.pay()
+
+    @command('wn')
+    def lnreceive():
+        self.wallet.lnworker.get_paid()
+
+
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',
     'destination': 'Bitcoin address, contact or alias',
@@ -728,6 +746,7 @@ command_options = {
     'timeout':     (None, "Timeout in seconds"),
     'force':       (None, "Create new address beyond gap limit, if no more addresses are available."),
     'pending':     (None, "Show only pending requests."),
+    'push_msat':   (None, 'push millisatoshis'),
     'expired':     (None, "Show only expired requests."),
     'paid':        (None, "Show only paid requests."),
     'show_addresses': (None, "Show input and output addresses"),
