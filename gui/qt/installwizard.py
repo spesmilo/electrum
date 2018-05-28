@@ -270,7 +270,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 path = self.storage.path
                 wallet_from_memory = get_wallet_from_daemon(path)
                 name, mdate = self.get_wallet_info(path)
-                self.wallet_name.setText(name)
+                if self.wallet_name.text() != name:
+                    self.wallet_name.setText(name)
                 self.wallet_opened.setText((_('Last opened:') + ' ' + mdate) if mdate else '')
                 self.next_button.setEnabled(True)
                 if not self.storage.file_exists():
@@ -278,10 +279,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     msg = _("This wallet does not exist yet.") + '\n' \
                           + _("Press 'Next' to create it, or choose another wallet.")
                     pw = False
-                    self.wallet_name.setDisabled(False)
-                    self.wallet_name.setFrame(True)
                 elif not wallet_from_memory:
-                    self.wallet_name.setDisabled(True)
                     create_button.show()
                     if self.storage.is_encrypted_with_user_pw():
                         msg = '\n' + _('Enter your password or choose another file.')
@@ -302,7 +300,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 msg = '\n' + _('Cannot read file')
                 pw = False
             self.wallet_message.setText(msg)
-            self.wallet_name.setFrame(self.wallet_name.isEnabled())
             if pw:
                 self.pw_label.show()
                 self.pw_e.show()
