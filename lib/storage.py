@@ -69,8 +69,11 @@ class WalletStorage(PrintError):
         self.modified = False
         self.pubkey = None
         if self.file_exists():
-            with open(self.path, "r") as f:
-                self.raw = f.read()
+            try:
+                with open(self.path, "r") as f:
+                    self.raw = f.read()
+            except UnicodeDecodeError as e:
+                raise IOError("Error reading file: "+ str(e))
             if not self.is_encrypted():
                 self.load_data(self.raw)
         else:
