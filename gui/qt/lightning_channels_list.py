@@ -45,7 +45,7 @@ class LightningChannelsList(QtWidgets.QWidget):
         push_amt = int(push_amt_inp.text())
         assert local_amt >= 200000
         assert local_amt >= push_amt
-        obj = self.lnworker.open_channel_from_other_thread(node_id, local_amt, push_amt, self.update_rows.emit, password)
+        obj = self.lnworker.open_channel(node_id, local_amt, push_amt, password)
 
     @QtCore.pyqtSlot(dict)
     def do_update_single_row(self, new):
