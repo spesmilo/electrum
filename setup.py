@@ -17,8 +17,8 @@ with open('contrib/requirements/requirements-hw.txt') as f:
 
 version = imp.load_source('version', 'lib/version.py')
 
-if sys.version_info[:3] < (3, 5, 0):
-    sys.exit("Error: Electron Cash requires Python version >= 3.5.0...")
+if sys.version_info[:3] < (3, 5, 2):
+    sys.exit("Error: Electron Cash requires Python version >= 3.5.2...")
 
 data_files = []
 

@@ -21,8 +21,8 @@ from lib.version import PACKAGE_VERSION as version
 name = "Electron-Cash"
 mainscript = 'electron-cash'
 
-if sys.version_info[:3] < (3, 0, 0):
-    print_error("Error: " + name + " requires Python version >= 3.0.0...")
+if sys.version_info[:3] < (3, 5, 2):
+    print_error("Error: " + name + " requires Python version >= 3.5.2...")
     sys.exit(1)
 
 if sys.platform == 'darwin':
