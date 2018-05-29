@@ -256,7 +256,7 @@ class Test_LNBase(unittest.TestCase):
     def test_find_path_for_payment(self):
         channel_db = lnrouter.ChannelDB()
         path_finder = lnrouter.LNPathFinder(channel_db)
-        p = Peer('', 0, 'a', bitcoin.sha256('privkeyseed'), None, channel_db, path_finder, {}, lambda x, y: None)
+        p = Peer('', 0, 'a', bitcoin.sha256('privkeyseed'), None, channel_db, path_finder, {}, [])
         p.on_channel_announcement({'node_id_1': b'b', 'node_id_2': b'c', 'short_channel_id': bfh('0000000000000001')})
         p.on_channel_announcement({'node_id_1': b'b', 'node_id_2': b'e', 'short_channel_id': bfh('0000000000000002')})
         p.on_channel_announcement({'node_id_1': b'a', 'node_id_2': b'b', 'short_channel_id': bfh('0000000000000003')})
