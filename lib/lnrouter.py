@@ -120,7 +120,7 @@ class ChannelDB(PrintError):
         try:
             channel_info = self._id_to_channel_info[short_channel_id]
         except KeyError:
-            print("could not find", short_channel_id)
+            self.print_error("could not find", short_channel_id)
         else:
             channel_info.on_channel_update(msg_payload)
 
