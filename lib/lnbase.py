@@ -40,6 +40,10 @@ from .lightning_payencode.lnaddr import lndecode
 
 from collections import namedtuple, defaultdict
 
+def channel_id_from_funding_tx(funding_txid, funding_index):
+    funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
+    return int.from_bytes(funding_txid_bytes, 'big') ^ funding_index, funding_txid_bytes
+
 class LightningError(Exception):
     pass
 
@@ -566,7 +570,6 @@ def is_synced(network):
     synced = server_height != 0 and network.is_up_to_date() and local_height >= server_height
     return synced
 
-
 class Peer(PrintError):
 
     def __init__(self, host, port, pubkey, privkey, network, channel_db, path_finder, channel_state, channels, invoices, request_initial_sync=False):
@@ -878,8 +881,7 @@ class Peer(PrintError):
             funding_txid, funding_index, funding_sat,
             remote_amount, local_amount, remote_config.dust_limit_sat, local_feerate, False, htlcs=[])
         sig_64 = sign_and_get_sig_string(remote_ctx, local_config, remote_config)
-        funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
-        channel_id = int.from_bytes(funding_txid_bytes, 'big') ^ funding_index
+        channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_index)
         self.send_message(gen_msg("funding_created",
             temporary_channel_id=temp_channel_id,
             funding_txid=funding_txid_bytes,
