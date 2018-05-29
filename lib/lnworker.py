@@ -98,7 +98,6 @@ class LNWorker:
         self.nodes = {}  # received node announcements
         self.channel_db = lnrouter.ChannelDB()
         self.path_finder = lnrouter.LNPathFinder(self.channel_db)
-
         self.channels = [reconstruct_namedtuples(x) for x in wallet.storage.get("channels", {})]
         peer_list = network.config.get('lightning_peers', node_list)
         self.channel_state = {}
@@ -109,15 +108,11 @@ class LNWorker:
         self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
 
     def add_peer(self, host, port, pubkey):
-        peer = Peer(host, int(port), binascii.unhexlify(pubkey), self.privkey,
-                    self.network, self.channel_db, self.path_finder, self.channel_state, self.handle_channel_reestablish)
+        node_id = bfh(pubkey)
+        channels = list(filter(lambda x: x.node_id == node_id, self.channels))
+        peer = Peer(host, int(port), node_id, self.privkey, self.network, self.channel_db, self.path_finder, self.channel_state, channels)
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
-        self.peers[bfh(pubkey)] = peer
-
-    async def handle_channel_reestablish(self, chan_id, payload):
-        chans = [x for x in self.channels if x.channel_id == chan_id ]
-        chan = chans[0]
-        await self.peers[chan.node_id].reestablish_channel(chan)
+        self.peers[node_id] = peer
 
     def save_channel(self, openchannel):
         self.channels = [openchannel] # TODO multiple channels
@@ -179,17 +174,6 @@ class LNWorker:
     def list_channels(self):
         return serialize_channels(self.channels)
 
-    def reestablish_channels(self):
-        coro = self._reestablish_channels_coroutine()
-        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop).result()
-
-    # not aiosafe because we call .result() which will propagate an exception
-    async def _reestablish_channels_coroutine(self):
-        if self.channels is None or len(self.channels) < 1:
-            raise Exception("Can't reestablish: No channel saved")
-        peer = self.peers[self.channels[0].node_id]
-        await peer.reestablish_channel(self.channels[0])
-
     # not aiosafe because we call .result() which will propagate an exception
     async def _pay_coroutine(self, invoice):
         openchannel = self.channels[0]
@@ -215,7 +199,6 @@ class LNWorker:
         print("payment request", pay_req)
         openchannel = await peer.receive_commitment_revoke_ack(openchannel, expected_received_msat, payment_preimage)
         self.save_channel(openchannel)
-
 
     def subscribe_payment_received_from_other_thread(self, emit_function):
         pass
