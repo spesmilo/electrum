@@ -166,7 +166,7 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         plugin_manager = self.main_window.gui_object.plugins
  
         self.plugin_path = plugin_path
-        self.plugin_metadata, error_code = plugin_manager.get_metadata_from_external_plugin_zip_file(plugin_path)
+        self.plugin_metadata, result_code = plugin_manager.get_metadata_from_external_plugin_zip_file(plugin_path)
         self.refresh_plugin()
 
     def refresh_plugin(self):
@@ -315,18 +315,18 @@ class ExternalPluginsDialog(WindowModalDialog, MessageBoxMixin):
     def show_install_plugin_preview_dialog(self, file_path):
         plugin_manager = self.main_window.gui_object.plugins
         # We need to poll the file to see if it is valid.
-        plugin_metadata, error_code = plugin_manager.get_metadata_from_external_plugin_zip_file(file_path)
+        plugin_metadata, result_code = plugin_manager.get_metadata_from_external_plugin_zip_file(file_path)
         if plugin_metadata is not None:
             self.installWarningDialog = d = ExternalPluginsPreviewDialog(self, self.main_window, _("Plugin Preview"), plugin_path=file_path)
             d.exec_()
         else:
-            self.show_error(INSTALL_ERROR_MESSAGES.get(error_code, _("Unexpected error %d") % error_code))
+            self.show_error(INSTALL_ERROR_MESSAGES.get(result_code, _("Unexpected error %d") % result_code))
             
     def install_plugin_confirmed(self, plugin_archive_path):
         plugin_manager = self.main_window.gui_object.plugins
         result_code = plugin_manager.install_external_plugin(plugin_archive_path)
         if result_code != ExternalPluginCodes.SUCCESS:
-            self.show_error(INSTALL_ERROR_MESSAGES.get(result_code, _("Unexpected error %d") % error_code))
+            self.show_error(INSTALL_ERROR_MESSAGES.get(result_code, _("Unexpected error %d") % result_code))
         else:
             run_hook('init_qt', self.main_window.gui_object)
         self.refresh_ui()
