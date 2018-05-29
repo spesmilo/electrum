@@ -579,6 +579,7 @@ class Peer(PrintError):
         self.network = network
         self.channel_db = channel_db
         self.path_finder = path_finder
+        self.read_buffer = b''
         self.ping_time = 0
         self.futures = ["channel_accepted",
             "funding_signed",
@@ -623,24 +624,21 @@ class Peer(PrintError):
     async def read_message(self):
         rn_l, rk_l = self.rn()
         rn_m, rk_m = self.rn()
-        read_buffer = b''
         while True:
-            s = await self.reader.read(1)
+            if len(self.read_buffer) >= 18:
+                lc = self.read_buffer[:18]
+                l = aead_decrypt(rk_l, rn_l, b'', lc)
+                length = int.from_bytes(l, 'big')
+                offset = 18 + length + 16
+                if len(self.read_buffer) >= offset:
+                    c = self.read_buffer[18:offset]
+                    self.read_buffer = self.read_buffer[offset:]
+                    msg = aead_decrypt(rk_m, rn_m, b'', c)
+                    return msg
+            s = await self.reader.read(2**10)
             if not s:
                 raise LightningPeerConnectionClosed()
-            read_buffer += s
-            if len(read_buffer) < 18:
-                continue
-            lc = read_buffer[:18]
-            l = aead_decrypt(rk_l, rn_l, b'', lc)
-            length = int.from_bytes(l, 'big')
-            offset = 18 + length + 16
-            if len(read_buffer) < offset:
-                continue
-            c = read_buffer[18:offset]
-            read_buffer = read_buffer[offset:]
-            msg = aead_decrypt(rk_m, rn_m, b'', c)
-            return msg
+            self.read_buffer += s
 
     async def handshake(self):
         hs = HandshakeState(self.pubkey)
