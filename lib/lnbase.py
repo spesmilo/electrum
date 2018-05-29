@@ -568,8 +568,7 @@ def is_synced(network):
 
 class Peer(PrintError):
 
-    def __init__(self, host, port, pubkey, privkey, network, channel_db, path_finder, channel_state, handle_channel_reestablish, request_initial_sync=False):
-        self.handle_channel_reestablish = handle_channel_reestablish
+    def __init__(self, host, port, pubkey, privkey, network, channel_db, path_finder, channel_state, channels, request_initial_sync=False):
         self.update_add_htlc_event = asyncio.Event()
         self.channel_update_event = asyncio.Event()
         self.host = host
@@ -594,7 +593,6 @@ class Peer(PrintError):
         self.local_funding_locked = defaultdict(asyncio.Future)
         self.remote_funding_locked = defaultdict(asyncio.Future)
         self.revoke_and_ack = defaultdict(asyncio.Future)
-        self.channel_reestablish = defaultdict(asyncio.Future)
         self.update_fulfill_htlc = defaultdict(asyncio.Future)
         self.commitment_signed = defaultdict(asyncio.Future)
         self.initialized = asyncio.Future()
@@ -602,6 +600,7 @@ class Peer(PrintError):
         self.unfulfilled_htlcs = []
         self.channel_state = channel_state
         self.nodes = {}
+        self.channels = channels
 
     def diagnostic_name(self):
         return self.host
@@ -714,13 +713,6 @@ class Peer(PrintError):
         l = int.from_bytes(payload['num_pong_bytes'], 'big')
         self.send_message(gen_msg('pong', byteslen=l))
 
-    def on_channel_reestablish(self, payload):
-        chan_id = int.from_bytes(payload["channel_id"], 'big')
-        if chan_id in self.channel_reestablish:
-            self.channel_reestablish[chan_id].set_result(payload)
-        else:
-            asyncio.run_coroutine_threadsafe(self.handle_channel_reestablish(chan_id, payload), self.network.asyncio_loop).result()
-
     def on_accept_channel(self, payload):
         temp_chan_id = payload["temporary_channel_id"]
         if temp_chan_id not in self.channel_accepted: raise Exception("Got unknown accept_channel")
@@ -795,6 +787,8 @@ class Peer(PrintError):
         self.process_message(msg)
         # initialized
         self.initialized.set_result(msg)
+        # reestablish channels
+        [await self.reestablish_channel(c) for c in self.channels]
         # loop
         while True:
             self.ping_if_required()
@@ -963,33 +957,29 @@ class Peer(PrintError):
 
     async def reestablish_channel(self, chan):
         assert chan.channel_id not in self.channel_state
-
-        await self.initialized
         self.send_message(gen_msg("channel_reestablish",
             channel_id=chan.channel_id,
             next_local_commitment_number=chan.local_state.ctn+1,
             next_remote_revocation_number=chan.remote_state.ctn
         ))
-        channel_reestablish_msg = await self.channel_reestablish[chan.channel_id]
-        print(channel_reestablish_msg)
-        # {
-        #   'channel_id': b'\xfa\xce\x0b\x8cjZ6\x03\xd2\x99k\x12\x86\xc7\xed\xe5\xec\x80\x85F\xf2\x1bzn\xa1\xd30I\xf9_V\xfa',
-        #   'next_local_commitment_number': b'\x00\x00\x00\x00\x00\x00\x00\x01',
-        #   'next_remote_revocation_number': b'\x00\x00\x00\x00\x00\x00\x00\x00',
-        #   'your_last_per_commitment_secret': b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
-        #   'my_current_per_commitment_point': b'\x03\x18\xb9\x1b\x99\xd4\xc3\xf1\x92\x0f\xfe\xe4c\x9e\xae\xa4\xf1\xdeX\xcf4\xa9[\xd1\tAh\x80\x88\x01b*['
-        # }
+
+    def on_channel_reestablish(self, payload):
+        chan_id = int.from_bytes(payload["channel_id"], 'big')
+        for chan in self.channels:
+            if chan.channel_id == chan_id:
+                break
+        else:
+            print("Warning: received unknown channel_reestablish", chan_id, list(self.channels))
+            return
+        channel_reestablish_msg = payload
         remote_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
         if remote_ctn != chan.remote_state.ctn + 1:
             raise Exception("expected remote ctn {}, got {}".format(chan.remote_state.ctn + 1, remote_ctn))
-
         local_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
         if local_ctn != chan.local_state.ctn:
             raise Exception("expected local ctn {}, got {}".format(chan.local_state.ctn, local_ctn))
-
         if channel_reestablish_msg["my_current_per_commitment_point"] != chan.remote_state.last_per_commitment_point:
             raise Exception("Remote PCP mismatch")
-
         self.channel_state[chan.channel_id] = "OPEN"
 
     async def funding_locked(self, chan):
@@ -1009,9 +999,7 @@ class Peer(PrintError):
         finally:
             del self.remote_funding_locked[channel_id]
         self.print_error('Done waiting for remote_funding_locked', remote_funding_locked_msg)
-
         self.channel_state[chan.channel_id] = "OPEN"
-
         return chan._replace(short_channel_id=short_channel_id, remote_state=chan.remote_state._replace(next_per_commitment_point=remote_funding_locked_msg["next_per_commitment_point"]))
 
     def on_update_fail_htlc(self, payload):
