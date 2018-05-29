@@ -9,6 +9,7 @@ from lib import storage, bitcoin, keystore, constants
 from lib.transaction import Transaction
 from lib.simple_config import SimpleConfig
 from lib.wallet import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
+from lib.util import bfh, bh2u
 
 from . import TestCaseForTestnet
 from . import SequentialTestCase
@@ -267,6 +268,66 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
         self.assertEqual(w.get_receiving_addresses()[0], 'MBYnVwVNdKM5EK7uzBCSAMU5iJa3ATHxCK')
         self.assertEqual(w.get_change_addresses()[0], 'MFdrC72fZDa7aTMo5gi7XSyeeiA3P9VtUM')
 
+    @needs_test_with_all_ecc_implementations
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_bip32_extended_version_bytes(self, mock_write):
+        seed_words = 'crouch dumb relax small truck age shine pink invite spatial object tenant'
+        self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
+        bip32_seed = keystore.bip39_to_seed(seed_words, '')
+        self.assertEqual('0df68c16e522eea9c1d8e090cfb2139c3b3a2abed78cbcb3e20be2c29185d3b8df4e8ce4e52a1206a688aeb88bfee249585b41a7444673d1f16c0d45755fa8b9',
+                         bh2u(bip32_seed))
+
+        def create_keystore_from_bip32seed(xtype):
+            ks = keystore.BIP32_KeyStore({})
+            ks.add_xprv_from_seed(bip32_seed, xtype=xtype, derivation='m/')
+            return ks
+
+        ks = create_keystore_from_bip32seed(xtype='standard')
+        self.assertEqual('033a05ec7ae9a9833b0696eb285a762f17379fa208b3dc28df1c501cf84fe415d0', ks.derive_pubkey(0, 0))
+        self.assertEqual('02bf27f41683d84183e4e930e66d64fc8af5508b4b5bf3c473c505e4dbddaeed80', ks.derive_pubkey(1, 0))
+
+        ks = create_keystore_from_bip32seed(xtype='standard')  # p2pkh
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(ks.xprv, 'xprv9s21ZrQH143K3nyWMZVjzGL4KKAE1zahmhTHuV5pdw4eK3o3igC5QywgQG7UTRe6TGBniPDpPFWzXMeMUFbBj8uYsfXGjyMmF54wdNt8QBm')
+        self.assertEqual(ks.xpub, 'xpub661MyMwAqRbcGH3yTb2kMQGnsLziRTJZ8vNthsVSCGbdBr8CGDWKxnGAFYgyKTzBtwvPPmfVAWJuFmxRXjSbUTg87wDkWQ5GmzpfUcN9t8Z')
+        self.assertEqual(w.get_receiving_addresses()[0], 'LTtTVhtMvLYJWaoTiWqQ5w2jwnLL6Rra9S')
+        self.assertEqual(w.get_change_addresses()[0], 'LYTUNqss6W2gonLUojLPN6znCrSxkzEmkb')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wpkh-p2sh')
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(ks.xprv, 'yprvABrGsX5C9janu6AdBvHNCMRZVHJfxcaCgoyWgsyi1wSXN9cGyLMe33bpRU54TLJ1ruJbTrpNqusYQeFvBx1CXNb9k1DhKtBFWo8b1sLbXhN')
+        self.assertEqual(ks.xpub, 'ypub6QqdH2c5z7967aF6HwpNZVNJ3K9AN5J442u7VGPKaGyWEwwRWsftaqvJGkeZKNe7Jb3C9FG3dAfT94ZzFRrcGhMizGvB6Jtm3itJsEFhxMC')
+        self.assertEqual(w.get_receiving_addresses()[0], 'MAeJky6ECCKzzCyLf1pajZCxFFd4fEVs16')
+        self.assertEqual(w.get_change_addresses()[0], 'MF7vnDyYc1HhEqC83zKCjPwYKTipPQkVBo')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wpkh')
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(ks.xprv, 'zprvAWgYBBk7JR8GkPMk2H4zQSX4fFT7uEZhbvVjUGsbPwpQRFRWDzXCf7FxSg2eTEwwGYRQDLQwJaE6HvsUueRDKcGkcLv7unzjnXCEQVWhrF9')
+        self.assertEqual(ks.xpub, 'zpub6jftahH18ngZxsSD8JbzmaToDHHcJhHYy9RLGfHCxHMPJ3kemXqTCuaSHxc9KHJ2iE9ztirc5q212MBYy8Gd4w3KrccbgDiFKSwxFpYKEH6')
+        self.assertEqual(w.get_receiving_addresses()[0], 'ltc1qtuynwzd0d6wptvyqmc6ehkm70zcamxpsncccvf')
+        self.assertEqual(w.get_change_addresses()[0], 'ltc1qjy5zunxh6hjysele86qqywfa437z4xwmm96rkx')
+
+        ks = create_keystore_from_bip32seed(xtype='standard')  # p2sh
+        w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
+        self.assertEqual(ks.xprv, 'xprv9s21ZrQH143K3nyWMZVjzGL4KKAE1zahmhTHuV5pdw4eK3o3igC5QywgQG7UTRe6TGBniPDpPFWzXMeMUFbBj8uYsfXGjyMmF54wdNt8QBm')
+        self.assertEqual(ks.xpub, 'xpub661MyMwAqRbcGH3yTb2kMQGnsLziRTJZ8vNthsVSCGbdBr8CGDWKxnGAFYgyKTzBtwvPPmfVAWJuFmxRXjSbUTg87wDkWQ5GmzpfUcN9t8Z')
+        self.assertEqual(w.get_receiving_addresses()[0], 'MMGw51usjhyCm1CjoMNMrmdx1Ld9oJsKgE')
+        self.assertEqual(w.get_change_addresses()[0], 'MULtECgjv7Li2t3zGwyoTD8SgrCDSqzVmi')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wsh-p2sh')
+        w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
+        self.assertEqual(ks.xprv, 'YprvANkMzkodih9AKfL18akM2RmND5LwAyFo15dBc9FFPiGvzLBBjjjv8ATkEB2Y1mWv6NNaLSpVj8G3XosgVBA9frhpaUL6jHeFQXQTbqVPcv2')
+        self.assertEqual(ks.xpub, 'Ypub6bjiQGLXZ4hTY9QUEcHMPZi6m7BRaRyeNJYnQXerx3ous8WLHH4AfxnE5Tc2sos1Y47B1qGAWP3xGEBkYf1ZRBUPpk2aViMkwTABT6qoiBb')
+        self.assertEqual(w.get_receiving_addresses()[0], 'MSDLGDk8PPAeqiguxnqvLQJ6taHiCKq6Cd')
+        self.assertEqual(w.get_change_addresses()[0], 'MURQvUyTUag1D1hbpnUjeB7nCmGUCdw8p4')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wsh')
+        w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
+        self.assertEqual(ks.xprv, 'ZprvAhadJRUYsNgeAxX7xwXyEWrsP3VP7bFHvC9QPY98miep3RzQzPuUkE7tFNz81gAqW1VP5vR4BncbR6VFCsaAU6PRSp2XKCTjgFU6zRpk6Xp')
+        self.assertEqual(ks.xpub, 'Zpub6vZyhw1ShkEwPSbb4y4ybeobw5KsX3y9HR51BvYkL4BnvEKZXwDjJ2SN6fZcsiWvwhDymJriy3QW9WoKGMRaDR9zh5j15dBFDBDpqjK1ekQ')
+        self.assertEqual(w.get_receiving_addresses()[0], 'ltc1q84x0yrztvcjg88qef4d6978zccxulcmc9y88xcg4ghjdau999x7qaxz66u')
+        self.assertEqual(w.get_change_addresses()[0], 'ltc1q0fj5mra96hhnum80kllklc52zqn6kppt3hyzr49yhr3ecr42z3tsqjxpj4')
+
 
 class TestWalletKeystoreAddressIntegrityForTestnet(TestCaseForTestnet):
 
@@ -290,6 +351,66 @@ class TestWalletKeystoreAddressIntegrityForTestnet(TestCaseForTestnet):
 
         self.assertEqual(w.get_receiving_addresses()[0], 'QUERagKWpsSWvprWNivNrVfAEjPbK3GA2c')
         self.assertEqual(w.get_change_addresses()[0], 'QjAv49kqZeSEhpo12vgZFzrB6S8RMCegug')
+
+    @needs_test_with_all_ecc_implementations
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_bip32_extended_version_bytes(self, mock_write):
+        seed_words = 'crouch dumb relax small truck age shine pink invite spatial object tenant'
+        self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
+        bip32_seed = keystore.bip39_to_seed(seed_words, '')
+        self.assertEqual('0df68c16e522eea9c1d8e090cfb2139c3b3a2abed78cbcb3e20be2c29185d3b8df4e8ce4e52a1206a688aeb88bfee249585b41a7444673d1f16c0d45755fa8b9',
+                         bh2u(bip32_seed))
+
+        def create_keystore_from_bip32seed(xtype):
+            ks = keystore.BIP32_KeyStore({})
+            ks.add_xprv_from_seed(bip32_seed, xtype=xtype, derivation='m/')
+            return ks
+
+        ks = create_keystore_from_bip32seed(xtype='standard')
+        self.assertEqual('033a05ec7ae9a9833b0696eb285a762f17379fa208b3dc28df1c501cf84fe415d0', ks.derive_pubkey(0, 0))
+        self.assertEqual('02bf27f41683d84183e4e930e66d64fc8af5508b4b5bf3c473c505e4dbddaeed80', ks.derive_pubkey(1, 0))
+
+        ks = create_keystore_from_bip32seed(xtype='standard')  # p2pkh
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(ks.xprv, 'tprv8ZgxMBicQKsPecD328MF9ux3dSaSFWci7FNQmuWH7uZ86eY8i3XpvjK8KSH8To2QphiZiUqaYc6nzDC6bTw8YCB9QJjaQL5pAApN4z7vh2B')
+        self.assertEqual(ks.xpub, 'tpubD6NzVbkrYhZ4Y5Epun1qZKcACU6NQqocgYyC4RYaYBMWw8nuLSMR7DvzVamkqxwRgrTJ1MBMhc8wwxT2vbHqMu8RBXy4BvjWMxR5EdZroxE')
+        self.assertEqual(w.get_receiving_addresses()[0], 'mpBTXYfWehjW2tavFwpUdqBJbZZkup13k2')
+        self.assertEqual(w.get_change_addresses()[0], 'mtkUQgf1psDtL67wMAKTv19LrdgPWy6GDQ')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wpkh-p2sh')
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(ks.xprv, 'uprv8tXDerPXZ1QsVuQ9rV8sN13YoQitC8cD2MtdZJQAVuw19kMMxhhPYnyGLeEiThgLELqNTxS91GTLsVofKAM9LRrkGeRzzEuJRtt1Tcostr7')
+        self.assertEqual(ks.xpub, 'upub57Wa4MvRPNyAiPUcxWfsj8zHMSZNbbL4PapEMgon4FTz2YgWWF1e6bHkBvpDKk2Rg2Zy9LsonXFFbv7jNeCZ5kdKWv8UkfcoxpdjJrZuBX6')
+        self.assertEqual(w.get_receiving_addresses()[0], 'QPM8dqUXse31Xg62rNV8cZPFHHgcLu6vLw')
+        self.assertEqual(w.get_change_addresses()[0], 'QTpkf6MrHSzhnJJpFLykcQ7qMVnN9LUuCe')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wpkh')
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(ks.xprv, 'vprv9DMUxX4ShgxMMCbGgqvVa693yNsL8kbhwUQrLhJ3svJtCrAbDMrxArdQMrCJTcLFdyxBDS2hTvotknRE2rmA8fYM8z8Ra9inhcwerEsG6Ev')
+        self.assertEqual(ks.xpub, 'vpub5SLqN2bLY4WeZgfjnsTVwE5nXQhpYDKZJhLT95hfSFqs5eVjkuBCiewtD8moKegM5fgmtpUNFBboVCjJ6LcZszJvPFpuLaSJEYhNhUAnrCS')
+        self.assertEqual(w.get_receiving_addresses()[0], 'tltc1qtuynwzd0d6wptvyqmc6ehkm70zcamxpsy2m3lr')
+        self.assertEqual(w.get_change_addresses()[0], 'tltc1qjy5zunxh6hjysele86qqywfa437z4xwmvhe29v')
+
+        ks = create_keystore_from_bip32seed(xtype='standard')  # p2sh
+        w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
+        self.assertEqual(ks.xprv, 'tprv8ZgxMBicQKsPecD328MF9ux3dSaSFWci7FNQmuWH7uZ86eY8i3XpvjK8KSH8To2QphiZiUqaYc6nzDC6bTw8YCB9QJjaQL5pAApN4z7vh2B')
+        self.assertEqual(ks.xpub, 'tpubD6NzVbkrYhZ4Y5Epun1qZKcACU6NQqocgYyC4RYaYBMWw8nuLSMR7DvzVamkqxwRgrTJ1MBMhc8wwxT2vbHqMu8RBXy4BvjWMxR5EdZroxE')
+        self.assertEqual(w.get_receiving_addresses()[0], 'QZykwtJBR9gDJUKRzi2ujmpF3NghQtKC4x')
+        self.assertEqual(w.get_change_addresses()[0], 'Qh3i7553bZ3iaMAgUJeMLDJjitFm8zYwhv')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wsh-p2sh')
+        w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
+        self.assertEqual(ks.xprv, 'Uprv95RJn67y7xyEvUZXo9brC5PMXCm9QVHoLdYJUZfhsgmQmvvGj75fduqC9MCC28uETouMLYSFtUqqzfRRcPW6UuyR77YQPeNJKd9t3XutF8b')
+        self.assertEqual(ks.xpub, 'Upub5JQfBberxLXY8xdzuB8rZDL65Ebdox1ehrTuGx5KS2JPejFRGePvBi9fzdmgtBFKuVdx1vsvfjdkj5jVfsMWEEjzMPEtA55orYubtrCZmRr')
+        self.assertEqual(w.get_receiving_addresses()[0], 'QevA968S4psfPBocA9WUDQUPvcMFwq7ZdA')
+        self.assertEqual(w.get_change_addresses()[0], 'Qh8EoMMmA2P1kUpJ299HXBJ5EoL1xrrTLT')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wsh')
+        w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
+        self.assertEqual(ks.xprv, 'Vprv16YtLrHXxePM6noKqtFtMtmUgBE9bEpF3fPLmpvuPksssLostujtdHBwqhEeVuzESz22UY8hyPx9ed684SQpCmUKSVhpxPFbvVNY7qnviNR')
+        self.assertEqual(ks.xpub, 'Vpub5dEvVGKn7251zFq7jXvUmJRbFCk5ka19cxz84LyCp2gGhq4eXJZUomop1qjGt5uFK8kkmQUV8PzJcNM4PZmX2URbDiwJjyuJ8GyFHRrEmmG')
+        self.assertEqual(w.get_receiving_addresses()[0], 'tltc1q84x0yrztvcjg88qef4d6978zccxulcmc9y88xcg4ghjdau999x7qkfxy9f')
+        self.assertEqual(w.get_change_addresses()[0], 'tltc1q0fj5mra96hhnum80kllklc52zqn6kppt3hyzr49yhr3ecr42z3tstazldq')
 
 
 class TestWalletSending(TestCaseForTestnet):
