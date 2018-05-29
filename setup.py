@@ -68,6 +68,7 @@ setup(
         'electrum_plugins.ledger',
         'electrum_plugins.revealer',
         'electrum_plugins.trezor',
+        'electrum_plugins.safe_t',
         'electrum_plugins.digitalbitbox',
         'electrum_plugins.trustedcoin',
         'electrum_plugins.virtualkeyboard',
