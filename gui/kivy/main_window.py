@@ -918,7 +918,7 @@ class ElectrumWindow(App):
                 return
         self.stop_wallet()
         os.unlink(wallet_path)
-        self.show_error("Wallet removed:" + basename)
+        self.show_error(_("Wallet removed: {}").format(basename))
         d = os.listdir(dirname)
         name = 'default_wallet'
         new_path = os.path.join(dirname, name)
