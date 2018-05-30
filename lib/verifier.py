@@ -31,9 +31,8 @@ class SPV(ThreadJob):
         self.wallet = wallet
         self.network = network
         self.blockchain = network.blockchain()
-        # Keyed by tx hash.  Value is None if the merkle branch was
-        # requested, and the merkle root once it has been verified
-        self.merkle_roots = {}
+        self.merkle_roots = {}  # txid -> merkle root (once it has been verified)
+        self.requested_merkle = set()  # txid set of pending requests
 
     def run(self):
         interface = self.network.interface
@@ -53,12 +52,13 @@ class SPV(ThreadJob):
                     if index < len(blockchain.checkpoints):
                         self.network.request_chunk(interface, index)
                 else:
-                    if tx_hash not in self.merkle_roots:
+                    if (tx_hash not in self.requested_merkle
+                            and tx_hash not in self.merkle_roots):
                         request = ('blockchain.transaction.get_merkle',
                                    [tx_hash, tx_height])
                         self.network.send([request], self.verify_merkle)
                         self.print_error('requested merkle', tx_hash)
-                        self.merkle_roots[tx_hash] = None
+                        self.requested_merkle.add(tx_hash)
 
         if self.network.blockchain() != self.blockchain:
             self.blockchain = self.network.blockchain()
@@ -94,8 +94,15 @@ class SPV(ThreadJob):
             return
         # we passed all the tests
         self.merkle_roots[tx_hash] = merkle_root
+        try:
+            # note: we could pop in the beginning, but then we would request
+            # this proof again in case of verification failure from the same server
+            self.requested_merkle.remove(tx_hash)
+        except KeyError: pass
         self.print_error("verified %s" % tx_hash)
         self.wallet.add_verified_tx(tx_hash, (tx_height, header.get('timestamp'), pos))
+        if self.is_up_to_date() and self.wallet.is_up_to_date():
+            self.wallet.save_verified_tx(write=True)
 
     @classmethod
     def hash_merkle_root(cls, merkle_s, target_hash, pos):
@@ -110,4 +117,14 @@ class SPV(ThreadJob):
         tx_hashes = self.wallet.undo_verifications(self.blockchain, height)
         for tx_hash in tx_hashes:
             self.print_error("redoing", tx_hash)
-            self.merkle_roots.pop(tx_hash, None)
+            self.remove_spv_proof_for_tx(tx_hash)
+
+    def remove_spv_proof_for_tx(self, tx_hash):
+        self.merkle_roots.pop(tx_hash, None)
+        try:
+            self.requested_merkle.remove(tx_hash)
+        except KeyError:
+            pass
+
+    def is_up_to_date(self):
+        return not self.requested_merkle
