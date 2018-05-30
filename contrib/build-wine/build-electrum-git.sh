@@ -31,7 +31,7 @@ if [ ! -z "$1" ]; then
     if ! git cat-file -e "$1" 2> /dev/null
     then  # can't find target
         # try pull requests
-        git config --local --add remote.origin.fetch '+refs/pull/*/head:refs/remotes/origin/pr/*'
+        git config --local --add remote.origin.fetch '+refs/pull/*/merge:refs/remotes/origin/pr/*'
         git fetch --all
     fi
     git checkout $1
