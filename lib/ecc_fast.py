@@ -34,7 +34,7 @@ SECP256K1_EC_UNCOMPRESSED = (SECP256K1_FLAGS_TYPE_COMPRESSION)
 
 def load_library():
     if sys.platform == 'darwin':
-        library_path = 'libsecp256k1.dylib'
+        library_path = 'libsecp256k1.0.dylib'
     elif sys.platform in ('windows', 'win32'):
         library_path = 'libsecp256k1.dll'
     elif 'ANDROID_DATA' in os.environ:
