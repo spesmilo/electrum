@@ -171,14 +171,14 @@ class LNWorker(PrintError):
         self.channel_state[chan.channel_id] = "OPEN"
 
     # not aiosafe because we call .result() which will propagate an exception
-    async def _open_channel_coroutine(self, node_id, amount, push_msat, password):
+    async def _open_channel_coroutine(self, node_id, amount_sat, push_sat, password):
         peer = self.peers[bfh(node_id)]
-        openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password, amount, push_msat, temp_channel_id=os.urandom(32))
+        openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password, amount_sat, push_sat * 1000, temp_channel_id=os.urandom(32))
         self.print_error("SAVING OPENING CHANNEL")
         self.save_channel(openingchannel)
 
-    def open_channel(self, node_id, local_amt, push_amt, pw):
-        coro = self._open_channel_coroutine(node_id, local_amt, push_amt, None if pw == "" else pw)
+    def open_channel(self, node_id, local_amt_sat, push_amt_sat, pw):
+        coro = self._open_channel_coroutine(node_id, local_amt_sat, push_amt_sat, None if pw == "" else pw)
         return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop).result()
 
     def pay(self, invoice):
@@ -196,10 +196,14 @@ class LNWorker(PrintError):
         openchannel = await peer.pay(self.wallet, openchannel, msat_amt, payment_hash, pubkey, addr.min_final_cltv_expiry)
         self.save_channel(openchannel)
 
-    def add_invoice(self, amount, message='one cup of coffee'):
+    def add_invoice(self, amount_sat, message='one cup of coffee'):
+        is_open = lambda chan: self.channel_state[chan] == "OPEN"
+        # TODO doesn't account for fees!!!
+        if not any(openchannel.remote_state.amount_msat >= amount_sat * 1000 for openchannel in self.channels if is_open(chan)):
+            return "Not making invoice, no channel has enough balance"
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
-        pay_req = lnencode(LnAddr(RHASH, amount/Decimal(COIN), tags=[('d', message)]), self.privkey)
+        pay_req = lnencode(LnAddr(RHASH, amount_sat/Decimal(COIN), tags=[('d', message)]), self.privkey)
         decoded = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
         assert decoded.pubkey.serialize() == privkey_to_pubkey(self.privkey)
         self.invoices[bh2u(payment_preimage)] = pay_req
