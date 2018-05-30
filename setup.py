@@ -85,9 +85,9 @@ setup(
     scripts=['electrum-grs'],
     data_files=data_files,
     description="Lightweight Groestlcoin Wallet",
-    author="Thomas Voegtlin",
-    author_email="thomasv@electrum.org",
+    author="Groestlcoin Developers",
+    author_email="groestlcoin@gmail.com",
     license="MIT Licence",
-    url="https://electrum.org",
+    url="https://groestlcoin.org",
     long_description="""Lightweight Groestlcoin Wallet"""
 )
