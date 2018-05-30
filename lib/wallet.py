@@ -442,7 +442,8 @@ class Abstract_Wallet(PrintError):
     def add_unverified_tx(self, tx_hash, tx_height):
         if tx_height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT) \
                 and tx_hash in self.verified_tx:
-            self.verified_tx.pop(tx_hash)
+            with self.lock:
+                self.verified_tx.pop(tx_hash)
             if self.verifier:
                 self.verifier.merkle_roots.pop(tx_hash, None)
 
@@ -1321,7 +1322,8 @@ class Abstract_Wallet(PrintError):
             # remain so they will be GC-ed
             self.storage.put('stored_height', self.get_local_height())
         self.save_transactions()
-        self.storage.put('verified_tx3', self.verified_tx)
+        with self.lock:
+            self.storage.put('verified_tx3', self.verified_tx)
         self.storage.write()
 
     def wait_until_synchronized(self, callback=None):
@@ -1963,8 +1965,7 @@ class Imported_Wallet(Simple_Wallet):
                 self.unverified_tx.pop(tx_hash, None)
                 self.transactions.pop(tx_hash, None)
                 # FIXME: what about pruned_txo?
-
-        self.storage.put('verified_tx3', self.verified_tx)
+            self.storage.put('verified_tx3', self.verified_tx)
         self.save_transactions()
 
         self.set_label(address, None)
