@@ -767,8 +767,8 @@ class Commands:
 
     # lightning network commands
     @command('wpn')
-    def open_channel(self, node_id, amount, push_msat=0, password=None):
-        self.wallet.lnworker.open_channel(node_id, satoshis(amount), push_msat, password)
+    def open_channel(self, node_id, amount, channel_push=0, password=None):
+        self.wallet.lnworker.open_channel(node_id, satoshis(amount), satoshis(channel_push), password)
 
     @command('wn')
     def reestablish_channel(self):
@@ -779,8 +779,9 @@ class Commands:
         self.wallet.lnworker.pay(invoice)
 
     @command('wn')
-    def addinvoice(self, amount, message):
-        return self.wallet.lnworker.add_invoice(satoshis(amount), message)
+    def addinvoice(self, requested_amount, message):
+        # using requested_amount because it is documented in param_descriptions
+        return self.wallet.lnworker.add_invoice(satoshis(requested_amount), message)
 
     @command('wn')
     def listchannels(self):
@@ -843,7 +844,7 @@ command_options = {
     'timeout':     (None, "Timeout in seconds"),
     'force':       (None, "Create new address beyond gap limit, if no more addresses are available."),
     'pending':     (None, "Show only pending requests."),
-    'push_msat':   (None, 'push millisatoshis'),
+    'channel_push':(None, 'Push initial amount (in BTC)'),
     'expired':     (None, "Show only expired requests."),
     'paid':        (None, "Show only paid requests."),
     'show_addresses': (None, "Show input and output addresses"),
