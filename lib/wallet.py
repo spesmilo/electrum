@@ -46,7 +46,8 @@ import sys
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
-                   TimeoutException, WalletFileException, BitcoinException)
+                   TimeoutException, WalletFileException, BitcoinException,
+                   InvalidPassword)
 
 from .bitcoin import *
 from .version import *
