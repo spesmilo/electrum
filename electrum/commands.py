@@ -779,8 +779,8 @@ class Commands:
         self.wallet.lnworker.pay(invoice)
 
     @command('wn')
-    def lnreceive(self):
-        self.wallet.lnworker.get_paid()
+    def addinvoice(self, amount, message):
+        return self.wallet.lnworker.add_invoice(satoshis(amount), message)
 
     @command('wn')
     def listchannels(self):

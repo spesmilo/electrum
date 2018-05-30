@@ -83,8 +83,8 @@ class LightningChannelsList(QtWidgets.QWidget):
 
         self.lnworker = lnworker
 
-        lnworker.subscribe_channel_list_updates_from_other_thread(self.update_rows.emit)
-        lnworker.subscribe_single_channel_update_from_other_thread(self.update_single_row.emit)
+        #lnworker.subscribe_channel_list_updates_from_other_thread(self.update_rows.emit)
+        #lnworker.subscribe_single_channel_update_from_other_thread(self.update_single_row.emit)
 
         self._tv=QtWidgets.QTreeWidget(self)
         self._tv.setHeaderLabels([mapping[i] for i in range(len(mapping))])
