@@ -135,7 +135,7 @@ class Synchronizer(ThreadJob):
         # Remove request; this allows up_to_date to be True
         self.requested_histories.pop(addr)
 
-    def tx_response(self, response):
+    def on_tx_response(self, response):
         if self.wallet.synchronizer is None and self.initialized:
             return  # we have been killed, this was just an orphan callback
         params, result = self.parse_response(response)
@@ -158,7 +158,6 @@ class Synchronizer(ThreadJob):
         if not self.requested_tx:
             self.network.trigger_callback('updated')
 
-
     def request_missing_txs(self, hist):
         # "hist" is a list of [tx_hash, tx_height] lists
         requests = []
@@ -169,8 +168,7 @@ class Synchronizer(ThreadJob):
                 continue
             requests.append(('blockchain.transaction.get', [tx_hash]))
             self.requested_tx[tx_hash] = tx_height
-        self.network.send(requests, self.tx_response)
-
+        self.network.send(requests, self.on_tx_response)
 
     def initialize(self):
         '''Check the initial state of the wallet.  Subscribe to all its
