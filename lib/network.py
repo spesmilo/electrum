@@ -555,8 +555,8 @@ class Network(util.DaemonThread):
             if error is None:
                 self.relay_fee = int(result * COIN)
                 self.print_error("relayfee", self.relay_fee)
-        elif method == 'blockchain.block.get_chunk':
-            self.on_get_chunk(interface, response)
+        elif method == 'blockchain.block.headers':
+            self.on_block_headers(interface, response)
         elif method == 'blockchain.block.get_header':
             self.on_get_header(interface, response)
 
@@ -743,11 +743,13 @@ class Network(util.DaemonThread):
 
     def request_chunk(self, interface, idx):
         interface.print_error("requesting chunk %d" % idx)
-        self.queue_request('blockchain.block.get_chunk', [idx], interface)
+        height = idx * 2016
+        self.queue_request('blockchain.block.headers', [height, 2016],
+                           interface)
         interface.request = idx
         interface.req_time = time.time()
 
-    def on_get_chunk(self, interface, response):
+    def on_block_headers(self, interface, response):
         '''Handle receiving a chunk of block headers'''
         error = response.get('error')
         result = response.get('result')
@@ -756,10 +758,11 @@ class Network(util.DaemonThread):
             interface.print_error(error or 'bad response')
             return
         # Ignore unsolicited chunks
-        index = params[0]
-        if interface.request != index:
+        index = interface.request
+        if index * 2016 != params[0]:
             return
-        connect = interface.blockchain.connect_chunk(index, result)
+        hexdata = result['hex']
+        connect = interface.blockchain.connect_chunk(index, hexdata)
         # If not finished, get the next chunk
         if not connect:
             self.connection_down(interface.server)
