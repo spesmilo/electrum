@@ -91,7 +91,12 @@ class LNWorker(PrintError):
     def __init__(self, wallet, network):
         self.wallet = wallet
         self.network = network
-        self.privkey = sha256(b"0123456789")
+        pk = wallet.storage.get('lightning_privkey')
+        if pk is None:
+            pk = bh2u(os.urandom(32))
+            wallet.storage.put('lightning_privkey', pk)
+            wallet.storage.write()
+        self.privkey = bfh(pk)
         self.config = network.config
         self.peers = {}
         # view of the network
