@@ -99,6 +99,7 @@ class LNWorker(PrintError):
         self.channel_db = lnrouter.ChannelDB()
         self.path_finder = lnrouter.LNPathFinder(self.channel_db)
         self.channels = [reconstruct_namedtuples(x) for x in wallet.storage.get("channels", {})]
+        self.invoices = wallet.storage.get('lightning_invoices', {})
         peer_list = network.config.get('lightning_peers', node_list)
         self.channel_state = {chan.channel_id: "OPENING" for chan in self.channels}
         for host, port, pubkey in peer_list:
@@ -110,7 +111,7 @@ class LNWorker(PrintError):
     def add_peer(self, host, port, pubkey):
         node_id = bfh(pubkey)
         channels = list(filter(lambda x: x.node_id == node_id, self.channels))
-        peer = Peer(host, int(port), node_id, self.privkey, self.network, self.channel_db, self.path_finder, self.channel_state, channels, request_initial_sync=True)
+        peer = Peer(host, int(port), node_id, self.privkey, self.network, self.channel_db, self.path_finder, self.channel_state, channels, self.invoices, request_initial_sync=True)
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[node_id] = peer
 
@@ -174,21 +175,10 @@ class LNWorker(PrintError):
     def open_channel(self, node_id, local_amt, push_amt, pw):
         coro = self._open_channel_coroutine(node_id, local_amt, push_amt, None if pw == "" else pw)
         return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop).result()
-        #chan = fut.result()
-        # https://api.lightning.community/#listchannels
-        #std_chan = {"chan_id": chan.channel_id}
-        #emit_function({"channels": [std_chan]})
-
-    def get_paid(self):
-        coro = self._get_paid_coroutine()
-        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop).result()
 
     def pay(self, invoice):
         coro = self._pay_coroutine(invoice)
         return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop).result()
-
-    def list_channels(self):
-        return serialize_channels(self.channels)
 
     # not aiosafe because we call .result() which will propagate an exception
     async def _pay_coroutine(self, invoice):
@@ -201,37 +191,16 @@ class LNWorker(PrintError):
         openchannel = await peer.pay(self.wallet, openchannel, msat_amt, payment_hash, pubkey, addr.min_final_cltv_expiry)
         self.save_channel(openchannel)
 
-    # not aiosafe because we call .result() which will propagate an exception
-    async def _get_paid_coroutine(self):
-        openchannel = self.channels[0]
+    def add_invoice(self, amount, message='one cup of coffee'):
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
-        expected_received_sat = 200000
-        expected_received_msat = expected_received_sat * 1000
-        peer = self.peers[openchannel.node_id]
-        pay_req = lnencode(LnAddr(RHASH, amount=1/Decimal(COIN)*expected_received_sat, tags=[('d', 'one cup of coffee')]), peer.privkey)
-        decoded = lndecode(pay_req, expected_hrp="sb")
+        pay_req = lnencode(LnAddr(RHASH, amount/Decimal(COIN), tags=[('d', message)]), self.privkey)
+        decoded = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
         assert decoded.pubkey.serialize() == privkey_to_pubkey(self.privkey)
-        print("payment request", pay_req)
-        openchannel = await peer.receive_commitment_revoke_ack(openchannel, expected_received_msat, payment_preimage)
-        self.save_channel(openchannel)
+        self.invoices[bh2u(payment_preimage)] = pay_req
+        self.wallet.storage.put('lightning_invoices', self.invoices)
+        self.wallet.storage.write()
+        return pay_req
 
-    def subscribe_payment_received_from_other_thread(self, emit_function):
-        pass
-
-    def subscribe_channel_list_updates_from_other_thread(self, emit_function):
-        pass
-
-    def subscribe_single_channel_update_from_other_thread(self, emit_function):
-        pass
-
-    def add_invoice_from_other_thread(self, amt):
-        pass
-
-    def subscribe_invoice_added_from_other_thread(self, emit_function):
-        pass
-
-    def pay_invoice_from_other_thread(self, lnaddr):
-        pass
-
-
+    def list_channels(self):
+        return serialize_channels(self.channels)

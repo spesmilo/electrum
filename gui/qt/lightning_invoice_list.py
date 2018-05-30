@@ -59,7 +59,7 @@ class LightningInvoiceList(QtWidgets.QWidget):
         #}
         #treeView.insertTopLevelItem(0, addInvoiceRow(obj))
         idx += 1
-        lnworker.add_invoice_from_other_thread(amt)
+        lnworker.add_invoice(amt)
 
     def create_menu(self, position):
         menu = QtWidgets.QMenu()
@@ -96,8 +96,8 @@ class LightningInvoiceList(QtWidgets.QWidget):
         self.payment_received_signal.connect(self.paymentReceived)
         self.invoice_added_signal.connect(self.invoice_added_handler)
 
-        lnworker.subscribe_payment_received_from_other_thread(self.payment_received_signal.emit)
-        lnworker.subscribe_invoice_added_from_other_thread(self.invoice_added_signal.emit)
+        #lnworker.subscribe_payment_received_from_other_thread(self.payment_received_signal.emit)
+        #lnworker.subscribe_invoice_added_from_other_thread(self.invoice_added_signal.emit)
 
         self._tv=QtWidgets.QTreeWidget(self)
         self._tv.setHeaderLabels([mapping[i] for i in range(len(mapping))])
