@@ -7,7 +7,7 @@ Homepage: http://www.groestlcoin.org
 1. ELECTRUM-GRS ON WINDOWS 
 -----------------------
 
- - Simply download the provided Electrum-grs-2.5.4-Windows-setup.exe and run
+ - Simply download the provided electrum-grs-vx.x.x-setup.exe .exe and run
  
  Your wallet files will be in one of the following place:
   - C:\Users\YOUR_LOGIN_NAME\Application Data\Electrum-GRS\wallets
