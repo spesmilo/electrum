@@ -91,7 +91,7 @@ class LNWorker(PrintError):
     def __init__(self, wallet, network):
         self.wallet = wallet
         self.network = network
-        self.privkey = sha256(b"0123456789b")
+        self.privkey = sha256(b"0123456789")
         self.config = network.config
         self.peers = {}
         # view of the network
