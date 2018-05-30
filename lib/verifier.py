@@ -54,8 +54,8 @@ class SPV(ThreadJob):
                         self.network.request_chunk(interface, index)
                 else:
                     if tx_hash not in self.merkle_roots:
-                        request = ('blockchain.transaction.get_merkle',
-                                   [tx_hash, tx_height])
+                        request = self.network.get_merkle_for_transaction(
+				tx_hash, tx_height)
                         self.network.send([request], self.verify_merkle)
                         self.print_error('requested merkle', tx_hash)
                         self.merkle_roots[tx_hash] = None

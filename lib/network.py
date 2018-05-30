@@ -671,6 +671,7 @@ class Network(util.DaemonThread):
                     self.subscriptions[k] = l
                     # check cached response for subscriptions
                     r = self.sub_cache.get(k)
+
                 if r is not None:
                     self.print_error("cache hit", k)
                     callback(r)
@@ -1060,7 +1061,7 @@ class Network(util.DaemonThread):
     def get_local_height(self):
         return self.blockchain().height()
 
-    def synchronous_get(self, request, timeout=30):
+    def synchronous_send(self, request, timeout=30):
         q = queue.Queue()
         self.send([request], q.put)
         try:
@@ -1074,12 +1075,44 @@ class Network(util.DaemonThread):
     def broadcast(self, tx, timeout=30):
         tx_hash = tx.txid()
         try:
-            out = self.synchronous_get(('blockchain.transaction.broadcast', [str(tx)]), timeout)
+            out = self.synchronous_send(('blockchain.transaction.broadcast', [str(tx)]), timeout)
         except BaseException as e:
             return False, "error: " + str(e)
         if out != tx_hash:
             return False, "error: " + out
         return True, out
+
+    def get_history_for_scripthash(self, hash):
+        command = 'blockchain.scripthash.get_history'
+        return (command, [hash])
+
+    def subscribe_to_headers(self):
+        command = 'blockchain.headers.subscribe'
+        return (command, [])
+
+    def subscribe_to_address(self, address):
+        command = 'blockchain.address.subscribe'
+        return (command, [address])
+
+    def get_merkle_for_transaction(transaction_hash, transaction_height):
+        command = 'blockchain.transaction.get_merkle'
+        return (command, [transaction_hash, transaction_height])
+
+    def subscribe_to_scripthash(scripthash):
+        command = 'blockchain.scripthash.subscribe'
+        return (command, [scripthash])
+
+    def get_transaction(transaction_hash):
+        command = 'blockchain.transaction.get'
+        return (command, [transaction_hash])
+
+    def listunspent_for_scripthash(scripthash):
+        command = 'blockchain.scripthash.listunspent'
+        return (command, [scripthash])
+
+    def get_balance_for_scripthash(scripthash):
+        command = 'blockchain.scripthash.get_balance'
+        return (command, [scripthash])
 
     def export_checkpoints(self, path):
         # run manually from the console to generate checkpoints
