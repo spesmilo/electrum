@@ -53,7 +53,7 @@ INSTALL_ERROR_MESSAGES = {
 
 class ExternalPluginsPreviewDialog(WindowModalDialog):
     def __init__(self, plugin_dialog, main_window, title, plugin_path=None, plugin_metadata=None):
-        WindowModalDialog.__init__(self, main_window, title)
+        WindowModalDialog.__init__(self, plugin_dialog, title)
         
         self.is_preview = plugin_metadata is None
 
