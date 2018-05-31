@@ -26,7 +26,7 @@ from cryptography.hazmat.backends import default_backend
 from .ecc import ser_to_point, point_to_ser, string_to_number
 from .bitcoin import (deserialize_privkey, rev_hex, int_to_hex,
                       push_script, script_num_to_hex,
-                      add_number_to_script, var_int)
+                      add_number_to_script, var_int, COIN)
 from . import bitcoin
 from . import ecc
 from . import crypto
@@ -36,6 +36,7 @@ from . import transaction
 from .util import PrintError, bh2u, print_error, bfh, profiler, xor_bytes
 from .transaction import opcodes, Transaction
 from .lnrouter import new_onion_packet, OnionHopsDataSingle, OnionPerHop
+from .lightning_payencode.lnaddr import lndecode
 
 from collections import namedtuple, defaultdict
 
@@ -586,7 +587,6 @@ class Peer(PrintError):
         self.update_fulfill_htlc = defaultdict(asyncio.Queue)
         self.commitment_signed = defaultdict(asyncio.Queue)
         self.localfeatures = (0x08 if request_initial_sync else 0)
-        self.unfulfilled_htlcs = []
         self.channel_state = channel_state
         self.nodes = {}
         self.channels = channels
@@ -769,7 +769,7 @@ class Peer(PrintError):
         msg = await self.read_message()
         self.process_message(msg)
         # reestablish channels
-        [await self.reestablish_channel(c) for c in self.channels]
+        [await self.reestablish_channel(c) for c in self.channels.values()]
         # loop
         while True:
             self.ping_if_required()
@@ -938,11 +938,11 @@ class Peer(PrintError):
 
     def on_channel_reestablish(self, payload):
         chan_id = int.from_bytes(payload["channel_id"], 'big')
-        for chan in self.channels:
+        for chan in self.channels.values():
             if chan.channel_id == chan_id:
                 break
         else:
-            print("Warning: received unknown channel_reestablish", chan_id, list(self.channels))
+            print("Warning: received unknown channel_reestablish", chan_id, list(self.channels.values()))
             return
         channel_reestablish_msg = payload
         remote_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
@@ -1114,16 +1114,19 @@ class Peer(PrintError):
             )
         )
 
-    async def receive_commitment_revoke_ack(self, htlc, expected_received_msat, payment_preimage):
-
-        htlc_id = int.from_bytes(htlc["id"], 'big')
-        for chan in self.channels:
-            if htlc_id == chan.remote_state.next_htlc_id:
-                break
-        else:
-            raise Exception('cannot find channel for htlc', htlc_id)
-
+    @aiosafe
+    async def receive_commitment_revoke_ack(self, htlc, decoded, payment_preimage):
+        chan = self.channels[int.from_bytes(htlc['channel_id'], 'big')]
         channel_id = chan.channel_id
+        expected_received_msat = int(decoded.amount * COIN * 1000)
+        while True:
+            self.print_error("receiving commitment")
+            commitment_signed_msg = await self.commitment_signed[channel_id].get()
+            if int.from_bytes(commitment_signed_msg["num_htlcs"], "big") == 1:
+                break
+        htlc_id = int.from_bytes(htlc["id"], 'big')
+        assert htlc_id == chan.remote_state.next_htlc_id, (htlc_id, chan.remote_state.next_htlc_id)
+
         assert self.channel_state[channel_id] == "OPEN"
         their_revstore = chan.remote_state.revocation_store
         cltv_expiry = int.from_bytes(htlc["cltv_expiry"], 'big')
@@ -1216,7 +1219,7 @@ class Peer(PrintError):
             per_commitment_secret=last_secret,
             next_per_commitment_point=next_point))
 
-        return chan._replace(
+        new_chan = chan._replace(
             local_state=chan.local_state._replace(
                 amount_msat=chan.local_state.amount_msat + expected_received_msat
             ),
@@ -1229,6 +1232,7 @@ class Peer(PrintError):
                 next_htlc_id=htlc_id + 1
             )
         )
+        # TODO save new_chan
 
     def on_commitment_signed(self, payload):
         self.print_error("commitment_signed", payload)
@@ -1245,16 +1249,18 @@ class Peer(PrintError):
     def on_update_add_htlc(self, payload):
         # no onion routing for the moment: we assume we are the end node
         self.print_error('on_update_add_htlc', payload)
-        assert self.unfulfilled_htlcs == []
-        self.unfulfilled_htlcs.append(payload)
         # check if this in our list of requests
         payment_hash = payload["payment_hash"]
         for k in self.invoices.keys():
             preimage = bfh(k)
             if sha256(preimage) == payment_hash:
                 req = self.invoices[k]
-                coro = self.receive_commitment_revoke_ack(payload, chan, expected_received_msat, payment_preimage)
-                future = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+                decoded = lndecode(req, expected_hrp=constants.net.SEGWIT_HRP)
+                coro = self.receive_commitment_revoke_ack(payload, decoded, preimage)
+                asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+                break
+        else:
+            assert False
 
     def on_revoke_and_ack(self, payload):
         channel_id = int.from_bytes(payload["channel_id"], 'big')
@@ -1297,4 +1303,6 @@ class RevocationStore:
         store.index = decoded_json_obj["index"]
         return store
     def __eq__(self, o):
-        return self.buckets == o.buckets and self.index == o.index
+        return type(o) is RevocationStore and self.serialize() == o.serialize()
+    def __hash__(self):
+        return hash(json.dumps(self.serialize(), sort_keys=True))

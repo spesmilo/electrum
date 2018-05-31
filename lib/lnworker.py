@@ -58,9 +58,9 @@ def reconstruct_namedtuples(openingchannel):
     openingchannel = openingchannel._replace(constraints=ChannelConstraints(**openingchannel.constraints))
     return openingchannel
 
-def serialize_channels(channels):
+def serialize_channels(channels_dict):
     serialized_channels = []
-    for chan in channels:
+    for chan in channels_dict.values():
         namedtuples_to_dict = lambda v: {i: j._asdict() if isinstance(j, tuple) else j for i, j in v._asdict().items()}
         serialized_channels.append({k: namedtuples_to_dict(v) if isinstance(v, tuple) else v for k, v in chan._asdict().items()})
     class MyJsonEncoder(json.JSONEncoder):
@@ -72,8 +72,8 @@ def serialize_channels(channels):
             return super(MyJsonEncoder, self)
     dumped = MyJsonEncoder().encode(serialized_channels)
     roundtripped = json.loads(dumped)
-    reconstructed = [reconstruct_namedtuples(x) for x in roundtripped]
-    if reconstructed != channels:
+    reconstructed = set(reconstruct_namedtuples(x) for x in roundtripped)
+    if reconstructed != set(channels_dict.values()):
         raise Exception("Channels did not roundtrip serialization without changes:\n" + repr(reconstructed) + "\n" + repr(channels))
     return roundtripped
 
@@ -84,8 +84,6 @@ def serialize_channels(channels):
 node_list = [
     ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff'),
 ]
-
-
 
 class LNWorker(PrintError):
 
@@ -104,10 +102,10 @@ class LNWorker(PrintError):
         self.nodes = {}  # received node announcements
         self.channel_db = lnrouter.ChannelDB()
         self.path_finder = lnrouter.LNPathFinder(self.channel_db)
-        self.channels = [reconstruct_namedtuples(x) for x in wallet.storage.get("channels", {})]
+        self.channels = {x.channel_id: reconstruct_namedtuples(x) for x in wallet.storage.get("channels", {})}
         self.invoices = wallet.storage.get('lightning_invoices', {})
         peer_list = network.config.get('lightning_peers', node_list)
-        self.channel_state = {chan.channel_id: "OPENING" for chan in self.channels}
+        self.channel_state = {chan.channel_id: "OPENING" for chan in self.channels.values()}
         for host, port, pubkey in peer_list:
             self.add_peer(host, int(port), pubkey)
 
@@ -116,9 +114,13 @@ class LNWorker(PrintError):
         self.network.register_callback(self.on_network_update, ['updated', 'verified']) # thread safe
         self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
 
+    def channels_for_peer(self, node_id):
+        assert type(node_id) is bytes
+        return {x: y for (x, y) in self.channels.items() if y.node_id == node_id}
+
     def add_peer(self, host, port, pubkey):
         node_id = bfh(pubkey)
-        channels = list(filter(lambda x: x.node_id == node_id, self.channels))
+        channels = self.channels_for_peer(node_id)
         peer = Peer(host, int(port), node_id, self.privkey, self.network, self.channel_db, self.path_finder, self.channel_state, channels, self.invoices, request_initial_sync=True)
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[node_id] = peer
@@ -127,7 +129,9 @@ class LNWorker(PrintError):
     def save_channel(self, openchannel):
         if openchannel.channel_id not in self.channel_state:
             self.channel_state[openchannel.channel_id] = "OPENING"
-        self.channels = [openchannel] # TODO multiple channels
+        self.channels[openchannel.channel_id] = openchannel
+        for node_id, peer in self.peers.items():
+            peer.channels = self.channels_for_peer(node_id)
         dumped = serialize_channels(self.channels)
         self.wallet.storage.put("channels", dumped)
         self.wallet.storage.write()
@@ -154,7 +158,7 @@ class LNWorker(PrintError):
         return None
 
     def on_network_update(self, event, *args):
-        for chan in self.channels:
+        for chan in self.channels.values():
             if self.channel_state[chan.channel_id] == "OPEN":
                 continue
             chan = self.save_short_chan_id(chan)
@@ -184,7 +188,7 @@ class LNWorker(PrintError):
         self.on_channels_updated()
 
     def on_channels_updated(self):
-        std_chan = [{"chan_id": chan.channel_id} for chan in self.channels]
+        std_chan = [{"chan_id": chan.channel_id} for chan in self.channels.values()]
         self.trigger_callback('channels_updated', {'channels':std_chan})
 
     def open_channel(self, node_id, local_amt_sat, push_amt_sat, pw):
@@ -197,7 +201,7 @@ class LNWorker(PrintError):
 
     # not aiosafe because we call .result() which will propagate an exception
     async def _pay_coroutine(self, invoice):
-        openchannel = self.channels[0]
+        openchannel = next(iter(self.channels.values()))
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         payment_hash = addr.paymenthash
         pubkey = addr.pubkey.serialize()
@@ -207,10 +211,16 @@ class LNWorker(PrintError):
         self.save_channel(openchannel)
 
     def add_invoice(self, amount_sat, message='one cup of coffee'):
-        is_open = lambda chan: self.channel_state[chan] == "OPEN"
+        coro = self._add_invoice_coroutine(amount_sat, message)
+        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop).result()
+
+    async def _add_invoice_coroutine(self, amount_sat, message):
+        is_open = lambda chan: self.channel_state[chan.channel_id] == "OPEN"
         # TODO doesn't account for fees!!!
-        #if not any(openchannel.remote_state.amount_msat >= amount_sat * 1000 for openchannel in self.channels if is_open(chan)):
-        #    return "Not making invoice, no channel has enough balance"
+        if not any(openchannel.remote_state.amount_msat >= amount_sat * 1000 for openchannel in self.channels.values() if is_open(openchannel)):
+            return "Not making invoice, no channel has enough balance"
+        if not any(openchannel.remote_config.max_htlc_value_in_flight_msat >= amount_sat * 1000 for openchannel in self.channels.values() if is_open(openchannel)):
+            return "Not making invoice, invoice value too lang for remote peer"
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
         pay_req = lnencode(LnAddr(RHASH, amount_sat/Decimal(COIN), tags=[('d', message)]), self.privkey)
