@@ -58,6 +58,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
         self.errors = []
         self.is_pr = False
         self.is_alias = False
+        self.is_lightning = False
         self.update_size()
         self.payto_address = None
         self.previous_payto = ''
@@ -131,6 +132,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
                 return
             if data.startswith("ln"):
                 self.win.parse_lightning_invoice(data)
+                self.lightning_invoice = data
                 return
             try:
                 self.payto_address = self.parse_output(data)
