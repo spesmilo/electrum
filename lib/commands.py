@@ -322,7 +322,8 @@ class Commands:
         server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        out = self.network.synchronous_get(('blockchain.scripthash.get_balance', [sh]))
+        minconf = self.config.get('minconf', 1)
+        out = self.network.synchronous_get(('blockchain.scripthash.get_balance', [sh, int(minconf)]))
         out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
         out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
         return out
