@@ -1648,7 +1648,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def do_preview(self):
         self.do_send(preview = True)
 
+    def pay_lightning_invoice(self, invoice):
+        f = self.wallet.lnworker.pay(invoice)
+        self.do_clear()
+
     def do_send(self, preview = False):
+        if self.payto_e.is_lightning:
+            self.pay_lightning_invoice(self.payto_e.lightning_invoice)
+            return
+        #
         if run_hook('abort_send', self):
             return
         outputs, fee_estimator, tx_desc, coins = self.read_send_tab()
@@ -1875,11 +1883,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         else:
              description = ''
         self.payto_e.setFrozen(True)
-        self.payto_e.setGreen()
         self.payto_e.setText(pubkey)
         self.message_e.setText(description)
         self.amount_e.setAmount(lnaddr.amount)
         #self.amount_e.textEdited.emit("")
+        self.payto_e.is_lightning = True
 
     def pay_to_URI(self, URI):
         if not URI:
@@ -1917,6 +1925,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.not_enough_funds = False
         self.payment_request = None
         self.payto_e.is_pr = False
+        self.payto_e.is_lightning = False
         for e in [self.payto_e, self.message_e, self.amount_e, self.fiat_send_e,
                   self.fee_e, self.feerate_e]:
             e.setText('')
