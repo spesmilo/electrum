@@ -8,7 +8,8 @@ import os
 from decimal import Decimal
 import binascii
 import asyncio
-
+import threading
+from collections import defaultdict
 
 from . import constants
 from .bitcoin import sha256, COIN
@@ -109,6 +110,8 @@ class LNWorker(PrintError):
         self.channel_state = {chan.channel_id: "OPENING" for chan in self.channels}
         for host, port, pubkey in peer_list:
             self.add_peer(host, int(port), pubkey)
+
+        self.callbacks = defaultdict(list)
         # wait until we see confirmations
         self.network.register_callback(self.on_network_update, ['updated', 'verified']) # thread safe
         self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
@@ -119,6 +122,7 @@ class LNWorker(PrintError):
         peer = Peer(host, int(port), node_id, self.privkey, self.network, self.channel_db, self.path_finder, self.channel_state, channels, self.invoices, request_initial_sync=True)
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[node_id] = peer
+        self.lock = threading.Lock()
 
     def save_channel(self, openchannel):
         if openchannel.channel_id not in self.channel_state:
@@ -127,6 +131,7 @@ class LNWorker(PrintError):
         dumped = serialize_channels(self.channels)
         self.wallet.storage.put("channels", dumped)
         self.wallet.storage.write()
+        self.trigger_callback('channel_updated', {"chan_id": openchannel.channel_id})
 
     def save_short_chan_id(self, chan):
         """
@@ -176,6 +181,11 @@ class LNWorker(PrintError):
         openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password, amount_sat, push_sat * 1000, temp_channel_id=os.urandom(32))
         self.print_error("SAVING OPENING CHANNEL")
         self.save_channel(openingchannel)
+        self.on_channels_updated()
+
+    def on_channels_updated(self):
+        std_chan = [{"chan_id": chan.channel_id} for chan in self.channels]
+        self.trigger_callback('channels_updated', {'channels':std_chan})
 
     def open_channel(self, node_id, local_amt_sat, push_amt_sat, pw):
         coro = self._open_channel_coroutine(node_id, local_amt_sat, push_amt_sat, None if pw == "" else pw)
@@ -199,8 +209,8 @@ class LNWorker(PrintError):
     def add_invoice(self, amount_sat, message='one cup of coffee'):
         is_open = lambda chan: self.channel_state[chan] == "OPEN"
         # TODO doesn't account for fees!!!
-        if not any(openchannel.remote_state.amount_msat >= amount_sat * 1000 for openchannel in self.channels if is_open(chan)):
-            return "Not making invoice, no channel has enough balance"
+        #if not any(openchannel.remote_state.amount_msat >= amount_sat * 1000 for openchannel in self.channels if is_open(chan)):
+        #    return "Not making invoice, no channel has enough balance"
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
         pay_req = lnencode(LnAddr(RHASH, amount_sat/Decimal(COIN), tags=[('d', message)]), self.privkey)
@@ -213,3 +223,19 @@ class LNWorker(PrintError):
 
     def list_channels(self):
         return serialize_channels(self.channels)
+
+    def register_callback(self, callback, events):
+        with self.lock:
+            for event in events:
+                self.callbacks[event].append(callback)
+
+    def unregister_callback(self, callback):
+        with self.lock:
+            for callbacks in self.callbacks.values():
+                if callback in callbacks:
+                    callbacks.remove(callback)
+
+    def trigger_callback(self, event, *args):
+        with self.lock:
+            callbacks = self.callbacks[event][:]
+        [callback(*args) for callback in callbacks]
