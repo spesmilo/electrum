@@ -169,7 +169,7 @@ class Synchronizer(ThreadJob):
             transaction_hashes.append(tx_hash)
             self.requested_tx[tx_hash] = tx_height
 
-        self.network.get_transactions(transaction_hashes, self.tx_response)
+        self.network.get_transactions(transaction_hashes, self.on_tx_response)
 
     def initialize(self):
         '''Check the initial state of the wallet.  Subscribe to all its
