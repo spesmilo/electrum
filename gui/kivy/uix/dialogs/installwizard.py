@@ -744,7 +744,7 @@ class InstallWizard(BaseWizard, Widget):
         """overriden by main_window"""
         pass
 
-    def waiting_dialog(self, task, msg):
+    def waiting_dialog(self, task, msg, on_finished=None):
         '''Perform a blocking task in the background by running the passed
         method in a thread.
         '''
@@ -756,6 +756,8 @@ class InstallWizard(BaseWizard, Widget):
                 self.show_error(str(err))
             # on  completion hide message
             Clock.schedule_once(lambda dt: app.info_bubble.hide(now=True), -1)
+            if on_finished:
+                Clock.schedule_once(lambda dt: on_finished(), -1)
 
         app = App.get_running_app()
         app.show_info_bubble(
