@@ -37,7 +37,6 @@ from .util import MyTreeView, pr_tooltips, pr_icons
 class RequestList(MyTreeView):
     filter_columns = [0, 1, 2, 3, 4]  # Date, Account, Address, Description, Amount
 
-
     def __init__(self, parent):
         super().__init__(parent, self.create_menu, 3, editable_columns=[])
         self.setModel(QStandardItemModel(self))
@@ -57,12 +56,19 @@ class RequestList(MyTreeView):
         amount = req['amount']
         message = req['memo']
         self.parent.receive_address_e.setText(addr)
-        self.parent.receive_message_e.setText(message)
-        self.parent.receive_amount_e.setAmount(amount)
-        self.parent.expires_combo.hide()
-        self.parent.expires_label.show()
-        self.parent.expires_label.setText(expires)
-        self.parent.new_request_button.setEnabled(True)
+        #req = self.wallet.receive_requests.get(addr)
+        #if req is None:
+        #    self.update()
+        #    return
+        #expires = age(req['time'] + req['exp']) if req.get('exp') else _('Never')
+        #amount = req['amount']
+        #message = self.wallet.labels.get(addr, '')
+        #self.parent.receive_message_e.setText(message)
+        #self.parent.receive_amount_e.setAmount(amount)
+        #self.parent.expires_combo.hide()
+        #self.parent.expires_label.show()
+        #self.parent.expires_label.setText(expires)
+        #self.parent.new_request_button.setEnabled(True)
 
     def update(self):
         self.wallet = self.parent.wallet
@@ -75,12 +81,12 @@ class RequestList(MyTreeView):
             self.parent.expires_combo.show()
 
         # update the receive address if necessary
-        current_address = self.parent.receive_address_e.text()
+        #current_address = self.parent.receive_address_e.text()
         domain = self.wallet.get_receiving_addresses()
-        addr = self.wallet.get_unused_address()
-        if not current_address in domain and addr:
-            self.parent.set_receive_address(addr)
-        self.parent.new_request_button.setEnabled(addr != current_address)
+        #addr = self.wallet.get_unused_address()
+        #if not current_address in domain and addr:
+        #    self.parent.set_receive_address(addr)
+        #self.parent.new_request_button.setEnabled(addr != current_address)
 
         self.model().clear()
         self.update_headers([_('Date'), _('Address'), '', _('Description'), _('Amount'), _('Status')])
@@ -98,7 +104,8 @@ class RequestList(MyTreeView):
             signature = req.get('sig')
             requestor = req.get('name', '')
             amount_str = self.parent.format_amount(amount) if amount else ""
-            labels = [date, address, '', message, amount_str, pr_tooltips.get(status,'')]
+            URI = self.parent.get_request_URI(address)
+            labels = [date, URI, '', message, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             if signature is not None:
@@ -107,6 +114,22 @@ class RequestList(MyTreeView):
             if status is not PR_UNKNOWN:
                 items[5].setIcon(self.icon_cache.get(pr_icons.get(status)))
             items[3].setData(address, Qt.UserRole)
+            self.model().insertRow(self.model().rowCount(), items)
+        # lightning
+        for k, r in self.wallet.lnworker.invoices.items():
+            from electrum.lightning_payencode.lnaddr import lndecode
+            import electrum.constants as constants
+            lnaddr = lndecode(r, expected_hrp=constants.net.SEGWIT_HRP)
+            amount_str = self.parent.format_amount(lnaddr.amount*100000000)
+            for k,v in lnaddr.tags:
+                if k == 'd':
+                    description = v
+                    break
+                else:
+                    description = ''
+            labels = [date, r, '', description, amount_str, '']
+            items = [QStandardItem(e) for e in labels]
+            items.setIcon(2, QIcon(":icons/lightning.png"))
             self.model().insertRow(self.model().rowCount(), items)
 
     def create_menu(self, position):
