@@ -193,7 +193,7 @@ class LNWorker(PrintError):
 
     def pay(self, invoice):
         coro = self._pay_coroutine(invoice)
-        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop).result()
+        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     # not aiosafe because we call .result() which will propagate an exception
     async def _pay_coroutine(self, invoice):
