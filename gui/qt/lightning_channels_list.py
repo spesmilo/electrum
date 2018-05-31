@@ -47,6 +47,14 @@ class LightningChannelsList(QtWidgets.QWidget):
         assert local_amt >= push_amt
         obj = self.lnworker.open_channel(node_id, local_amt, push_amt, password)
 
+    def create_menu(self, position):
+        menu = QtWidgets.QMenu()
+        cur = self._tv.currentItem()
+        def close():
+            print("closechannel result", lnworker.close_channel_from_other_thread(cur.di))
+        menu.addAction("Close channel", close)
+        menu.exec_(self._tv.viewport().mapToGlobal(position))
+
     @QtCore.pyqtSlot(dict)
     def do_update_single_row(self, new):
         try:
@@ -59,14 +67,6 @@ class LightningChannelsList(QtWidgets.QWidget):
                     if obj[k] != v: obj[k] = v
                 except KeyError:
                     obj[k] = v
-
-    def create_menu(self, position):
-        menu = QtWidgets.QMenu()
-        cur = self._tv.currentItem()
-        def close():
-            print("closechannel result", lnworker.close_channel_from_other_thread(cur.di))
-        menu.addAction("Close channel", close)
-        menu.exec_(self._tv.viewport().mapToGlobal(position))
 
     @QtCore.pyqtSlot(dict)
     def do_update_rows(self, obj):
@@ -82,9 +82,8 @@ class LightningChannelsList(QtWidgets.QWidget):
         self.update_single_row.connect(self.do_update_single_row)
 
         self.lnworker = lnworker
-
-        #lnworker.subscribe_channel_list_updates_from_other_thread(self.update_rows.emit)
-        #lnworker.subscribe_single_channel_update_from_other_thread(self.update_single_row.emit)
+        lnworker.register_callback(self.update_rows.emit, ['channels_updated'])
+        lnworker.register_callback(self.update_single_row.emit, ['channel_updated'])
 
         self._tv=QtWidgets.QTreeWidget(self)
         self._tv.setHeaderLabels([mapping[i] for i in range(len(mapping))])
@@ -122,3 +121,4 @@ class LightningChannelsList(QtWidgets.QWidget):
         l.addWidget(self._tv)
 
         self.resize(2500,1000)
+        lnworker.on_channels_updated()
