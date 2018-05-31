@@ -88,7 +88,6 @@ from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialo
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread
-from .lightning_invoice_list import LightningInvoiceList
 from .lightning_channels_list import LightningChannelsList
 
 
@@ -177,11 +176,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
         if config.get("lnbase", False):
-            self.lightning_invoices_tab = self.create_lightning_invoices_tab(wallet)
-            tabs.addTab(self.lightning_invoices_tab, _("Lightning Invoices"))
-
             self.lightning_channels_tab = self.create_lightning_channels_tab(wallet)
-            tabs.addTab(self.lightning_channels_tab, _("Lightning Channels"))
+            tabs.addTab(self.lightning_channels_tab, QIcon(":icons/lightning.png"), _("Channels"))
 
         def add_optional_tab(tabs, tab, icon, description, name):
             tab.tab_icon = icon
@@ -881,10 +877,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.invoice_list.update()
         self.update_completions()
 
-    def create_lightning_invoices_tab(self, wallet):
-        self.lightning_invoice_list = LightningInvoiceList(self, wallet.lnworker)
-        return self.lightning_invoice_list
-
     def create_lightning_channels_tab(self, wallet):
         self.lightning_channels_list = LightningChannelsList(self, wallet.lnworker)
         return self.lightning_channels_list
@@ -914,17 +906,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.receive_grid = grid = QGridLayout()
         grid.setSpacing(8)
         grid.setColumnStretch(3, 1)
-
-        self.receive_address_e = ButtonsLineEdit()
-        self.receive_address_e.addCopyButton(self.app)
-        self.receive_address_e.setReadOnly(True)
-        msg = _('Bitcoin address where the payment should be received. Note that each payment request uses a different Bitcoin address.')
-        self.receive_address_label = HelpLabel(_('Receiving address'), msg)
-        self.receive_address_e.textChanged.connect(self.update_receive_qr)
-        self.receive_address_e.textChanged.connect(self.update_receive_address_styling)
-        self.receive_address_e.setFocusPolicy(Qt.ClickFocus)
-        grid.addWidget(self.receive_address_label, 0, 0)
-        grid.addWidget(self.receive_address_e, 0, 1, 1, -1)
 
         self.receive_message_e = QLineEdit()
         grid.addWidget(QLabel(_('Description')), 1, 0)
@@ -960,22 +941,30 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.expires_label.hide()
         grid.addWidget(self.expires_label, 3, 1)
 
-        self.save_request_button = QPushButton(_('Save'))
-        self.save_request_button.clicked.connect(self.save_payment_request)
+        self.receive_type = QComboBox()
+        self.receive_type.addItems([_('Bitcoin address'), _('Lightning')])
+        grid.addWidget(QLabel(_('Type')), 4, 0)
+        grid.addWidget(self.receive_type, 4, 1)
 
-        self.new_request_button = QPushButton(_('New'))
-        self.new_request_button.clicked.connect(self.new_payment_request)
+        self.save_request_button = QPushButton(_('Create'))
+        self.save_request_button.clicked.connect(self.create_invoice)
+
+        self.receive_buttons = buttons = QHBoxLayout()
+        buttons.addWidget(self.save_request_button)
+        buttons.addStretch(1)
+        grid.addLayout(buttons, 4, 2, 1, 2)
+
+        self.receive_address_e = ButtonsTextEdit()
+        self.receive_address_e.addCopyButton(self.app)
+        self.receive_address_e.setReadOnly(True)
+        self.receive_address_e.textChanged.connect(self.update_receive_qr)
+        self.receive_address_e.textChanged.connect(self.update_receive_address_styling)
+        self.receive_address_e.setFocusPolicy(Qt.ClickFocus)
 
         self.receive_qr = QRCodeWidget(fixedSize=200)
         self.receive_qr.mouseReleaseEvent = lambda x: self.toggle_qr_window()
         self.receive_qr.enterEvent = lambda x: self.app.setOverrideCursor(QCursor(Qt.PointingHandCursor))
         self.receive_qr.leaveEvent = lambda x: self.app.setOverrideCursor(QCursor(Qt.ArrowCursor))
-
-        self.receive_buttons = buttons = QHBoxLayout()
-        buttons.addStretch(1)
-        buttons.addWidget(self.save_request_button)
-        buttons.addWidget(self.new_request_button)
-        grid.addLayout(buttons, 4, 1, 1, 2)
 
         self.receive_requests_label = QLabel(_('Requests'))
 
@@ -987,14 +976,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         vbox_g.addLayout(grid)
         vbox_g.addStretch()
 
+        hbox_r = QHBoxLayout()
+        hbox_r.addWidget(self.receive_qr)
+        hbox_r.addWidget(self.receive_address_e)
+
         hbox = QHBoxLayout()
         hbox.addLayout(vbox_g)
-        hbox.addWidget(self.receive_qr)
+        hbox.addLayout(hbox_r)
 
         w = QWidget()
         w.searchable_list = self.request_list
         vbox = QVBoxLayout(w)
         vbox.addLayout(hbox)
+
         vbox.addStretch(1)
         vbox.addWidget(self.receive_requests_label)
         vbox.addWidget(self.request_list)
@@ -1047,15 +1041,34 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 else:
                     return
 
-    def save_payment_request(self):
-        addr = str(self.receive_address_e.text())
+    def create_invoice(self):
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
-        if not message and not amount:
-            self.show_error(_('No message or amount'))
-            return False
         i = self.expires_combo.currentIndex()
         expiration = list(map(lambda x: x[1], expiration_values))[i]
+        if self.receive_type.currentIndex() == 1:
+            self.create_lightning_request(amount, message, expiration)
+        else:
+            self.create_bitcoin_request(amount, message, expiration)
+        self.request_list.update()
+
+    def create_lightning_request(self, amount, message, expiration):
+        req = self.wallet.lnworker.add_invoice(amount)
+
+    def create_bitcoin_request(self, amount, message, expiration):
+        addr = self.wallet.get_unused_address()
+        if addr is None:
+            if not self.wallet.is_deterministic():
+                msg = [
+                    _('No more addresses in your wallet.'),
+                    _('You are using a non-deterministic wallet, which cannot create new addresses.'),
+                    _('If you want to create new addresses, use a deterministic wallet instead.')
+                   ]
+                self.show_message(' '.join(msg))
+                return
+            if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
+                return
+            addr = self.wallet.create_new_address(False)
         req = self.wallet.make_payment_request(addr, amount, message, expiration)
         try:
             self.wallet.add_payment_request(req, self.config)
@@ -1066,7 +1079,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.sign_payment_request(addr)
             self.save_request_button.setEnabled(False)
         finally:
-            self.request_list.update()
             self.address_list.update()
 
     def view_and_paste(self, title, msg, data):
@@ -1091,26 +1103,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 f.write(util.to_bytes(pr))
             self.show_message(_("Request saved successfully"))
             self.saved = True
-
-    def new_payment_request(self):
-        addr = self.wallet.get_unused_address()
-        if addr is None:
-            if not self.wallet.is_deterministic():
-                msg = [
-                    _('No more addresses in your wallet.'),
-                    _('You are using a non-deterministic wallet, which cannot create new addresses.'),
-                    _('If you want to create new addresses, use a deterministic wallet instead.')
-                   ]
-                self.show_message(' '.join(msg))
-                return
-            if not self.question(_("Warning: The next address will not be recovered automatically if you restore your wallet from seed; you may need to add it manually.\n\nThis occurs because you have too many unused addresses in your wallet. To avoid this situation, use the existing addresses first.\n\nCreate anyway?")):
-                return
-            addr = self.wallet.create_new_address(False)
-        self.set_receive_address(addr)
-        self.expires_label.hide()
-        self.expires_combo.show()
-        self.new_request_button.setEnabled(False)
-        self.receive_message_e.setFocus(1)
 
     def set_receive_address(self, addr):
         self.receive_address_e.setText(addr)
@@ -1158,11 +1150,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.new_request_button.setEnabled(True)
 
     def update_receive_qr(self):
-        addr = str(self.receive_address_e.text())
-        amount = self.receive_amount_e.get_amount()
-        message = self.receive_message_e.text()
-        self.save_request_button.setEnabled((amount is not None) or (message != ""))
-        uri = util.create_bip21_uri(addr, amount, message)
+        uri = str(self.receive_address_e.text())
         self.receive_qr.setData(uri)
         if self.qr_window and self.qr_window.isVisible():
             self.qr_window.qrw.setData(uri)
@@ -1875,6 +1863,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.payment_request_ok_signal.emit()
         else:
             self.payment_request_error_signal.emit()
+
+    def parse_lightning_invoice(self, invoice):
+        from electrum.lightning_payencode.lnaddr import lndecode
+        lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        pubkey = bh2u(lnaddr.pubkey.serialize())
+        for k,v in lnaddr.tags:
+            if k == 'd':
+                description = v
+                break
+        else:
+             description = ''
+        self.payto_e.setFrozen(True)
+        self.payto_e.setGreen()
+        self.payto_e.setText(pubkey)
+        self.message_e.setText(description)
+        self.amount_e.setAmount(lnaddr.amount)
+        #self.amount_e.textEdited.emit("")
 
     def pay_to_URI(self, URI):
         if not URI:
