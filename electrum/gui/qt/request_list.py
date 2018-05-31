@@ -25,7 +25,7 @@
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-from PyQt5.QtWidgets import QTreeWidgetItem, QMenu
+from PyQt5.QtWidgets import QTreeWidgetItem, QMenu, QHeaderView
 
 from electrum.i18n import _
 from electrum.util import format_time, age
@@ -35,38 +35,47 @@ from electrum.paymentrequest import PR_UNKNOWN
 from .util import MyTreeWidget, pr_tooltips, pr_icons
 
 
-class RequestList(MyTreeWidget):
-    filter_columns = [0, 1, 2, 3, 4]  # Date, Account, Address, Description, Amount
 
+class RequestList(MyTreeWidget):
+    filter_columns = [0, 2, 3, 4]  # Date, Address, Description, Amount
 
     def __init__(self, parent):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Date'), _('Address'), '', _('Description'), _('Amount'), _('Status')], 3)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Date'), _('Type'), _('Address'), _('Description'), _('Amount'), _('Status')], 3)
         self.currentItemChanged.connect(self.item_changed)
         self.itemClicked.connect(self.item_changed)
         self.setSortingEnabled(True)
         self.setColumnWidth(0, 180)
-        self.hideColumn(1)
+        self.setColumnWidth(2, 250)
+
+    def update_headers(self, headers):
+        self.setColumnCount(len(headers))
+        self.setHeaderLabels(headers)
+        self.header().setStretchLastSection(False)
+        for col in range(len(headers)):
+            if col in [2]: continue
+            sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
+            self.header().setSectionResizeMode(col, sm)
 
     def item_changed(self, item):
         if item is None:
             return
         if not item.isSelected():
             return
-        addr = str(item.text(1))
-        req = self.wallet.receive_requests.get(addr)
-        if req is None:
-            self.update()
-            return
-        expires = age(req['time'] + req['exp']) if req.get('exp') else _('Never')
-        amount = req['amount']
-        message = self.wallet.labels.get(addr, '')
+        addr = str(item.text(2))
         self.parent.receive_address_e.setText(addr)
-        self.parent.receive_message_e.setText(message)
-        self.parent.receive_amount_e.setAmount(amount)
-        self.parent.expires_combo.hide()
-        self.parent.expires_label.show()
-        self.parent.expires_label.setText(expires)
-        self.parent.new_request_button.setEnabled(True)
+        #req = self.wallet.receive_requests.get(addr)
+        #if req is None:
+        #    self.update()
+        #    return
+        #expires = age(req['time'] + req['exp']) if req.get('exp') else _('Never')
+        #amount = req['amount']
+        #message = self.wallet.labels.get(addr, '')
+        #self.parent.receive_message_e.setText(message)
+        #self.parent.receive_amount_e.setAmount(amount)
+        #self.parent.expires_combo.hide()
+        #self.parent.expires_label.show()
+        #self.parent.expires_label.setText(expires)
+        #self.parent.new_request_button.setEnabled(True)
 
     def on_update(self):
         self.wallet = self.parent.wallet
@@ -79,12 +88,12 @@ class RequestList(MyTreeWidget):
             self.parent.expires_combo.show()
 
         # update the receive address if necessary
-        current_address = self.parent.receive_address_e.text()
+        #current_address = self.parent.receive_address_e.text()
         domain = self.wallet.get_receiving_addresses()
-        addr = self.wallet.get_unused_address()
-        if not current_address in domain and addr:
-            self.parent.set_receive_address(addr)
-        self.parent.new_request_button.setEnabled(addr != current_address)
+        #addr = self.wallet.get_unused_address()
+        #if not current_address in domain and addr:
+        #    self.parent.set_receive_address(addr)
+        #self.parent.new_request_button.setEnabled(addr != current_address)
 
         # clear the list and fill it again
         self.clear()
@@ -101,12 +110,28 @@ class RequestList(MyTreeWidget):
             signature = req.get('sig')
             requestor = req.get('name', '')
             amount_str = self.parent.format_amount(amount) if amount else ""
-            item = QTreeWidgetItem([date, address, '', message, amount_str, pr_tooltips.get(status,'')])
+            URI = self.parent.get_request_URI(address)
+            item = QTreeWidgetItem([date, '', URI, message, amount_str, pr_tooltips.get(status,'')])
             if signature is not None:
                 item.setIcon(2, self.icon_cache.get(":icons/seal.png"))
                 item.setToolTip(2, 'signed by '+ requestor)
             if status is not PR_UNKNOWN:
                 item.setIcon(6, self.icon_cache.get(pr_icons.get(status)))
+            self.addTopLevelItem(item)
+        # lightning
+        for k, r in self.wallet.lnworker.invoices.items():
+            from electrum.lightning_payencode.lnaddr import lndecode
+            import electrum.constants as constants
+            lnaddr = lndecode(r, expected_hrp=constants.net.SEGWIT_HRP)
+            amount_str = self.parent.format_amount(lnaddr.amount*100000000)
+            for k,v in lnaddr.tags:
+                if k == 'd':
+                    description = v
+                    break
+                else:
+                    description = ''
+            item = QTreeWidgetItem([date, '', r, description, amount_str, ''])
+            item.setIcon(1, QIcon(":icons/lightning.png"))
             self.addTopLevelItem(item)
 
 
