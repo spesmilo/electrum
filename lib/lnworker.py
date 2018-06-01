@@ -102,7 +102,7 @@ class LNWorker(PrintError):
         self.nodes = {}  # received node announcements
         self.channel_db = lnrouter.ChannelDB()
         self.path_finder = lnrouter.LNPathFinder(self.channel_db)
-        self.channels = {x.channel_id: reconstruct_namedtuples(x) for x in wallet.storage.get("channels", {})}
+        self.channels = {x['channel_id']: reconstruct_namedtuples(x) for x in wallet.storage.get("channels", [])}
         self.invoices = wallet.storage.get('lightning_invoices', {})
         peer_list = network.config.get('lightning_peers', node_list)
         self.channel_state = {chan.channel_id: "OPENING" for chan in self.channels.values()}
