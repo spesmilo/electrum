@@ -26,11 +26,12 @@
 import os
 import sys
 import traceback
+from functools import partial
 
 from . import bitcoin
 from . import keystore
 from .keystore import bip44_derivation
-from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types
+from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types, Wallet
 from .storage import STO_EV_USER_PW, STO_EV_XPUB_PW, get_derivation_used_for_hw_device_encryption
 from .i18n import _
 from .util import UserCancelled, InvalidPassword
@@ -99,6 +100,12 @@ class BaseWizard(object):
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
+
+    def upgrade_storage(self):
+        def on_finished():
+            self.wallet = Wallet(self.storage)
+            self.terminate()
+        self.waiting_dialog(partial(self.storage.upgrade), _('Upgrading wallet format...'), on_finished=on_finished)
 
     def load_2fa(self):
         self.storage.put('wallet_type', '2fa')
