@@ -41,12 +41,10 @@ import socks
 from . import util
 from .util import print_error
 from . import bitcoin
-from .bitcoin import COIN
 from . import constants
 from .interface import Connection, Interface
 from . import blockchain
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
-from .i18n import _
 
 
 NODES_RETRY_INTERVAL = 60
@@ -640,13 +638,13 @@ class Network(util.DaemonThread):
         elif method == 'blockchain.estimatefee':
             if error is None and result > 0:
                 i = params[0]
-                fee = int(result*COIN)
+                fee = int(result*bitcoin.COIN)
                 self.config.update_fee_estimates(i, fee)
                 self.print_error("fee_estimates[%d]" % i, fee)
                 self.notify('fee')
         elif method == 'blockchain.relayfee':
             if error is None:
-                self.relay_fee = int(result * COIN) if result is not None else None
+                self.relay_fee = int(result * bitcoin.COIN) if result is not None else None
                 self.print_error("relayfee", self.relay_fee)
         elif method == 'blockchain.block.headers':
             self.on_block_headers(interface, response)
@@ -1159,138 +1157,6 @@ class Network(util.DaemonThread):
 
     def get_local_height(self):
         return self.blockchain().height()
-
-    @staticmethod
-    def __wait_for(it):
-        """Wait for the result of calling lambda `it`."""
-        q = queue.Queue()
-        it(q.put)
-        try:
-            result = q.get(block=True, timeout=30)
-        except queue.Empty:
-            raise util.TimeoutException(_('Server did not answer'))
-
-        if result.get('error'):
-            raise Exception(result.get('error'))
-
-        return result.get('result')
-
-    @staticmethod
-    def __with_default_synchronous_callback(invocation, callback):
-        """ Use this method if you want to make the network request
-        synchronous. """
-        if not callback:
-            return Network.__wait_for(invocation)
-
-        invocation(callback)
-
-    def request_header(self, interface, height):
-        self.queue_request('blockchain.block.get_header', [height], interface)
-        interface.request = height
-        interface.req_time = time.time()
-
-    def map_scripthash_to_address(self, callback):
-        def cb2(x):
-            x2 = x.copy()
-            p = x2.pop('params')
-            addr = self.h2addr[p[0]]
-            x2['params'] = [addr]
-            callback(x2)
-        return cb2
-
-    def subscribe_to_addresses(self, addresses, callback):
-        hash2address = {
-            bitcoin.address_to_scripthash(address): address
-            for address in addresses}
-        self.h2addr.update(hash2address)
-        msgs = [
-            ('blockchain.scripthash.subscribe', [x])
-            for x in hash2address.keys()]
-        self.send(msgs, self.map_scripthash_to_address(callback))
-
-    def request_address_history(self, address, callback):
-        h = bitcoin.address_to_scripthash(address)
-        self.h2addr.update({h: address})
-        self.send([('blockchain.scripthash.get_history', [h])], self.map_scripthash_to_address(callback))
-
-    # NOTE this method handles exceptions and a special edge case, counter to
-    # what the other ElectrumX methods do. This is unexpected.
-    def broadcast_transaction(self, transaction, callback=None):
-        command = 'blockchain.transaction.broadcast'
-        invocation = lambda c: self.send([(command, [str(transaction)])], c)
-
-        if callback:
-            invocation(callback)
-            return
-
-        try:
-            out = Network.__wait_for(invocation)
-        except BaseException as e:
-            return False, "error: " + str(e)
-
-        if out != transaction.txid():
-            return False, "error: " + out
-
-        return True, out
-
-    def get_history_for_scripthash(self, hash, callback=None):
-        command = 'blockchain.scripthash.get_history'
-        invocation = lambda c: self.send([(command, [hash])], c)
-
-        return Network.__with_default_synchronous_callback(invocation, callback)
-
-    def subscribe_to_headers(self, callback=None):
-        command = 'blockchain.headers.subscribe'
-        invocation = lambda c: self.send([(command, [True])], c)
-
-        return Network.__with_default_synchronous_callback(invocation, callback)
-
-    def subscribe_to_address(self, address, callback=None):
-        command = 'blockchain.address.subscribe'
-        invocation = lambda c: self.send([(command, [address])], c)
-
-        return Network.__with_default_synchronous_callback(invocation, callback)
-
-    def get_merkle_for_transaction(self, tx_hash, tx_height, callback=None):
-        command = 'blockchain.transaction.get_merkle'
-        invocation = lambda c: self.send([(command, [tx_hash, tx_height])], c)
-
-        return Network.__with_default_synchronous_callback(invocation, callback)
-
-    def subscribe_to_scripthash(self, scripthash, callback=None):
-        command = 'blockchain.scripthash.subscribe'
-        invocation = lambda c: self.send([(command, [scripthash])], c)
-
-        return Network.__with_default_synchronous_callback(invocation, callback)
-
-    def get_transaction(self, transaction_hash, callback=None):
-        command = 'blockchain.transaction.get'
-        invocation = lambda c: self.send([(command, [transaction_hash])], c)
-
-        return Network.__with_default_synchronous_callback(invocation, callback)
-
-    def get_transactions(self, transaction_hashes, callback=None):
-        command = 'blockchain.transaction.get'
-        messages = [(command, [tx_hash]) for tx_hash in transaction_hashes]
-        invocation = lambda c: self.send(messages, c)
-
-        return Network.__with_default_synchronous_callback(invocation, callback)
-
-    def listunspent_for_scripthash(self, scripthash, callback=None):
-        command = 'blockchain.scripthash.listunspent'
-        invocation = lambda c: self.send([(command, [scripthash])], c)
-
-        return Network.__with_default_synchronous_callback(invocation, callback)
-
-    def get_balance_for_scripthash(self, scripthash, callback=None):
-        command = 'blockchain.scripthash.get_balance'
-        invocation = lambda c: self.send([(command, [scripthash])], c)
-
-        return Network.__with_default_synchronous_callback(invocation, callback)
-
-    def history_for_scripthash(self, hash):
-        command = 'blockchain.scripthash.get_history'
-        return (command, [hash])
 
     def export_checkpoints(self, path):
         # run manually from the console to generate checkpoints
