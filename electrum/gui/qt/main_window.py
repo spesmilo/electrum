@@ -1885,7 +1885,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.payto_e.setFrozen(True)
         self.payto_e.setText(pubkey)
         self.message_e.setText(description)
-        self.amount_e.setAmount(lnaddr.amount)
+        self.amount_e.setAmount(lnaddr.amount * COIN)
         #self.amount_e.textEdited.emit("")
         self.payto_e.is_lightning = True
 
