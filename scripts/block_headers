@@ -8,7 +8,7 @@ from electrum.util import print_msg, json_encode
 
 # start network
 c = SimpleConfig()
-network = Network(c)
+network = ElectrumX(c)
 network.start()
 
 # wait until connected

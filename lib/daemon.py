@@ -33,7 +33,7 @@ import jsonrpclib
 from .jsonrpc import VerifyingJSONRPCServer
 
 from .version import ELECTRUM_VERSION
-from .network import Network
+from .electrumx import ElectrumX
 from .util import json_decode, DaemonThread
 from .util import print_error, to_string
 from .wallet import Wallet
@@ -125,7 +125,7 @@ class Daemon(DaemonThread):
         if config.get('offline'):
             self.network = None
         else:
-            self.network = Network(config)
+            self.network = ElectrumX(config)
             self.network.start()
         self.fx = FxThread(config, self.network)
         if self.network:
