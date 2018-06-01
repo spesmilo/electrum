@@ -695,16 +695,17 @@ class Abstract_Wallet(PrintError):
     def get_addr_balance(self, address):
         received, sent = self.get_addr_io(address)
         c = u = x = 0
+        minconf = config.get('minconf', 1)
         local_height = self.get_local_height()
         for txo, (tx_height, v, is_cb) in received.items():
             if is_cb and tx_height + COINBASE_MATURITY > local_height:
                 x += v
-            elif tx_height > 0:
+            elif tx_height >= minconf:
                 c += v
             else:
                 u += v
             if txo in sent:
-                if sent[txo] > 0:
+                if sent[txo] >= minconf:
                     c -= v
                 else:
                     u -= v
@@ -723,7 +724,7 @@ class Abstract_Wallet(PrintError):
         for addr in domain:
             utxos = self.get_addr_utxo(addr)
             for x in utxos.values():
-                if confirmed_only and x['height'] <= 0:
+                if confirmed_only and x['height'] < config.get('minconf', 1):
                     continue
                 if mature and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
                     continue
