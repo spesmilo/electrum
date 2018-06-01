@@ -490,8 +490,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet1.is_mine(tx.inputs()[0]['address']), wallet1.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet1.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet1.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('010000000001010392c1940e2ec9f2372919ca3887327fe5b98b866022cc79bab5cbed5a53d2ad0000000000feffffff0290d00300000000001976a914ea7804a2c266063572cc009a63dc25dcc0e9d9b588ac285e0b0000000000160014690b59a8140602fb23cc2904ece9cc4daf361052024730440220608a5339ca894592da82119e1e4a1d09335d70a552c683687223b8ed724465e902201b3f0feccf391b1b6257e4b18970ae57d7ca060af2dae519b3690baad2b2a34e0121030faee9b4a25b7db82023ca989192712cdd4cb53d3d9338591c7909e581ae1c0c00000000',
+                         str(tx_copy))
         self.assertEqual('3c06ae4d9be8226a472b3e7f7c127c7e3016f525d658d26106b80b4c7e3228e2', tx_copy.txid())
+        self.assertEqual('d8d930ae91dce73118c3fffabbdfcfb87f5d91673fb4c7dfd0fbe7cf03bf426b', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)  # TX_HEIGHT_UNCONF_PARENT but nvm
         wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -507,8 +511,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet2.is_mine(tx.inputs()[0]['address']), wallet2.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet2.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet2.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('0100000001e228327e4c0bb80661d258d625f516307e7c127c7f3e2b476a22e89b4dae063c000000006b483045022100d3895b31e7c9766987c6f53794c7394f534f4acecefda5479d963236f9703d0b022026dd4e40700ceb788f136faf54bf85b966648dc7c2a608d8110604f2d22d59070121030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cffeffffff02a0860100000000001600148a28bddb7f61864bdcf58b2ad13d5aeb3abc3c4268360200000000001976a914ca4c60999c46c2108326590b125aefd476dcb11888ac00000000',
+                         str(tx_copy))
         self.assertEqual('5f25707571eb776bdf14142f9966bf2a681906e0a79501edbb99a972c2ceb972', tx_copy.txid())
+        self.assertEqual('5f25707571eb776bdf14142f9966bf2a681906e0a79501edbb99a972c2ceb972', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -560,8 +568,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet1a.is_mine(tx.inputs()[0]['address']), wallet1a.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet1a.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet1a.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('01000000017120d4e1f2cdfe7df000d632cff74167fb354f0546d5cfc228e5c98756d55cb201000000fdfe0000483045022100f9ce5616683e613ae14b98d56436454b003348a8172e2ed598018e3d206e57d7022030c65c6551e839f9e9409812be624dbb4e36bd4152c9ed9b0988c10fd8201d1401483045022100d5cb94d4d1dcf01bb9e9280e8178a7e9ada3ad14378ca543afcc9f5667b27cb2022018e76b74800a21934e73b226b34cbbe45c877fba64693da8a20d3cb330f2eafd014c69522102afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f2821030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cf2103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53aefeffffff0250a50500000000001976a9149cd3dfb0d87a861770ae4e268e74b45335cf00ab88ac2862b1000000000017a9142e517854aa54668128c0e9a3fdd4dec13ad571368700000000',
+                         str(tx_copy))
         self.assertEqual('26f3bdd0402e1cff19126244ebe3d32722cef0db507c7229ca8754f5e06ef25d', tx_copy.txid())
+        self.assertEqual('26f3bdd0402e1cff19126244ebe3d32722cef0db507c7229ca8754f5e06ef25d', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -577,8 +589,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet2.is_mine(tx.inputs()[0]['address']), wallet2.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet2.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet2.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('01000000015df26ee0f55487ca29727c50dbf0ce2227d3e3eb44621219ff1c2e40d0bdf326000000008b483045022100bd9f61ba82507d3a28922fb8be129e14699dfa54ddd03cc9494f696d38ac4121022071afca6fad5bc5c09b0a675e6444be3e97dbbdbc283764ee5f4e27a032d933d80141045f7ba332df2a7b4f5d13f246e307c9174cfa9b8b05f3b83410a3c23ef8958d610be285963d67c7bc1feb082f168fa9877c25999963ff8b56b242a852b23e25edfeffffff02a08601000000000017a91480c2353f6a7bc3c71e99e062655b19adb3dd2e4887280b0400000000001976a914ca14915184a2662b5d1505ce7142c8ca066c70e288ac00000000',
+                         str(tx_copy))
         self.assertEqual('c573b3f8464a4ed40dfc79d0889a780f44e917beef7a75883b2427c2987f3e95', tx_copy.txid())
+        self.assertEqual('c573b3f8464a4ed40dfc79d0889a780f44e917beef7a75883b2427c2987f3e95', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -645,8 +661,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet1a.is_mine(tx.inputs()[0]['address']), wallet1a.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet1a.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet1a.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('01000000000101213e1012a461e056752fab5a6414a2fb63f950cd21a50ac5e2b82d339d6cbdd20000000000feffffff023075000000000000220020cc5e4cc05a76d0648cd0742768556317e9f8cc729aed077134287909035dba88888402000000000017a914187842cea9c15989a51ce7ca889a08b824bf8743870400483045022100ea2fbd3d8681cfafdcae1bdaaa64f92fb9872fb8f6bf03a2b7effcf7390b66c8022021a79eff7975479934f958f3766d6ac61d708c79b785e398b3bcd84b1039e9b501483045022100dbc4f1ec18f0e0deb4ff88d7d5b3d3b7b500a80d0c0f33efbd3262f0c8689095022074fd226c0b52e3716ad907d14cba9c79aca482a8f4a51662ca83a5b9db49e15b016952210223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e2102aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae94153ae00000000',
+                         str(tx_copy))
         self.assertEqual('6e9c3cd8788bdb970a124ea06136d52bc01cec4f9b1e217627d5e90ebe77d049', tx_copy.txid())
+        self.assertEqual('c58650fb77d04577fccb3e201deecbf691ab52ffb61cd2e57996c4d51f7e980b', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -665,8 +685,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet2a.is_mine(tx.inputs()[0]['address']), wallet2a.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet2a.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet2a.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('0100000000010149d077be0ee9d52776211e9b4fec1cc02bd53661a04e120a97db8b78d83c9c6e01000000232200204311edae835c7a5aa712c8ca644180f13a3b2f3b420fa879b181474724d6163cfeffffff0260ea00000000000017a9143025051b6b5ccd4baf30dfe2de8aa84f0dd567ed87a0860100000000002200203c43ac80d6e3015cf378bf6bac0c22456723d6050bef324ec641e7762440c63c0400483045022100c254468bbe6b8bd1c8c01b6a223e46cc5c6b56fbba87d59575385ad249133b0e02207139688f8d6ae8076c92a266d98454d25c040d04c8e513a37bf7c32dad3e48210147304402204af5edbab2d674f6a9edef8c97b2f7fdf8ababedc7b287710cc7a64d4699358b022064e2d07f4bb32373be31b2003dc56b7b831a7c01419326efb3011c64b898b3f00147522102119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb12102fdb0f6775d4b6619257c43343ba5e7807b0164f1eb3f00f2b594ab9e53ab812652ae00000000',
+                         str(tx_copy))
         self.assertEqual('84b0dcb43022385f7a10e2710e5625a2be3cd6e390387b6100b55500d5eea8f6', tx_copy.txid())
+        self.assertEqual('7e561e25da843326e61fd20a40b72fcaeb8690176fc7c3fcbadb3a0146c8396c', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -710,8 +734,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet1a.is_mine(tx.inputs()[0]['address']), wallet1a.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet1a.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet1a.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('0100000001a391c8b3d4a551eac85714f3f0a7514381c014ba4688de085b0fcee42dc13711010000009200483045022100fcf03aeb97b66791372c18aa0dd651817cf458d941dd628c966f0305a023360f022016c534530e267b6a52f90e62aa9fb50ace609ffb21e472d3ba7b29db9b30050e014751210245c90e040d4f9d1fc136b3d4d6b7535bbb5df2bd27666c21977042cc1e05b5b02103c9a6bebfce6294488315e58137a279b2efe09f1f528ecf93b40675ded3cf0e5f52aefeffffff0240420f000000000017a9149573eb50f3136dff141ac304190f41c8becc92ce8738b32d000000000017a914b815d1b430ae9b632e3834ed537f7956325ee2a98700000000',
+                         str(tx_copy))
         self.assertEqual('1b7e94860b9681d4e371928d40fdbd4641e991aa74f1a211f239c887047e4a2a', tx_copy.txid())
+        self.assertEqual('1b7e94860b9681d4e371928d40fdbd4641e991aa74f1a211f239c887047e4a2a', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -727,8 +755,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet2.is_mine(tx.inputs()[0]['address']), wallet2.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet2.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet2.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('010000000001012a4a7e0487c839f211a2f174aa91e94146bdfd408d9271e3d481960b86947e1b00000000171600149fad840ed174584ee054bd26f3e411817338c5edfeffffff02e09304000000000017a914b0b9f31bace76cdfae2c14abc03e223403d7dc4b87d89a0a000000000017a9148ccd0efb2be5b412c4033715f560ed8f446c8ceb87024830450221009c816c3e0c40b37085244f0976f65635b8d711952bad9843c5f51e386fd37cc402202c34a4a7227182742d9f93e9f28c4bd30ded6514550f39614cb5ad00e46690070121038362bbf0b4918b37e9d7c75930ed3a78e3d445724cb5c37ade4a59b6e411fe4e00000000',
+                         str(tx_copy))
         self.assertEqual('f65edb0843ff44436dc5964fb6b298e157502b9b4a83dac6b82dd2d2a3247d0a', tx_copy.txid())
+        self.assertEqual('63efc09db4c7445eaaca9a5e7732202f42aec81a53b05d819f1918ce0cf3b84d', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
