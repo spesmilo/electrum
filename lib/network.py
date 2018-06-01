@@ -41,12 +41,10 @@ import socks
 from . import util
 from .util import print_error
 from . import bitcoin
-from .bitcoin import COIN
 from . import constants
 from .interface import Connection, Interface
 from . import blockchain
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
-from .i18n import _
 
 
 NODES_RETRY_INTERVAL = 60
@@ -637,13 +635,13 @@ class Network(util.DaemonThread):
         elif method == 'blockchain.estimatefee':
             if error is None and result > 0:
                 i = params[0]
-                fee = int(result*COIN)
+                fee = int(result*bitcoin.COIN)
                 self.config.update_fee_estimates(i, fee)
                 self.print_error("fee_estimates[%d]" % i, fee)
                 self.notify('fee')
         elif method == 'blockchain.relayfee':
             if error is None:
-                self.relay_fee = int(result * COIN) if result is not None else None
+                self.relay_fee = int(result * bitcoin.COIN) if result is not None else None
                 self.print_error("relayfee", self.relay_fee)
         elif method == 'blockchain.block.headers':
             self.on_block_headers(interface, response)
