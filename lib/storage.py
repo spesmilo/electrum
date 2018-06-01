@@ -578,17 +578,14 @@ class WalletStorage(PrintError):
             return True
 
     def get_action(self):
-        if self.file_exists():
-            action = run_hook('get_action', self)
-            if action and self.requires_upgrade():
+        action = run_hook('get_action', self)
+        if self.file_exists() and self.requires_upgrade():
+            if action:
                 raise WalletFileException(_('Incomplete wallet files cannot be upgraded.'))
-            elif self.requires_upgrade():
-                return 'upgrade_storage'
-            elif action:
-                return action
-            else:
-                return None
-        else:
+            return 'upgrade_storage'
+        if action:
+            return action
+        if not self.file_exists():
             return 'new'
 
     def get_seed_version(self):
