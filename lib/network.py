@@ -78,6 +78,7 @@ def parse_servers(result):
             servers[host] = out
     return servers
 
+
 def filter_version(servers):
     def is_recent(version):
         try:
@@ -87,7 +88,7 @@ def filter_version(servers):
     return {k: v for k, v in servers.items() if is_recent(v.get('version'))}
 
 
-def filter_protocol(hostmap, protocol = 's'):
+def filter_protocol(hostmap, protocol='s'):
     '''Filters the hostmap for those implementing protocol.
     The result is a list in serialized form.'''
     eligible = []
@@ -97,11 +98,13 @@ def filter_protocol(hostmap, protocol = 's'):
             eligible.append(serialize_server(host, port, protocol))
     return eligible
 
+
 def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
     if hostmap is None:
         hostmap = constants.net.DEFAULT_SERVERS
     eligible = list(set(filter_protocol(hostmap, protocol)) - exclude_set)
     return random.choice(eligible) if eligible else None
+
 
 from .simple_config import SimpleConfig
 
@@ -201,7 +204,7 @@ class Network(util.DaemonThread):
         self.pending_sends = []
         self.message_id = 0
         self.debug = False
-        self.irc_servers = {} # returned by interface (list from irc)
+        self.irc_servers = {}  # returned by interface (list from irc)
         self.recent_servers = self.read_recent_servers()  # note: needs self.recent_servers_lock
 
         self.banner = ''
@@ -213,7 +216,7 @@ class Network(util.DaemonThread):
         # callbacks set by the GUI
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
 
-        dir_path = os.path.join( self.config.path, 'certs')
+        dir_path = os.path.join(self.config.path, 'certs')
         util.make_dir(dir_path)
 
         # subscriptions and requests
@@ -406,7 +409,7 @@ class Network(util.DaemonThread):
                 except:
                     continue
                 if host not in out:
-                    out[host] = { protocol:port }
+                    out[host] = {protocol: port}
         return out
 
     @with_interface_lock
@@ -416,7 +419,7 @@ class Network(util.DaemonThread):
                 self.print_error("connecting to %s as new interface" % server)
                 self.set_status('connecting')
             self.connecting.add(server)
-            c = Connection(server, self.socket_queue, self.config.path)
+            Connection(server, self.socket_queue, self.config.path)
 
     def start_random_interface(self):
         with self.interface_lock:
@@ -553,7 +556,7 @@ class Network(util.DaemonThread):
         if self.server_is_lagging() and self.auto_connect:
             # switch to one that has the correct header (not height)
             header = self.blockchain().read_header(self.get_local_height())
-            filtered = list(map(lambda x:x[0], filter(lambda x: x[1].tip_header==header, self.interfaces.items())))
+            filtered = list(map(lambda x: x[0], filter(lambda x: x[1].tip_header == header, self.interfaces.items())))
             if filtered:
                 choice = random.choice(filtered)
                 self.switch_to_interface(choice)
@@ -569,6 +572,7 @@ class Network(util.DaemonThread):
             self.interface = None
             self.start_interface(server)
             return
+
         i = self.interfaces[server]
         if self.interface != i:
             self.print_error("switching to", server)
@@ -798,6 +802,7 @@ class Network(util.DaemonThread):
             server, socket = self.socket_queue.get()
             if server in self.connecting:
                 self.connecting.remove(server)
+
             if socket:
                 self.new_interface(server, socket)
             else:
