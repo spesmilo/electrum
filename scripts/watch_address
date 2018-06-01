@@ -16,7 +16,7 @@ sh = bitcoin.address_to_scripthash(addr)
 
 # start network
 c = SimpleConfig()
-network = Network(c)
+network = ElectrumX(c)
 network.start()
 
 # wait until connected
