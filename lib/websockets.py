@@ -100,7 +100,7 @@ class WsClientThread(util.DaemonThread):
             if result is None:
                 continue    
             if method == 'blockchain.scripthash.subscribe':
-                self.network.subscribe_to_scripthash(
+                self.network.get_balance_for_scripthash(
                         scripthash, self.response_queue.put)
             elif method == 'blockchain.scripthash.get_balance':
                 addr = self.network.h2addr.get(scripthash, None)
