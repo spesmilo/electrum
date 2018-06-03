@@ -135,7 +135,7 @@ class LNWorker(PrintError):
         dumped = serialize_channels(self.channels)
         self.wallet.storage.put("channels", dumped)
         self.wallet.storage.write()
-        self.trigger_callback('channel_updated', {"chan_id": openchannel.channel_id})
+        self.network.trigger_callback('channel', openchannel)
 
     def save_short_chan_id(self, chan):
         """
@@ -188,8 +188,7 @@ class LNWorker(PrintError):
         self.on_channels_updated()
 
     def on_channels_updated(self):
-        std_chan = [{"chan_id": chan.channel_id} for chan in self.channels.values()]
-        self.trigger_callback('channels_updated', {'channels':std_chan})
+        self.network.trigger_callback('channels', list(self.channels.values()))
 
     def open_channel(self, node_id, local_amt_sat, push_amt_sat, pw):
         coro = self._open_channel_coroutine(node_id, local_amt_sat, push_amt_sat, None if pw == "" else pw)
@@ -199,7 +198,7 @@ class LNWorker(PrintError):
         coro = self._pay_coroutine(invoice)
         return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
-    # not aiosafe because we call .result() which will propagate an exception
+    @aiosafe
     async def _pay_coroutine(self, invoice):
         openchannel = next(iter(self.channels.values()))
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
@@ -233,19 +232,3 @@ class LNWorker(PrintError):
 
     def list_channels(self):
         return serialize_channels(self.channels)
-
-    def register_callback(self, callback, events):
-        with self.lock:
-            for event in events:
-                self.callbacks[event].append(callback)
-
-    def unregister_callback(self, callback):
-        with self.lock:
-            for callbacks in self.callbacks.values():
-                if callback in callbacks:
-                    callbacks.remove(callback)
-
-    def trigger_callback(self, event, *args):
-        with self.lock:
-            callbacks = self.callbacks[event][:]
-        [callback(*args) for callback in callbacks]
