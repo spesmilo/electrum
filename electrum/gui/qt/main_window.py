@@ -75,7 +75,7 @@ from .fee_slider import FeeSlider
 from .util import *
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
-from .lightning_channels_list import LightningChannelsList
+from .channels_list import ChannelsList
 
 
 class StatusBarButton(QPushButton):
@@ -161,12 +161,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.utxo_tab = self.create_utxo_tab()
         self.console_tab = self.create_console_tab()
         self.contacts_tab = self.create_contacts_tab()
+        self.channels_tab = self.create_channels_tab(wallet)
         tabs.addTab(self.create_history_tab(), QIcon(":icons/tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
-        if config.get("lnbase", False):
-            self.lightning_channels_tab = self.create_lightning_channels_tab(wallet)
-            tabs.addTab(self.lightning_channels_tab, QIcon(":icons/lightning.png"), _("Channels"))
 
         def add_optional_tab(tabs, tab, icon, description, name):
             tab.tab_icon = icon
@@ -177,6 +175,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 tabs.addTab(tab, icon, description.replace("&", ""))
 
         add_optional_tab(tabs, self.addresses_tab, QIcon(":icons/tab_addresses.png"), _("&Addresses"), "addresses")
+        add_optional_tab(tabs, self.channels_tab, QIcon(":icons/lightning.png"), _("Channels"), "channels")
         add_optional_tab(tabs, self.utxo_tab, QIcon(":icons/tab_coins.png"), _("Co&ins"), "utxo")
         add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
         add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
@@ -210,7 +209,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.network_signal.connect(self.on_network_qt)
             interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
                          'new_transaction', 'status',
-                         'banner', 'verified', 'fee', 'fee_histogram']
+                         'banner', 'verified', 'fee', 'fee_histogram', 'on_quotes',
+                         'on_history', 'channel', 'channels']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -218,8 +218,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.network.register_callback(self.on_network, interests)
             # set initial message
             self.console.showMessage(self.network.banner)
-            self.network.register_callback(self.on_quotes, ['on_quotes'])
-            self.network.register_callback(self.on_history, ['on_history'])
             self.new_fx_quotes_signal.connect(self.on_fx_quotes)
             self.new_fx_history_signal.connect(self.on_fx_history)
 
@@ -229,19 +227,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.connect_slots(gui_object.timer)
         self.fetch_alias()
 
-    def on_history(self, b):
-        self.wallet.clear_coin_price_cache()
-        self.new_fx_history_signal.emit()
-
     def setup_exception_hook(self):
         Exception_Hook(self)
 
     def on_fx_history(self):
         self.history_model.refresh('fx_history')
         self.address_list.update()
-
-    def on_quotes(self, b):
-        self.new_fx_quotes_signal.emit()
 
     def on_fx_quotes(self):
         self.update_status()
@@ -340,6 +331,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         elif event in ['status', 'banner', 'verified', 'fee', 'fee_histogram']:
             # Handle in GUI thread
             self.network_signal.emit(event, args)
+        elif event == 'on_quotes':
+            self.new_fx_quotes_signal.emit()
+        elif event == 'on_history':
+            self.new_fx_history_signal.emit()
+        elif event == 'channels':
+            self.channels_list.update_rows.emit(*args)
+        elif event == 'channel':
+            self.channels_list.update_single_row.emit(*args)
         else:
             self.print_error("unexpected network message:", event, args)
 
@@ -386,6 +385,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def load_wallet(self, wallet):
         wallet.thread = TaskThread(self, self.on_error)
         self.update_recently_visited(wallet.storage.path)
+        wallet.lnworker.on_channels_updated()
         self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         # update menus
@@ -549,6 +549,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         view_menu = menubar.addMenu(_("&View"))
         add_toggle_action(view_menu, self.addresses_tab)
         add_toggle_action(view_menu, self.utxo_tab)
+        add_toggle_action(view_menu, self.channels_tab)
         add_toggle_action(view_menu, self.contacts_tab)
         add_toggle_action(view_menu, self.console_tab)
 
@@ -808,9 +809,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.invoice_list.update()
         self.update_completions()
 
-    def create_lightning_channels_tab(self, wallet):
-        self.lightning_channels_list = LightningChannelsList(self, wallet.lnworker)
-        return self.lightning_channels_list
+    def create_channels_tab(self, wallet):
+        self.channels_list = ChannelsList(self)
+        t = self.channels_list.get_toolbar()
+        return self.create_list_tab(self.channels_list, t)
 
     def create_history_tab(self):
         self.history_model = HistoryModel(self)
@@ -1841,8 +1843,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         w.searchable_list = l
         vbox = QVBoxLayout()
         w.setLayout(vbox)
-        vbox.setContentsMargins(0, 0, 0, 0)
-        vbox.setSpacing(0)
+        #vbox.setContentsMargins(0, 0, 0, 0)
+        #vbox.setSpacing(0)
         if toolbar:
             vbox.addLayout(toolbar)
         vbox.addWidget(l)
