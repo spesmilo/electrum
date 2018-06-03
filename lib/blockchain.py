@@ -37,6 +37,11 @@ except ImportError:
 
 MAX_TARGET = 0x00000FFFFF000000000000000000000000000000000000000000000000000000
 
+
+class MissingHeader(Exception):
+    pass
+
+
 def serialize_header(res):
     s = int_to_hex(res.get('version'), 4) \
         + rev_hex(res.get('prev_block_hash')) \
@@ -319,6 +324,8 @@ class Blockchain(util.PrintError):
         # Litecoin: go back the full period unless it's the first retarget
         first_timestamp = self.get_timestamp(index * 2016 - 1 if index > 0 else 0)
         last = self.read_header(index * 2016 + 2015)
+        if not first_timestamp or not last:
+            raise MissingHeader()
         bits = last.get('bits')
         target = self.bits_to_target(bits)
         nActualTimespan = last.get('timestamp') - first_timestamp
@@ -362,7 +369,10 @@ class Blockchain(util.PrintError):
             return False
         if prev_hash != header.get('prev_block_hash'):
             return False
-        target = self.get_target(height // 2016 - 1)
+        try:
+            target = self.get_target(height // 2016 - 1)
+        except MissingHeader:
+            return False
         try:
             self.verify_header(header, prev_hash, target)
         except BaseException as e:
