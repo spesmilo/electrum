@@ -9,6 +9,7 @@ from lib import storage, bitcoin, keystore, constants
 from lib.transaction import Transaction
 from lib.simple_config import SimpleConfig
 from lib.wallet import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
+from lib.util import bfh, bh2u
 
 from plugins.trustedcoin import trustedcoin
 
@@ -303,6 +304,66 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
         self.assertEqual(w.get_receiving_addresses()[0], '35LeC45QgCVeRor1tJD6LiDgPbybBXisns')
         self.assertEqual(w.get_change_addresses()[0], '39RhtDchc6igmx5tyoimhojFL1ZbQBrXa6')
 
+    @needs_test_with_all_ecc_implementations
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_bip32_extended_version_bytes(self, mock_write):
+        seed_words = 'crouch dumb relax small truck age shine pink invite spatial object tenant'
+        self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
+        bip32_seed = keystore.bip39_to_seed(seed_words, '')
+        self.assertEqual('0df68c16e522eea9c1d8e090cfb2139c3b3a2abed78cbcb3e20be2c29185d3b8df4e8ce4e52a1206a688aeb88bfee249585b41a7444673d1f16c0d45755fa8b9',
+                         bh2u(bip32_seed))
+
+        def create_keystore_from_bip32seed(xtype):
+            ks = keystore.BIP32_KeyStore({})
+            ks.add_xprv_from_seed(bip32_seed, xtype=xtype, derivation='m/')
+            return ks
+
+        ks = create_keystore_from_bip32seed(xtype='standard')
+        self.assertEqual('033a05ec7ae9a9833b0696eb285a762f17379fa208b3dc28df1c501cf84fe415d0', ks.derive_pubkey(0, 0))
+        self.assertEqual('02bf27f41683d84183e4e930e66d64fc8af5508b4b5bf3c473c505e4dbddaeed80', ks.derive_pubkey(1, 0))
+
+        ks = create_keystore_from_bip32seed(xtype='standard')  # p2pkh
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(ks.xprv, 'xprv9s21ZrQH143K3nyWMZVjzGL4KKAE1zahmhTHuV5pdw4eK3o3igC5QywgQG7UTRe6TGBniPDpPFWzXMeMUFbBj8uYsfXGjyMmF54wdNt8QBm')
+        self.assertEqual(ks.xpub, 'xpub661MyMwAqRbcGH3yTb2kMQGnsLziRTJZ8vNthsVSCGbdBr8CGDWKxnGAFYgyKTzBtwvPPmfVAWJuFmxRXjSbUTg87wDkWQ5GmzpfUcN9t8Z')
+        self.assertEqual(w.get_receiving_addresses()[0], '19fWEVaXqgJFFn7JYNr6ouxyjZy3uK7CdK')
+        self.assertEqual(w.get_change_addresses()[0], '1EEX7da31qndYyeKdbM665w1ze5gbkkAZZ')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wpkh-p2sh')
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(ks.xprv, 'yprvABrGsX5C9janu6AdBvHNCMRZVHJfxcaCgoyWgsyi1wSXN9cGyLMe33bpRU54TLJ1ruJbTrpNqusYQeFvBx1CXNb9k1DhKtBFWo8b1sLbXhN')
+        self.assertEqual(ks.xpub, 'ypub6QqdH2c5z7967aF6HwpNZVNJ3K9AN5J442u7VGPKaGyWEwwRWsftaqvJGkeZKNe7Jb3C9FG3dAfT94ZzFRrcGhMizGvB6Jtm3itJsEFhxMC')
+        self.assertEqual(w.get_receiving_addresses()[0], '34SAT5gGF5UaBhhSZ8qEuuxYvZ2cm7Zi23')
+        self.assertEqual(w.get_change_addresses()[0], '38unULZaetSGSKvDx7Krukh8zm8NQnxGiA')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wpkh')
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(ks.xprv, 'zprvAWgYBBk7JR8GkPMk2H4zQSX4fFT7uEZhbvVjUGsbPwpQRFRWDzXCf7FxSg2eTEwwGYRQDLQwJaE6HvsUueRDKcGkcLv7unzjnXCEQVWhrF9')
+        self.assertEqual(ks.xpub, 'zpub6jftahH18ngZxsSD8JbzmaToDHHcJhHYy9RLGfHCxHMPJ3kemXqTCuaSHxc9KHJ2iE9ztirc5q212MBYy8Gd4w3KrccbgDiFKSwxFpYKEH6')
+        self.assertEqual(w.get_receiving_addresses()[0], 'bc1qtuynwzd0d6wptvyqmc6ehkm70zcamxpshyzu5e')
+        self.assertEqual(w.get_change_addresses()[0], 'bc1qjy5zunxh6hjysele86qqywfa437z4xwmleq8wk')
+
+        ks = create_keystore_from_bip32seed(xtype='standard')  # p2sh
+        w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
+        self.assertEqual(ks.xprv, 'xprv9s21ZrQH143K3nyWMZVjzGL4KKAE1zahmhTHuV5pdw4eK3o3igC5QywgQG7UTRe6TGBniPDpPFWzXMeMUFbBj8uYsfXGjyMmF54wdNt8QBm')
+        self.assertEqual(ks.xpub, 'xpub661MyMwAqRbcGH3yTb2kMQGnsLziRTJZ8vNthsVSCGbdBr8CGDWKxnGAFYgyKTzBtwvPPmfVAWJuFmxRXjSbUTg87wDkWQ5GmzpfUcN9t8Z')
+        self.assertEqual(w.get_receiving_addresses()[0], '3F4nm8Vunb7mxVvqhUP238PYge2hpU5qYv')
+        self.assertEqual(w.get_change_addresses()[0], '3N8jvKGmxzVHENn6B4zTdZt3N9bmRKjj96')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wsh-p2sh')
+        w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
+        self.assertEqual(ks.xprv, 'YprvANkMzkodih9AKfL18akM2RmND5LwAyFo15dBc9FFPiGvzLBBjjjv8ATkEB2Y1mWv6NNaLSpVj8G3XosgVBA9frhpaUL6jHeFQXQTbqVPcv2')
+        self.assertEqual(ks.xpub, 'Ypub6bjiQGLXZ4hTY9QUEcHMPZi6m7BRaRyeNJYnQXerx3ous8WLHH4AfxnE5Tc2sos1Y47B1qGAWP3xGEBkYf1ZRBUPpk2aViMkwTABT6qoiBb')
+        self.assertEqual(w.get_receiving_addresses()[0], '3L1BxLLASGKE3DR1ruraWm3hZshGCKqcJx')
+        self.assertEqual(w.get_change_addresses()[0], '3NDGcbZVXTpaQWRhiuVPpXsNt4g2JiCX4E')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wsh')
+        w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
+        self.assertEqual(ks.xprv, 'ZprvAhadJRUYsNgeAxX7xwXyEWrsP3VP7bFHvC9QPY98miep3RzQzPuUkE7tFNz81gAqW1VP5vR4BncbR6VFCsaAU6PRSp2XKCTjgFU6zRpk6Xp')
+        self.assertEqual(ks.xpub, 'Zpub6vZyhw1ShkEwPSbb4y4ybeobw5KsX3y9HR51BvYkL4BnvEKZXwDjJ2SN6fZcsiWvwhDymJriy3QW9WoKGMRaDR9zh5j15dBFDBDpqjK1ekQ')
+        self.assertEqual(w.get_receiving_addresses()[0], 'bc1q84x0yrztvcjg88qef4d6978zccxulcmc9y88xcg4ghjdau999x7q7zv2qe')
+        self.assertEqual(w.get_change_addresses()[0], 'bc1q0fj5mra96hhnum80kllklc52zqn6kppt3hyzr49yhr3ecr42z3tsrkg3gs')
+
 
 class TestWalletKeystoreAddressIntegrityForTestnet(TestCaseForTestnet):
 
@@ -326,6 +387,66 @@ class TestWalletKeystoreAddressIntegrityForTestnet(TestCaseForTestnet):
 
         self.assertEqual(w.get_receiving_addresses()[0], '2MzsfTfTGomPRne6TkctMmoDj6LwmVkDrMt')
         self.assertEqual(w.get_change_addresses()[0], '2NFp9w8tbYYP9Ze2xQpeYBJQjx3gbXymHX7')
+
+    @needs_test_with_all_ecc_implementations
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_bip32_extended_version_bytes(self, mock_write):
+        seed_words = 'crouch dumb relax small truck age shine pink invite spatial object tenant'
+        self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
+        bip32_seed = keystore.bip39_to_seed(seed_words, '')
+        self.assertEqual('0df68c16e522eea9c1d8e090cfb2139c3b3a2abed78cbcb3e20be2c29185d3b8df4e8ce4e52a1206a688aeb88bfee249585b41a7444673d1f16c0d45755fa8b9',
+                         bh2u(bip32_seed))
+
+        def create_keystore_from_bip32seed(xtype):
+            ks = keystore.BIP32_KeyStore({})
+            ks.add_xprv_from_seed(bip32_seed, xtype=xtype, derivation='m/')
+            return ks
+
+        ks = create_keystore_from_bip32seed(xtype='standard')
+        self.assertEqual('033a05ec7ae9a9833b0696eb285a762f17379fa208b3dc28df1c501cf84fe415d0', ks.derive_pubkey(0, 0))
+        self.assertEqual('02bf27f41683d84183e4e930e66d64fc8af5508b4b5bf3c473c505e4dbddaeed80', ks.derive_pubkey(1, 0))
+
+        ks = create_keystore_from_bip32seed(xtype='standard')  # p2pkh
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(ks.xprv, 'tprv8ZgxMBicQKsPecD328MF9ux3dSaSFWci7FNQmuWH7uZ86eY8i3XpvjK8KSH8To2QphiZiUqaYc6nzDC6bTw8YCB9QJjaQL5pAApN4z7vh2B')
+        self.assertEqual(ks.xpub, 'tpubD6NzVbkrYhZ4Y5Epun1qZKcACU6NQqocgYyC4RYaYBMWw8nuLSMR7DvzVamkqxwRgrTJ1MBMhc8wwxT2vbHqMu8RBXy4BvjWMxR5EdZroxE')
+        self.assertEqual(w.get_receiving_addresses()[0], 'mpBTXYfWehjW2tavFwpUdqBJbZZkup13k2')
+        self.assertEqual(w.get_change_addresses()[0], 'mtkUQgf1psDtL67wMAKTv19LrdgPWy6GDQ')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wpkh-p2sh')
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(ks.xprv, 'uprv8tXDerPXZ1QsVuQ9rV8sN13YoQitC8cD2MtdZJQAVuw19kMMxhhPYnyGLeEiThgLELqNTxS91GTLsVofKAM9LRrkGeRzzEuJRtt1Tcostr7')
+        self.assertEqual(ks.xpub, 'upub57Wa4MvRPNyAiPUcxWfsj8zHMSZNbbL4PapEMgon4FTz2YgWWF1e6bHkBvpDKk2Rg2Zy9LsonXFFbv7jNeCZ5kdKWv8UkfcoxpdjJrZuBX6')
+        self.assertEqual(w.get_receiving_addresses()[0], '2MuzNWpcHrXyvPVKzEGT7Xrwp8uEnXXjWnK')
+        self.assertEqual(w.get_change_addresses()[0], '2MzTzY5VcGLwce7YmdEwjXhgQD7LYEKLJTm')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wpkh')
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(ks.xprv, 'vprv9DMUxX4ShgxMMCbGgqvVa693yNsL8kbhwUQrLhJ3svJtCrAbDMrxArdQMrCJTcLFdyxBDS2hTvotknRE2rmA8fYM8z8Ra9inhcwerEsG6Ev')
+        self.assertEqual(ks.xpub, 'vpub5SLqN2bLY4WeZgfjnsTVwE5nXQhpYDKZJhLT95hfSFqs5eVjkuBCiewtD8moKegM5fgmtpUNFBboVCjJ6LcZszJvPFpuLaSJEYhNhUAnrCS')
+        self.assertEqual(w.get_receiving_addresses()[0], 'tb1qtuynwzd0d6wptvyqmc6ehkm70zcamxpsaze002')
+        self.assertEqual(w.get_change_addresses()[0], 'tb1qjy5zunxh6hjysele86qqywfa437z4xwm4lm549')
+
+        ks = create_keystore_from_bip32seed(xtype='standard')  # p2sh
+        w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
+        self.assertEqual(ks.xprv, 'tprv8ZgxMBicQKsPecD328MF9ux3dSaSFWci7FNQmuWH7uZ86eY8i3XpvjK8KSH8To2QphiZiUqaYc6nzDC6bTw8YCB9QJjaQL5pAApN4z7vh2B')
+        self.assertEqual(ks.xpub, 'tpubD6NzVbkrYhZ4Y5Epun1qZKcACU6NQqocgYyC4RYaYBMWw8nuLSMR7DvzVamkqxwRgrTJ1MBMhc8wwxT2vbHqMu8RBXy4BvjWMxR5EdZroxE')
+        self.assertEqual(w.get_receiving_addresses()[0], '2N6czpsRwQ3d8AHZPNbztf5NotzEsaZmVQ8')
+        self.assertEqual(w.get_change_addresses()[0], '2NDgwz4CoaSzdSAQdrCcLFWsJaVowCNgiPA')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wsh-p2sh')
+        w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
+        self.assertEqual(ks.xprv, 'Uprv95RJn67y7xyEvUZXo9brC5PMXCm9QVHoLdYJUZfhsgmQmvvGj75fduqC9MCC28uETouMLYSFtUqqzfRRcPW6UuyR77YQPeNJKd9t3XutF8b')
+        self.assertEqual(ks.xpub, 'Upub5JQfBberxLXY8xdzuB8rZDL65Ebdox1ehrTuGx5KS2JPejFRGePvBi9fzdmgtBFKuVdx1vsvfjdkj5jVfsMWEEjzMPEtA55orYubtrCZmRr')
+        self.assertEqual(w.get_receiving_addresses()[0], '2NBZQ25GC3ipaF13ZY3UT8i2xnDuS17pJqx')
+        self.assertEqual(w.get_change_addresses()[0], '2NDmUgLVX8vKvcJ4FQ37GSUre6QtBzKkb6k')
+
+        ks = create_keystore_from_bip32seed(xtype='p2wsh')
+        w = WalletIntegrityHelper.create_multisig_wallet([ks], '1of1')
+        self.assertEqual(ks.xprv, 'Vprv16YtLrHXxePM6noKqtFtMtmUgBE9bEpF3fPLmpvuPksssLostujtdHBwqhEeVuzESz22UY8hyPx9ed684SQpCmUKSVhpxPFbvVNY7qnviNR')
+        self.assertEqual(ks.xpub, 'Vpub5dEvVGKn7251zFq7jXvUmJRbFCk5ka19cxz84LyCp2gGhq4eXJZUomop1qjGt5uFK8kkmQUV8PzJcNM4PZmX2URbDiwJjyuJ8GyFHRrEmmG')
+        self.assertEqual(w.get_receiving_addresses()[0], 'tb1q84x0yrztvcjg88qef4d6978zccxulcmc9y88xcg4ghjdau999x7qf2696k')
+        self.assertEqual(w.get_change_addresses()[0], 'tb1q0fj5mra96hhnum80kllklc52zqn6kppt3hyzr49yhr3ecr42z3ts5777jl')
 
 
 class TestWalletSending(TestCaseForTestnet):
@@ -369,8 +490,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet1.is_mine(tx.inputs()[0]['address']), wallet1.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet1.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet1.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('010000000001010392c1940e2ec9f2372919ca3887327fe5b98b866022cc79bab5cbed5a53d2ad0000000000feffffff0290d00300000000001976a914ea7804a2c266063572cc009a63dc25dcc0e9d9b588ac285e0b0000000000160014690b59a8140602fb23cc2904ece9cc4daf361052024730440220608a5339ca894592da82119e1e4a1d09335d70a552c683687223b8ed724465e902201b3f0feccf391b1b6257e4b18970ae57d7ca060af2dae519b3690baad2b2a34e0121030faee9b4a25b7db82023ca989192712cdd4cb53d3d9338591c7909e581ae1c0c00000000',
+                         str(tx_copy))
         self.assertEqual('3c06ae4d9be8226a472b3e7f7c127c7e3016f525d658d26106b80b4c7e3228e2', tx_copy.txid())
+        self.assertEqual('d8d930ae91dce73118c3fffabbdfcfb87f5d91673fb4c7dfd0fbe7cf03bf426b', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)  # TX_HEIGHT_UNCONF_PARENT but nvm
         wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -386,8 +511,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet2.is_mine(tx.inputs()[0]['address']), wallet2.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet2.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet2.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('0100000001e228327e4c0bb80661d258d625f516307e7c127c7f3e2b476a22e89b4dae063c000000006b483045022100d3895b31e7c9766987c6f53794c7394f534f4acecefda5479d963236f9703d0b022026dd4e40700ceb788f136faf54bf85b966648dc7c2a608d8110604f2d22d59070121030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cffeffffff02a0860100000000001600148a28bddb7f61864bdcf58b2ad13d5aeb3abc3c4268360200000000001976a914ca4c60999c46c2108326590b125aefd476dcb11888ac00000000',
+                         str(tx_copy))
         self.assertEqual('5f25707571eb776bdf14142f9966bf2a681906e0a79501edbb99a972c2ceb972', tx_copy.txid())
+        self.assertEqual('5f25707571eb776bdf14142f9966bf2a681906e0a79501edbb99a972c2ceb972', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -439,8 +568,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet1a.is_mine(tx.inputs()[0]['address']), wallet1a.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet1a.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet1a.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('01000000017120d4e1f2cdfe7df000d632cff74167fb354f0546d5cfc228e5c98756d55cb201000000fdfe0000483045022100f9ce5616683e613ae14b98d56436454b003348a8172e2ed598018e3d206e57d7022030c65c6551e839f9e9409812be624dbb4e36bd4152c9ed9b0988c10fd8201d1401483045022100d5cb94d4d1dcf01bb9e9280e8178a7e9ada3ad14378ca543afcc9f5667b27cb2022018e76b74800a21934e73b226b34cbbe45c877fba64693da8a20d3cb330f2eafd014c69522102afb4af9a91264e1c6dce3ebe5312801723270ac0ba8134b7b49129328fcb0f2821030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cf2103e5db7969ae2f2576e6a061bf3bb2db16571e77ffb41e0b27170734359235cbce53aefeffffff0250a50500000000001976a9149cd3dfb0d87a861770ae4e268e74b45335cf00ab88ac2862b1000000000017a9142e517854aa54668128c0e9a3fdd4dec13ad571368700000000',
+                         str(tx_copy))
         self.assertEqual('26f3bdd0402e1cff19126244ebe3d32722cef0db507c7229ca8754f5e06ef25d', tx_copy.txid())
+        self.assertEqual('26f3bdd0402e1cff19126244ebe3d32722cef0db507c7229ca8754f5e06ef25d', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -456,8 +589,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet2.is_mine(tx.inputs()[0]['address']), wallet2.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet2.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet2.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('01000000015df26ee0f55487ca29727c50dbf0ce2227d3e3eb44621219ff1c2e40d0bdf326000000008b483045022100bd9f61ba82507d3a28922fb8be129e14699dfa54ddd03cc9494f696d38ac4121022071afca6fad5bc5c09b0a675e6444be3e97dbbdbc283764ee5f4e27a032d933d80141045f7ba332df2a7b4f5d13f246e307c9174cfa9b8b05f3b83410a3c23ef8958d610be285963d67c7bc1feb082f168fa9877c25999963ff8b56b242a852b23e25edfeffffff02a08601000000000017a91480c2353f6a7bc3c71e99e062655b19adb3dd2e4887280b0400000000001976a914ca14915184a2662b5d1505ce7142c8ca066c70e288ac00000000',
+                         str(tx_copy))
         self.assertEqual('c573b3f8464a4ed40dfc79d0889a780f44e917beef7a75883b2427c2987f3e95', tx_copy.txid())
+        self.assertEqual('c573b3f8464a4ed40dfc79d0889a780f44e917beef7a75883b2427c2987f3e95', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -524,8 +661,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet1a.is_mine(tx.inputs()[0]['address']), wallet1a.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet1a.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet1a.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('01000000000101213e1012a461e056752fab5a6414a2fb63f950cd21a50ac5e2b82d339d6cbdd20000000000feffffff023075000000000000220020cc5e4cc05a76d0648cd0742768556317e9f8cc729aed077134287909035dba88888402000000000017a914187842cea9c15989a51ce7ca889a08b824bf8743870400483045022100ea2fbd3d8681cfafdcae1bdaaa64f92fb9872fb8f6bf03a2b7effcf7390b66c8022021a79eff7975479934f958f3766d6ac61d708c79b785e398b3bcd84b1039e9b501483045022100dbc4f1ec18f0e0deb4ff88d7d5b3d3b7b500a80d0c0f33efbd3262f0c8689095022074fd226c0b52e3716ad907d14cba9c79aca482a8f4a51662ca83a5b9db49e15b016952210223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e2102aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae94153ae00000000',
+                         str(tx_copy))
         self.assertEqual('6e9c3cd8788bdb970a124ea06136d52bc01cec4f9b1e217627d5e90ebe77d049', tx_copy.txid())
+        self.assertEqual('c58650fb77d04577fccb3e201deecbf691ab52ffb61cd2e57996c4d51f7e980b', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -544,8 +685,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet2a.is_mine(tx.inputs()[0]['address']), wallet2a.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet2a.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet2a.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('0100000000010149d077be0ee9d52776211e9b4fec1cc02bd53661a04e120a97db8b78d83c9c6e01000000232200204311edae835c7a5aa712c8ca644180f13a3b2f3b420fa879b181474724d6163cfeffffff0260ea00000000000017a9143025051b6b5ccd4baf30dfe2de8aa84f0dd567ed87a0860100000000002200203c43ac80d6e3015cf378bf6bac0c22456723d6050bef324ec641e7762440c63c0400483045022100c254468bbe6b8bd1c8c01b6a223e46cc5c6b56fbba87d59575385ad249133b0e02207139688f8d6ae8076c92a266d98454d25c040d04c8e513a37bf7c32dad3e48210147304402204af5edbab2d674f6a9edef8c97b2f7fdf8ababedc7b287710cc7a64d4699358b022064e2d07f4bb32373be31b2003dc56b7b831a7c01419326efb3011c64b898b3f00147522102119f899075a131d4d519d4cdcf5de5907dc2df3b93d54b53ded852211d2b6cb12102fdb0f6775d4b6619257c43343ba5e7807b0164f1eb3f00f2b594ab9e53ab812652ae00000000',
+                         str(tx_copy))
         self.assertEqual('84b0dcb43022385f7a10e2710e5625a2be3cd6e390387b6100b55500d5eea8f6', tx_copy.txid())
+        self.assertEqual('7e561e25da843326e61fd20a40b72fcaeb8690176fc7c3fcbadb3a0146c8396c', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -589,8 +734,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet1a.is_mine(tx.inputs()[0]['address']), wallet1a.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet1a.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet1a.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('0100000001a391c8b3d4a551eac85714f3f0a7514381c014ba4688de085b0fcee42dc13711010000009200483045022100fcf03aeb97b66791372c18aa0dd651817cf458d941dd628c966f0305a023360f022016c534530e267b6a52f90e62aa9fb50ace609ffb21e472d3ba7b29db9b30050e014751210245c90e040d4f9d1fc136b3d4d6b7535bbb5df2bd27666c21977042cc1e05b5b02103c9a6bebfce6294488315e58137a279b2efe09f1f528ecf93b40675ded3cf0e5f52aefeffffff0240420f000000000017a9149573eb50f3136dff141ac304190f41c8becc92ce8738b32d000000000017a914b815d1b430ae9b632e3834ed537f7956325ee2a98700000000',
+                         str(tx_copy))
         self.assertEqual('1b7e94860b9681d4e371928d40fdbd4641e991aa74f1a211f239c887047e4a2a', tx_copy.txid())
+        self.assertEqual('1b7e94860b9681d4e371928d40fdbd4641e991aa74f1a211f239c887047e4a2a', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -606,8 +755,12 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual(wallet2.is_mine(tx.inputs()[0]['address']), wallet2.is_mine(tx_copy.inputs()[0]['address']))
         self.assertTrue(wallet2.is_mine(tx.inputs()[0]['address']))
         self.assertEqual(wallet2.txin_type, tx_copy.inputs()[0]['type'])
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        self.assertEqual('010000000001012a4a7e0487c839f211a2f174aa91e94146bdfd408d9271e3d481960b86947e1b00000000171600149fad840ed174584ee054bd26f3e411817338c5edfeffffff02e09304000000000017a914b0b9f31bace76cdfae2c14abc03e223403d7dc4b87d89a0a000000000017a9148ccd0efb2be5b412c4033715f560ed8f446c8ceb87024830450221009c816c3e0c40b37085244f0976f65635b8d711952bad9843c5f51e386fd37cc402202c34a4a7227182742d9f93e9f28c4bd30ded6514550f39614cb5ad00e46690070121038362bbf0b4918b37e9d7c75930ed3a78e3d445724cb5c37ade4a59b6e411fe4e00000000',
+                         str(tx_copy))
         self.assertEqual('f65edb0843ff44436dc5964fb6b298e157502b9b4a83dac6b82dd2d2a3247d0a', tx_copy.txid())
+        self.assertEqual('63efc09db4c7445eaaca9a5e7732202f42aec81a53b05d819f1918ce0cf3b84d', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -617,7 +770,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual((0, 1000000 - 5000 - 300000, 0), wallet2.get_balance())
 
 
-class TestWalletHistory(TestCaseForTestnet):
+class TestWalletHistory_SimpleRandomOrder(TestCaseForTestnet):
     transactions = {
         "0f4972c84974b908a58dda2614b68cf037e6c03e8291898c719766f213217b67": "01000000029d1bdbe67f0bd0d7bd700463f5c29302057c7b52d47de9e2ca5069761e139da2000000008b483045022100a146a2078a318c1266e42265a369a8eef8993750cb3faa8dd80754d8d541d5d202207a6ab8864986919fd1a7fd5854f1e18a8a0431df924d7a878ec3dc283e3d75340141045f7ba332df2a7b4f5d13f246e307c9174cfa9b8b05f3b83410a3c23ef8958d610be285963d67c7bc1feb082f168fa9877c25999963ff8b56b242a852b23e25edfeffffff9d1bdbe67f0bd0d7bd700463f5c29302057c7b52d47de9e2ca5069761e139da2010000008a47304402201c7fa37b74a915668b0244c01f14a9756bbbec1031fb69390bcba236148ab37e02206151581f9aa0e6758b503064c1e661a726d75c6be3364a5a121a8c12cf618f64014104dc28da82e141416aaf771eb78128d00a55fdcbd13622afcbb7a3b911e58baa6a99841bfb7b99bcb7e1d47904fda5d13fdf9675cdbbe73e44efcc08165f49bac6feffffff02b0183101000000001976a914ca14915184a2662b5d1505ce7142c8ca066c70e288ac005a6202000000001976a9145eb4eeaefcf9a709f8671444933243fbd05366a388ac54c51200",
         "2791cdc98570cc2b6d9d5b197dc2d002221b074101e3becb19fab4b79150446d": "010000000132201ff125888a326635a2fc6e971cd774c4d0c1a757d742d0f6b5b020f7203a050000006a47304402201d20bb5629a35b84ff9dd54788b98e265623022894f12152ac0e6158042550fe02204e98969e1f7043261912dd0660d3da64e15acf5435577fc02a00eccfe76b323f012103a336ad86546ab66b6184238fe63bb2955314be118b32fa45dd6bd9c4c5875167fdffffff0254959800000000001976a9148d2db0eb25b691829a47503006370070bc67400588ac80969800000000001976a914f96669095e6df76cfdf5c7e49a1909f002e123d088ace8ca1200",
@@ -673,3 +826,54 @@ class TestWalletHistory(TestCaseForTestnet):
             tx = Transaction(self.transactions[self.txid_list[i]])
             w.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual(27633300, sum(w.get_balance()))
+
+
+class TestWalletHistory_EvilGapLimit(TestCaseForTestnet):
+    transactions = {
+        # txn A:
+        "511a35e240f4c8855de4c548dad932d03611a37e94e9203fdb6fc79911fe1dd4": "010000000001018aacc3c8f98964232ebb74e379d8ff4e800991eecfcf64bd1793954f5e50a8790100000000fdffffff0340420f0000000000160014dbf321e905d544b54b86a2f3ed95b0ac66a3ddb0ff0514000000000016001474f1c130d3db22894efb3b7612b2c924628d0d7e80841e000000000016001488492707677190c073b6555fb08d37e91bbb75d802483045022100cf2904e09ea9d2670367eccc184d92fcb8a9b9c79a12e4efe81df161077945db02203530276a3401d944cf7a292e0660f36ee1df4a1c92c131d2c0d31d267d52524901210215f523a412a5262612e1a5ef9842dc864b0d73dc61fb4c6bfd480a867bebb1632e181400",
+        # txn B:
+        "fde0b68938709c4979827caa576e9455ded148537fdb798fd05680da64dc1b4f": "01000000000101a317998ac6cc717de17213804e1459900fe257b9f4a3b9b9edd29806728277530100000000fdffffff03c0c62d00000000001600149543301687b1ca2c67718d55fbe10413c73ddec200093d00000000001600141bc12094a4475dcfbf24f9920dafddf9104ca95b3e4a4c0000000000160014b226a59f2609aa7da4026fe2c231b5ae7be12ac302483045022100f1082386d2ce81612a3957e2801803938f6c0066d76cfbd853918d4119f396df022077d05a2b482b89707a8a600013cb08448cf211218a462f2a23c2c0d80a8a0ca7012103f4aac7e189de53d95e0cb2e45d3c0b2be18e93420734934c61a6a5ad88dd541033181400",
+        # txn C:
+        "268fce617aaaa4847835c2212b984d7b7741fdab65de22813288341819bc5656": "010000000001014f1bdc64da8056d08f79db7f5348d1de55946e57aa7c8279499c703889b6e0fd0100000000fdffffff0260e316000000000016001445e9879cf7cd5b4a15df7ddcaf5c6dca0e1508bacc242600000000001600141bc12094a4475dcfbf24f9920dafddf9104ca95b02483045022100ae3618912f341fefee11b67e0047c47c88c4fa031561c3fafe993259dd14d846022056fa0a5b5d8a65942fa68bcc2f848fd71fa455ba42bc2d421b67eb49ba62aa4e01210394d8f4f06c2ea9c569eb050c897737a7315e7f2104d9b536b49968cc89a1f11033181400",
+    }
+
+    @classmethod
+    def create_wallet(cls):
+        ks = keystore.from_xpub('vpub5Vhmk4dEJKanDTTw6immKXa3thw45u3gbd1rPYjREB6viP13sVTWcH6kvbR2YeLtGjradr6SFLVt9PxWDBSrvw1Dc1nmd3oko3m24CQbfaJ')
+        # seed words: nephew work weather maze pyramid employ check permit garment scene kiwi smooth
+        w = WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=20)
+        return w
+
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_restoring_wallet_txorder1(self, mock_write):
+        w = self.create_wallet()
+        w.storage.put('stored_height', 1316917 + 100)
+        for txid in self.transactions:
+            tx = Transaction(self.transactions[txid])
+            w.transactions[tx.txid()] = tx
+        # txn A is an external incoming txn paying to addr (3) and (15)
+        # txn B is an external incoming txn paying to addr (4) and (25)
+        # txn C is an internal transfer txn from addr (25) -- to -- (1) and (25)
+        w.receive_history_callback('tb1qgh5c088he4d559wl0hw27hrdeg8p2z96pefn4q',  # HD index 1
+                                   [('268fce617aaaa4847835c2212b984d7b7741fdab65de22813288341819bc5656', 1316917)],
+                                   {})
+        w.synchronize()
+        w.receive_history_callback('tb1qm0ejr6g964zt2jux5te7m9ds43n28hdsdz9ull',  # HD index 3
+                                   [('511a35e240f4c8855de4c548dad932d03611a37e94e9203fdb6fc79911fe1dd4', 1316912)],
+                                   {})
+        w.synchronize()
+        w.receive_history_callback('tb1qj4pnq958k89zcem3342lhcgyz0rnmhkzl6x0cl',  # HD index 4
+                                   [('fde0b68938709c4979827caa576e9455ded148537fdb798fd05680da64dc1b4f', 1316917)],
+                                   {})
+        w.synchronize()
+        w.receive_history_callback('tb1q3pyjwpm8wxgvquak240mprfhaydmkawcsl25je',  # HD index 15
+                                   [('511a35e240f4c8855de4c548dad932d03611a37e94e9203fdb6fc79911fe1dd4', 1316912)],
+                                   {})
+        w.synchronize()
+        w.receive_history_callback('tb1qr0qjp99ygawul0eylxfqmt7alygye22mj33vej',  # HD index 25
+                                   [('fde0b68938709c4979827caa576e9455ded148537fdb798fd05680da64dc1b4f', 1316917),
+                                    ('268fce617aaaa4847835c2212b984d7b7741fdab65de22813288341819bc5656', 1316917)],
+                                   {})
+        w.synchronize()
+        self.assertEqual(9999788, sum(w.get_balance()))

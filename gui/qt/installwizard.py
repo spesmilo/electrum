@@ -379,13 +379,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 self.show_warning(_('The file was removed'))
             return
 
-        if self.storage.requires_upgrade():
-            self.storage.upgrade()
-            self.wallet = Wallet(self.storage)
-            return self.wallet
-
         action = self.storage.get_action()
-        if action and action != 'new':
+        if action and action not in ('new', 'upgrade_storage'):
             self.hide()
             msg = _("The file '{}' contains an incompletely created wallet.\n"
                     "Do you want to complete its creation now?").format(path)
@@ -414,7 +409,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     def set_icon(self, filename):
         prior_filename, self.icon_filename = self.icon_filename, filename
-        self.logo.setPixmap(QPixmap(filename).scaledToWidth(60))
+        self.logo.setPixmap(QPixmap(filename).scaledToWidth(60, mode=Qt.SmoothTransformation))
         return prior_filename
 
     def set_layout(self, layout, title=None, next_enabled=True):
@@ -568,12 +563,26 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def terminate(self):
         self.accept_signal.emit()
 
-    def waiting_dialog(self, task, msg):
-        self.please_wait.setText(msg)
-        self.refresh_gui()
-        t = threading.Thread(target = task)
+    def waiting_dialog(self, task, msg, on_finished=None):
+        label = WWLabel(msg)
+        vbox = QVBoxLayout()
+        vbox.addSpacing(100)
+        label.setMinimumWidth(300)
+        label.setAlignment(Qt.AlignCenter)
+        vbox.addWidget(label)
+        self.set_layout(vbox, next_enabled=False)
+        self.back_button.setEnabled(False)
+
+        t = threading.Thread(target=task)
         t.start()
-        t.join()
+        while True:
+            t.join(1.0/60)
+            if t.is_alive():
+                self.refresh_gui()
+            else:
+                break
+        if on_finished:
+            on_finished()
 
     @wizard_dialog
     def choice_dialog(self, title, message, choices, run_next):

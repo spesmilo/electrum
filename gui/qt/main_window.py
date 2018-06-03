@@ -1766,7 +1766,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return self.create_list_tab(l)
 
     def remove_address(self, addr):
-        if self.question(_("Do you want to remove")+" %s "%addr +_("from your wallet?")):
+        if self.question(_("Do you want to remove {} from your wallet?").format(addr)):
             self.wallet.delete_address(addr)
             self.need_update.set()  # history, addresses, coins
             self.clear_receive_tab()
@@ -2070,7 +2070,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.gui_object.daemon.stop_wallet(wallet_path)
         self.close()
         os.unlink(wallet_path)
-        self.show_error("Wallet removed:" + basename)
+        self.show_error(_("Wallet removed: {}").format(basename))
 
     @protected
     def show_seed_dialog(self, password):

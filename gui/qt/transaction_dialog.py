@@ -238,7 +238,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.date_label.show()
         elif exp_n:
             text = '%.2f MB'%(exp_n/1000000)
-            self.date_label.setText(_('Position in mempool') + ': ' + text + ' ' + _('from tip'))
+            self.date_label.setText(_('Position in mempool: {} from tip').format(text))
             self.date_label.show()
         else:
             self.date_label.hide()
