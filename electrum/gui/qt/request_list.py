@@ -37,22 +37,22 @@ from .util import MyTreeWidget, pr_tooltips, pr_icons
 
 
 class RequestList(MyTreeWidget):
-    filter_columns = [0, 2, 3, 4]  # Date, Address, Description, Amount
+    filter_columns = [0, 1, 2, 3]  # Date, Address, Description, Amount
 
     def __init__(self, parent):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Date'), _('Type'), _('Address'), _('Description'), _('Amount'), _('Status')], 3)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Date'), _('Address'), _('Description'), _('Amount'), _('Status')], 2)
         self.currentItemChanged.connect(self.item_changed)
         self.itemClicked.connect(self.item_changed)
         self.setSortingEnabled(True)
         self.setColumnWidth(0, 180)
-        self.setColumnWidth(2, 250)
+        self.setColumnWidth(1, 250)
 
     def update_headers(self, headers):
         self.setColumnCount(len(headers))
         self.setHeaderLabels(headers)
         self.header().setStretchLastSection(False)
         for col in range(len(headers)):
-            if col in [2]: continue
+            if col in [1]: continue
             sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
             self.header().setSectionResizeMode(col, sm)
 
@@ -61,7 +61,7 @@ class RequestList(MyTreeWidget):
             return
         if not item.isSelected():
             return
-        addr = str(item.text(2))
+        addr = str(item.text(1))
         self.parent.receive_address_e.setText(addr)
         #req = self.wallet.receive_requests.get(addr)
         #if req is None:
@@ -111,10 +111,10 @@ class RequestList(MyTreeWidget):
             requestor = req.get('name', '')
             amount_str = self.parent.format_amount(amount) if amount else ""
             URI = self.parent.get_request_URI(address)
-            item = QTreeWidgetItem([date, '', URI, message, amount_str, pr_tooltips.get(status,'')])
+            item = QTreeWidgetItem([date, URI, message, amount_str, pr_tooltips.get(status,'')])
             if signature is not None:
-                item.setIcon(2, self.icon_cache.get(":icons/seal.png"))
-                item.setToolTip(2, 'signed by '+ requestor)
+                item.setIcon(1, self.icon_cache.get(":icons/seal.png"))
+                item.setToolTip(1, 'signed by '+ requestor)
             if status is not PR_UNKNOWN:
                 item.setIcon(6, self.icon_cache.get(pr_icons.get(status)))
             self.addTopLevelItem(item)
@@ -130,7 +130,7 @@ class RequestList(MyTreeWidget):
                     break
                 else:
                     description = ''
-            item = QTreeWidgetItem([date, '', r, description, amount_str, ''])
+            item = QTreeWidgetItem([date, r, description, amount_str, ''])
             item.setIcon(1, QIcon(":icons/lightning.png"))
             self.addTopLevelItem(item)
 
