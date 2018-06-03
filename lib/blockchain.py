@@ -30,6 +30,11 @@ from .bitcoin import *
 
 MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
 
+
+class MissingHeader(Exception):
+    pass
+
+
 def serialize_header(res):
     s = int_to_hex(res.get('version'), 4) \
         + rev_hex(res.get('prev_block_hash')) \
@@ -300,6 +305,8 @@ class Blockchain(util.PrintError):
         # new target
         first = self.read_header(index * 2016)
         last = self.read_header(index * 2016 + 2015)
+        if not first or not last:
+            raise MissingHeader()
         bits = last.get('bits')
         target = self.bits_to_target(bits)
         nActualTimespan = last.get('timestamp') - first.get('timestamp')
@@ -343,7 +350,10 @@ class Blockchain(util.PrintError):
             return False
         if prev_hash != header.get('prev_block_hash'):
             return False
-        target = self.get_target(height // 2016 - 1)
+        try:
+            target = self.get_target(height // 2016 - 1)
+        except MissingHeader:
+            return False
         try:
             self.verify_header(header, prev_hash, target)
         except BaseException as e:
