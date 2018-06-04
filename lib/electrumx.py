@@ -36,6 +36,7 @@ class ElectrumX(network.Network):
             for x in hash2address.keys()]
         self.send(msgs, self.map_scripthash_to_address(callback))
 
+    # TODO Remove this is favor of get_history_for_scripthash
     def request_address_history(self, address, callback):
         h = bitcoin.address_to_scripthash(address)
         self.h2addr.update({h: address})
@@ -78,6 +79,7 @@ class ElectrumX(network.Network):
             invocation,
             callback)
 
+    # NOTE: Deprecated since ElectrumX 1.2. Use subscribe_to_scripthash.
     def subscribe_to_address(self, address, callback=None):
         command = 'blockchain.address.subscribe'
         invocation = lambda c: self.send([(command, [address])], c)
