@@ -27,7 +27,7 @@ from . import lnrouter
 is_key = lambda k: k.endswith("_basepoint") or k.endswith("_key")
 
 def maybeDecode(k, v):
-    if k in ["node_id", "short_channel_id", "pubkey", "privkey", "last_per_commitment_point", "next_per_commitment_point", "per_commitment_secret_seed"] and v is not None:
+    if k in ["node_id", "channel_id", "short_channel_id", "pubkey", "privkey", "last_per_commitment_point", "next_per_commitment_point", "per_commitment_secret_seed"] and v is not None:
         return binascii.unhexlify(v)
     return v
 
@@ -102,14 +102,12 @@ class LNWorker(PrintError):
         self.nodes = {}  # received node announcements
         self.channel_db = lnrouter.ChannelDB()
         self.path_finder = lnrouter.LNPathFinder(self.channel_db)
-        self.channels = {x['channel_id']: reconstruct_namedtuples(x) for x in wallet.storage.get("channels", [])}
+        self.channels = {x.channel_id: x for x in map(reconstruct_namedtuples, wallet.storage.get("channels", []))}
         self.invoices = wallet.storage.get('lightning_invoices', {})
         peer_list = network.config.get('lightning_peers', node_list)
-        self.channel_state = {chan.channel_id: "OPENING" for chan in self.channels.values()}
+        self.channel_state = {chan.channel_id: "DISCONNECTED" for chan in self.channels.values()}
         for host, port, pubkey in peer_list:
             self.add_peer(host, int(port), pubkey)
-
-        self.callbacks = defaultdict(list)
         # wait until we see confirmations
         self.network.register_callback(self.on_network_update, ['updated', 'verified']) # thread safe
         self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
@@ -159,7 +157,7 @@ class LNWorker(PrintError):
 
     def on_network_update(self, event, *args):
         for chan in self.channels.values():
-            if self.channel_state[chan.channel_id] == "OPEN":
+            if self.channel_state[chan.channel_id] != "OPENING":
                 continue
             chan = self.save_short_chan_id(chan)
             if not chan:
@@ -171,6 +169,7 @@ class LNWorker(PrintError):
     # aiosafe because we don't wait for result
     @aiosafe
     async def wait_funding_locked_and_mark_open(self, peer, chan):
+        await peer.initialized
         if self.channel_state[chan.channel_id] == "OPEN":
             return
         if not chan.local_state.funding_locked_received:
