@@ -1338,7 +1338,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if freeze_feerate or self.fee_slider.is_active():
                 displayed_feerate = self.feerate_e.get_amount()
                 if displayed_feerate:
-                    displayed_feerate = quantize_feerate(displayed_feerate / 1000)
+                    displayed_feerate = quantize_feerate(displayed_feerate)
                 else:
                     # fallback to actual fee
                     displayed_feerate = quantize_feerate(fee / size) if fee is not None else None
@@ -1438,8 +1438,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.is_send_fee_frozen():
             fee_estimator = self.fee_e.get_amount()
         elif self.is_send_feerate_frozen():
-            amount = self.feerate_e.get_amount()
-            amount = 0 if amount is None else amount
+            amount = self.feerate_e.get_amount()  # sat/byte feerate
+            amount = 0 if amount is None else amount * 1000  # sat/kilobyte feerate
             fee_estimator = partial(
                 simple_config.SimpleConfig.estimate_fee_for_feerate, amount)
         else:
