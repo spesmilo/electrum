@@ -1094,6 +1094,7 @@ class Network(util.DaemonThread):
 
         if callback:
             invocation(callback)
+            return
 
         try:
             out = Network.__wait_for(invocation)
