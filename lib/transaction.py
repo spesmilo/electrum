@@ -44,6 +44,7 @@ import sys
 from .keystore import xpubkey_to_address, xpubkey_to_pubkey
 
 NO_SIGNATURE = 'ff'
+PARTIAL_TXN_HEADER_MAGIC = b'EPTF\xff'
 
 
 class SerializationError(Exception):
@@ -383,15 +384,6 @@ def parse_scriptSig(d, _bytes):
                 bh2u(_bytes))
 
 
-def _revise_txin_type_guess_for_txin(txin):
-    _type = txin.get('type', 'unknown')
-    # fix incorrect guess of p2sh-segwit
-    we_guessed_segwit_input_type = Transaction.is_segwit_inputtype(_type)
-    has_zero_witness = txin.get('witness', '00') in ('00', None)
-    if we_guessed_segwit_input_type and has_zero_witness:
-        txin['type'] = 'unknown'
-
-
 def parse_redeemScript_multisig(redeem_script: bytes):
     dec2 = [ x for x in script_GetOp(redeem_script) ]
     try:
@@ -443,7 +435,7 @@ def get_address_from_output_script(_bytes, *, net=None):
     return TYPE_SCRIPT, bh2u(_bytes)
 
 
-def parse_input(vds):
+def parse_input(vds, full_parse: bool):
     d = {}
     prevout_hash = hash_encode(vds.read_bytes(32))
     prevout_n = vds.read_uint32()
@@ -451,23 +443,22 @@ def parse_input(vds):
     sequence = vds.read_uint32()
     d['prevout_hash'] = prevout_hash
     d['prevout_n'] = prevout_n
+    d['scriptSig'] = bh2u(scriptSig)
     d['sequence'] = sequence
+    d['type'] = 'unknown' if prevout_hash != '00'*32 else 'coinbase'
+    d['address'] = None
+    d['num_sig'] = 0
+    if not full_parse:
+        return d
     d['x_pubkeys'] = []
     d['pubkeys'] = []
     d['signatures'] = {}
-    d['address'] = None
-    d['num_sig'] = 0
-    d['scriptSig'] = bh2u(scriptSig)
-    if prevout_hash == '00'*32:
-        d['type'] = 'coinbase'
-    else:
-        d['type'] = 'unknown'
-        if scriptSig:
-            try:
-                parse_scriptSig(d, scriptSig)
-            except BaseException:
-                traceback.print_exc(file=sys.stderr)
-                print_error('failed to parse scriptSig', bh2u(scriptSig))
+    if d['type'] != 'coinbase' and scriptSig:
+        try:
+            parse_scriptSig(d, scriptSig)
+        except BaseException:
+            traceback.print_exc(file=sys.stderr)
+            print_error('failed to parse scriptSig', bh2u(scriptSig))
     return d
 
 
@@ -483,27 +474,22 @@ def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
     return witness
 
 
-def parse_witness(vds, txin):
+def parse_witness(vds, txin, full_parse: bool):
     n = vds.read_compact_size()
     if n == 0:
+        txin['witness'] = '00'
         return
     if n == 0xffffffff:
         txin['value'] = vds.read_uint64()
         n = vds.read_compact_size()
     # now 'n' is the number of items in the witness
     w = list(bh2u(vds.read_bytes(vds.read_compact_size())) for i in range(n))
-
     txin['witness'] = construct_witness(w)
+    if not full_parse:
+        return
 
-    # FIXME: witness version > 0 will probably fail here.
-    # For native segwit, we would need the scriptPubKey of the parent txn
-    # to determine witness program version, and properly parse the witness.
-    # In case of p2sh-segwit, we can tell based on the scriptSig in this txn.
-    # The code below assumes witness version 0.
-    # p2sh-segwit should work in that case; for native segwit we need to tell
-    # between p2wpkh and p2wsh; we do this based on number of witness items,
-    # hence (FIXME) p2wsh with n==2 (maybe n==1 ?) will probably fail.
-    # If v==0 and n==2, we need parent scriptPubKey to distinguish between p2wpkh and p2wsh.
+    # NOTE: when witness version 1 comes, if we need to distinguish it for partial txns here,
+    # we could put the witness version in our partial format, e.g. after value
     try:
         if txin['type'] == 'coinbase':
             pass
@@ -533,7 +519,6 @@ def parse_witness(vds, txin):
             raise UnknownTxinType()
     except UnknownTxinType:
         txin['type'] = 'unknown'
-        # FIXME: GUI might show 'unknown' address (e.g. for a non-multisig p2wsh)
     except BaseException:
         txin['type'] = 'unknown'
         traceback.print_exc(file=sys.stderr)
@@ -550,11 +535,21 @@ def parse_output(vds, i):
     return d
 
 
-def deserialize(raw):
-    vds = BCDataStream()
-    vds.write(bfh(raw))
+def deserialize(raw: str, force_full_parse=False) -> dict:
+    raw_bytes = bfh(raw)
     d = {}
-    start = vds.read_cursor
+    if raw_bytes[:5] == PARTIAL_TXN_HEADER_MAGIC:
+        d['partial'] = is_partial = True
+        partial_format_version = raw_bytes[5]
+        if partial_format_version != 0:
+            raise SerializationError('unknown tx partial serialization format version: {}'
+                                     .format(partial_format_version))
+        raw_bytes = raw_bytes[6:]
+    else:
+        d['partial'] = is_partial = False
+    full_parse = force_full_parse or is_partial
+    vds = BCDataStream()
+    vds.write(raw_bytes)
     d['version'] = vds.read_int32()
     n_vin = vds.read_compact_size()
     is_segwit = (n_vin == 0)
@@ -563,17 +558,15 @@ def deserialize(raw):
         if marker != b'\x01':
             raise ValueError('invalid txn marker byte: {}'.format(marker))
         n_vin = vds.read_compact_size()
-    d['inputs'] = [parse_input(vds) for i in range(n_vin)]
+    d['segwit_ser'] = is_segwit
+    d['inputs'] = [parse_input(vds, full_parse=full_parse) for i in range(n_vin)]
     n_vout = vds.read_compact_size()
     d['outputs'] = [parse_output(vds, i) for i in range(n_vout)]
     if is_segwit:
         for i in range(n_vin):
             txin = d['inputs'][i]
-            parse_witness(vds, txin)
+            parse_witness(vds, txin, full_parse=full_parse)
     d['lockTime'] = vds.read_uint32()
-    for i in range(n_vin):
-        txin = d['inputs'][i]
-        _revise_txin_type_guess_for_txin(txin)
     return d
 
 
@@ -613,6 +606,10 @@ class Transaction:
         self._outputs = None
         self.locktime = 0
         self.version = 1
+        # by default we assume this is a partial txn;
+        # this value will get properly set when deserializing
+        self.is_partial_originally = True
+        self._segwit_ser = None  # None means "don't know"
 
     def update(self, raw):
         self.raw = raw
@@ -645,7 +642,9 @@ class Transaction:
 
     def update_signatures(self, raw):
         """Add new signatures to a transaction"""
-        d = deserialize(raw)
+        if self.is_complete():
+            return
+        d = deserialize(raw, force_full_parse=True)
         for i, txin in enumerate(self.inputs()):
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             sigs1 = txin.get('signatures')
@@ -689,6 +688,8 @@ class Transaction:
         self._outputs = [(x['type'], x['address'], x['value']) for x in d['outputs']]
         self.locktime = d['lockTime']
         self.version = d['version']
+        self.is_partial_originally = d['partial']
+        self._segwit_ser = d['segwit_ser']
         return d
 
     @classmethod
@@ -842,6 +843,8 @@ class Transaction:
         if txin['type'] == 'coinbase':
             return True
         num_sig = txin.get('num_sig', 1)
+        if num_sig == 0:
+            return True
         x_signatures = txin['signatures']
         signatures = list(filter(None, x_signatures))
         return len(signatures) == num_sig
@@ -932,9 +935,21 @@ class Transaction:
         return preimage
 
     def is_segwit(self):
+        if not self.is_partial_originally:
+            return self._segwit_ser
         return any(self.is_segwit_input(x) for x in self.inputs())
 
     def serialize(self, estimate_size=False, witness=True):
+        network_ser = self.serialize_to_network(estimate_size, witness)
+        if estimate_size:
+            return network_ser
+        if self.is_partial_originally and not self.is_complete():
+            partial_format_version = '00'
+            return bh2u(PARTIAL_TXN_HEADER_MAGIC) + partial_format_version + network_ser
+        else:
+            return network_ser
+
+    def serialize_to_network(self, estimate_size=False, witness=True):
         nVersion = int_to_hex(self.version, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
@@ -1056,6 +1071,8 @@ class Transaction:
         return s, r
 
     def is_complete(self):
+        if not self.is_partial_originally:
+            return True
         s, r = self.signature_count()
         return r == s
 
