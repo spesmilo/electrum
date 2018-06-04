@@ -107,27 +107,34 @@ class AddressList(MyTreeWidget):
                 continue
             balance_text = self.parent.format_amount(balance, whitespaces=True)
             fx = self.parent.fx
+            # create item
             if fx and fx.get_fiat_address_config():
                 rate = fx.exchange_rate()
                 fiat_balance = fx.value_str(balance, rate)
                 address_item = SortableTreeWidgetItem(['', address, label, balance_text, fiat_balance, "%d"%num])
-                address_item.setTextAlignment(4, Qt.AlignRight)
-                address_item.setFont(4, QFont(MONOSPACE_FONT))
             else:
                 address_item = SortableTreeWidgetItem(['', address, label, balance_text, "%d"%num])
-            address_item.setFont(3, QFont(MONOSPACE_FONT))
+            # align text and set fonts
+            for i in range(address_item.columnCount()):
+                address_item.setTextAlignment(i, Qt.AlignVCenter)
+                if i not in (0, 2):
+                    address_item.setFont(i, QFont(MONOSPACE_FONT))
+            if fx and fx.get_fiat_address_config():
+                address_item.setTextAlignment(4, Qt.AlignRight | Qt.AlignVCenter)
+            # setup column 0
             if self.wallet.is_change(address):
                 address_item.setText(0, _('change'))
                 address_item.setBackground(0, ColorScheme.YELLOW.as_color(True))
             else:
                 address_item.setText(0, _('receiving'))
                 address_item.setBackground(0, ColorScheme.GREEN.as_color(True))
-            address_item.setFont(1, QFont(MONOSPACE_FONT))
             address_item.setData(0, Qt.UserRole, address)  # column 0; independent from address column
+            # setup column 1
             if self.wallet.is_frozen(address):
                 address_item.setBackground(1, ColorScheme.BLUE.as_color(True))
             if self.wallet.is_beyond_limit(address):
                 address_item.setBackground(1, ColorScheme.RED.as_color(True))
+            # add item
             self.addChild(address_item)
             if address == current_address:
                 self.setCurrentItem(address_item)
