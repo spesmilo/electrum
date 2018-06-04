@@ -711,7 +711,7 @@ class Network(util.DaemonThread):
         interface.mode = 'default'
         interface.request = None
         self.interfaces[server] = interface
-        self.queue_request('blockchain.headers.subscribe', [], interface)
+        self.queue_request('blockchain.headers.subscribe', [True], interface)
         if server == self.default_server:
             self.switch_to_interface(server)
         #self.notify('interfaces')
@@ -983,10 +983,9 @@ class Network(util.DaemonThread):
         self.stop_network()
         self.on_stop()
 
-    def on_notify_header(self, interface, header):
-        height = header.get('block_height')
-        if not height:
-            return
+    def on_notify_header(self, interface, header_dict):
+        header_hex, height = header_dict['hex'], header_dict['height']
+        header = blockchain.deserialize_header(bfh(header_hex), height)
         if height < self.max_checkpoint():
             self.connection_down(interface.server)
             return

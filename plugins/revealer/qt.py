@@ -21,6 +21,7 @@ import random
 import qrcode
 import traceback
 from hashlib import sha256
+from decimal import Decimal
 
 from PyQt5.QtPrintSupport import QPrinter
 
@@ -714,9 +715,9 @@ class Plugin(BasePlugin):
         if not d.exec_():
             return
 
-        self.calibration_h = int(horizontal.text())
+        self.calibration_h = int(Decimal(horizontal.text()))
         self.config.set_key('calibration_h', self.calibration_h)
-        self.calibration_v = int(vertical.text())
+        self.calibration_v = int(Decimal(vertical.text()))
         self.config.set_key('calibration_v', self.calibration_v)
 
 
