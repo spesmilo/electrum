@@ -6,7 +6,8 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame)
 
-from electrum.util import format_satoshis_plain, decimal_point_to_base_unit_name, FEERATE_PRECISION
+from electrum.util import (format_satoshis_plain, decimal_point_to_base_unit_name,
+                           FEERATE_PRECISION, quantize_feerate)
 
 
 class MyLineEdit(QLineEdit):
@@ -123,3 +124,7 @@ class FeerateEdit(BTCAmountEdit):
         if sat_per_byte_amount is None:
             return None
         return 1000 * sat_per_byte_amount
+
+    def setAmount(self, amount):
+        amount = quantize_feerate(amount)
+        super().setAmount(amount)
