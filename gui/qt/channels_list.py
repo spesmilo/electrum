@@ -2,35 +2,39 @@
 from PyQt5 import QtCore, QtWidgets
 from electrum.util import inv_dict, bh2u
 from electrum.i18n import _
+from electrum.lnbase import OpenChannel
 from .util import MyTreeWidget, SortableTreeWidgetItem
 
 class ChannelsList(MyTreeWidget):
     update_rows = QtCore.pyqtSignal(list)
-    update_single_row = QtCore.pyqtSignal(dict)
+    update_single_row = QtCore.pyqtSignal(OpenChannel)
 
     def __init__(self, parent):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Node ID'), _('Capacity'), _('Balance')], 0)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Node ID'), _('Capacity'), _('Balance'), _('Status')], 0)
         self.main_window = parent
         self.update_rows.connect(self.do_update_rows)
         self.update_single_row.connect(self.do_update_single_row)
 
     def format_fields(self, chan):
-        return [bh2u(chan.node_id), self.parent.format_amount(chan.constraints.capacity), self.parent.format_amount(chan.local_state.amount_msat//1000)]
+        status = self.parent.wallet.lnworker.channel_state[chan.channel_id]
+        return [bh2u(chan.node_id), self.parent.format_amount(chan.constraints.capacity), self.parent.format_amount(chan.local_state.amount_msat//1000), status]
 
     def create_menu(self, position):
         menu = QtWidgets.QMenu()
         cur = self.currentItem()
+        print('ID', cur.data(0, QtCore.Qt.UserRole))
         def close():
-            print("closechannel result", self.parent.network.lnworker.close_channel_from_other_thread(cur.di))
+            print("closechannel result", self.parent.wallet.lnworker.close_channel_from_other_thread(cur.di))
         menu.addAction(_("Close channel"), close)
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    @QtCore.pyqtSlot(dict)
+    @QtCore.pyqtSlot(OpenChannel)
     def do_update_single_row(self, chan):
-        items = self.findItems(chan.channel_id, QtCore.Qt.UserRole|QtCore.Qt.MatchContains|QtCore.Qt.MatchRecursive, column=1)
-        for item in items:
-            for i, v in enumerate(self.format_fields(chan)):
-                item.setData(i, QtCore.Qt.DisplayRole, v)
+        for i in range(self.topLevelItemCount()):
+            item = self.topLevelItem(i)
+            if item.data(0, QtCore.Qt.UserRole) == chan.channel_id:
+                for i, v in enumerate(self.format_fields(chan)):
+                    item.setData(i, QtCore.Qt.DisplayRole, v)
 
     @QtCore.pyqtSlot(list)
     def do_update_rows(self, channels):
@@ -73,4 +77,4 @@ class ChannelsList(MyTreeWidget):
         push_amt = int(push_amt_inp.text())
         assert local_amt >= 200000
         assert local_amt >= push_amt
-        obj = self.parent.network.lnworker.open_channel(node_id, local_amt, push_amt, password)
+        obj = self.parent.wallet.lnworker.open_channel(node_id, local_amt, push_amt, password)
