@@ -12,8 +12,6 @@ except Exception:
     print("usage: watch_address <bitcoin_address>")
     sys.exit(1)
 
-sh = bitcoin.address_to_scripthash(addr)
-
 # start network
 c = SimpleConfig()
 network = ElectrumX(c)
