@@ -81,7 +81,7 @@ KIVY_DISCLAIMER = [
       "To use it, you must have a separate device with Google Authenticator."),
     _("This service uses a multi-signature wallet, where you own 2 of 3 keys.  "
       "The third key is stored on a remote server that signs transactions on "
-      "your behalf.A small fee will be charged on each transaction that uses the "
+      "your behalf. A small fee will be charged on each transaction that uses the "
       "remote server."),
     _("Note that your coins are not locked in this service.  You may withdraw "
       "your funds at any time and at no cost, without the remote server, by "

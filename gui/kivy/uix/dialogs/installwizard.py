@@ -207,6 +207,8 @@ Builder.load_string('''
     WizardTextInput:
         id: email
         on_text: Clock.schedule_once(root.on_text)
+        multiline: False
+        on_text_validate: Clock.schedule_once(root.on_enter)
 
 <WizardKnownOTPDialog>
     message : ''
@@ -224,6 +226,8 @@ Builder.load_string('''
     WizardTextInput:
         id: otp
         on_text: Clock.schedule_once(root.on_text)
+        multiline: False
+        on_text_validate: Clock.schedule_once(root.on_enter)
     Widget
         size_hint: 1, 1
     Label:
@@ -261,6 +265,8 @@ Builder.load_string('''
     WizardTextInput:
         id: otp
         on_text: Clock.schedule_once(root.on_text)
+        multiline: False
+        on_text_validate: Clock.schedule_once(root.on_enter)
 
 <MButton@Button>:
     size_hint: 1, None
@@ -576,12 +582,8 @@ class WizardMultisigDialog(WizardDialog):
         n = self.ids.n.value
         return m, n
 
-class WizardKnownOTPDialog(WizardDialog):
 
-    def __init__(self, wizard, **kwargs):
-        WizardDialog.__init__(self, wizard, **kwargs)
-        self.message = _("This wallet is already registered with TrustedCoin. To finalize wallet creation, please enter your Google Authenticator Code.")
-        self.message2 =_("If you have lost your Google Authenticator account, check the box below to request a new secret. You will need to retype your seed.")
+class WizardOTPDialogBase(WizardDialog):
 
     def get_otp(self):
         otp = self.ids.otp.text
@@ -591,6 +593,23 @@ class WizardKnownOTPDialog(WizardDialog):
             return int(otp)
         except:
             return
+
+    def on_text(self, dt):
+        self.ids.next.disabled = self.get_otp() is None
+
+    def on_enter(self, dt):
+        # press next
+        next = self.ids.next
+        if not next.disabled:
+            next.dispatch('on_release')
+
+
+class WizardKnownOTPDialog(WizardOTPDialogBase):
+
+    def __init__(self, wizard, **kwargs):
+        WizardOTPDialogBase.__init__(self, wizard, **kwargs)
+        self.message = _("This wallet is already registered with TrustedCoin. To finalize wallet creation, please enter your Google Authenticator Code.")
+        self.message2 =_("If you have lost your Google Authenticator account, check the box below to request a new secret. You will need to retype your seed.")
 
     def get_params(self, button):
         return (self.get_otp(), self.ids.cb.active)
@@ -599,30 +618,16 @@ class WizardKnownOTPDialog(WizardDialog):
         self.ids.otp.text = ''
         self.ids.next.disabled = not self.ids.cb.active
 
-    def on_text(self, dt):
-        self.ids.next.disabled = self.get_otp() is None
 
-class WizardNewOTPDialog(WizardDialog):
+class WizardNewOTPDialog(WizardOTPDialogBase):
 
     def __init__(self, wizard, **kwargs):
-        WizardDialog.__init__(self, wizard, **kwargs)
+        WizardOTPDialogBase.__init__(self, wizard, **kwargs)
         otp_secret = kwargs['otp_secret']
         uri = "otpauth://totp/%s?secret=%s"%('trustedcoin.com', otp_secret)
         self.message = "Please scan the following QR code in Google Authenticator. You may also use the secret key: %s"%otp_secret
         self.message2 = _('Then, enter your Google Authenticator code:')
         self.ids.qr.set_data(uri)
-
-    def get_otp(self):
-        otp = self.ids.otp.text
-        if len(otp) != 6:
-            return
-        try:
-            return int(otp)
-        except:
-            return
-
-    def on_text(self, dt):
-        self.ids.next.disabled = self.get_otp() is None
 
     def get_params(self, button):
         return (self.get_otp(), False)
@@ -637,10 +642,18 @@ class WizardTOSDialog(WizardDialog):
         self.message2 = _('Enter your email address:')
 
 class WizardEmailDialog(WizardDialog):
+
     def get_params(self, button):
         return (self.ids.email.text,)
+
     def on_text(self, dt):
         self.ids.next.disabled = not is_valid_email(self.ids.email.text)
+
+    def on_enter(self, dt):
+        # press next
+        next = self.ids.next
+        if not next.disabled:
+            next.dispatch('on_release')
 
 class WizardConfirmDialog(WizardDialog):
 
