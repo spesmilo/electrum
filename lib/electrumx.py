@@ -12,6 +12,7 @@ class ElectrumX(network.Network):
     See https://electrumx.readthedocs.io/en/latest/protocol-basics.html
     """
 
+    # TODO clean this method up. It should have no reference to interface.
     def request_header(self, interface, height):
         self.queue_request('blockchain.block.get_header', [height], interface)
         interface.request = height
@@ -26,6 +27,8 @@ class ElectrumX(network.Network):
             callback(x2)
         return cb2
 
+    # TODO I believe the caller should take care of the mapping between addr<->hash
+    # Then we can rid of this silly h2addr and map_scripthash_to_address.
     def subscribe_to_addresses(self, addresses, callback):
         hash2address = {
             bitcoin.address_to_scripthash(address): address
