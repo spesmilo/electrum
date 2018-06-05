@@ -22,7 +22,7 @@ from .wallet import Wallet
 from .lnbase import Peer, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore, aiosafe, calc_short_channel_id, privkey_to_pubkey
 from .lightning_payencode.lnaddr import lnencode, LnAddr, lndecode
 from . import lnrouter
-
+from .ecc import ECPrivkey
 
 is_key = lambda k: k.endswith("_basepoint") or k.endswith("_key")
 
@@ -96,6 +96,7 @@ class LNWorker(PrintError):
             wallet.storage.put('lightning_privkey', pk)
             wallet.storage.write()
         self.privkey = bfh(pk)
+        self.pubkey = ECPrivkey(self.privkey).get_public_key_bytes()
         self.config = network.config
         self.peers = {}
         # view of the network
@@ -119,7 +120,7 @@ class LNWorker(PrintError):
     def add_peer(self, host, port, pubkey):
         node_id = bfh(pubkey)
         channels = self.channels_for_peer(node_id)
-        peer = Peer(host, int(port), node_id, self.privkey, self.network, self.channel_db, self.path_finder, self.channel_state, channels, self.invoices, request_initial_sync=True)
+        peer = Peer(self, host, int(port), node_id, request_initial_sync=False)
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[node_id] = peer
         self.lock = threading.Lock()
@@ -164,19 +165,7 @@ class LNWorker(PrintError):
                 self.print_error("network update but funding tx is still not at sufficient depth")
                 continue
             peer = self.peers[chan.node_id]
-            asyncio.run_coroutine_threadsafe(self.wait_funding_locked_and_mark_open(peer, chan), asyncio.get_event_loop())
-
-    # aiosafe because we don't wait for result
-    @aiosafe
-    async def wait_funding_locked_and_mark_open(self, peer, chan):
-        await peer.initialized
-        if self.channel_state[chan.channel_id] == "OPEN":
-            return
-        if not chan.local_state.funding_locked_received:
-            chan = await peer.funding_locked(chan)
-            self.save_channel(chan)
-            self.print_error("CHANNEL OPENING COMPLETED")
-        self.channel_state[chan.channel_id] = "OPEN"
+            peer.funding_locked(chan)
 
     # not aiosafe because we call .result() which will propagate an exception
     async def _open_channel_coroutine(self, node_id, amount_sat, push_sat, password):
@@ -194,19 +183,18 @@ class LNWorker(PrintError):
         return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop).result()
 
     def pay(self, invoice):
-        coro = self._pay_coroutine(invoice)
-        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-
-    @aiosafe
-    async def _pay_coroutine(self, invoice):
-        openchannel = next(iter(self.channels.values()))
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         payment_hash = addr.paymenthash
-        pubkey = addr.pubkey.serialize()
-        msat_amt = int(addr.amount * COIN * 1000)
-        peer = self.peers[openchannel.node_id]
-        openchannel = await peer.pay(self.wallet, openchannel, msat_amt, payment_hash, pubkey, addr.min_final_cltv_expiry)
-        self.save_channel(openchannel)
+        invoice_pubkey = addr.pubkey.serialize()
+        amount_msat = int(addr.amount * COIN * 1000)
+        path = self.path_finder.find_path_for_payment(self.pubkey, invoice_pubkey, amount_msat)
+        node_id, short_channel_id = path[0]
+        peer = self.peers[node_id]
+        for chan in self.channels.values():
+            if chan.short_channel_id == short_channel_id:
+                break
+        coro = peer.pay(path, chan, amount_msat, payment_hash, invoice_pubkey, addr.min_final_cltv_expiry)
+        asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     def add_invoice(self, amount_sat, message='one cup of coffee'):
         coro = self._add_invoice_coroutine(amount_sat, message)
