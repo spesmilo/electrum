@@ -177,6 +177,8 @@ class DaemonThread(threading.Thread, PrintError):
             import jnius
             jnius.detach()
             self.print_error("jnius detach")
+            except ImportError:
+                pass  # Chaquopy detaches automatically.
         self.print_error("stopped")
 
 
@@ -248,14 +250,21 @@ def profiler(func):
 
 
 def android_ext_dir():
-    import jnius
-    env = jnius.autoclass('android.os.Environment')
+    try:
+        import jnius
+        env = jnius.autoclass('android.os.Environment')
+    except ImportError:
+        from android.os import Environment as env  # Chaquopy import hook
     return env.getExternalStorageDirectory().getPath()
 
 def android_data_dir():
-    import jnius
-    PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
-    return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
+    try:
+        import jnius
+        context = jnius.autoclass('org.kivy.android.PythonActivity').mActivity
+    except ImportError:
+        from com.chaquo.python import Python
+        context = Python.getPlatform().getApplication()
+    return context.getFilesDir().getPath() + '/data'
 
 def android_headers_dir():
     d = android_ext_dir() + '/org.electron.electron'
