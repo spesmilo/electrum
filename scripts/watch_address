@@ -27,9 +27,13 @@ if not network.is_connected():
     print_msg("daemon is not connected")
     sys.exit(1)
 
+# 1. translate the Bitcoin address to a scripthash
+scripthash = bitcoin.address_to_scripthash(addr)
+print_msg("Address '{}' becomes scripthash '{}'".format(addr, scripthash))
+
 # 2. send the subscription
 callback = lambda response: print_msg(json_encode(response.get('result')))
-network.subscribe_to_address(addr, callback)
+network.subscribe_to_scripthash(scripthash, callback)
 
 # 3. wait for results
 while network.is_connected():
