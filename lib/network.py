@@ -1034,6 +1034,7 @@ class Network(util.DaemonThread):
     def get_local_height(self):
         return self.blockchain().height()
 
+    @staticmethod
     def __wait_for(it):
         """Wait for the result of calling lambda `it`."""
         q = queue.Queue()
@@ -1048,6 +1049,7 @@ class Network(util.DaemonThread):
 
         return result.get('result')
 
+    @staticmethod
     def __with_default_synchronous_callback(invocation, callback):
         """ Use this method if you want to make the network request
         synchronous. """
