@@ -42,7 +42,8 @@ from collections import namedtuple, defaultdict
 
 def channel_id_from_funding_tx(funding_txid, funding_index):
     funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
-    return int.from_bytes(funding_txid_bytes, 'big') ^ funding_index, funding_txid_bytes
+    i = int.from_bytes(funding_txid_bytes, 'big') ^ funding_index
+    return i.to_bytes(32, 'big'), funding_txid_bytes
 
 class LightningError(Exception):
     pass
