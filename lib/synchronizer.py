@@ -99,7 +99,7 @@ class Synchronizer(ThreadJob):
             # there is no history
             if addr not in self.requested_histories:
                 self.requested_histories[addr] = result
-                self.network.request_address_history(addr, self.on_address_history)
+                self.network.get_history_for_address(addr, self.on_address_history)
         # remove addr from list only after it is added to requested_histories
         if addr in self.requested_addrs:  # Notifications won't be in
             self.requested_addrs.remove(addr)
