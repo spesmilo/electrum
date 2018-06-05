@@ -83,15 +83,6 @@ class ElectrumX(network.Network):
             invocation,
             callback)
 
-    # NOTE: Deprecated since ElectrumX 1.2. Use subscribe_to_scripthash.
-    def subscribe_to_address(self, address, callback=None):
-        command = 'blockchain.address.subscribe'
-        invocation = lambda c: self.send([(command, [address])], c)
-
-        return ElectrumX.__with_default_synchronous_callback(
-            invocation,
-            callback)
-
     def get_merkle_for_transaction(self, tx_hash, tx_height, callback=None):
         command = 'blockchain.transaction.get_merkle'
         invocation = lambda c: self.send([(command, [tx_hash, tx_height])], c)
