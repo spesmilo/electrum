@@ -55,6 +55,7 @@ class ElectrumX(network.Network):
 
         if callback:
             invocation(callback)
+            return
 
         try:
             out = ElectrumX.__wait_for(invocation)
