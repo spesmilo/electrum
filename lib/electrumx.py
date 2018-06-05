@@ -15,7 +15,7 @@ class ElectrumX(network.Network):
     def __init__(self, config=None):
         super().__init__(config)
 
-        self.hash2address = {}
+        self.__hash2address = {}
 
     # TODO clean this method up. It should have no reference to interface.
     def request_header(self, interface, height):
@@ -23,7 +23,7 @@ class ElectrumX(network.Network):
         interface.request = height
         interface.req_time = time.time()
 
-    def map_scripthash_to_address(self, callback):
+    def __map_scripthash_to_address(self, callback):
         """ This method takes a callback and wraps it in an other callback.
         The new callback modifies the response passed to the original callback
         by replacing the scripthash returned by the backend server with the
@@ -32,7 +32,7 @@ class ElectrumX(network.Network):
         def replacing_callback(original_response):
             new_response = original_response.copy()
             params = new_response.pop('params')
-            address = self.hash2address[params[0]]
+            address = self.__hash2address[params[0]]
             new_response['params'] = [address]
             callback(new_response)
         return replacing_callback
@@ -52,14 +52,14 @@ class ElectrumX(network.Network):
         scripthashes = {
             bitcoin.address_to_scripthash(address): address
             for address in addresses}
-        self.hash2address.update(scripthashes)
+        self.__hash2address.update(scripthashes)
 
         if not callback:
             callback = ElectrumX.__wait_for
 
         return self.subscribe_to_scripthashes(
             scripthashes,
-            self.map_scripthash_to_address(callback))
+            self.__map_scripthash_to_address(callback))
 
     # NOTE this method handles exceptions and a special edge case, counter to
     # what the other ElectrumX methods do. This is unexpected.
@@ -83,14 +83,14 @@ class ElectrumX(network.Network):
 
     def get_history_for_address(self, address, callback=None):
         scripthash = bitcoin.address_to_scripthash(address)
-        self.hash2address.update({scripthash: address})
+        self.__hash2address.update({scripthash: address})
 
         if not callback:
             callback = ElectrumX.__wait_for
 
         return self.get_history_for_scripthash(
             scripthash,
-            self.map_scripthash_to_address(callback))
+            self.__map_scripthash_to_address(callback))
 
     def get_history_for_scripthash(self, hash, callback=None):
         command = 'blockchain.scripthash.get_history'
