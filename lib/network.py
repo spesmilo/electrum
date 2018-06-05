@@ -1089,7 +1089,7 @@ class Network(util.DaemonThread):
     # what the other ElectrumX methods do. This is unexpected.
     def broadcast_transaction(self, transaction, callback=None):
         command = 'blockchain.transaction.broadcast'
-        invocation = lambda c: self.send((command, [str(transaction)]), c)
+        invocation = lambda c: self.send([(command, [str(transaction)])], c)
 
         if callback:
             invocation(callback)
@@ -1107,37 +1107,37 @@ class Network(util.DaemonThread):
 
     def get_history_for_scripthash(self, hash, callback=None):
         command = 'blockchain.scripthash.get_history'
-        invocation = lambda c: self.send((command, [hash]), c)
+        invocation = lambda c: self.send([(command, [hash])], c)
 
         return Network.__with_default_synchronous_callback(invocation, callback)
 
     def subscribe_to_headers(self, callback=None):
         command = 'blockchain.headers.subscribe'
-        invocation = lambda c: self.send((command, [True]), c)
+        invocation = lambda c: self.send([(command, [True])], c)
 
         return Network.__with_default_synchronous_callback(invocation, callback)
 
     def subscribe_to_address(self, address, callback=None):
         command = 'blockchain.address.subscribe'
-        invocation = lambda c: self.send((command, [address]), c)
+        invocation = lambda c: self.send([(command, [address])], c)
 
         return Network.__with_default_synchronous_callback(invocation, callback)
 
     def get_merkle_for_transaction(self, tx_hash, tx_height, callback=None):
         command = 'blockchain.transaction.get_merkle'
-        invocation = lambda c: self.send((command, [tx_hash, tx_height]), c)
+        invocation = lambda c: self.send([(command, [tx_hash, tx_height])], c)
 
         return Network.__with_default_synchronous_callback(invocation, callback)
 
     def subscribe_to_scripthash(self, scripthash, callback=None):
         command = 'blockchain.scripthash.subscribe'
-        invocation = lambda c: self.send((command, [scripthash]), c)
+        invocation = lambda c: self.send([(command, [scripthash])], c)
 
         return Network.__with_default_synchronous_callback(invocation, callback)
 
     def get_transaction(self, transaction_hash, callback=None):
         command = 'blockchain.transaction.get'
-        invocation = lambda c: self.send((command, [transaction_hash]), c)
+        invocation = lambda c: self.send([(command, [transaction_hash])], c)
 
         return Network.__with_default_synchronous_callback(invocation, callback)
 
@@ -1150,13 +1150,13 @@ class Network(util.DaemonThread):
 
     def listunspent_for_scripthash(self, scripthash, callback=None):
         command = 'blockchain.scripthash.listunspent'
-        invocation = lambda c: self.send(command, [scripthash], c)
+        invocation = lambda c: self.send([(command, [scripthash])], c)
 
         return Network.__with_default_synchronous_callback(invocation, callback)
 
     def get_balance_for_scripthash(self, scripthash, callback=None):
         command = 'blockchain.scripthash.get_balance'
-        invocation = lambda c: self.send(command, [scripthash], c)
+        invocation = lambda c: self.send([(command, [scripthash])], c)
 
         return Network.__with_default_synchronous_callback(invocation, callback)
 
