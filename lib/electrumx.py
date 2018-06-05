@@ -12,6 +12,11 @@ class ElectrumX(network.Network):
     See https://electrumx.readthedocs.io/en/latest/protocol-basics.html
     """
 
+    def __init__(self, config=None):
+        super().__init__(config)
+
+        self.hash2address = {}
+
     # TODO clean this method up. It should have no reference to interface.
     def request_header(self, interface, height):
         self.queue_request('blockchain.block.get_header', [height], interface)
@@ -19,32 +24,41 @@ class ElectrumX(network.Network):
         interface.req_time = time.time()
 
     def map_scripthash_to_address(self, callback):
-        def cb2(x):
-            x2 = x.copy()
-            p = x2.pop('params')
-            addr = self.h2addr[p[0]]
-            x2['params'] = [addr]
-            callback(x2)
-        return cb2
+        """ This method takes a callback and wraps it in an other callback.
+        The new callback modifies the response passed to the original callback
+        by replacing the scripthash returned by the backend server with the
+        address which initially yielded this scripthash
+        """
+        def replacing_callback(original_response):
+            new_response = original_response.copy()
+            params = new_response.pop('params')
+            address = self.hash2address[params[0]]
+            new_response['params'] = [address]
+            callback(new_response)
+        return replacing_callback
 
-    # TODO I believe the caller should take care of the mapping between addr<->hash
-    # Then we can rid of this silly h2addr and map_scripthash_to_address.
-    def subscribe_to_addresses(self, addresses, callback):
-        hash2address = {
+    def subscribe_to_scripthashes(self, hashes, callback):
+        command = 'blockchain.scripthash.subscribe'
+        messages = [(command, [hash_]) for hash_ in hashes]
+        invocation = lambda c: self.send(messages, c)
+
+        return ElectrumX.__with_default_synchronous_callback(
+            invocation,
+            callback)
+
+    def subscribe_to_addresses(self, addresses, callback=None):
+        """ Converts the list of addresses to scripthashes and delegates to
+        subscribe_to_scripthashes. """
+        scripthashes = {
             bitcoin.address_to_scripthash(address): address
             for address in addresses}
-        self.h2addr.update(hash2address)
-        msgs = [
-            ('blockchain.scripthash.subscribe', [x])
-            for x in hash2address.keys()]
-        self.send(msgs, self.map_scripthash_to_address(callback))
+        self.hash2address.update(scripthashes)
 
-    # TODO Remove this is favor of get_history_for_scripthash
-    def request_address_history(self, address, callback):
-        h = bitcoin.address_to_scripthash(address)
-        self.h2addr.update({h: address})
-        self.send(
-            [('blockchain.scripthash.get_history', [h])],
+        if not callback:
+            callback = ElectrumX.__wait_for
+
+        return self.subscribe_to_scripthashes(
+            scripthashes,
             self.map_scripthash_to_address(callback))
 
     # NOTE this method handles exceptions and a special edge case, counter to
@@ -66,6 +80,17 @@ class ElectrumX(network.Network):
             return False, "error: " + out
 
         return True, out
+
+    def get_history_for_address(self, address, callback=None):
+        scripthash = bitcoin.address_to_scripthash(address)
+        self.hash2address.update({scripthash: address})
+
+        if not callback:
+            callback = ElectrumX.__wait_for
+
+        return self.get_history_for_scripthash(
+            scripthash,
+            self.map_scripthash_to_address(callback))
 
     def get_history_for_scripthash(self, hash, callback=None):
         command = 'blockchain.scripthash.get_history'

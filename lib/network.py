@@ -219,7 +219,7 @@ class Network(util.DaemonThread):
 
         # subscriptions and requests
         self.subscribed_addresses = set()  # note: needs self.subscribed_addresses_lock
-        self.h2addr = {}
+
         # Requests from client we've not seen a response to
         self.unanswered_requests = {}
         # retry times
