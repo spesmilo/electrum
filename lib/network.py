@@ -1145,7 +1145,7 @@ class Network(util.DaemonThread):
 
     def get_transactions(self, transaction_hashes, callback=None):
         command = 'blockchain.transaction.get'
-        messages = [(command, tx_hash) for tx_hash in transaction_hashes]
+        messages = [(command, [tx_hash]) for tx_hash in transaction_hashes]
         invocation = lambda c: self.send(messages, c)
 
         return Network.__with_default_synchronous_callback(invocation, callback)
