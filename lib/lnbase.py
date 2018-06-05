@@ -781,6 +781,7 @@ class Peer(PrintError):
         self.writer.close()
 
     async def channel_establishment_flow(self, wallet, config, password, funding_sat, push_msat, temp_channel_id):
+        await self.initialized
         # see lnd/keychain/derivation.go
         keyfamilymultisig = 0
         keyfamilyrevocationbase = 1
