@@ -921,9 +921,7 @@ class ElectrumWindow(App):
         self.stop_wallet()
         os.unlink(wallet_path)
         self.show_error(_("Wallet removed: {}").format(basename))
-        d = os.listdir(dirname)
-        name = 'default_wallet'
-        new_path = os.path.join(dirname, name)
+        new_path = self.electrum_config.get_wallet_path()
         self.load_wallet_by_name(new_path)
 
     def show_seed(self, label):
