@@ -6,7 +6,7 @@ from electrum.lnbase import OpenChannel
 from .util import MyTreeWidget, SortableTreeWidgetItem
 
 class ChannelsList(MyTreeWidget):
-    update_rows = QtCore.pyqtSignal(list)
+    update_rows = QtCore.pyqtSignal()
     update_single_row = QtCore.pyqtSignal(OpenChannel)
 
     def __init__(self, parent):
@@ -36,10 +36,10 @@ class ChannelsList(MyTreeWidget):
                 for i, v in enumerate(self.format_fields(chan)):
                     item.setData(i, QtCore.Qt.DisplayRole, v)
 
-    @QtCore.pyqtSlot(list)
-    def do_update_rows(self, channels):
+    @QtCore.pyqtSlot()
+    def do_update_rows(self):
         self.clear()
-        for chan in channels:
+        for chan in self.parent.wallet.lnworker.channels.values():
             item = SortableTreeWidgetItem(self.format_fields(chan))
             item.setData(0, QtCore.Qt.UserRole, chan.channel_id)
             self.insertTopLevelItem(0, item)
@@ -50,8 +50,7 @@ class ChannelsList(MyTreeWidget):
         push_amt_inp = QtWidgets.QLineEdit(self, text='0')
         button = QtWidgets.QPushButton(_('Open channel'), self)
         button.clicked.connect(lambda: self.main_window.protect(self.open_channel, (nodeid_inp, local_amt_inp, push_amt_inp)))
-        l=QtWidgets.QVBoxLayout(self)
-        h=QtWidgets.QGridLayout(self)
+        h = QtWidgets.QGridLayout()
         nodeid_label = QtWidgets.QLabel(self)
         nodeid_label.setText(_("Node ID"))
         local_amt_label = QtWidgets.QLabel(self)

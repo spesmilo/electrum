@@ -176,7 +176,7 @@ class LNWorker(PrintError):
         self.on_channels_updated()
 
     def on_channels_updated(self):
-        self.network.trigger_callback('channels', list(self.channels.values()))
+        self.network.trigger_callback('channels')
 
     def open_channel(self, node_id, local_amt_sat, push_amt_sat, pw):
         coro = self._open_channel_coroutine(node_id, local_amt_sat, push_amt_sat, None if pw == "" else pw)
