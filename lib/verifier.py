@@ -72,14 +72,14 @@ class SPV(ThreadJob):
             self.blockchain = self.network.blockchain()
             self.undo_verifications()
 
-    def verify_merkle(self, r):
+    def verify_merkle(self, response):
         if self.wallet.verifier is None:
             return  # we have been killed, this was just an orphan callback
-        if r.get('error'):
-            self.print_error('received an error:', r)
+        if response.get('error'):
+            self.print_error('received an error:', response)
             return
-        params = r['params']
-        merkle = r['result']
+        params = response['params']
+        merkle = response['result']
         # Verify the hash of the server-provided merkle branch to a
         # transaction matches the merkle root of its block
         tx_hash = params[0]
