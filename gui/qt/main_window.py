@@ -1600,7 +1600,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if pr and pr.has_expired():
                 self.payment_request = None
                 return False, _("Payment request has expired")
-            status, msg =  self.network.broadcast(tx)
+            status, msg = self.network.broadcast_transaction(tx)
             if pr and status is True:
                 self.invoices.set_paid(pr, tx.txid())
                 self.invoices.save()
@@ -2359,7 +2359,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if ok and txid:
             txid = str(txid).strip()
             try:
-                r = self.network.synchronous_get(('blockchain.transaction.get',[txid]))
+                r = self.network.get_transaction(txid)
             except BaseException as e:
                 self.show_message(str(e))
                 return

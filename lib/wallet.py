@@ -93,12 +93,13 @@ def dust_threshold(network):
 def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
     if txin_type != 'p2pk':
         address = bitcoin.pubkey_to_address(txin_type, pubkey)
-        sh = bitcoin.address_to_scripthash(address)
+        scripthash = bitcoin.address_to_scripthash(address)
     else:
         script = bitcoin.public_key_to_p2pk_script(pubkey)
-        sh = bitcoin.script_to_scripthash(script)
+        scripthash = bitcoin.script_to_scripthash(script)
         address = '(pubkey)'
-    u = network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
+
+    u = network.listunspent_for_scripthash(scripthash)
     for item in u:
         if len(inputs) >= imax:
             break
@@ -1471,9 +1472,8 @@ class Abstract_Wallet(PrintError):
         # all the input txs, in which case we ask the network.
         tx = self.transactions.get(tx_hash, None)
         if not tx and self.network:
-            request = ('blockchain.transaction.get', [tx_hash])
             try:
-                tx = Transaction(self.network.synchronous_get(request))
+                tx = Transaction(self.network.get_transaction(tx_hash))
             except TimeoutException as e:
                 self.print_error('getting input txn from network timed out for {}'.format(tx_hash))
                 if not ignore_timeout:

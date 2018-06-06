@@ -181,7 +181,7 @@ class Commands:
         walletless server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        return self.network.synchronous_get(('blockchain.scripthash.get_history', [sh]))
+        return self.network.get_history_for_scripthash(sh)
 
     @command('w')
     def listunspent(self):
@@ -199,7 +199,7 @@ class Commands:
         is a walletless server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        return self.network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
+        return self.network.listunspent_for_scripthash(sh)
 
     @command('')
     def serialize(self, jsontx):
@@ -252,10 +252,10 @@ class Commands:
         return tx.deserialize()
 
     @command('n')
-    def broadcast(self, tx, timeout=30):
+    def broadcast(self, tx):
         """Broadcast a transaction to the network. """
         tx = Transaction(tx)
-        return self.network.broadcast(tx, timeout)
+        return self.network.broadcast_transaction(tx)
 
     @command('')
     def createmultisig(self, num, pubkeys):
@@ -322,7 +322,7 @@ class Commands:
         server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        out = self.network.synchronous_get(('blockchain.scripthash.get_balance', [sh]))
+        out = self.network.get_balance_for_scripthash(sh)
         out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
         out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
         return out
@@ -331,7 +331,7 @@ class Commands:
     def getmerkle(self, txid, height):
         """Get Merkle branch of a transaction included in a block. Electrum
         uses this to verify transactions (Simple Payment Verification)."""
-        return self.network.synchronous_get(('blockchain.transaction.get_merkle', [txid, int(height)]))
+        return self.network.get_merkle_for_transaction(txid, int(height))
 
     @command('n')
     def getservers(self):
@@ -517,7 +517,7 @@ class Commands:
         if self.wallet and txid in self.wallet.transactions:
             tx = self.wallet.transactions[txid]
         else:
-            raw = self.network.synchronous_get(('blockchain.transaction.get', [txid]))
+            raw = self.network.get_transaction(txid)
             if raw:
                 tx = Transaction(raw)
             else:
