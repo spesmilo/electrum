@@ -197,17 +197,8 @@ class LNWorker(PrintError):
         coro = peer.pay(path, chan, amount_msat, payment_hash, invoice_pubkey, addr.min_final_cltv_expiry)
         asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
-    def add_invoice(self, amount_sat, message='one cup of coffee'):
-        coro = self._add_invoice_coroutine(amount_sat, message)
-        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop).result()
-
-    async def _add_invoice_coroutine(self, amount_sat, message):
+    def add_invoice(self, amount_sat, message):
         is_open = lambda chan: self.channel_state[chan.channel_id] == "OPEN"
-        # TODO doesn't account for fees!!!
-        if not any(openchannel.remote_state.amount_msat >= amount_sat * 1000 for openchannel in self.channels.values() if is_open(openchannel)):
-            return "Not making invoice, no channel has enough balance"
-        if not any(openchannel.remote_config.max_htlc_value_in_flight_msat >= amount_sat * 1000 for openchannel in self.channels.values() if is_open(openchannel)):
-            return "Not making invoice, invoice value too lang for remote peer"
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
         pay_req = lnencode(LnAddr(RHASH, amount_sat/Decimal(COIN), tags=[('d', message)]), self.privkey)
