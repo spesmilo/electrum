@@ -1,6 +1,7 @@
 
 from functools import partial
 import threading
+import os
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -238,11 +239,23 @@ Builder.load_string('''
         text: root.message2
     BoxLayout:
         orientation: 'horizontal'
-        size_hint: 1, 0.2
+        size_hint: 1, 0.3
         Widget
         CheckBox:
             id:cb
             on_state: Clock.schedule_once(root.on_cb)
+    Widget
+        size_hint: 1, 1
+        height: '48sp'
+    BoxLayout:
+        orientation: 'horizontal'
+        WizardButton:
+            id: abort
+            text: _('Abort creation')
+            on_release: root.abort_wallet_creation()
+            size_hint: 1, None
+        Widget
+            size_hint: 1, None
 
 <WizardNewOTPDialog>
     message : ''
@@ -617,6 +630,12 @@ class WizardKnownOTPDialog(WizardOTPDialogBase):
     def on_cb(self, dt):
         self.ids.otp.text = ''
         self.ids.next.disabled = not self.ids.cb.active
+
+    def abort_wallet_creation(self):
+        self._on_release = True
+        os.unlink(self.wizard.storage.path)
+        self.wizard.terminate()
+        self.dismiss()
 
 
 class WizardNewOTPDialog(WizardOTPDialogBase):

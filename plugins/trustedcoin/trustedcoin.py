@@ -581,15 +581,24 @@ class TrustedCoinPlugin(BasePlugin):
     def do_auth(self, wizard, short_id, otp, xpub3):
         try:
             server.auth(short_id, otp)
+        except TrustedCoinException as e:
+            if e.status_code == 400:  # invalid OTP
+                wizard.show_message(_('Invalid one-time password.'))
+                # ask again for otp
+                self.request_otp_dialog(wizard, short_id, None, xpub3)
+            else:
+                wizard.show_message(str(e))
+                wizard.terminate()
         except Exception as e:
             wizard.show_message(str(e))
-            return
-        k3 = keystore.from_xpub(xpub3)
-        wizard.storage.put('x3/', k3.dump())
-        wizard.storage.put('use_trustedcoin', True)
-        wizard.storage.write()
-        wizard.wallet = Wallet_2fa(wizard.storage)
-        wizard.run('create_addresses')
+            wizard.terminate()
+        else:
+            k3 = keystore.from_xpub(xpub3)
+            wizard.storage.put('x3/', k3.dump())
+            wizard.storage.put('use_trustedcoin', True)
+            wizard.storage.write()
+            wizard.wallet = Wallet_2fa(wizard.storage)
+            wizard.run('create_addresses')
 
     def on_reset_auth(self, wizard, short_id, seed, passphrase, xpub3):
         xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed, passphrase)
