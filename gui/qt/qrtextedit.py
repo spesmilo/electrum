@@ -46,8 +46,12 @@ class ScanQRTextEdit(ButtonsTextEdit, MessageBoxMixin):
         fileName, __ = QFileDialog.getOpenFileName(self, 'select file')
         if not fileName:
             return
-        with open(fileName, "r", encoding='utf-8') as f:
-            data = f.read()
+        try:
+            with open(fileName, "r", encoding='utf-8') as f:
+                data = f.read()
+        except UnicodeDecodeError as reason:
+            self.show_critical(_("Electron Cash was unable to open your file") + "\n" + str(reason), title=_("Unable to read file"))
+            return
         self.setText(data)
 
     def qr_input(self):
