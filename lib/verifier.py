@@ -39,11 +39,7 @@ class SPV(ThreadJob):
         self.requested_merkle = set()  # txid set of pending requests
 
     def run(self):
-        interface = self.network.interface
-        if not interface:
-            return
-
-        blockchain = interface.blockchain
+        blockchain = self.network.blockchain()
         if not blockchain:
             return
 
@@ -56,9 +52,8 @@ class SPV(ThreadJob):
 
             header = blockchain.read_header(tx_height)
             if header is None:
-                index = tx_height // 2016
-                if index < len(blockchain.checkpoints):
-                    self.network.request_chunk(interface, index)
+                if not blockchain.is_after_last_checkpoint(tx_height):
+                    self.network.fetch_missing_headers_for(tx_height)
             elif (tx_hash not in self.requested_merkle
                     and tx_hash not in self.merkle_roots):
                 self.network.get_merkle_for_transaction(

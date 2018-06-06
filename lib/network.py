@@ -843,17 +843,16 @@ class Network(util.DaemonThread):
                 if self.config.is_fee_estimates_update_required():
                     self.request_fee_estimates()
 
-    def request_chunk(self, interface, index):
+    def fetch_missing_headers_for(self, tx_height):
+        index = tx_height // 2016
         if index in self.requested_chunks:
             return
-        interface.print_error("requesting chunk %d" % index)
+
         self.requested_chunks.add(index)
-        height = index * 2016
-        self.queue_request('blockchain.block.headers', [height, 2016],
-                           interface)
+        self.headers(tx_height, 2016)
 
     def on_block_headers(self, interface, response):
-        '''Handle receiving a chunk of block headers'''
+        '''Handle receiving a batch of block headers'''
         error = response.get('error')
         result = response.get('result')
         params = response.get('params')
@@ -861,6 +860,7 @@ class Network(util.DaemonThread):
         if result is None or params is None or error is not None:
             interface.print_error(error or 'bad response')
             return
+
         # Ignore unsolicited chunks
         height = params[0]
         index = height // 2016
@@ -870,8 +870,7 @@ class Network(util.DaemonThread):
         else:
             interface.print_error("received chunk %d" % index)
         self.requested_chunks.remove(index)
-        hexdata = result['hex']
-        connect = blockchain.connect_chunk(index, hexdata)
+        connect = blockchain.connect_chunk(index, result['hex'])
         if not connect:
             self.connection_down(interface.server)
             return
@@ -1004,7 +1003,7 @@ class Network(util.DaemonThread):
         # If not finished, get the next header
         if next_height is not None:
             if interface.mode == 'catch_up' and interface.tip > next_height + 50:
-                self.request_chunk(interface, next_height // 2016)
+                self.fetch_missing_headers_for(next_height)
             else:
                 self.request_header(interface, next_height)
         else:

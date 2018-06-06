@@ -17,6 +17,15 @@ class ElectrumX(network.Network):
 
         self.__hash2address = {}
 
+    # Deprecated in favor of headers
+    def get_chunk(self, index, callback=None):
+        command = 'blockchain.block.get_chunk'
+        invocation = lambda c: self.send([(command, [index])], c)
+
+        return ElectrumX.__with_default_synchronous_callback(
+            invocation,
+            callback)
+
     # TODO clean this method up. It should have no reference to interface.
     def request_header(self, interface, height):
         self.queue_request('blockchain.block.get_header', [height], interface)
@@ -95,6 +104,14 @@ class ElectrumX(network.Network):
     def get_history_for_scripthash(self, hash, callback=None):
         command = 'blockchain.scripthash.get_history'
         invocation = lambda c: self.send([(command, [hash])], c)
+
+        return ElectrumX.__with_default_synchronous_callback(
+            invocation,
+            callback)
+
+    def headers(self, start_height, count, callback=None):
+        command = 'blockchain.block.headers'
+        invocation = lambda c: self.send([(command, [start_height, count])], c)
 
         return ElectrumX.__with_default_synchronous_callback(
             invocation,
