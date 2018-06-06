@@ -486,10 +486,14 @@ class ElectrumWindow(App):
             return ''
 
     def on_wizard_complete(self, instance, wallet):
-        if wallet:
+        if wallet:  # wizard returned a wallet
             wallet.start_threads(self.daemon.network)
             self.daemon.add_wallet(wallet)
             self.load_wallet(wallet)
+        elif not self.wallet:
+            # wizard did not return a wallet; and there is no wallet open atm
+            # try to open last saved wallet (potentially start wizard again)
+            self.load_wallet_by_name(self.electrum_config.get_wallet_path())
 
     def load_wallet_by_name(self, path):
         if not path:
