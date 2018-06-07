@@ -297,10 +297,6 @@ class Network(util.DaemonThread, triggers.Triggers):
     def is_connecting(self):
         return self.connection_status == 'connecting'
 
-    # TODO unused?
-    def is_up_to_date(self):
-        return self.unanswered_requests == {}
-
     @with_interface_lock
     def _queue_request(self, method, params, interface=None):
         # If you want to queue a request on any interface it must go
