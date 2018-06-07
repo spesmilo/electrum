@@ -157,6 +157,7 @@ class RequestList(MyTreeView):
                     break
                 else:
                     description = ''
+            date = format_time(lnaddr.date)
             labels = [date, r, '', description, amount_str, '']
             items = [QStandardItem(e) for e in labels]
             items.setIcon(2, QIcon(":icons/lightning.png"))
