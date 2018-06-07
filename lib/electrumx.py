@@ -20,7 +20,7 @@ class ElectrumX(network.Network):
     # Deprecated in favor of headers
     def get_chunk(self, index, callback=None):
         command = 'blockchain.block.get_chunk'
-        invocation = lambda c: self.send([(command, [index])], c)
+        invocation = lambda c: self._send([(command, [index])], c)
 
         return ElectrumX.__with_default_synchronous_callback(
             invocation,
@@ -28,7 +28,7 @@ class ElectrumX(network.Network):
 
     # TODO clean this method up. It should have no reference to interface.
     def request_header(self, interface, height):
-        self.queue_request('blockchain.block.get_header', [height], interface)
+        self._queue_request('blockchain.block.get_header', [height], interface)
         interface.request = height
         interface.req_time = time.time()
 
@@ -49,7 +49,7 @@ class ElectrumX(network.Network):
     def subscribe_to_scripthashes(self, hashes, callback):
         command = 'blockchain.scripthash.subscribe'
         messages = [(command, [hash_]) for hash_ in hashes]
-        invocation = lambda c: self.send(messages, c)
+        invocation = lambda c: self._send(messages, c)
 
         return ElectrumX.__with_default_synchronous_callback(
             invocation,
@@ -74,7 +74,7 @@ class ElectrumX(network.Network):
     # what the other ElectrumX methods do. This is unexpected.
     def broadcast_transaction(self, transaction, callback=None):
         command = 'blockchain.transaction.broadcast'
-        invocation = lambda c: self.send([(command, [str(transaction)])], c)
+        invocation = lambda c: self._send([(command, [str(transaction)])], c)
 
         if callback:
             invocation(callback)
@@ -103,7 +103,7 @@ class ElectrumX(network.Network):
 
     def get_history_for_scripthash(self, hash, callback=None):
         command = 'blockchain.scripthash.get_history'
-        invocation = lambda c: self.send([(command, [hash])], c)
+        invocation = lambda c: self._send([(command, [hash])], c)
 
         return ElectrumX.__with_default_synchronous_callback(
             invocation,
@@ -111,7 +111,7 @@ class ElectrumX(network.Network):
 
     def headers(self, start_height, count, callback=None):
         command = 'blockchain.block.headers'
-        invocation = lambda c: self.send([(command, [start_height, count])], c)
+        invocation = lambda c: self._send([(command, [start_height, count])], c)
 
         return ElectrumX.__with_default_synchronous_callback(
             invocation,
@@ -119,7 +119,7 @@ class ElectrumX(network.Network):
 
     def subscribe_to_headers(self, callback=None):
         command = 'blockchain.headers.subscribe'
-        invocation = lambda c: self.send([(command, [])], c)
+        invocation = lambda c: self._send([(command, [])], c)
 
         return ElectrumX.__with_default_synchronous_callback(
             invocation,
@@ -127,7 +127,7 @@ class ElectrumX(network.Network):
 
     def get_merkle_for_transaction(self, tx_hash, tx_height, callback=None):
         command = 'blockchain.transaction.get_merkle'
-        invocation = lambda c: self.send([(command, [tx_hash, tx_height])], c)
+        invocation = lambda c: self._send([(command, [tx_hash, tx_height])], c)
 
         return ElectrumX.__with_default_synchronous_callback(
             invocation,
@@ -135,7 +135,7 @@ class ElectrumX(network.Network):
 
     def subscribe_to_scripthash(self, scripthash, callback=None):
         command = 'blockchain.scripthash.subscribe'
-        invocation = lambda c: self.send([(command, [scripthash])], c)
+        invocation = lambda c: self._send([(command, [scripthash])], c)
 
         return ElectrumX.__with_default_synchronous_callback(
             invocation,
@@ -143,7 +143,7 @@ class ElectrumX(network.Network):
 
     def get_transaction(self, transaction_hash, callback=None):
         command = 'blockchain.transaction.get'
-        invocation = lambda c: self.send([(command, [transaction_hash])], c)
+        invocation = lambda c: self._send([(command, [transaction_hash])], c)
 
         return ElectrumX.__with_default_synchronous_callback(
             invocation,
@@ -152,7 +152,7 @@ class ElectrumX(network.Network):
     def get_transactions(self, transaction_hashes, callback=None):
         command = 'blockchain.transaction.get'
         messages = [(command, [tx_hash]) for tx_hash in transaction_hashes]
-        invocation = lambda c: self.send(messages, c)
+        invocation = lambda c: self._send(messages, c)
 
         return ElectrumX.__with_default_synchronous_callback(
             invocation,
@@ -160,7 +160,7 @@ class ElectrumX(network.Network):
 
     def listunspent_for_scripthash(self, scripthash, callback=None):
         command = 'blockchain.scripthash.listunspent'
-        invocation = lambda c: self.send([(command, [scripthash])], c)
+        invocation = lambda c: self._send([(command, [scripthash])], c)
 
         return ElectrumX.__with_default_synchronous_callback(
             invocation,
@@ -168,7 +168,15 @@ class ElectrumX(network.Network):
 
     def get_balance_for_scripthash(self, scripthash, callback=None):
         command = 'blockchain.scripthash.get_balance'
-        invocation = lambda c: self.send([(command, [scripthash])], c)
+        invocation = lambda c: self._send([(command, [scripthash])], c)
+
+        return ElectrumX.__with_default_synchronous_callback(
+            invocation,
+            callback)
+
+    def server_version(self, client_name, protocol_version, callback=None):
+        command = 'server.version'
+        invocation = lambda c: self._send([(command, [client_name, protocol_version])], c)
 
         return ElectrumX.__with_default_synchronous_callback(
             invocation,
