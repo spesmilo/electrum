@@ -511,6 +511,8 @@ class ElectrumWindow(App):
 
     def on_stop(self):
         Logger.info('on_stop')
+        if self.wallet:
+            self.electrum_config.save_last_wallet(self.wallet)
         self.stop_wallet()
 
     def stop_wallet(self):
@@ -809,7 +811,7 @@ class ElectrumWindow(App):
         Clock.schedule_once(lambda dt: on_success(tx))
 
     def _broadcast_thread(self, tx, on_complete):
-        ok, txid = self.network.broadcast(tx)
+        ok, txid = self.network.broadcast_transaction(tx)
         Clock.schedule_once(lambda dt: on_complete(ok, txid))
 
     def broadcast(self, tx, pr=None):
@@ -919,9 +921,7 @@ class ElectrumWindow(App):
         self.stop_wallet()
         os.unlink(wallet_path)
         self.show_error(_("Wallet removed: {}").format(basename))
-        d = os.listdir(dirname)
-        name = 'default_wallet'
-        new_path = os.path.join(dirname, name)
+        new_path = self.electrum_config.get_wallet_path()
         self.load_wallet_by_name(new_path)
 
     def show_seed(self, label):

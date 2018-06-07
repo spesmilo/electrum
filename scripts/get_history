@@ -14,5 +14,5 @@ except Exception:
 n = Network()
 n.start()
 _hash = bitcoin.address_to_scripthash(addr)
-h = n.synchronous_get(('blockchain.scripthash.get_history',[_hash]))
+h = n.get_history_for_scripthash(_hash)
 print_msg(json_encode(h))

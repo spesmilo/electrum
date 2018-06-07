@@ -60,5 +60,3 @@ class ElectrumGui:
                            plugins = self.plugins,
                            gui_object=self)
         w.run()
-        if w.wallet:
-            self.config.save_last_wallet(w.wallet)
