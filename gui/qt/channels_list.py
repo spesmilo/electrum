@@ -10,19 +10,24 @@ class ChannelsList(MyTreeWidget):
     update_single_row = QtCore.pyqtSignal(OpenChannel)
 
     def __init__(self, parent):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Node ID'), _('Capacity'), _('Balance'), _('Status')], 0)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Node ID'), _('Balance'), _('Remote'), _('Status')], 0)
         self.main_window = parent
         self.update_rows.connect(self.do_update_rows)
         self.update_single_row.connect(self.do_update_single_row)
 
     def format_fields(self, chan):
         status = self.parent.wallet.lnworker.channel_state[chan.channel_id]
-        return [bh2u(chan.node_id), self.parent.format_amount(chan.constraints.capacity), self.parent.format_amount(chan.local_state.amount_msat//1000), status]
+        return [
+            bh2u(chan.node_id),
+            self.parent.format_amount(chan.local_state.amount_msat//1000),
+            self.parent.format_amount(chan.remote_state.amount_msat//1000),
+            status
+        ]
 
     def create_menu(self, position):
         menu = QtWidgets.QMenu()
         cur = self.currentItem()
-        print('ID', cur.data(0, QtCore.Qt.UserRole))
+        print('ID', bh2u(cur.data(0, QtCore.Qt.UserRole)))
         def close():
             print("closechannel result", self.parent.wallet.lnworker.close_channel_from_other_thread(cur.di))
         menu.addAction(_("Close channel"), close)
