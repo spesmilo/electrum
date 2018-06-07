@@ -686,7 +686,7 @@ class Peer(PrintError):
 
     def process_message(self, message):
         message_type, payload = decode_msg(message)
-        self.print_error("Received '%s'" % message_type.upper())
+        #self.print_error("Received '%s'" % message_type.upper())
         try:
             f = getattr(self, 'on_' + message_type)
         except AttributeError:
@@ -941,6 +941,7 @@ class Peer(PrintError):
 
     def on_channel_reestablish(self, payload):
         chan_id = payload["channel_id"]
+        self.print_error("Received channel_reestablish", bh2u(chan_id))
         chan = self.channels.get(chan_id)
         if not chan:
             print("Warning: received unknown channel_reestablish", bh2u(chan_id))
@@ -954,7 +955,9 @@ class Peer(PrintError):
             raise Exception("expected local ctn {}, got {}".format(chan.local_state.ctn, local_ctn))
         if channel_reestablish_msg["my_current_per_commitment_point"] != chan.remote_state.last_per_commitment_point:
             raise Exception("Remote PCP mismatch")
-        self.channel_state[chan_id] = 'OPENING' #if chan.local_state.funding_locked_received else 'OPENING'
+        self.channel_state[chan_id] = 'OPENING'
+        if chan.local_state.funding_locked_received:
+            self.mark_open(chan)
         self.network.trigger_callback('channel', chan)
 
     def funding_locked(self, chan):
