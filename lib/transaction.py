@@ -825,7 +825,10 @@ class Transaction:
             scriptSig = bitcoin.p2wpkh_nested_script(pubkey)
             return push_script(scriptSig)
         elif _type == 'p2wsh-p2sh':
-            witness_script = self.get_preimage_script(txin)
+            if estimate_size:
+                witness_script = ''
+            else:
+                witness_script = self.get_preimage_script(txin)
             scriptSig = bitcoin.p2wsh_nested_script(witness_script)
             return push_script(scriptSig)
         elif _type == 'address':
