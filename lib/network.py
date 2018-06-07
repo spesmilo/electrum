@@ -44,6 +44,7 @@ from . import bitcoin
 from . import constants
 from .interface import Connection, Interface
 from . import blockchain
+from . import triggers
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 
 
@@ -155,7 +156,7 @@ def serialize_server(host, port, protocol):
     return str(':'.join([host, port, protocol]))
 
 
-class Network(util.DaemonThread):
+class Network(util.DaemonThread, triggers.Triggers):
     """The Network class manages a set of connections to remote electrum
     servers, each connected socket is handled by an Interface() object.
     Connections are initiated by a Connection() thread which stops once
@@ -172,6 +173,7 @@ class Network(util.DaemonThread):
         if config is None:
             config = {}  # Do not use mutables as default values!
         util.DaemonThread.__init__(self)
+        triggers.Triggers.__init__(self)
         self.config = SimpleConfig(config) if isinstance(config, dict) else config
         self.num_server = 10 if not self.config.get('oneserver') else 0
         self.blockchains = blockchain.read_blockchains(self.config)  # note: needs self.blockchains_lock
@@ -211,8 +213,6 @@ class Network(util.DaemonThread):
         # callbacks passed with subscriptions
         self.subscriptions = defaultdict(list)  # note: needs self.callback_lock
         self.sub_cache = {}                     # note: needs self.interface_lock
-        # callbacks set by the GUI
-        self.callbacks = defaultdict(list)      # note: needs self.callback_lock
 
         dir_path = os.path.join(self.config.path, 'certs')
         util.make_dir(dir_path)
@@ -248,22 +248,6 @@ class Network(util.DaemonThread):
             with self.recent_servers_lock:
                 return func(self, *args, **kwargs)
         return func_wrapper
-
-    def register_callback(self, callback, events):
-        with self.callback_lock:
-            for event in events:
-                self.callbacks[event].append(callback)
-
-    def unregister_callback(self, callback):
-        with self.callback_lock:
-            for callbacks in self.callbacks.values():
-                if callback in callbacks:
-                    callbacks.remove(callback)
-
-    def trigger_callback(self, event, *args):
-        with self.callback_lock:
-            callbacks = self.callbacks[event][:]
-        [callback(event, *args) for callback in callbacks]
 
     def read_recent_servers(self):
         if not self.config.path:
