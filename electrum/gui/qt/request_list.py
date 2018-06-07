@@ -130,6 +130,7 @@ class RequestList(MyTreeWidget):
                     break
                 else:
                     description = ''
+            date = format_time(lnaddr.date)
             item = QTreeWidgetItem([date, r, description, amount_str, ''])
             item.setIcon(1, QIcon(":icons/lightning.png"))
             self.addTopLevelItem(item)

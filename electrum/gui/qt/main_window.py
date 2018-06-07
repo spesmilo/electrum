@@ -974,7 +974,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.request_list.update()
 
     def create_lightning_request(self, amount, message, expiration):
-        req = self.wallet.lnworker.add_invoice(amount)
+        req = self.wallet.lnworker.add_invoice(amount, message)
 
     def create_bitcoin_request(self, amount, message, expiration):
         addr = self.wallet.get_unused_address()
