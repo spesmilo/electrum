@@ -180,8 +180,7 @@ class LNWorker(PrintError):
 
     def open_channel(self, node_id, local_amt_sat, push_amt_sat, pw):
         coro = self._open_channel_coroutine(node_id, local_amt_sat, push_amt_sat, None if pw == "" else pw)
-        # FIXME this is blocking the GUI
-        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop).result()
+        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     def pay(self, invoice):
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
