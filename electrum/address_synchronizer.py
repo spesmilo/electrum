@@ -35,6 +35,7 @@ from .synchronizer import Synchronizer
 from .verifier import SPV
 from .blockchain import hash_header
 from .i18n import _
+from .lnworker import LNWorker
 
 TX_HEIGHT_LOCAL = -2
 TX_HEIGHT_UNCONF_PARENT = -1
