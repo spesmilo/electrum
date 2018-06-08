@@ -21,6 +21,7 @@ from electrum.util import profiler, parse_URI, format_time, InvalidPassword, Not
 from electrum import bitcoin
 from electrum.util import timestamp_to_datetime
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum.plugins import run_hook
 
 from .context_menu import ContextMenu
 
@@ -283,6 +284,11 @@ class SendScreen(CScreen):
             _("Amount to be sent") + ": " + self.app.format_amount_and_units(amount),
             _("Mining fee") + ": " + self.app.format_amount_and_units(fee),
         ]
+        x_fee = run_hook('get_tx_extra_fee', self.app.wallet, tx)
+        if x_fee:
+            x_fee_address, x_fee_amount = x_fee
+            msg.append(_("Additional fees") + ": " + self.app.format_amount_and_units(x_fee_amount))
+
         if fee >= config.get('confirm_fee', 100000):
             msg.append(_('Warning')+ ': ' + _("The fee for this transaction seems unusually high."))
         msg.append(_("Enter your PIN code to proceed"))
