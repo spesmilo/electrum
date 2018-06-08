@@ -539,8 +539,9 @@ class TrustedCoinPlugin(BasePlugin):
         # secret must be sent by the server
         try:
             r = server.create(xpub1, xpub2, email)
-        except socket.error:
+        except (socket.error, ErrorConnectingServer):
             wizard.show_message('Server not reachable, aborting')
+            wizard.terminate()
             return
         except TrustedCoinException as e:
             if e.status_code == 409:

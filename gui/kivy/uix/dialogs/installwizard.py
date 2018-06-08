@@ -189,6 +189,7 @@ Builder.load_string('''
 
 <WizardTOSDialog>
     message : ''
+    size_hint: 1, 1
     ScrollView:
         size_hint: 1, 1
         Label:

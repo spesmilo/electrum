@@ -485,7 +485,7 @@ class ElectrumWindow(App):
         else:
             return ''
 
-    def on_wizard_complete(self, instance, wallet):
+    def on_wizard_complete(self, wizard, wallet):
         if wallet:  # wizard returned a wallet
             wallet.start_threads(self.daemon.network)
             self.daemon.add_wallet(wallet)
@@ -493,9 +493,9 @@ class ElectrumWindow(App):
         elif not self.wallet:
             # wizard did not return a wallet; and there is no wallet open atm
             # try to open last saved wallet (potentially start wizard again)
-            self.load_wallet_by_name(self.electrum_config.get_wallet_path())
+            self.load_wallet_by_name(self.electrum_config.get_wallet_path(), ask_if_wizard=True)
 
-    def load_wallet_by_name(self, path):
+    def load_wallet_by_name(self, path, ask_if_wizard=False):
         if not path:
             return
         if self.wallet and self.wallet.storage.path == path:
@@ -508,11 +508,27 @@ class ElectrumWindow(App):
                 self.load_wallet(wallet)
         else:
             Logger.debug('Electrum: Wallet not found or action needed. Launching install wizard')
-            storage = WalletStorage(path, manual_upgrades=True)
-            wizard = Factory.InstallWizard(self.electrum_config, self.plugins, storage)
-            wizard.bind(on_wizard_complete=self.on_wizard_complete)
-            action = wizard.storage.get_action()
-            wizard.run(action)
+
+            def launch_wizard():
+                storage = WalletStorage(path, manual_upgrades=True)
+                wizard = Factory.InstallWizard(self.electrum_config, self.plugins, storage)
+                wizard.bind(on_wizard_complete=self.on_wizard_complete)
+                action = wizard.storage.get_action()
+                wizard.run(action)
+            if not ask_if_wizard:
+                launch_wizard()
+            else:
+                from .uix.dialogs.question import Question
+
+                def handle_answer(b: bool):
+                    if b:
+                        launch_wizard()
+                    else:
+                        try: os.unlink(path)
+                        except FileNotFoundError: pass
+                        self.stop()
+                d = Question(_('Do you want to launch the wizard again?'), handle_answer)
+                d.open()
 
     def on_stop(self):
         Logger.info('on_stop')

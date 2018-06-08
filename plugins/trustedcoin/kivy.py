@@ -32,7 +32,7 @@ from kivy.clock import Clock
 
 from electrum.i18n import _
 from electrum.plugins import hook
-from .trustedcoin import TrustedCoinPlugin, server, KIVY_DISCLAIMER, TrustedCoinException
+from .trustedcoin import TrustedCoinPlugin, server, KIVY_DISCLAIMER, TrustedCoinException, ErrorConnectingServer
 
 
 
@@ -66,21 +66,30 @@ class Plugin(TrustedCoinPlugin):
             if e.status_code == 400:  # invalid OTP
                 Clock.schedule_once(lambda dt: on_failure(_('Invalid one-time password.')))
             else:
-                Clock.schedule_once(lambda dt, bound_e=e: on_failure(_('Error') + ':' + str(bound_e)))
+                Clock.schedule_once(lambda dt, bound_e=e: on_failure(_('Error') + ':\n' + str(bound_e)))
         except Exception as e:
-            Clock.schedule_once(lambda dt, bound_e=e: on_failure(_('Error') + ':' + str(bound_e)))
+            Clock.schedule_once(lambda dt, bound_e=e: on_failure(_('Error') + ':\n' + str(bound_e)))
         else:
             on_success(tx)
 
     def accept_terms_of_use(self, wizard):
-        tos = server.get_terms_of_service()
-        f = lambda x: self.read_email(wizard)
-        wizard.tos_dialog(tos=tos, run_next = f)
+        def handle_error(msg, e):
+            wizard.show_error(msg + ':\n' + str(e))
+            wizard.terminate()
+        try:
+            tos = server.get_terms_of_service()
+        except ErrorConnectingServer as e:
+            Clock.schedule_once(lambda dt, bound_e=e: handle_error(_('Error connecting to server'), bound_e))
+        except Exception as e:
+            Clock.schedule_once(lambda dt, bound_e=e: handle_error(_('Error'), bound_e))
+        else:
+            f = lambda x: self.read_email(wizard)
+            wizard.tos_dialog(tos=tos, run_next=f)
 
     def read_email(self, wizard):
         f = lambda x: self.create_remote_key(x, wizard)
-        wizard.email_dialog(run_next = f)
+        wizard.email_dialog(run_next=f)
 
     def request_otp_dialog(self, wizard, short_id, otp_secret, xpub3):
         f = lambda otp, reset: self.check_otp(wizard, short_id, otp_secret, xpub3, otp, reset)
-        wizard.otp_dialog(otp_secret=otp_secret, run_next = f)
+        wizard.otp_dialog(otp_secret=otp_secret, run_next=f)
