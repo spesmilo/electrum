@@ -26,10 +26,10 @@ class ChannelsList(MyTreeWidget):
 
     def create_menu(self, position):
         menu = QtWidgets.QMenu()
-        cur = self.currentItem()
-        print('ID', bh2u(cur.data(0, QtCore.Qt.UserRole)))
+        channel_id = self.currentItem().data(0, QtCore.Qt.UserRole)
+        print('ID', bh2u(channel_id))
         def close():
-            print("closechannel result", self.parent.wallet.lnworker.close_channel_from_other_thread(cur.di))
+            self.parent.wallet.lnworker.close_channel(channel_id)
         menu.addAction(_("Close channel"), close)
         menu.exec_(self.viewport().mapToGlobal(position))
 
