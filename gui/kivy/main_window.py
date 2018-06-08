@@ -694,6 +694,8 @@ class ElectrumWindow(App):
         self.fiat_balance = self.fx.format_amount(c+u+x) + ' [size=22dp]%s[/size]'% self.fx.ccy
 
     def get_max_amount(self):
+        if run_hook('abort_send', self):
+            return ''
         inputs = self.wallet.get_spendable_coins(None, self.electrum_config)
         if not inputs:
             return ''
@@ -705,7 +707,9 @@ class ElectrumWindow(App):
             Clock.schedule_once(lambda dt, bound_e=e: self.show_error(str(bound_e)))
             return ''
         amount = tx.output_value()
-        return format_satoshis_plain(amount, self.decimal_point())
+        __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
+        amount_after_all_fees = amount - x_fee_amount
+        return format_satoshis_plain(amount_after_all_fees, self.decimal_point())
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, 0, self.decimal_point(), is_diff=is_diff, whitespaces=whitespaces)

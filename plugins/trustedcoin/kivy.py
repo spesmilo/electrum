@@ -93,3 +93,18 @@ class Plugin(TrustedCoinPlugin):
     def request_otp_dialog(self, wizard, short_id, otp_secret, xpub3):
         f = lambda otp, reset: self.check_otp(wizard, short_id, otp_secret, xpub3, otp, reset)
         wizard.otp_dialog(otp_secret=otp_secret, run_next=f)
+
+    @hook
+    def abort_send(self, window):
+        wallet = window.wallet
+        if not isinstance(wallet, self.wallet_class):
+            return
+        if wallet.can_sign_without_server():
+            return
+        if wallet.billing_info is None:
+            self.start_request_thread(wallet)
+            Clock.schedule_once(
+                lambda dt: window.show_error(_('Requesting account info from TrustedCoin server...') + '\n' +
+                                             _('Please try again.')))
+            return True
+        return False

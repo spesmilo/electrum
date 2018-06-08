@@ -1267,6 +1267,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return w
 
     def spend_max(self):
+        if run_hook('abort_send', self):
+            return
         self.is_max = True
         self.do_update_fee()
 
@@ -1364,7 +1366,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             if self.is_max:
                 amount = tx.output_value()
-                self.amount_e.setAmount(amount)
+                __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
+                amount_after_all_fees = amount - x_fee_amount
+                self.amount_e.setAmount(amount_after_all_fees)
 
     def from_list_delete(self, item):
         i = self.from_list.indexOfTopLevelItem(item)
