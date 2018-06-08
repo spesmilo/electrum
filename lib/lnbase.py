@@ -582,7 +582,6 @@ class Peer(PrintError):
         self.privkey = lnworker.privkey
         self.network = lnworker.network
         self.channel_db = lnworker.channel_db
-        self.path_finder = lnworker.path_finder
         self.channel_state = lnworker.channel_state
         self.read_buffer = b''
         self.ping_time = 0
