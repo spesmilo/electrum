@@ -120,7 +120,7 @@ class LNWorker(PrintError):
     def add_peer(self, host, port, pubkey):
         node_id = bfh(pubkey)
         channels = self.channels_for_peer(node_id)
-        peer = Peer(self, host, int(port), node_id, request_initial_sync=False)
+        peer = Peer(self, host, int(port), node_id, request_initial_sync=self.config.get("request_initial_sync", True))
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[node_id] = peer
         self.lock = threading.Lock()
@@ -188,13 +188,15 @@ class LNWorker(PrintError):
         invoice_pubkey = addr.pubkey.serialize()
         amount_msat = int(addr.amount * COIN * 1000)
         path = self.path_finder.find_path_for_payment(self.pubkey, invoice_pubkey, amount_msat)
+        if path is None:
+            return "No path found"
         node_id, short_channel_id = path[0]
         peer = self.peers[node_id]
         for chan in self.channels.values():
             if chan.short_channel_id == short_channel_id:
                 break
         coro = peer.pay(path, chan, amount_msat, payment_hash, invoice_pubkey, addr.min_final_cltv_expiry)
-        asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     def add_invoice(self, amount_sat, message):
         is_open = lambda chan: self.channel_state[chan.channel_id] == "OPEN"
