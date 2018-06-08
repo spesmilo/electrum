@@ -801,7 +801,7 @@ class Peer(PrintError):
             revocation_basepoint=keypair_generator(keyfamilyrevocationbase, 0),
             to_self_delay=143,
             dust_limit_sat=10,
-            max_htlc_value_in_flight_msat=500000 * 1000,
+            max_htlc_value_in_flight_msat=0xffffffffffffffff,
             max_accepted_htlcs=5
         )
         # TODO derive this?
@@ -1019,10 +1019,7 @@ class Peer(PrintError):
         assert amount_msat > 0, "amount_msat is not greater zero"
         height = self.network.get_local_height()
         their_revstore = chan.remote_state.revocation_store
-        if chan.channel_id in self.commitment_signed:
-            print("too many commitments signed")
-            del self.commitment_signed[chan.channel_id]
-        route = self.path_finder.create_route_from_path(path, self.lnworker.pubkey)
+        route = self.lnworker.path_finder.create_route_from_path(path, self.lnworker.pubkey)
         hops_data = []
         sum_of_deltas = sum(route_edge.channel_policy.cltv_expiry_delta for route_edge in route[1:])
         total_fee = 0
@@ -1121,7 +1118,9 @@ class Peer(PrintError):
         while True:
             self.print_error("receiving commitment")
             commitment_signed_msg = await self.commitment_signed[channel_id].get()
-            if int.from_bytes(commitment_signed_msg["num_htlcs"], "big") == 1:
+            num_htlcs = int.from_bytes(commitment_signed_msg["num_htlcs"], "big")
+            print("num_htlcs", num_htlcs)
+            if num_htlcs == 1:
                 break
         htlc_id = int.from_bytes(htlc["id"], 'big')
         assert htlc_id == chan.remote_state.next_htlc_id, (htlc_id, chan.remote_state.next_htlc_id)
@@ -1231,7 +1230,7 @@ class Peer(PrintError):
                 next_htlc_id=htlc_id + 1
             )
         )
-        # TODO save new_chan
+        self.lnworker.save_channel(new_chan)
 
     def on_commitment_signed(self, payload):
         self.print_error("commitment_signed", payload)
