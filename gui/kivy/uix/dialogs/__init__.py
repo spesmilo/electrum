@@ -213,3 +213,10 @@ class OutputList(Factory.GridLayout):
         b.value = self.app.format_amount_and_units(amount)
         self.add_widget(b)
 
+
+class TopLabel(Factory.Label):
+    pass
+
+
+class RefLabel(TopLabel):
+    pass

@@ -38,6 +38,7 @@ from kivy.lang import Builder
 from .uix.dialogs.installwizard import InstallWizard
 from .uix.dialogs import InfoBubble
 from .uix.dialogs import OutputList, OutputItem
+from .uix.dialogs import TopLabel, RefLabel
 
 #from kivy.core.window import Window
 #Window.softinput_mode = 'below_target'
@@ -563,6 +564,16 @@ class ElectrumWindow(App):
             from .uix.dialogs.wallets import WalletDialog
             d = WalletDialog()
             d.open()
+        elif name == 'status':
+            popup = Builder.load_file('gui/kivy/uix/ui_screens/'+name+'.kv')
+            master_public_keys_layout = popup.ids.master_public_keys
+            for xpub in self.wallet.get_master_public_keys()[1:]:
+                master_public_keys_layout.add_widget(TopLabel(text=_('Master Public Key')))
+                ref = RefLabel()
+                ref.name = _('Master Public Key')
+                ref.data = xpub
+                master_public_keys_layout.add_widget(ref)
+            popup.open()
         else:
             popup = Builder.load_file('gui/kivy/uix/ui_screens/'+name+'.kv')
             popup.open()
