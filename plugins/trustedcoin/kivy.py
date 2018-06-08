@@ -32,7 +32,7 @@ from kivy.clock import Clock
 
 from electrum.i18n import _
 from electrum.plugins import hook
-from .trustedcoin import TrustedCoinPlugin, server, KIVY_DISCLAIMER
+from .trustedcoin import TrustedCoinPlugin, server, KIVY_DISCLAIMER, TrustedCoinException
 
 
 
@@ -62,10 +62,15 @@ class Plugin(TrustedCoinPlugin):
     def on_otp(self, wallet, tx, otp, on_success, on_failure):
         try:
             wallet.on_otp(tx, otp)
-        except:
-            Clock.schedule_once(lambda dt: on_failure(_("Invalid OTP")))
-            return
-        on_success(tx)
+        except TrustedCoinException as e:
+            if e.status_code == 400:  # invalid OTP
+                Clock.schedule_once(lambda dt: on_failure(_('Invalid one-time password.')))
+            else:
+                Clock.schedule_once(lambda dt, bound_e=e: on_failure(_('Error') + ':' + str(bound_e)))
+        except Exception as e:
+            Clock.schedule_once(lambda dt, bound_e=e: on_failure(_('Error') + ':' + str(bound_e)))
+        else:
+            on_success(tx)
 
     def accept_terms_of_use(self, wizard):
         tos = server.get_terms_of_service()
