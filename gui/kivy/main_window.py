@@ -67,7 +67,7 @@ Label.register('Roboto',
                'gui/kivy/data/fonts/Roboto-Bold.ttf')
 
 
-from electrum_ltc.util import base_units
+from electrum_ltc.util import base_units, NoDynamicFeeEstimates
 
 
 class ElectrumWindow(App):
@@ -668,7 +668,11 @@ class ElectrumWindow(App):
             return ''
         addr = str(self.send_screen.screen.address) or self.wallet.dummy_address()
         outputs = [(TYPE_ADDRESS, addr, '!')]
-        tx = self.wallet.make_unsigned_transaction(inputs, outputs, self.electrum_config)
+        try:
+            tx = self.wallet.make_unsigned_transaction(inputs, outputs, self.electrum_config)
+        except NoDynamicFeeEstimates as e:
+            Clock.schedule_once(lambda dt, bound_e=e: self.show_error(str(bound_e)))
+            return ''
         amount = tx.output_value()
         return format_satoshis_plain(amount, self.decimal_point())
 
@@ -705,7 +709,7 @@ class ElectrumWindow(App):
 
     def on_resume(self):
         now = time.time()
-        if self.wallet.has_password and now - self.pause_time > 60:
+        if self.wallet and self.wallet.has_password() and now - self.pause_time > 60:
             self.password_dialog(self.wallet, _('Enter PIN'), None, self.stop)
         if self.nfcscanner:
             self.nfcscanner.nfc_enable()
