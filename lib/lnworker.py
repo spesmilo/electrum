@@ -189,7 +189,7 @@ class LNWorker(PrintError):
         amount_msat = int(addr.amount * COIN * 1000)
         path = self.path_finder.find_path_for_payment(self.pubkey, invoice_pubkey, amount_msat)
         if path is None:
-            return "No path found"
+            raise Exception("No path found")
         node_id, short_channel_id = path[0]
         peer = self.peers[node_id]
         for chan in self.channels.values():
