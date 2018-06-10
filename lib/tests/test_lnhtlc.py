@@ -38,7 +38,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
 
     return lnbase.OpenChannel(
             channel_id=channel_id,
-            short_channel_id=channel_id.to_bytes(32, "big")[:8],
+            short_channel_id=channel_id[:8],
             funding_outpoint=lnbase.Outpoint(funding_txid, funding_index),
             local_config=local_config,
             remote_config=remote_config,
@@ -118,7 +118,7 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
             payment_hash = paymentHash,
             amount_msat =  htlcAmt,
             cltv_expiry =  5,
-            final_cltv_expiry_with_deltas = 5
+            total_fee = 0
         )
 
         # First Alice adds the outgoing HTLC to her local channel's state
@@ -133,6 +133,8 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         # just sent before he receives this signature, so the signature will
         # cover the HTLC.
         aliceSig, aliceHtlcSigs = alice_channel.sign_next_commitment()
+
+        self.assertEqual(len(aliceHtlcSigs), 1, "alice should generate one htlc signature")
 
         # Bob receives this signature message, and checks that this covers the
         # state he has in his remote log. This includes the HTLC just sent
@@ -153,8 +155,8 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         # her prior commitment transaction. Alice shouldn't have any HTLCs to
         # forward since she's sending an outgoing HTLC.
         fwdPkg = alice_channel.receive_revocation(bobRevocation)
-        self.assertEqual(len(fwdPkg.adds), 0, "alice forwards %s add htlcs, should forward none"% len(fwdPkg.adds))
-        self.assertEqual(len(fwdPkg.settle_fails), 0, "alice forwards %s settle/fail htlcs, should forward none"% len(fwdPkg.settle_fails))
+        self.assertEqual(fwdPkg.adds, [], "alice forwards %s add htlcs, should forward none"% len(fwdPkg.adds))
+        self.assertEqual(fwdPkg.settle_fails, [], "alice forwards %s settle/fail htlcs, should forward none"% len(fwdPkg.settle_fails))
 
         # Alice then processes bob's signature, and since she just received
         # the revocation, she expect this signature to cover everything up to
@@ -170,7 +172,7 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         # into both commitment transactions.
         fwdPkg = bob_channel.receive_revocation(aliceRevocation)
         self.assertEqual(len(fwdPkg.adds), 1, "bob forwards %s add htlcs, should only forward one"% len(fwdPkg.adds))
-        self.assertEqual(len(fwdPkg.settle_fails), 0, "bob forwards %s settle/fail htlcs, should forward none"% len(fwdPkg.settle_fails))
+        self.assertEqual(fwdPkg.settle_fails, [], "bob forwards %s settle/fail htlcs, should forward none"% len(fwdPkg.settle_fails))
 
         # At this point, both sides should have the proper number of satoshis
         # sent, and commitment height updated within their local channel
@@ -182,8 +184,8 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         self.assertEqual(alice_channel.total_msat_received, bobSent, "alice has incorrect milli-satoshis received %s vs %s"% (alice_channel.total_msat_received, bobSent))
         self.assertEqual(bob_channel.total_msat_sent, bobSent, "bob has incorrect milli-satoshis sent %s vs %s"% (bob_channel.total_msat_sent, bobSent))
         self.assertEqual(bob_channel.total_msat_received, aliceSent, "bob has incorrect milli-satoshis received %s vs %s"% (bob_channel.total_msat_received, aliceSent))
-        self.assertEqual(bob_channel.current_height, 1, "bob has incorrect commitment height, %s vs %s"% (bob_channel.current_height, 1))
-        self.assertEqual(alice_channel.current_height, 1, "alice has incorrect commitment height, %s vs %s"% (alice_channel.current_height, 1))
+        self.assertEqual(bob_channel.l_current_height, 1, "bob has incorrect commitment height, %s vs %s"% (bob_channel.l_current_height, 1))
+        self.assertEqual(alice_channel.l_current_height, 1, "alice has incorrect commitment height, %s vs %s"% (alice_channel.l_current_height, 1))
 
         # Both commitment transactions should have three outputs, and one of
         # them should be exactly the amount of the HTLC.
@@ -227,8 +229,8 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         self.assertEqual(alice_channel.total_msat_received, 0, "alice satoshis received incorrect %s vs %s expected"% (alice_channel.total_msat_received, 0))
         self.assertEqual(bob_channel.total_msat_received, mSatTransferred, "bob satoshis received incorrect %s vs %s expected"% (bob_channel.total_msat_received, mSatTransferred))
         self.assertEqual(bob_channel.total_msat_sent, 0, "bob satoshis sent incorrect %s vs %s expected"% (bob_channel.total_msat_sent, 0))
-        self.assertEqual(bob_channel.current_height, 2, "bob has incorrect commitment height, %s vs %s"% (bob_channel.current_height, 2))
-        self.assertEqual(alice_channel.current_height, 2, "alice has incorrect commitment height, %s vs %s"% (alice_channel.current_height, 2))
+        self.assertEqual(bob_channel.l_current_height, 2, "bob has incorrect commitment height, %s vs %s"% (bob_channel.l_current_height, 2))
+        self.assertEqual(alice_channel.l_current_height, 2, "alice has incorrect commitment height, %s vs %s"% (alice_channel.l_current_height, 2))
 
         # The logs of both sides should now be cleared since the entry adding
         # the HTLC should have been removed once both sides receive the
