@@ -579,7 +579,7 @@ class Commands:
     @command('w')
     def createnewaddress(self):
         """Create a new receiving address, beyond the gap limit of the wallet"""
-        return self.wallet.create_new_address(False)
+        return self.wallet.create_new_address(False).to_ui_string()
 
     @command('w')
     def getunusedaddress(self):
