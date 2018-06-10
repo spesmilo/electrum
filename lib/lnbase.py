@@ -37,6 +37,7 @@ from .util import PrintError, bh2u, print_error, bfh, profiler, xor_bytes
 from .transaction import opcodes, Transaction
 from .lnrouter import new_onion_packet, OnionHopsDataSingle, OnionPerHop
 from .lightning_payencode.lnaddr import lndecode
+from .lnhtlc import UpdateAddHtlc, HTLCStateMachine
 
 from collections import namedtuple, defaultdict
 
@@ -1035,27 +1036,16 @@ class Peer(PrintError):
         onion = new_onion_packet(self.node_keys, self.secret_key, hops_data, associated_data)
         msat_local = chan.local_state.amount_msat - (amount_msat + total_fee)
         msat_remote = chan.remote_state.amount_msat + (amount_msat + total_fee)
+        htlc = UpdateAddHtlc(amount_msat, payment_hash, final_cltv_expiry_with_deltas, total_fee)
         amount_msat += total_fee
+
         self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=chan.local_state.next_htlc_id, cltv_expiry=final_cltv_expiry_with_deltas, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
 
-        their_local_htlc_pubkey = derive_pubkey(chan.remote_config.htlc_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
-        their_remote_htlc_pubkey = derive_pubkey(chan.local_config.htlc_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
-        their_remote_htlc_privkey_number = derive_privkey(
-            int.from_bytes(chan.local_config.htlc_basepoint.privkey, 'big'),
-            chan.remote_state.next_per_commitment_point)
-        their_remote_htlc_privkey = their_remote_htlc_privkey_number.to_bytes(32, 'big')
-        # TODO check payment_hash
-        revocation_pubkey = derive_blinded_pubkey(chan.local_config.revocation_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
-        htlcs_in_remote = [(make_received_htlc(revocation_pubkey, their_remote_htlc_pubkey, their_local_htlc_pubkey, payment_hash, final_cltv_expiry_with_deltas), amount_msat)]
-        remote_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
-            chan.remote_state.amount_msat, msat_local, htlcs_in_remote)
-        sig_64 = sign_and_get_sig_string(remote_ctx, chan.local_config, chan.remote_config)
+        m = HTLCStateMachine(chan)
+        m.add_htlc(htlc)
 
-        htlc_tx = make_htlc_tx_with_open_channel(chan, chan.remote_state.next_per_commitment_point, False, False, amount_msat, final_cltv_expiry_with_deltas, payment_hash, remote_ctx, 0)
-        # htlc_sig signs the HTLC transaction that spends from THEIR commitment transaction's received_htlc output
-        sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
-        r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
-        htlc_sig = sigencode_string_canonize(r, s, SECP256k1.generator.order())
+        sig_64, htlc_sigs = m.sign_next_commitment()
+        htlc_sig = htlc_sigs[0][1]
 
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sig))
 
