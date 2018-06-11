@@ -2244,14 +2244,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def do_encrypt(self, message_e, pubkey_e, encrypted_e):
         message = message_e.toPlainText()
-        message = message.encode('utf-8')
-        try:
-            public_key = ecc.ECPubkey(bfh(pubkey_e.text()))
-            encrypted = public_key.encrypt_message(message)
-            encrypted_e.setText(encrypted.decode('ascii'))
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            self.show_warning(str(e))
+        if message=='':
+            self.show_message("Please enter message")
+        else:
+            message = message.encode('utf-8')
+            try:
+                public_key = ecc.ECPubkey(bfh(pubkey_e.text()))
+                encrypted = public_key.encrypt_message(message)
+                encrypted_e.setText(encrypted.decode('ascii'))
+            except BaseException as e:
+                traceback.print_exc(file=sys.stdout)
+                self.show_warning(str(e))
 
     def encrypt_message(self, address=''):
         d = WindowModalDialog(self, _('Encrypt/decrypt Message'))
