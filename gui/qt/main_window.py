@@ -2146,6 +2146,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_sign(self, address, message, signature, password):
         address  = address.text().strip()
         message = message.toPlainText().strip()
+        if message=='':
+          self.show_message(_("Please enter Message"))
+          return
         if not bitcoin.is_address(address):
             self.show_message(_('Invalid Bitcoin address.'))
             return
