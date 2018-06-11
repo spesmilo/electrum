@@ -1206,7 +1206,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def reset_max(t):
             self.is_max = False
-            self.max_button.setEnabled(not bool(t))
         self.amount_e.textEdited.connect(reset_max)
         self.fiat_send_e.textEdited.connect(reset_max)
 
