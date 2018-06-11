@@ -70,9 +70,14 @@ class PRNG:
 
 Bucket = namedtuple('Bucket', ['desc', 'size', 'value', 'coins', 'min_height'])
 
-def strip_unneeded(bkts, sufficient_funds):
+def strip_unneeded(bkts, sufficient_funds, exception=None):
     '''Remove buckets that are unnecessary in achieving the spend amount'''
     bkts = sorted(bkts, key = lambda bkt: bkt.value)
+    for i in range(len(bkts)):
+        if exception and bkts[i].desc == exception:
+            del bkts[i]
+            bkts.append(exception)
+            break
     for i in range(len(bkts)):
         if not sufficient_funds(bkts[i + 1:]):
             return bkts[i:]
@@ -160,7 +165,7 @@ class CoinChooserBase(PrintError):
         # size of the change output, add it to the transaction.
         dust = sum(amount for amount in amounts if amount < dust_threshold)
         amounts = [amount for amount in amounts if amount >= dust_threshold]
-        change = [(TYPE_ADDRESS, addr, amount)
+        change = [(TYPE_ADDRESS, addr, amount,"")
                   for addr, amount in zip(change_addrs, amounts)]
         self.print_error('change:', change)
         if dust:
@@ -168,7 +173,7 @@ class CoinChooserBase(PrintError):
         return change
 
     def make_tx(self, coins, outputs, change_addrs, fee_estimator,
-                dust_threshold):
+                dust_threshold, sender=None):
         '''Select unspent coins to spend to pay outputs.  If the change is
         greater than dust_threshold (after adding the change output to
         the transaction) it is kept, otherwise none is sent and it is
@@ -194,7 +199,7 @@ class CoinChooserBase(PrintError):
         # Collect the coins into buckets, choose a subset of the buckets
         buckets = self.bucketize_coins(coins)
         buckets = self.choose_buckets(buckets, sufficient_funds,
-                                      self.penalty_func(tx))
+                                      self.penalty_func(tx),sender)
 
         tx.add_inputs([coin for b in buckets for coin in b.coins])
         tx_size = base_size + sum(bucket.size for bucket in buckets)
@@ -210,7 +215,7 @@ class CoinChooserBase(PrintError):
 
         return tx
 
-    def choose_buckets(self, buckets, sufficient_funds, penalty_func):
+    def choose_buckets(self, buckets, sufficient_funds, penalty_func,sender=None):
         raise NotImplemented('To be subclassed')
 
 
@@ -281,7 +286,7 @@ class CoinChooserRandom(CoinChooserBase):
         candidates = [(already_selected_buckets + c) for c in candidates]
         return [strip_unneeded(c, sufficient_funds) for c in candidates]
 
-    def choose_buckets(self, buckets, sufficient_funds, penalty_func):
+    def choose_buckets(self, buckets, sufficient_funds, penalty_func,sender=None):
         candidates = self.bucket_candidates_prefer_confirmed(buckets, sufficient_funds)
         penalties = [penalty_func(cand) for cand in candidates]
         winner = candidates[penalties.index(min(penalties))]
@@ -325,9 +330,85 @@ class CoinChooserPrivacy(CoinChooserRandom):
         return penalty
 
 
-COIN_CHOOSERS = {
-    'Privacy': CoinChooserPrivacy,
-}
+
+
+
+class CoinChooserOldestFirst(CoinChooserBase):
+    '''Maximize transaction priority. Select the oldest unspent
+    transaction outputs in your wallet, that are sufficient to cover
+    the spent amount. Then, remove any unneeded inputs, starting with
+    the smallest in value.
+    '''
+
+    def keys(self, coins):
+        return [coin['prevout_hash'] + ':' + str(coin['prevout_n'])
+                for coin in coins]
+
+    def choose_buckets(self, buckets, sufficient_funds, penalty_func, sender=None):
+        '''Spend the oldest buckets first.'''
+        # Unconfirmed coins are young, not old
+        adj_height = lambda height: 99999999 if height <= 0 else height
+        buckets.sort(key = lambda b: max(adj_height(coin['height'])
+                                         for coin in b.coins))
+        selected = []
+        for bucket in buckets:
+            selected.append(bucket)
+            if sufficient_funds(selected):
+                return strip_unneeded(selected, sufficient_funds)
+        else:
+            raise NotEnoughFunds()
+
+def strip_unneeded_utxo(bkts, sufficient_funds):
+    '''Remove utxos that are unnecessary in achieving the spend amount'''
+    assert len(bkts) == 1
+    bucket = bkts[0]
+    desc = bucket.desc
+    weight = 0
+    value = 0
+    coins = []
+
+    for coin in bucket.coins:
+        weight += Transaction.estimated_input_weight(coin)
+        value += coin['value']
+        coins.append(coin)
+        size = Transaction.virtual_size_from_weight(weight)
+        min_height = coin['height']
+        new_bucket = Bucket(desc, size, value, coins,min_height)
+        if sufficient_funds([new_bucket]):
+            return [new_bucket, ]
+    return [bucket, ]
+
+
+class CoinChooserUB(CoinChooserBase):
+    def keys(self, coins):
+        return [coin['address'] for coin in coins]
+
+    def choose_buckets(self, buckets, sufficient_funds, penalty_func, sender=None):
+        '''Spend the oldest buckets first.'''
+        # Unconfirmed coins are young, not old
+        adj_height = lambda height: 99999999 if height <= 0 else height
+        buckets.sort(key=lambda b: max(adj_height(coin['height'])
+                                       for coin in b.coins))
+        selected = []
+        if sender:
+            for bucket in buckets:
+                if bucket.desc == sender:
+                    selected.append(bucket)
+                    if sufficient_funds(selected):
+                        return strip_unneeded_utxo(selected, sufficient_funds)
+                    break
+            if len(selected) == 0:
+                raise Exception('choose_buckets - sender address has no utxo')
+        for bucket in buckets:
+            selected.append(bucket)
+            if sufficient_funds(selected):
+                return strip_unneeded(selected, sufficient_funds, sender)
+        else:
+            raise NotEnoughFunds()
+
+
+COIN_CHOOSERS = {'Priority': CoinChooserOldestFirst,
+                 'Privacy': CoinChooserPrivacy}
 
 def get_name(config):
     kind = config.get('coin_chooser')

@@ -338,7 +338,7 @@ class TrustedCoinPlugin(BasePlugin):
         if type(wallet) != Wallet_2fa:
             return
         address = wallet.billing_info['billing_address']
-        for _type, addr, amount in tx.outputs():
+        for _type, addr, amount,scrip in tx.outputs():
             if _type == TYPE_ADDRESS and addr == address:
                 return address, amount
 

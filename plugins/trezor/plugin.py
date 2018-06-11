@@ -317,7 +317,7 @@ class TrezorCompatiblePlugin(HW_PluginBase):
         outputs = []
         has_change = False
 
-        for _type, address, amount in tx.outputs():
+        for _type, address, amount,scrip in tx.outputs():
             info = tx.output_info.get(address)
             if info is not None and not has_change:
                 has_change = True # no more than one change address

@@ -34,6 +34,7 @@ from .i18n import _
 
 import urllib.request, urllib.parse, urllib.error
 import queue
+import webbrowser
 
 def inv_dict(d):
     return {v: k for k, v in d.items()}
@@ -219,8 +220,8 @@ class ForkData:
     second_fork_max_index = 283
 
     third_fork_chunk_size = 1
-    third_fork_height = 524000
-    third_fork_max_index = 2043
+    third_fork_height = 531850
+    third_fork_max_index = 2828
     MINING_TYPE_POW = 0x02000000
     MINING_TYPE_POS = 0x01000000
 
@@ -228,16 +229,16 @@ class ForkData:
 
 
 def IsProofOfStake(version):
-    return version&ForkData.MINING_TYPE_POS
+    return version&ForkData.MINING_TYPE_POS > 0
 
 def IsProofOfWork(version):
-    return version&ForkData.MINING_TYPE_POW
+    return version&ForkData.MINING_TYPE_POW >0
 
 
 def ub_height_to_index(height):
 
 
-    if height <= (ForkData.pre_fork_max_index*2016 -1):
+    if height <= (ForkData.superblockstartnumber -1):
         return height // 2016
     elif height< ForkData.second_fork_height:
         return ForkData.pre_fork_max_index + (height - ForkData.fork_height)//ForkData.after_chunk_size
@@ -248,6 +249,43 @@ def ub_height_to_index(height):
 
 
 
+class FileImportFailed(Exception):
+    def __init__(self, message=''):
+        self.message = str(message)
+
+    def __str__(self):
+        return _("Failed to import from file.") + "\n" + self.message
+
+
+class FileExportFailed(Exception):
+    def __init__(self, message=''):
+        self.message = str(message)
+
+    def __str__(self):
+        return _("Failed to export to file.") + "\n" + self.message
+
+
+def import_meta(path, validater, load_meta):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            d = validater(json.loads(f.read()))
+        load_meta(d)
+    # backwards compatibility for JSONDecodeError
+    except ValueError:
+        traceback.print_exc(file=sys.stderr)
+        raise FileImportFailed(_("Invalid JSON code."))
+    except BaseException as e:
+        traceback.print_exc(file=sys.stdout)
+        raise FileImportFailed(e)
+
+
+def export_meta(meta, file_name):
+    try:
+        with open(file_name, 'w+', encoding='utf-8') as f:
+            json.dump(meta, f, indent=4, sort_keys=True)
+    except (IOError, os.error) as e:
+        traceback.print_exc(file=sys.stderr)
+        raise FileExportFailed(e)
 
 
 
@@ -266,7 +304,7 @@ def ub_default_diffculty(is_pos):
     if is_pos == 0:
         return 0x00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     else:
-        return 0x0fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+        return 0x0fffff0000000000000000000000000000000000000000000000000000000000
 
 
 def android_ext_dir():
@@ -372,7 +410,7 @@ def user_dir():
     elif os.name == 'posix':
         return os.path.join(os.environ["HOME"], ".ubtc_electrum")
     elif "APPDATA" in os.environ:
-        return os.path.join(os.environ["APPDATA"], "ubtc_Electrum")
+        return os.path.join(os.environ["APPDATA"], "ubtc_Electrum_test")
     elif "LOCALAPPDATA" in os.environ:
         return os.path.join(os.environ["LOCALAPPDATA"], "ubtc_Electrum")
     else:
@@ -576,6 +614,16 @@ def parse_URI(uri, on_pr=None):
         t.start()
 
     return out
+
+def open_browser(url, new=0, autoraise=True):
+    for name in webbrowser._tryorder:
+        if name == 'MacOSX':
+            continue
+        browser = webbrowser.get(name)
+        if browser.open(url, new, autoraise):
+            return True
+    return False
+
 
 
 def create_URI(addr, amount, message):

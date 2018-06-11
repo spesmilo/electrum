@@ -44,6 +44,7 @@ from .bitcoin import *
 from .version import *
 from .keystore import load_keystore, Hardware_KeyStore
 from .storage import multisig_type
+from .smart_contracts import SmartContracts
 
 from . import transaction
 from .transaction import Transaction
@@ -202,6 +203,7 @@ class Abstract_Wallet(PrintError):
         # invoices and contacts
         self.invoices = InvoiceStore(self.storage)
         self.contacts = Contacts(self.storage)
+        self.smart_contracts = SmartContracts(self.storage)
 
 
     def diagnostic_name(self):
@@ -603,6 +605,14 @@ class Abstract_Wallet(PrintError):
         confirmed_only = config.get('confirmed_only', False)
         return self.get_utxos(domain, exclude_frozen=True, mature=True, confirmed_only=confirmed_only)
 
+    def get_spendable_addresses(self, min_amount=0.000000001):
+        result = []
+        for addr in self.get_addresses():
+            c, u, x = self.get_addr_balance(addr)
+            if c >= min_amount:
+                result.append(addr)
+        return result
+
     def get_utxos(self, domain = None, exclude_frozen = False, mature = False, confirmed_only = False):
         coins = []
         if domain is None:
@@ -684,7 +694,7 @@ class Abstract_Wallet(PrintError):
             self.txo[tx_hash] = d = {}
             for n, txo in enumerate(tx.outputs()):
                 ser = tx_hash + ':%d'%n
-                _type, x, v = txo
+                _type, x, v,scri = txo
                 if _type == TYPE_ADDRESS:
                     addr = x
                 elif _type == TYPE_PUBKEY:
@@ -861,11 +871,11 @@ class Abstract_Wallet(PrintError):
         return dust_threshold(self.network)
 
     def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None,
-                                  change_addr=None, is_sweep=False):
+                                  change_addr=None, gas_fee=0, sender=None,is_sweep=False):
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):
-            _type, data, value = o
+            _type, data, value,scri = o
             if _type == TYPE_ADDRESS:
                 if not is_address(data):
                     raise BaseException("Invalid bitcoin address:" + data)
@@ -902,22 +912,26 @@ class Abstract_Wallet(PrintError):
 
         # Fee estimator
         if fixed_fee is None:
-            fee_estimator = config.estimate_fee
+            fee_estimator = lambda size: config.estimate_fee(size) + gas_fee
         else:
-            fee_estimator = lambda size: fixed_fee
+            fee_estimator = lambda size: fixed_fee +gas_fee
 
         if i_max is None:
             # Let the coin chooser select the coins to spend
             max_change = self.max_change_outputs if self.multiple_change else 1
-            coin_chooser = coinchooser.get_coin_chooser(config)
+            if sender:
+                coin_chooser = coinchooser.CoinChooserUB()
+            else:
+                coin_chooser = coinchooser.get_coin_chooser(config)
             tx = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
-                                      fee_estimator, self.dust_threshold())
+                                      fee_estimator, self.dust_threshold(),sender)
         else:
             sendable = sum(map(lambda x:x['value'], inputs))
             _type, data, value = outputs[i_max]
             outputs[i_max] = (_type, data, 0)
             tx = Transaction.from_io(inputs, outputs[:])
             fee = fee_estimator(tx.estimated_size())
+            fee = fee+gas_fee
             amount = max(0, sendable - tx.output_value() - fee)
             outputs[i_max] = (_type, data, amount)
             tx = Transaction.from_io(inputs, outputs[:])
@@ -1059,7 +1073,7 @@ class Abstract_Wallet(PrintError):
         s = sorted(s, key=lambda x: x[2])
         for o in s:
             i = outputs.index(o)
-            otype, address, value = o
+            otype, address, value,scrip = o
             if value - delta >= self.dust_threshold():
                 outputs[i] = otype, address, value - delta
                 delta = 0
@@ -1077,7 +1091,7 @@ class Abstract_Wallet(PrintError):
     def cpfp(self, tx, fee):
         txid = tx.txid()
         for i, o in enumerate(tx.outputs()):
-            otype, address, value = o
+            otype, address, value,scrip = o
             if otype == TYPE_ADDRESS and self.is_mine(address):
                 break
         else:
@@ -1131,7 +1145,7 @@ class Abstract_Wallet(PrintError):
         info = {}
         xpubs = self.get_master_public_keys()
         for txout in tx.outputs():
-            _type, addr, amount = txout
+            _type, addr, amount,scrip = txout
             if self.is_change(addr):
                 index = self.get_address_index(addr)
                 pubkeys = self.get_public_keys(addr)
@@ -1337,6 +1351,19 @@ class Abstract_Wallet(PrintError):
 
     def can_delete_address(self):
         return False
+
+    def can_have_keystore_encryption(self):
+        return self.keystore and self.keystore.may_have_password()
+
+    def has_keystore_encryption(self):
+        """Returns whether encryption is enabled for the keystore.
+
+        If True, e.g. signing a transaction will require a password.
+        """
+        if self.can_have_keystore_encryption():
+            return self.storage.get('use_encryption', False)
+        return False
+
 
     def add_address(self, address):
         if address not in self.history:

@@ -59,7 +59,7 @@ class Synchronizer(ThreadJob):
         return response['params'], response['result']
 
     def is_up_to_date(self):
-        return (not self.requested_tx and not self.requested_histories
+        return (not self.requested_tx #and not self.requested_histories
                 and not self.requested_addrs)
 
     def release(self):

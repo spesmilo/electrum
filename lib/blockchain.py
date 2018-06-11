@@ -153,7 +153,11 @@ class Blockchain(util.PrintError):
         bits = self.target_to_bits(target)
         if bits != header.get('bits'):
             raise BaseException("bits mismatch: %s vs %s" % (bits, header.get('bits')))
-        if int('0x' + _hash, 16) > target:
+        if util.IsProofOfStake(header["version"]):
+            # ToDo: must check by stake value.
+            pass
+
+        elif int('0x' + _hash, 16) > target:
             raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
 
     def verify_chunk(self, index, data):
@@ -313,7 +317,7 @@ class Blockchain(util.PrintError):
     def get_last_block_header(self,height,is_pos):
         start_header = self.read_header(height)
         while(height > util.ForkData.third_fork_height-util.ForkData.second_fork_chunk_size):
-            if util.IsProofOfStake(start_header["version"]) != is_pos:
+            if util.IsProofOfStake(start_header["version"]) == is_pos:
                 return start_header,height
             height -=1
             start_header = self.read_header(height)
@@ -328,23 +332,31 @@ class Blockchain(util.PrintError):
         print("first",height)
         tNbits = []
         tempBits = set()
-        for i in range(10):
+        tNbits.append(first)
+        tempBits.add(first["bits"])
+        for i in range(9):
             last_header,height = self.get_last_block_header(height-1,is_pos)
+            tNbits.append(last_header)
+            tempBits.add(last_header["bits"])
+            if is_pos and height <= util.ForkData.third_fork_height:
+                return util.ub_default_diffculty(is_pos)
             if last_header is None :
                 return util.ub_default_diffculty(is_pos)
             if len(tempBits)>1:
-                return first["bits"]
-            tNbits.append(last_header)
-            tempBits.add(last_header["bits"])
+                return  self.bits_to_target(first["bits"])
+
         print(tNbits)
         print(tempBits)
         nLastPowTime = last_header["timestamp"]
         nFirstBlockTime = first["timestamp"]
-        nActualTimespan = nLastPowTime - nFirstBlockTime
+        nActualTimespan = nFirstBlockTime - nLastPowTime
         nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
         target = self.bits_to_target(first["bits"])
-        new_target = min(util.ub_default_diffculty(is_pos), (target * nActualTimespan) // nTargetTimespan)
+        print("target:",hex(target))
+        new_target = min(util.ub_default_diffculty(is_pos), (target  // nTargetTimespan)* nActualTimespan)
+        print("target:", hex(new_target))
+        print("targetblock :",hex(self.bits_to_target(0x1f28f582)))
         return new_target
 
 
@@ -394,7 +406,7 @@ class Blockchain(util.PrintError):
             nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
             new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
             return new_target
-        elif index < util.ForkData.third_fork_max_index:
+        elif index < util.ForkData.third_fork_max_index-1:
             print("second block num", second_block_num + (index - second_check_index_count) * 10)
 
             first = self.read_header(second_block_num + (index - second_check_index_count) * 10)
@@ -411,7 +423,7 @@ class Blockchain(util.PrintError):
             print("third fork block num ",util.ForkData.third_fork_height + index-util.ForkData.third_fork_max_index)
 #修改为新的难度调整算法
 
-            if index - util.ForkData.third_fork_max_index <10:
+            if index - util.ForkData.third_fork_max_index <9:
                 return util.ub_default_diffculty(is_pos)
 
             return self.get_next_target_require(util.ub_start_height_of_index(index),is_pos)
@@ -419,15 +431,15 @@ class Blockchain(util.PrintError):
 
     def bits_to_target(self, bits):
         bitsN = (bits >> 24) & 0xff
-        if not (bitsN >= 0x03 and bitsN <= 0x1d):
-            raise BaseException("First part of bits should be in [0x03, 0x1d]")
+        #if not (bitsN >= 0x03 and bitsN <= 0x1d):
+        #    raise BaseException("First part of bits should be in [0x03, 0x1d]")
         bitsBase = bits & 0xffffff
         if not (bitsBase >= 0x8000 and bitsBase <= 0x7fffff):
             raise BaseException("Second part of bits should be in [0x8000, 0x7fffff]")
         return bitsBase << (8 * (bitsN-3))
 
     def target_to_bits(self, target):
-        c = ("%064x" % target)[2:]
+        c = ("%064x" % target)#[2:]
         while c[:2] == '00' and len(c) > 6:
             c = c[2:]
         bitsN, bitsBase = len(c) // 2, int('0x' + c[:6], 16)

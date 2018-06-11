@@ -117,6 +117,8 @@ COIN = 100000000
 TYPE_ADDRESS = 0
 TYPE_PUBKEY  = 1
 TYPE_SCRIPT  = 2
+TYPE_CREATE_CONTRACT = 3
+TYPE_CONTRACT_ADDRESS =4
 
 # AES encryption
 try:
@@ -159,6 +161,15 @@ def aes_encrypt_with_iv(key, iv, data):
         e = aes.feed(data) + aes.feed()  # empty aes.feed() flushes buffer
     return e
 
+def is_contract_address(addr):
+    if addr[:3] != "CON":
+        return False
+    rip_data = addr[3:23]
+    check_data = addr[23:27]
+    sha_data = sha256(rip_data).digest()
+    if check_data == sha_data[:4]:
+        return True
+    return False
 
 def aes_decrypt_with_iv(key, iv, data):
     assert_bytes(key, iv, data)
@@ -590,9 +601,39 @@ def is_b58_address(addr):
         return False
     return addr == hash160_to_b58_address(h, addrtype)
 
+
+def is_contract_address(addr):
+    if addr[:3] !="CON":
+        return False
+    addr = addr[3:]
+    addr = to_bytes(addr, 'ascii')
+    try:
+        _bytes = base_decode(addr, 24, base=58)
+        lena  = len(_bytes)
+    except Exception as e:
+        return False
+    byte_data = _bytes[:20]
+    check_data = _bytes[20:]
+    cal_check_data = hashlib.sha256(byte_data).digest()[:4]
+    if check_data == cal_check_data:
+        return True
+    return False
+
+
 def is_address(addr):
     return is_segwit_address(addr) or is_b58_address(addr)
 
+def is_hash160(addr):
+    if not addr:
+        return False
+    if not isinstance(addr, str):
+        return False
+    if not len(addr) == 40:
+        return False
+    for char in addr:
+        if (char < '0' or char > '9') and (char < 'A' or char > 'F') and (char < 'a' or char > 'f'):
+            return False
+    return True
 
 def is_private_key(key):
     try:

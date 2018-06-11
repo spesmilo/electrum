@@ -316,7 +316,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
         txOutput = var_int(len(tx.outputs()))
         for txout in tx.outputs():
-            output_type, addr, amount = txout
+            output_type, addr, amount,scrip = txout
             txOutput += int_to_hex(amount, 8)
             script = tx.pay_script(output_type, addr)
             txOutput += var_int(len(script)//2)
@@ -328,7 +328,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
             if not self.get_client_electrum().supports_multi_output():
                 if len(tx.outputs()) > 2:
                     self.give_error("Transaction with more than 2 outputs not supported")
-            for _type, address, amount in tx.outputs():
+            for _type, address, amount,scrip in tx.outputs():
                 assert _type == TYPE_ADDRESS
                 info = tx.output_info.get(address)
                 if (info is not None) and (len(tx.outputs()) != 1):

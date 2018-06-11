@@ -27,16 +27,18 @@
 
 # Note: The deserialization code originally comes from ABE.
 
-from .util import print_error, profiler
+from lib.util import print_error, profiler
 
-from . import bitcoin
-from .bitcoin import *
+from lib import bitcoin,script
+from lib.bitcoin import *
+from lib.script import CScript,OP_CALL,OP_SPEND,OP_CREATE,hash160
 import struct
-
+from decimal import Decimal
+import hashlib
 #
 # Workalike python implementation of Bitcoin's CDataStream class.
 #
-from .keystore import xpubkey_to_address, xpubkey_to_pubkey
+from lib.keystore import xpubkey_to_address, xpubkey_to_pubkey
 import binascii
 
 NO_SIGNATURE = 'ff'
@@ -197,7 +199,7 @@ def long_hex(bytes):
 
 # This function comes from bitcointools, bct-LICENSE.txt.
 def short_hex(bytes):
-    t = bytes.encode('hex_codec')
+    t = bytes.hex()
     if len(t) < 11:
         return t
     return t[0:4]+"..."+t[-4:]
@@ -219,8 +221,10 @@ opcodes = Enumeration("Opcodes", [
     "OP_GREATERTHAN", "OP_LESSTHANOREQUAL", "OP_GREATERTHANOREQUAL", "OP_MIN", "OP_MAX",
     "OP_WITHIN", "OP_RIPEMD160", "OP_SHA1", "OP_SHA256", "OP_HASH160",
     "OP_HASH256", "OP_CODESEPARATOR", "OP_CHECKSIG", "OP_CHECKSIGVERIFY", "OP_CHECKMULTISIG",
-    "OP_CHECKMULTISIGVERIFY",
-    ("OP_SINGLEBYTE_END", 0xF0),
+    "OP_CHECKMULTISIGVERIFY",("OP_CREATE_NATIVE",0xc0),"OP_CREATE","OP_UPGRADE",
+    "OP_DESTROY","OP_CALL","OP_SPEND","OP_DEPOSIT_TO_CONTRACT",("OP_GAS_PRICE",0xf5),"OP_GAS_LIMIT","OP_DATA","OP_VERSION",
+    "OP_ROOT_STATE_HASH",
+    ("OP_SINGLEBYTE_END", 0xFF),
     ("OP_DOUBLEBYTE_BEGIN", 0xF000),
     "OP_PUBKEY", "OP_PUBKEYHASH",
     ("OP_INVALIDOPCODE", 0xFFFF),
@@ -275,6 +279,8 @@ def match_decoded(decoded, to_match):
     if len(decoded) != len(to_match):
         return False;
     for i in range(len(decoded)):
+        if to_match[i] == -1:
+            continue
         if to_match[i] == opcodes.OP_PUSHDATA4 and decoded[i][0] <= opcodes.OP_PUSHDATA4 and decoded[i][0]>0:
             continue  # Opcodes below OP_PUSHDATA4 all just push data onto stack, and are equivalent.
         if to_match[i] != decoded[i][0]:
@@ -368,9 +374,19 @@ def parse_redeemScript(s):
     redeemScript = multisig_script(pubkeys, m)
     return m, n, x_pubkeys, pubkeys, redeemScript
 
-def get_address_from_output_script(_bytes):
-    decoded = [x for x in script_GetOp(_bytes)]
 
+def Contract_cal_address_from_data(cls,caller_address,index,trx_id):
+    datas = cls.ser_string(caller_address)
+    datas += cls.ser_string(trx_id)
+    datas += struct.pack("<I", index)
+    sh_data = sha256(datas).digest()
+    hs_data = hashlib.hash160(sh_data).digest()
+    return "CON"+ bitcoin.EncodeBase58Check(hs_data)
+
+
+
+def get_address_from_output_script(_bytes,index = -1,txid = ''):
+    decoded = [x for x in script_GetOp(_bytes)]
     # The Genesis Block, self-payments, and pay-by-IP-address payments look like:
     # 65 BYTES:... CHECKSIG
     match = [ opcodes.OP_PUSHDATA4, opcodes.OP_CHECKSIG ]
@@ -393,7 +409,53 @@ def get_address_from_output_script(_bytes):
     if match_decoded(decoded, match):
         return TYPE_ADDRESS, hash_to_segwit_addr(decoded[1][1])
 
+
+    #create contract
+    TO_CONTRACT_CREATE = [-1, -1, -1, -1, -1, opcodes.OP_CREATE]
+    if match_decoded(decoded, TO_CONTRACT_CREATE):
+        if index == -1 or txid == '':
+            return TYPE_CREATE_CONTRACT, decoded[2][1].hex()
+        return TYPE_CONTRACT_ADDRESS,Contract_cal_address_from_data(decoded[2][1],index,txid)
+    TO_CONTRACT_CREATE_NATIVE = [-1, -1, -1, -1, -1, opcodes.OP_CREATE_NATIVE]
+    if match_decoded(decoded, TO_CONTRACT_CREATE_NATIVE):
+        if index == -1 or txid == '':
+            return TYPE_CREATE_CONTRACT, decoded[2][1].hex()
+        return TYPE_CONTRACT_ADDRESS,Contract_cal_address_from_data(decoded[2][1],index,txid)
+    TO_CALL = [-1, -1, -1, -1, -1, -1, -1, opcodes.OP_CALL]
+    if match_decoded(decoded, TO_CALL):
+        return TYPE_CONTRACT_ADDRESS,decoded[3][1].decode()
+    TO_DEPOSIT_TO_CONTRACT = [-1, -1, -1, -1, -1, -1, opcodes.OP_DEPOSIT_TO_CONTRACT]
+    if match_decoded(decoded, TO_DEPOSIT_TO_CONTRACT):
+        return TYPE_CONTRACT_ADDRESS,decoded[2][1].decode()
+    TO_UPGRADE = [-1, -1, -1, -1, -1, -1, -1, opcodes.OP_UPGRADE]
+    if match_decoded(decoded, TO_UPGRADE):
+        return TYPE_CONTRACT_ADDRESS,decoded[3][1].decode()
+    TO_SPENT = [-1, -1, opcodes.OP_SPEND]
+    if match_decoded(decoded, TO_SPENT):
+        return TYPE_CONTRACT_ADDRESS,decoded[1][1].decode()
+
     return TYPE_SCRIPT, bh2u(_bytes)
+
+
+
+def contract_script_call(caller_addr,contract_addr,gas_limit, gas_price, api_name,api_arg):
+    script = CScript(
+        [b'\x01', api_arg.encode('utf8'), api_name.encode('utf8'), contract_addr.encode("utf8"),
+         caller_addr.encode('utf8'),
+         gas_limit, gas_price,  OP_CALL]).hex()
+    return script
+
+def contract_script_spend(withdraw_amount,contract_addr):
+    script = CScript(
+        [int(Decimal(withdraw_amount) * 10**8), contract_addr.encode('utf8'),
+                    OP_SPEND]).hex()
+    return script
+
+def contract_script_Create(bytecode,caller_addr,gaslimit,gasprice):
+    script = CScript(
+        [b'\x01',bytecode, caller_addr.encode('utf8'), gaslimit,
+         gasprice, OP_CREATE]).hex()
+    return script
 
 
 def parse_input(vds):
@@ -451,7 +513,8 @@ def parse_output(vds, i):
     d = {}
     d['value'] = vds.read_int64()
     scriptPubKey = vds.read_bytes(vds.read_compact_size())
-    d['type'], d['address'] = get_address_from_output_script(scriptPubKey)
+    d['type'], d['address'] = get_address_from_output_script(scriptPubKey,i)
+
     d['scriptPubKey'] = bh2u(scriptPubKey)
     d['prevout_n'] = i
     return d
@@ -471,7 +534,7 @@ def deserialize(raw):
         n_vin = vds.read_compact_size()
     d['inputs'] = [parse_input(vds) for i in range(n_vin)]
     n_vout = vds.read_compact_size()
-    d['outputs'] = [parse_output(vds, i) for i in range(n_vout)]
+    d['outputs'] = [parse_output(vds,i) for i in range(n_vout)]
     if is_segwit:
         for i in range(n_vin):
             txin = d['inputs'][i]
@@ -484,6 +547,10 @@ def deserialize(raw):
                 else:
                     txin['type'] = 'p2wsh'
                     txin['address'] = bitcoin.script_to_p2wsh(txin['witnessScript'])
+    if len(d['inputs']) == 1 and len(d['outputs']) ==2 and d['outputs'][0]['scriptPubKey'] == '' and d['outputs'][0]['value'] == 0:
+        d['inputs'][0]['address'] = d['outputs'][1]['address']
+        d['inputs'][0]['type'] = d['outputs'][1]['type']
+        d['inputs'][0]['value'] = d['outputs'][1]['value']
     d['lockTime'] = vds.read_uint32()
     return d
 
@@ -524,6 +591,8 @@ class Transaction:
         self._outputs = None
         self.locktime = 0
         self.version = 1
+        self.tx_id = ''
+        self.is_cal_tx = False
 
     def update(self, raw):
         self.raw = raw
@@ -535,9 +604,58 @@ class Transaction:
             self.deserialize()
         return self._inputs
 
+    def ser_string(self,s):
+        if len(s) < 253:
+            return chr(len(s)) + s
+        elif len(s) < 0x10000:
+            return chr(253) + struct.pack("<H", len(s)) + s
+        elif len(s) < 0x100000000:
+            return chr(254) + struct.pack("<I", len(s)) + s
+        return chr(255) + struct.pack("<Q", len(s)) + s
+
+    def Contract_cal_address_from_data(self,caller_address,index,trx_id):
+        datas = bytes()
+        tttt = bytes.fromhex(caller_address)
+        caller_address = tttt.decode("utf-8")
+        datas += self.ser_string(caller_address).encode("utf-8")
+        datas += self.ser_string(trx_id).encode("utf-8")
+        datas += struct.pack("<I", index)
+        try:
+            sh_data = hashlib.sha256(datas).digest()
+            hs_data = hashlib.new('ripemd160', sh_data).digest()
+
+            be_bytes = hs_data + sha256(hs_data)[:4]
+            return "CON" + base_encode(be_bytes, 58)
+        except Exception as ex:
+            print(ex)
+
+
+
+
+    def handle_outputs(self):
+        index = 0
+        new_outputs = []
+        for t, o, v, s in self._outputs:
+
+            if t == TYPE_CREATE_CONTRACT:
+                contract_address = self.Contract_cal_address_from_data(o, index, self.tx_id)
+                print(contract_address)
+                new_outputs.append((TYPE_CONTRACT_ADDRESS, contract_address, v, s))
+            else:
+                new_outputs.append((t,o,v,s))
+            index += 1
+        self._outputs = new_outputs
+
+
     def outputs(self):
         if self._outputs is None:
             self.deserialize()
+        if self.tx_id !="":
+            self.handle_outputs()
+        elif self.is_cal_tx == False:
+            self.is_cal_tx = True
+            self.tx_id = self.txid()
+
         return self._outputs
 
     @classmethod
@@ -554,7 +672,7 @@ class Transaction:
 
     def update_signatures(self, raw):
         """Add new signatures to a transaction"""
-        d = deserialize(raw)
+        d = deserialize(raw,self.txid())
         for i, txin in enumerate(self.inputs()):
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             sigs1 = txin.get('signatures')
@@ -589,7 +707,7 @@ class Transaction:
             return
         d = deserialize(self.raw)
         self._inputs = d['inputs']
-        self._outputs = [(x['type'], x['address'], x['value']) for x in d['outputs']]
+        self._outputs = [(x['type'], x['address'], x['value'],x['scriptPubKey']) for x in d['outputs']]
         self.locktime = d['lockTime']
         self.version = d['version']
         return d
@@ -603,13 +721,15 @@ class Transaction:
         return self
 
     @classmethod
-    def pay_script(self, output_type, addr):
+    def pay_script(self, output_type, addr,script_pub):
         if output_type == TYPE_SCRIPT:
             return addr
         elif output_type == TYPE_ADDRESS:
             return bitcoin.address_to_script(addr)
         elif output_type == TYPE_PUBKEY:
             return bitcoin.public_key_to_p2pk_script(addr)
+        elif output_type == TYPE_CONTRACT_ADDRESS or output_type == TYPE_CREATE_CONTRACT:
+            return script_pub
         else:
             raise TypeError('Unknown output type')
 
@@ -765,12 +885,16 @@ class Transaction:
     def BIP_LI01_sort(self):
         # See https://github.com/kristovatlas/rfc/blob/master/bips/bip-li01.mediawiki
         self._inputs.sort(key = lambda i: (i['prevout_hash'], i['prevout_n']))
-        self._outputs.sort(key = lambda o: (o[2], self.pay_script(o[0], o[1])))
+        self._outputs.sort(key = lambda o: (o[2], self.pay_script(o[0], o[1],o[3])))
 
     def serialize_output(self, output):
-        output_type, addr, amount = output
+        if len(output) == 3:
+            output_type, addr, amount = output
+            script_pub = ""
+        else:
+            output_type, addr, amount,script_pub = output
         s = int_to_hex(amount, 8)
-        script = self.pay_script(output_type, addr)
+        script = self.pay_script(output_type, addr,script_pub)
         s += var_int(len(script)//2)
         s += script
         return s
@@ -827,7 +951,9 @@ class Transaction:
         if not all_segwit and not self.is_complete():
             return None
         ser = self.serialize(witness=False)
-        return bh2u(Hash(bfh(ser))[::-1])
+        self.tx_id =  bh2u(Hash(bfh(ser))[::-1])
+        self.handle_outputs()
+        return self.tx_id
 
     def wtxid(self):
         ser = self.serialize(witness=True)
@@ -845,7 +971,7 @@ class Transaction:
         return sum(x['value'] for x in self.inputs())
 
     def output_value(self):
-        return sum(val for tp, addr, val in self.outputs())
+        return sum(val for tp, addr, val,scr in self.outputs())
 
     def get_fee(self):
         return self.input_value() - self.output_value()
@@ -960,11 +1086,13 @@ class Transaction:
     def get_outputs(self):
         """convert pubkeys to addresses"""
         o = []
-        for type, x, v in self.outputs():
+        for type, x, v,scri in self.outputs():
             if type == TYPE_ADDRESS:
                 addr = x
             elif type == TYPE_PUBKEY:
                 addr = bitcoin.public_key_to_p2pkh(bfh(x))
+            elif type == TYPE_CONTRACT_ADDRESS:
+                addr = x
             else:
                 addr = 'SCRIPT ' + x
             o.append((addr,v))      # consider using yield (addr, v)
@@ -1005,3 +1133,4 @@ def tx_from_str(txt):
     tx_dict = json.loads(str(txt))
     assert "hex" in tx_dict.keys()
     return tx_dict["hex"]
+

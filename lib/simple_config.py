@@ -45,7 +45,7 @@ class SimpleConfig(PrintError):
         # a thread-safe way.
         self.lock = threading.RLock()
 
-        self.fee_estimates = {}
+        self.fee_estimates = {25: 10000, 10:20000, 5:40000, 2:100000}
         self.fee_estimates_last_updated = {}
         self.last_time_fee_estimates_requested = 0  # zero ensures immediate fees
 
