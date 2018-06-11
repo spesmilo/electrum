@@ -235,25 +235,22 @@ Builder.load_string('''
         text_size: self.width, None
         height: self.texture_size[1]
         text: root.message2
-    BoxLayout:
-        orientation: 'horizontal'
-        size_hint: 1, 0.3
-        Widget
-        CheckBox:
-            id:cb
-            on_state: Clock.schedule_once(root.on_cb)
     Widget
         size_hint: 1, 1
         height: '48sp'
     BoxLayout:
         orientation: 'horizontal'
         WizardButton:
+            id: cb
+            text: _('Request new secret')
+            on_release: root.request_new_secret()
+            size_hint: 1, None
+        WizardButton:
             id: abort
             text: _('Abort creation')
             on_release: root.abort_wallet_creation()
             size_hint: 1, None
-        Widget
-            size_hint: 1, None
+
 
 <WizardNewOTPDialog>
     message : ''
@@ -620,14 +617,15 @@ class WizardKnownOTPDialog(WizardOTPDialogBase):
     def __init__(self, wizard, **kwargs):
         WizardOTPDialogBase.__init__(self, wizard, **kwargs)
         self.message = _("This wallet is already registered with TrustedCoin. To finalize wallet creation, please enter your Google Authenticator Code.")
-        self.message2 =_("If you have lost your Google Authenticator account, check the box below to request a new secret. You will need to retype your seed.")
+        self.message2 =_("If you have lost your Google Authenticator account, you can request a new secret. You will need to retype your seed.")
+        self.request_new = False
 
     def get_params(self, button):
-        return (self.get_otp(), self.ids.cb.active)
+        return (self.get_otp(), self.request_new)
 
-    def on_cb(self, dt):
-        self.ids.otp.text = ''
-        self.ids.next.disabled = not self.ids.cb.active
+    def request_new_secret(self):
+        self.request_new = True
+        self.on_release(True)
 
     def abort_wallet_creation(self):
         self._on_release = True
