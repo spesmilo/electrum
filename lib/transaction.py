@@ -481,6 +481,7 @@ def parse_witness(vds, txin, full_parse: bool):
         return
     if n == 0xffffffff:
         txin['value'] = vds.read_uint64()
+        txin['witness_version'] = vds.read_uint16()
         n = vds.read_compact_size()
     # now 'n' is the number of items in the witness
     w = list(bh2u(vds.read_bytes(vds.read_compact_size())) for i in range(n))
@@ -488,9 +489,9 @@ def parse_witness(vds, txin, full_parse: bool):
     if not full_parse:
         return
 
-    # NOTE: when witness version 1 comes, if we need to distinguish it for partial txns here,
-    # we could put the witness version in our partial format, e.g. after value
     try:
+        if txin['witness_version'] != 0:
+            raise UnknownTxinType()
         if txin['type'] == 'coinbase':
             pass
         elif txin['type'] == 'p2wsh-p2sh' or n > 2:
@@ -780,10 +781,12 @@ class Transaction:
             else:
                 raise Exception('wrong txin type:', txin['type'])
         if self.is_txin_complete(txin) or estimate_size:
-            value_field = ''
+            partial_format_witness_prefix = ''
         else:
-            value_field = var_int(0xffffffff) + int_to_hex(txin['value'], 8)
-        return value_field + witness
+            input_value = int_to_hex(txin['value'], 8)
+            witness_version = int_to_hex(txin.get('witness_version', 0), 2)
+            partial_format_witness_prefix = var_int(0xffffffff) + input_value + witness_version
+        return partial_format_witness_prefix + witness
 
     @classmethod
     def is_segwit_input(cls, txin):
