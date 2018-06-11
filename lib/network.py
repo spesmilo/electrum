@@ -832,7 +832,8 @@ class Network(util.DaemonThread, triggers.Triggers):
             return
 
         self.requested_chunks.add(index)
-        self.headers(tx_height, 2016)
+        self._queue_request('blockchain.block.headers', [index * 2016, 2016],
+            self.interface)
 
     def _on_block_headers(self, interface, response):
         '''Handle receiving a batch of block headers'''
@@ -859,7 +860,7 @@ class Network(util.DaemonThread, triggers.Triggers):
             return
         # If not finished, get the next chunk
         if index >= len(blockchain.checkpoints) and blockchain.height() < interface.tip:
-            self.request_chunk(interface, index+1)
+            self.fetch_missing_headers_for(height + 2016)
         else:
             interface.mode = 'default'
             interface.print_error('catch up done', blockchain.height())
