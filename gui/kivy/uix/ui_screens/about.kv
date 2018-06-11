@@ -28,7 +28,8 @@ Popup:
                 markup: True
                 text: '[color=6666ff][ref=x]https://electrum.org[/ref][/color]'
                 on_ref_press:
-                    1/0
+                    import webbrowser
+                    webbrowser.open("https://electrum.org")
                 size_hint_x: 0.6
             TopLabel:
                 text: _('Developers')

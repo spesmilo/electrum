@@ -25,7 +25,7 @@ Builder.load_string('''
             size_hint: None, None
         Label:
             id: request_help_message
-            text_size: root.width, None
+            text_size: root.width*.95, None
             size: self.texture_size
             size_hint: None, None
         BoxLayout:

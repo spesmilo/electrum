@@ -33,7 +33,7 @@ from electrum.i18n import _
 
 
 class BaseCrashReporter(object):
-    report_server = "https://crashhubtest.bauerj.eu"
+    report_server = "https://crashhub.electrum.org"
     config_key = "show_crash_reporter"
     issue_template = """<h2>Traceback</h2>
 <pre>
