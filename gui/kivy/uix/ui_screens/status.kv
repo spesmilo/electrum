@@ -46,11 +46,20 @@ Popup:
                         value: app.format_amount_and_units(root.unmatured)
                         opacity: 1 if root.unmatured else 0
 
-                TopLabel:
-                    text: _('Master Public Key')
-                RefLabel:
-                    data: app.wallet.get_master_public_key() or 'None'
-                    name: _('Master Public Key')
+                GridLayout:
+                    cols: 1
+                    height: self.minimum_height
+                    size_hint_y: None
+                    padding: '10dp'
+                    spacing: '10dp'
+                    id: master_public_keys
+                    TopLabel:
+                        text: _('Master Public Key')
+                    RefLabel:
+                        data: app.wallet.get_master_public_key() or 'None'
+                        name: _('Master Public Key')
+
+
                 TopLabel:
                     id: seed_label
                     text: _('This wallet is watching-only') if root.watching_only else ''
