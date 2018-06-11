@@ -602,7 +602,7 @@ class Network(util.DaemonThread):
 
     def process_response(self, interface, response, callbacks):
         if self.debug:
-            self.print_error("<--", response)
+            self.print_error(interface.host, "<--", response)
         error = response.get('error')
         result = response.get('result')
         method = response.get('method')
@@ -1010,6 +1010,7 @@ class Network(util.DaemonThread):
             interface.mode = 'default'
             interface.request = None
             self.notify('updated')
+
         # refresh network dialog
         self.notify('interfaces')
 
