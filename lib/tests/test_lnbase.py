@@ -156,7 +156,7 @@ class Test_LNBase(unittest.TestCase):
             local_revocation_pubkey, local_delayedpubkey, local_delay,
             funding_tx_id, funding_output_index, funding_amount_satoshi,
             to_local_msat, to_remote_msat, local_dust_limit_satoshi,
-            local_feerate_per_kw, True, htlcs=htlcs)
+            local_feerate_per_kw, True, we_are_initiator=True, htlcs=htlcs)
         self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
         self.assertEqual(str(our_commit_tx), output_commit_tx)
 
