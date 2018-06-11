@@ -52,7 +52,11 @@ class SPV(ThreadJob):
 
             header = blockchain.read_header(tx_height)
             if header is None:
-                if not blockchain.is_after_last_checkpoint(tx_height):
+                # Retreive headers when the transaction height is before the
+                # last checkpoint. As a rule we don't fetch headers before
+                # checkpoints as we assume the chain is correct up until that
+                # point.
+                if blockchain.is_before_last_checkpoint(tx_height):
                     self.network.fetch_missing_headers_for(tx_height)
             elif (tx_hash not in self.requested_merkle
                     and tx_hash not in self.merkle_roots):
