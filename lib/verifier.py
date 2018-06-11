@@ -39,6 +39,9 @@ class SPV(ThreadJob):
         self.requested_merkle = set()  # txid set of pending requests
 
     def run(self):
+        if not self.network.is_connected():
+            return
+
         blockchain = self.network.blockchain()
         if not blockchain:
             return
