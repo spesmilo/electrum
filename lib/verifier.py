@@ -60,7 +60,7 @@ class SPV(ThreadJob):
                 # checkpoints as we assume the chain is correct up until that
                 # point.
                 if blockchain.is_before_last_checkpoint(tx_height):
-                    self.network.fetch_missing_headers_for(tx_height)
+                    self.network.fetch_missing_headers_around(tx_height)
             elif (tx_hash not in self.requested_merkle
                     and tx_hash not in self.merkle_roots):
                 self.network.get_merkle_for_transaction(

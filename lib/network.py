@@ -826,13 +826,19 @@ class Network(util.DaemonThread, triggers.Triggers):
                 if self.config.is_fee_estimates_update_required():
                     self._request_fee_estimates()
 
-    def fetch_missing_headers_for(self, tx_height):
+    def fetch_missing_headers_around(self, tx_height):
+        """ This method fetches blocks in batches of 2016 block around a specific
+        height. The number 2016 is the same interval the checkpoints are using and
+        appear to be the maximum an ElectrumX server will return.
+        """
         index = tx_height // 2016
         if index in self.requested_chunks:
             return
 
         self.requested_chunks.add(index)
-        self._queue_request('blockchain.block.headers', [index * 2016, 2016],
+        self._queue_request(
+            'blockchain.block.headers',
+            [index * 2016, 2016],
             self.interface)
 
     def _on_block_headers(self, interface, response):
@@ -860,7 +866,7 @@ class Network(util.DaemonThread, triggers.Triggers):
             return
         # If not finished, get the next chunk
         if index >= len(blockchain.checkpoints) and blockchain.height() < interface.tip:
-            self.fetch_missing_headers_for(height + 2016)
+            self.fetch_missing_headers_around(height + 2016)
         else:
             interface.mode = 'default'
             interface.print_error('catch up done', blockchain.height())
@@ -987,7 +993,7 @@ class Network(util.DaemonThread, triggers.Triggers):
         # If not finished, get the next header
         if next_height is not None:
             if interface.mode == 'catch_up' and interface.tip > next_height + 50:
-                self.fetch_missing_headers_for(next_height)
+                self.fetch_missing_headers_around(next_height)
             else:
                 self.request_header(interface, next_height)
         else:
