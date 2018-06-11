@@ -67,10 +67,6 @@ Builder.load_string('''
     size_hint: None, None
     canvas.before:
         Color:
-            rgba: 0, 0, 0, .9
-        Rectangle:
-            size: Window.size
-        Color:
             rgba: .239, .588, .882, 1
         Rectangle:
             size: Window.size
@@ -192,12 +188,13 @@ Builder.load_string('''
     size_hint: 1, 1
     ScrollView:
         size_hint: 1, 1
-        Label:
+        TextInput:
             color: root.text_color
             size_hint: 1, None
             text_size: self.width, None
-            height: self.texture_size[1]
+            height: self.minimum_height
             text: root.message
+            disabled: True
 
 <WizardEmailDialog>
     Label:
