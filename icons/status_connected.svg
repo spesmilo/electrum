@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   version="1.0"
+   id="svg7854"
+   height="512"
+   width="512"
+   viewBox="9 9 30 30">
+  <defs
+     id="defs7856">
+    <linearGradient
+       id="linearGradient860">
+      <stop
+         id="stop856"
+         offset="0"
+         style="stop-color:#90bb65;stop-opacity:1" />
+      <stop
+         id="stop858"
+         offset="1"
+         style="stop-color:#6ac017;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient7577">
+      <stop
+         id="stop7579"
+         offset="0"
+         style="stop-color:#000000;stop-opacity:0.3137255;" />
+      <stop
+         id="stop7581"
+         offset="1"
+         style="stop-color:#ffffff;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient5167">
+      <stop
+         style="stop-color:#76d717;stop-opacity:1"
+         offset="0"
+         id="stop5169" />
+      <stop
+         style="stop-color:#509e07;stop-opacity:1"
+         offset="1"
+         id="stop5171" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient5184">
+      <stop
+         style="stop-color:white;stop-opacity:1;"
+         offset="0"
+         id="stop5186" />
+      <stop
+         style="stop-color:white;stop-opacity:0;"
+         offset="1"
+         id="stop5188" />
+    </linearGradient>
+    <linearGradient
+       gradientTransform="matrix(2.1074616,0,0,2.1078593,-9.43551,-10.006786)"
+       y2="17.024479"
+       x2="16.657505"
+       y1="10.883683"
+       x1="15.011773"
+       gradientUnits="userSpaceOnUse"
+       id="linearGradient8317"
+       xlink:href="#linearGradient7577" />
+    <radialGradient
+       gradientTransform="matrix(1.897257,0,0,1.897615,-6.10046,-6.6146433)"
+       r="7.5896134"
+       fy="20.410854"
+       fx="15.865708"
+       cy="20.410854"
+       cx="15.865708"
+       gradientUnits="userSpaceOnUse"
+       id="radialGradient8319"
+       xlink:href="#linearGradient5167" />
+    <radialGradient
+       r="5.96875"
+       fy="11.308558"
+       fx="14.05685"
+       cy="11.308558"
+       cx="14.05685"
+       gradientTransform="matrix(-4.2002315,0.5953403,0.2958442,2.0989386,75.31118,-18.732928)"
+       gradientUnits="userSpaceOnUse"
+       id="radialGradient8321"
+       xlink:href="#linearGradient5184" />
+    <linearGradient
+       gradientTransform="matrix(1.7591324,0,0,1.7580929,-3.90899,-4.3562887)"
+       y2="26.431587"
+       x2="13.458839"
+       y1="2.0178134"
+       x1="8.9317284"
+       gradientUnits="userSpaceOnUse"
+       id="linearGradient8323"
+       xlink:href="#linearGradient860" />
+  </defs>
+  <metadata
+     id="metadata7859">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>Lapo Calamandrei</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:source />
+        <cc:license
+           rdf:resource="http://creativecommons.org/licenses/GPL/2.0/" />
+        <dc:title></dc:title>
+        <dc:subject>
+          <rdf:Bag>
+            <rdf:li>record</rdf:li>
+            <rdf:li>media</rdf:li>
+          </rdf:Bag>
+        </dc:subject>
+        <dc:contributor>
+          <cc:Agent>
+            <dc:title>Jakub Steiner</dc:title>
+          </cc:Agent>
+        </dc:contributor>
+      </cc:Work>
+      <cc:License
+         rdf:about="http://creativecommons.org/licenses/GPL/2.0/">
+        <cc:permits
+           rdf:resource="http://web.resource.org/cc/Reproduction" />
+        <cc:permits
+           rdf:resource="http://web.resource.org/cc/Distribution" />
+        <cc:requires
+           rdf:resource="http://web.resource.org/cc/Notice" />
+        <cc:permits
+           rdf:resource="http://web.resource.org/cc/DerivativeWorks" />
+        <cc:requires
+           rdf:resource="http://web.resource.org/cc/ShareAlike" />
+        <cc:requires
+           rdf:resource="http://web.resource.org/cc/SourceCode" />
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
+  <g
+     id="layer1">
+    <ellipse
+       ry="14.997972"
+       rx="14.995141"
+       style="color:#000000;display:inline;overflow:visible;visibility:visible;opacity:0.4;fill:url(#linearGradient8317);fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1.11079514;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none"
+       id="path7691"
+       cx="24.00086"
+       cy="24.002029" />
+    <ellipse
+       ry="13.502028"
+       rx="13.49948"
+       cy="24.002029"
+       cx="24.000866"
+       id="path7968"
+       style="color:#000000;display:inline;overflow:visible;visibility:visible;fill:url(#radialGradient8319);fill-opacity:1;fill-rule:nonzero;stroke:#336402;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none" />
+    <path
+       id="path7970"
+       d="M 25.3861,13.485003 C 20.31979,12.724926 15.45183,15.857848 14,20.764516 c 1.18871,3.18039 3.90811,5.70993 7.46677,6.47724 5.29459,1.141602 10.50115,-2.027543 12.01505,-7.143895 -1.18869,-3.180413 -3.90812,-5.709952 -7.46675,-6.477239 -0.217,-0.04678 -0.41248,-0.103152 -0.62897,-0.135619 z"
+       style="color:#000000;display:inline;overflow:visible;visibility:visible;opacity:0.404;fill:url(#radialGradient8321);fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1.09465754;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none" />
+    <ellipse
+       ry="12.509292"
+       rx="12.516688"
+       cy="24.009293"
+       cx="24.000891"
+       style="color:#000000;display:inline;overflow:visible;visibility:visible;opacity:0.54494413;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:url(#linearGradient8323);stroke-width:1.00000215;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;marker:none;marker-start:none;marker-mid:none;marker-end:none"
+       id="path7972" />
+  </g>
+</svg>
