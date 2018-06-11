@@ -1,9 +1,11 @@
 # ported from lnd 42de4400bff5105352d0552155f73589166d162b
 from ecdsa.util import sigencode_string_canonize, sigdecode_der
 from .util import bfh, PrintError
+from .bitcoin import Hash, address_to_script
 from collections import namedtuple
 from ecdsa.curves import SECP256k1
 from .crypto import sha256
+from . import ecc
 
 SettleHtlc = namedtuple("SettleHtlc", ["htlc_id"])
 RevokeAndAck = namedtuple("RevokeAndAck", ["height", "per_commitment_secret", "next_per_commitment_point"])
@@ -53,8 +55,6 @@ class HTLCStateMachine(PrintError):
 
         self.name = name
 
-        self.l_current_height = 0
-        self.r_current_height = 0
         self.total_msat_sent = 0
         self.total_msat_received = 0
 
@@ -97,13 +97,9 @@ class HTLCStateMachine(PrintError):
         HTLC's on the commitment transaction.
         """
         from .lnbase import sign_and_get_sig_string, derive_privkey, make_htlc_tx_with_open_channel
-        self.l_current_height += 1
         for htlc in self.local_update_log:
             if not type(htlc) is UpdateAddHtlc: continue
-            if htlc.l_locked_in is None: htlc.l_locked_in = self.l_current_height
-        for htlc in self.remote_update_log:
-            if not type(htlc) is UpdateAddHtlc: continue
-            if htlc.r_locked_in is None: htlc.r_locked_in = self.r_current_height
+            if htlc.l_locked_in is None: htlc.l_locked_in = self.state.local_state.ctn
         self.print_error("sign_next_commitment")
 
         sig_64 = sign_and_get_sig_string(self.remote_commitment, self.state.local_config, self.state.remote_config)
@@ -126,7 +122,7 @@ class HTLCStateMachine(PrintError):
                 sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
                 r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
                 htlc_sig = sigencode_string_canonize(r, s, SECP256k1.generator.order())
-                htlcsigs.append((htlc_tx, htlc_sig))
+                htlcsigs.append(htlc_sig)
 
         return sig_64, htlcsigs
 
@@ -141,8 +137,35 @@ class HTLCStateMachine(PrintError):
         state, then this newly added commitment becomes our current accepted channel
         state.
         """
+        from .lnbase import make_htlc_tx_with_open_channel , derive_pubkey
+
         self.print_error("receive_new_commitment")
-        # TODO
+        for htlc in self.remote_update_log:
+            if not type(htlc) is UpdateAddHtlc: continue
+            if htlc.r_locked_in is None: htlc.r_locked_in = self.state.remote_state.ctn
+        assert len(htlc_sigs) == 0 or type(htlc_sigs[0]) is bytes
+
+        assert len(htlc_sigs) == len(self.local_commitment.outputs()) - 2, (len(htlc_sigs), len(self.local_commitment.outputs()) - 2, self.diagnostic_name())
+
+        preimage_hex = self.local_commitment.serialize_preimage(0)
+        pre_hash = Hash(bfh(preimage_hex))
+        if not ecc.verify_signature(self.state.remote_config.multisig_key.pubkey, sig, pre_hash):
+            raise Exception('failed verifying signature of our updated commitment transaction: ' + str(sig))
+
+        _, this_point, _ = self.points
+
+        if len(self.htlcs_in_remote) > 0:
+            print("CHECKING HTLC SIGS")
+            assert len(self.local_commitment.outputs()) == 3 # TODO
+            we_receive = True # TODO
+            payment_hash = self.htlcs_in_remote[0].payment_hash
+            amount_msat = self.htlcs_in_remote[0].amount_msat
+            cltv_expiry = self.htlcs_in_remote[0].cltv_expiry
+            htlc_tx = make_htlc_tx_with_open_channel(self.state, this_point, True, we_receive, amount_msat, cltv_expiry, payment_hash, self.local_commitment, 0)
+            pre_hash = Hash(bfh(htlc_tx.serialize_preimage(0)))
+            remote_htlc_pubkey = derive_pubkey(self.state.remote_config.htlc_basepoint.pubkey, this_point)
+            if not ecc.verify_signature(remote_htlc_pubkey, htlc_sigs[0], pre_hash):
+                raise Exception("failed verifying signature an HTLC tx spending from one of our commit tx'es HTLC outputs")
 
     def revoke_current_commitment(self):
         """
@@ -155,10 +178,21 @@ class HTLCStateMachine(PrintError):
         transaction. This return value allows callers to act once an HTLC has been
         locked into our commitment transaction.
         """
-        from .lnbase import get_per_commitment_secret_from_seed, secret_to_pubkey
-        self.r_current_height += 1
         self.print_error("revoke_current_commitment")
 
+        last_secret, this_point, next_point = self.points
+
+        self.state = self.state._replace(
+            local_state=self.state.local_state._replace(
+                ctn=self.state.local_state.ctn + 1
+            )
+        )
+
+        return RevokeAndAck(self.state.local_state.ctn - 1, last_secret, next_point), "current htlcs"
+
+    @property
+    def points(self):
+        from .lnbase import get_per_commitment_secret_from_seed, secret_to_pubkey
         chan = self.state
         last_small_num = chan.local_state.ctn
         next_small_num = last_small_num + 2
@@ -168,13 +202,7 @@ class HTLCStateMachine(PrintError):
         this_point = secret_to_pubkey(int.from_bytes(this_secret, 'big'))
         next_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-next_small_num-1)
         next_point = secret_to_pubkey(int.from_bytes(next_secret, 'big'))
-        self.state = chan._replace(
-            local_state=chan.local_state._replace(
-                ctn=chan.local_state.ctn + 1
-            )
-        )
-
-        return RevokeAndAck(self.r_current_height, last_secret, next_point), "current htlcs"
+        return last_secret, this_point, next_point
 
     def receive_revocation(self, revocation):
         """
@@ -196,13 +224,6 @@ class HTLCStateMachine(PrintError):
                 continue
             settle_fails2.append(x)
 
-        if revocation.height is not None:
-            adds2 = list(x for x in self.htlcs_in_remote if x.r_locked_in == revocation.height)
-
-            class FwdPkg:
-                adds = adds2
-                settle_fails = settle_fails2
-
         for x in settle_fails2:
             self.total_msat_sent += self.lookup_htlc(self.local_update_log, x.htlc_id).amount_msat
 
@@ -218,6 +239,9 @@ class HTLCStateMachine(PrintError):
         to_remove = []
         for x in filter(lambda x: type(x) is SettleHtlc, self.remote_update_log):
             to_remove += [y for y in self.local_update_log if y.htlc_id == x.htlc_id]
+
+        if to_remove != []:
+            print("REMOVING")
 
         # assert that we should have compacted the log earlier
         assert len(to_remove) <= 1, to_remove
@@ -245,11 +269,6 @@ class HTLCStateMachine(PrintError):
                 next_per_commitment_point=revocation.next_per_commitment_point,
             )
         )
-
-        if revocation.height is not None:
-            return FwdPkg
-        else:
-            return None
 
     @staticmethod
     def htlcsum(htlcs):
@@ -295,18 +314,14 @@ class HTLCStateMachine(PrintError):
         from .lnbase import make_commitment_using_open_channel, make_received_htlc, make_offered_htlc, derive_pubkey, derive_blinded_pubkey, get_per_commitment_secret_from_seed, secret_to_pubkey
         htlc_value_local, total_fee_local = self.htlcsum(self.htlcs_in_local)
         htlc_value_remote, total_fee_remote = self.htlcsum(self.htlcs_in_remote)
-        print("htlc_value_local, total_fee_local", htlc_value_local, total_fee_local)
         local_msat = self.state.local_state.amount_msat -\
           htlc_value_local
-        print("htlc_value_remote, total_fee_remote", htlc_value_remote, total_fee_remote)
         remote_msat = self.state.remote_state.amount_msat -\
           htlc_value_remote
         assert local_msat > 0
         assert remote_msat > 0
 
-        this_small_num = self.state.local_state.ctn + 1
-        this_secret = get_per_commitment_secret_from_seed(self.state.local_state.per_commitment_secret_seed, 2**48-this_small_num-1)
-        this_point = secret_to_pubkey(int.from_bytes(this_secret, 'big'))
+        _, this_point, _ = self.points
 
         remote_htlc_pubkey = derive_pubkey(self.state.remote_config.htlc_basepoint.pubkey, this_point)
         local_htlc_pubkey = derive_pubkey(self.state.local_config.htlc_basepoint.pubkey, this_point)
@@ -315,13 +330,11 @@ class HTLCStateMachine(PrintError):
 
         htlcs_in_local = []
         for htlc in self.htlcs_in_local:
-            print("adding local htlc", htlc)
             htlcs_in_local.append(
                 ( make_offered_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + total_fee_local))
 
         htlcs_in_remote = []
         for htlc in self.htlcs_in_remote:
-            print("adding remote htlc", htlc)
             htlcs_in_remote.append(
                 ( make_received_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat + total_fee_remote))
 
@@ -338,10 +351,11 @@ class HTLCStateMachine(PrintError):
         for htlc in update_log:
             if type(htlc) is not UpdateAddHtlc:
                 continue
-            height = (self.r_current_height if subject == "remote" else self.l_current_height)
-            locked_in = (htlc.r_locked_in   if subject == "remote" else htlc.l_locked_in)
+            height = (self.state.local_state.ctn if subject == "remote" else self.state.remote_state.ctn)
+            locked_in = (htlc.r_locked_in if subject == "remote" else htlc.l_locked_in)
 
-            if locked_in is None or locked_in < height:
+            if locked_in is None:
+                print("skipping", locked_in, height)
                 continue
             res.append(htlc)
         return res

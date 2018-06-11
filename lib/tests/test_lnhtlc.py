@@ -154,9 +154,7 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         # Alice then processes this revocation, sending her own revocation for
         # her prior commitment transaction. Alice shouldn't have any HTLCs to
         # forward since she's sending an outgoing HTLC.
-        fwdPkg = alice_channel.receive_revocation(bobRevocation)
-        self.assertEqual(fwdPkg.adds, [], "alice forwards %s add htlcs, should forward none"% len(fwdPkg.adds))
-        self.assertEqual(fwdPkg.settle_fails, [], "alice forwards %s settle/fail htlcs, should forward none"% len(fwdPkg.settle_fails))
+        alice_channel.receive_revocation(bobRevocation)
 
         # Alice then processes bob's signature, and since she just received
         # the revocation, she expect this signature to cover everything up to
@@ -170,9 +168,7 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         # is fully locked in within both commitment transactions. Bob should
         # also be able to forward an HTLC now that the HTLC has been locked
         # into both commitment transactions.
-        fwdPkg = bob_channel.receive_revocation(aliceRevocation)
-        self.assertEqual(len(fwdPkg.adds), 1, "bob forwards %s add htlcs, should only forward one"% len(fwdPkg.adds))
-        self.assertEqual(fwdPkg.settle_fails, [], "bob forwards %s settle/fail htlcs, should forward none"% len(fwdPkg.settle_fails))
+        bob_channel.receive_revocation(aliceRevocation)
 
         # At this point, both sides should have the proper number of satoshis
         # sent, and commitment height updated within their local channel
@@ -184,8 +180,8 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         self.assertEqual(alice_channel.total_msat_received, bobSent, "alice has incorrect milli-satoshis received %s vs %s"% (alice_channel.total_msat_received, bobSent))
         self.assertEqual(bob_channel.total_msat_sent, bobSent, "bob has incorrect milli-satoshis sent %s vs %s"% (bob_channel.total_msat_sent, bobSent))
         self.assertEqual(bob_channel.total_msat_received, aliceSent, "bob has incorrect milli-satoshis received %s vs %s"% (bob_channel.total_msat_received, aliceSent))
-        self.assertEqual(bob_channel.l_current_height, 1, "bob has incorrect commitment height, %s vs %s"% (bob_channel.l_current_height, 1))
-        self.assertEqual(alice_channel.l_current_height, 1, "alice has incorrect commitment height, %s vs %s"% (alice_channel.l_current_height, 1))
+        self.assertEqual(bob_channel.state.local_state.ctn, 1, "bob has incorrect commitment height, %s vs %s"% (bob_channel.state.local_state.ctn, 1))
+        self.assertEqual(alice_channel.state.local_state.ctn, 1, "alice has incorrect commitment height, %s vs %s"% (alice_channel.state.local_state.ctn, 1))
 
         # Both commitment transactions should have three outputs, and one of
         # them should be exactly the amount of the HTLC.
@@ -207,18 +203,12 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         aliceRevocation2, _ = alice_channel.revoke_current_commitment()
         aliceSig2, aliceHtlcSigs2 = alice_channel.sign_next_commitment()
 
-        fwdPkg = bob_channel.receive_revocation(aliceRevocation2)
-        self.assertEqual(fwdPkg.adds, [], "bob forwards %s add htlcs, should forward none"% len(fwdPkg.adds))
-        self.assertEqual(fwdPkg.settle_fails, [], "bob forwards %s settle/fail htlcs, should forward none"% len(fwdPkg.settle_fails))
+        bob_channel.receive_revocation(aliceRevocation2)
 
         bob_channel.receive_new_commitment(aliceSig2, aliceHtlcSigs2)
 
         bobRevocation2, _ = bob_channel.revoke_current_commitment()
-        fwdPkg = alice_channel.receive_revocation(bobRevocation2)
-        # Alice should now be able to forward the settlement HTLC to
-        # any down stream peers.
-        self.assertEqual(fwdPkg.adds, [] , "alice should be forwarding an add HTLC, instead forwarding %s: %s"% (len(fwdPkg.adds), fwdPkg.adds))
-        self.assertEqual(len(fwdPkg.settle_fails), 1, "alice should be forwarding one settle/fails HTLC, instead forwarding: %s"% len(fwdPkg.settle_fails))
+        alice_channel.receive_revocation(bobRevocation2)
 
         # At this point, Bob should have 6 BTC settled, with Alice still having
         # 4 BTC. Alice's channel should show 1 BTC sent and Bob's channel
