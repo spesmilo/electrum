@@ -106,7 +106,7 @@ def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
         item['address'] = address
         item['type'] = txin_type
         item['prevout_hash'] = item['tx_hash']
-        item['prevout_n'] = item['tx_pos']
+        item['prevout_n'] = int(item['tx_pos'])
         item['pubkeys'] = [pubkey]
         item['x_pubkeys'] = [pubkey]
         item['signatures'] = [None]
@@ -170,11 +170,6 @@ class UnrelatedTransactionException(AddTransactionException):
         return _("Transaction is unrelated to this wallet.")
 
 
-class NotIsMineTransactionException(AddTransactionException):
-    def __str__(self):
-        return _("Only transactions with inputs owned by the wallet can be added.")
-
-
 class Abstract_Wallet(PrintError):
     """
     Wallet classes are created to handle various address generation methods.
@@ -216,7 +211,6 @@ class Abstract_Wallet(PrintError):
         self.test_addresses_sanity()
         self.load_transactions()
         self.load_local_history()
-        self.build_spent_outpoints()
         self.check_history()
         self.load_unverified_transactions()
         self.remove_local_transactions_we_dont_have()
@@ -249,19 +243,29 @@ class Abstract_Wallet(PrintError):
 
     @profiler
     def load_transactions(self):
+        # load txi, txo, tx_fees
         self.txi = self.storage.get('txi', {})
+        for txid, d in list(self.txi.items()):
+            for addr, lst in d.items():
+                self.txi[txid][addr] = set([tuple(x) for x in lst])
         self.txo = self.storage.get('txo', {})
         self.tx_fees = self.storage.get('tx_fees', {})
-        self.pruned_txo = self.storage.get('pruned_txo', {})
         tx_list = self.storage.get('transactions', {})
+        # load transactions
         self.transactions = {}
         for tx_hash, raw in tx_list.items():
             tx = Transaction(raw)
             self.transactions[tx_hash] = tx
-            if self.txi.get(tx_hash) is None and self.txo.get(tx_hash) is None \
-                    and (tx_hash not in self.pruned_txo.values()):
+            if self.txi.get(tx_hash) is None and self.txo.get(tx_hash) is None:
                 self.print_error("removing unreferenced tx", tx_hash)
                 self.transactions.pop(tx_hash)
+        # load spent_outpoints
+        _spent_outpoints = self.storage.get('spent_outpoints', {})
+        self.spent_outpoints = defaultdict(dict)
+        for prevout_hash, d in _spent_outpoints.items():
+            for prevout_n_str, spending_txid in d.items():
+                prevout_n = int(prevout_n_str)
+                self.spent_outpoints[prevout_hash][prevout_n] = spending_txid
 
     @profiler
     def load_local_history(self):
@@ -286,8 +290,8 @@ class Abstract_Wallet(PrintError):
             self.storage.put('txi', self.txi)
             self.storage.put('txo', self.txo)
             self.storage.put('tx_fees', self.tx_fees)
-            self.storage.put('pruned_txo', self.pruned_txo)
             self.storage.put('addr_history', self.history)
+            self.storage.put('spent_outpoints', self.spent_outpoints)
             if write:
                 self.storage.write()
 
@@ -303,20 +307,11 @@ class Abstract_Wallet(PrintError):
                 self.txi = {}
                 self.txo = {}
                 self.tx_fees = {}
-                self.pruned_txo = {}
-                self.spent_outpoints = {}
+                self.spent_outpoints = defaultdict(dict)
                 self.history = {}
                 self.verified_tx = {}
                 self.transactions = {}
                 self.save_transactions()
-
-    @profiler
-    def build_spent_outpoints(self):
-        self.spent_outpoints = {}
-        for txid, items in self.txi.items():
-            for addr, l in items.items():
-                for ser, v in l:
-                    self.spent_outpoints[ser] = txid
 
     @profiler
     def check_history(self):
@@ -333,11 +328,11 @@ class Abstract_Wallet(PrintError):
             hist = self.history[addr]
 
             for tx_hash, tx_height in hist:
-                if tx_hash in self.pruned_txo.values() or self.txi.get(tx_hash) or self.txo.get(tx_hash):
+                if self.txi.get(tx_hash) or self.txo.get(tx_hash):
                     continue
                 tx = self.transactions.get(tx_hash)
                 if tx is not None:
-                    self.add_transaction(tx_hash, tx)
+                    self.add_transaction(tx_hash, tx, allow_unrelated=True)
                     save = True
         if save:
             self.save_transactions()
@@ -528,9 +523,6 @@ class Abstract_Wallet(PrintError):
 
     def get_tx_delta(self, tx_hash, address):
         "effect of tx on address"
-        # pruned
-        if tx_hash in self.pruned_txo.values():
-            return None
         delta = 0
         # substract the value of coins sent from address
         d = self.txi.get(tx_hash, {}).get(address, [])
@@ -561,7 +553,7 @@ class Abstract_Wallet(PrintError):
         is_partial = False
         v_in = v_out = v_out_mine = 0
         for txin in tx.inputs():
-            addr = txin.get('address')
+            addr = self.get_txin_address(txin)
             if self.is_mine(addr):
                 is_mine = True
                 is_relevant = True
@@ -786,7 +778,7 @@ class Abstract_Wallet(PrintError):
 
     def get_txin_address(self, txi):
         addr = txi.get('address')
-        if addr != "(pubkey)":
+        if addr and addr != "(pubkey)":
             return addr
         prevout_hash = txi.get('prevout_hash')
         prevout_n = txi.get('prevout_n')
@@ -794,8 +786,8 @@ class Abstract_Wallet(PrintError):
         for addr, l in dd.items():
             for n, v, is_cb in l:
                 if n == prevout_n:
-                    self.print_error("found pay-to-pubkey address:", addr)
                     return addr
+        return None
 
     def get_txout_address(self, txo):
         _type, x, v = txo
@@ -815,14 +807,15 @@ class Abstract_Wallet(PrintError):
         """
         conflicting_txns = set()
         with self.transaction_lock:
-            for txi in tx.inputs():
-                ser = Transaction.get_outpoint_from_txin(txi)
-                if ser is None:
+            for txin in tx.inputs():
+                if txin['type'] == 'coinbase':
                     continue
-                spending_tx_hash = self.spent_outpoints.get(ser, None)
+                prevout_hash = txin['prevout_hash']
+                prevout_n = txin['prevout_n']
+                spending_tx_hash = self.spent_outpoints[prevout_hash].get(prevout_n)
                 if spending_tx_hash is None:
                     continue
-                # this outpoint (ser) has already been spent, by spending_tx
+                # this outpoint has already been spent, by spending_tx
                 assert spending_tx_hash in self.transactions
                 conflicting_txns |= {spending_tx_hash}
             txid = tx.txid()
@@ -833,7 +826,7 @@ class Abstract_Wallet(PrintError):
                 conflicting_txns -= {txid}
             return conflicting_txns
 
-    def add_transaction(self, tx_hash, tx):
+    def add_transaction(self, tx_hash, tx, allow_unrelated=False):
         assert tx_hash, tx_hash
         assert tx, tx
         assert tx.is_complete()
@@ -846,15 +839,14 @@ class Abstract_Wallet(PrintError):
             # being is_mine, as we roll the gap_limit forward
             is_coinbase = tx.inputs()[0]['type'] == 'coinbase'
             tx_height = self.get_tx_height(tx_hash)[0]
-            is_mine = any([self.is_mine(txin['address']) for txin in tx.inputs()])
-            # do not save if tx is local and not mine
-            if tx_height == TX_HEIGHT_LOCAL and not is_mine:
-                # FIXME the test here should be for "not all is_mine"; cannot detect conflict in some cases
-                raise NotIsMineTransactionException()
-            # raise exception if unrelated to wallet
-            is_for_me = any([self.is_mine(self.get_txout_address(txo)) for txo in tx.outputs()])
-            if not is_mine and not is_for_me:
-                raise UnrelatedTransactionException()
+            if not allow_unrelated:
+                # note that during sync, if the transactions are not properly sorted,
+                # it could happen that we think tx is unrelated but actually one of the inputs is is_mine.
+                # this is the main motivation for allow_unrelated
+                is_mine = any([self.is_mine(self.get_txin_address(txin)) for txin in tx.inputs()])
+                is_for_me = any([self.is_mine(self.get_txout_address(txo)) for txo in tx.outputs()])
+                if not is_mine and not is_for_me:
+                    raise UnrelatedTransactionException()
             # Find all conflicting transactions.
             # In case of a conflict,
             #     1. confirmed > mempool > local
@@ -884,26 +876,27 @@ class Abstract_Wallet(PrintError):
                 for tx_hash2 in to_remove:
                     self.remove_transaction(tx_hash2)
             # add inputs
+            def add_value_from_prev_output():
+                dd = self.txo.get(prevout_hash, {})
+                # note: this nested loop takes linear time in num is_mine outputs of prev_tx
+                for addr, outputs in dd.items():
+                    # note: instead of [(n, v, is_cb), ...]; we could store: {n -> (v, is_cb)}
+                    for n, v, is_cb in outputs:
+                        if n == prevout_n:
+                            if addr and self.is_mine(addr):
+                                if d.get(addr) is None:
+                                    d[addr] = set()
+                                d[addr].add((ser, v))
+                            return
             self.txi[tx_hash] = d = {}
             for txi in tx.inputs():
-                addr = self.get_txin_address(txi)
-                if txi['type'] != 'coinbase':
-                    prevout_hash = txi['prevout_hash']
-                    prevout_n = txi['prevout_n']
-                    ser = prevout_hash + ':%d'%prevout_n
-                if addr and self.is_mine(addr):
-                    # we only track is_mine spends
-                    self.spent_outpoints[ser] = tx_hash
-                    # find value from prev output
-                    dd = self.txo.get(prevout_hash, {})
-                    for n, v, is_cb in dd.get(addr, []):
-                        if n == prevout_n:
-                            if d.get(addr) is None:
-                                d[addr] = []
-                            d[addr].append((ser, v))
-                            break
-                    else:
-                        self.pruned_txo[ser] = tx_hash
+                if txi['type'] == 'coinbase':
+                    continue
+                prevout_hash = txi['prevout_hash']
+                prevout_n = txi['prevout_n']
+                ser = prevout_hash + ':%d' % prevout_n
+                self.spent_outpoints[prevout_hash][prevout_n] = tx_hash
+                add_value_from_prev_output()
             # add outputs
             self.txo[tx_hash] = d = {}
             for n, txo in enumerate(tx.outputs()):
@@ -914,15 +907,15 @@ class Abstract_Wallet(PrintError):
                     if d.get(addr) is None:
                         d[addr] = []
                     d[addr].append((n, v, is_coinbase))
-                # give v to txi that spends me
-                next_tx = self.pruned_txo.get(ser)
-                if next_tx is not None:
-                    self.pruned_txo.pop(ser)
-                    dd = self.txi.get(next_tx, {})
-                    if dd.get(addr) is None:
-                        dd[addr] = []
-                    dd[addr].append((ser, v))
-                    self._add_tx_to_local_history(next_tx)
+                    # give v to txi that spends me
+                    next_tx = self.spent_outpoints[tx_hash].get(n)
+                    if next_tx is not None:
+                        dd = self.txi.get(next_tx, {})
+                        if dd.get(addr) is None:
+                            dd[addr] = set()
+                        if (ser, v) not in dd[addr]:
+                            dd[addr].add((ser, v))
+                        self._add_tx_to_local_history(next_tx)
             # add to local history
             self._add_tx_to_local_history(tx_hash)
             # save
@@ -930,43 +923,41 @@ class Abstract_Wallet(PrintError):
             return True
 
     def remove_transaction(self, tx_hash):
+        def remove_from_spent_outpoints():
+            # undo spends in spent_outpoints
+            if tx is not None:  # if we have the tx, this branch is faster
+                for txin in tx.inputs():
+                    if txin['type'] == 'coinbase':
+                        continue
+                    prevout_hash = txin['prevout_hash']
+                    prevout_n = txin['prevout_n']
+                    self.spent_outpoints[prevout_hash].pop(prevout_n, None)
+                    if not self.spent_outpoints[prevout_hash]:
+                        self.spent_outpoints.pop(prevout_hash)
+            else:  # expensive but always works
+                for prevout_hash, d in list(self.spent_outpoints.items()):
+                    for prevout_n, spending_txid in d.items():
+                        if spending_txid == tx_hash:
+                            self.spent_outpoints[prevout_hash].pop(prevout_n, None)
+                            if not self.spent_outpoints[prevout_hash]:
+                                self.spent_outpoints.pop(prevout_hash)
+            # Remove this tx itself; if nothing spends from it.
+            # It is not so clear what to do if other txns spend from it, but it will be
+            # removed when those other txns are removed.
+            if not self.spent_outpoints[tx_hash]:
+                self.spent_outpoints.pop(tx_hash)
 
         with self.transaction_lock:
             self.print_error("removing tx from history", tx_hash)
-            self.transactions.pop(tx_hash, None)
-            # undo spent_outpoints that are in txi
-            for addr, l in self.txi[tx_hash].items():
-                for ser, v in l:
-                    self.spent_outpoints.pop(ser, None)
-            # undo spent_outpoints that are in pruned_txo
-            for ser, hh in list(self.pruned_txo.items()):
-                if hh == tx_hash:
-                    self.spent_outpoints.pop(ser, None)
-                    self.pruned_txo.pop(ser)
-
+            tx = self.transactions.pop(tx_hash, None)
+            remove_from_spent_outpoints()
             self._remove_tx_from_local_history(tx_hash)
-
-            # add tx to pruned_txo, and undo the txi addition
-            for next_tx, dd in self.txi.items():
-                for addr, l in list(dd.items()):
-                    ll = l[:]
-                    for item in ll:
-                        ser, v = item
-                        prev_hash, prev_n = ser.split(':')
-                        if prev_hash == tx_hash:
-                            l.remove(item)
-                            self.pruned_txo[ser] = next_tx
-                    if l == []:
-                        dd.pop(addr)
-                    else:
-                        dd[addr] = l
-
             self.txi.pop(tx_hash, None)
             self.txo.pop(tx_hash, None)
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_unverified_tx(tx_hash, tx_height)
-        self.add_transaction(tx_hash, tx)
+        self.add_transaction(tx_hash, tx, allow_unrelated=True)
 
     def receive_history_callback(self, addr, hist, tx_fees):
         with self.lock:
@@ -978,10 +969,6 @@ class Abstract_Wallet(PrintError):
                     self.verified_tx.pop(tx_hash, None)
                     if self.verifier:
                         self.verifier.remove_spv_proof_for_tx(tx_hash)
-                    # but remove completely if not is_mine
-                    if self.txi[tx_hash] == {}:
-                        # FIXME the test here should be for "not all is_mine"; cannot detect conflict in some cases
-                        self.remove_transaction(tx_hash)
             self.history[addr] = hist
 
         for tx_hash, tx_height in hist:
@@ -989,8 +976,9 @@ class Abstract_Wallet(PrintError):
             self.add_unverified_tx(tx_hash, tx_height)
             # if addr is new, we have to recompute txi and txo
             tx = self.transactions.get(tx_hash)
-            if tx is not None and self.txi.get(tx_hash, {}).get(addr) is None and self.txo.get(tx_hash, {}).get(addr) is None:
-                self.add_transaction(tx_hash, tx)
+            if tx is None:
+                continue
+            self.add_transaction(tx_hash, tx, allow_unrelated=True)
 
         # Store fees
         self.tx_fees.update(tx_fees)
@@ -1787,6 +1775,7 @@ class Abstract_Wallet(PrintError):
     def get_depending_transactions(self, tx_hash):
         """Returns all (grand-)children of tx_hash in this wallet."""
         children = set()
+        # TODO rewrite this to use self.spent_outpoints
         for other_hash, tx in self.transactions.items():
             for input in (tx.inputs()):
                 if input["prevout_hash"] == tx_hash:
@@ -1975,7 +1964,6 @@ class Imported_Wallet(Simple_Wallet):
                 self.verified_tx.pop(tx_hash, None)
                 self.unverified_tx.pop(tx_hash, None)
                 self.transactions.pop(tx_hash, None)
-                # FIXME: what about pruned_txo?
             self.storage.put('verified_tx3', self.verified_tx)
         self.save_transactions()
 

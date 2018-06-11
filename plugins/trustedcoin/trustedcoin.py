@@ -286,8 +286,7 @@ class Wallet_2fa(Multisig_Wallet):
             return
         otp = int(otp)
         long_user_id, short_id = self.get_user_id()
-        tx_dict = tx.as_dict()
-        raw_tx = tx_dict["hex"]
+        raw_tx = tx.serialize_to_network()
         r = server.sign(short_id, raw_tx, otp)
         if r:
             raw_tx = r.get('transaction')
