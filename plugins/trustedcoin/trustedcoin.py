@@ -27,6 +27,7 @@ import socket
 import os
 import requests
 import json
+import base64
 from urllib.parse import urljoin
 from urllib.parse import quote
 
