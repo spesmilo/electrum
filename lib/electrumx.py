@@ -119,7 +119,7 @@ class ElectrumX(network.Network):
 
     def subscribe_to_headers(self, callback=None):
         command = 'blockchain.headers.subscribe'
-        invocation = lambda c: self._send([(command, [])], c)
+        invocation = lambda c: self._send([(command, [True])], c)
 
         return ElectrumX.__with_default_synchronous_callback(
             invocation,
