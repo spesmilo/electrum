@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- https://commons.wikimedia.org/wiki/File:CrystalClearActionApply.svg -->
+<svg width="512" height="512" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+    <linearGradient id="linearGradient3930">
+      <stop style="stop-color:#ffffff;stop-opacity:1" offset="0"/>
+      <stop style="stop-color:#b3d187;stop-opacity:1" offset="0.53316939"/>
+      <stop style="stop-color:#28f400;stop-opacity:1" offset="1"/>
+    </linearGradient>
+    <linearGradient
+       id="linearGradient3904">
+      <stop style="stop-color:#4df60b;stop-opacity:1" offset="0"/>
+      <stop style="stop-color:#008000;stop-opacity:1" offset="1"/>
+    </linearGradient>
+    <linearGradient
+       id="linearGradient3878">
+      <stop style="stop-color:#79ef39;stop-opacity:1" offset="0"/>
+      <stop style="stop-color:#e9ffe3;stop-opacity:1" offset="1"/>
+    </linearGradient>
+    <linearGradient
+       id="linearGradient3044">
+      <stop style="stop-color:#f9ffd1;stop-opacity:1" offset="0"/>
+      <stop style="stop-color:#84e246;stop-opacity:1" offset="0.25998953"/>
+      <stop style="stop-color:#008000;stop-opacity:1" offset="1"/>
+    </linearGradient>
+    <radialGradient cx="60.764378" cy="104.22466" r="63.17857" fx="60.764378" fy="104.22466" id="radialGradient3838"       xlink:href="#linearGradient3044" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0.85744972,-0.78795737,0.89944031,0.97876469,-84.596269,34.939755)"/>
+    <radialGradient cx="145" cy="29" r="230" id="radialGradient3838-0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0.66070117,-0.56004574,0.69392651,0.81864398,-39.045089,37.984063)">
+  	  <stop style="stop-color:#FFFFFF;stop-opacity:1" offset="0"/>
+	  <stop style="stop-color:#FFFFFF;stop-opacity:1" offset="0.20"/>
+	  <stop style="stop-color:#8BE456;stop-opacity:1" offset="0.51"/>
+	  <stop style="stop-color:#8BE456;stop-opacity:1" offset="0.74"/>
+	  <stop style="stop-color:#8BE456;stop-opacity:1" offset="1"/>
+	</radialGradient>
+    <radialGradient cx="48.356026" cy="122.04626" r="63.17857" fx="48.356026" fy="122.04626" id="radialGradient3838-4"       xlink:href="#linearGradient3904" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0.97494521,-0.22244513,0.1978519,0.86715661,-18.612993,12.209071)"/>
+    <radialGradient cx="57.965954" cy="109.5996" r="63.17857" fx="57.965954" fy="109.5996" id="radialGradient3838-5"       xlink:href="#linearGradient3930" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0.77328328,-0.70601122,0.71173774,0.77955545,-64.080277,49.199946)"/>
+  </defs>
+  <g>
+      <path d="M 24.642857,32.642859 1.4285714,54.07143 51.071429,97.285716 126.78571,31.57143 l -22.5,-20 -52.142853,47.142858 z" id="path2997-1" style="fill:url(#radialGradient3838);fill-opacity:1;stroke:none"/>
+      <path d="M 1.4285714,54.428573 51.071429,97.64286 126.78571,31.928573 126.86922,40.559647 51.78571,108.71429 1.77525,63.026751 z" id="path2997-7" style="color:#000000;fill:url(#radialGradient3838-4);fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1px;marker:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"/>
+      <path d="m 24.285714,39.785715 27.5,25.000001 52.142856,-46.428569 15.71429,14.64285 c 0,0 -14.28571,12.857149 -28.928573,25.714289 -14.642854,12.85714 -54.642859,15 -80.7142871,-5.71429 C 20.357143,43.714286 24.285714,39.785715 24.285714,39.785715 z" id="path3042" style="color:#000000;fill:url(#radialGradient3838-0);fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1px;marker:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"/>
+      <path d="M 1.4285714,54.07143 51.071429,97.285716 126.78571,31.57143 51.071424,101.21429 z" id="path2997" style="color:#000000;fill:url(#radialGradient3838-5);fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:1px;marker:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate"/>
+  </g>
+</svg>
