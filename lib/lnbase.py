@@ -908,7 +908,7 @@ class Peer(PrintError):
         if not ecc.verify_signature(remote_config.multisig_key.pubkey, remote_sig, pre_hash):
             raise Exception('verifying remote signature failed.')
         # broadcast funding tx
-        success, _txid = self.network.broadcast(funding_tx)
+        success, _txid = self.network.broadcast_transaction(funding_tx)
         assert success, success
         their_revocation_store = RevocationStore()
         chan = OpenChannel(
