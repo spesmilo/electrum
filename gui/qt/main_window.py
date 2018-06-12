@@ -3065,4 +3065,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('Max fee exceeded'))
             return
         new_tx = self.wallet.cpfp(parent_tx, fee)
+        if new_tx is None:
+            self.show_error(_('CPFP no longer valid'))
+            return
         self.show_transaction(new_tx)
