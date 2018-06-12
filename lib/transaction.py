@@ -534,6 +534,8 @@ def parse_witness(vds, txin, full_parse: bool):
 def parse_output(vds, i):
     d = {}
     d['value'] = vds.read_int64()
+    if d['value'] > TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
+        raise SerializationError('invalid output amount (too large)')
     scriptPubKey = vds.read_bytes(vds.read_compact_size())
     d['type'], d['address'] = get_address_from_output_script(scriptPubKey)
     d['scriptPubKey'] = bh2u(scriptPubKey)
