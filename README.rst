@@ -66,9 +66,9 @@ Run install (this should install dependencies)::
 
     pip3 install .[full]
 
-Render the SVG icons to PNGs:
+Render the SVG icons to PNGs::
 
-    for i in confirmed status_lagging status_disconnected status_connected_proxy status_connected status_waiting preferences; do convert -background none icons/$i.svg icons/$i.png; done
+    for i in lock unlock confirmed status_lagging status_disconnected status_connected_proxy status_connected status_waiting preferences; do convert -background none icons/$i.svg icons/$i.png; done
 
 Compile the icons file for Qt::
 
