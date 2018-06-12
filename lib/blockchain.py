@@ -303,7 +303,7 @@ class Blockchain(util.PrintError):
             with open(name, 'rb') as f:
                 f.seek(delta * 80)
                 h = f.read(80)
-        return deserialize_header(h, height)
+            return deserialize_header(h, height)
 
     def get_hash(self, height):
         return hash_header(self.read_header(height))
