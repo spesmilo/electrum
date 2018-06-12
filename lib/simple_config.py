@@ -4,6 +4,7 @@ import time
 import os
 import stat
 
+from . import util
 from copy import deepcopy
 from .util import user_dir, make_dir, print_error, PrintError
 
@@ -211,6 +212,7 @@ class SimpleConfig(PrintError):
             return path
 
         # default path
+        util.assert_datadir_available(self.path)
         dirpath = os.path.join(self.path, "wallets")
         make_dir(dirpath)
 
