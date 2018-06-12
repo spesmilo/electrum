@@ -474,11 +474,13 @@ class Abstract_Wallet(PrintError):
                 is_partial = True
         if not is_mine:
             is_partial = False
+
         for addr, value in tx.get_outputs():
             v_out += value
             if addr in addresses:
                 v_out_mine += value
                 is_relevant = True
+        tx.cal_spend_value()
         if is_pruned:
             # some inputs are mine:
             fee = None
@@ -494,7 +496,7 @@ class Abstract_Wallet(PrintError):
                 fee = None
             else:
                 # all inputs are mine
-                fee = v_in - v_out
+                fee = v_in - v_out + tx.contract_withdraw_balance
         if not is_mine:
             fee = None
         return is_relevant, is_mine, v, fee
@@ -871,7 +873,7 @@ class Abstract_Wallet(PrintError):
         return dust_threshold(self.network)
 
     def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None,
-                                  change_addr=None, gas_fee=0, sender=None,is_sweep=False):
+                                  change_addr=None, gas_fee=0, sender=None,is_sweep=False,withdraw_from_balance=0):
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):
@@ -924,9 +926,9 @@ class Abstract_Wallet(PrintError):
             else:
                 coin_chooser = coinchooser.get_coin_chooser(config)
             tx = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
-                                      fee_estimator, self.dust_threshold(),sender)
+                                      fee_estimator, self.dust_threshold(),sender,withdraw_from_balance)
         else:
-            sendable = sum(map(lambda x:x['value'], inputs))
+            sendable = sum(map(lambda x:x['value'], inputs))+withdraw_from_balance
             _type, data, value = outputs[i_max]
             outputs[i_max] = (_type, data, 0)
             tx = Transaction.from_io(inputs, outputs[:])

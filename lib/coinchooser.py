@@ -119,7 +119,7 @@ class CoinChooserBase(PrintError):
         # Use N change outputs
         for n in range(1, count + 1):
             # How much is left if we add this many change outputs?
-            change_amount = max(0, tx.get_fee() - fee_estimator(n))
+            change_amount = max(0, tx.get_fee() - fee_estimator(n) )
             if change_amount // n <= max_change:
                 break
 
@@ -173,7 +173,7 @@ class CoinChooserBase(PrintError):
         return change
 
     def make_tx(self, coins, outputs, change_addrs, fee_estimator,
-                dust_threshold, sender=None):
+                dust_threshold, sender=None,withdraw_from_balance=0):
         '''Select unspent coins to spend to pay outputs.  If the change is
         greater than dust_threshold (after adding the change output to
         the transaction) it is kept, otherwise none is sent and it is
@@ -192,7 +192,7 @@ class CoinChooserBase(PrintError):
         def sufficient_funds(buckets):
             '''Given a list of buckets, return True if it has enough
             value to pay for the transaction'''
-            total_input = sum(bucket.value for bucket in buckets)
+            total_input = sum(bucket.value for bucket in buckets) + withdraw_from_balance
             total_size = sum(bucket.size for bucket in buckets) + base_size
             return total_input >= spent_amount + fee_estimator(total_size)
 

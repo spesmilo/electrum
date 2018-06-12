@@ -83,7 +83,7 @@ class ContractEditDialog(QDialog, MessageBoxMixin):
     def __init__(self, parent, contract=None):
         QDialog.__init__(self, parent=parent)
         self.setWindowTitle(_('Smart Contract'))
-        self.setMinimumSize(700, 400)
+        self.setMinimumSize(700, 150)
         self.main_window = parent
         run_hook('contract_edit_dialog', self)
         layout = ContractInfoLayout(self, contract, callback=self.save)
@@ -118,7 +118,7 @@ class ContractFuncLayout(QGridLayout):
         abi_lb = QLabel(_('Function:'))
         self.abi_combo = QComboBox()
 
-        self.abi_signatures = [(-1, "(00)"), ]
+        self.abi_signatures = [(-1, "(transferTo)"), ]
         for index, abi in enumerate(contract.get('interface', [])):
 
             self.abi_signatures.append((index, abi.get("name")))
@@ -178,8 +178,12 @@ class ContractFuncLayout(QGridLayout):
         buttons.addStretch(1)
         self.call_button = EnterButton(_("Call"), self.do_call)
         self.sendto_button = EnterButton(_("Send to"), self.do_sendto)
+        self.testtransfer_button = EnterButton(_("Test Transfer"), self.do_testtransfer)
+        self.transferto_button = EnterButton(_("Transfer to"), self.do_transferto)
         buttons.addWidget(self.call_button)
         buttons.addWidget(self.sendto_button)
+        buttons.addWidget(self.testtransfer_button)
+        buttons.addWidget(self.transferto_button)
         buttons.addStretch()
         self.addLayout(buttons, 5, 1, 1, -1)
 
@@ -189,17 +193,35 @@ class ContractFuncLayout(QGridLayout):
         abi_index = self.abi_signatures[self.abi_combo.currentIndex()][0]
         self.sendto_button.setHidden(True)
         self.call_button.setHidden(True)
+        self.testtransfer_button.setHidden(True)
+        self.transferto_button.setHidden(True)
 
         def show_call():
             self.optional_widget.setEnabled(False)
             self.call_button.setHidden(False)
+            self.testtransfer_button.setHidden(True)
+            self.transferto_button.setHidden(True)
 
         def show_sendto():
             self.optional_widget.setEnabled(True)
             self.sendto_button.setHidden(False)
+            self.testtransfer_button.setHidden(True)
+            self.transferto_button.setHidden(True)
+
+        def show_transfertest():
+            self.optional_widget.setEnabled(True)
+            self.sendto_button.setHidden(True)
+            self.testtransfer_button.setHidden(False)
+            self.transferto_button.setHidden(True)
+
+        def show_transferto():
+            self.optional_widget.setEnabled(True)
+            self.sendto_button.setHidden(True)
+            self.testtransfer_button.setHidden(False)
+            self.transferto_button.setHidden(False)
 
         if abi_index == -1:
-            show_sendto()
+            show_transfertest()
         else:
             abi = self.contract['interface'][abi_index]
             show_call()
@@ -218,8 +240,9 @@ class ContractFuncLayout(QGridLayout):
         args = self.args_e.text()
         abi_index = self.abi_signatures[self.abi_combo.currentIndex()][0]
         if abi_index == -1:
-            return None, []
-        abi = self.contract['interface'][abi_index]["name"]
+            abi = ""
+        else:
+            abi = self.contract['interface'][abi_index]["name"]
         if len(self.senders) > 0:
             sender = self.senders[self.sender_combo.currentIndex()]
         else:
@@ -235,6 +258,8 @@ class ContractFuncLayout(QGridLayout):
             self.dialog.show_message(str(e))
             return
         result = self.dialog.do_call(abi, args, sender)
+        if(result is None or "gasCount" not in result.keys()):
+            return
         self.gas_limit_e.setText(str(int(result["gasCount"])+10))
         withdraw_from_infos = {}
         for change in result['balanceChanges']:
@@ -262,6 +287,32 @@ class ContractFuncLayout(QGridLayout):
         gas_limit, gas_price, amount = self.parse_values()
         self.dialog.do_sendto(abi, args, gas_limit, gas_price, amount, sender, self.withdraw_infos, self.withdraw_froms)
 
+    def do_testtransfer(self):
+        try:
+            abi, args, sender = self.parse_args()
+            gas_limit, gas_price, amount = self.parse_values()
+        except (BaseException,) as e:
+            self.dialog.show_message(str(e))
+            return
+        result = self.dialog.do_transfer_test( amount,args, sender)
+        if(result is None or "gasCount" not in result.keys()):
+            return
+        self.gas_limit_e.setText(str(int(result["gasCount"])+10))
+        self.transferto_button.setHidden(False)
+
+    def do_transferto(self):
+        try:
+            abi, args, sender = self.parse_args()
+        except (BaseException,) as e:
+            self.dialog.show_message(str(e))
+            return
+        if not sender:
+            self.dialog.show_message('no sender selected')
+            return
+
+        gas_limit, gas_price, amount = self.parse_values()
+        self.dialog.do_transferto( args, gas_limit, gas_price, amount, sender)
+
 
 class ContractFuncDialog(QDialog, MessageBoxMixin):
     def __init__(self, parent, contract):
@@ -278,9 +329,18 @@ class ContractFuncDialog(QDialog, MessageBoxMixin):
         address = self.contract['address']
         return self.parent().call_smart_contract(address, abi, args, sender, self)
 
+
+    def do_transfer_test(self, amount, args, sender):
+        address = self.contract['address']
+        return self.parent().test_transfer_to_smart_contract(address, amount, args, sender, self)
+
     def do_sendto(self, abi, ars, gas_limit, gas_price, amount, sender,withdraw_infos,withdraw_forms):
         address = self.contract['address']
         self.parent().sendto_smart_contract(address, abi, ars, gas_limit, gas_price, amount, sender, self,withdraw_infos,withdraw_forms)
+
+    def do_transferto(self, ars, gas_limit, gas_price, amount, sender):
+        address = self.contract['address']
+        self.parent().transfer_to_smart_contract(address, ars, gas_limit, gas_price, amount, sender, self)
 
 
 class ContractCreateLayout(QVBoxLayout):

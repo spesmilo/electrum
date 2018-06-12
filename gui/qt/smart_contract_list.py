@@ -10,10 +10,10 @@ from electrum.plugins import run_hook
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import QAbstractItemView, QMenu, QTreeWidgetItem
-from .util import MyTreeWidget
+from .util import MyTreeWidget,MessageBoxMixin
 
 
-class SmartContractList(MyTreeWidget):
+class SmartContractList(MyTreeWidget,MessageBoxMixin):
     filter_columns = [0, 1]
 
     def __init__(self, parent):
@@ -24,7 +24,7 @@ class SmartContractList(MyTreeWidget):
 
     def on_doubleclick(self, item, column):
         address = item.data(0, Qt.UserRole)
-        self.parent.contract_func_dialog(address)
+        self.parent.contract_func_dialog(address,self)
 
     def create_menu(self, position):
         menu = QMenu()
@@ -42,7 +42,7 @@ class SmartContractList(MyTreeWidget):
             column_data = '\n'.join([item.text(column) for item in selected])
             menu.addAction(_("Copy %s") % column_title, lambda: self.parent.app.clipboard().setText(column_data))
             menu.addAction(_("Edit"), lambda: self.parent.contract_edit_dialog(address))
-            menu.addAction(_("Function"), lambda: self.parent.contract_func_dialog(address))
+            menu.addAction(_("Function"), lambda: self.parent.contract_func_dialog(address,self))
             menu.addAction(_("Delete"), lambda: self.parent.delete_samart_contact(address))
         run_hook('create_smart_contract_menu', menu, selected)
         menu.exec_(self.viewport().mapToGlobal(position))

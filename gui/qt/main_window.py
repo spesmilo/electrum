@@ -40,7 +40,7 @@ from electrum.util import bh2u, bfh
 
 from electrum import keystore
 from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS,TYPE_SCRIPT, NetworkConstants,is_contract_address
-from electrum.transaction import contract_script_call,contract_script_spend,contract_script_Create
+from electrum.transaction import contract_script_call,contract_script_spend,contract_script_Create,contract_script_deposit
 from electrum.plugins import run_hook
 from electrum.i18n import _
 from electrum.util import (format_time, format_satoshis, PrintError,
@@ -3014,13 +3014,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.show_transaction(new_tx, tx_label)
 
 
-    def _smart_contract_broadcast(self, outputs, desc, gas_fee, sender, dialog):
+    def _smart_contract_broadcast(self, outputs, desc, gas_fee, sender, dialog,is_create = False,withdraw_from_balance=0):
         coins = self.get_coins()
         try:
             tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, None,
                                                        change_addr=sender,
                                                        gas_fee=gas_fee,
-                                                       sender=sender)
+                                                       sender=sender,withdraw_from_balance =withdraw_from_balance)
         except NotEnoughFunds:
             dialog.show_message(_("Insufficient funds"))
             return
@@ -3067,7 +3067,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.do_clear()
                 else:
                     print(tx)
+
                     self.broadcast_transaction(tx, desc)
+                    if(is_create):
+                        contract_address = self.network.synchronous_get(
+                            ('blockchain.contract.get_contract_address', [tx.raw]))
+                        print(contract_address)
+                        if "address" in contract_address.keys():
+                            self.set_smart_contract("selfcreate", contract_address["address"])
+
+
 
         self.sign_tx_with_password(tx, sign_done, password)
 
@@ -3083,9 +3092,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('Invalid Address'))
             self.smart_contract_list.update()
             return False
-
         contract_info = self.network.synchronous_get(('blockchain.contract.getabi', [address]))
-        self.smart_contracts[address] = (name, contract_info["apis"])
+        if("apis" in contract_info.keys()):
+            self.smart_contracts[address] = (name, contract_info["apis"])
+        else:
+            self.smart_contracts[address] = (name, None)
         self.smart_contract_list.update()
         return True
 
@@ -3096,6 +3107,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.smart_contracts.pop(address)
         self.smart_contract_list.update()
         return True
+
+    def test_transfer_to_smart_contract(self, address, amount, args, sender, dialog):
+        try:
+            result = self.network.synchronous_get(('blockchain.contract.deposit_contract_testing', [sender,address, amount,args]), timeout=10)
+        except BaseException as e:
+            dialog.show_message(str(e))
+            return
+        print(result)
+        if not result:
+            dialog.show_message('no response!')
+            return
+
+        return result
 
     def call_smart_contract(self, address, abi, args, sender, dialog):
         try:
@@ -3119,21 +3143,37 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 withdraw_infos = {}
             outputs = [(TYPE_SCRIPT, script, amount,""), ]
             for k, v in withdraw_infos.items():
-                outputs.append((TYPE_ADDRESS,k,v,""))
+                outputs.append((TYPE_ADDRESS,k,int(Decimal(v) * 10**8),""))
 
             if withdraw_froms is None:
                 withdraw_froms = {}
             spend_contract_all_script_hexs = []
+            withdraw_from_balance = 0
             for withdraw_from_contract_addr, withdraw_amount in withdraw_froms.items():
                 spend_contract_script = contract_script_spend (withdraw_amount,withdraw_from_contract_addr)
-                spend_contract_script_hex = spend_contract_script.hex()
-                outputs.append((TYPE_SCRIPT,spend_contract_script_hex,withdraw_amount,""))
+                withdraw_from_balance += withdraw_amount * 10**8
+                spend_contract_script_hex = spend_contract_script
+                outputs.append((TYPE_SCRIPT,spend_contract_script_hex,0,""))
 
 
             tx_desc = 'contract sendto {}'.format(self.smart_contracts[address][0])
-            self._smart_contract_broadcast(outputs, tx_desc, gas_limit * gas_price, sender, dialog)
+            self._smart_contract_broadcast(outputs, tx_desc, gas_limit * gas_price, sender, dialog,False,withdraw_from_balance)
         except (BaseException,) as e:
             dialog.show_message(str(e))
+
+
+    def transfer_to_smart_contract(self, address, args, gas_limit, gas_price, amount, sender, dialog):
+        try:
+            script = contract_script_deposit(sender,address,gas_limit,gas_price,amount,args)
+
+
+            outputs = [(TYPE_SCRIPT, script, 0,""), ]
+
+            tx_desc = 'contract tansferto {}'.format(self.smart_contracts[address][0])
+            self._smart_contract_broadcast(outputs, tx_desc, gas_limit * gas_price + amount, sender, dialog)
+        except (BaseException,) as e:
+            dialog.show_message(str(e))
+
 
 
     def create_smart_contract_test(self,bytecode,sender,dialog):
@@ -3149,7 +3189,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             script = contract_script_Create(bytecode, sender, gas_limit ,gas_price)
             outputs = [(TYPE_SCRIPT, script, 0,""), ]
-            self._smart_contract_broadcast(outputs, 'contract create', gas_limit * gas_price, sender, dialog)
+            self._smart_contract_broadcast(outputs, 'contract create', gas_limit * gas_price, sender, dialog,True)
         except (BaseException,) as e:
             dialog.show_message(str(e))
 
@@ -3171,8 +3211,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = ContractEditDialog(self, contract)
         d.show()
 
-    def contract_func_dialog(self, address):
+    def contract_func_dialog(self, address,dialog ):
         name, interface = self.smart_contracts[address]
+        if interface is None:
+            contract_info = self.network.synchronous_get(('blockchain.contract.getabi', [address]))
+            if "apis" in contract_info.keys():
+                self.smart_contracts[address] = (name, contract_info["apis"])
+                interface = contract_info["apis"]
+            else:
+                dialog.show_message("smart contract abi is not found,please wait!")
+                return
+
         contract = {
             'name': name,
             'interface': interface,

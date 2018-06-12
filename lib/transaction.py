@@ -31,7 +31,7 @@ from lib.util import print_error, profiler
 
 from lib import bitcoin,script
 from lib.bitcoin import *
-from lib.script import CScript,OP_CALL,OP_SPEND,OP_CREATE,hash160
+from lib.script import CScript,OP_CALL,OP_SPEND,OP_CREATE,OP_DEPOSIT_TO_CONTRACT,hash160
 import struct
 from decimal import Decimal
 import hashlib
@@ -424,15 +424,15 @@ def get_address_from_output_script(_bytes,index = -1,txid = ''):
     TO_CALL = [-1, -1, -1, -1, -1, -1, -1, opcodes.OP_CALL]
     if match_decoded(decoded, TO_CALL):
         return TYPE_CONTRACT_ADDRESS,decoded[3][1].decode()
-    TO_DEPOSIT_TO_CONTRACT = [-1, -1, -1, -1, -1, -1, opcodes.OP_DEPOSIT_TO_CONTRACT]
+    TO_DEPOSIT_TO_CONTRACT = [-1, -1, -1, -1, -1, -1,-1, opcodes.OP_DEPOSIT_TO_CONTRACT]
     if match_decoded(decoded, TO_DEPOSIT_TO_CONTRACT):
-        return TYPE_CONTRACT_ADDRESS,decoded[2][1].decode()
+        return TYPE_CONTRACT_DEPOSIT_ADDRESS,(decoded[3][1].decode(),struct.unpack_from("I",decoded[2][1],0)[0])
     TO_UPGRADE = [-1, -1, -1, -1, -1, -1, -1, opcodes.OP_UPGRADE]
     if match_decoded(decoded, TO_UPGRADE):
         return TYPE_CONTRACT_ADDRESS,decoded[3][1].decode()
     TO_SPENT = [-1, -1, opcodes.OP_SPEND]
     if match_decoded(decoded, TO_SPENT):
-        return TYPE_CONTRACT_ADDRESS,decoded[1][1].decode()
+        return TYPE_CONTRACT_WITHDRAW_ADDRESS,(decoded[1][1].decode(),struct.unpack_from("I",decoded[0][1],0)[0])
 
     return TYPE_SCRIPT, bh2u(_bytes)
 
@@ -443,6 +443,21 @@ def contract_script_call(caller_addr,contract_addr,gas_limit, gas_price, api_nam
         [b'\x01', api_arg.encode('utf8'), api_name.encode('utf8'), contract_addr.encode("utf8"),
          caller_addr.encode('utf8'),
          gas_limit, gas_price,  OP_CALL]).hex()
+    return script
+
+def contract_script_call(caller_addr,contract_addr,gas_limit, gas_price, api_name,api_arg):
+    script = CScript(
+        [b'\x01', api_arg.encode('utf8'), api_name.encode('utf8'), contract_addr.encode("utf8"),
+         caller_addr.encode('utf8'),
+         gas_limit, gas_price,  OP_CALL]).hex()
+    return script
+
+def contract_script_deposit(caller_addr,contract_addr,gas_limit, gas_price, deposit_amount,deposit_memo):
+    script = CScript(
+        [b'\x01', deposit_memo.encode('utf8'), int(deposit_amount),
+         contract_addr.encode("utf8"),
+         caller_addr.encode('utf8'),
+         gas_limit, gas_price, OP_DEPOSIT_TO_CONTRACT]).hex()
     return script
 
 def contract_script_spend(withdraw_amount,contract_addr):
@@ -514,7 +529,14 @@ def parse_output(vds, i):
     d['value'] = vds.read_int64()
     scriptPubKey = vds.read_bytes(vds.read_compact_size())
     d['type'], d['address'] = get_address_from_output_script(scriptPubKey,i)
-
+    if(d['type'] == TYPE_CONTRACT_DEPOSIT_ADDRESS):
+        d['type'] = TYPE_CONTRACT_ADDRESS
+        d['value'] = d['address'][1]
+        d['address'] = d['address'][0]
+    if d['type'] == TYPE_CONTRACT_WITHDRAW_ADDRESS:
+        d['type'] = TYPE_CONTRACT_ADDRESS
+        d['SpendValue'] = d['address'][1]
+        d['address'] = d['address'][0]
     d['scriptPubKey'] = bh2u(scriptPubKey)
     d['prevout_n'] = i
     return d
@@ -593,6 +615,8 @@ class Transaction:
         self.version = 1
         self.tx_id = ''
         self.is_cal_tx = False
+        self.contract_withdraw_balance = 0
+        self.is_cal_withdraw_balance = False
 
     def update(self, raw):
         self.raw = raw
@@ -706,8 +730,15 @@ class Transaction:
         if self._inputs is not None:
             return
         d = deserialize(self.raw)
+        self.is_cal_withdraw_balance = True
         self._inputs = d['inputs']
-        self._outputs = [(x['type'], x['address'], x['value'],x['scriptPubKey']) for x in d['outputs']]
+        self._outputs = []
+        for x in d['outputs']:
+            self._outputs.append((x['type'], x['address'], x['value'],x['scriptPubKey']))
+            if "SpendValue" in x.keys():
+                self.contract_withdraw_balance += x['SpendValue']
+
+
         self.locktime = d['lockTime']
         self.version = d['version']
         return d
@@ -717,6 +748,7 @@ class Transaction:
         self = klass(None)
         self._inputs = inputs
         self._outputs = outputs
+        self.cal_spend_value()
         self.locktime = locktime
         return self
 
@@ -899,6 +931,23 @@ class Transaction:
         s += script
         return s
 
+    def cal_spend_value(self):
+        if self._outputs is None:
+            return
+        if self.is_cal_withdraw_balance:
+            return
+        index = 0
+        for t,x,v,scri in self._outputs:
+            if t ==TYPE_SCRIPT:
+                if x[-2:] == "c5":
+                    dt,da = get_address_from_output_script(bytearray.fromhex(x) ,index )
+                    if dt == TYPE_CONTRACT_WITHDRAW_ADDRESS:
+                        self.contract_withdraw_balance += da[1]
+            index +=1
+        self.is_cal_withdraw_balance = True
+
+
+
     def serialize_preimage(self, i):
         nVersion = int_to_hex(self.version, 4)
         nHashType = int_to_hex(9, 4)
@@ -968,7 +1017,9 @@ class Transaction:
         self.raw = None
 
     def input_value(self):
-        return sum(x['value'] for x in self.inputs())
+        if not  self.is_cal_withdraw_balance:
+            self.cal_spend_value()
+        return sum(x['value'] for x in self.inputs()) + self.contract_withdraw_balance
 
     def output_value(self):
         return sum(val for tp, addr, val,scr in self.outputs())
