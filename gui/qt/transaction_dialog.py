@@ -48,17 +48,28 @@ SAVE_BUTTON_DISABLED_TOOLTIP = _("Please sign this transaction in order to save 
 
 
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
+transactionIDs=[] #store opened dialog's transaction ID
 
+def check_window_open(tx):
+    for transID in transactionIDs:
+        if transID==tx:
+            return transactionIDs.index(tx)
 
 def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
-    try:
-        d = TxDialog(tx, parent, desc, prompt_if_unsaved)
-    except SerializationError as e:
-        traceback.print_exc(file=sys.stderr)
-        parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+    #check whether the window opened or not, window will be activate if it was opened earlier
+    dialog_open_index = check_window_open(str(tx))
+    if dialog_open_index is None:
+        try:
+            d = TxDialog(tx, parent, desc, prompt_if_unsaved)
+        except SerializationError as e:
+            traceback.print_exc(file=sys.stderr)
+            parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
+        else:
+            dialogs.append(d)
+            transactionIDs.append(str(tx))
+            d.show()
     else:
-        dialogs.append(d)
-        d.show()
+        dialogs[dialog_open_index].activateWindow()
 
 
 class TxDialog(QDialog, MessageBoxMixin):
@@ -171,6 +182,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             event.accept()
             try:
                 dialogs.remove(self)
+                transactionIDs.remove(str(self.tx).strip())
             except ValueError:
                 pass  # was not in list already
 
