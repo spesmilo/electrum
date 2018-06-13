@@ -50,7 +50,7 @@ class SPV(ThreadJob):
         unverified = self.wallet.get_unverified_txs()
         for tx_hash, tx_height in unverified.items():
             # do not request merkle branch before headers are available
-            if tx_height == 0 or tx_height > local_height:
+            if tx_height <= 0 or tx_height > local_height:
                 continue
 
             header = blockchain.read_header(tx_height)
