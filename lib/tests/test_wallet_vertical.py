@@ -646,7 +646,9 @@ class TestWalletSending(TestCaseForTestnet):
         # wallet1 -> wallet2
         outputs = [(bitcoin.TYPE_ADDRESS, wallet2a.get_receiving_address(), 165000)]
         tx = wallet1a.mktx(outputs=outputs, password=None, config=self.config, fee=5000)
+        txid = tx.txid()
         tx = Transaction(tx.serialize())  # simulates moving partial txn between cosigners
+        self.assertEqual(txid, tx.txid())
         self.assertFalse(tx.is_complete())
         wallet1b.sign_transaction(tx, password=None)
 
@@ -662,6 +664,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual('6e9c3cd8788bdb970a124ea06136d52bc01cec4f9b1e217627d5e90ebe77d049', tx_copy.txid())
         self.assertEqual('c58650fb77d04577fccb3e201deecbf691ab52ffb61cd2e57996c4d51f7e980b', tx_copy.wtxid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+        self.assertEqual(txid, tx_copy.txid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
@@ -669,7 +672,9 @@ class TestWalletSending(TestCaseForTestnet):
         # wallet2 -> wallet1
         outputs = [(bitcoin.TYPE_ADDRESS, wallet1a.get_receiving_address(), 100000)]
         tx = wallet2a.mktx(outputs=outputs, password=None, config=self.config, fee=5000)
+        txid = tx.txid()
         tx = Transaction(tx.serialize())  # simulates moving partial txn between cosigners
+        self.assertEqual(txid, tx.txid())
         self.assertFalse(tx.is_complete())
         wallet2b.sign_transaction(tx, password=None)
 
@@ -685,6 +690,7 @@ class TestWalletSending(TestCaseForTestnet):
         self.assertEqual('84b0dcb43022385f7a10e2710e5625a2be3cd6e390387b6100b55500d5eea8f6', tx_copy.txid())
         self.assertEqual('7e561e25da843326e61fd20a40b72fcaeb8690176fc7c3fcbadb3a0146c8396c', tx_copy.wtxid())
         self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+        self.assertEqual(txid, tx_copy.txid())
 
         wallet1a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         wallet2a.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)

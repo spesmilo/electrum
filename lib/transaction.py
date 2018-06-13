@@ -978,19 +978,17 @@ class Transaction:
         else:
             return nVersion + txins + txouts + nLocktime
 
-    def hash(self):
-        print("warning: deprecated tx.hash()")
-        return self.txid()
-
     def txid(self):
+        self.deserialize()
         all_segwit = all(self.is_segwit_input(x) for x in self.inputs())
         if not all_segwit and not self.is_complete():
             return None
-        ser = self.serialize(witness=False)
+        ser = self.serialize_to_network(witness=False)
         return bh2u(Hash(bfh(ser))[::-1])
 
     def wtxid(self):
-        ser = self.serialize(witness=True)
+        self.deserialize()
+        ser = self.serialize_to_network(witness=True)
         return bh2u(Hash(bfh(ser))[::-1])
 
     def add_inputs(self, inputs):
