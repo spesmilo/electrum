@@ -136,6 +136,7 @@ def deserialize_proxy(s):
         proxy["port"] = args[n]
         n += 1
     else:
+
         proxy["port"] = "8080" if proxy["mode"] == "http" else "1080"
     if len(args) > n:
         proxy["user"] = args[n]
@@ -910,11 +911,13 @@ class Network(util.DaemonThread):
             interface.print_error(response)
             self._connection_down(interface.server)
             return
+
         height = header.get('block_height')
         if interface.request != height:
             interface.print_error("unsolicited header",interface.request, height)
             self._connection_down(interface.server)
             return
+
         chain = blockchain.check_header(header)
         if interface.mode == 'backward':
             can_connect = blockchain.can_connect(header)
@@ -951,6 +954,7 @@ class Network(util.DaemonThread):
             else:
                 interface.bad = height
                 interface.bad_header = header
+
             if interface.bad != interface.good + 1:
                 next_height = (interface.bad + interface.good) // 2
                 assert next_height >= self.max_checkpoint()
