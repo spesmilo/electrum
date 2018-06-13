@@ -2039,12 +2039,7 @@ class Imported_Wallet(Simple_Wallet):
             txin['x_pubkeys'] = [pubkey]
             txin['signatures'] = [None]
         else:
-            redeem_script = self.addresses[address]['redeem_script']
-            num_sig = 2
-            num_keys = 3
-            txin['num_sig'] = num_sig
-            txin['redeem_script'] = redeem_script
-            txin['signatures'] = [None] * num_keys
+            raise NotImplementedError('imported wallets for p2sh are not implemented')
 
     def pubkeys_to_address(self, pubkey):
         for addr, v in self.addresses.items():
