@@ -896,20 +896,6 @@ class Peer(PrintError):
         payload = await self.funding_signed[channel_id].get()
         self.print_error('received funding_signed')
         remote_sig = payload['signature']
-        # verify remote signature
-        local_ctx = make_commitment(
-            0,
-            local_config.multisig_key.pubkey, remote_config.multisig_key.pubkey, remote_payment_pubkey,
-            local_config.payment_basepoint.pubkey, remote_config.payment_basepoint.pubkey,
-            remote_revocation_pubkey, local_delayedpubkey, remote_config.to_self_delay,
-            funding_txid, funding_index, funding_sat,
-            local_amount, remote_amount, local_config.dust_limit_sat, local_feerate, True, we_are_initiator=True, htlcs=[])
-        pre_hash = bitcoin.Hash(bfh(local_ctx.serialize_preimage(0)))
-        if not ecc.verify_signature(remote_config.multisig_key.pubkey, remote_sig, pre_hash):
-            raise Exception('verifying remote signature failed.')
-        # broadcast funding tx
-        success, _txid = self.network.broadcast_transaction(funding_tx)
-        assert success, success
         their_revocation_store = RevocationStore()
         chan = OpenChannel(
                 node_id=self.pubkey,
@@ -935,6 +921,11 @@ class Peer(PrintError):
                 ),
                 constraints=ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
         )
+        m = HTLCStateMachine(chan._replace(local_state=chan.local_state._replace(ctn=-1)))
+        m.receive_new_commitment(remote_sig, [])
+        # broadcast funding tx
+        success, _txid = self.network.broadcast_transaction(funding_tx)
+        assert success, success
         return chan
 
     def reestablish_channel(self, chan):
