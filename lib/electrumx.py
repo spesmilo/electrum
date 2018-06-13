@@ -17,15 +17,6 @@ class ElectrumX(network.Network):
 
         self.__hash2address = {}
 
-    # Deprecated in favor of headers
-    def get_chunk(self, index, callback=None):
-        command = 'blockchain.block.get_chunk'
-        invocation = lambda c: self._send([(command, [index])], c)
-
-        return ElectrumX.__with_default_synchronous_callback(
-            invocation,
-            callback)
-
     # TODO clean this method up. It should have no reference to interface.
     def request_header(self, interface, height):
         self._queue_request('blockchain.block.get_header', [height], interface)
