@@ -866,36 +866,11 @@ class Peer(PrintError):
         funding_tx = wallet.mktx([funding_output], password, config, 1000)
         funding_txid = funding_tx.txid()
         funding_index = funding_tx.outputs().index(funding_output)
-        # derive keys
-        local_payment_pubkey = derive_pubkey(local_config.payment_basepoint.pubkey, remote_per_commitment_point)
-        #local_payment_privkey = derive_privkey(base_secret, remote_per_commitment_point)
-        remote_payment_pubkey = derive_pubkey(remote_config.payment_basepoint.pubkey, per_commitment_point_first)
-        revocation_pubkey = derive_blinded_pubkey(local_config.revocation_basepoint.pubkey, remote_per_commitment_point)
-        remote_revocation_pubkey = derive_blinded_pubkey(remote_config.revocation_basepoint.pubkey, per_commitment_point_first)
-        local_delayedpubkey = derive_pubkey(local_config.delayed_basepoint.pubkey, per_commitment_point_first)
-        remote_delayedpubkey = derive_pubkey(remote_config.delayed_basepoint.pubkey, remote_per_commitment_point)
         # compute amounts
-        htlcs = []
         local_amount = funding_sat*1000 - push_msat
         remote_amount = push_msat
         # remote commitment transaction
-        remote_ctx = make_commitment(
-            0,
-            remote_config.multisig_key.pubkey, local_config.multisig_key.pubkey, local_payment_pubkey,
-            local_config.payment_basepoint.pubkey, remote_config.payment_basepoint.pubkey,
-            revocation_pubkey, remote_delayedpubkey, local_config.to_self_delay,
-            funding_txid, funding_index, funding_sat,
-            remote_amount, local_amount, remote_config.dust_limit_sat, local_feerate, False, we_are_initiator=True, htlcs=[])
-        sig_64 = sign_and_get_sig_string(remote_ctx, local_config, remote_config)
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_index)
-        self.send_message(gen_msg("funding_created",
-            temporary_channel_id=temp_channel_id,
-            funding_txid=funding_txid_bytes,
-            funding_output_index=funding_index,
-            signature=sig_64))
-        payload = await self.funding_signed[channel_id].get()
-        self.print_error('received funding_signed')
-        remote_sig = payload['signature']
         their_revocation_store = RevocationStore()
         chan = OpenChannel(
                 node_id=self.pubkey,
@@ -921,7 +896,20 @@ class Peer(PrintError):
                 ),
                 constraints=ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
         )
-        m = HTLCStateMachine(chan._replace(local_state=chan.local_state._replace(ctn=-1)))
+        m = HTLCStateMachine(chan._replace(
+            local_state=chan.local_state._replace(ctn=-1),
+            remote_state=chan.remote_state._replace(
+                next_per_commitment_point=remote_per_commitment_point,
+                last_per_commitment_point=None, ctn=-1)))
+        sig_64, _ = m.sign_next_commitment()
+        self.send_message(gen_msg("funding_created",
+            temporary_channel_id=temp_channel_id,
+            funding_txid=funding_txid_bytes,
+            funding_output_index=funding_index,
+            signature=sig_64))
+        payload = await self.funding_signed[channel_id].get()
+        self.print_error('received funding_signed')
+        remote_sig = payload['signature']
         m.receive_new_commitment(remote_sig, [])
         # broadcast funding tx
         success, _txid = self.network.broadcast_transaction(funding_tx)
