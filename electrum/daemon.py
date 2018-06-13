@@ -294,7 +294,11 @@ class Daemon(DaemonThread):
             kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
         cmd_runner = Commands(config, wallet, self.network)
         func = getattr(cmd_runner, cmd.name)
-        result = func(*args, **kwargs)
+        try:
+            result = func(*args, **kwargs)
+        except TypeError as e:
+            # we are catching here because JSON-RPC-Pelix would throw away the trace of e
+            raise Exception("TypeError occured in Electrum") from e
         return result
 
     def run(self):
