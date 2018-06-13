@@ -988,6 +988,8 @@ class Transaction:
 
     def wtxid(self):
         self.deserialize()
+        if not self.is_complete():
+            return None
         ser = self.serialize_to_network(witness=True)
         return bh2u(Hash(bfh(ser))[::-1])
 
