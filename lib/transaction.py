@@ -545,7 +545,7 @@ def parse_output(vds, i):
     return d
 
 
-def deserialize(raw: str, force_full_parse=False) -> dict:
+def deserialize(raw: str) -> dict:
     raw_bytes = bfh(raw)
     d = {}
     if raw_bytes[:5] == PARTIAL_TXN_HEADER_MAGIC:
@@ -557,7 +557,6 @@ def deserialize(raw: str, force_full_parse=False) -> dict:
         raw_bytes = raw_bytes[6:]
     else:
         d['partial'] = is_partial = False
-    full_parse = force_full_parse or is_partial
     vds = BCDataStream()
     vds.write(raw_bytes)
     d['version'] = vds.read_int32()
@@ -569,13 +568,13 @@ def deserialize(raw: str, force_full_parse=False) -> dict:
             raise ValueError('invalid txn marker byte: {}'.format(marker))
         n_vin = vds.read_compact_size()
     d['segwit_ser'] = is_segwit
-    d['inputs'] = [parse_input(vds, full_parse=full_parse) for i in range(n_vin)]
+    d['inputs'] = [parse_input(vds, full_parse=is_partial) for i in range(n_vin)]
     n_vout = vds.read_compact_size()
     d['outputs'] = [parse_output(vds, i) for i in range(n_vout)]
     if is_segwit:
         for i in range(n_vin):
             txin = d['inputs'][i]
-            parse_witness(vds, txin, full_parse=full_parse)
+            parse_witness(vds, txin, full_parse=is_partial)
     d['lockTime'] = vds.read_uint32()
     if vds.can_read_more():
         raise SerializationError('extra junk at the end')
@@ -652,17 +651,14 @@ class Transaction:
             txin['x_pubkeys'] = x_pubkeys = list(x_pubkeys)
         return pubkeys, x_pubkeys
 
-    def update_signatures(self, raw):
+    def update_signatures(self, signatures: Sequence[str]):
         """Add new signatures to a transaction"""
         if self.is_complete():
             return
-        d = deserialize(raw, force_full_parse=True)
         for i, txin in enumerate(self.inputs()):
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
-            sigs1 = txin.get('signatures')
-            sigs2 = d['inputs'][i].get('signatures')
-            for sig in sigs2:
-                if sig in sigs1:
+            for sig in signatures:
+                if sig in txin.get('signatures'):
                     continue
                 pre_hash = Hash(bfh(self.serialize_preimage(i)))
                 sig_string = ecc.sig_string_from_der_sig(bfh(sig[:-2]))
