@@ -138,9 +138,10 @@ class Blockchain(util.PrintError):
         return self.get_hash(self.get_checkpoint()).lstrip('00')[0:10]
 
     def check_header(self, header):
-        header_hash = hash_header(header)
-        height = header.get('block_height')
-        return header_hash == self.get_hash(height)
+        """ check_header returns True iff the passed header is part of the
+        chain represented by this Blockchain instance.
+        """
+        return hash_header(header) == self.get_hash(header.get('block_height'))
 
     def fork(parent, header):
         checkpoint = header.get('block_height')
