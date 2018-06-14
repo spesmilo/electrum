@@ -120,6 +120,8 @@ class ContractFuncLayout(QGridLayout):
 
         self.abi_signatures = [(-1, "(transferTo)"), ]
         for index, abi in enumerate(contract.get('interface', [])):
+            if abi.get("name") in ["init","on_deposit","on_upgrade","on_destroy"]:
+                continue
 
             self.abi_signatures.append((index, abi.get("name")))
 
@@ -176,7 +178,7 @@ class ContractFuncLayout(QGridLayout):
         self.sender_combo.addItems(self.senders)
         buttons.addWidget(self.sender_combo)
         buttons.addStretch(1)
-        self.call_button = EnterButton(_("Call"), self.do_call)
+        self.call_button = EnterButton(_("Estimate"), self.do_call)
         self.sendto_button = EnterButton(_("Send to"), self.do_sendto)
         self.testtransfer_button = EnterButton(_("Test Transfer"), self.do_testtransfer)
         self.transferto_button = EnterButton(_("Transfer to"), self.do_transferto)
@@ -198,24 +200,28 @@ class ContractFuncLayout(QGridLayout):
 
         def show_call():
             self.optional_widget.setEnabled(False)
+            self.amount_e.setEnabled(False)
             self.call_button.setHidden(False)
             self.testtransfer_button.setHidden(True)
             self.transferto_button.setHidden(True)
 
         def show_sendto():
             self.optional_widget.setEnabled(True)
+            self.amount_e.setEnabled(False)
             self.sendto_button.setHidden(False)
             self.testtransfer_button.setHidden(True)
             self.transferto_button.setHidden(True)
 
         def show_transfertest():
             self.optional_widget.setEnabled(True)
+            self.amount_e.setEnabled(True)
             self.sendto_button.setHidden(True)
             self.testtransfer_button.setHidden(False)
             self.transferto_button.setHidden(True)
 
         def show_transferto():
             self.optional_widget.setEnabled(True)
+            self.amount_e.setEnabled(True)
             self.sendto_button.setHidden(True)
             self.testtransfer_button.setHidden(False)
             self.transferto_button.setHidden(False)
@@ -272,6 +278,7 @@ class ContractFuncLayout(QGridLayout):
         self.withdraw_infos =withdraw_infos
         self.withdraw_froms =withdraw_from_infos
         self.optional_widget.setEnabled(True)
+        self.amount_e.setEnabled(False)
         self.sendto_button.setHidden(False)
 
     def do_sendto(self):
@@ -285,7 +292,7 @@ class ContractFuncLayout(QGridLayout):
             return
 
         gas_limit, gas_price, amount = self.parse_values()
-        self.dialog.do_sendto(abi, args, gas_limit, gas_price, amount, sender, self.withdraw_infos, self.withdraw_froms)
+        self.dialog.do_sendto(abi, args, gas_limit, gas_price, sender, self.withdraw_infos, self.withdraw_froms)
 
     def do_testtransfer(self):
         try:
@@ -334,9 +341,9 @@ class ContractFuncDialog(QDialog, MessageBoxMixin):
         address = self.contract['address']
         return self.parent().test_transfer_to_smart_contract(address, amount, args, sender, self)
 
-    def do_sendto(self, abi, ars, gas_limit, gas_price, amount, sender,withdraw_infos,withdraw_forms):
+    def do_sendto(self, abi, ars, gas_limit, gas_price, sender,withdraw_infos,withdraw_forms):
         address = self.contract['address']
-        self.parent().sendto_smart_contract(address, abi, ars, gas_limit, gas_price, amount, sender, self,withdraw_infos,withdraw_forms)
+        self.parent().sendto_smart_contract(address, abi, ars, gas_limit, gas_price, sender, self,withdraw_infos,withdraw_forms)
 
     def do_transferto(self, ars, gas_limit, gas_price, amount, sender):
         address = self.contract['address']

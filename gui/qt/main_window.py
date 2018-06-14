@@ -3116,7 +3116,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         print(result)
         if not result:
-            dialog.show_message('no response!')
+            dialog.show_message("Transfer Testing error!");
             return
 
         return result
@@ -3127,21 +3127,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         except BaseException as e:
             dialog.show_message(str(e))
             return
-        print(result)
         if not result:
-            dialog.show_message('')
+            dialog.show_message('testing failed! Please check call arguments.'+json.dumps(result),None,"testing failed")
             return
 
-        dialog.show_message(result["result"])
+        dialog.show_message(result["result"],None,"testing return")
         return result
 
-    def sendto_smart_contract(self, address, abi, args, gas_limit, gas_price, amount, sender, dialog, withdraw_infos=None, withdraw_froms=None):
+    def sendto_smart_contract(self, address, abi, args, gas_limit, gas_price, sender, dialog, withdraw_infos=None, withdraw_froms=None):
         try:
             script = contract_script_call(sender,address,gas_limit,gas_price,abi,args)
 
             if withdraw_infos is None:
                 withdraw_infos = {}
-            outputs = [(TYPE_SCRIPT, script, amount,""), ]
+            outputs = [(TYPE_SCRIPT, script, 0,""), ]
             for k, v in withdraw_infos.items():
                 outputs.append((TYPE_ADDRESS,k,int(Decimal(v) * 10**8),""))
 

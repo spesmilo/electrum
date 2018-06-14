@@ -929,13 +929,13 @@ class Abstract_Wallet(PrintError):
                                       fee_estimator, self.dust_threshold(),sender,withdraw_from_balance)
         else:
             sendable = sum(map(lambda x:x['value'], inputs))+withdraw_from_balance
-            _type, data, value = outputs[i_max]
-            outputs[i_max] = (_type, data, 0)
+            _type, data, value,scri = outputs[i_max]
+            outputs[i_max] = (_type, data, 0,"")
             tx = Transaction.from_io(inputs, outputs[:])
             fee = fee_estimator(tx.estimated_size())
             fee = fee+gas_fee
             amount = max(0, sendable - tx.output_value() - fee)
-            outputs[i_max] = (_type, data, amount)
+            outputs[i_max] = (_type, data, amount,"")
             tx = Transaction.from_io(inputs, outputs[:])
 
         # Sort the inputs and outputs deterministically
