@@ -1090,29 +1090,32 @@ class Transaction:
         s, r = self.signature_count()
         return r == s
 
-    def sign(self, keypairs):
+    def sign(self, keypairs) -> None:
+        # keypairs:  (x_)pubkey -> secret_bytes
         for i, txin in enumerate(self.inputs()):
-            num = txin['num_sig']
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
-            for j, x_pubkey in enumerate(x_pubkeys):
-                signatures = list(filter(None, txin['signatures']))
-                if len(signatures) == num:
-                    # txin is complete
+            for j, (pubkey, x_pubkey) in enumerate(zip(pubkeys, x_pubkeys)):
+                if self.is_txin_complete(txin):
                     break
-                if x_pubkey in keypairs.keys():
-                    print_error("adding signature for", x_pubkey)
-                    sec, compressed = keypairs.get(x_pubkey)
-                    pubkey = ecc.ECPrivkey(sec).get_public_key_hex(compressed=compressed)
-                    # add signature
-                    sig = self.sign_txin(i, sec)
-                    self.add_signature_to_txin(txin, j, sig)
-                    #txin['x_pubkeys'][j] = pubkey
-                    txin['pubkeys'][j] = pubkey # needed for fd keys
-                    self._inputs[i] = txin
+                if pubkey in keypairs:
+                    _pubkey = pubkey
+                elif x_pubkey in keypairs:
+                    _pubkey = x_pubkey
+                else:
+                    continue
+                print_error("adding signature for", _pubkey)
+                sec, compressed = keypairs.get(_pubkey)
+                # pubkey might not actually be a 02-04 pubkey for fd keys; so:
+                pubkey = ecc.ECPrivkey(sec).get_public_key_hex(compressed=compressed)
+                # add signature
+                sig = self.sign_txin(i, sec)
+                self.add_signature_to_txin(txin, j, sig)
+                txin['pubkeys'][j] = pubkey  # needed for fd keys
+                self._inputs[i] = txin
         print_error("is_complete", self.is_complete())
         self.raw = self.serialize()
 
-    def sign_txin(self, txin_index, privkey_bytes):
+    def sign_txin(self, txin_index, privkey_bytes) -> str:
         pre_hash = Hash(bfh(self.serialize_preimage(txin_index)))
         privkey = ecc.ECPrivkey(privkey_bytes)
         sig = privkey.sign_transaction(pre_hash)
