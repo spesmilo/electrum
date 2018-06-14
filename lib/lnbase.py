@@ -37,7 +37,7 @@ from .util import PrintError, bh2u, print_error, bfh, profiler, xor_bytes
 from .transaction import opcodes, Transaction
 from .lnrouter import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error
 from .lightning_payencode.lnaddr import lndecode
-from .lnhtlc import UpdateAddHtlc, HTLCStateMachine
+from .lnhtlc import UpdateAddHtlc, HTLCStateMachine, RevokeAndAck, SettleHtlc
 
 from collections import namedtuple, defaultdict
 
@@ -1036,14 +1036,15 @@ class Peer(PrintError):
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sig))
 
         revoke_and_ack_msg = await self.revoke_and_ack[chan.channel_id].get()
-        # TODO check revoke_and_ack results
+        m.receive_revocation(RevokeAndAck(revoke_and_ack_msg["per_commitment_secret"], revoke_and_ack_msg["next_per_commitment_point"]))
 
-        chan, last_secret, _, next_point = self.derive_and_incr(chan)
-        their_revstore.add_next_entry(last_secret)
+        rev, _ = m.revoke_current_commitment()
         self.send_message(gen_msg("revoke_and_ack",
             channel_id=chan.channel_id,
-            per_commitment_secret=last_secret,
-            next_per_commitment_point=next_point))
+            per_commitment_secret=rev.per_commitment_secret,
+            next_per_commitment_point=rev.next_per_commitment_point))
+
+        chan = m.state
 
         print("waiting for update_fulfill")
 
@@ -1053,7 +1054,6 @@ class Peer(PrintError):
         commitment_signed_msg = await self.commitment_signed[chan.channel_id].get()
 
         chan, last_secret, _, next_point = self.derive_and_incr(chan)
-        their_revstore.add_next_entry(last_secret)
         self.send_message(gen_msg("revoke_and_ack",
             channel_id=chan.channel_id,
             per_commitment_secret=last_secret,
@@ -1061,7 +1061,7 @@ class Peer(PrintError):
 
         next_per_commitment_point = revoke_and_ack_msg["next_per_commitment_point"]
 
-        bare_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 2, False, next_per_commitment_point,
+        bare_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 1, False, next_per_commitment_point,
             msat_remote, msat_local)
 
         sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
@@ -1077,7 +1077,7 @@ class Peer(PrintError):
                 next_htlc_id=chan.local_state.next_htlc_id + 1
             ),
             remote_state=chan.remote_state._replace(
-                ctn=chan.remote_state.ctn + 2,
+                ctn=chan.remote_state.ctn + 1,
                 revocation_store=their_revstore,
                 last_per_commitment_point=next_per_commitment_point,
                 next_per_commitment_point=revoke_and_ack_msg["next_per_commitment_point"],
@@ -1154,8 +1154,6 @@ class Peer(PrintError):
         # TODO check commitment_signed results
 
         chan, last_secret, _, next_point = self.derive_and_incr(chan)
-
-        chan.remote_state.revocation_store.add_next_entry(last_secret)
 
         self.send_message(gen_msg("revoke_and_ack",
             channel_id=channel_id,
