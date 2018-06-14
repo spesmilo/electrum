@@ -94,7 +94,10 @@ class Synchronizer(ThreadJob):
         addr = params[0]
         history = self.wallet.history.get(addr, [])
         if self.get_status(history) != result:
-            if self.requested_histories.get(addr) is None:
+            # note that at this point 'result' can be None;
+            # if we had a history for addr but now the server is telling us
+            # there is no history
+            if addr not in self.requested_histories:
                 self.requested_histories[addr] = result
                 self.network.request_address_history(addr, self.on_address_history)
         # remove addr from list only after it is added to requested_histories
@@ -108,8 +111,11 @@ class Synchronizer(ThreadJob):
         if not params:
             return
         addr = params[0]
-        server_status = self.requested_histories.get(addr)
-        if server_status is None:
+        try:
+            server_status = self.requested_histories[addr]
+        except KeyError:
+            # note: server_status can be None even if we asked for the history,
+            # so it is not sufficient to test that
             self.print_error("receiving history (unsolicited)", addr, len(result))
             return
         self.print_error("receiving history", addr, len(result))
