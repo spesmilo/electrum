@@ -495,7 +495,7 @@ def parse_witness(vds, txin, full_parse: bool):
         return
 
     try:
-        if txin['witness_version'] != 0:
+        if txin.get('witness_version', 0) != 0:
             raise UnknownTxinType()
         if txin['type'] == 'coinbase':
             pass
@@ -545,7 +545,7 @@ def parse_output(vds, i):
     return d
 
 
-def deserialize(raw: str) -> dict:
+def deserialize(raw: str, force_full_parse=False) -> dict:
     raw_bytes = bfh(raw)
     d = {}
     if raw_bytes[:5] == PARTIAL_TXN_HEADER_MAGIC:
@@ -557,6 +557,7 @@ def deserialize(raw: str) -> dict:
         raw_bytes = raw_bytes[6:]
     else:
         d['partial'] = is_partial = False
+    full_parse = force_full_parse or is_partial
     vds = BCDataStream()
     vds.write(raw_bytes)
     d['version'] = vds.read_int32()
@@ -568,13 +569,13 @@ def deserialize(raw: str) -> dict:
             raise ValueError('invalid txn marker byte: {}'.format(marker))
         n_vin = vds.read_compact_size()
     d['segwit_ser'] = is_segwit
-    d['inputs'] = [parse_input(vds, full_parse=is_partial) for i in range(n_vin)]
+    d['inputs'] = [parse_input(vds, full_parse=full_parse) for i in range(n_vin)]
     n_vout = vds.read_compact_size()
     d['outputs'] = [parse_output(vds, i) for i in range(n_vout)]
     if is_segwit:
         for i in range(n_vin):
             txin = d['inputs'][i]
-            parse_witness(vds, txin, full_parse=is_partial)
+            parse_witness(vds, txin, full_parse=full_parse)
     d['lockTime'] = vds.read_uint32()
     if vds.can_read_more():
         raise SerializationError('extra junk at the end')
@@ -696,13 +697,13 @@ class Transaction:
         txin['scriptSig'] = None  # force re-serialization
         txin['witness'] = None    # force re-serialization
 
-    def deserialize(self):
+    def deserialize(self, force_full_parse=False):
         if self.raw is None:
             return
             #self.raw = self.serialize()
         if self._inputs is not None:
             return
-        d = deserialize(self.raw)
+        d = deserialize(self.raw, force_full_parse)
         self._inputs = d['inputs']
         self._outputs = [(x['type'], x['address'], x['value']) for x in d['outputs']]
         self.locktime = d['lockTime']

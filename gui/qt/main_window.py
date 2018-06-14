@@ -3166,7 +3166,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             new_tx = self.wallet.bump_fee(tx, delta)
         except BaseException as e:
-            self.show_error(str(e))
+            traceback.print_exc(file=sys.stderr)
+            self.show_error(_('Error bumping fee') + ':\n' + str(e))
             return
         if is_final:
             new_tx.set_rbf(False)

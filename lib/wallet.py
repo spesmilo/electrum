@@ -1378,6 +1378,8 @@ class Abstract_Wallet(PrintError):
     def bump_fee(self, tx, delta):
         if tx.is_final():
             raise Exception(_('Cannot bump fee') + ': ' + _('transaction is final'))
+        tx = Transaction(tx.serialize())
+        tx.deserialize(force_full_parse=True)  # need to parse inputs
         inputs = copy.deepcopy(tx.inputs())
         outputs = copy.deepcopy(tx.outputs())
         for txin in inputs:
