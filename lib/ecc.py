@@ -149,7 +149,10 @@ class _MyVerifyingKey(ecdsa.VerifyingKey):
         minus_e = -e % order
         # 1.6 compute Q = r^-1 (sR - eG)
         inv_r = numbertheory.inverse_mod(r,order)
-        Q = inv_r * ( s * R + minus_e * G )
+        try:
+            Q = inv_r * ( s * R + minus_e * G )
+        except:
+            raise InvalidECPointException()
         return klass.from_public_point( Q, curve )
 
 
