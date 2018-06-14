@@ -182,6 +182,8 @@ class HTLCStateMachine(PrintError):
 
         last_secret, this_point, next_point = self.points
 
+        self.state.remote_state.revocation_store.add_next_entry(last_secret)
+
         self.state = self.state._replace(
             local_state=self.state.local_state._replace(
                 ctn=self.state.local_state.ctn + 1
@@ -291,7 +293,6 @@ class HTLCStateMachine(PrintError):
         remote_htlc_pubkey = derive_pubkey(self.state.remote_config.htlc_basepoint.pubkey, this_point)
         local_htlc_pubkey = derive_pubkey(self.state.local_config.htlc_basepoint.pubkey, this_point)
         local_revocation_pubkey = derive_blinded_pubkey(self.state.local_config.revocation_basepoint.pubkey, this_point)
-        remote_revocation_pubkey = derive_blinded_pubkey(self.state.remote_config.revocation_basepoint.pubkey, this_point)
 
         htlcs_in_local = []
         for htlc in self.htlcs_in_local:
@@ -301,7 +302,7 @@ class HTLCStateMachine(PrintError):
         htlcs_in_remote = []
         for htlc in self.htlcs_in_remote:
             htlcs_in_remote.append(
-                ( make_offered_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + total_fee_remote))
+                ( make_offered_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + total_fee_remote))
 
         commit = make_commitment_using_open_channel(self.state, self.state.remote_state.ctn + 1,
             False, this_point,
@@ -325,13 +326,12 @@ class HTLCStateMachine(PrintError):
 
         remote_htlc_pubkey = derive_pubkey(self.state.remote_config.htlc_basepoint.pubkey, this_point)
         local_htlc_pubkey = derive_pubkey(self.state.local_config.htlc_basepoint.pubkey, this_point)
-        local_revocation_pubkey = derive_blinded_pubkey(self.state.local_config.revocation_basepoint.pubkey, this_point)
         remote_revocation_pubkey = derive_blinded_pubkey(self.state.remote_config.revocation_basepoint.pubkey, this_point)
 
         htlcs_in_local = []
         for htlc in self.htlcs_in_local:
             htlcs_in_local.append(
-                ( make_offered_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + total_fee_local))
+                ( make_offered_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + total_fee_local))
 
         htlcs_in_remote = []
         for htlc in self.htlcs_in_remote:

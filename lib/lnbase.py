@@ -35,7 +35,7 @@ from . import constants
 from . import transaction
 from .util import PrintError, bh2u, print_error, bfh, profiler, xor_bytes
 from .transaction import opcodes, Transaction
-from .lnrouter import new_onion_packet, OnionHopsDataSingle, OnionPerHop
+from .lnrouter import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error
 from .lightning_payencode.lnaddr import lndecode
 from .lnhtlc import UpdateAddHtlc, HTLCStateMachine
 
@@ -1102,7 +1102,6 @@ class Peer(PrintError):
         assert htlc_id == chan.remote_state.next_htlc_id, (htlc_id, chan.remote_state.next_htlc_id)
 
         assert self.channel_state[channel_id] == "OPEN"
-        their_revstore = chan.remote_state.revocation_store
 
         cltv_expiry = int.from_bytes(htlc["cltv_expiry"], 'big')
         # TODO verify sanity of their cltv expiry
@@ -1119,31 +1118,15 @@ class Peer(PrintError):
         htlc_sigs = [data[i:i+64] for i in range(0, len(data), 64)]
         m.receive_new_commitment(commitment_signed_msg["signature"], htlc_sigs)
 
-        chan, last_secret, this_point, next_point = self.derive_and_incr(chan)
-
-        their_revstore.add_next_entry(last_secret)
+        rev, _ = m.revoke_current_commitment()
         self.send_message(gen_msg("revoke_and_ack",
             channel_id=channel_id,
-            per_commitment_secret=last_secret,
-            next_per_commitment_point=next_point))
+            per_commitment_secret=rev.per_commitment_secret,
+            next_per_commitment_point=rev.next_per_commitment_point))
 
-        their_local_htlc_pubkey = derive_pubkey(chan.remote_config.htlc_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
-        their_remote_htlc_pubkey = derive_pubkey(chan.local_config.htlc_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
-        their_remote_htlc_privkey_number = derive_privkey(
-            int.from_bytes(chan.local_config.htlc_basepoint.privkey, 'big'),
-            chan.remote_state.next_per_commitment_point)
-        their_remote_htlc_privkey = their_remote_htlc_privkey_number.to_bytes(32, 'big')
-        # TODO check payment_hash
-        revocation_pubkey = derive_blinded_pubkey(chan.local_config.revocation_basepoint.pubkey, chan.remote_state.next_per_commitment_point)
-        htlcs_in_remote = [(make_offered_htlc(revocation_pubkey, their_remote_htlc_pubkey, their_local_htlc_pubkey, payment_hash), amount_msat)]
-        remote_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
-            chan.remote_state.amount_msat - expected_received_msat, chan.local_state.amount_msat, htlcs_in_remote)
-        sig_64 = sign_and_get_sig_string(remote_ctx, chan.local_config, chan.remote_config)
-        htlc_tx = make_htlc_tx_with_open_channel(chan, chan.remote_state.next_per_commitment_point, False, True, amount_msat, cltv_expiry, payment_hash, remote_ctx, 0)
-        # htlc_sig signs the HTLC transaction that spends from THEIR commitment transaction's offered_htlc output
-        sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
-        r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
-        htlc_sig = sigencode_string_canonize(r, s, SECP256k1.generator.order())
+        sig_64, htlc_sigs = m.sign_next_commitment()
+        chan = m.state
+        htlc_sig = htlc_sigs[0]
         self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sig))
 
         revoke_and_ack_msg = await self.revoke_and_ack[channel_id].get()
@@ -1172,7 +1155,7 @@ class Peer(PrintError):
 
         chan, last_secret, _, next_point = self.derive_and_incr(chan)
 
-        their_revstore.add_next_entry(last_secret)
+        chan.remote_state.revocation_store.add_next_entry(last_secret)
 
         self.send_message(gen_msg("revoke_and_ack",
             channel_id=channel_id,
@@ -1185,7 +1168,6 @@ class Peer(PrintError):
             ),
             remote_state=chan.remote_state._replace(
                 ctn=chan.remote_state.ctn + 2,
-                revocation_store=their_revstore,
                 last_per_commitment_point=remote_next_commitment_point,
                 next_per_commitment_point=revoke_and_ack_msg["next_per_commitment_point"],
                 amount_msat=chan.remote_state.amount_msat - expected_received_msat,
