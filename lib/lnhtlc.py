@@ -8,7 +8,7 @@ from .crypto import sha256
 from . import ecc
 
 SettleHtlc = namedtuple("SettleHtlc", ["htlc_id"])
-RevokeAndAck = namedtuple("RevokeAndAck", ["height", "per_commitment_secret", "next_per_commitment_point"])
+RevokeAndAck = namedtuple("RevokeAndAck", ["per_commitment_secret", "next_per_commitment_point"])
 
 class UpdateAddHtlc:
     def __init__(self, amount_msat, payment_hash, cltv_expiry, total_fee):
@@ -157,7 +157,7 @@ class HTLCStateMachine(PrintError):
         if len(self.htlcs_in_remote) > 0:
             print("CHECKING HTLC SIGS")
             assert len(self.local_commitment.outputs()) == 3 # TODO
-            we_receive = True # TODO
+            we_receive = True
             payment_hash = self.htlcs_in_remote[0].payment_hash
             amount_msat = self.htlcs_in_remote[0].amount_msat
             cltv_expiry = self.htlcs_in_remote[0].cltv_expiry
@@ -166,6 +166,8 @@ class HTLCStateMachine(PrintError):
             remote_htlc_pubkey = derive_pubkey(self.state.remote_config.htlc_basepoint.pubkey, this_point)
             if not ecc.verify_signature(remote_htlc_pubkey, htlc_sigs[0], pre_hash):
                 raise Exception("failed verifying signature an HTLC tx spending from one of our commit tx'es HTLC outputs")
+
+        # TODO check htlc in htlcs_in_local
 
     def revoke_current_commitment(self):
         """
@@ -182,15 +184,13 @@ class HTLCStateMachine(PrintError):
 
         last_secret, this_point, next_point = self.points
 
-        self.state.remote_state.revocation_store.add_next_entry(last_secret)
-
         self.state = self.state._replace(
             local_state=self.state.local_state._replace(
                 ctn=self.state.local_state.ctn + 1
             )
         )
 
-        return RevokeAndAck(self.state.local_state.ctn - 1, last_secret, next_point), "current htlcs"
+        return RevokeAndAck(last_secret, next_point), "current htlcs"
 
     @property
     def points(self):
