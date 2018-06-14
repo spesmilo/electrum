@@ -1440,21 +1440,32 @@ class Abstract_Wallet(PrintError):
         # note: no need to call tx.BIP_LI01_sort() here - single input/output
         return Transaction.from_io(inputs, outputs, locktime=locktime)
 
+    def add_input_sig_info(self, txin, address):
+        raise NotImplementedError()  # implemented by subclasses
+
     def add_input_info(self, txin):
         address = txin['address']
         if self.is_mine(address):
             txin['type'] = self.get_txin_type(address)
             # segwit needs value to sign
-            if txin.get('value') is None and Transaction.is_segwit_input(txin):
+            if txin.get('value') is None and Transaction.is_input_value_needed(txin):
                 received, spent = self.get_addr_io(address)
                 item = received.get(txin['prevout_hash']+':%d'%txin['prevout_n'])
                 tx_height, value, is_cb = item
                 txin['value'] = value
             self.add_input_sig_info(txin, address)
 
+    def add_input_info_to_all_inputs(self, tx):
+        if tx.is_complete():
+            return
+        for txin in tx.inputs():
+            self.add_input_info(txin)
+
     def can_sign(self, tx):
         if tx.is_complete():
             return False
+        # add info to inputs if we can; otherwise we might return a false negative:
+        self.add_input_info_to_all_inputs(tx)  # though note that this is a side-effect
         for k in self.get_keystores():
             if k.can_sign(tx):
                 return True
@@ -1497,6 +1508,7 @@ class Abstract_Wallet(PrintError):
     def sign_transaction(self, tx, password):
         if self.is_watching_only():
             return
+        self.add_input_info_to_all_inputs(tx)
         # hardware wallets require extra info
         if any([(isinstance(k, Hardware_KeyStore) and k.can_sign(tx)) for k in self.get_keystores()]):
             self.add_hw_info(tx)
@@ -2315,7 +2327,13 @@ class Multisig_Wallet(Deterministic_Wallet):
         # they are sorted in transaction.get_sorted_pubkeys
         # pubkeys is set to None to signal that x_pubkeys are unsorted
         derivation = self.get_address_index(address)
-        txin['x_pubkeys'] = [k.get_xpubkey(*derivation) for k in self.get_keystores()]
+        x_pubkeys_expected = [k.get_xpubkey(*derivation) for k in self.get_keystores()]
+        x_pubkeys_actual = txin.get('x_pubkeys')
+        # if 'x_pubkeys' is already set correctly (ignoring order, as above), leave it.
+        # otherwise we might delete signatures
+        if x_pubkeys_actual and set(x_pubkeys_actual) == set(x_pubkeys_expected):
+            return
+        txin['x_pubkeys'] = x_pubkeys_expected
         txin['pubkeys'] = None
         # we need n place holders
         txin['signatures'] = [None] * self.n

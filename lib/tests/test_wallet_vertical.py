@@ -1112,14 +1112,12 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         self.assertEqual(tx.txid(), tx_copy.txid())
 
         # sign tx
-        #wallet_offline.can_sign(tx_copy)  # FIXME
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
         self.assertFalse(tx.is_segwit())
         self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', tx.txid())
         self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', tx.wtxid())
 
-    @unittest.skip("not implemented yet")
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_sending_offline_wif_online_addr_p2wpkh_p2sh(self, mock_write):
@@ -1145,17 +1143,15 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         tx_copy = Transaction(tx.serialize())
         self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
 
-        #self.assertEqual(tx.txid(), tx_copy.txid())  # FIXME
+        self.assertEqual(tx.txid(), tx_copy.txid())
 
         # sign tx
-        wallet_offline.can_sign(tx_copy)  # FIXME
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         self.assertEqual('7642816d051aa3b333b6564bb6e44fe3a5885bfe7db9860dfbc9973a5c9a6562', tx.txid())
         self.assertEqual('9bb9949974954613945756c48ca5525cd5cba1b667ccb10c7a53e1ed076a1117', tx.wtxid())
 
-    @unittest.skip("not implemented yet")
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_sending_offline_wif_online_addr_p2wpkh(self, mock_write):
@@ -1181,17 +1177,15 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         tx_copy = Transaction(tx.serialize())
         self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
 
-        #self.assertEqual(tx.txid(), tx_copy.txid())  # FIXME
+        self.assertEqual(tx.txid(), tx_copy.txid())
 
         # sign tx
-        wallet_offline.can_sign(tx_copy)  # FIXME
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         self.assertEqual('f8039bd85279f2b5698f15d47f2e338d067d09af391bd8a19467aa94d03f280c', tx.txid())
         self.assertEqual('3b7cc3c3352bbb43ddc086487ac696e09f2863c3d9e8636721851b8008a83ffa', tx.wtxid())
 
-    @unittest.skip("not implemented yet")
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_sending_offline_xprv_online_addr_p2pkh(self, mock_write):  # compressed pubkey
@@ -1223,14 +1217,12 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         self.assertEqual(tx.txid(), tx_copy.txid())
 
         # sign tx
-        wallet_offline.can_sign(tx_copy)  # FIXME
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
         self.assertFalse(tx.is_segwit())
         self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', tx.txid())
         self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', tx.wtxid())
 
-    @unittest.skip("not implemented yet")
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_sending_offline_xprv_online_addr_p2wpkh_p2sh(self, mock_write):
@@ -1259,17 +1251,15 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         tx_copy = Transaction(tx.serialize())
         self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
 
-        #self.assertEqual(tx.txid(), tx_copy.txid())  # FIXME
+        self.assertEqual(tx.txid(), tx_copy.txid())
 
         # sign tx
-        wallet_offline.can_sign(tx_copy)  # FIXME
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
         self.assertEqual('7642816d051aa3b333b6564bb6e44fe3a5885bfe7db9860dfbc9973a5c9a6562', tx.txid())
         self.assertEqual('9bb9949974954613945756c48ca5525cd5cba1b667ccb10c7a53e1ed076a1117', tx.wtxid())
 
-    @unittest.skip("not implemented yet")
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_sending_offline_xprv_online_addr_p2wpkh(self, mock_write):
@@ -1298,10 +1288,9 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         tx_copy = Transaction(tx.serialize())
         self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
 
-        #self.assertEqual(tx.txid(), tx_copy.txid())  # FIXME
+        self.assertEqual(tx.txid(), tx_copy.txid())
 
         # sign tx
-        wallet_offline.can_sign(tx_copy)  # FIXME
         tx = wallet_offline.sign_transaction(tx_copy, password=None)
         self.assertTrue(tx.is_complete())
         self.assertTrue(tx.is_segwit())
