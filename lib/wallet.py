@@ -1266,7 +1266,9 @@ class Abstract_Wallet(PrintError):
             outputs[i_max] = (_type, data, 0)
             tx = Transaction.from_io(inputs, outputs[:])
             fee = fee_estimator(tx.estimated_size())
-            amount = max(0, sendable - tx.output_value() - fee)
+            amount = sendable - tx.output_value() - fee
+            if amount < 0:
+                raise NotEnoughFunds()
             outputs[i_max] = (_type, data, amount)
             tx = Transaction.from_io(inputs, outputs[:])
 
