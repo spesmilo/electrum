@@ -652,30 +652,41 @@ class Transaction:
         return pubkeys, x_pubkeys
 
     def update_signatures(self, signatures: Sequence[str]):
-        """Add new signatures to a transaction"""
+        """Add new signatures to a transaction
+
+        `signatures` is expected to be a list of sigs with signatures[i]
+        intended for self._inputs[i].
+        This is used by the Trezor and KeepKey plugins.
+        """
         if self.is_complete():
             return
+        if len(self.inputs()) != len(signatures):
+            raise Exception('expected {} signatures; got {}'.format(len(self.inputs()), len(signatures)))
         for i, txin in enumerate(self.inputs()):
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
-            for sig in signatures:
-                if sig in txin.get('signatures'):
+            sig = signatures[i]
+            if sig in txin.get('signatures'):
+                continue
+            pre_hash = Hash(bfh(self.serialize_preimage(i)))
+            sig_string = ecc.sig_string_from_der_sig(bfh(sig[:-2]))
+            for recid in range(4):
+                try:
+                    public_key = ecc.ECPubkey.from_sig_string(sig_string, recid, pre_hash)
+                except ecc.InvalidECPointException:
+                    # the point might not be on the curve for some recid values
                     continue
-                pre_hash = Hash(bfh(self.serialize_preimage(i)))
-                sig_string = ecc.sig_string_from_der_sig(bfh(sig[:-2]))
-                for recid in range(4):
+                pubkey_hex = public_key.get_public_key_hex(compressed=True)
+                if pubkey_hex in pubkeys:
                     try:
-                        public_key = ecc.ECPubkey.from_sig_string(sig_string, recid, pre_hash)
-                    except ecc.InvalidECPointException:
-                        # the point might not be on the curve for some recid values
-                        continue
-                    pubkey_hex = public_key.get_public_key_hex(compressed=True)
-                    if pubkey_hex in pubkeys:
                         public_key.verify_message_hash(sig_string, pre_hash)
-                        j = pubkeys.index(pubkey_hex)
-                        print_error("adding sig", i, j, pubkey_hex, sig)
-                        self.add_signature_to_txin(self._inputs[i], j, sig)
-                        #self._inputs[i]['x_pubkeys'][j] = pubkey
-                        break
+                    except Exception:
+                        traceback.print_exc(file=sys.stderr)
+                        continue
+                    j = pubkeys.index(pubkey_hex)
+                    print_error("adding sig", i, j, pubkey_hex, sig)
+                    self.add_signature_to_txin(self._inputs[i], j, sig)
+                    #self._inputs[i]['x_pubkeys'][j] = pubkey
+                    break
         # redo raw
         self.raw = self.serialize()
 
