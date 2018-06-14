@@ -53,7 +53,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
 from electrum import Transaction
 from electrum import util, bitcoin, commands, coinchooser
 from electrum import paymentrequest
-from electrum.wallet import Multisig_Wallet, AddTransactionException
+from electrum.wallet import Multisig_Wallet, AddTransactionException, CannotBumpFee
 
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
@@ -3165,9 +3165,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         try:
             new_tx = self.wallet.bump_fee(tx, delta)
-        except BaseException as e:
-            traceback.print_exc(file=sys.stderr)
-            self.show_error(_('Error bumping fee') + ':\n' + str(e))
+        except CannotBumpFee as e:
+            self.show_error(str(e))
             return
         if is_final:
             new_tx.set_rbf(False)

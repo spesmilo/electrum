@@ -170,6 +170,9 @@ class UnrelatedTransactionException(AddTransactionException):
         return _("Transaction is unrelated to this wallet.")
 
 
+class CannotBumpFee(Exception): pass
+
+
 class Abstract_Wallet(PrintError):
     """
     Wallet classes are created to handle various address generation methods.
@@ -1377,7 +1380,7 @@ class Abstract_Wallet(PrintError):
 
     def bump_fee(self, tx, delta):
         if tx.is_final():
-            raise Exception(_('Cannot bump fee') + ': ' + _('transaction is final'))
+            raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('transaction is final'))
         tx = Transaction(tx.serialize())
         tx.deserialize(force_full_parse=True)  # need to parse inputs
         inputs = copy.deepcopy(tx.inputs())
@@ -1410,7 +1413,7 @@ class Abstract_Wallet(PrintError):
                 if delta > 0:
                     continue
         if delta > 0:
-            raise Exception(_('Cannot bump fee') + ': ' + _('could not find suitable outputs'))
+            raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('could not find suitable outputs'))
         locktime = self.get_local_height()
         tx_new = Transaction.from_io(inputs, outputs, locktime=locktime)
         tx_new.BIP_LI01_sort()
