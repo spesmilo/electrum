@@ -880,15 +880,15 @@ class Peer(PrintError):
                 local_config=local_config,
                 remote_config=remote_config,
                 remote_state=RemoteState(
-                    ctn = 0,
-                    next_per_commitment_point=None,
-                    last_per_commitment_point=remote_per_commitment_point,
+                    ctn = -1,
+                    next_per_commitment_point=remote_per_commitment_point,
+                    last_per_commitment_point=None,
                     amount_msat=remote_amount,
                     revocation_store=their_revocation_store,
                     next_htlc_id = 0
                 ),
                 local_state=LocalState(
-                    ctn = 0,
+                    ctn = -1,
                     per_commitment_secret_seed=per_commitment_secret_seed,
                     amount_msat=local_amount,
                     next_htlc_id = 0,
@@ -896,11 +896,7 @@ class Peer(PrintError):
                 ),
                 constraints=ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
         )
-        m = HTLCStateMachine(chan._replace(
-            local_state=chan.local_state._replace(ctn=-1),
-            remote_state=chan.remote_state._replace(
-                next_per_commitment_point=remote_per_commitment_point,
-                last_per_commitment_point=None, ctn=-1)))
+        m = HTLCStateMachine(chan)
         sig_64, _ = m.sign_next_commitment()
         self.send_message(gen_msg("funding_created",
             temporary_channel_id=temp_channel_id,
@@ -914,7 +910,7 @@ class Peer(PrintError):
         # broadcast funding tx
         success, _txid = self.network.broadcast_transaction(funding_tx)
         assert success, success
-        return chan
+        return chan._replace(remote_state=chan.remote_state._replace(ctn=0),local_state=chan.local_state._replace(ctn=0))
 
     def reestablish_channel(self, chan):
         self.channel_state[chan.channel_id] = 'REESTABLISHING'
@@ -939,10 +935,14 @@ class Peer(PrintError):
         local_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
         if local_ctn != chan.local_state.ctn:
             raise Exception("expected local ctn {}, got {}".format(chan.local_state.ctn, local_ctn))
-        if channel_reestablish_msg["my_current_per_commitment_point"] != chan.remote_state.last_per_commitment_point:
-            raise Exception("Remote PCP mismatch")
+        our = channel_reestablish_msg["my_current_per_commitment_point"]
+        their = chan.remote_state.last_per_commitment_point
+        if their is None:
+            their = chan.remote_state.next_per_commitment_point
+        if our != their:
+            raise Exception("Remote PCP mismatch: {} {}".format(bh2u(our), bh2u(their)))
         self.channel_state[chan_id] = 'OPENING'
-        if chan.local_state.funding_locked_received:
+        if chan.local_state.funding_locked_received and chan.short_channel_id:
             self.mark_open(chan)
         self.network.trigger_callback('channel', chan)
 
@@ -961,7 +961,7 @@ class Peer(PrintError):
         if not chan:
             raise Exception("Got unknown funding_locked", channel_id)
         short_channel_id = chan.short_channel_id
-        new_remote_state = chan.remote_state._replace(next_per_commitment_point=payload["next_per_commitment_point"])
+        new_remote_state = chan.remote_state._replace(next_per_commitment_point=payload["next_per_commitment_point"], last_per_commitment_point=chan.remote_state.next_per_commitment_point)
         new_local_state = chan.local_state._replace(funding_locked_received = True)
         chan = chan._replace(short_channel_id=short_channel_id, remote_state=new_remote_state, local_state=new_local_state)
         self.lnworker.save_channel(chan)

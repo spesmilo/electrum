@@ -176,12 +176,12 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         aliceSent = 0
         bobSent = 0
 
-        self.assertEqual(alice_channel.total_msat_sent, aliceSent, "alice has incorrect milli-satoshis sent: %s vs %s"% (alice_channel.total_msat_sent, aliceSent))
-        self.assertEqual(alice_channel.total_msat_received, bobSent, "alice has incorrect milli-satoshis received %s vs %s"% (alice_channel.total_msat_received, bobSent))
-        self.assertEqual(bob_channel.total_msat_sent, bobSent, "bob has incorrect milli-satoshis sent %s vs %s"% (bob_channel.total_msat_sent, bobSent))
-        self.assertEqual(bob_channel.total_msat_received, aliceSent, "bob has incorrect milli-satoshis received %s vs %s"% (bob_channel.total_msat_received, aliceSent))
-        self.assertEqual(bob_channel.state.local_state.ctn, 1, "bob has incorrect commitment height, %s vs %s"% (bob_channel.state.local_state.ctn, 1))
-        self.assertEqual(alice_channel.state.local_state.ctn, 1, "alice has incorrect commitment height, %s vs %s"% (alice_channel.state.local_state.ctn, 1))
+        self.assertEqual(alice_channel.total_msat_sent, aliceSent, "alice has incorrect milli-satoshis sent")
+        self.assertEqual(alice_channel.total_msat_received, bobSent, "alice has incorrect milli-satoshis received")
+        self.assertEqual(bob_channel.total_msat_sent, bobSent, "bob has incorrect milli-satoshis sent")
+        self.assertEqual(bob_channel.total_msat_received, aliceSent, "bob has incorrect milli-satoshis received")
+        self.assertEqual(bob_channel.state.local_state.ctn, 1, "bob has incorrect commitment height")
+        self.assertEqual(alice_channel.state.local_state.ctn, 1, "alice has incorrect commitment height")
 
         # Both commitment transactions should have three outputs, and one of
         # them should be exactly the amount of the HTLC.
