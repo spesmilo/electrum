@@ -367,7 +367,7 @@ class ContractCreateLayout(QVBoxLayout):
         params_layout.addWidget(self.bytecode_e)
 
 
-        self.button = QPushButton("选择字节码文件")
+        self.button = QPushButton("Select ByteCode File")
         self.button.clicked.connect(self.changePath)
         params_layout.addWidget(self.button)
         self.addLayout(params_layout)
