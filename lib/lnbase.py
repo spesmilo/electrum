@@ -984,28 +984,11 @@ class Peer(PrintError):
     def on_update_fail_htlc(self, payload):
         print("UPDATE_FAIL_HTLC", decode_onion_error(payload["reason"], self.node_keys, self.secret_key))
 
-    def derive_and_incr(self, chan):
-        last_small_num = chan.local_state.ctn
-        next_small_num = last_small_num + 2
-        this_small_num = last_small_num + 1
-        last_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-last_small_num-1)
-        this_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-this_small_num-1)
-        this_point = secret_to_pubkey(int.from_bytes(this_secret, 'big'))
-        next_secret = get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, 2**48-next_small_num-1)
-        next_point = secret_to_pubkey(int.from_bytes(next_secret, 'big'))
-        chan = chan._replace(
-            local_state=chan.local_state._replace(
-                ctn=chan.local_state.ctn + 1
-            )
-        )
-        return chan, last_secret, this_point, next_point
-
     @aiosafe
     async def pay(self, path, chan, amount_msat, payment_hash, pubkey_in_invoice, min_final_cltv_expiry):
         assert self.channel_state[chan.channel_id] == "OPEN"
         assert amount_msat > 0, "amount_msat is not greater zero"
         height = self.network.get_local_height()
-        their_revstore = chan.remote_state.revocation_store
         route = self.lnworker.path_finder.create_route_from_path(path, self.lnworker.pubkey)
         hops_data = []
         sum_of_deltas = sum(route_edge.channel_policy.cltv_expiry_delta for route_edge in route[1:])
@@ -1035,69 +1018,53 @@ class Peer(PrintError):
 
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sig))
 
-        revoke_and_ack_msg = await self.revoke_and_ack[chan.channel_id].get()
-        m.receive_revocation(RevokeAndAck(revoke_and_ack_msg["per_commitment_secret"], revoke_and_ack_msg["next_per_commitment_point"]))
+        await self.receive_revoke(m)
 
-        rev, _ = m.revoke_current_commitment()
-        self.send_message(gen_msg("revoke_and_ack",
-            channel_id=chan.channel_id,
-            per_commitment_secret=rev.per_commitment_secret,
-            next_per_commitment_point=rev.next_per_commitment_point))
-
-        chan = m.state
-
-        print("waiting for update_fulfill")
+        self.revoke(m)
 
         update_fulfill_htlc_msg = await self.update_fulfill_htlc[chan.channel_id].get()
+        m.receive_htlc_settle(update_fulfill_htlc_msg["payment_preimage"], int.from_bytes(update_fulfill_htlc_msg["id"], "big"))
 
-        print("waiting for commitment_signed")
-        commitment_signed_msg = await self.commitment_signed[chan.channel_id].get()
+        self.revoke(m)
 
-        chan, last_secret, _, next_point = self.derive_and_incr(chan)
-        self.send_message(gen_msg("revoke_and_ack",
-            channel_id=chan.channel_id,
-            per_commitment_secret=last_secret,
-            next_per_commitment_point=next_point))
+        while (await self.commitment_signed[chan.channel_id].get())["htlc_signature"] == b"":
+            pass
+        # TODO process above commitment transactions
 
-        next_per_commitment_point = revoke_and_ack_msg["next_per_commitment_point"]
-
-        bare_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 1, False, next_per_commitment_point,
+        bare_ctx = make_commitment_using_open_channel(m.state, m.state.remote_state.ctn + 1, False, m.state.remote_state.next_per_commitment_point,
             msat_remote, msat_local)
 
         sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
-
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=0))
+        m.state = m.state._replace(remote_state=m.state.remote_state._replace(ctn=m.state.remote_state.ctn + 1))
 
-        revoke_and_ack_msg = await self.revoke_and_ack[chan.channel_id].get()
-        # TODO check revoke_and_ack results
+        await self.receive_revoke(m)
 
-        chan = chan._replace(
-            local_state=chan.local_state._replace(
-                amount_msat=msat_local,
-                next_htlc_id=chan.local_state.next_htlc_id + 1
-            ),
-            remote_state=chan.remote_state._replace(
-                ctn=chan.remote_state.ctn + 1,
-                revocation_store=their_revstore,
-                last_per_commitment_point=next_per_commitment_point,
-                next_per_commitment_point=revoke_and_ack_msg["next_per_commitment_point"],
-                amount_msat=msat_remote
-            )
-        )
-        self.lnworker.save_channel(chan)
+        self.lnworker.save_channel(m.state)
+
+    async def receive_revoke(self, m):
+        revoke_and_ack_msg = await self.revoke_and_ack[m.state.channel_id].get()
+        m.receive_revocation(RevokeAndAck(revoke_and_ack_msg["per_commitment_secret"], revoke_and_ack_msg["next_per_commitment_point"]))
+
+    def revoke(self, m):
+        rev, _ = m.revoke_current_commitment()
+        self.send_message(gen_msg("revoke_and_ack",
+            channel_id=m.state.channel_id,
+            per_commitment_secret=rev.per_commitment_secret,
+            next_per_commitment_point=rev.next_per_commitment_point))
+
+    async def receive_commitment(self, m):
+        commitment_signed_msg = await self.commitment_signed[m.state.channel_id].get()
+        data = commitment_signed_msg["htlc_signature"]
+        htlc_sigs = [data[i:i+64] for i in range(0, len(data), 64)]
+        m.receive_new_commitment(commitment_signed_msg["signature"], htlc_sigs)
+        return len(htlc_sigs)
 
     @aiosafe
     async def receive_commitment_revoke_ack(self, htlc, decoded, payment_preimage):
         chan = self.channels[htlc['channel_id']]
         channel_id = chan.channel_id
         expected_received_msat = int(decoded.amount * COIN * 1000)
-        while True:
-            self.print_error("receiving commitment")
-            commitment_signed_msg = await self.commitment_signed[channel_id].get()
-            num_htlcs = int.from_bytes(commitment_signed_msg["num_htlcs"], "big")
-            print("num_htlcs", num_htlcs)
-            if num_htlcs == 1:
-                break
         htlc_id = int.from_bytes(htlc["id"], 'big')
         assert htlc_id == chan.remote_state.next_htlc_id, (htlc_id, chan.remote_state.next_htlc_id)
 
@@ -1112,67 +1079,36 @@ class Peer(PrintError):
         htlc = UpdateAddHtlc(amount_msat, payment_hash, cltv_expiry, 0)
 
         m = HTLCStateMachine(chan)
+
         m.receive_htlc(htlc)
 
-        data = commitment_signed_msg["htlc_signature"]
-        htlc_sigs = [data[i:i+64] for i in range(0, len(data), 64)]
-        m.receive_new_commitment(commitment_signed_msg["signature"], htlc_sigs)
+        assert (await self.receive_commitment(m)) == 1
 
-        rev, _ = m.revoke_current_commitment()
-        self.send_message(gen_msg("revoke_and_ack",
-            channel_id=channel_id,
-            per_commitment_secret=rev.per_commitment_secret,
-            next_per_commitment_point=rev.next_per_commitment_point))
+        self.revoke(m)
 
         sig_64, htlc_sigs = m.sign_next_commitment()
-        chan = m.state
         htlc_sig = htlc_sigs[0]
         self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sig))
 
-        revoke_and_ack_msg = await self.revoke_and_ack[channel_id].get()
+        await self.receive_revoke(m)
 
-        # TODO check revoke_and_ack_msg contents
-
+        m.settle_htlc(payment_preimage, htlc_id)
         self.send_message(gen_msg("update_fulfill_htlc", channel_id=channel_id, id=htlc_id, payment_preimage=payment_preimage))
 
-        remote_next_commitment_point = revoke_and_ack_msg["next_per_commitment_point"]
-
         # remote commitment transaction without htlcs
-        bare_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 2, False, remote_next_commitment_point,
-            chan.remote_state.amount_msat - expected_received_msat, chan.local_state.amount_msat + expected_received_msat)
-
-        sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
-
+        bare_ctx = make_commitment_using_open_channel(m.state, m.state.remote_state.ctn + 1, False, m.state.remote_state.next_per_commitment_point,
+            m.state.remote_state.amount_msat - expected_received_msat, m.state.local_state.amount_msat + expected_received_msat)
+        sig_64 = sign_and_get_sig_string(bare_ctx, m.state.local_config, m.state.remote_config)
         self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=0))
+        m.state = m.state._replace(remote_state=m.state.remote_state._replace(ctn=m.state.remote_state.ctn + 1))
 
-        revoke_and_ack_msg = await self.revoke_and_ack[channel_id].get()
+        await self.receive_revoke(m)
 
-        # TODO check revoke_and_ack results
+        assert (await self.receive_commitment(m)) == 0
 
-        commitment_signed_msg = await self.commitment_signed[channel_id].get()
+        self.revoke(m)
 
-        # TODO check commitment_signed results
-
-        chan, last_secret, _, next_point = self.derive_and_incr(chan)
-
-        self.send_message(gen_msg("revoke_and_ack",
-            channel_id=channel_id,
-            per_commitment_secret=last_secret,
-            next_per_commitment_point=next_point))
-
-        new_chan = chan._replace(
-            local_state=chan.local_state._replace(
-                amount_msat=chan.local_state.amount_msat + expected_received_msat
-            ),
-            remote_state=chan.remote_state._replace(
-                ctn=chan.remote_state.ctn + 2,
-                last_per_commitment_point=remote_next_commitment_point,
-                next_per_commitment_point=revoke_and_ack_msg["next_per_commitment_point"],
-                amount_msat=chan.remote_state.amount_msat - expected_received_msat,
-                next_htlc_id=htlc_id + 1
-            )
-        )
-        self.lnworker.save_channel(new_chan)
+        self.lnworker.save_channel(m.state)
 
     def on_commitment_signed(self, payload):
         self.print_error("commitment_signed", payload)
@@ -1203,6 +1139,7 @@ class Peer(PrintError):
             assert False
 
     def on_revoke_and_ack(self, payload):
+        print("got revoke_and_ack")
         channel_id = payload["channel_id"]
         self.revoke_and_ack[channel_id].put_nowait(payload)
 
