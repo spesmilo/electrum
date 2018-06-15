@@ -1025,10 +1025,8 @@ class Peer(PrintError):
         update_fulfill_htlc_msg = await self.update_fulfill_htlc[chan.channel_id].get()
         m.receive_htlc_settle(update_fulfill_htlc_msg["payment_preimage"], int.from_bytes(update_fulfill_htlc_msg["id"], "big"))
 
-        self.revoke(m)
-
-        while (await self.commitment_signed[chan.channel_id].get())["htlc_signature"] == b"":
-            pass
+        while (await self.commitment_signed[chan.channel_id].get())["htlc_signature"] != b"":
+            self.revoke(m)
         # TODO process above commitment transactions
 
         bare_ctx = make_commitment_using_open_channel(m.state, m.state.remote_state.ctn + 1, False, m.state.remote_state.next_per_commitment_point,
