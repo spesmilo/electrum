@@ -192,7 +192,10 @@ def init_daemon(config_options):
         print_msg("Type 'electron-cash create' to create a new wallet, or provide a path to a wallet with the -w option")
         sys.exit(0)
     if storage.is_encrypted():
-        if config.get('password'):
+	if 'wallet_password' in config_options:
+	    print_msg('Warning: unlocking wallet with commandline argument \"wallet_password\"')
+	    password = config_options['wallet_password']
+	elif config.get('password'):
             password = config.get('password')
         else:
             password = prompt_password('Password:', False)
