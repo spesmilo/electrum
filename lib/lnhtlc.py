@@ -66,7 +66,8 @@ class HTLCStateMachine(PrintError):
         assert type(htlc) is UpdateAddHtlc
         self.local_update_log.append(htlc)
         self.print_error("add_htlc")
-        htlc_id = len(self.local_update_log)-1
+        htlc_id = self.state.local_state.next_htlc_id
+        self.state = self.state._replace(local_state=self.state.local_state._replace(next_htlc_id=htlc_id + 1))
         htlc.htlc_id = htlc_id
         return htlc_id
 
@@ -79,7 +80,8 @@ class HTLCStateMachine(PrintError):
         assert type(htlc) is UpdateAddHtlc
         self.remote_update_log.append(htlc)
         self.print_error("receive_htlc")
-        htlc_id = len(self.remote_update_log)-1
+        htlc_id = self.state.remote_state.next_htlc_id
+        self.state = self.state._replace(remote_state=self.state.remote_state._replace(next_htlc_id=htlc_id + 1))
         htlc.htlc_id = htlc_id
         return htlc_id
 
@@ -226,15 +228,23 @@ class HTLCStateMachine(PrintError):
                 continue
             settle_fails2.append(x)
 
+        sent_this_batch = 0
+        received_this_batch = 0
+
         for x in settle_fails2:
-            self.total_msat_sent += self.lookup_htlc(self.local_update_log, x.htlc_id).amount_msat
+            htlc = self.lookup_htlc(self.local_update_log, x.htlc_id)
+            sent_this_batch += htlc.amount_msat + htlc.total_fee
+
+        self.total_msat_sent += sent_this_batch
 
         # increase received_msat counter for htlc's that have been settled
         adds2 = self.gen_htlc_indices("remote")
         for htlc in adds2:
             htlc_id = htlc.htlc_id
             if SettleHtlc(htlc_id) in self.local_update_log:
-                self.total_msat_received += self.lookup_htlc(self.remote_update_log, htlc_id).amount_msat
+                htlc = self.lookup_htlc(self.remote_update_log, htlc_id)
+                received_this_batch += htlc.amount_msat + htlc.total_fee
+        self.total_msat_received += received_this_batch
 
         # log compaction (remove entries relating to htlc's that have been settled)
 
@@ -269,6 +279,10 @@ class HTLCStateMachine(PrintError):
                 ctn=self.state.remote_state.ctn + 1,
                 last_per_commitment_point=next_point,
                 next_per_commitment_point=revocation.next_per_commitment_point,
+                amount_msat=self.state.remote_state.amount_msat + (sent_this_batch - received_this_batch)
+            ),
+            local_state=self.state.local_state._replace(
+                amount_msat = self.state.local_state.amount_msat + (received_this_batch - sent_this_batch)
             )
         )
 
@@ -368,7 +382,7 @@ class HTLCStateMachine(PrintError):
     def htlcs_in_remote(self):
         return self.gen_htlc_indices("remote")
 
-    def settle_htlc(self, preimage, htlc_id, source_ref, dest_ref, close_key):
+    def settle_htlc(self, preimage, htlc_id):
         """
         SettleHTLC attempts to settle an existing outstanding received HTLC.
         """

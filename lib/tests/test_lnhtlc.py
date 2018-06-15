@@ -193,7 +193,7 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         # Now we'll repeat a similar exchange, this time with Bob settling the
         # HTLC once he learns of the preimage.
         preimage = paymentPreimage
-        bob_channel.settle_htlc(preimage, bobHtlcIndex, None, None, None)
+        bob_channel.settle_htlc(preimage, bobHtlcIndex)
 
         alice_channel.receive_htlc_settle(preimage, aliceHtlcIndex)
 
