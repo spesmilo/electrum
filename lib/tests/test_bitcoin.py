@@ -574,14 +574,14 @@ class Test_keyImport(SequentialTestCase):
             'scripthash': '242f02adde84ebb2a7dd778b2f3a81b3826f111da4d8960d826d7a4b816cb261'},
            # from http://bitscan.com/articles/security/spotlight-on-mini-private-keys
            {'priv': 'SzavMBLoXU6kDrqtUVmffv',
-            'exported_privkey': 'p2pkh:TAsve34b6yMQn1hBGTc472BfW8kvEoct5MhZrxADHEB7oZgBbky4',
-            'pub': '02588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9',
-            'address': 'LTVsBSEBS8oCBdpE7b6SwwrguZzMUnjsWr',
+            'exported_privkey': 'p2pkh:6vtsDUCgu6yHGBaa92x4skmZHa2LmMz4sNuh54tUhqJFELE28eh',
+            'pub': '04588d202afcc1ee4ab5254c7847ec25b9a135bbda0f2bc69ee1a714749fd77dc9f88ff2a00d7e752d44cbe16e1ebcf0890b76ec7c78886109dee76ccfc8445424',
+            'address': 'LWQznEzj9nsACLAfXof8C1RuWP2jWp7MwM',
             'minikey': True,
             'txin_type': 'p2pkh',
-            'compressed': True,  # this is actually ambiguous... issue #2748
+            'compressed': False,  # this is actually ambiguous... issue #2748
             'addr_encoding': 'base58',
-            'scripthash': '60ad5a8b922f758cd7884403e90ee7e6f093f8d21a0ff24c9a865e695ccefdf1'},
+            'scripthash': '5b07ddfde826f5125ee823900749103cea37808038ecead5505a766a07c34445'},
     )
 
     @needs_test_with_all_ecc_implementations
