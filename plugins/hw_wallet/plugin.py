@@ -75,3 +75,15 @@ class HW_PluginBase(BasePlugin):
         if type(keystore) != self.keystore_class:
             return False
         return True
+
+
+def is_any_tx_output_on_change_branch(tx):
+    if not hasattr(tx, 'output_info'):
+        return False
+    for _type, address, amount in tx.outputs():
+        info = tx.output_info.get(address)
+        if info is not None:
+            index, xpubs, m = info
+            if index[0] == 1:
+                return True
+    return False

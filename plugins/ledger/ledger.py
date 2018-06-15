@@ -11,6 +11,7 @@ from electrum.keystore import Hardware_KeyStore
 from electrum.transaction import Transaction
 from electrum.wallet import Standard_Wallet
 from ..hw_wallet import HW_PluginBase
+from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
 from electrum.util import print_error, is_verbose, bfh, bh2u, versiontuple
 from electrum.base_wizard import ScriptTypeNotSupported
 
@@ -319,9 +320,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         signatures = []
         preparedTrustedInputs = []
         changePath = ""
-        changeAmount = None
         output = None
-        outputAmount = None
         p2shTransaction = False
         segwitTransaction = False
         pin = ""
@@ -386,22 +385,31 @@ class Ledger_KeyStore(Hardware_KeyStore):
             txOutput += script
         txOutput = bfh(txOutput)
 
-        # Recognize outputs - only one output and one change is authorized
+        # Recognize outputs
+        # - only one output and one change is authorized (for hw.1 and nano)
+        # - at most one output can bypass confirmation (~change) (for all)
         if not p2shTransaction:
             if not self.get_client_electrum().supports_multi_output():
                 if len(tx.outputs()) > 2:
                     self.give_error("Transaction with more than 2 outputs not supported")
+            has_change = False
+            any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
             for _type, address, amount in tx.outputs():
                 assert _type == TYPE_ADDRESS
                 info = tx.output_info.get(address)
                 if (info is not None) and len(tx.outputs()) > 1 \
-                        and info[0][0] == 1:  # "is on 'change' branch"
+                        and not has_change:
                     index, xpubs, m = info
-                    changePath = self.get_derivation()[2:] + "/%d/%d"%index
-                    changeAmount = amount
+                    on_change_branch = index[0] == 1
+                    # prioritise hiding outputs on the 'change' branch from user
+                    # because no more than one change address allowed
+                    if on_change_branch == any_output_on_change_branch:
+                        changePath = self.get_derivation()[2:] + "/%d/%d"%index
+                        has_change = True
+                    else:
+                        output = address
                 else:
                     output = address
-                    outputAmount = amount
 
         self.handler.show_message(_("Confirm Transaction on your Ledger device..."))
         try:
