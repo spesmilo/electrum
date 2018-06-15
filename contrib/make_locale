@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 import os
 import subprocess
+import sys
 import io
 import zipfile
 import requests
 
+assert len(sys.argv) < 3
+
+original_dir = os.getcwd()
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 os.chdir('..')
 
@@ -53,10 +57,13 @@ if crowdin_api_key:
     response = requests.request('GET', 'https://api.crowdin.com/api/project/' + crowdin_identifier + '/export?key=' + crowdin_api_key)
     print("", "export:", "-" * 20, response.text, "-" * 20, sep="\n")
 
-# Download & unzip
-print('Download translations')
-s = requests.request('GET', 'https://crowdin.com/download/project/' + crowdin_identifier + '.zip').content
-zfobj = zipfile.ZipFile(io.BytesIO(s))
+if len(sys.argv) < 2:
+    # Download & unzip
+    print('Download translations')
+    s = requests.request('GET', 'https://crowdin.com/download/project/' + crowdin_identifier + '.zip').content
+    zfobj = zipfile.ZipFile(io.BytesIO(s))
+else:
+    zfobj = zipfile.ZipFile(os.path.join(os.path.relpath(original_dir, os.getcwd()), sys.argv[1]))
 
 print('Unzip translations')
 for name in zfobj.namelist():
