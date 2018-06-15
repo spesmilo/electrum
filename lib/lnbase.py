@@ -1036,7 +1036,6 @@ class Peer(PrintError):
 
         sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=0))
-        m.state = m.state._replace(remote_state=m.state.remote_state._replace(ctn=m.state.remote_state.ctn + 1))
 
         await self.receive_revoke(m)
 
@@ -1100,7 +1099,6 @@ class Peer(PrintError):
             m.state.remote_state.amount_msat - expected_received_msat, m.state.local_state.amount_msat + expected_received_msat)
         sig_64 = sign_and_get_sig_string(bare_ctx, m.state.local_config, m.state.remote_config)
         self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=0))
-        m.state = m.state._replace(remote_state=m.state.remote_state._replace(ctn=m.state.remote_state.ctn + 1))
 
         await self.receive_revoke(m)
 
