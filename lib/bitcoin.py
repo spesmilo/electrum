@@ -421,7 +421,7 @@ def serialize_privkey(secret: bytes, compressed: bool, txin_type: str,
 
 def deserialize_privkey(key: str) -> (str, bytes, bool):
     if is_minikey(key):
-        return 'p2pkh', minikey_to_private_key(key), True
+        return 'p2pkh', minikey_to_private_key(key), False
 
     txin_type = None
     if ':' in key:
