@@ -1,7 +1,7 @@
 # ported from lnd 42de4400bff5105352d0552155f73589166d162b
 from ecdsa.util import sigencode_string_canonize, sigdecode_der
 from .util import bfh, PrintError
-from .bitcoin import Hash, address_to_script
+from .bitcoin import Hash
 from collections import namedtuple
 from ecdsa.curves import SECP256k1
 from .crypto import sha256
@@ -119,7 +119,6 @@ class HTLCStateMachine(PrintError):
             for htlc in htlcs:
                 original_htlc_output_index = 0
                 args = [self.state.remote_state.next_per_commitment_point, for_us, we_receive, htlc.amount_msat + htlc.total_fee, htlc.cltv_expiry, htlc.payment_hash, self.remote_commitment, original_htlc_output_index]
-                print("args", args)
                 htlc_tx = make_htlc_tx_with_open_channel(self.state, *args)
                 sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
                 r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
@@ -233,7 +232,7 @@ class HTLCStateMachine(PrintError):
 
         for x in settle_fails2:
             htlc = self.lookup_htlc(self.local_update_log, x.htlc_id)
-            sent_this_batch += htlc.amount_msat + htlc.total_fee
+            sent_this_batch += htlc.amount_msat
 
         self.total_msat_sent += sent_this_batch
 
@@ -243,7 +242,7 @@ class HTLCStateMachine(PrintError):
             htlc_id = htlc.htlc_id
             if SettleHtlc(htlc_id) in self.local_update_log:
                 htlc = self.lookup_htlc(self.remote_update_log, htlc_id)
-                received_this_batch += htlc.amount_msat + htlc.total_fee
+                received_this_batch += htlc.amount_msat
         self.total_msat_received += received_this_batch
 
         # log compaction (remove entries relating to htlc's that have been settled)
