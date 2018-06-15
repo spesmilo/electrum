@@ -158,6 +158,8 @@ class MyEncoder(json.JSONEncoder):
             return str(obj)
         if isinstance(obj, datetime):
             return obj.isoformat(' ')[:-3]
+        if isinstance(obj, set):
+            return list(obj)
         return super(MyEncoder, self).default(obj)
 
 class PrintError(object):
@@ -445,6 +447,10 @@ def user_dir():
     else:
         #raise Exception("No home directory found in environment variables.")
         return
+
+def is_valid_email(s):
+    regexp = r"[^@]+@[^@]+\.[^@]+"
+    return re.match(regexp, s) is not None
 
 
 def format_satoshis_plain(x, decimal_point = 8):

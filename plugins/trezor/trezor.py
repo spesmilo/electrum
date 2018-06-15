@@ -318,9 +318,9 @@ class TrezorPlugin(HW_PluginBase):
         client = self.get_client(keystore)
         inputs = self.tx_inputs(tx, True, keystore.get_script_gen())
         outputs = self.tx_outputs(keystore.get_derivation(), tx, keystore.get_script_gen())
-        signed_tx = client.sign_tx(self.get_coin_name(), inputs, outputs, lock_time=tx.locktime)[1]
-        raw = bh2u(signed_tx)
-        tx.update_signatures(raw)
+        signatures = client.sign_tx(self.get_coin_name(), inputs, outputs, lock_time=tx.locktime)[0]
+        signatures = [(bh2u(x) + '01') for x in signatures]
+        tx.update_signatures(signatures)
 
     def show_address(self, wallet, address, keystore=None):
         if keystore is None:

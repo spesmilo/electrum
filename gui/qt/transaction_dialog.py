@@ -83,7 +83,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.saved = False
         self.desc = desc
 
-        self.setMinimumWidth(750)
+        self.setMinimumWidth(950)
         self.setWindowTitle(_("Transaction"))
 
         vbox = QVBoxLayout()
@@ -293,15 +293,10 @@ class TxDialog(QDialog, MessageBoxMixin):
             else:
                 prevout_hash = x.get('prevout_hash')
                 prevout_n = x.get('prevout_n')
-                cursor.insertText(prevout_hash[0:8] + '...', ext)
-                cursor.insertText(prevout_hash[-8:] + ":%-4d " % prevout_n, ext)
-                addr = x.get('address')
-                if addr == "(pubkey)":
-                    _addr = self.wallet.get_txin_address(x)
-                    if _addr:
-                        addr = _addr
+                cursor.insertText(prevout_hash + ":%-4d " % prevout_n, ext)
+                addr = self.wallet.get_txin_address(x)
                 if addr is None:
-                    addr = _('unknown')
+                    addr = ''
                 cursor.insertText(addr, text_format(addr))
                 if x.get('value'):
                     cursor.insertText(format_amount(x['value']), ext)

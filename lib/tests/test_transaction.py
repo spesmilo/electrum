@@ -5,14 +5,15 @@ from lib.bitcoin import TYPE_ADDRESS
 from lib.keystore import xpubkey_to_address
 from lib.util import bh2u, bfh
 
-from . import SequentialTestCase
+from . import SequentialTestCase, TestCaseForTestnet
 from .test_bitcoin import needs_test_with_all_ecc_implementations
 
-unsigned_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000005701ff4c53ff0488b21e03ef2afea18000000089689bff23e1e7fb2f161daa37270a97a3d8c2e537584b2d304ecb47b86d21fc021b010d3bd425f8cf2e04824bfdf1f1f5ff1d51fadd9a41f9e3fb8dd3403b1bfe00000000ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
+unsigned_blob = '45505446ff0001000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000005701ff4c53ff0488b21e03ef2afea18000000089689bff23e1e7fb2f161daa37270a97a3d8c2e537584b2d304ecb47b86d21fc021b010d3bd425f8cf2e04824bfdf1f1f5ff1d51fadd9a41f9e3fb8dd3403b1bfe00000000ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 signed_blob = '01000000012a5c9a94fcde98f5581cd00162c60a13936ceb75389ea65bf38633b424eb4031000000006c493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6ffffffff0140420f00000000001976a914230ac37834073a42146f11ef8414ae929feaafc388ac00000000'
 v2_blob = "0200000001191601a44a81e061502b7bfbc6eaa1cef6d1e6af5308ef96c9342f71dbf4b9b5000000006b483045022100a6d44d0a651790a477e75334adfb8aae94d6612d01187b2c02526e340a7fd6c8022028bdf7a64a54906b13b145cd5dab21a26bd4b85d6044e9b97bceab5be44c2a9201210253e8e0254b0c95776786e40984c1aa32a7d03efa6bdacdea5f421b774917d346feffffff026b20fa04000000001976a914024db2e87dd7cfd0e5f266c5f212e21a31d805a588aca0860100000000001976a91421919b94ae5cefcdf0271191459157cdb41c4cbf88aca6240700"
 signed_segwit_blob = "01000000000101b66d722484f2db63e827ebf41d02684fed0c6550e85015a6c9d41ef216a8a6f00000000000fdffffff0280c3c90100000000160014b65ce60857f7e7892b983851c2a8e3526d09e4ab64bac30400000000160014c478ebbc0ab2097706a98e10db7cf101839931c4024730440220789c7d47f876638c58d98733c30ae9821c8fa82b470285dcdf6db5994210bf9f02204163418bbc44af701212ad42d884cc613f3d3d831d2d0cc886f767cca6e0235e012103083a6dc250816d771faa60737bfe78b23ad619f6b458e0a1f1688e3a0605e79c00000000"
 
+signed_blob_signatures = ['3046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d98501', ]
 
 class TestBCDataStream(SequentialTestCase):
 
@@ -78,7 +79,9 @@ class TestTransaction(SequentialTestCase):
                 'scriptPubKey': '76a914230ac37834073a42146f11ef8414ae929feaafc388ac',
                 'type': TYPE_ADDRESS,
                 'value': 1000000}],
-                'version': 1
+            'partial': True,
+            'segwit_ser': False,
+            'version': 1,
         }
         tx = transaction.Transaction(unsigned_blob)
         self.assertEqual(tx.deserialize(), expected)
@@ -94,7 +97,7 @@ class TestTransaction(SequentialTestCase):
 
         self.assertEqual(tx.serialize(), unsigned_blob)
 
-        tx.update_signatures(signed_blob)
+        tx.update_signatures(signed_blob_signatures)
         self.assertEqual(tx.raw, signed_blob)
 
         tx.update(unsigned_blob)
@@ -105,17 +108,13 @@ class TestTransaction(SequentialTestCase):
     @needs_test_with_all_ecc_implementations
     def test_tx_signed(self):
         expected = {
-            'inputs': [{
-                'type': 'p2pkh',
-                'address': 'LNH44gMp6kNHu4Npo5JDNY6FPjewvMKDnz',
-                'num_sig': 1,
+            'inputs': [{'address': None,
+                'num_sig': 0,
                 'prevout_hash': '3140eb24b43386f35ba69e3875eb6c93130ac66201d01c58f598defc949a5c2a',
                 'prevout_n': 0,
-                'pubkeys': ['02e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6'],
                 'scriptSig': '493046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d985012102e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6',
                 'sequence': 4294967295,
-                'signatures': ['3046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d98501'],
-                'x_pubkeys': ['02e61d176da16edd1d258a200ad9759ef63adf8e14cd97f53227bae35cdb84d2f6']}],
+                'type': 'unknown'}],
             'lockTime': 0,
             'outputs': [{
                 'address': 'LNREont24PYd5kkxTKoxVNhbugLowNb7H8',
@@ -123,6 +122,8 @@ class TestTransaction(SequentialTestCase):
                 'scriptPubKey': '76a914230ac37834073a42146f11ef8414ae929feaafc388ac',
                 'type': TYPE_ADDRESS,
                 'value': 1000000}],
+            'partial': False,
+            'segwit_ser': False,
             'version': 1
         }
         tx = transaction.Transaction(signed_blob)
@@ -132,7 +133,7 @@ class TestTransaction(SequentialTestCase):
 
         self.assertEqual(tx.serialize(), signed_blob)
 
-        tx.update_signatures(signed_blob)
+        tx.update_signatures(signed_blob_signatures)
 
         self.assertEqual(tx.estimated_total_size(), 193)
         self.assertEqual(tx.estimated_base_size(), 193)
@@ -766,6 +767,36 @@ class TestTransaction(SequentialTestCase):
         self._run_naive_tests_on_tx(raw_tx, txid)
 
 # txns from Bitcoin Core ends <---
+
+
+class TestTransactionTestnet(TestCaseForTestnet):
+
+    def _run_naive_tests_on_tx(self, raw_tx, txid):
+        tx = transaction.Transaction(raw_tx)
+        self.assertEqual(txid, tx.txid())
+        self.assertEqual(raw_tx, tx.serialize())
+        self.assertTrue(tx.estimated_size() >= 0)
+
+# partial txns using our partial format --->
+    # NOTE: our partial format contains xpubs, and xpubs have version bytes,
+    # and version bytes encode the network as well; so these are network-sensitive!
+
+    def test_txid_partial_segwit_p2wpkh(self):
+        raw_tx = '45505446ff000100000000010115a847356cbb44be67f345965bb3f2589e2fec1c9a0ada21fd28225dcc602e8f0100000000fdffffff02f6fd1200000000001600149c756aa33f4f89418b33872a973274b5445c727b80969800000000001600140f9de573bc679d040e763d13f0250bd03e625f6ffeffffffff9095ab000000000000000201ff53ff045f1cf6014af5fa07800000002fa3f450ba41799b9b62642979505817783a9b6c656dc11cd0bb4fa362096808026adc616c25a4d0a877d1741eb1db9cef65c15118bd7d5f31bf65f319edda81840100c8000f391400'
+        txid = '63ff7e99d85d8e33f683e6ec84574bdf8f5111078a5fe900893e019f9a7f95c3'
+        self._run_naive_tests_on_tx(raw_tx, txid)
+
+    def test_txid_partial_segwit_p2wpkh_p2sh_simple(self):
+        raw_tx = '45505446ff0001000000000101d0d23a6fbddb21cc664cb81cca96715baa4d6dbe5b7b9bcc6632f1005a7b0b840100000017160014a78a91261e71a681b6312cd184b14503a21f856afdffffff0134410f000000000017a914d6514ca17ecc31952c990daf96e307fbc58529cd87feffffffff40420f000000000000000201ff53ff044a5262033601222e800000001618aa51e49a961f63fd111f64cd4a7e792c1d7168be7a07703de505ebed2cf70286ebbe755767adaa5835f4d78dec1ee30849d69eacfe80b7ee6b1585279536c30000020011391400'
+        txid = '2739f2e7fde9b8ec73fce4aee53722cc7683312d1321ded073284c51fadf44df'
+        self._run_naive_tests_on_tx(raw_tx, txid)
+
+    def test_txid_partial_segwit_p2wpkh_p2sh_mixed_outputs(self):
+        raw_tx = '45505446ff00010000000001011dcac788f24b84d771b60c44e1f9b6b83429e50f06e1472d47241922164013b00100000017160014801d28ca6e2bde551112031b6cb75de34f10851ffdffffff0440420f00000000001600140f9de573bc679d040e763d13f0250bd03e625f6fc0c62d000000000017a9142899f6484e477233ce60072fc185ef4c1f2c654487809698000000000017a914d40f85ba3c8fa0f3615bcfa5d6603e36dfc613ef87712d19040000000017a914e38c0cffde769cb65e72cda1c234052ae8d2254187feffffffff6ad1ee040000000000000201ff53ff044a5262033601222e800000001618aa51e49a961f63fd111f64cd4a7e792c1d7168be7a07703de505ebed2cf70286ebbe755767adaa5835f4d78dec1ee30849d69eacfe80b7ee6b1585279536c301000c000f391400'
+        txid = 'ba5c88e07a4025a39ad3b85247cbd4f556a70d6312b18e04513c7cec9d45d6ac'
+        self._run_naive_tests_on_tx(raw_tx, txid)
+
+# end partial txns <---
 
 
 class NetworkMock(object):

@@ -64,6 +64,7 @@ setup(
         'electrum_ltc_plugins.keepkey',
         'electrum_ltc_plugins.labels',
         'electrum_ltc_plugins.ledger',
+        'electrum_ltc_plugins.revealer',
         'electrum_ltc_plugins.trezor',
         'electrum_ltc_plugins.digitalbitbox',
         'electrum_ltc_plugins.virtualkeyboard',
@@ -74,17 +75,10 @@ setup(
         'electrum_ltc_plugins': 'plugins',
     },
     package_data={
+        '': ['*.txt', '*.json', '*.ttf', '*.otf'],
         'electrum_ltc': [
-            'servers.json',
-            'servers_testnet.json',
-            'servers_regtest.json',
-            'currencies.json',
-            'checkpoints.json',
-            'checkpoints_testnet.json',
-            'www/index.html',
-            'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
-        ]
+        ],
     },
     scripts=['electrum-ltc'],
     data_files=data_files,

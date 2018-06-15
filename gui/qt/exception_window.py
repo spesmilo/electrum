@@ -21,46 +21,25 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import json
-import locale
 import platform
-import traceback
-import os
 import sys
-import subprocess
+import traceback
 
-import requests
 from PyQt5.QtCore import QObject
 import PyQt5.QtCore as QtCore
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import *
 
 from electrum_ltc.i18n import _
-from electrum_ltc import ELECTRUM_VERSION, bitcoin, constants
-
+from electrum_ltc.base_crash_reporter import BaseCrashReporter
 from .util import MessageBoxMixin
 
-issue_template = """<h2>Traceback</h2>
-<pre>
-{traceback}
-</pre>
 
-<h2>Additional information</h2>
-<ul>
-  <li>Electrum version: {app_version}</li>
-  <li>Operating system: {os}</li>
-  <li>Wallet type: {wallet_type}</li>
-  <li>Locale: {locale}</li>
-</ul>
-"""
-report_server = "https://crashhub.electrum-ltc.org/crash"
-
-
-class Exception_Window(QWidget, MessageBoxMixin):
+class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin):
     _active_window = None
 
     def __init__(self, main_window, exctype, value, tb):
-        self.exc_args = (exctype, value, tb)
+        BaseCrashReporter.__init__(self, exctype, value, tb)
         self.main_window = main_window
         QWidget.__init__(self)
         self.setWindowTitle('Electrum-LTC - ' + _('An Error Occurred'))
@@ -68,27 +47,26 @@ class Exception_Window(QWidget, MessageBoxMixin):
 
         main_box = QVBoxLayout()
 
-        heading = QLabel('<h2>' + _('Sorry!') + '</h2>')
+        heading = QLabel('<h2>' + BaseCrashReporter.CRASH_TITLE + '</h2>')
         main_box.addWidget(heading)
-        main_box.addWidget(QLabel(_('Something went wrong while executing Electrum.')))
+        main_box.addWidget(QLabel(BaseCrashReporter.CRASH_MESSAGE))
 
-        main_box.addWidget(QLabel(
-            _('To help us diagnose and fix the problem, you can send us a bug report that contains useful debug '
-              'information:')))
+        main_box.addWidget(QLabel(BaseCrashReporter.REQUEST_HELP_MESSAGE))
 
         collapse_info = QPushButton(_("Show report contents"))
         collapse_info.clicked.connect(
             lambda: self.msg_box(QMessageBox.NoIcon,
-                                 self, "Report contents", self.get_report_string()))
+                                 self, _("Report contents"), self.get_report_string()))
+
         main_box.addWidget(collapse_info)
 
-        main_box.addWidget(QLabel(_("Please briefly describe what led to the error (optional):")))
+        main_box.addWidget(QLabel(BaseCrashReporter.DESCRIBE_ERROR_MESSAGE))
 
         self.description_textfield = QTextEdit()
         self.description_textfield.setFixedHeight(50)
         main_box.addWidget(self.description_textfield)
 
-        main_box.addWidget(QLabel(_("Do you want to send this report?")))
+        main_box.addWidget(QLabel(BaseCrashReporter.ASK_CONFIRM_SEND))
 
         buttons = QHBoxLayout()
 
@@ -111,24 +89,16 @@ class Exception_Window(QWidget, MessageBoxMixin):
         self.show()
 
     def send_report(self):
-        if constants.net.GENESIS[-4:] not in ["29a0", "bfe2"] and ".electrum-ltc.org" in report_server:
-            # Gah! Some kind of altcoin wants to send us crash reports.
-            self.main_window.show_critical(_("Please report this issue manually."))
-            return
-        report = self.get_traceback_info()
-        report.update(self.get_additional_info())
-        report = json.dumps(report)
         try:
-            response = requests.post(report_server, data=report, timeout=20)
+            response = BaseCrashReporter.send_report(self)
         except BaseException as e:
             traceback.print_exc(file=sys.stderr)
             self.main_window.show_critical(_('There was a problem with the automatic reporting:') + '\n' +
                                            str(e) + '\n' +
                                            _("Please report this issue manually."))
             return
-        else:
-            QMessageBox.about(self, "Crash report", response.text)
-            self.close()
+        QMessageBox.about(self, _("Crash report"), response.text)
+        self.close()
 
     def on_close(self):
         Exception_Window._active_window = None
@@ -136,59 +106,21 @@ class Exception_Window(QWidget, MessageBoxMixin):
         self.close()
 
     def show_never(self):
-        self.main_window.config.set_key("show_crash_reporter", False)
+        self.main_window.config.set_key(BaseCrashReporter.config_key, False)
         self.close()
 
     def closeEvent(self, event):
         self.on_close()
         event.accept()
 
-    def get_traceback_info(self):
-        exc_string = str(self.exc_args[1])
-        stack = traceback.extract_tb(self.exc_args[2])
-        readable_trace = "".join(traceback.format_list(stack))
-        id = {
-            "file": stack[-1].filename,
-            "name": stack[-1].name,
-            "type": self.exc_args[0].__name__
-        }
-        return {
-            "exc_string": exc_string,
-            "stack": readable_trace,
-            "id": id
-        }
+    def get_user_description(self):
+        return self.description_textfield.toPlainText()
 
-    def get_additional_info(self):
-        args = {
-            "app_version": ELECTRUM_VERSION,
-            "os": platform.platform(),
-            "wallet_type": "unknown",
-            "locale": locale.getdefaultlocale()[0],
-            "description": self.description_textfield.toPlainText()
-        }
-        try:
-            args["wallet_type"] = self.main_window.wallet.wallet_type
-        except:
-            # Maybe the wallet isn't loaded yet
-            pass
-        try:
-            args["app_version"] = self.get_git_version()
-        except:
-            # This is probably not running from source
-            pass
-        return args
+    def get_wallet_type(self):
+        return self.main_window.wallet.wallet_type
 
-    def get_report_string(self):
-        info = self.get_additional_info()
-        info["traceback"] = "".join(traceback.format_exception(*self.exc_args))
-        return issue_template.format(**info)
-
-    @staticmethod
-    def get_git_version():
-        dir = os.path.dirname(os.path.realpath(sys.argv[0]))
-        version = subprocess.check_output(
-            ['git', 'describe', '--always', '--dirty'], cwd=dir)
-        return str(version, "utf8").strip()
+    def get_os_version(self):
+        return platform.platform()
 
 
 def _show_window(*args):
@@ -201,7 +133,7 @@ class Exception_Hook(QObject):
 
     def __init__(self, main_window, *args, **kwargs):
         super(Exception_Hook, self).__init__(*args, **kwargs)
-        if not main_window.config.get("show_crash_reporter", default=True):
+        if not main_window.config.get(BaseCrashReporter.config_key, default=True):
             return
         self.main_window = main_window
         sys.excepthook = self.handler

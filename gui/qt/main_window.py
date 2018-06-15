@@ -53,7 +53,7 @@ from electrum_ltc.util import (format_time, format_satoshis, format_fee_satoshis
 from electrum_ltc import Transaction
 from electrum_ltc import util, bitcoin, commands, coinchooser
 from electrum_ltc import paymentrequest
-from electrum_ltc.wallet import Multisig_Wallet, AddTransactionException
+from electrum_ltc.wallet import Multisig_Wallet, AddTransactionException, CannotBumpFee
 
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
@@ -1267,6 +1267,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return w
 
     def spend_max(self):
+        if run_hook('abort_send', self):
+            return
         self.is_max = True
         self.do_update_fee()
 
@@ -1364,7 +1366,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
             if self.is_max:
                 amount = tx.output_value()
-                self.amount_e.setAmount(amount)
+                __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
+                amount_after_all_fees = amount - x_fee_amount
+                self.amount_e.setAmount(amount_after_all_fees)
 
     def from_list_delete(self, item):
         i = self.from_list.indexOfTopLevelItem(item)
@@ -1577,20 +1581,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
-
-        def on_signed(result):
+        def on_success(result):
             callback(True)
-        def on_failed(exc_info):
+        def on_failure(exc_info):
             self.on_error(exc_info)
             callback(False)
-
+        on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
         if self.tx_external_keypairs:
             # can sign directly
             task = partial(Transaction.sign, tx, self.tx_external_keypairs)
         else:
             task = partial(self.wallet.sign_transaction, tx, password)
-        WaitingDialog(self, _('Signing transaction...'), task,
-                      on_signed, on_failed)
+        msg = _('Signing transaction...')
+        WaitingDialog(self, msg, task, on_success, on_failure)
 
     def broadcast_transaction(self, tx, tx_desc):
 
@@ -2244,11 +2247,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         message = message.encode('utf-8')
         try:
             public_key = ecc.ECPubkey(bfh(pubkey_e.text()))
-            encrypted = public_key.encrypt_message(message)
-            encrypted_e.setText(encrypted.decode('ascii'))
         except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            self.show_warning(str(e))
+            traceback.print_exc(file=sys.stdout)            
+            self.show_warning(_('Invalid Public key')) 
+            return
+        encrypted = public_key.encrypt_message(message)
+        encrypted_e.setText(encrypted.decode('ascii'))
 
     def encrypt_message(self, address=''):
         d = WindowModalDialog(self, _('Encrypt/decrypt Message'))
@@ -3161,7 +3165,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         try:
             new_tx = self.wallet.bump_fee(tx, delta)
-        except BaseException as e:
+        except CannotBumpFee as e:
             self.show_error(str(e))
             return
         if is_final:
