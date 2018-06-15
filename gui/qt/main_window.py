@@ -429,7 +429,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         new_path = os.path.join(wallet_folder, filename)
         if new_path != path:
             try:
-                shutil.copy2(path, new_path)
+                # Copy file contents
+                shutil.copyfile(path, new_path)
+
+                # Copy file attributes if possible
+                # (not supported on targets like Flatpak documents)
+                try:
+                    shutil.copystat(path, new_path)
+                except (IOError, os.error):
+                    pass
+
                 self.show_message(_("A copy of your wallet file was created in")+" '%s'" % str(new_path), title=_("Wallet backup created"))
             except (IOError, os.error) as reason:
                 self.show_critical(_("Electrum was unable to copy your wallet file to the specified location.") + "\n" + str(reason), title=_("Unable to create backup"))
