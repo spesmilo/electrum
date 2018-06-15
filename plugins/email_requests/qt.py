@@ -66,7 +66,10 @@ class Processor(threading.Thread):
         typ, data = self.M.search(None, 'ALL')
         for num in data[0].split():
             typ, msg_data = self.M.fetch(num, '(RFC822)')
-            msg = email.message_from_string(msg_data[0][1])
+            if type(msg_data[0][1]) is bytes:
+                msg = email.message_from_bytes(msg_data[0][1])
+            else:
+                msg = email.message_from_string(msg_data[0][1])
             p = msg.get_payload()
             if not msg.is_multipart():
                 p = [p]
