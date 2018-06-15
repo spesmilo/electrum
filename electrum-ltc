@@ -443,7 +443,7 @@ if __name__ == '__main__':
                     path = os.path.join(config.get('requests_dir'), 'index.html')
                     if not os.path.exists(path):
                         print("Requests directory not configured.")
-                        print("You can configure it using https://github.com/pooler/electrum-ltc-merchant")
+                        print("You can configure it using https://github.com/spesmilo/electrum-merchant")
                         sys.exit(1)
                 d.join()
                 sys.exit(0)
