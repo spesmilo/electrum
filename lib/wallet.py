@@ -714,6 +714,7 @@ class Abstract_Wallet(PrintError):
         coins = []
         if domain is None:
             domain = self.get_addresses()
+        domain = set(domain)
         if exclude_frozen:
             domain = set(domain) - self.frozen_addresses
         for addr in domain:
@@ -742,6 +743,7 @@ class Abstract_Wallet(PrintError):
     def get_balance(self, domain=None):
         if domain is None:
             domain = self.get_addresses()
+        domain = set(domain)
         cc = uu = xx = 0
         for addr in domain:
             c, u, x = self.get_addr_balance(addr)
@@ -990,6 +992,7 @@ class Abstract_Wallet(PrintError):
         # get domain
         if domain is None:
             domain = self.get_addresses()
+        domain = set(domain)
         # 1. Get the history of each address in the domain, maintain the
         #    delta of a tx as the sum of its deltas on domain addresses
         tx_deltas = defaultdict(int)

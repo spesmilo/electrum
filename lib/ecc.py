@@ -49,6 +49,10 @@ def generator():
     return ECPubkey.from_point(generator_secp256k1)
 
 
+def point_at_infinity():
+    return ECPubkey(None)
+
+
 def sig_string_from_der_sig(der_sig, order=CURVE_ORDER):
     r, s = ecdsa.util.sigdecode_der(der_sig, order)
     return ecdsa.util.sigencode_string(r, s, order)
@@ -83,6 +87,8 @@ def point_to_ser(P, compressed=True) -> bytes:
         x, y = P
     else:
         x, y = P.x(), P.y()
+    if x is None or y is None:  # infinity
+        return None
     if compressed:
         return bfh(('%02x' % (2+(y&1))) + ('%064x' % x))
     return bfh('04'+('%064x' % x)+('%064x' % y))
@@ -115,7 +121,10 @@ def ser_to_point(ser: bytes) -> (int, int):
 
 def _ser_to_python_ecdsa_point(ser: bytes) -> ecdsa.ellipticcurve.Point:
     x, y = ser_to_point(ser)
-    return Point(curve_secp256k1, x, y, CURVE_ORDER)
+    try:
+        return Point(curve_secp256k1, x, y, CURVE_ORDER)
+    except:
+        raise InvalidECPointException()
 
 
 class InvalidECPointException(Exception):
@@ -166,12 +175,19 @@ class _MySigningKey(ecdsa.SigningKey):
         return r, s
 
 
+class _PubkeyForPointAtInfinity:
+    point = ecdsa.ellipticcurve.INFINITY
+
+
 class ECPubkey(object):
 
     def __init__(self, b: bytes):
-        assert_bytes(b)
-        point = _ser_to_python_ecdsa_point(b)
-        self._pubkey = ecdsa.ecdsa.Public_key(generator_secp256k1, point)
+        if b is not None:
+            assert_bytes(b)
+            point = _ser_to_python_ecdsa_point(b)
+            self._pubkey = ecdsa.ecdsa.Public_key(generator_secp256k1, point)
+        else:
+            self._pubkey = _PubkeyForPointAtInfinity()
 
     @classmethod
     def from_sig_string(cls, sig_string: bytes, recid: int, msg_hash: bytes):
@@ -205,6 +221,7 @@ class ECPubkey(object):
         return ECPubkey(_bytes)
 
     def get_public_key_bytes(self, compressed=True):
+        if self.is_at_infinity(): raise Exception('point is at infinity')
         return point_to_ser(self.point(), compressed)
 
     def get_public_key_hex(self, compressed=True):
@@ -229,7 +246,8 @@ class ECPubkey(object):
         return self.from_point(ecdsa_point)
 
     def __eq__(self, other):
-        return self.get_public_key_bytes() == other.get_public_key_bytes()
+        return self._pubkey.point.x() == other._pubkey.point.x() \
+                and self._pubkey.point.y() == other._pubkey.point.y()
 
     def __ne__(self, other):
         return not (self == other)
@@ -275,6 +293,9 @@ class ECPubkey(object):
     def order(cls):
         return CURVE_ORDER
 
+    def is_at_infinity(self):
+        return self == point_at_infinity()
+
 
 def msg_magic(message: bytes) -> bytes:
     from .bitcoin import var_int
@@ -318,7 +339,7 @@ class ECPrivkey(ECPubkey):
             raise Exception('unexpected size for secret. should be 32 bytes, not {}'.format(len(privkey_bytes)))
         secret = string_to_number(privkey_bytes)
         if not is_secret_within_curve_range(secret):
-            raise Exception('Invalid secret scalar (not within curve order)')
+            raise InvalidECPointException('Invalid secret scalar (not within curve order)')
         self.secret_scalar = secret
 
         point = generator_secp256k1 * secret
