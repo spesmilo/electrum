@@ -75,7 +75,8 @@ class RequestList(MyTreeWidget):
             self.parent.expires_combo.show()
 
         # update the receive address if necessary
-        current_address = Address.from_string(self.parent.receive_address_e.text())
+        current_address_string = self.parent.receive_address_e.text().strip()
+        current_address = Address.from_string(current_address_string) if len(current_address_string) else None
         domain = self.wallet.get_receiving_addresses()
         addr = self.wallet.get_unused_address()
         if not current_address in domain and addr:
