@@ -203,7 +203,8 @@ class ElectrumGui:
                         pass
                     except GoBack as e:
                         print_error('[start_new_window] Exception caught (GoBack)', e)
-                    wizard.terminate()
+                    finally:
+                        wizard.terminate()
                     if not wallet:
                         return
                     wallet.start_threads(self.daemon.network)
