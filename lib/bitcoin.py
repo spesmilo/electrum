@@ -521,6 +521,21 @@ def minikey_to_private_key(text):
 BIP32_PRIME = 0x80000000
 
 
+def protect_against_invalid_ecpoint(func):
+    def func_wrapper(*args):
+        n = args[-1]
+        while True:
+            is_prime = n & BIP32_PRIME
+            try:
+                return func(*args[:-1], n=n)
+            except ecc.InvalidECPointException:
+                print_error('bip32 protect_against_invalid_ecpoint: skipping index')
+                n += 1
+                is_prime2 = n & BIP32_PRIME
+                if is_prime != is_prime2: raise OverflowError()
+    return func_wrapper
+
+
 # Child private key derivation function (from master private key)
 # k = master private key (32 bytes)
 # c = master chain code (extra entropy for key derivation) (32 bytes)
@@ -529,19 +544,25 @@ BIP32_PRIME = 0x80000000
 #  corresponding public key can NOT be determined without the master private key.
 # However, if n is positive, the resulting private key's corresponding
 #  public key can be determined without the master private key.
+@protect_against_invalid_ecpoint
 def CKD_priv(k, c, n):
     is_prime = n & BIP32_PRIME
     return _CKD_priv(k, c, bfh(rev_hex(int_to_hex(n,4))), is_prime)
 
 
 def _CKD_priv(k, c, s, is_prime):
-    keypair = ecc.ECPrivkey(k)
+    try:
+        keypair = ecc.ECPrivkey(k)
+    except ecc.InvalidECPointException as e:
+        raise BitcoinException('Impossible xprv (not within curve order)') from e
     cK = keypair.get_public_key_bytes(compressed=True)
     data = bytes([0]) + k + s if is_prime else cK + s
     I = hmac.new(c, data, hashlib.sha512).digest()
-    k_n = ecc.number_to_string(
-        (ecc.string_to_number(I[0:32]) + ecc.string_to_number(k)) % ecc.CURVE_ORDER,
-        ecc.CURVE_ORDER)
+    I_left = ecc.string_to_number(I[0:32])
+    k_n = (I_left + ecc.string_to_number(k)) % ecc.CURVE_ORDER
+    if I_left >= ecc.CURVE_ORDER or k_n == 0:
+        raise ecc.InvalidECPointException()
+    k_n = ecc.number_to_string(k_n, ecc.CURVE_ORDER)
     c_n = I[32:]
     return k_n, c_n
 
@@ -551,14 +572,18 @@ def _CKD_priv(k, c, s, is_prime):
 # n = index of key we want to derive
 # This function allows us to find the nth public key, as long as n is
 #  non-negative. If n is negative, we need the master private key to find it.
+@protect_against_invalid_ecpoint
 def CKD_pub(cK, c, n):
     if n & BIP32_PRIME: raise Exception()
     return _CKD_pub(cK, c, bfh(rev_hex(int_to_hex(n,4))))
 
-# helper function, callable with arbitrary string
+# helper function, callable with arbitrary string.
+# note: 's' does not need to fit into 32 bits here! (c.f. trustedcoin billing)
 def _CKD_pub(cK, c, s):
     I = hmac.new(c, cK + s, hashlib.sha512).digest()
     pubkey = ecc.ECPrivkey(I[0:32]) + ecc.ECPubkey(cK)
+    if pubkey.is_at_infinity():
+        raise ecc.InvalidECPointException()
     cK_n = pubkey.get_public_key_bytes(compressed=True)
     c_n = I[32:]
     return cK_n, c_n
