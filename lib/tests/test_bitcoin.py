@@ -12,7 +12,7 @@ from lib.bitcoin import (
     deserialize_privkey, serialize_privkey, is_segwit_address,
     is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
     xpub_type, is_xprv, is_bip32_derivation, seed_type, EncodeBase58Check,
-    script_num_to_hex, push_script, add_number_to_script)
+    script_num_to_hex, push_script, add_number_to_script, int_to_hex)
 from lib import ecc, crypto, ecc_fast
 from lib.ecc import number_to_string, string_to_number
 from lib.transaction import opcodes
@@ -226,6 +226,26 @@ class Test_bitcoin(SequentialTestCase):
 
         result = Hash(payload)
         self.assertEqual(expected, result)
+
+    def test_int_to_hex(self):
+        self.assertEqual('00', int_to_hex(0, 1))
+        self.assertEqual('ff', int_to_hex(-1, 1))
+        self.assertEqual('00000000', int_to_hex(0, 4))
+        self.assertEqual('01000000', int_to_hex(1, 4))
+        self.assertEqual('7f', int_to_hex(127, 1))
+        self.assertEqual('7f00', int_to_hex(127, 2))
+        self.assertEqual('80', int_to_hex(128, 1))
+        self.assertEqual('80', int_to_hex(-128, 1))
+        self.assertEqual('8000', int_to_hex(128, 2))
+        self.assertEqual('ff', int_to_hex(255, 1))
+        self.assertEqual('ff7f', int_to_hex(32767, 2))
+        self.assertEqual('0080', int_to_hex(-32768, 2))
+        self.assertEqual('ffff', int_to_hex(65535, 2))
+        with self.assertRaises(OverflowError): int_to_hex(256, 1)
+        with self.assertRaises(OverflowError): int_to_hex(-129, 1)
+        with self.assertRaises(OverflowError): int_to_hex(-257, 1)
+        with self.assertRaises(OverflowError): int_to_hex(65536, 2)
+        with self.assertRaises(OverflowError): int_to_hex(-32769, 2)
 
     def test_var_int(self):
         for i in range(0xfd):
