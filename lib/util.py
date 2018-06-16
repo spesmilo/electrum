@@ -373,7 +373,7 @@ def bh2u(x):
 def user_dir(prefer_local=False):
     if 'ANDROID_DATA' in os.environ:
         return android_check_data_dir()
-    elif os.name == 'posix':
+    elif os.name == 'posix' and "HOME" in os.environ:
         return os.path.join(os.environ["HOME"], ".electron-cash" )
     elif "APPDATA" in os.environ or "LOCALAPPDATA" in os.environ:
         app_dir = os.environ.get("APPDATA")
