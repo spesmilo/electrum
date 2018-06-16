@@ -69,6 +69,14 @@ Create translations (optional)::
 
 For plugin development, see the `plugin documentation <plugins/README.rst>`_.
 
+Running unit tests::
+
+    pip install tox
+    tox
+
+Tox will take care of building a faux installation environment, and ensure that
+the mapped import paths work correctly.
+
 Creating Binaries
 =================
 

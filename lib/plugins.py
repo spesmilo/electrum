@@ -120,6 +120,10 @@ class Plugins(DaemonThread):
 
     def load_external_plugins(self):
         external_plugin_dir = self.get_external_plugin_dir()
+        # Unit tests, environment does not lead to finding a user dir, there will be none to load anyway.
+        if external_plugin_dir is None:
+            return
+
         for file_name in os.listdir(external_plugin_dir):
             plugin_file_path = os.path.join(external_plugin_dir, file_name)
             leading_name, ext = os.path.splitext(file_name)
@@ -276,6 +280,9 @@ class Plugins(DaemonThread):
         # It's possible the plugins are being stored in a local directory
         # and the rest of the data is being stored in the non-local directory.
         local_user_dir = user_dir(prefer_local=True)
+        # Environment does not have a user directory (will be unit tests where there are no external plugins).
+        if local_user_dir is None:
+            return None
         make_dir(local_user_dir)
         external_plugin_dir = os.path.join(local_user_dir, "external_plugins")
         make_dir(external_plugin_dir)
@@ -327,7 +334,7 @@ class Plugins(DaemonThread):
                             # XX 00 - utf-16-le
                             return 'utf-16-le'
                     # default
-                    return 'utf-8'            
+                    return 'utf-8'
                 metadata_text = metadata_text.decode(detect_encoding(metadata_text), 'surrogatepass')
         # END
 
