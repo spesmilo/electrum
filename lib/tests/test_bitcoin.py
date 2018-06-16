@@ -3,6 +3,7 @@ import unittest
 import sys
 from ecdsa.util import number_to_string
 
+from lib.address import Address
 from lib.bitcoin import (
     generator_secp256k1, point_to_ser, public_key_to_p2pkh, EC_KEY,
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
