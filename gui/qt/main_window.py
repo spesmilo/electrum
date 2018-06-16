@@ -2063,10 +2063,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             # This can throw on invalid base64
             sig = base64.b64decode(signature.toPlainText())
+            verified = bitcoin.verify_message(address, sig, message)
         except:
             verified = False
-        else:
-            verified = bitcoin.verify_message(address, sig, message)
 
         if verified:
             self.show_message(_("Signature verified"))
