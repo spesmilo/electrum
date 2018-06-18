@@ -1137,6 +1137,7 @@ class Transaction:
             if type == TYPE_ADDRESS:
                 addr = x
             elif type == TYPE_PUBKEY:
+                # TODO do we really want this conversion? it's not really that address after all
                 addr = bitcoin.public_key_to_p2pkh(bfh(x))
             else:
                 addr = 'SCRIPT ' + x

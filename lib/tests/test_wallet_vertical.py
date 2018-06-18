@@ -8,7 +8,7 @@ import lib
 from lib import storage, bitcoin, keystore, constants
 from lib.transaction import Transaction
 from lib.simple_config import SimpleConfig
-from lib.wallet import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
+from lib.wallet import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, sweep
 from lib.util import bfh, bh2u
 
 from plugins.trustedcoin import trustedcoin
@@ -947,6 +947,29 @@ class TestWalletSending(TestCaseForTestnet):
 
         wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 50000, 0), wallet.get_balance())
+
+    @needs_test_with_all_ecc_implementations
+    def test_sweep_p2pk(self):
+
+        class NetworkMock:
+            relay_fee = 1000
+            def get_local_height(self): return 1325785
+            def listunspent_for_scripthash(self, scripthash):
+                if scripthash == '460e4fb540b657d775d84ff4955c9b13bd954c2adc26a6b998331343f85b6a45':
+                    return [{'tx_hash': 'ac24de8b58e826f60bd7b9ba31670bdfc3e8aedb2f28d0e91599d741569e3429', 'tx_pos': 1, 'height': 1325785, 'value': 1000000}]
+                else:
+                    return []
+
+        privkeys = ['93NQ7CFbwTPyKDJLXe97jczw33fiLijam2SCZL3Uinz1NSbHrTu', ]
+        network = NetworkMock()
+        dest_addr = 'tb1q3ws2p0qjk5vrravv065xqlnkckvzcpclk79eu2'
+        tx = sweep(privkeys, network, config=None, recipient=dest_addr, fee=5000)
+
+        tx_copy = Transaction(tx.serialize())
+        self.assertEqual('010000000129349e5641d79915e9d0282fdbaee8c3df0b6731bab9d70bf626e8588bde24ac010000004847304402206bf0d0a93abae0d5873a62ebf277a5dd2f33837821e8b93e74d04e19d71b578002201a6d729bc159941ef5c4c9e5fe13ece9fc544351ba531b00f68ba549c8b38a9a01fdffffff01b82e0f00000000001600148ba0a0bc12b51831f58c7ea8607e76c5982c071fd93a1400',
+                         str(tx_copy))
+        self.assertEqual('7f827fc5256c274fd1094eb7e020c8ded0baf820356f61aa4f14a9093b0ea0ee', tx_copy.txid())
+        self.assertEqual('7f827fc5256c274fd1094eb7e020c8ded0baf820356f61aa4f14a9093b0ea0ee', tx_copy.wtxid())
 
 
 class TestWalletOfflineSigning(TestCaseForTestnet):
