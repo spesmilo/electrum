@@ -720,7 +720,7 @@ class LineDialog(WizardDialog):
         self.ids.next.disabled = False
 
     def get_params(self, b):
-        return (self.ids.passphrase_input.text,)
+        return (self.ids.passphrase_input.text, {})
 
 class ShowSeedDialog(WizardDialog):
     seed_text = StringProperty('')

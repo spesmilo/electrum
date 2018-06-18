@@ -519,9 +519,30 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.exec_layout(vbox, '')
         return clayout.selected_index()
 
+    def _create_options_button_and_functionality(self, options, selected_options):
+        for option_name, option_text in options:
+            selected_options[option_name] = False
+
+        def show_options():
+            dialog = QDialog()
+            vbox = QVBoxLayout(dialog)
+            for option_name, option_text in options:
+                cb = QCheckBox(option_text)
+                cb.setChecked(selected_options[option_name])
+                def on_toggle(b):
+                    selected_options[option_name] = b
+                cb.toggled.connect(on_toggle)
+                vbox.addWidget(cb)
+            vbox.addLayout(Buttons(OkButton(dialog)))
+            if not dialog.exec_():
+                return None
+        opt_button = EnterButton(_('Options'), show_options)
+        opt_button.setMaximumWidth(100)
+        return opt_button
+
     @wizard_dialog
     def line_dialog(self, run_next, title, message, default, test, warning='',
-                    presets=()):
+                    presets=(), options=()):
         vbox = QVBoxLayout()
         vbox.addWidget(WWLabel(message))
         line = QLineEdit()
@@ -530,18 +551,26 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.next_button.setEnabled(test(text))
         line.textEdited.connect(f)
         vbox.addWidget(line)
+
+        selected_options = {}
+        if options:
+            opt_button = self._create_options_button_and_functionality(options, selected_options)
+            hbox = QHBoxLayout()
+            hbox.addWidget(opt_button, alignment=Qt.AlignRight)
+            vbox.addLayout(hbox)
+
         vbox.addWidget(WWLabel(warning))
 
         for preset in presets:
             button = QPushButton(preset[0])
             button.clicked.connect(lambda __, text=preset[1]: line.setText(text))
-            button.setMaximumWidth(150)
+            button.setMinimumWidth(150)
             hbox = QHBoxLayout()
-            hbox.addWidget(button, Qt.AlignCenter)
+            hbox.addWidget(button, alignment=Qt.AlignCenter)
             vbox.addLayout(hbox)
 
         self.exec_layout(vbox, title, next_enabled=test(default))
-        return ' '.join(line.text().split())
+        return ' '.join(line.text().split()), selected_options
 
     @wizard_dialog
     def show_xpub_dialog(self, xpub, run_next):
