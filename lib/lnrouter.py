@@ -152,7 +152,8 @@ class LNPathFinder(PrintError):
     def __init__(self, channel_db):
         self.channel_db = channel_db
 
-    def _edge_cost(self, short_channel_id: bytes, start_node: bytes, payment_amt_msat: int) -> float:
+    def _edge_cost(self, short_channel_id: bytes, start_node: bytes, payment_amt_msat: int,
+                   ignore_cltv=False) -> float:
         """Heuristic cost of going through a channel.
         direction: 0 or 1. --- 0 means node_id_1 -> node_id_2
         """
@@ -177,7 +178,7 @@ class LNPathFinder(PrintError):
         # TODO revise
         # paying 10 more satoshis ~ waiting one more block
         fee_cost = fee_msat / 1000 / 10
-        cltv_cost = cltv_expiry_delta
+        cltv_cost = cltv_expiry_delta if not ignore_cltv else 0
         return cltv_cost + fee_cost + 1
 
     @profiler
@@ -212,8 +213,10 @@ class LNPathFinder(PrintError):
                 channel_info = self.channel_db.get_channel_info(edge_channel_id)
                 node1, node2 = channel_info.node_id_1, channel_info.node_id_2
                 neighbour = node2 if node1 == cur_node else node1
-                alt_dist_to_neighbour = distance_from_start[cur_node] \
-                                        + self._edge_cost(edge_channel_id, cur_node, amount_msat)
+                ignore_cltv_delta_in_edge_cost = cur_node == from_node_id
+                edge_cost = self._edge_cost(edge_channel_id, cur_node, amount_msat,
+                                            ignore_cltv=ignore_cltv_delta_in_edge_cost)
+                alt_dist_to_neighbour = distance_from_start[cur_node] + edge_cost
                 if alt_dist_to_neighbour < distance_from_start[neighbour]:
                     distance_from_start[neighbour] = alt_dist_to_neighbour
                     prev_node[neighbour] = cur_node, edge_channel_id
