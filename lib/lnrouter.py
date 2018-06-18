@@ -152,6 +152,7 @@ class LNPathFinder(PrintError):
 
     def __init__(self, channel_db):
         self.channel_db = channel_db
+        self.blacklist = set()
 
     def _edge_cost(self, short_channel_id: bytes, start_node: bytes, payment_amt_msat: int,
                    ignore_cltv=False) -> float:
@@ -211,6 +212,7 @@ class LNPathFinder(PrintError):
                 # so there are duplicates in the queue, that we discard now:
                 continue
             for edge_channel_id in self.channel_db.get_channels_for_node(cur_node):
+                if edge_channel_id in self.blacklist: continue
                 channel_info = self.channel_db.get_channel_info(edge_channel_id)
                 node1, node2 = channel_info.node_id_1, channel_info.node_id_2
                 neighbour = node2 if node1 == cur_node else node1
