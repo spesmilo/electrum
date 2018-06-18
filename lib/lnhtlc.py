@@ -394,3 +394,8 @@ class HTLCStateMachine(PrintError):
         assert htlc.payment_hash == sha256(preimage)
         assert len([x.htlc_id == htlc_index for x in self.local_update_log]) == 1
         self.remote_update_log.append(SettleHtlc(htlc_index))
+
+    def fail_htlc(self, htlc):
+        # TODO
+        self.local_update_log = []
+        self.remote_update_log = []
