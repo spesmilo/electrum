@@ -193,6 +193,8 @@ class LNWorker(PrintError):
         for chan in self.channels.values():
             if chan.short_channel_id == short_channel_id:
                 break
+        else:
+            raise Exception("ChannelDB returned path with short_channel_id that is not in channel list")
         coro = peer.pay(path, chan, amount_msat, payment_hash, invoice_pubkey, addr.min_final_cltv_expiry)
         return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
