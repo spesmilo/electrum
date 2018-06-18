@@ -4,15 +4,13 @@
   Derived from https://gist.github.com/AdamISZ/046d05c156aaeb56cc897f85eecb3eb8
 """
 
-from ecdsa.util import sigdecode_der, sigencode_string_canonize
-from ecdsa import VerifyingKey
+from ecdsa.util import sigdecode_der, sigencode_string_canonize, sigdecode_string
 from ecdsa.curves import SECP256k1
 import queue
 import traceback
 import json
 from collections import OrderedDict, defaultdict
 import asyncio
-import sys
 import os
 import time
 import binascii
@@ -599,6 +597,8 @@ class Peer(PrintError):
         self.revoke_and_ack = defaultdict(asyncio.Queue)
         self.update_fulfill_htlc = defaultdict(asyncio.Queue)
         self.commitment_signed = defaultdict(asyncio.Queue)
+        self.announcement_signatures = defaultdict(asyncio.Queue)
+        self.is_funding_six_deep = defaultdict(lambda: False)
         self.localfeatures = (0x08 if request_initial_sync else 0)
         self.nodes = {}
         self.channels = lnworker.channels
@@ -766,6 +766,10 @@ class Peer(PrintError):
         self.channel_db.on_channel_announcement(payload)
         self.channel_update_event.set()
 
+    def on_announcement_signatures(self, payload):
+        channel_id = payload['channel_id']
+        self.announcement_signatures[channel_id].put_nowait(payload)
+
     @aiosafe
     async def main_loop(self):
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
@@ -835,6 +839,7 @@ class Peer(PrintError):
             first_per_commitment_point=per_commitment_point_first,
             to_self_delay=local_config.to_self_delay,
             max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
+            channel_flags=0x01, # publicly announcing channel
             channel_reserve_satoshis=10
         )
         self.send_message(msg)
@@ -968,6 +973,49 @@ class Peer(PrintError):
         if chan.short_channel_id:
             self.mark_open(chan)
 
+    async def funding_six_deep(self, chan):
+        if self.is_funding_six_deep[chan.channel_id]:
+            return
+        self.is_funding_six_deep[chan.channel_id] = True
+        h, local_node_sig, local_bitcoin_sig = self.send_announcement_signatures(chan)
+        announcement_signatures_msg = await self.announcement_signatures[chan.channel_id].get()
+        remote_node_sig = announcement_signatures_msg["node_signature"]
+        remote_bitcoin_sig = announcement_signatures_msg["bitcoin_signature"]
+        if not ecc.verify_signature(chan.remote_config.multisig_key.pubkey, remote_bitcoin_sig, h):
+            raise Exception("bitcoin_sig invalid in announcement_signatures")
+        if not ecc.verify_signature(self.pubkey, remote_node_sig, h):
+            raise Exception("node_sig invalid in announcement_signatures")
+
+        node_sigs = [local_node_sig, remote_node_sig]
+        bitcoin_sigs = [local_bitcoin_sig, remote_bitcoin_sig]
+        node_ids = [privkey_to_pubkey(self.privkey), self.pubkey]
+        bitcoin_keys = [chan.local_config.multisig_key.pubkey, chan.remote_config.multisig_key.pubkey]
+
+        if node_ids[0] > node_ids[1]:
+            node_sigs.reverse()
+            bitcoin_sigs.reverse()
+            node_ids.reverse()
+            bitcoin_keys.reverse()
+
+        channel_announcement = gen_msg("channel_announcement",
+            node_signatures_1=node_sigs[0],
+            node_signatures_2=node_sigs[1],
+            bitcoin_signature_1=bitcoin_sigs[0],
+            bitcoin_signature_2=bitcoin_sigs[1],
+            len=0,
+            #features
+            chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)),
+            short_channel_id=chan.short_channel_id,
+            node_id_1=node_ids[0],
+            node_id_2=node_ids[1],
+            bitcoin_key_1=bitcoin_keys[0],
+            bitcoin_key_2=bitcoin_keys[1]
+        )
+
+        self.send_message(channel_announcement)
+
+        print("SENT CHANNEL ANNOUNCEMENT")
+
     def mark_open(self, chan):
         if self.channel_state[chan.channel_id] == "OPEN":
             return
@@ -979,7 +1027,44 @@ class Peer(PrintError):
         self.channel_db.on_channel_announcement({"short_channel_id": chan.short_channel_id, "node_id_1": sorted_keys[0], "node_id_2": sorted_keys[1]})
         self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'flags': b'\x01', 'cltv_expiry_delta': b'\x90', 'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01'})
         self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'flags': b'\x00', 'cltv_expiry_delta': b'\x90', 'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01'})
+
         self.print_error("CHANNEL OPENING COMPLETED")
+
+    def send_announcement_signatures(self, chan):
+
+        bitcoin_keys = [chan.local_config.multisig_key.pubkey,
+                        chan.remote_config.multisig_key.pubkey]
+
+        node_ids = [privkey_to_pubkey(self.privkey),
+                    self.pubkey]
+
+        sorted_node_ids = list(sorted(node_ids))
+        if sorted_node_ids != node_ids:
+            node_ids = sorted_node_ids
+            bitcoin_keys.reverse()
+
+        chan_ann = gen_msg("channel_announcement",
+            len=0,
+            #features
+            chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)),
+            short_channel_id=chan.short_channel_id,
+            node_id_1=node_ids[0],
+            node_id_2=node_ids[1],
+            bitcoin_key_1=bitcoin_keys[0],
+            bitcoin_key_2=bitcoin_keys[1]
+        )
+        to_hash = chan_ann[256+2:]
+        h = bitcoin.Hash(to_hash)
+        bitcoin_signature = ecc.ECPrivkey(chan.local_config.multisig_key.privkey).sign(h, sigencode_string_canonize, sigdecode_string)
+        node_signature = ecc.ECPrivkey(self.privkey).sign(h, sigencode_string_canonize, sigdecode_string)
+        self.send_message(gen_msg("announcement_signatures",
+            channel_id=chan.channel_id,
+            short_channel_id=chan.short_channel_id,
+            node_signature=node_signature,
+            bitcoin_signature=bitcoin_signature
+        ))
+
+        return h, node_signature, bitcoin_signature
 
     def on_update_fail_htlc(self, payload):
         print("UPDATE_FAIL_HTLC", decode_onion_error(payload["reason"], self.node_keys, self.secret_key))

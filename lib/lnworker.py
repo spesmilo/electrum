@@ -1,13 +1,8 @@
-import traceback
-import sys
 import json
 import binascii
 import asyncio
-import time
 import os
 from decimal import Decimal
-import binascii
-import asyncio
 import threading
 from collections import defaultdict
 
@@ -15,11 +10,7 @@ from . import constants
 from .bitcoin import sha256, COIN
 from .util import bh2u, bfh, PrintError
 from .constants import set_testnet, set_simnet
-from .simple_config import SimpleConfig
-from .network import Network
-from .storage import WalletStorage
-from .wallet import Wallet
-from .lnbase import Peer, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore, aiosafe, calc_short_channel_id, privkey_to_pubkey
+from .lnbase import Peer, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore, calc_short_channel_id, privkey_to_pubkey
 from .lightning_payencode.lnaddr import lnencode, LnAddr, lndecode
 from . import lnrouter
 from .ecc import ECPrivkey
@@ -142,7 +133,7 @@ class LNWorker(PrintError):
 
         If the Funding TX has not been mined, return None
         """
-        assert self.channel_state[chan.channel_id] == "OPENING"
+        assert self.channel_state[chan.channel_id] in ["OPEN", "OPENING"]
         peer = self.peers[chan.node_id]
         conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
         if conf >= chan.constraints.funding_txn_minimum_depth:
@@ -153,14 +144,21 @@ class LNWorker(PrintError):
                 return None
             chan = chan._replace(short_channel_id = calc_short_channel_id(block_height, tx_pos, chan.funding_outpoint.output_index))
             self.save_channel(chan)
-            return chan
-        return None
+            return chan, conf
+        return None, None
 
     def on_network_update(self, event, *args):
         for chan in self.channels.values():
+            if self.channel_state[chan.channel_id] == "OPEN":
+                conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
+                if conf >= 6:
+                    peer = self.peers[chan.node_id]
+                    coro = peer.funding_six_deep(chan)
+                    fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+                    fut.result()
             if self.channel_state[chan.channel_id] != "OPENING":
                 continue
-            chan = self.save_short_chan_id(chan)
+            chan, conf = self.save_short_chan_id(chan)
             if not chan:
                 self.print_error("network update but funding tx is still not at sufficient depth")
                 continue
