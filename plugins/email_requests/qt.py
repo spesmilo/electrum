@@ -61,6 +61,9 @@ class Processor(threading.Thread, PrintError):
         self.imap_server = imap_server
         self.on_receive = callback
         self.M = None
+        self.reset_connect_wait()
+
+    def reset_connect_wait(self):
         self.connect_wait = 100  # ms, between failed connection attempts
 
     def poll(self):
@@ -71,7 +74,7 @@ class Processor(threading.Thread, PrintError):
         typ, data = self.M.search(None, 'ALL')
         for num in str(data[0], 'utf8').split():
             typ, msg_data = self.M.fetch(num, '(RFC822)')
-            msg = email.message_from_string(str(msg_data[0][1], 'utf8'))
+            msg = email.message_from_bytes(msg_data[0][1])
             p = msg.get_payload()
             if not msg.is_multipart():
                 p = [p]
@@ -88,11 +91,17 @@ class Processor(threading.Thread, PrintError):
                 self.M = imaplib.IMAP4_SSL(self.imap_server)
                 self.M.login(self.username, self.password)
             except BaseException as e:
-                self.print_error(e)
+                self.print_error('connecting failed: {}'.format(e))
                 self.connect_wait *= 2
+            else:
+                self.reset_connect_wait()
             # Reconnect when host changes
             while self.M and self.M.host == self.imap_server:
-                self.poll()
+                try:
+                    self.poll()
+                except BaseException as e:
+                    self.print_error('polling failed: {}'.format(e))
+                    break
                 time.sleep(self.polling_interval)
             time.sleep(random.randint(0, self.connect_wait))
 
