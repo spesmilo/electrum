@@ -142,6 +142,7 @@ class RouteEdge:
 
     def __init__(self, node_id: bytes, short_channel_id: bytes,
                  channel_policy: ChannelInfoDirectedPolicy):
+        # "if you travel through short_channel_id, you will reach node_id"
         self.node_id = node_id
         self.short_channel_id = short_channel_id
         self.channel_policy = channel_policy
