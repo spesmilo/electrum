@@ -30,7 +30,7 @@ import sys
 from .address import Address
 from . import dnssec
 from .util import FileImportFailed, FileImportFailedEncrypted
-from .util import export_meta, import_meta, print_error
+from .util import print_error
 
 
 class Contacts(dict):
