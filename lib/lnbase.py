@@ -1153,17 +1153,17 @@ class Peer(PrintError):
 
         done, pending = await asyncio.wait([fulfill_coro, failure_coro], return_when=FIRST_COMPLETED)
         if failure_coro.done():
-            m.fail_htlc(htlc)
-            # TODO receive their commitment here
-
-            # TODO find out why the following block fails with "not enough htlc signatures"
             sig_64, htlc_sigs = m.sign_next_commitment()
-            assert len(htlc_sigs) == 0
-            self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=0))
-
+            self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sigs[0]))
+            while (await self.commitment_signed[chan.channel_id].get())["htlc_signature"] != b"":
+                self.revoke(m)
             await self.receive_revoke(m)
-            self.revoke(m)
+            m.fail_htlc(htlc)
+            sig_64, htlc_sigs = m.sign_next_commitment()
+            self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=0))
+            await self.receive_revoke(m)
             fulfill_coro.cancel()
+            self.lnworker.save_channel(m.state)
             return failure_coro.result()
         if fulfill_coro.done():
             failure_coro.cancel()
