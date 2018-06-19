@@ -540,12 +540,13 @@ def protect_against_invalid_ecpoint(func):
 # k = master private key (32 bytes)
 # c = master chain code (extra entropy for key derivation) (32 bytes)
 # n = the index of the key we want to derive. (only 32 bits will be used)
-# If n is negative (i.e. the 32nd bit is set), the resulting private key's
+# If n is hardened (i.e. the 32nd bit is set), the resulting private key's
 #  corresponding public key can NOT be determined without the master private key.
-# However, if n is positive, the resulting private key's corresponding
+# However, if n is not hardened, the resulting private key's corresponding
 #  public key can be determined without the master private key.
 @protect_against_invalid_ecpoint
 def CKD_priv(k, c, n):
+    if n < 0: raise ValueError('the bip32 index needs to be non-negative')
     is_prime = n & BIP32_PRIME
     return _CKD_priv(k, c, bfh(rev_hex(int_to_hex(n,4))), is_prime)
 
@@ -571,9 +572,10 @@ def _CKD_priv(k, c, s, is_prime):
 # c = master chain code
 # n = index of key we want to derive
 # This function allows us to find the nth public key, as long as n is
-#  non-negative. If n is negative, we need the master private key to find it.
+#  not hardened. If n is hardened, we need the master private key to find it.
 @protect_against_invalid_ecpoint
 def CKD_pub(cK, c, n):
+    if n < 0: raise ValueError('the bip32 index needs to be non-negative')
     if n & BIP32_PRIME: raise Exception()
     return _CKD_pub(cK, c, bfh(rev_hex(int_to_hex(n,4))))
 
