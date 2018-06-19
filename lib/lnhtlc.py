@@ -146,8 +146,6 @@ class HTLCStateMachine(PrintError):
             if htlc.r_locked_in is None: htlc.r_locked_in = self.state.remote_state.ctn
         assert len(htlc_sigs) == 0 or type(htlc_sigs[0]) is bytes
 
-        assert len(htlc_sigs) == len(self.local_commitment.outputs()) - 2, (len(htlc_sigs), len(self.local_commitment.outputs()) - 2, self.diagnostic_name())
-
         preimage_hex = self.local_commitment.serialize_preimage(0)
         pre_hash = Hash(bfh(preimage_hex))
         if not ecc.verify_signature(self.state.remote_config.multisig_key.pubkey, sig, pre_hash):
@@ -298,8 +296,8 @@ class HTLCStateMachine(PrintError):
           htlc_value_local
         remote_msat = self.state.remote_state.amount_msat -\
           htlc_value_remote
-        assert local_msat > 0
-        assert remote_msat > 0
+        assert local_msat >= 0
+        assert remote_msat >= 0
 
         this_point = self.state.remote_state.next_per_commitment_point
 
@@ -320,7 +318,6 @@ class HTLCStateMachine(PrintError):
         commit = make_commitment_using_open_channel(self.state, self.state.remote_state.ctn + 1,
             False, this_point,
             remote_msat - total_fee_remote, local_msat - total_fee_local, htlcs_in_local + htlcs_in_remote)
-        assert len(commit.outputs()) == 2 + len(htlcs_in_local) + len(htlcs_in_remote)
         return commit
 
     @property
@@ -332,8 +329,8 @@ class HTLCStateMachine(PrintError):
           htlc_value_local
         remote_msat = self.state.remote_state.amount_msat -\
           htlc_value_remote
-        assert local_msat > 0
-        assert remote_msat > 0
+        assert local_msat >= 0
+        assert remote_msat >= 0
 
         _, this_point, _ = self.points
 
@@ -354,7 +351,6 @@ class HTLCStateMachine(PrintError):
         commit = make_commitment_using_open_channel(self.state, self.state.local_state.ctn + 1,
             True, this_point,
             local_msat - total_fee_local, remote_msat - total_fee_remote, htlcs_in_local + htlcs_in_remote)
-        assert len(commit.outputs()) == 2 + len(htlcs_in_local) + len(htlcs_in_remote)
         return commit
 
     def gen_htlc_indices(self, subject):

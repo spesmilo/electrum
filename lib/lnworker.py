@@ -144,30 +144,29 @@ class LNWorker(PrintError):
                 return None
             chan = chan._replace(short_channel_id = calc_short_channel_id(block_height, tx_pos, chan.funding_outpoint.output_index))
             self.save_channel(chan)
-            return chan, conf
-        return None, None
+            return chan
+        return None
 
     def on_network_update(self, event, *args):
         for chan in self.channels.values():
-            if self.channel_state[chan.channel_id] == "OPEN":
-                conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
-                if conf >= 6:
-                    peer = self.peers[chan.node_id]
-                    coro = peer.funding_six_deep(chan)
-                    fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-                    fut.result()
-            if self.channel_state[chan.channel_id] != "OPENING":
-                continue
-            chan, conf = self.save_short_chan_id(chan)
-            if not chan:
-                self.print_error("network update but funding tx is still not at sufficient depth")
-                continue
             peer = self.peers[chan.node_id]
-            peer.funding_locked(chan)
+            if self.channel_state[chan.channel_id] == "OPENING":
+                chan = self.save_short_chan_id(chan)
+                if not chan:
+                    self.print_error("network update but funding tx is still not at sufficient depth")
+                    continue
+                # this results in the channel being marked OPEN
+                peer.funding_locked(chan)
+            elif self.channel_state[chan.channel_id] == "OPEN":
+                conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
+                peer.on_network_update(chan, conf)
 
     # not aiosafe because we call .result() which will propagate an exception
     async def _open_channel_coroutine(self, node_id, amount_sat, push_sat, password):
-        peer = self.peers[bfh(node_id)]
+        if node_id == "":
+            peer = next(iter(self.peers.values()))
+        else:
+            peer = self.peers[bfh(node_id)]
         openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password, amount_sat, push_sat * 1000, temp_channel_id=os.urandom(32))
         self.print_error("SAVING OPENING CHANNEL")
         self.save_channel(openingchannel)
