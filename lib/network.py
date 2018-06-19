@@ -23,7 +23,6 @@
 import time
 import queue
 import os
-import stat
 import errno
 import random
 import re
@@ -40,7 +39,7 @@ import socks
 
 from . import util
 from . import bitcoin
-from .bitcoin import *
+from .bitcoin import COIN
 from . import constants
 from .interface import Connection, Interface
 from . import blockchain
@@ -54,7 +53,6 @@ SERVER_RETRY_INTERVAL = 10
 
 def parse_servers(result):
     """ parse servers list into dict format"""
-    from .version import PROTOCOL_VERSION
     servers = {}
     for item in result:
         host = item[1]
@@ -983,7 +981,7 @@ class Network(util.DaemonThread):
 
     def on_notify_header(self, interface, header_dict):
         header_hex, height = header_dict['hex'], header_dict['height']
-        header = blockchain.deserialize_header(bfh(header_hex), height)
+        header = blockchain.deserialize_header(util.bfh(header_hex), height)
         if height < self.max_checkpoint():
             self.connection_down(interface.server)
             return
