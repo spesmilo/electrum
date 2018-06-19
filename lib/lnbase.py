@@ -279,7 +279,7 @@ ChannelConfig = namedtuple("ChannelConfig", [
     "to_self_delay", "dust_limit_sat", "max_htlc_value_in_flight_msat", "max_accepted_htlcs"])
 OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
 RemoteState = namedtuple("RemoteState", ["ctn", "next_per_commitment_point", "amount_msat", "revocation_store", "last_per_commitment_point", "next_htlc_id"])
-LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amount_msat", "next_htlc_id", "funding_locked_received"])
+LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amount_msat", "next_htlc_id", "funding_locked_received", "was_announced"])
 ChannelConstraints = namedtuple("ChannelConstraints", ["feerate", "capacity", "is_initiator", "funding_txn_minimum_depth"])
 OpenChannel = namedtuple("OpenChannel", ["channel_id", "short_channel_id", "funding_outpoint", "local_config", "remote_config", "remote_state", "local_state", "constraints", "node_id"])
 
@@ -600,7 +600,6 @@ class Peer(PrintError):
         self.commitment_signed = defaultdict(asyncio.Queue)
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.update_fail_htlc = defaultdict(asyncio.Queue)
-        self.is_funding_six_deep = defaultdict(lambda: False)
         self.localfeatures = (0x08 if request_initial_sync else 0)
         self.nodes = {}
         self.channels = lnworker.channels
@@ -771,7 +770,11 @@ class Peer(PrintError):
 
     def on_announcement_signatures(self, payload):
         channel_id = payload['channel_id']
-        self.announcement_signatures[channel_id].put_nowait(payload)
+        chan = self.channels[payload['channel_id']]
+        if chan.local_state.was_announced:
+            h, local_node_sig, local_bitcoin_sig = self.send_announcement_signatures(chan)
+        else:
+            self.announcement_signatures[channel_id].put_nowait(payload)
 
     @aiosafe
     async def main_loop(self):
@@ -794,6 +797,7 @@ class Peer(PrintError):
         self.print_error('closing lnbase')
         self.writer.close()
 
+    @aiosafe
     async def channel_establishment_flow(self, wallet, config, password, funding_sat, push_msat, temp_channel_id):
         await self.initialized
         # see lnd/keychain/derivation.go
@@ -900,7 +904,8 @@ class Peer(PrintError):
                     per_commitment_secret_seed=per_commitment_secret_seed,
                     amount_msat=local_amount,
                     next_htlc_id = 0,
-                    funding_locked_received = False
+                    funding_locked_received = False,
+                    was_announced = False
                 ),
                 constraints=ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
         )
@@ -976,10 +981,20 @@ class Peer(PrintError):
         if chan.short_channel_id:
             self.mark_open(chan)
 
-    async def funding_six_deep(self, chan):
-        if self.is_funding_six_deep[chan.channel_id]:
-            return
-        self.is_funding_six_deep[chan.channel_id] = True
+    def on_network_update(self, chan, funding_tx_depth):
+        """
+        Only called when the channel is OPEN.
+
+        Runs on the Network thread.
+        """
+        if not chan.local_state.was_announced and funding_tx_depth >= 6:
+            chan = chan._replace(local_state=chan.local_state._replace(was_announced=True))
+            coro = self.handle_announcements(chan)
+            self.lnworker.save_channel(chan)
+            asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+
+    @aiosafe
+    async def handle_announcements(self, chan):
         h, local_node_sig, local_bitcoin_sig = self.send_announcement_signatures(chan)
         announcement_signatures_msg = await self.announcement_signatures[chan.channel_id].get()
         remote_node_sig = announcement_signatures_msg["node_signature"]
@@ -1006,7 +1021,7 @@ class Peer(PrintError):
             bitcoin_signature_1=bitcoin_sigs[0],
             bitcoin_signature_2=bitcoin_sigs[1],
             len=0,
-            #features
+            #features not set (defaults to zeros)
             chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)),
             short_channel_id=chan.short_channel_id,
             node_id_1=node_ids[0],
@@ -1048,7 +1063,7 @@ class Peer(PrintError):
 
         chan_ann = gen_msg("channel_announcement",
             len=0,
-            #features
+            #features not set (defaults to zeros)
             chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)),
             short_channel_id=chan.short_channel_id,
             node_id_1=node_ids[0],
