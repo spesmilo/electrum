@@ -33,9 +33,11 @@ cd /opt
 git clone https://github.com/kivy/python-for-android
 cd python-for-android
 git remote add agilewalker https://github.com/agilewalker/python-for-android
+git remote add sombernight https://github.com/SomberNight/python-for-android
 git fetch --all
 git checkout 93759f36ba45c7bbe0456a4b3e6788622924cbac
-git merge a2fb5ecbc09c4847adbcfd03c6b1ca62b3d09b8d
+git cherry-pick a2fb5ecbc09c4847adbcfd03c6b1ca62b3d09b8d  # openssl-fix
+git cherry-pick a0ef2007bc60ed642fbd8b61937995dbed0ddd24  # disable backups
 ```
 
 ## 4. Install buildozer
