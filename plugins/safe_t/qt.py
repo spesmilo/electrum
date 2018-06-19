@@ -234,7 +234,7 @@ class SettingsDialog(WindowModalDialog):
             device_id_label.setText(features.device_id)
             initialized_label.setText(noyes[features.initialized])
             version_label.setText(version)
-            coins_label.setText(coins)
+            #coins_label.setText(coins)
             clear_pin_button.setVisible(features.pin_protection)
             clear_pin_warning.setVisible(features.pin_protection)
             pin_button.setText(setchange[features.pin_protection])
@@ -335,8 +335,8 @@ class SettingsDialog(WindowModalDialog):
         device_id_label = QLabel()
         bl_hash_label = QLabel()
         bl_hash_label.setWordWrap(True)
-        coins_label = QLabel()
-        coins_label.setWordWrap(True)
+        #coins_label = QLabel()
+        #coins_label.setWordWrap(True)
         language_label = QLabel()
         initialized_label = QLabel()
         rows = [
@@ -346,7 +346,7 @@ class SettingsDialog(WindowModalDialog):
             (_("Firmware Version"), version_label),
             (_("Device ID"), device_id_label),
             (_("Bootloader Hash"), bl_hash_label),
-            (_("Supported Coins"), coins_label),
+            #(_("Supported Coins"), coins_label),
             (_("Language"), language_label),
             (_("Initialized"), initialized_label),
         ]
