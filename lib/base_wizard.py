@@ -235,10 +235,11 @@ class BaseWizard(object):
         message = '\n'.join([
             _('Enter your wallet derivation here.'),
             _('If you are not sure what this is, leave this field unchanged.'),
-	    _("If you want the wallet to use legacy Bitcoin addresses use m/44'/0'/0'"),
-	    _("If you want the wallet to use Bitcoin Cash addresses use m/44'/145'/0'")
+            _("If you want the wallet to use legacy Bitcoin addresses use m/44'/0'/0'"),
+            _("If you want the wallet to use Bitcoin Cash addresses use m/44'/145'/0'"),
+            _("The placeholder value of {} is the default derivation for {} wallets.").format(default_derivation, self.wallet_type),
         ])
-        self.line_dialog(run_next=f, title=_('Derivation'), message=message, default=default_derivation, test=bitcoin.is_bip32_derivation)
+        self.line_dialog(run_next=f, title=_('Derivation for {} wallet').format(self.wallet_type), message=message, default=default_derivation, test=bitcoin.is_bip32_derivation)
 
     def on_hw_derivation(self, name, device_info, derivation):
         from .keystore import hardware_keystore
