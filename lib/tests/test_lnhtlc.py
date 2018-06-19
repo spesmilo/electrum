@@ -202,6 +202,7 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
 
         aliceRevocation2, _ = alice_channel.revoke_current_commitment()
         aliceSig2, aliceHtlcSigs2 = alice_channel.sign_next_commitment()
+        self.assertEqual(aliceHtlcSigs2, [], "alice should generate no htlc signatures")
 
         bob_channel.receive_revocation(aliceRevocation2)
 
