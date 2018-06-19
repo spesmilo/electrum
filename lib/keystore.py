@@ -677,12 +677,18 @@ def load_keystore(storage, name):
     return k
 
 
-def is_old_mpk(mpk):
+def is_old_mpk(mpk: str) -> bool:
     try:
         int(mpk, 16)
     except:
         return False
-    return len(mpk) == 128
+    if len(mpk) != 128:
+        return False
+    try:
+        ecc.ECPubkey(bfh('04' + mpk))
+    except:
+        return False
+    return True
 
 
 def is_address_list(text):
