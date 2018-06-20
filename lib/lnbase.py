@@ -948,10 +948,10 @@ class Peer(PrintError):
         local_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
         if local_ctn != chan.local_state.ctn:
             raise Exception("expected local ctn {}, got {}".format(chan.local_state.ctn, local_ctn))
-        our = channel_reestablish_msg["my_current_per_commitment_point"]
-        their = chan.remote_state.last_per_commitment_point
-        if their is None:
-            their = chan.remote_state.next_per_commitment_point
+        their = channel_reestablish_msg["my_current_per_commitment_point"]
+        our = chan.remote_state.last_per_commitment_point
+        if our is None:
+            our = chan.remote_state.next_per_commitment_point
         if our != their:
             raise Exception("Remote PCP mismatch: {} {}".format(bh2u(our), bh2u(their)))
         self.channel_state[chan_id] = 'OPENING'
@@ -973,11 +973,13 @@ class Peer(PrintError):
         chan = self.channels.get(channel_id)
         if not chan:
             raise Exception("Got unknown funding_locked", channel_id)
-        short_channel_id = chan.short_channel_id
-        new_remote_state = chan.remote_state._replace(next_per_commitment_point=payload["next_per_commitment_point"], last_per_commitment_point=chan.remote_state.next_per_commitment_point)
-        new_local_state = chan.local_state._replace(funding_locked_received = True)
-        chan = chan._replace(short_channel_id=short_channel_id, remote_state=new_remote_state, local_state=new_local_state)
-        self.lnworker.save_channel(chan)
+        if not chan.local_state.funding_locked_received:
+            our_next_point = chan.remote_state.next_per_commitment_point
+            their_next_point = payload["next_per_commitment_point"]
+            new_remote_state = chan.remote_state._replace(next_per_commitment_point=their_next_point, last_per_commitment_point=our_next_point)
+            new_local_state = chan.local_state._replace(funding_locked_received = True)
+            chan = chan._replace(remote_state=new_remote_state, local_state=new_local_state)
+            self.lnworker.save_channel(chan)
         if chan.short_channel_id:
             self.mark_open(chan)
 
