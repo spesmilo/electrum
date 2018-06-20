@@ -178,13 +178,16 @@ class SeedLayout(QVBoxLayout):
         self.seed_e.enable_suggestions()
 
 class KeysLayout(QVBoxLayout):
-    def __init__(self, parent=None, title=None, is_valid=None, allow_multi=False):
+    def __init__(self, parent=None, header_layout=None, is_valid=None, allow_multi=False):
         QVBoxLayout.__init__(self)
         self.parent = parent
         self.is_valid = is_valid
         self.text_e = ScanQRTextEdit(allow_multi=allow_multi)
         self.text_e.textChanged.connect(self.on_edit)
-        self.addWidget(WWLabel(title))
+        if isinstance(header_layout, str):
+            self.addWidget(WWLabel(header_layout))
+        else:
+            self.addLayout(header_layout)
         self.addWidget(self.text_e)
 
     def get_text(self):

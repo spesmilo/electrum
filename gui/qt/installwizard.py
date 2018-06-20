@@ -25,6 +25,12 @@ MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
                           + _("Your wallet file does not contain secrets, mostly just metadata. ") \
                           + _("It also contains your master public key that allows watching your addresses.") + '\n\n'\
                           + _("Note: If you enable this setting, you will need your hardware device to open your wallet.")
+WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\n\n' +
+                 _('A few examples') + ':\n' +
+                 'p2pkh:KxZcY47uGp9a...     \t\t-> 1DckmggQM...\n' +
+                 'p2wpkh-p2sh:KxZcY47uGp9a... \t-> 3NhNeZQXF...\n' +
+                 'p2wpkh:KxZcY47uGp9a...    \t\t-> bc1q3fjfk...')
+# note: full key is KxZcY47uGp9aVQAb6VVvuBs8SwHKgkSR2DbZUzjDzXf2N2GPhG9n
 
 
 class CosignWidget(QWidget):
@@ -356,7 +362,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.config.remove_from_recently_open(filename)
 
     def text_input(self, title, message, is_valid, allow_multi=False):
-        slayout = KeysLayout(parent=self, title=message, is_valid=is_valid,
+        slayout = KeysLayout(parent=self, header_layout=message, is_valid=is_valid,
                              allow_multi=allow_multi)
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_text()
@@ -367,8 +373,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return slayout.get_seed(), slayout.is_bip39, slayout.is_ext
 
     @wizard_dialog
-    def add_xpub_dialog(self, title, message, is_valid, run_next, allow_multi=False):
-        return self.text_input(title, message, is_valid, allow_multi)
+    def add_xpub_dialog(self, title, message, is_valid, run_next, allow_multi=False, show_wif_help=False):
+        header_layout = QHBoxLayout()
+        label = WWLabel(message)
+        label.setMinimumWidth(400)
+        header_layout.addWidget(label)
+        if show_wif_help:
+            header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
+        return self.text_input(title, header_layout, is_valid, allow_multi)
 
     @wizard_dialog
     def add_cosigner_dialog(self, run_next, index, is_valid):

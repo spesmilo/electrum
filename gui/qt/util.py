@@ -128,6 +128,19 @@ class HelpButton(QPushButton):
     def onclick(self):
         QMessageBox.information(self, 'Help', self.help_text)
 
+
+class InfoButton(QPushButton):
+    def __init__(self, text):
+        QPushButton.__init__(self, 'Info')
+        self.help_text = text
+        self.setFocusPolicy(Qt.NoFocus)
+        self.setFixedWidth(60)
+        self.clicked.connect(self.onclick)
+
+    def onclick(self):
+        QMessageBox.information(self, 'Info', self.help_text)
+
+
 class Buttons(QHBoxLayout):
     def __init__(self, *buttons):
         QHBoxLayout.__init__(self)
@@ -263,13 +276,16 @@ def line_dialog(parent, title, label, ok_label, default=None):
     if dialog.exec_():
         return txt.text()
 
-def text_dialog(parent, title, label, ok_label, default=None, allow_multi=False):
+def text_dialog(parent, title, header_layout, ok_label, default=None, allow_multi=False):
     from .qrtextedit import ScanQRTextEdit
     dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(600)
     l = QVBoxLayout()
     dialog.setLayout(l)
-    l.addWidget(QLabel(label))
+    if isinstance(header_layout, str):
+        l.addWidget(QLabel(header_layout))
+    else:
+        l.addLayout(header_layout)
     txt = ScanQRTextEdit(allow_multi=allow_multi)
     if default:
         txt.setText(default)
