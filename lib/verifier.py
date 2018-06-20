@@ -20,8 +20,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from .util import ThreadJob
+from .util import ThreadJob, bh2u
 from .bitcoin import Hash, hash_decode, hash_encode
+from .transaction import Transaction
+
+
+class InnerNodeOfSpvProofIsValidTx(Exception): pass
 
 
 class SPV(ThreadJob):
@@ -79,7 +83,12 @@ class SPV(ThreadJob):
         tx_hash = params[0]
         tx_height = merkle.get('block_height')
         pos = merkle.get('pos')
-        merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, pos)
+        try:
+            merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, pos)
+        except InnerNodeOfSpvProofIsValidTx:
+            self.print_error("merkle verification failed for {} (inner node looks like tx)"
+                             .format(tx_hash))
+            return
         header = self.network.blockchain().read_header(tx_height)
         # FIXME: if verification fails below,
         # we should make a fresh connection to a server to
@@ -112,7 +121,22 @@ class SPV(ThreadJob):
         for i in range(len(merkle_s)):
             item = merkle_s[i]
             h = Hash(hash_decode(item) + h) if ((pos >> i) & 1) else Hash(h + hash_decode(item))
+            cls._raise_if_valid_tx(bh2u(h))
         return hash_encode(h)
+
+    @classmethod
+    def _raise_if_valid_tx(cls, raw_tx: str):
+        # If an inner node of the merkle proof is also a valid tx, chances are, this is an attack.
+        # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-June/016105.html
+        # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/attachments/20180609/9f4f5b1f/attachment-0001.pdf
+        # https://bitcoin.stackexchange.com/questions/76121/how-is-the-leaf-node-weakness-in-merkle-trees-exploitable/76122#76122
+        tx = Transaction(raw_tx)
+        try:
+            tx.deserialize()
+        except:
+            pass
+        else:
+            raise InnerNodeOfSpvProofIsValidTx()
 
     def undo_verifications(self):
         height = self.blockchain.get_checkpoint()
