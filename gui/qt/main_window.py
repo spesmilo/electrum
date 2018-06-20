@@ -2945,16 +2945,28 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.wallet.thread.stop()
         if self.network:
             self.network.unregister_callback(self.on_network)
-        self.config.set_key("is_maximized", self.isMaximized())
+            
+        # We catch these errors with the understanding that there is no recovery at
+        # this point, given user has likely performed an action we cannot recover
+        # cleanly from.  So we attempt to exit as cleanly as possible.
+        try:
+            self.config.set_key("is_maximized", self.isMaximized())
+            self.config.set_key("console-history", self.console.history[-50:], True)
+        except (OSError, PermissionError) as e:
+            self.print_error("unable to write to config (directory removed?)", e)
+
         if not self.isMaximized():
-            g = self.geometry()
-            self.wallet.storage.put("winpos-qt", [g.left(),g.top(),
-                                                  g.width(),g.height()])
-        self.config.set_key("console-history", self.console.history[-50:],
-                            True)
+            try:
+                g = self.geometry()
+                self.wallet.storage.put("winpos-qt", [g.left(),g.top(),g.width(),g.height()])
+            except (OSError, PermissionError) as e:
+                self.print_error("unable to write to wallet storage (directory removed?)", e)
+
+        # Should be no side-effects in this function relating to file access past this point.
         if self.qr_window:
             self.qr_window.close()
         self.close_wallet()
+
         self.gui_object.close_window(self)
 
     def internal_plugins_dialog(self):
