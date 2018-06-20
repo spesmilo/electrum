@@ -55,7 +55,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 per_commitment_secret_seed=seed,
                 amount_msat=local_amount,
                 next_htlc_id = 0,
-                funding_locked_received=True
+                funding_locked_received=True,
+                was_announced=False
             ),
             constraints=lnbase.ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=is_initiator, funding_txn_minimum_depth=3),
             node_id=other_node_id
