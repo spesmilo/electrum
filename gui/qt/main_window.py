@@ -61,6 +61,7 @@ from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
 from .util import *
+from .installwizard import WIF_HELP_TEXT
 
 
 class StatusBarButton(QPushButton):
@@ -2497,7 +2498,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setMinimumSize(600, 300)
 
         vbox = QVBoxLayout(d)
-        vbox.addWidget(QLabel(_("Enter private keys:")))
+
+        hbox_top = QHBoxLayout()
+        hbox_top.addWidget(QLabel(_("Enter private keys:")))
+        hbox_top.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
+        vbox.addLayout(hbox_top)
 
         keys_e = ScanQRTextEdit(allow_multi=True)
         keys_e.setTabChangesFocus(True)
@@ -2548,9 +2553,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         self.warn_if_watching_only()
 
-    def _do_import(self, title, msg, func):
-        text = text_dialog(self, title, msg + ' :', _('Import'),
-                           allow_multi=True)
+    def _do_import(self, title, header_layout, func):
+        text = text_dialog(self, title, header_layout, _('Import'), allow_multi=True)
         if not text:
             return
         bad = []
@@ -2572,15 +2576,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def import_addresses(self):
         if not self.wallet.can_import_address():
             return
-        title, msg = _('Import addresses'), _("Enter addresses")
+        title, msg = _('Import addresses'), _("Enter addresses")+':'
         self._do_import(title, msg, self.wallet.import_address)
 
     @protected
     def do_import_privkey(self, password):
         if not self.wallet.can_import_privkey():
             return
-        title, msg = _('Import private keys'), _("Enter private keys")
-        self._do_import(title, msg, lambda x: self.wallet.import_private_key(x, password))
+        title = _('Import private keys')
+        header_layout = QHBoxLayout()
+        header_layout.addWidget(QLabel(_("Enter private keys")+':'))
+        header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
+        self._do_import(title, header_layout, lambda x: self.wallet.import_private_key(x, password))
 
     def update_fiat(self):
         b = self.fx and self.fx.is_enabled()

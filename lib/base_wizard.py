@@ -166,7 +166,7 @@ class BaseWizard(object):
         title = _("Import Litecoin Addresses")
         message = _("Enter a list of Litecoin addresses (this will create a watching-only wallet), or a list of private keys.")
         self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
-                             is_valid=v, allow_multi=True)
+                             is_valid=v, allow_multi=True, show_wif_help=True)
 
     def on_import(self, text):
         # create a temporary wallet and exploit that modifications
