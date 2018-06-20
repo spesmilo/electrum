@@ -61,7 +61,7 @@ class BaseCrashReporter(object):
     def send_report(self, endpoint="/crash"):
         if constants.net.GENESIS[-4:] not in ["4943", "e26f"] and ".electrum.org" in BaseCrashReporter.report_server:
             # Gah! Some kind of altcoin wants to send us crash reports.
-            raise BaseException(_("Missing report URL."))
+            raise Exception(_("Missing report URL."))
         report = self.get_traceback_info()
         report.update(self.get_additional_info())
         report = json.dumps(report)
