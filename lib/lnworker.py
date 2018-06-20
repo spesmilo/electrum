@@ -7,18 +7,19 @@ import threading
 from collections import defaultdict
 
 from . import constants
-from .bitcoin import sha256, COIN
+from .bitcoin import sha256, COIN, address_to_scripthash, redeem_script_to_address
 from .util import bh2u, bfh, PrintError
 from .constants import set_testnet, set_simnet
-from .lnbase import Peer, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore, calc_short_channel_id, privkey_to_pubkey
+from .lnbase import Peer, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore, calc_short_channel_id, privkey_to_pubkey, funding_output_script
 from .lightning_payencode.lnaddr import lnencode, LnAddr, lndecode
 from . import lnrouter
-from .ecc import ECPrivkey
+from .ecc import ECPrivkey, CURVE_ORDER, der_sig_from_sig_string
+from .transaction import Transaction
 
 is_key = lambda k: k.endswith("_basepoint") or k.endswith("_key")
 
 def maybeDecode(k, v):
-    if k in ["node_id", "channel_id", "short_channel_id", "pubkey", "privkey", "last_per_commitment_point", "next_per_commitment_point", "per_commitment_secret_seed"] and v is not None:
+    if k in ["node_id", "channel_id", "short_channel_id", "pubkey", "privkey", "current_per_commitment_point", "next_per_commitment_point", "per_commitment_secret_seed", "current_commitment_signature"] and v is not None:
         return binascii.unhexlify(v)
     return v
 
@@ -110,7 +111,15 @@ class LNWorker(PrintError):
 
     def add_peer(self, host, port, pubkey):
         node_id = bfh(pubkey)
-        channels = self.channels_for_peer(node_id)
+        for chan_id in self.channels_for_peer(node_id):
+            chan = self.channels[chan_id]
+            script = funding_output_script(chan.local_config, chan.remote_config)
+            funding_address = redeem_script_to_address('p2wsh', script)
+            scripthash = address_to_scripthash(funding_address)
+            utxos = self.network.listunspent_for_scripthash(scripthash)
+            outpoints = [Outpoint(x["tx_hash"], x["tx_pos"]) for x in utxos]
+            if chan.funding_outpoint not in outpoints:
+                self.channel_state[chan.channel_id] = "CLOSED"
         peer = Peer(self, host, int(port), node_id, request_initial_sync=self.config.get("request_initial_sync", True))
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[node_id] = peer
@@ -122,8 +131,8 @@ class LNWorker(PrintError):
         self.channels[openchannel.channel_id] = openchannel
         for node_id, peer in self.peers.items():
             peer.channels = self.channels_for_peer(node_id)
-        if openchannel.remote_state.next_per_commitment_point == openchannel.remote_state.last_per_commitment_point:
-            raise Exception("Tried to save channel with next_point == last_point, this should not happen")
+        if openchannel.remote_state.next_per_commitment_point == openchannel.remote_state.current_per_commitment_point:
+            raise Exception("Tried to save channel with next_point == current_point, this should not happen")
         dumped = serialize_channels(self.channels)
         self.wallet.storage.put("channels", dumped)
         self.wallet.storage.write()
@@ -213,3 +222,23 @@ class LNWorker(PrintError):
 
     def list_channels(self):
         return serialize_channels(self.channels)
+
+    def close_channel(self, chan_id):
+        from .lnhtlc import HTLCStateMachine
+        chan = self.channels[chan_id]
+        # local_commitment always gives back the next expected local_commitment,
+        # but in this case, we want the current one. So substract one ctn number
+        tx = HTLCStateMachine(chan._replace(local_state=chan.local_state._replace(ctn=chan.local_state.ctn - 1))).local_commitment
+        tx.sign({bh2u(chan.local_config.multisig_key.pubkey): (chan.local_config.multisig_key.privkey, True)})
+        remote_sig = chan.local_state.current_commitment_signature
+        remote_sig = der_sig_from_sig_string(remote_sig) + b"\x01"
+        none_idx = tx._inputs[0]["signatures"].index(None)
+        Transaction.add_signature_to_txin(tx._inputs[0], none_idx, bh2u(remote_sig))
+        tx.raw = None # trigger reserialization
+        assert tx.is_complete()
+        suc, msg = self.network.broadcast_transaction(tx)
+        self.channel_state[chan_id] = "CLOSED"
+        self.on_channels_updated()
+        if "transaction already in block chain" in msg:
+            return
+        assert suc, msg
