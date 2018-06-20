@@ -278,8 +278,8 @@ ChannelConfig = namedtuple("ChannelConfig", [
     "payment_basepoint", "multisig_key", "htlc_basepoint", "delayed_basepoint", "revocation_basepoint",
     "to_self_delay", "dust_limit_sat", "max_htlc_value_in_flight_msat", "max_accepted_htlcs"])
 OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
-RemoteState = namedtuple("RemoteState", ["ctn", "next_per_commitment_point", "amount_msat", "revocation_store", "last_per_commitment_point", "next_htlc_id"])
-LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amount_msat", "next_htlc_id", "funding_locked_received", "was_announced"])
+RemoteState = namedtuple("RemoteState", ["ctn", "next_per_commitment_point", "amount_msat", "revocation_store", "current_per_commitment_point", "next_htlc_id"])
+LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amount_msat", "next_htlc_id", "funding_locked_received", "was_announced", "current_commitment_signature"])
 ChannelConstraints = namedtuple("ChannelConstraints", ["feerate", "capacity", "is_initiator", "funding_txn_minimum_depth"])
 OpenChannel = namedtuple("OpenChannel", ["channel_id", "short_channel_id", "funding_outpoint", "local_config", "remote_config", "remote_state", "local_state", "constraints", "node_id"])
 
@@ -578,6 +578,10 @@ def is_synced(network):
     synced = server_height != 0 and network.is_up_to_date() and local_height >= server_height
     return synced
 
+def funding_output_script(local_config, remote_config):
+    pubkeys = sorted([bh2u(local_config.multisig_key.pubkey), bh2u(remote_config.multisig_key.pubkey)])
+    return transaction.multisig_script(pubkeys, 2)
+
 class Peer(PrintError):
 
     def __init__(self, lnworker, host, port, pubkey, request_initial_sync=False):
@@ -787,7 +791,7 @@ class Peer(PrintError):
         self.process_message(msg)
         self.initialized.set_result(True)
         # reestablish channels
-        [self.reestablish_channel(c) for c in self.channels.values()]
+        [self.reestablish_channel(c) for c in self.channels.values() if self.lnworker.channel_state[c.channel_id] != "CLOSED"]
         # loop
         while True:
             self.ping_if_required()
@@ -871,8 +875,8 @@ class Peer(PrintError):
         self.print_error('remote delay', remote_config.to_self_delay)
         self.print_error('funding_txn_minimum_depth', funding_txn_minimum_depth)
         # create funding tx
-        pubkeys = sorted([bh2u(local_config.multisig_key.pubkey), bh2u(remote_config.multisig_key.pubkey)])
-        redeem_script = transaction.multisig_script(pubkeys, 2)
+        redeem_script = funding_output_script(local_config, remote_config)
+        print("REDEEM SCRIPT", redeem_script)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         funding_output = (bitcoin.TYPE_ADDRESS, funding_address, funding_sat)
         funding_tx = wallet.mktx([funding_output], password, config, 1000)
@@ -894,7 +898,7 @@ class Peer(PrintError):
                 remote_state=RemoteState(
                     ctn = -1,
                     next_per_commitment_point=remote_per_commitment_point,
-                    last_per_commitment_point=None,
+                    current_per_commitment_point=None,
                     amount_msat=remote_amount,
                     revocation_store=their_revocation_store,
                     next_htlc_id = 0
@@ -905,7 +909,8 @@ class Peer(PrintError):
                     amount_msat=local_amount,
                     next_htlc_id = 0,
                     funding_locked_received = False,
-                    was_announced = False
+                    was_announced = False,
+                    current_commitment_signature = None
                 ),
                 constraints=ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
         )
@@ -923,7 +928,7 @@ class Peer(PrintError):
         # broadcast funding tx
         success, _txid = self.network.broadcast_transaction(funding_tx)
         assert success, success
-        return chan._replace(remote_state=chan.remote_state._replace(ctn=0),local_state=chan.local_state._replace(ctn=0))
+        return chan._replace(remote_state=chan.remote_state._replace(ctn=0),local_state=chan.local_state._replace(ctn=0, current_commitment_signature=remote_sig))
 
     def reestablish_channel(self, chan):
         self.channel_state[chan.channel_id] = 'REESTABLISHING'
@@ -949,7 +954,7 @@ class Peer(PrintError):
         if local_ctn != chan.local_state.ctn:
             raise Exception("expected local ctn {}, got {}".format(chan.local_state.ctn, local_ctn))
         their = channel_reestablish_msg["my_current_per_commitment_point"]
-        our = chan.remote_state.last_per_commitment_point
+        our = chan.remote_state.current_per_commitment_point
         if our is None:
             our = chan.remote_state.next_per_commitment_point
         if our != their:
@@ -976,7 +981,7 @@ class Peer(PrintError):
         if not chan.local_state.funding_locked_received:
             our_next_point = chan.remote_state.next_per_commitment_point
             their_next_point = payload["next_per_commitment_point"]
-            new_remote_state = chan.remote_state._replace(next_per_commitment_point=their_next_point, last_per_commitment_point=our_next_point)
+            new_remote_state = chan.remote_state._replace(next_per_commitment_point=their_next_point, current_per_commitment_point=our_next_point)
             new_local_state = chan.local_state._replace(funding_locked_received = True)
             chan = chan._replace(remote_state=new_remote_state, local_state=new_local_state)
             self.lnworker.save_channel(chan)
@@ -1257,6 +1262,8 @@ class Peer(PrintError):
     def on_commitment_signed(self, payload):
         self.print_error("commitment_signed", payload)
         channel_id = payload['channel_id']
+        chan = self.channels[channel_id]
+        self.save_channel(chan._replace(local_state=chan.local_state._replace(current_commitment_signature=payload['signature'])))
         self.commitment_signed[channel_id].put_nowait(payload)
 
     def on_update_fulfill_htlc(self, payload):
