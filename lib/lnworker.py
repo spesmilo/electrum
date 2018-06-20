@@ -122,6 +122,8 @@ class LNWorker(PrintError):
         self.channels[openchannel.channel_id] = openchannel
         for node_id, peer in self.peers.items():
             peer.channels = self.channels_for_peer(node_id)
+        if openchannel.remote_state.next_per_commitment_point == openchannel.remote_state.last_per_commitment_point:
+            raise Exception("Tried to save channel with next_point == last_point, this should not happen")
         dumped = serialize_channels(self.channels)
         self.wallet.storage.put("channels", dumped)
         self.wallet.storage.write()
