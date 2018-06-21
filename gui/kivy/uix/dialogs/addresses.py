@@ -85,6 +85,8 @@ Builder.load_string('''
                     text: root.message if root.message else _('Search')
                     on_release: Clock.schedule_once(lambda dt: app.description_dialog(popup))
         ScrollView:
+            scroll_type: ['bars', 'content']
+            bar_width: '25dp'
             GridLayout:
                 cols: 1
                 id: search_container
