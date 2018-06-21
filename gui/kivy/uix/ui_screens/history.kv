@@ -48,11 +48,19 @@
             text: root.date + '   ' + root.message
         Widget
 
+<HistoryRecycleView>:
+    viewclass: 'HistoryItem'
+    RecycleBoxLayout:
+        default_size: None, dp(56)
+        default_size_hint: 1, None
+        size_hint: 1, None
+        height: self.minimum_height
+        orientation: 'vertical'
 
 
 HistoryScreen:
     name: 'history'
-    content: content
+    content: history_container
     BoxLayout:
         orientation: 'vertical'
         Button:
@@ -64,14 +72,7 @@ HistoryScreen:
             bold: True
             size_hint: 1, 0.25
             on_release: app.is_fiat = not app.is_fiat if app.fx.is_enabled() else False
-        ScrollView:
-            id: content
-            do_scroll_x: False
-            size_hint: 1, 0.75
+        HistoryRecycleView:
+            id: history_container
             scroll_type: ['bars', 'content']
-            bar_width: 15
-            GridLayout
-                id: history_container
-                cols: 1
-                size_hint: 1, None
-                height: self.minimum_height
+            bar_width: '25dp'

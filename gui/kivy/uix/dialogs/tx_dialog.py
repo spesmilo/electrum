@@ -29,6 +29,8 @@ Builder.load_string('''
     BoxLayout:
         orientation: 'vertical'
         ScrollView:
+            scroll_type: ['bars', 'content']
+            bar_width: '25dp'
             GridLayout:
                 height: self.minimum_height
                 size_hint_y: None
