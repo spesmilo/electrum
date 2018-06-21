@@ -21,6 +21,17 @@ At this time, there is no documentation for the plugin API.  What API there
 is, mostly consists of some limited hooks which provide notification on events
 and a base class which provides the basic plugin integration.
 
+**WARNING:** The plugin API will be upgraded at some point.  Plugins will
+be required to specify their release plugin API version, and those that
+predate it will be assumed to be version 0.   This will be used to first
+deprecate, and then over time, remove the existing API as plugin
+developers transition to any replacement API.  Plenty of time and warning
+will be given before any removal, allowing plugin developers to upgrade.
+Given the extremely limited state of the Electrum plugin API we inherited,
+this may even reduce maintenance requirements
+as internals a plugin developer makes use of can easily get changed
+in the course of normal development.
+
 Risks and Dangers
 =================
 
