@@ -3,6 +3,8 @@ from kivy.clock import Clock
 from kivy.factory import Factory
 from kivy.properties import NumericProperty, StringProperty, BooleanProperty
 from kivy.core.window import Window
+from kivy.uix.recycleview import RecycleView
+from kivy.uix.boxlayout import BoxLayout
 
 from electrum_gui.kivy.i18n import _
 
@@ -193,25 +195,21 @@ class InfoBubble(Factory.Bubble):
 
 
 
-class OutputItem(Factory.BoxLayout):
+class OutputItem(BoxLayout):
     pass
 
-class OutputList(Factory.GridLayout):
+class OutputList(RecycleView):
 
     def __init__(self, **kwargs):
-        super(Factory.GridLayout, self).__init__(**kwargs)
+        super(OutputList, self).__init__(**kwargs)
         self.app = App.get_running_app()
 
     def update(self, outputs):
-        self.clear_widgets()
+        res = []
         for (type, address, amount) in outputs:
-            self.add_output(address, amount)
-
-    def add_output(self, address, amount):
-        b = Factory.OutputItem()
-        b.address = address
-        b.value = self.app.format_amount_and_units(amount)
-        self.add_widget(b)
+            value = self.app.format_amount_and_units(amount)
+            res.append({'address': address, 'value': value})
+        self.data = res
 
 
 class TopLabel(Factory.Label):
