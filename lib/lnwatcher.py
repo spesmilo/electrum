@@ -1,13 +1,12 @@
 from .util import PrintError
-from .lnbase import Outpoint, funding_output_script
+from .lnbase import funding_output_script
 from .bitcoin import redeem_script_to_address
 
 class LNWatcher(PrintError):
 
     def __init__(self, network, channel_state):
         self.network = network
-        self.channel_state = channel_state
-        self.channels ={}
+        self.watched_channels = {}
 
     def parse_response(self, response):
         if response.get('error'):
@@ -15,10 +14,10 @@ class LNWatcher(PrintError):
             return None, None
         return response['params'], response['result']
 
-    def watch_channel(self, chan):
+    def watch_channel(self, chan, callback):
         script = funding_output_script(chan.local_config, chan.remote_config)
         funding_address = redeem_script_to_address('p2wsh', script)
-        self.channels[funding_address] = chan
+        self.watched_channels[funding_address] = chan, callback
         self.network.subscribe_to_addresses([funding_address], self.on_address_status)
 
     def on_address_status(self, response):
@@ -33,7 +32,5 @@ class LNWatcher(PrintError):
         if not params:
             return
         addr = params[0]
-        chan = self.channels[addr]
-        outpoints = [Outpoint(x["tx_hash"], x["tx_pos"]) for x in result]
-        if chan.funding_outpoint not in outpoints:
-            self.channel_state[chan.channel_id] = "CLOSED"
+        chan, callback = self.watched_channels[addr]
+        callback(chan, result)
