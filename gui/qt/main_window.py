@@ -40,8 +40,6 @@ import PyQt5.QtCore as QtCore
 from .exception_window import Exception_Hook
 from PyQt5.QtWidgets import *
 
-from electroncash.util import bh2u, bfh
-
 from electroncash import keystore
 from electroncash.address import Address
 from electroncash.bitcoin import COIN, TYPE_ADDRESS
@@ -50,7 +48,7 @@ from electroncash.plugins import run_hook
 from electroncash.i18n import _
 from electroncash.util import (format_time, format_satoshis, PrintError,
                            format_satoshis_plain, NotEnoughFunds, ExcessiveFee,
-                           UserCancelled)
+                           UserCancelled, bh2u, bfh, format_fee_satoshis)
 import electroncash.web as web
 from electroncash import Transaction
 from electroncash import util, bitcoin, commands
@@ -661,7 +659,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.require_fee_update = False
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
-        return format_satoshis(x, is_diff, self.num_zeros, self.decimal_point, whitespaces)
+        return format_satoshis(x, self.num_zeros, self.decimal_point, is_diff=is_diff, whitespaces=whitespaces)
 
     def format_amount_and_units(self, amount):
         text = self.format_amount(amount) + ' '+ self.base_unit()
@@ -671,10 +669,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return text
 
     def format_fee_rate(self, fee_rate):
-        if self.fee_unit == 0:
-            return '{:.2f} sats/byte'.format(fee_rate/1000)
-        else:
-            return self.format_amount(fee_rate) + ' ' + self.base_unit() + '/kB'
+        return format_fee_satoshis(fee_rate/1000, self.num_zeros) + ' sat/byte'
 
     def get_decimal_point(self):
         return self.decimal_point

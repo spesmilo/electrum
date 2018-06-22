@@ -403,20 +403,18 @@ def format_satoshis_plain(x, decimal_point = 8):
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
 
-def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespaces=False):
+def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False):
     from locale import localeconv
     if x is None:
         return 'unknown'
-    x = int(x)  # Some callers pass Decimal
-    scale_factor = pow (10, decimal_point)
-    integer_part = "{:d}".format(int(abs(x) / scale_factor))
-    if x < 0:
-        integer_part = '-' + integer_part
-    elif is_diff:
-        integer_part = '+' + integer_part
+    if precision is None:
+        precision = decimal_point
+    decimal_format = ".0" + str(precision) if precision > 0 else ""
+    if is_diff:
+        decimal_format = '+' + decimal_format
+    result = ("{:" + decimal_format + "f}").format(x / pow (10, decimal_point)).rstrip('0')
+    integer_part, fract_part = result.split(".")
     dp = localeconv()['decimal_point']
-    fract_part = ("{:0" + str(decimal_point) + "}").format(abs(x) % scale_factor)
-    fract_part = fract_part.rstrip('0')
     if len(fract_part) < num_zeros:
         fract_part += "0" * (num_zeros - len(fract_part))
     result = integer_part + dp + fract_part
@@ -424,6 +422,9 @@ def format_satoshis(x, is_diff=False, num_zeros = 0, decimal_point = 8, whitespa
         result += " " * (decimal_point - len(fract_part))
         result = " " * (15 - len(result)) + result
     return result
+
+def format_fee_satoshis(fee, num_zeros=0):
+    return format_satoshis(fee, num_zeros, 0, precision=1)
 
 def timestamp_to_datetime(timestamp):
     try:

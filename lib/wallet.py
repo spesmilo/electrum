@@ -851,7 +851,7 @@ class Abstract_Wallet(PrintError):
                 'height':height,
                 'confirmations':conf,
                 'timestamp':timestamp,
-                'value': format_satoshis(value, True) if value is not None else '--',
+                'value': format_satoshis(value, is_diff=True) if value is not None else '--',
                 'balance': format_satoshis(balance)
             }
             if item['height']>0:
