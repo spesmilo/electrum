@@ -1196,6 +1196,11 @@ class Network(util.DaemonThread):
         self.h2addr.update({h: address})
         self.send([('blockchain.scripthash.get_history', [h])], self.map_scripthash_to_address(callback))
 
+    def request_address_utxos(self, address, callback):
+        h = bitcoin.address_to_scripthash(address)
+        self.h2addr.update({h: address})
+        self.send([('blockchain.scripthash.listunspent', [h])], self.map_scripthash_to_address(callback))
+
     # NOTE this method handles exceptions and a special edge case, counter to
     # what the other ElectrumX methods do. This is unexpected.
     def broadcast_transaction(self, transaction, callback=None):
