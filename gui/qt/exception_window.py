@@ -81,7 +81,7 @@ class Exception_Window(QWidget):
         main_box.addWidget(collapse_info)
 
         label = QLabel(_("Please briefly describe what led to the error (optional):") +"<br/>"+
-            "<i>"+ _("Feel free to add your email address if you are willing to provide further detail.") +"</i>")
+            "<i>"+ _("Feel free to add your email address if you are willing to provide further detail, but note that it will appear in the relevant github issue.") +"</i>")
         label.setTextFormat(QtCore.Qt.RichText)
         main_box.addWidget(label)
 
