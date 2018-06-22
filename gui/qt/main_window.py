@@ -3030,10 +3030,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.exec_()
 
     def external_plugins_dialog(self):
-        import importlib
         from . import external_plugins_window
-        importlib.reload(external_plugins_window)
-
         self.externalpluginsdialog = d = external_plugins_window.ExternalPluginsDialog(self, _('Plugin Manager'))
         d.exec_()
 
