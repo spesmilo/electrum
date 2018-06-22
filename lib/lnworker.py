@@ -7,14 +7,15 @@ import threading
 from collections import defaultdict
 
 from . import constants
-from .bitcoin import sha256, COIN, address_to_scripthash, redeem_script_to_address
+from .bitcoin import sha256, COIN
 from .util import bh2u, bfh, PrintError
 from .constants import set_testnet, set_simnet
-from .lnbase import Peer, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore, calc_short_channel_id, privkey_to_pubkey, funding_output_script
+from .lnbase import Peer, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore, calc_short_channel_id, privkey_to_pubkey
 from .lightning_payencode.lnaddr import lnencode, LnAddr, lndecode
 from . import lnrouter
 from .ecc import ECPrivkey, CURVE_ORDER, der_sig_from_sig_string
 from .transaction import Transaction
+from .lnwatcher import LNWatcher
 
 is_key = lambda k: k.endswith("_basepoint") or k.endswith("_key")
 
@@ -99,6 +100,9 @@ class LNWorker(PrintError):
         self.invoices = wallet.storage.get('lightning_invoices', {})
         peer_list = network.config.get('lightning_peers', node_list)
         self.channel_state = {chan.channel_id: "DISCONNECTED" for chan in self.channels.values()}
+        self.lnwatcher = LNWatcher(network, self.channel_state)
+        for chan_id, chan in self.channels.items():
+            self.lnwatcher.watch_channel(chan)
         for host, port, pubkey in peer_list:
             self.add_peer(host, int(port), pubkey)
         # wait until we see confirmations
@@ -111,15 +115,6 @@ class LNWorker(PrintError):
 
     def add_peer(self, host, port, pubkey):
         node_id = bfh(pubkey)
-        for chan_id in self.channels_for_peer(node_id):
-            chan = self.channels[chan_id]
-            script = funding_output_script(chan.local_config, chan.remote_config)
-            funding_address = redeem_script_to_address('p2wsh', script)
-            scripthash = address_to_scripthash(funding_address)
-            utxos = self.network.listunspent_for_scripthash(scripthash)
-            outpoints = [Outpoint(x["tx_hash"], x["tx_pos"]) for x in utxos]
-            if chan.funding_outpoint not in outpoints:
-                self.channel_state[chan.channel_id] = "CLOSED"
         peer = Peer(self, host, int(port), node_id, request_initial_sync=self.config.get("request_initial_sync", True))
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[node_id] = peer
