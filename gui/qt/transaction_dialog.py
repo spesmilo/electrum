@@ -72,7 +72,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         # Take a copy; it might get updated in the main window by
         # e.g. the FX plugin.  If this happens during or after a long
         # sign operation the signatures are lost.
-        self.tx = copy.deepcopy(tx)
+        self.tx = tx = copy.deepcopy(tx)
         try:
             self.tx.deserialize()
         except BaseException as e:
@@ -82,6 +82,11 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
         self.desc = desc
+
+        # if the wallet can populate the inputs with more info, do it now.
+        # as a result, e.g. we might learn an imported address tx is segwit,
+        # in which case it's ok to display txid
+        self.wallet.add_input_info_to_all_inputs(tx)
 
         self.setMinimumWidth(950)
         self.setWindowTitle(_("Transaction"))

@@ -69,7 +69,6 @@ if is_local or is_android:
     import imp
     imp.load_module('electrum_ltc', *imp.find_module('lib'))
     imp.load_module('electrum_ltc_gui', *imp.find_module('gui'))
-    imp.load_module('electrum_ltc_plugins', *imp.find_module('plugins'))
 
 
 
@@ -84,7 +83,6 @@ from electrum_ltc.commands import get_parser, known_commands, Commands, config_v
 from electrum_ltc import daemon
 from electrum_ltc import keystore
 from electrum_ltc.mnemonic import Mnemonic
-import electrum_ltc_plugins
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -403,6 +401,8 @@ if __name__ == '__main__':
         constants.set_testnet()
     elif config.get('regtest'):
         constants.set_regtest()
+    elif config.get('simnet'):
+        constants.set_simnet()
 
     # run non-RPC commands separately
     if cmdname in ['create', 'restore']:

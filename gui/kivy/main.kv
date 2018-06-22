@@ -49,12 +49,6 @@
     text_size: self.width, None
     height: self.texture_size[1]
 
-<EmptyLabel@Label>
-    color: (0.8, 0.8, 0.8, 1)
-    size_hint_y: None
-    text_size: self.width, None
-    height: self.texture_size[1]
-
 <VGridLayout@GridLayout>:
     rows: 1
     size_hint: 1, None
@@ -114,17 +108,26 @@
 
 
 <OutputList>
-    height: self.minimum_height
-    size_hint_y: None
-    cols: 1
-    spacing: '10dp'
-    padding: '10dp'
-    canvas.before:
-        Color:
-            rgb: .3, .3, .3
-        Rectangle:
-            size: self.size
-            pos: self.pos
+    viewclass: 'OutputItem'
+    size_hint: 1, None
+    height: min(output_list_layout.minimum_height, dp(144))
+    scroll_type: ['bars', 'content']
+    bar_width: dp(15)
+    RecycleBoxLayout:
+        orientation: 'vertical'
+        default_size: None, pt(6)
+        default_size_hint: 1, None
+        size_hint: 1, None
+        height: self.minimum_height
+        id: output_list_layout
+        spacing: '10dp'
+        padding: '10dp'
+        canvas.before:
+            Color:
+                rgb: .3, .3, .3
+            Rectangle:
+                size: self.size
+                pos: self.pos
 
 <RefLabel>
     font_size: '6pt'

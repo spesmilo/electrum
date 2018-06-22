@@ -84,12 +84,15 @@ Builder.load_string('''
                     id: change
                     text: root.message if root.message else _('Search')
                     on_release: Clock.schedule_once(lambda dt: app.description_dialog(popup))
-        ScrollView:
+        RecycleView:
             scroll_type: ['bars', 'content']
-            bar_width: '25dp'
-            GridLayout:
-                cols: 1
-                id: search_container
+            bar_width: '15dp'
+            viewclass: 'AddressItem'
+            id: search_container
+            RecycleBoxLayout:
+                orientation: 'vertical'
+                default_size: None, dp(56)
+                default_size_hint: 1, None
                 size_hint_y: None
                 height: self.minimum_height
 ''')
@@ -99,10 +102,6 @@ from electrum_ltc_gui.kivy.i18n import _
 from electrum_ltc_gui.kivy.uix.context_menu import ContextMenu
 
 
-class EmptyLabel(Factory.Label):
-    pass
-
-
 class AddressesDialog(Factory.Popup):
 
     def __init__(self, app, screen, callback):
@@ -110,19 +109,15 @@ class AddressesDialog(Factory.Popup):
         self.app = app
         self.screen = screen
         self.callback = callback
-        self.cards = {}
         self.context_menu = None
 
     def get_card(self, addr, balance, is_used, label):
-        ci = self.cards.get(addr)
-        if ci is None:
-            ci = Factory.AddressItem()
-            ci.screen = self
-            ci.address = addr
-            self.cards[addr] = ci
-        ci.memo = label
-        ci.amount = self.app.format_amount_and_units(balance)
-        ci.status = _('Used') if is_used else _('Funded') if balance > 0 else _('Unused')
+        ci = {}
+        ci['screen'] = self
+        ci['address'] = addr
+        ci['memo'] = label
+        ci['amount'] = self.app.format_amount_and_units(balance)
+        ci['status'] = _('Used') if is_used else _('Funded') if balance > 0 else _('Unused')
         return ci
 
     def update(self):
@@ -136,8 +131,8 @@ class AddressesDialog(Factory.Popup):
             _list = wallet.get_addresses()
         search = self.message
         container = self.ids.search_container
-        container.clear_widgets()
         n = 0
+        cards = []
         for address in _list:
             label = wallet.labels.get(address, '')
             balance = sum(wallet.get_addr_balance(address))
@@ -151,11 +146,11 @@ class AddressesDialog(Factory.Popup):
             card = self.get_card(address, balance, is_used, label)
             if search and not self.ext_search(card, search):
                 continue
-            container.add_widget(card)
+            cards.append(card)
             n += 1
+        container.data = cards
         if not n:
-            msg = _('No address matching your search')
-            container.add_widget(EmptyLabel(text=msg))
+            self.app.show_error('No address matching your search')
 
     def do_use(self, obj):
         self.hide_menu()
@@ -172,8 +167,8 @@ class AddressesDialog(Factory.Popup):
         self.app.show_addr_details(req, status)
 
     def ext_search(self, card, search):
-        return card.memo.find(search) >= 0 or card.amount.find(search) >= 0
-        
+        return card['memo'].find(search) >= 0 or card['amount'].find(search) >= 0
+
     def show_menu(self, obj):
         self.hide_menu()
         self.context_menu = ContextMenu(obj, self.menu_actions)

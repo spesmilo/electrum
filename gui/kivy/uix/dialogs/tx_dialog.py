@@ -58,16 +58,14 @@ Builder.load_string('''
                         text: _('Transaction fee') if root.fee_str else ''
                         value: root.fee_str
                 TopLabel:
-                    text: _('Outputs') + ':'
-                OutputList:
-                    height: self.minimum_height
-                    size_hint: 1, None
-                    id: output_list
-                TopLabel:
                     text: _('Transaction ID') + ':' if root.tx_hash else ''
                 TxHashLabel:
                     data: root.tx_hash
                     name: _('Transaction ID')
+                TopLabel:
+                    text: _('Outputs') + ':'
+                OutputList:
+                    id: output_list
         Widget:
             size_hint: 1, 0.1
 
