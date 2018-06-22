@@ -157,9 +157,10 @@ class LNWorker(PrintError):
         outpoints = [Outpoint(x["tx_hash"], x["tx_pos"]) for x in utxos]
         if chan.funding_outpoint not in outpoints:
             self.channel_state[chan.channel_id] = "CLOSED"
-        elif chan.channel_id not in self.channel_state:
+        elif self.channel_state[chan.channel_id] == 'DISCONNECTED':
             peer = self.peers[chan.node_id]
-            peer.reestablish_channel(c)
+            coro = peer.reestablish_channel(chan)
+            asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     def on_network_update(self, event, *args):
         for chan in self.channels.values():
