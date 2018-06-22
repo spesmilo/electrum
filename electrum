@@ -69,7 +69,6 @@ if is_local or is_android:
     import imp
     imp.load_module('electrum', *imp.find_module('lib'))
     imp.load_module('electrum_gui', *imp.find_module('gui'))
-    imp.load_module('electrum_plugins', *imp.find_module('plugins'))
 
 
 
@@ -84,7 +83,6 @@ from electrum.commands import get_parser, known_commands, Commands, config_varia
 from electrum import daemon
 from electrum import keystore
 from electrum.mnemonic import Mnemonic
-import electrum_plugins
 
 # get password routine
 def prompt_password(prompt, confirm=True):
