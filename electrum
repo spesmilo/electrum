@@ -401,6 +401,8 @@ if __name__ == '__main__':
         constants.set_testnet()
     elif config.get('regtest'):
         constants.set_regtest()
+    elif config.get('simnet'):
+        constants.set_simnet()
 
     # run non-RPC commands separately
     if cmdname in ['create', 'restore']:
