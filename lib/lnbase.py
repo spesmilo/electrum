@@ -790,8 +790,6 @@ class Peer(PrintError):
         msg = await self.read_message()
         self.process_message(msg)
         self.initialized.set_result(True)
-        # reestablish channels
-        [self.reestablish_channel(c) for c in self.channels.values() if self.lnworker.channel_state[c.channel_id] != "CLOSED"]
         # loop
         while True:
             self.ping_if_required()
