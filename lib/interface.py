@@ -149,7 +149,11 @@ class TcpConnection(threading.Thread, util.PrintError):
                 except:
                     return
 
-                if s and self.check_host_name(s.getpeercert(), self.host):
+                try:
+                    peer_cert = s.getpeercert()
+                except OSError:
+                    return
+                if s and self.check_host_name(peer_cert, self.host):
                     self.print_error("SSL certificate signed by CA")
                     return s
                 # get server certificate.
@@ -166,7 +170,10 @@ class TcpConnection(threading.Thread, util.PrintError):
                 except:
                     return
 
-                dercert = s.getpeercert(True)
+                try:
+                    dercert = s.getpeercert(True)
+                except OSError:
+                    return
                 s.close()
                 cert = ssl.DER_cert_to_PEM_cert(dercert)
                 # workaround android bug
