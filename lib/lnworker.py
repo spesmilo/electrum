@@ -102,7 +102,7 @@ class LNWorker(PrintError):
         self.channel_state = {chan.channel_id: "DISCONNECTED" for chan in self.channels.values()}
         self.lnwatcher = LNWatcher(network, self.channel_state)
         for chan_id, chan in self.channels.items():
-            self.lnwatcher.watch_channel(chan)
+            self.lnwatcher.watch_channel(chan, self.on_channel_utxos)
         for host, port, pubkey in peer_list:
             self.add_peer(host, int(port), pubkey)
         # wait until we see confirmations
@@ -152,6 +152,15 @@ class LNWorker(PrintError):
             self.save_channel(chan)
             return chan
         return None
+
+    def on_channel_utxos(self, chan, utxos):
+        outpoints = [Outpoint(x["tx_hash"], x["tx_pos"]) for x in utxos]
+        if chan.funding_outpoint not in outpoints:
+            self.channel_state[chan.channel_id] = "CLOSED"
+        elif self.channel_state[chan.channel_id] == 'DISCONNECTED':
+            peer = self.peers[chan.node_id]
+            coro = peer.reestablish_channel(chan)
+            asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     def on_network_update(self, event, *args):
         for chan in self.channels.values():

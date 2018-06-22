@@ -790,8 +790,6 @@ class Peer(PrintError):
         msg = await self.read_message()
         self.process_message(msg)
         self.initialized.set_result(True)
-        # reestablish channels
-        [self.reestablish_channel(c) for c in self.channels.values() if self.lnworker.channel_state[c.channel_id] != "CLOSED"]
         # loop
         while True:
             self.ping_if_required()
@@ -930,7 +928,8 @@ class Peer(PrintError):
         assert success, success
         return chan._replace(remote_state=chan.remote_state._replace(ctn=0),local_state=chan.local_state._replace(ctn=0, current_commitment_signature=remote_sig))
 
-    def reestablish_channel(self, chan):
+    async def reestablish_channel(self, chan):
+        await self.initialized
         self.channel_state[chan.channel_id] = 'REESTABLISHING'
         self.network.trigger_callback('channel', chan)
         self.send_message(gen_msg("channel_reestablish",
