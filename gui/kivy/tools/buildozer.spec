@@ -4,7 +4,7 @@
 title = Electron-Cash
 
 # (str) Package Name
-package.name = ElectronCash3
+package.name = ElectronCash33
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = org.electroncash
@@ -28,7 +28,7 @@ source.exclude_patterns = Makefile,setup*
 #version.filename = %(source.dir)s/contrib/versions.py
 
 # (str) Application versioning (method 2)
-version = 3.2
+version = 3.3
 
 # (list) Application requirements
 requirements = python3crystax, android, openssl, plyer, kivy==32b0ffc7390bf3e19b3c3e8eb5d2d83a210d9684
