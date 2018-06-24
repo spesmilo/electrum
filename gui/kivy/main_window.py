@@ -639,8 +639,9 @@ class ElectrumWindow(App):
         chain = self.network.blockchain()
         self.blockchain_checkpoint = chain.get_checkpoint()
         self.blockchain_name = chain.get_name()
-        if self.network.interface:
-            self.server_host = self.network.interface.host
+        interface = self.network.interface
+        if interface:
+            self.server_host = interface.host
 
     def on_network_event(self, event, *args):
         Logger.info('network event: '+ event)
