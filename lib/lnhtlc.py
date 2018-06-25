@@ -77,9 +77,9 @@ class HTLCStateMachine(PrintError):
         method should be called in response to receiving a new HTLC from the remote
         party.
         """
+        self.print_error("receive_htlc")
         assert type(htlc) is UpdateAddHtlc
         self.remote_update_log.append(htlc)
-        self.print_error("receive_htlc")
         htlc_id = self.state.remote_state.next_htlc_id
         self.state = self.state._replace(remote_state=self.state.remote_state._replace(next_htlc_id=htlc_id + 1))
         htlc.htlc_id = htlc_id
@@ -145,6 +145,8 @@ class HTLCStateMachine(PrintError):
             if not type(htlc) is UpdateAddHtlc: continue
             if htlc.r_locked_in is None: htlc.r_locked_in = self.state.remote_state.ctn
         assert len(htlc_sigs) == 0 or type(htlc_sigs[0]) is bytes
+
+        assert len(self.htlcs_in_local) + len(self.htlcs_in_remote) == len(htlc_sigs), len(htlc_sigs)
 
         preimage_hex = self.local_commitment.serialize_preimage(0)
         pre_hash = Hash(bfh(preimage_hex))
@@ -225,32 +227,20 @@ class HTLCStateMachine(PrintError):
                 continue
             settle_fails2.append(x)
 
-        sent_this_batch = 0
-        received_this_batch = 0
+        sent_this_batch, sent_fees = 0, 0
 
         for x in settle_fails2:
             htlc = self.lookup_htlc(self.local_update_log, x.htlc_id)
             sent_this_batch += htlc.amount_msat
+            sent_fees += htlc.total_fee
 
         self.total_msat_sent += sent_this_batch
-
-        # increase received_msat counter for htlc's that have been settled
-        adds2 = self.gen_htlc_indices("remote")
-        for htlc in adds2:
-            htlc_id = htlc.htlc_id
-            if SettleHtlc(htlc_id) in self.local_update_log:
-                htlc = self.lookup_htlc(self.remote_update_log, htlc_id)
-                received_this_batch += htlc.amount_msat
-        self.total_msat_received += received_this_batch
 
         # log compaction (remove entries relating to htlc's that have been settled)
 
         to_remove = []
         for x in filter(lambda x: type(x) is SettleHtlc, self.remote_update_log):
             to_remove += [y for y in self.local_update_log if y.htlc_id == x.htlc_id]
-
-        if to_remove != []:
-            print("REMOVING")
 
         # assert that we should have compacted the log earlier
         assert len(to_remove) <= 1, to_remove
@@ -261,41 +251,59 @@ class HTLCStateMachine(PrintError):
         to_remove = []
         for x in filter(lambda x: type(x) is SettleHtlc, self.local_update_log):
             to_remove += [y for y in self.remote_update_log if y.htlc_id == x.htlc_id]
-
-        assert len(to_remove) <= 1, to_remove
         if len(to_remove) == 1:
-            self.local_update_log = [x for x in self.local_update_log if x.htlc_id != to_remove[0].htlc_id]
             self.remote_update_log = [x for x in self.remote_update_log if x.htlc_id != to_remove[0].htlc_id]
+            self.local_update_log = [x for x in self.local_update_log if x.htlc_id != to_remove[0].htlc_id]
+        received_this_batch = sum(x.amount_msat for x in to_remove)
+
+        self.total_msat_received += received_this_batch
+
+        received_fees = sum(x.total_fee for x in to_remove)
 
         self.state.remote_state.revocation_store.add_next_entry(revocation.per_commitment_secret)
 
         next_point = self.state.remote_state.next_per_commitment_point
 
+        print("RECEIVED", received_this_batch)
+        print("SENT", sent_this_batch)
         self.state = self.state._replace(
             remote_state=self.state.remote_state._replace(
                 ctn=self.state.remote_state.ctn + 1,
                 current_per_commitment_point=next_point,
                 next_per_commitment_point=revocation.next_per_commitment_point,
-                amount_msat=self.state.remote_state.amount_msat + (sent_this_batch - received_this_batch)
+                amount_msat=self.state.remote_state.amount_msat + (sent_this_batch - received_this_batch) + sent_fees - received_fees
             ),
             local_state=self.state.local_state._replace(
-                amount_msat = self.state.local_state.amount_msat + (received_this_batch - sent_this_batch)
+                amount_msat = self.state.local_state.amount_msat + (received_this_batch - sent_this_batch) - sent_fees + received_fees
             )
         )
 
     @staticmethod
     def htlcsum(htlcs):
-        return sum(x.amount_msat for x in htlcs), sum(x.total_fee for x in htlcs)
+        amount_unsettled = 0
+        fee = 0
+        for x in htlcs:
+            amount_unsettled += x.amount_msat
+            fee += x.total_fee
+        return amount_unsettled, fee
+
+    def amounts(self):
+        remote_settled_value, remote_settled_fee = self.htlcsum(self.gen_htlc_indices("remote", False))
+        local_settled_value, local_settled_fee = self.htlcsum(self.gen_htlc_indices("local", False))
+        htlc_value_local, total_fee_local = self.htlcsum(self.htlcs_in_local)
+        htlc_value_remote, total_fee_remote = self.htlcsum(self.htlcs_in_remote)
+        total_fee_local += local_settled_fee
+        total_fee_remote += remote_settled_fee
+        local_msat = self.state.local_state.amount_msat -\
+          htlc_value_local + remote_settled_value - local_settled_value
+        remote_msat = self.state.remote_state.amount_msat -\
+          htlc_value_remote + local_settled_value - remote_settled_value
+        return remote_msat, total_fee_remote, local_msat, total_fee_local
 
     @property
     def remote_commitment(self):
         from .lnbase import make_commitment_using_open_channel, make_received_htlc, make_offered_htlc, derive_pubkey, derive_blinded_pubkey
-        htlc_value_local, total_fee_local = self.htlcsum(self.htlcs_in_local)
-        htlc_value_remote, total_fee_remote = self.htlcsum(self.htlcs_in_remote)
-        local_msat = self.state.local_state.amount_msat -\
-          htlc_value_local
-        remote_msat = self.state.remote_state.amount_msat -\
-          htlc_value_remote
+        remote_msat, total_fee_remote, local_msat, total_fee_local = self.amounts()
         assert local_msat >= 0
         assert remote_msat >= 0
 
@@ -308,12 +316,12 @@ class HTLCStateMachine(PrintError):
         htlcs_in_local = []
         for htlc in self.htlcs_in_local:
             htlcs_in_local.append(
-                ( make_received_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat + total_fee_local))
+                ( make_received_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat + htlc.total_fee))
 
         htlcs_in_remote = []
         for htlc in self.htlcs_in_remote:
             htlcs_in_remote.append(
-                ( make_offered_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + total_fee_remote))
+                ( make_offered_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + htlc.total_fee))
 
         commit = make_commitment_using_open_channel(self.state, self.state.remote_state.ctn + 1,
             False, this_point,
@@ -323,12 +331,7 @@ class HTLCStateMachine(PrintError):
     @property
     def local_commitment(self):
         from .lnbase import make_commitment_using_open_channel, make_received_htlc, make_offered_htlc, derive_pubkey, derive_blinded_pubkey, get_per_commitment_secret_from_seed, secret_to_pubkey
-        htlc_value_local, total_fee_local = self.htlcsum(self.htlcs_in_local)
-        htlc_value_remote, total_fee_remote = self.htlcsum(self.htlcs_in_remote)
-        local_msat = self.state.local_state.amount_msat -\
-          htlc_value_local
-        remote_msat = self.state.remote_state.amount_msat -\
-          htlc_value_remote
+        remote_msat, total_fee_remote, local_msat, total_fee_local = self.amounts()
         assert local_msat >= 0
         assert remote_msat >= 0
 
@@ -341,21 +344,22 @@ class HTLCStateMachine(PrintError):
         htlcs_in_local = []
         for htlc in self.htlcs_in_local:
             htlcs_in_local.append(
-                ( make_offered_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + total_fee_local))
+                ( make_offered_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + htlc.total_fee))
 
         htlcs_in_remote = []
         for htlc in self.htlcs_in_remote:
             htlcs_in_remote.append(
-                ( make_received_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat + total_fee_remote))
+                ( make_received_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat + htlc.total_fee))
 
         commit = make_commitment_using_open_channel(self.state, self.state.local_state.ctn + 1,
             True, this_point,
             local_msat - total_fee_local, remote_msat - total_fee_remote, htlcs_in_local + htlcs_in_remote)
         return commit
 
-    def gen_htlc_indices(self, subject):
+    def gen_htlc_indices(self, subject, just_unsettled=True):
         assert subject in ["local", "remote"]
         update_log = (self.remote_update_log if subject == "remote" else self.local_update_log)
+        other_log = (self.remote_update_log if subject != "remote" else self.local_update_log)
         res = []
         for htlc in update_log:
             if type(htlc) is not UpdateAddHtlc:
@@ -363,8 +367,7 @@ class HTLCStateMachine(PrintError):
             height = (self.state.local_state.ctn if subject == "remote" else self.state.remote_state.ctn)
             locked_in = (htlc.r_locked_in if subject == "remote" else htlc.l_locked_in)
 
-            if locked_in is None:
-                print("skipping", locked_in, height)
+            if locked_in is None or just_unsettled == (SettleHtlc(htlc.htlc_id) in other_log):
                 continue
             res.append(htlc)
         return res
@@ -381,11 +384,13 @@ class HTLCStateMachine(PrintError):
         """
         SettleHTLC attempts to settle an existing outstanding received HTLC.
         """
+        self.print_error("settle_htlc")
         htlc = self.lookup_htlc(self.remote_update_log, htlc_id)
         assert htlc.payment_hash == sha256(preimage)
         self.local_update_log.append(SettleHtlc(htlc_id))
 
     def receive_htlc_settle(self, preimage, htlc_index):
+        self.print_error("receive_htlc_settle")
         htlc = self.lookup_htlc(self.local_update_log, htlc_index)
         assert htlc.payment_hash == sha256(preimage)
         assert len([x.htlc_id == htlc_index for x in self.local_update_log]) == 1
@@ -395,3 +400,12 @@ class HTLCStateMachine(PrintError):
         # TODO
         self.local_update_log = []
         self.remote_update_log = []
+        self.print_error("fail_htlc (EMPTIED LOGS)")
+
+    @property
+    def l_current_height(self):
+        return self.state.local_state.ctn
+
+    @property
+    def r_current_height(self):
+        return self.state.remote_state.ctn

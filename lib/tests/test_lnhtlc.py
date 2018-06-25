@@ -74,7 +74,7 @@ def bip32(sequence):
 def create_test_channels():
     funding_txid = binascii.hexlify(os.urandom(32)).decode("ascii")
     funding_index = 0
-    funding_sat = bitcoin.COIN * 5
+    funding_sat = bitcoin.COIN * 10
     local_amount = (funding_sat * 1000) // 2
     remote_amount = (funding_sat * 1000) // 2
     alice_raw = [ bip32("m/" + str(i)) for i in range(5) ]
