@@ -117,8 +117,22 @@ class ElectrumGui:
         self.build_tray_menu()
         self.tray.show()
         self.app.new_window_signal.connect(self.start_new_window)
+        self.set_dark_theme_if_needed()
         run_hook('init_qt', self)
-        ColorScheme.update_from_widget(QWidget())
+
+    def set_dark_theme_if_needed(self):
+        use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
+        if use_dark_theme:
+            try:
+                import qdarkstyle
+                self.app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
+            except BaseException as e:
+                use_dark_theme = False
+                print_error('Error setting dark theme: {}'.format(e))
+        # Even if we ourselves don't set the dark theme,
+        # the OS/window manager/etc might set *a dark theme*.
+        # Hence, try to choose colors accordingly:
+        ColorScheme.update_from_widget(QWidget(), force_dark=use_dark_theme)
 
     def build_tray_menu(self):
         # Avoid immediate GC of old menu when window closed via its action
