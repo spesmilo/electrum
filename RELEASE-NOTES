@@ -1,61 +1,59 @@
 # Release 3.2.0 - (unreleased)
 
- * libsecp256k1: to speed up elliptic curve operations, Electrum can now
-   utilize the libsecp256k1 library from Bitcoin Core, if present.
-   Otherwise, as before, python-ecdsa is used. libsecp256k1 is
-   bundled in the Windows, MacOS, and Android binaries. As we only
-   distribute source for Linux, for now, users need to install the library
-   themselves if they desire its benefits.
- * Two-factor wallets are now implemented for Android.
-   Note that they only provide additional security if the one time
-   passwords are generated on a separate device.
- * Semi-automated crash reporting is now implemented for Android too.
- * Generalized local transactions: an "is mine" input is no longer needed 
-   to qualify as local, which in practice means that any transaction
-   that drops from the mempool becomes local and is kept. Previously
-   these were deleted from the wallet.
- * Wallet logic: the scriptSig and witness part of transactions is no longer
-   parsed, unless actually needed, which was in the past occasionally the cause
-   of getting stuck in infinite "Synchronizing". As the input scripts are not
-   parsed, the "from" addresses are not inferred. The wallet history and
-   balance logic no longer depend on "from" addresses.
-   Perhaps most noticeably, as parent transactions are not fetched, and guesses
-   for the "from" addresses are no longer made, the Qt GUI will not display
-   addresses corresponding to the inputs (except for "is mine" inputs).
- * The partial transaction format has been incompatibly changed. This was
-   needed as for partial transactions the scriptSig/witness has to be parsed,
-   but for signed transactions we did not want to do the parsing.
-   Users should make sure that all instances of Electrum they use to co-sign
-   or offline sign, are updated together.
- * Signing of partial transactions created with online imported addresses
-   wallets now supports significantly more setups. Previously only
-   online p2pkh address + offline WIF was supported.
-   Now the following setups are all supported:
+ * If present, libsecp256k1 is used to speed up elliptic curve
+   operations. The library is bundled in the Windows, MacOS, and
+   Android binaries. On Linux, it needs to be installed separately.
+ * Two-factor authentication is available on Android. Note that this
+   will only provide additional security if one time passwords are
+   generated on a separate device.
+ * Semi-automated crash reporting is implemented for Android.
+ * Transactions that are dropped from the mempool are kept in the
+   wallet as 'local', and can be rebroadcast. Previously these
+   transactions were deleted from the wallet.
+ * The scriptSig and witness part of transaction inputs are no longer
+   parsed, unless actually needed. The wallet will no longer display
+   'from' addresses corresponding to transaction inputs, except for
+   its own inputs.
+ * The partial transaction format has been incompatibly changed. This
+   was needed as for partial transactions the scriptSig/witness has to
+   be parsed, but for signed transactions we did not want to do the
+   parsing.  Users should make sure that all instances of Electrum
+   they use to co-sign or offline sign, are updated together.
+ * Signing of partial transactions created with online imported
+   addresses wallets now supports significantly more
+   setups. Previously only online p2pkh address + offline WIF was
+   supported.  Now the following setups are all supported:
    - online {p2pkh, p2wpkh-p2sh, p2wpkh} address + offline WIF,
    - online {p2pkh, p2wpkh-p2sh, p2wpkh} address + offline seed/xprv,
    - online {p2sh, p2wsh-p2sh, p2wsh}-multisig address + offline seeds/xprvs
      (potentially distributed among several different machines)
-   Note that for the online address + offline HD secret case, you need the
-   offline wallet to recognize the address (i.e. within gap limit).
-   Having an xpub on the online machine is still the recommended setup, as this
-   allows the online machine to generate new addresses on demand.
- * Ledger: offline signing for segwit inputs (#3302)
-   This has already worked for Trezor and Digital Bitbox. Offline segwit
-   signing can be combined with online imported addresses wallets.
- * Added Revealer plugin. ( https://revealer.cc )
-   Revealer is a seed phrase back-up solution. It allows you to create a cold,
-   analog, multi-factor backup of your wallet seeds, or of any arbitrary
-   secret. The Revealer utilizes a transparent plastic visual one time pad.
- * Fractional fee rates: the Qt GUI now displays fee rates with 0.1 sat/byte
-   precision, and also allows this same resolution in the Send tab.
- * Hardware wallets: a "show address" button is now displayed in the Receive
-   tab of the Qt GUI. (#4316)
+   Note that for the online address + offline HD secret case, you need
+   the offline wallet to recognize the address (i.e. within gap
+   limit).  Having an xpub on the online machine is still the
+   recommended setup, as this allows the online machine to generate
+   new addresses on demand.
+ * Ledger: offline signing for segwit inputs (#3302) This has already
+   worked for Trezor and Digital Bitbox. Offline segwit signing can be
+   combined with online imported addresses wallets.
+ * Added Revealer plugin. ( https://revealer.cc ) Revealer is a seed
+   phrase back-up solution. It allows you to create a cold, analog,
+   multi-factor backup of your wallet seeds, or of any arbitrary
+   secret. The Revealer utilizes a transparent plastic visual one time
+   pad.
+ * Fractional fee rates: the Qt GUI now displays fee rates with 0.1
+   sat/byte precision, and also allows this same resolution in the
+   Send tab.
+ * Hardware wallets: a "show address" button is now displayed in the
+   Receive tab of the Qt GUI. (#4316)
  * Trezor One: implemented advanced/matrix recovery (#4329)
- * Qt/Kivy: added "sat" as optional base unit
- * Kivy GUI: significant performance improvements when displaying history and
-   address list of large wallets; and transaction dialog of large transactions
- * Windows: use dnspython to resolve dns instead of socket.getaddrinfo (#4422)
- * importing minikeys: use uncompressed pubkey instead of compressed (#4384)
+ * Qt/Kivy: added "sat" as optional base unit.
+ * Kivy GUI: significant performance improvements when displaying
+   history and address list of large wallets; and transaction dialog
+   of large transactions.
+ * Windows: use dnspython to resolve dns instead of socket.getaddrinfo
+   (#4422)
+ * Importing minikeys: use uncompressed pubkey instead of compressed
+   (#4384)
  * SPV proofs: check inner nodes not to be valid transactions (#4436)
  * Qt GUI: there is now an optional "dark" theme (#4461)
  * Several other minor bugfixes and usability improvements.
