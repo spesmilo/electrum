@@ -30,7 +30,7 @@ from functools import partial
 
 from . import bitcoin
 from . import keystore
-from .keystore import bip44_derivation
+from .keystore import bip44_derivation, purpose48_derivation
 from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types, Wallet
 from .storage import STO_EV_USER_PW, STO_EV_XPUB_PW, get_derivation_used_for_hw_device_encryption
 from .i18n import _
@@ -321,10 +321,13 @@ class BaseWizard(object):
         ])
         if self.wallet_type == 'multisig':
             # There is no general standard for HD multisig.
-            # This is partially compatible with BIP45; assumes index=0
+            # For legacy, this is partially compatible with BIP45; assumes index=0
+            # For segwit, a custom path is used, as there is no standard at all.
             default = "m/45'/0"
             presets = (
-                #('legacy BIP45', "m/45'/0"),
+                ('legacy BIP45', "m/45'/0"),
+                ('p2sh-segwit', purpose48_derivation(0, xtype='p2wsh-p2sh')),
+                ('native-segwit', purpose48_derivation(0, xtype='p2wsh')),
             )
         else:
             default = bip44_derivation(0, bip43_purpose=44)
