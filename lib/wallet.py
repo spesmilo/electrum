@@ -1068,19 +1068,8 @@ class Abstract_Wallet(PrintError):
             item['label'] = self.get_label(tx_hash)
             if show_addresses:
                 tx = self.transactions.get(tx_hash)
-                tx.deserialize()
-                input_addresses = []
-                output_addresses = []
-                for x in tx.inputs():
-                    if x['type'] == 'coinbase': continue
-                    addr = self.get_txin_address(x)
-                    if addr is None:
-                        continue
-                    input_addresses.append(addr)
-                for addr, v in tx.get_outputs():
-                    output_addresses.append(addr)
-                item['input_addresses'] = input_addresses
-                item['output_addresses'] = output_addresses
+                item['inputs'] = list(map(lambda x: dict((k, x[k]) for k in ('prevout_hash', 'prevout_n')), tx.inputs()))
+                item['outputs'] = list(map(lambda x:{'address':x[0], 'value':Satoshis(x[1])}, tx.get_outputs()))
             # value may be None if wallet is not fully synchronized
             if value is None:
                 continue
