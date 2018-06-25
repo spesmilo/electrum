@@ -893,6 +893,9 @@ class Network(util.DaemonThread):
                     interface.bad_header = header
                     delta = interface.tip - height
                     next_height = max(self.max_checkpoint(), interface.tip - 2 * delta)
+                    if height == next_height:
+                        self.connection_down(interface.server)
+                        next_height = None
 
         elif interface.mode == 'binary':
             if chain:

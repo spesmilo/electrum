@@ -706,8 +706,8 @@ class ColorScheme:
         return brightness < (255*3/2)
 
     @staticmethod
-    def update_from_widget(widget):
-        if ColorScheme.has_dark_background(widget):
+    def update_from_widget(widget, force_dark=False):
+        if force_dark or ColorScheme.has_dark_background(widget):
             ColorScheme.dark_scheme = True
 
 

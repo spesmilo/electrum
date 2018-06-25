@@ -2790,6 +2790,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))
 
+        colortheme_combo = QComboBox()
+        colortheme_combo.addItem(_('Light'), 'default')
+        colortheme_combo.addItem(_('Dark'), 'dark')
+        index = colortheme_combo.findData(self.config.get('qt_gui_color_theme', 'default'))
+        colortheme_combo.setCurrentIndex(index)
+        colortheme_label = QLabel(_('Color theme') + ':')
+        def on_colortheme(x):
+            self.config.set_key('qt_gui_color_theme', colortheme_combo.itemData(x), True)
+            self.need_restart = True
+        colortheme_combo.currentIndexChanged.connect(on_colortheme)
+        gui_widgets.append((colortheme_label, colortheme_combo))
+
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.wallet.use_change)
         if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
