@@ -598,6 +598,7 @@ class Peer(PrintError):
         self.ping_time = 0
         self.initialized = asyncio.Future()
         self.channel_accepted = defaultdict(asyncio.Queue)
+        self.channel_reestablished = defaultdict(asyncio.Future)
         self.funding_signed = defaultdict(asyncio.Queue)
         self.revoke_and_ack = defaultdict(asyncio.Queue)
         self.update_fulfill_htlc = defaultdict(asyncio.Queue)
@@ -928,15 +929,22 @@ class Peer(PrintError):
         assert success, success
         return chan._replace(remote_state=chan.remote_state._replace(ctn=0),local_state=chan.local_state._replace(ctn=0, current_commitment_signature=remote_sig))
 
+    @aiosafe
     async def reestablish_channel(self, chan):
         await self.initialized
-        self.channel_state[chan.channel_id] = 'REESTABLISHING'
+        chan_id = chan.channel_id
+        self.channel_state[chan_id] = 'REESTABLISHING'
         self.network.trigger_callback('channel', chan)
         self.send_message(gen_msg("channel_reestablish",
-            channel_id=chan.channel_id,
+            channel_id=chan_id,
             next_local_commitment_number=chan.local_state.ctn+1,
             next_remote_revocation_number=chan.remote_state.ctn
         ))
+        await self.channel_reestablished[chan_id]
+        self.channel_state[chan_id] = 'OPENING'
+        if chan.local_state.funding_locked_received and chan.short_channel_id:
+            self.mark_open(chan)
+        self.network.trigger_callback('channel', chan)
 
     def on_channel_reestablish(self, payload):
         chan_id = payload["channel_id"]
@@ -958,10 +966,7 @@ class Peer(PrintError):
             our = chan.remote_state.next_per_commitment_point
         if our != their:
             raise Exception("Remote PCP mismatch: {} {}".format(bh2u(our), bh2u(their)))
-        self.channel_state[chan_id] = 'OPENING'
-        if chan.local_state.funding_locked_received and chan.short_channel_id:
-            self.mark_open(chan)
-        self.network.trigger_callback('channel', chan)
+        self.channel_reestablished[chan_id].set_result(True)
 
     def funding_locked(self, chan):
         channel_id = chan.channel_id
