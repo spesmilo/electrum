@@ -274,7 +274,7 @@ class HTLCStateMachine(PrintError):
         self.state = self.state._replace(
             remote_state=self.state.remote_state._replace(
                 ctn=self.state.remote_state.ctn + 1,
-                last_per_commitment_point=next_point,
+                current_per_commitment_point=next_point,
                 next_per_commitment_point=revocation.next_per_commitment_point,
                 amount_msat=self.state.remote_state.amount_msat + (sent_this_batch - received_this_batch)
             ),
