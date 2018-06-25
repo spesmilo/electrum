@@ -45,7 +45,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
             remote_state=lnbase.RemoteState(
                 ctn = 0,
                 next_per_commitment_point=nex,
-                last_per_commitment_point=cur,
+                current_per_commitment_point=cur,
                 amount_msat=remote_amount,
                 revocation_store=their_revocation_store,
                 next_htlc_id = 0
@@ -56,7 +56,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 amount_msat=local_amount,
                 next_htlc_id = 0,
                 funding_locked_received=True,
-                was_announced=False
+                was_announced=False,
+                current_commitment_signature=None
             ),
             constraints=lnbase.ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=is_initiator, funding_txn_minimum_depth=3),
             node_id=other_node_id
