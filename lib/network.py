@@ -558,6 +558,7 @@ class Network(util.DaemonThread):
             self.send_subscriptions()
             self.set_status('connected')
             self.notify('updated')
+            self.notify('interfaces')
 
     @with_interface_lock
     def close_interface(self, interface):

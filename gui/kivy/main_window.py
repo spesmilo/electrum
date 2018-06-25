@@ -113,12 +113,12 @@ class ElectrumWindow(App):
         chains = self.network.get_blockchains()
         def cb(name):
             for index, b in self.network.blockchains.items():
-                if name == self.network.get_blockchain_name(b):
+                if name == b.get_name():
                     self.network.follow_chain(index)
-                    #self.block
         names = [self.network.blockchains[b].get_name() for b in chains]
-        if len(names) >1:
-            ChoiceDialog(_('Choose your chain'), names, '', cb).open()
+        if len(names) > 1:
+            cur_chain = self.network.blockchain().get_name()
+            ChoiceDialog(_('Choose your chain'), names, cur_chain, cb).open()
 
     use_rbf = BooleanProperty(False)
     def on_use_rbf(self, instance, x):
@@ -639,8 +639,9 @@ class ElectrumWindow(App):
         chain = self.network.blockchain()
         self.blockchain_checkpoint = chain.get_checkpoint()
         self.blockchain_name = chain.get_name()
-        if self.network.interface:
-            self.server_host = self.network.interface.host
+        interface = self.network.interface
+        if interface:
+            self.server_host = interface.host
 
     def on_network_event(self, event, *args):
         Logger.info('network event: '+ event)
