@@ -19,6 +19,7 @@ from lib.transaction import opcodes
 from lib.util import bfh, bh2u
 from lib import constants
 from lib.storage import WalletStorage
+from lib.keystore import xtype_from_derivation
 
 from . import SequentialTestCase
 from . import TestCaseForTestnet
@@ -468,6 +469,23 @@ class Test_xprv_xpub(SequentialTestCase):
         self.assertFalse(is_bip32_derivation("n/"))
         self.assertFalse(is_bip32_derivation(""))
         self.assertFalse(is_bip32_derivation("m/q8462"))
+
+    def test_xtype_from_derivation(self):
+        self.assertEqual('standard', xtype_from_derivation("m/44'"))
+        self.assertEqual('standard', xtype_from_derivation("m/44'/"))
+        self.assertEqual('standard', xtype_from_derivation("m/44'/0'/0'"))
+        self.assertEqual('standard', xtype_from_derivation("m/44'/5241'/221"))
+        self.assertEqual('standard', xtype_from_derivation("m/45'"))
+        self.assertEqual('standard', xtype_from_derivation("m/45'/56165/271'"))
+        self.assertEqual('p2wpkh-p2sh', xtype_from_derivation("m/49'"))
+        self.assertEqual('p2wpkh-p2sh', xtype_from_derivation("m/49'/134"))
+        self.assertEqual('p2wpkh', xtype_from_derivation("m/84'"))
+        self.assertEqual('p2wpkh', xtype_from_derivation("m/84'/112'/992/112/33'/0/2"))
+        self.assertEqual('p2wsh-p2sh', xtype_from_derivation("m/48'/0'/0'/1'"))
+        self.assertEqual('p2wsh-p2sh', xtype_from_derivation("m/48'/0'/0'/1'/52112/52'"))
+        self.assertEqual('p2wsh-p2sh', xtype_from_derivation("m/48'/9'/2'/1'"))
+        self.assertEqual('p2wsh', xtype_from_derivation("m/48'/0'/0'/2'"))
+        self.assertEqual('p2wsh', xtype_from_derivation("m/48'/1'/0'/2'/77'/0"))
 
     def test_version_bytes(self):
         xprv_headers_b58 = {
