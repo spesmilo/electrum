@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14113" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
+    <device id="retina4_7" orientation="portrait">
+        <adaptation id="fullscreen"/>
+    </device>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14088"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner"/>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <tableViewCell clipsSubviews="YES" contentMode="scaleToFill" preservesSuperviewLayoutMargins="YES" selectionStyle="default" indentationWidth="0.0" reuseIdentifier="TxDetailInOutCell" rowHeight="85" id="weX-Lv-IDX" customClass="TxDetailInOutCell">
+            <rect key="frame" x="0.0" y="0.0" width="375" height="85"/>
+            <autoresizingMask key="autoresizingMask"/>
+            <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" preservesSuperviewLayoutMargins="YES" insetsLayoutMarginsFromSafeArea="NO" tableViewCell="weX-Lv-IDX" id="3jE-p6-f5m">
+                <rect key="frame" x="0.0" y="0.0" width="375" height="84.5"/>
+                <autoresizingMask key="autoresizingMask"/>
+                <subviews>
+                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="External Address" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="Bvh-IU-5Xh">
+                        <rect key="frame" x="0.0" y="10" width="375" height="16"/>
+                        <constraints>
+                            <constraint firstAttribute="height" constant="16" id="YjG-vu-jmT"/>
+                        </constraints>
+                        <fontDescription key="fontDescription" type="system" weight="medium" pointSize="12"/>
+                        <color key="textColor" red="0.80000000000000004" green="0.80000000000000004" blue="0.80000000000000004" alpha="1" colorSpace="deviceRGB"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="19xasklsajq348790kldjlkjq38ualdaja11938109asldjasqwi" textAlignment="natural" lineBreakMode="middleTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="Ymh-7c-aDq">
+                        <rect key="frame" x="0.0" y="31" width="375" height="18"/>
+                        <constraints>
+                            <constraint firstAttribute="height" constant="18" id="epo-E8-BAd"/>
+                        </constraints>
+                        <fontDescription key="fontDescription" type="system" pointSize="16"/>
+                        <color key="textColor" red="0.25490196079999999" green="0.25490196079999999" blue="0.25490196079999999" alpha="1" colorSpace="deviceRGB"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="bla bla bla 180.0 mBCH (185.33 USD)" textAlignment="natural" lineBreakMode="middleTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="RwU-Sp-3gU">
+                        <rect key="frame" x="0.0" y="54" width="375" height="18"/>
+                        <constraints>
+                            <constraint firstAttribute="height" constant="18" id="mzM-wu-8Is"/>
+                        </constraints>
+                        <fontDescription key="fontDescription" type="system" weight="light" pointSize="14"/>
+                        <color key="textColor" red="0.25490196079999999" green="0.25490196079999999" blue="0.25490196079999999" alpha="1" colorSpace="deviceRGB"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                </subviews>
+                <constraints>
+                    <constraint firstItem="RwU-Sp-3gU" firstAttribute="top" secondItem="Ymh-7c-aDq" secondAttribute="bottom" constant="5" id="2fy-Fo-eW4"/>
+                    <constraint firstItem="RwU-Sp-3gU" firstAttribute="leading" secondItem="3jE-p6-f5m" secondAttribute="leading" id="84v-ql-3MB"/>
+                    <constraint firstAttribute="trailing" secondItem="RwU-Sp-3gU" secondAttribute="trailing" id="8ZS-RK-Vr2"/>
+                    <constraint firstItem="Bvh-IU-5Xh" firstAttribute="leading" secondItem="3jE-p6-f5m" secondAttribute="leading" id="9zR-gy-SOx"/>
+                    <constraint firstItem="Ymh-7c-aDq" firstAttribute="top" secondItem="Bvh-IU-5Xh" secondAttribute="bottom" constant="5" id="Cvk-cC-Bfx"/>
+                    <constraint firstAttribute="trailing" secondItem="Bvh-IU-5Xh" secondAttribute="trailing" id="EX1-vg-igV"/>
+                    <constraint firstAttribute="trailing" secondItem="Ymh-7c-aDq" secondAttribute="trailing" id="N3N-DJ-4gs"/>
+                    <constraint firstItem="Bvh-IU-5Xh" firstAttribute="top" secondItem="3jE-p6-f5m" secondAttribute="top" constant="10" id="muK-wb-JRV"/>
+                    <constraint firstItem="Ymh-7c-aDq" firstAttribute="leading" secondItem="3jE-p6-f5m" secondAttribute="leading" id="sxT-Mo-mk4"/>
+                </constraints>
+            </tableViewCellContentView>
+            <inset key="separatorInset" minX="0.0" minY="0.0" maxX="0.0" maxY="0.0"/>
+            <connections>
+                <outlet property="address" destination="Ymh-7c-aDq" id="cvz-fL-lVN"/>
+                <outlet property="addressType" destination="Bvh-IU-5Xh" id="Okh-yB-dWV"/>
+                <outlet property="detail" destination="RwU-Sp-3gU" id="qbC-dN-9aW"/>
+            </connections>
+            <point key="canvasLocation" x="11.5" y="15"/>
+        </tableViewCell>
+    </objects>
+</document>

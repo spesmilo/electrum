@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14113" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" colorMatched="YES">
+    <device id="retina4_7" orientation="portrait">
+        <adaptation id="fullscreen"/>
+    </device>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14088"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner"/>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <view tag="3000" contentMode="scaleToFill" id="UYH-64-BOl" userLabel="ShowMoreTransactions">
+            <rect key="frame" x="0.0" y="0.0" width="375" height="50"/>
+            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+            <subviews>
+                <label opaque="NO" userInteractionEnabled="NO" tag="1" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" horizontalCompressionResistancePriority="1000" text="This is a label bla bla bla" textAlignment="center" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="imA-Jl-ydM">
+                    <rect key="frame" x="114" y="16" width="148" height="18"/>
+                    <constraints>
+                        <constraint firstAttribute="width" relation="greaterThanOrEqual" id="Ao9-XJ-JeA"/>
+                        <constraint firstAttribute="height" constant="18" id="czr-Da-2lk"/>
+                    </constraints>
+                    <fontDescription key="fontDescription" type="system" pointSize="13"/>
+                    <color key="textColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
+                    <nil key="highlightedColor"/>
+                </label>
+                <imageView userInteractionEnabled="NO" tag="2" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="chevron_gray_right.png" translatesAutoresizingMaskIntoConstraints="NO" id="bSl-qh-X2y">
+                    <rect key="frame" x="270" y="18" width="8" height="14"/>
+                    <constraints>
+                        <constraint firstAttribute="height" constant="14" id="9gF-mb-FCw"/>
+                        <constraint firstAttribute="width" constant="8" id="PSw-6y-gzd"/>
+                    </constraints>
+                </imageView>
+            </subviews>
+            <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+            <gestureRecognizers/>
+            <constraints>
+                <constraint firstItem="bSl-qh-X2y" firstAttribute="leading" secondItem="imA-Jl-ydM" secondAttribute="trailing" constant="8" id="40e-yk-5sL"/>
+                <constraint firstItem="bSl-qh-X2y" firstAttribute="centerY" secondItem="imA-Jl-ydM" secondAttribute="centerY" id="RPU-Uv-FqX"/>
+                <constraint firstItem="imA-Jl-ydM" firstAttribute="centerX" secondItem="UYH-64-BOl" secondAttribute="centerX" id="jau-V4-lAC"/>
+                <constraint firstItem="imA-Jl-ydM" firstAttribute="centerY" secondItem="UYH-64-BOl" secondAttribute="centerY" id="wlz-Ct-tuU"/>
+            </constraints>
+            <nil key="simulatedTopBarMetrics"/>
+            <nil key="simulatedBottomBarMetrics"/>
+            <freeformSimulatedSizeMetrics key="simulatedDestinationMetrics"/>
+            <connections>
+                <outletCollection property="gestureRecognizers" destination="ezp-2a-QKN" appends="YES" id="8XH-BR-9CL"/>
+            </connections>
+            <point key="canvasLocation" x="-471" y="-364"/>
+        </view>
+        <tapGestureRecognizer id="ezp-2a-QKN" userLabel="ShowMoreTX Tap Gesture Recognizer"/>
+    </objects>
+    <resources>
+        <image name="chevron_gray_right.png" width="8" height="14"/>
+    </resources>
+</document>

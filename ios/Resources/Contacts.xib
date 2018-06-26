@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14109" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
+    <device id="retina4_7" orientation="portrait">
+        <adaptation id="fullscreen"/>
+    </device>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14088"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner" customClass="ContactsVC">
+            <connections>
+                <outlet property="butBottom" destination="ZOE-pA-xjB" id="7RQ-UC-T3H"/>
+                <outlet property="noContacts" destination="VvN-Em-age" id="OAQ-Pt-iMJ"/>
+                <outlet property="noContactsLabel" destination="OFt-Ud-4E5" id="PWN-Pv-n4J"/>
+                <outlet property="tv" destination="EvS-3O-FyV" id="T4g-Es-EsM"/>
+                <outlet property="view" destination="frw-UG-55I" id="1du-0X-vK6"/>
+            </connections>
+        </placeholder>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <view contentMode="scaleToFill" id="frw-UG-55I">
+            <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
+            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+            <subviews>
+                <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" style="plain" separatorStyle="default" rowHeight="112" estimatedRowHeight="-1" sectionHeaderHeight="28" sectionFooterHeight="28" translatesAutoresizingMaskIntoConstraints="NO" id="EvS-3O-FyV">
+                    <rect key="frame" x="-0.5" y="64" width="375" height="554"/>
+                    <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    <inset key="separatorInset" minX="0.0" minY="0.0" maxX="0.0" maxY="0.0"/>
+                    <connections>
+                        <outlet property="dataSource" destination="-1" id="G4R-uR-BBX"/>
+                        <outlet property="delegate" destination="-1" id="w5P-B7-bfJ"/>
+                    </connections>
+                </tableView>
+                <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="VvN-Em-age" userLabel="NoContactsView">
+                    <rect key="frame" x="0.0" y="64" width="375" height="554"/>
+                    <subviews>
+                        <view contentMode="scaleToFill" verticalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="m9C-7e-xfH" userLabel="TopSpacer">
+                            <rect key="frame" x="0.0" y="0.0" width="375" height="182"/>
+                            <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                        </view>
+                        <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="oxk-Tk-BB1" userLabel="MiddleArea">
+                            <rect key="frame" x="85" y="182" width="205" height="125"/>
+                            <subviews>
+                                <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="contacts_empty_icon.png" translatesAutoresizingMaskIntoConstraints="NO" id="0b5-dx-HAW">
+                                    <rect key="frame" x="72.5" y="0.0" width="59" height="49"/>
+                                    <constraints>
+                                        <constraint firstAttribute="height" constant="49" id="2aE-K1-j85"/>
+                                        <constraint firstAttribute="width" constant="59" id="QIb-fP-luY"/>
+                                    </constraints>
+                                </imageView>
+                                <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" usesAttributedText="YES" lineBreakMode="tailTruncation" numberOfLines="2" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="OFt-Ud-4E5">
+                                    <rect key="frame" x="0.0" y="77" width="205" height="48"/>
+                                    <attributedString key="attributedText">
+                                        <fragment content="You don't have any contacts yet. Create a new contact now!">
+                                            <attributes>
+                                                <color key="NSColor" red="0.80000000000000004" green="0.80000000000000004" blue="0.80000000000000004" alpha="1" colorSpace="deviceRGB"/>
+                                                <font key="NSFont" size="14" name="SFProDisplay-Italic"/>
+                                                <paragraphStyle key="NSParagraphStyle" alignment="center" lineBreakMode="wordWrapping" baseWritingDirection="natural" lineSpacing="10" tighteningFactorForTruncation="0.0" allowsDefaultTighteningForTruncation="NO"/>
+                                            </attributes>
+                                        </fragment>
+                                    </attributedString>
+                                    <nil key="highlightedColor"/>
+                                </label>
+                            </subviews>
+                            <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                            <constraints>
+                                <constraint firstAttribute="trailing" secondItem="OFt-Ud-4E5" secondAttribute="trailing" id="8g9-2A-Bq2"/>
+                                <constraint firstAttribute="width" constant="205" id="Eq7-al-AL0"/>
+                                <constraint firstAttribute="bottom" secondItem="OFt-Ud-4E5" secondAttribute="bottom" id="JhC-QX-Z70"/>
+                                <constraint firstItem="OFt-Ud-4E5" firstAttribute="top" secondItem="0b5-dx-HAW" secondAttribute="bottom" constant="28" id="MGU-Xv-pAc"/>
+                                <constraint firstItem="OFt-Ud-4E5" firstAttribute="leading" secondItem="oxk-Tk-BB1" secondAttribute="leading" id="kfW-HL-Nie"/>
+                                <constraint firstItem="0b5-dx-HAW" firstAttribute="centerX" secondItem="oxk-Tk-BB1" secondAttribute="centerX" id="uW2-hw-2z3"/>
+                                <constraint firstItem="0b5-dx-HAW" firstAttribute="top" secondItem="oxk-Tk-BB1" secondAttribute="top" id="ytK-KM-SNQ"/>
+                                <constraint firstAttribute="height" constant="125" id="zic-lU-J3I"/>
+                            </constraints>
+                        </view>
+                        <view contentMode="scaleToFill" verticalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="qy3-Td-CZo" userLabel="BottomSpacer">
+                            <rect key="frame" x="0.0" y="306.5" width="375" height="182"/>
+                            <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                        </view>
+                        <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="ZOE-pA-xjB">
+                            <rect key="frame" x="15" y="489" width="345" height="50"/>
+                            <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                            <constraints>
+                                <constraint firstAttribute="height" constant="50" id="fGr-lg-r6U"/>
+                            </constraints>
+                            <fontDescription key="fontDescription" type="system" pointSize="18"/>
+                            <state key="normal" title="New contact">
+                                <color key="titleColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
+                            </state>
+                            <userDefinedRuntimeAttributes>
+                                <userDefinedRuntimeAttribute type="number" keyPath="layer.cornerRadius">
+                                    <integer key="value" value="4"/>
+                                </userDefinedRuntimeAttribute>
+                                <userDefinedRuntimeAttribute type="number" keyPath="layer.borderWidth">
+                                    <real key="value" value="1.5"/>
+                                </userDefinedRuntimeAttribute>
+                            </userDefinedRuntimeAttributes>
+                            <connections>
+                                <action selector="onAddBut" destination="-1" eventType="primaryActionTriggered" id="DGU-yU-iLH"/>
+                            </connections>
+                        </button>
+                    </subviews>
+                    <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    <constraints>
+                        <constraint firstItem="oxk-Tk-BB1" firstAttribute="centerX" secondItem="VvN-Em-age" secondAttribute="centerX" id="2FA-ol-NWf"/>
+                        <constraint firstItem="qy3-Td-CZo" firstAttribute="top" secondItem="oxk-Tk-BB1" secondAttribute="bottom" id="3to-29-aGL"/>
+                        <constraint firstItem="qy3-Td-CZo" firstAttribute="leading" secondItem="VvN-Em-age" secondAttribute="leading" id="9Qf-VF-fXu"/>
+                        <constraint firstAttribute="bottom" secondItem="ZOE-pA-xjB" secondAttribute="bottom" constant="15" id="Byz-HP-ynb"/>
+                        <constraint firstAttribute="trailing" secondItem="m9C-7e-xfH" secondAttribute="trailing" id="KWQ-Kp-K72"/>
+                        <constraint firstItem="m9C-7e-xfH" firstAttribute="leading" secondItem="VvN-Em-age" secondAttribute="leading" id="Lnt-VV-KCv"/>
+                        <constraint firstItem="qy3-Td-CZo" firstAttribute="width" secondItem="m9C-7e-xfH" secondAttribute="width" id="Q0A-Ot-UGO"/>
+                        <constraint firstItem="ZOE-pA-xjB" firstAttribute="top" secondItem="qy3-Td-CZo" secondAttribute="bottom" id="QGs-x8-EDf"/>
+                        <constraint firstItem="m9C-7e-xfH" firstAttribute="top" secondItem="VvN-Em-age" secondAttribute="top" id="U0l-bd-eTl"/>
+                        <constraint firstItem="ZOE-pA-xjB" firstAttribute="leading" secondItem="VvN-Em-age" secondAttribute="leading" constant="15" id="Ve7-d0-xAD"/>
+                        <constraint firstAttribute="trailing" secondItem="qy3-Td-CZo" secondAttribute="trailing" id="WWa-Fz-SBV"/>
+                        <constraint firstItem="qy3-Td-CZo" firstAttribute="height" secondItem="m9C-7e-xfH" secondAttribute="height" id="ZS8-eC-u5c"/>
+                        <constraint firstAttribute="trailing" secondItem="ZOE-pA-xjB" secondAttribute="trailing" constant="15" id="lxh-AR-xvL"/>
+                        <constraint firstItem="oxk-Tk-BB1" firstAttribute="top" secondItem="m9C-7e-xfH" secondAttribute="bottom" id="sGV-Re-AzT"/>
+                    </constraints>
+                </view>
+            </subviews>
+            <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+            <constraints>
+                <constraint firstItem="EvS-3O-FyV" firstAttribute="centerX" secondItem="VvN-Em-age" secondAttribute="centerX" id="7Dw-Ov-Ckn"/>
+                <constraint firstItem="tw2-51-fqB" firstAttribute="leading" secondItem="VvN-Em-age" secondAttribute="leading" id="Eql-vA-Ylk"/>
+                <constraint firstItem="EvS-3O-FyV" firstAttribute="centerY" secondItem="VvN-Em-age" secondAttribute="centerY" id="G5m-rQ-gsk"/>
+                <constraint firstItem="tw2-51-fqB" firstAttribute="top" secondItem="VvN-Em-age" secondAttribute="top" id="VdP-Is-dNK"/>
+                <constraint firstItem="EvS-3O-FyV" firstAttribute="width" secondItem="VvN-Em-age" secondAttribute="width" id="lXC-oG-9hB"/>
+                <constraint firstItem="EvS-3O-FyV" firstAttribute="height" secondItem="VvN-Em-age" secondAttribute="height" id="ps2-Z5-o8X"/>
+                <constraint firstItem="tw2-51-fqB" firstAttribute="bottom" secondItem="VvN-Em-age" secondAttribute="bottom" id="u7o-ed-8n0"/>
+                <constraint firstItem="tw2-51-fqB" firstAttribute="trailing" secondItem="VvN-Em-age" secondAttribute="trailing" id="ugH-ds-E3C"/>
+            </constraints>
+            <simulatedNavigationBarMetrics key="simulatedTopBarMetrics" prompted="NO"/>
+            <simulatedTabBarMetrics key="simulatedBottomBarMetrics"/>
+            <viewLayoutGuide key="safeArea" id="tw2-51-fqB"/>
+            <point key="canvasLocation" x="23.5" y="81.5"/>
+        </view>
+    </objects>
+    <resources>
+        <image name="contacts_empty_icon.png" width="59" height="49"/>
+    </resources>
+</document>
