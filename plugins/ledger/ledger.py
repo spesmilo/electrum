@@ -514,7 +514,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
 
         for i, txin in enumerate(tx.inputs()):
             signingPos = inputs[i][4]
-            Transaction.add_signature_to_txin(txin, signingPos, bh2u(signatures[i]))
+            tx.add_signature_to_txin(i, signingPos, bh2u(signatures[i]))
         tx.raw = tx.serialize()
 
     @test_pin_unlocked

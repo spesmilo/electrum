@@ -700,17 +700,18 @@ class Transaction:
                         continue
                     j = pubkeys.index(pubkey_hex)
                     print_error("adding sig", i, j, pubkey_hex, sig)
-                    self.add_signature_to_txin(self._inputs[i], j, sig)
+                    self.add_signature_to_txin(i, j, sig)
                     #self._inputs[i]['x_pubkeys'][j] = pubkey
                     break
         # redo raw
         self.raw = self.serialize()
 
-    @classmethod
-    def add_signature_to_txin(cls, txin, signingPos, sig):
+    def add_signature_to_txin(self, i, signingPos, sig):
+        txin = self._inputs[i]
         txin['signatures'][signingPos] = sig
         txin['scriptSig'] = None  # force re-serialization
         txin['witness'] = None    # force re-serialization
+        self.raw = None
 
     def deserialize(self, force_full_parse=False):
         if self.raw is None:
@@ -1164,13 +1165,9 @@ class Transaction:
                     continue
                 print_error("adding signature for", _pubkey)
                 sec, compressed = keypairs.get(_pubkey)
-                # pubkey might not actually be a 02-04 pubkey for fd keys; so:
-                pubkey = ecc.ECPrivkey(sec).get_public_key_hex(compressed=compressed)
-                # add signature
                 sig = self.sign_txin(i, sec)
-                self.add_signature_to_txin(txin, j, sig)
-                txin['pubkeys'][j] = pubkey  # needed for fd keys
-                self._inputs[i] = txin
+                self.add_signature_to_txin(i, j, sig)
+
         print_error("is_complete", self.is_complete())
         self.raw = self.serialize()
 
