@@ -97,8 +97,12 @@ Windows
 
 See `contrib/build-wine/`.
 
-
 Android
 -------
 
 See `gui/kivy/Readme.txt` file.
+
+iOS
+-------
+
+See `ios/`.
