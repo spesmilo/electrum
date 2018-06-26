@@ -374,10 +374,7 @@ class BaseWizard(object):
 
     def on_hw_derivation(self, name, device_info, derivation, script_type):
         from .keystore import hardware_keystore
-        if script_type:
-            xtype = script_type
-        else:
-            xtype = keystore.xtype_from_derivation(derivation)
+        xtype = script_type or keystore.xtype_from_derivation(derivation)
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
         except ScriptTypeNotSupported:
