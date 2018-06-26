@@ -592,7 +592,7 @@ class Peer(PrintError):
         self.lnworker = lnworker
         self.privkey = lnworker.privkey
         self.network = lnworker.network
-        self.channel_db = lnworker.channel_db
+        self.channel_db = lnworker.network.channel_db
         self.channel_state = lnworker.channel_state
         self.read_buffer = b''
         self.ping_time = 0
@@ -1118,7 +1118,7 @@ class Peer(PrintError):
         except IndexError:
             print("payment destination reported error")
 
-        self.lnworker.path_finder.blacklist.add(short_chan_id)
+        self.network.path_finder.blacklist.add(short_chan_id)
         self.update_fail_htlc[payload["channel_id"]].put_nowait("HTLC failure with code {} (categories {})".format(code, codes))
 
     @aiosafe
@@ -1126,7 +1126,7 @@ class Peer(PrintError):
         assert self.channel_state[chan.channel_id] == "OPEN"
         assert amount_msat > 0, "amount_msat is not greater zero"
         height = self.network.get_local_height()
-        route = self.lnworker.path_finder.create_route_from_path(path, self.lnworker.pubkey)
+        route = self.network.path_finder.create_route_from_path(path, self.lnworker.pubkey)
         hops_data = []
         sum_of_deltas = sum(route_edge.channel_policy.cltv_expiry_delta for route_edge in route[1:])
         total_fee = 0
