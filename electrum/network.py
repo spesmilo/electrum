@@ -49,6 +49,10 @@ from .interface import Interface, serialize_server, deserialize_server
 from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 
+# lightning network
+from . import lnwatcher
+from . import lnrouter
+
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
 
@@ -229,6 +233,10 @@ class Network(PrintError):
         self.asyncio_loop = asyncio.get_event_loop()
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
+        # lightning network
+        self.channel_db = lnrouter.ChannelDB()
+        self.path_finder = lnrouter.LNPathFinder(self.channel_db)
+        self.lnwatcher = lnwatcher.LNWatcher(self)
 
     @staticmethod
     def get_instance():

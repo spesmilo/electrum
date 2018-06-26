@@ -4,7 +4,7 @@ from .bitcoin import redeem_script_to_address
 
 class LNWatcher(PrintError):
 
-    def __init__(self, network, channel_state):
+    def __init__(self, network):
         self.network = network
         self.watched_channels = {}
 
