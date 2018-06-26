@@ -232,7 +232,6 @@ class LNWorker(PrintError):
         remote_sig = chan.local_state.current_commitment_signature
         remote_sig = der_sig_from_sig_string(remote_sig) + b"\x01"
         none_idx = tx._inputs[0]["signatures"].index(None)
-        Transaction.add_signature_to_txin(tx._inputs[0], none_idx, bh2u(remote_sig))
-        tx.raw = None # trigger reserialization
+        tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
         assert tx.is_complete()
         return self.network.broadcast_transaction(tx)
