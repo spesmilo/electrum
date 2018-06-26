@@ -47,6 +47,10 @@ from . import blockchain
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from .i18n import _
 
+# lightning network
+from . import lnwatcher
+from . import lnrouter
+
 
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
@@ -235,6 +239,10 @@ class Network(util.DaemonThread):
                            deserialize_proxy(self.config.get('proxy')))
         self.asyncio_loop = loop = asyncio.new_event_loop()
         self.futures = []
+        # lightning network
+        self.channel_db = lnrouter.ChannelDB()
+        self.path_finder = lnrouter.LNPathFinder(self.channel_db)
+        self.lnwatcher = lnwatcher.LNWatcher(self)
 
     def with_interface_lock(func):
         def func_wrapper(self, *args, **kwargs):
@@ -1036,7 +1044,6 @@ class Network(util.DaemonThread):
         self.init_headers_file()
         def asyncioThread():
             self.asyncio_loop.run_forever()
-
         threading.Thread(target=asyncioThread).start()
         while self.is_running():
             self.maintain_sockets()
