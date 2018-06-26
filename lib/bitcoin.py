@@ -398,7 +398,7 @@ def DecodeBase58Check(psz):
 # backwards compat
 # extended WIF for segwit (used in 3.0.x; but still used internally)
 # the keys in this dict should be a superset of what Imported Wallets can import
-SCRIPT_TYPES = {
+WIF_SCRIPT_TYPES = {
     'p2pkh':0,
     'p2wpkh':1,
     'p2wpkh-p2sh':2,
@@ -406,6 +406,14 @@ SCRIPT_TYPES = {
     'p2wsh':6,
     'p2wsh-p2sh':7
 }
+WIF_SCRIPT_TYPES_INV = inv_dict(WIF_SCRIPT_TYPES)
+
+
+PURPOSE48_SCRIPT_TYPES = {
+    'p2wsh-p2sh': 1,  # specifically multisig
+    'p2wsh': 2,       # specifically multisig
+}
+PURPOSE48_SCRIPT_TYPES_INV = inv_dict(PURPOSE48_SCRIPT_TYPES)
 
 
 def serialize_privkey(secret: bytes, compressed: bool, txin_type: str,
@@ -413,7 +421,7 @@ def serialize_privkey(secret: bytes, compressed: bool, txin_type: str,
     # we only export secrets inside curve range
     secret = ecc.ECPrivkey.normalize_secret_bytes(secret)
     if internal_use:
-        prefix = bytes([(SCRIPT_TYPES[txin_type] + constants.net.WIF_PREFIX) & 255])
+        prefix = bytes([(WIF_SCRIPT_TYPES[txin_type] + constants.net.WIF_PREFIX) & 255])
     else:
         prefix = bytes([constants.net.WIF_PREFIX])
     suffix = b'\01' if compressed else b''
@@ -432,7 +440,7 @@ def deserialize_privkey(key: str) -> (str, bytes, bool):
     txin_type = None
     if ':' in key:
         txin_type, key = key.split(sep=':', maxsplit=1)
-        if txin_type not in SCRIPT_TYPES:
+        if txin_type not in WIF_SCRIPT_TYPES:
             raise BitcoinException('unknown script type: {}'.format(txin_type))
     try:
         vch = DecodeBase58Check(key)
@@ -444,9 +452,8 @@ def deserialize_privkey(key: str) -> (str, bytes, bool):
     if txin_type is None:
         # keys exported in version 3.0.x encoded script type in first byte
         prefix_value = vch[0] - constants.net.WIF_PREFIX
-        inverse_script_types = inv_dict(SCRIPT_TYPES)
         try:
-            txin_type = inverse_script_types[prefix_value]
+            txin_type = WIF_SCRIPT_TYPES_INV[prefix_value]
         except KeyError:
             raise BitcoinException('invalid prefix ({}) for WIF key (1)'.format(vch[0]))
     else:
