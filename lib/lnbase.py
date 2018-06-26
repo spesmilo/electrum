@@ -18,9 +18,13 @@ import binascii
 import hashlib
 import hmac
 from typing import Sequence, Union, Tuple
+from collections import namedtuple, defaultdict
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
 from cryptography.hazmat.backends import default_backend
+
+HTLC_TIMEOUT_WEIGHT = 663
+HTLC_SUCCESS_WEIGHT = 703
 
 from .ecc import ser_to_point, point_to_ser, string_to_number
 from .bitcoin import (deserialize_privkey, rev_hex, int_to_hex,
@@ -37,8 +41,6 @@ from .transaction import opcodes, Transaction
 from .lnrouter import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error
 from .lightning_payencode.lnaddr import lndecode
 from .lnhtlc import UpdateAddHtlc, HTLCStateMachine, RevokeAndAck, SettleHtlc
-
-from collections import namedtuple, defaultdict
 
 def channel_id_from_funding_tx(funding_txid, funding_index):
     funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
@@ -340,9 +342,6 @@ def get_per_commitment_secret_from_seed(seed: bytes, i: int, bits: int = 48) -> 
 def overall_weight(num_htlc):
     return 500 + 172 * num_htlc + 224
 
-HTLC_TIMEOUT_WEIGHT = 663
-HTLC_SUCCESS_WEIGHT = 703
-
 def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_delayedpubkey, success, to_self_delay):
     assert type(amount_msat) is int
     assert type(local_feerate) is int
@@ -468,7 +467,7 @@ def make_htlc_tx_with_open_channel(chan, pcp, for_us, we_receive, amount_msat, c
     htlc_tx = make_htlc_tx(cltv_expiry, inputs=htlc_tx_inputs, output=htlc_tx_output)
     return htlc_tx
 
-def make_commitment_using_open_channel(chan, ctn, for_us, pcp, local_msat, remote_msat, htlcs=[]):
+def make_commitment_using_open_channel(chan, ctn, for_us, pcp, local_msat, remote_msat, htlcs=[], trimmed=0):
     conf = chan.local_config if for_us else chan.remote_config
     other_conf = chan.local_config if not for_us else chan.remote_config
     payment_pubkey = derive_pubkey(other_conf.payment_basepoint.pubkey, pcp)
@@ -491,7 +490,8 @@ def make_commitment_using_open_channel(chan, ctn, for_us, pcp, local_msat, remot
         chan.constraints.feerate,
         for_us,
         chan.constraints.is_initiator,
-        htlcs=htlcs)
+        htlcs=htlcs,
+        trimmed=trimmed)
 
 def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
                     remote_payment_pubkey, payment_basepoint,
@@ -499,7 +499,7 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
                     delayed_pubkey, to_self_delay, funding_txid,
                     funding_pos, funding_sat, local_amount, remote_amount,
                     dust_limit_sat, local_feerate, for_us, we_are_initiator,
-                    htlcs):
+                    htlcs, trimmed=0):
 
     pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
     payments = [payment_basepoint, remote_payment_basepoint]
@@ -527,7 +527,8 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
     local_address = bitcoin.redeem_script_to_address('p2wsh', bh2u(local_script))
     remote_address = bitcoin.pubkey_to_address('p2wpkh', bh2u(remote_payment_pubkey))
     # TODO trim htlc outputs here while also considering 2nd stage htlc transactions
-    fee = local_feerate * overall_weight(len(htlcs)) # TODO incorrect if anything is trimmed
+    fee = local_feerate * overall_weight(len(htlcs))
+    fee -= trimmed * 1000
     assert type(fee) is int
     we_pay_fee = for_us == we_are_initiator
     to_local_amt = local_amount - (fee if we_pay_fee else 0)
