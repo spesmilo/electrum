@@ -974,7 +974,7 @@ class Network(util.DaemonThread):
         else:
             raise Exception(interface.mode)
         # If not finished, get the next header
-        if next_height:
+        if next_height is not None:
             if interface.mode == 'catch_up' and interface.tip > next_height + 50:
                 self.request_chunk(interface, next_height // 2016)
             else:
