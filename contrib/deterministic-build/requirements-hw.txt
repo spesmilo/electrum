@@ -115,3 +115,8 @@ websocket-client==0.48.0 \
 wheel==0.31.1 \
     --hash=sha256:0a2e54558a0628f2145d2fc822137e322412115173e8a2ddbe1c9024338ae83c \
     --hash=sha256:80044e51ec5bbf6c894ba0bc48d26a8c20a9ba629f4ca19ea26ecfcf87685f5f
+pyaes==1.6.1 \
+    --hash=sha256:02c1b1405c38d3c370b085fb952dd8bea3fadcee6411ad99f312cc129c536d8f
+ckcc-protocol==0.7.2 \
+    --hash=sha256:498db4ccdda018cd9f40210f5bd02ddcc98e7df583170b2eab4035c86c3cc03b \
+    --hash=sha256:31ee5178cfba8895eb2a6b8d06dc7830b51461a0ff767a670a64707c63e6b264
