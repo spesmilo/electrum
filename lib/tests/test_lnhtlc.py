@@ -8,7 +8,7 @@ import lib.util as util
 import os
 import binascii
 
-def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate, is_initiator, local_amount, remote_amount, privkeys, other_pubkeys, seed, cur, nex, other_node_id):
+def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate, is_initiator, local_amount, remote_amount, privkeys, other_pubkeys, seed, cur, nex, other_node_id, l_dust, r_dust, l_csv, r_csv):
     assert local_amount > 0
     assert remote_amount > 0
     channel_id, _ = lnbase.channel_id_from_funding_tx(funding_txid, funding_index)
@@ -19,8 +19,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
         htlc_basepoint=privkeys[2],
         delayed_basepoint=privkeys[3],
         revocation_basepoint=privkeys[4],
-        to_self_delay=143,
-        dust_limit_sat=10,
+        to_self_delay=l_csv,
+        dust_limit_sat=l_dust,
         max_htlc_value_in_flight_msat=500000 * 1000,
         max_accepted_htlcs=5
     )
@@ -30,8 +30,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
         htlc_basepoint=other_pubkeys[2],
         delayed_basepoint=other_pubkeys[3],
         revocation_basepoint=other_pubkeys[4],
-        to_self_delay=143,
-        dust_limit_sat=10,
+        to_self_delay=r_csv,
+        dust_limit_sat=r_dust,
         max_htlc_value_in_flight_msat=500000 * 1000,
         max_accepted_htlcs=5
     )
@@ -92,9 +92,11 @@ def create_test_channels():
     bob_cur = lnbase.secret_to_pubkey(int.from_bytes(lnbase.get_per_commitment_secret_from_seed(bob_seed, 2**48 - 1), "big"))
     bob_next = lnbase.secret_to_pubkey(int.from_bytes(lnbase.get_per_commitment_secret_from_seed(bob_seed, 2**48 - 2), "big"))
 
-    return lnhtlc.HTLCStateMachine(
-        create_channel_state(funding_txid, funding_index, funding_sat, 20000, True, local_amount, remote_amount, alice_privkeys, bob_pubkeys, alice_seed, bob_cur, bob_next, b"\x02"*33), "alice"), lnhtlc.HTLCStateMachine(
-        create_channel_state(funding_txid, funding_index, funding_sat, 20000, False, remote_amount, local_amount, bob_privkeys, alice_pubkeys, bob_seed, alice_cur, alice_next, b"\x01"*33), "bob")
+    return \
+        lnhtlc.HTLCStateMachine(
+            create_channel_state(funding_txid, funding_index, funding_sat, 6000, True, local_amount, remote_amount, alice_privkeys, bob_pubkeys, alice_seed, bob_cur, bob_next, b"\x02"*33, l_dust=200, r_dust=1300, l_csv=5, r_csv=4), "alice"), \
+        lnhtlc.HTLCStateMachine(
+            create_channel_state(funding_txid, funding_index, funding_sat, 6000, False, remote_amount, local_amount, bob_privkeys, alice_pubkeys, bob_seed, alice_cur, alice_next, b"\x01"*33, l_dust=1300, r_dust=200, l_csv=4, r_csv=5), "bob")
 
 one_bitcoin_in_msat = bitcoin.COIN * 1000
 
@@ -230,3 +232,59 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         # revocation.
         self.assertEqual(alice_channel.local_update_log, [], "alice's local not updated, should be empty, has %s entries instead"% len(alice_channel.local_update_log))
         self.assertEqual(alice_channel.remote_update_log, [], "alice's remote not updated, should be empty, has %s entries instead"% len(alice_channel.remote_update_log))
+
+    def test_HTLCDustLimit(self):
+        alice_channel, bob_channel = create_test_channels()
+
+        paymentPreimage = b"\x01" * 32
+        paymentHash = bitcoin.sha256(paymentPreimage)
+        fee_per_kw = alice_channel.state.constraints.feerate
+        self.assertEqual(fee_per_kw, 6000)
+        htlcAmt = 500 + lnbase.HTLC_TIMEOUT_WEIGHT * (fee_per_kw // 1000)
+        self.assertEqual(htlcAmt, 4478)
+        htlc = lnhtlc.UpdateAddHtlc(
+            payment_hash = paymentHash,
+            amount_msat =  1000 * htlcAmt,
+            cltv_expiry =  5, # also in create_test_channels
+            total_fee = 0
+        )
+
+        aliceHtlcIndex = alice_channel.add_htlc(htlc)
+
+        bobHtlcIndex = bob_channel.receive_htlc(htlc)
+
+        force_state_transition(alice_channel, bob_channel)
+
+        self.assertEqual(len(alice_channel.local_commitment.outputs()), 3)
+
+        self.assertEqual(len(bob_channel.local_commitment.outputs()), 2)
+
+        default_fee = calc_static_fee(0)
+
+        self.assertEqual(bob_channel.local_commit_fee, default_fee)
+
+        bob_channel.settle_htlc(paymentPreimage, htlc.htlc_id)
+        alice_channel.receive_htlc_settle(paymentPreimage, aliceHtlcIndex)
+
+        force_state_transition(bob_channel, alice_channel)
+
+        self.assertEqual(len(alice_channel.local_commitment.outputs()), 2)
+
+        self.assertEqual(alice_channel.total_msat_sent // 1000, htlcAmt)
+
+def force_state_transition(chanA, chanB):
+    chanB.receive_new_commitment(*chanA.sign_next_commitment())
+    rev, _ = chanB.revoke_current_commitment()
+    bob_sig, bob_htlc_sigs = chanB.sign_next_commitment()
+    chanA.receive_revocation(rev)
+    chanA.receive_new_commitment(bob_sig, bob_htlc_sigs)
+    chanB.receive_revocation(chanA.revoke_current_commitment()[0])
+
+# calcStaticFee calculates appropriate fees for commitment transactions.  This
+# function provides a simple way to allow test balance assertions to take fee
+# calculations into account.
+def calc_static_fee(numHTLCs):
+  commitWeight = 724
+  htlcWeight   = 172
+  feePerKw     = 24//4 * 1000
+  return feePerKw * (commitWeight + htlcWeight*numHTLCs) // 1000
