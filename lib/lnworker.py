@@ -235,9 +235,4 @@ class LNWorker(PrintError):
         Transaction.add_signature_to_txin(tx._inputs[0], none_idx, bh2u(remote_sig))
         tx.raw = None # trigger reserialization
         assert tx.is_complete()
-        suc, msg = self.network.broadcast_transaction(tx)
-        self.channel_state[chan_id] = "CLOSED"
-        self.on_channels_updated()
-        if "transaction already in block chain" in msg:
-            return
-        assert suc, msg
+        return self.network.broadcast_transaction(tx)
