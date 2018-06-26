@@ -12,10 +12,8 @@ from .util import bh2u, bfh, PrintError
 from .constants import set_testnet, set_simnet
 from .lnbase import Peer, Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, OpenChannel, ChannelConstraints, RevocationStore, calc_short_channel_id, privkey_to_pubkey
 from .lightning_payencode.lnaddr import lnencode, LnAddr, lndecode
-from . import lnrouter
 from .ecc import ECPrivkey, CURVE_ORDER, der_sig_from_sig_string
 from .transaction import Transaction
-from .lnwatcher import LNWatcher
 
 is_key = lambda k: k.endswith("_basepoint") or k.endswith("_key")
 
@@ -94,15 +92,12 @@ class LNWorker(PrintError):
         self.peers = {}
         # view of the network
         self.nodes = {}  # received node announcements
-        self.channel_db = lnrouter.ChannelDB()
-        self.path_finder = lnrouter.LNPathFinder(self.channel_db)
         self.channels = {x.channel_id: x for x in map(reconstruct_namedtuples, wallet.storage.get("channels", []))}
         self.invoices = wallet.storage.get('lightning_invoices', {})
         peer_list = network.config.get('lightning_peers', node_list)
         self.channel_state = {chan.channel_id: "DISCONNECTED" for chan in self.channels.values()}
-        self.lnwatcher = LNWatcher(network, self.channel_state)
         for chan_id, chan in self.channels.items():
-            self.lnwatcher.watch_channel(chan, self.on_channel_utxos)
+            self.network.lnwatcher.watch_channel(chan, self.on_channel_utxos)
         for host, port, pubkey in peer_list:
             self.add_peer(host, int(port), pubkey)
         # wait until we see confirmations
@@ -199,7 +194,7 @@ class LNWorker(PrintError):
         payment_hash = addr.paymenthash
         invoice_pubkey = addr.pubkey.serialize()
         amount_msat = int(addr.amount * COIN * 1000)
-        path = self.path_finder.find_path_for_payment(self.pubkey, invoice_pubkey, amount_msat)
+        path = self.network.path_finder.find_path_for_payment(self.pubkey, invoice_pubkey, amount_msat)
         if path is None:
             raise Exception("No path found")
         node_id, short_channel_id = path[0]
