@@ -58,6 +58,9 @@ class VerifyingJSONRPCServer(SimpleJSONRPCServer):
                 # first, call the original implementation which returns
                 # True if all OK so far
                 if SimpleJSONRPCRequestHandler.parse_request(myself):
+                    # Do not authenticate OPTIONS-requests
+                    if myself.command.strip() == 'OPTIONS':
+                        return True
                     try:
                         self.authenticate(myself.headers)
                         return True
