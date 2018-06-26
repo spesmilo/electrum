@@ -50,6 +50,10 @@ from .interface import Interface, serialize_server, deserialize_server, RequestT
 from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 
+# lightning network
+from . import lnwatcher
+from . import lnrouter
+
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
 
@@ -228,6 +232,10 @@ class Network(PrintError):
                                         args=(self._run_forever,),
                                         name='Network')
         self._thread.start()
+        # lightning network
+        self.channel_db = lnrouter.ChannelDB()
+        self.path_finder = lnrouter.LNPathFinder(self.channel_db)
+        self.lnwatcher = lnwatcher.LNWatcher(self)
 
     def run_from_another_thread(self, coro):
         assert self._thread != threading.current_thread(), 'must not be called from network thread'
