@@ -30,7 +30,7 @@ from functools import partial
 
 from . import bitcoin
 from . import keystore
-from .keystore import bip44_derivation
+from .keystore import bip44_derivation, bip45_derivation
 from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types, Wallet
 from .storage import STO_EV_USER_PW, STO_EV_XPUB_PW, get_derivation_used_for_hw_device_encryption
 from .i18n import _
@@ -279,13 +279,8 @@ class BaseWizard(object):
             self.choose_hw_device(purpose)
             return
         if purpose == HWD_SETUP_NEW_WALLET:
-            if self.wallet_type=='multisig':
-                # There is no general standard for HD multisig.
-                # This is partially compatible with BIP45; assumes index=0
-                self.on_hw_derivation(name, device_info, "m/45'/0")
-            else:
-                f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
-                self.derivation_dialog(f)
+            f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
+            self.derivation_dialog(f)
         elif purpose == HWD_SETUP_DECRYPT_WALLET:
             derivation = get_derivation_used_for_hw_device_encryption()
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, 'standard', self)
@@ -303,16 +298,27 @@ class BaseWizard(object):
             raise Exception('unknown purpose: %s' % purpose)
 
     def derivation_dialog(self, f):
-        default = bip44_derivation(0, bip43_purpose=44)
+
         message = '\n'.join([
             _('Enter your wallet derivation here.'),
             _('If you are not sure what this is, leave this field unchanged.')
         ])
-        presets = (
-            ('legacy BIP44', bip44_derivation(0, bip43_purpose=44)),
-            ('p2sh-segwit BIP49', bip44_derivation(0, bip43_purpose=49)),
-            ('native-segwit BIP84', bip44_derivation(0, bip43_purpose=84)),
-        )
+        if self.wallet_type == 'multisig':
+            # There is no general standard for HD multisig.
+            # This is partially compatible with BIP45; assumes index=0
+            default = bip45_derivation(bip43_purpose=45)
+            presets = (
+                ('legacy BIP45', bip45_derivation(bip43_purpose=45)),
+                ('p2sh-segwit BIPXX', bip45_derivation(bip43_purpose=1001)),  # TODO purpose constant
+                ('native-segwit BIPYY', bip45_derivation(bip43_purpose=1002)),  # TODO purpose constant
+            )
+        else:
+            default = bip44_derivation(0, bip43_purpose=44)
+            presets = (
+                ('legacy BIP44', bip44_derivation(0, bip43_purpose=44)),
+                ('p2sh-segwit BIP49', bip44_derivation(0, bip43_purpose=49)),
+                ('native-segwit BIP84', bip44_derivation(0, bip43_purpose=84)),
+            )
         while True:
             try:
                 self.line_dialog(run_next=f, title=_('Derivation'), message=message,

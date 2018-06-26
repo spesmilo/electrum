@@ -606,6 +606,10 @@ def xtype_from_derivation(derivation):
         return 'p2wpkh'
     elif derivation.startswith("m/49'"):
         return 'p2wpkh-p2sh'
+    elif derivation.startswith("m/1001'"):  # TODO purpose constant
+        return 'p2wsh-p2sh'
+    elif derivation.startswith("m/1002'"):  # TODO purpose constant
+        return 'p2wsh'
     else:
         return 'standard'
 
@@ -718,6 +722,11 @@ is_bip32_key = lambda x: is_xprv(x) or is_xpub(x)
 def bip44_derivation(account_id, bip43_purpose=44):
     coin = constants.net.BIP44_COIN_TYPE
     return "m/%d'/%d'/%d'" % (bip43_purpose, coin, int(account_id))
+
+
+def bip45_derivation(bip43_purpose=45):
+    return "m/%d'/0" % bip43_purpose
+
 
 def from_seed(seed, passphrase, is_p2sh):
     t = seed_type(seed)
