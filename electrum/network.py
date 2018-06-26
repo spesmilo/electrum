@@ -64,6 +64,10 @@ from .logging import get_logger, Logger
 _logger = get_logger(__name__)
 
 
+# lightning network
+from . import lnwatcher
+from . import lnrouter
+
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
 NUM_TARGET_CONNECTED_SERVERS = 10
@@ -294,6 +298,11 @@ class Network(Logger):
         self.debug = False
 
         self._set_status('disconnected')
+
+        # lightning network
+        self.channel_db = lnrouter.ChannelDB()
+        self.path_finder = lnrouter.LNPathFinder(self.channel_db)
+        self.lnwatcher = lnwatcher.LNWatcher(self)
 
     def run_from_another_thread(self, coro):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
