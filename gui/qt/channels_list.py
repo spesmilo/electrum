@@ -33,7 +33,8 @@ class ChannelsList(MyTreeWidget):
         channel_id = self.currentItem().data(0, QtCore.Qt.UserRole)
         print('ID', bh2u(channel_id))
         def close():
-            self.parent.wallet.lnworker.close_channel(channel_id)
+            suc, msg = self.parent.wallet.lnworker.close_channel(channel_id)
+            assert suc # TODO show error message in dialog
         menu.addAction(_("Close channel"), close)
         menu.exec_(self.viewport().mapToGlobal(position))
 
@@ -49,8 +50,8 @@ class ChannelsList(MyTreeWidget):
     def do_update_rows(self):
         self.clear()
         for chan in self.parent.wallet.lnworker.channels.values():
-            item = SortableTreeWidgetItem(self.format_fields(chan))
-            item.setData(0, QtCore.Qt.UserRole, chan.channel_id)
+            item = SortableTreeWidgetItem(self.format_fields(chan.state))
+            item.setData(0, QtCore.Qt.UserRole, chan.state.channel_id)
             self.insertTopLevelItem(0, item)
 
     def get_toolbar(self):
