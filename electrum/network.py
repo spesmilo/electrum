@@ -234,6 +234,7 @@ class Network(PrintError):
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
         # lightning network
+        self.lightning_nodes = {}
         self.channel_db = lnrouter.ChannelDB()
         self.path_finder = lnrouter.LNPathFinder(self.channel_db)
         self.lnwatcher = lnwatcher.LNWatcher(self)

@@ -90,8 +90,6 @@ class LNWorker(PrintError):
         self.pubkey = ECPrivkey(self.privkey).get_public_key_bytes()
         self.config = network.config
         self.peers = {}
-        # view of the network
-        self.nodes = {}  # received node announcements
         self.channels = {x.channel_id: x for x in map(reconstruct_namedtuples, wallet.storage.get("channels", []))}
         self.invoices = wallet.storage.get('lightning_invoices', {})
         peer_list = network.config.get('lightning_peers', node_list)
@@ -99,7 +97,7 @@ class LNWorker(PrintError):
         for chan_id, chan in self.channels.items():
             self.network.lnwatcher.watch_channel(chan, self.on_channel_utxos)
         for host, port, pubkey in peer_list:
-            self.add_peer(host, int(port), pubkey)
+            self.add_peer(host, int(port), bfh(pubkey))
         # wait until we see confirmations
         self.network.register_callback(self.on_network_update, ['updated', 'verified']) # thread safe
         self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
@@ -108,8 +106,7 @@ class LNWorker(PrintError):
         assert type(node_id) is bytes
         return {x: y for (x, y) in self.channels.items() if y.node_id == node_id}
 
-    def add_peer(self, host, port, pubkey):
-        node_id = bfh(pubkey)
+    def add_peer(self, host, port, node_id):
         peer = Peer(self, host, int(port), node_id, request_initial_sync=self.config.get("request_initial_sync", True))
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[node_id] = peer
@@ -171,14 +168,15 @@ class LNWorker(PrintError):
                 conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
                 peer.on_network_update(chan, conf)
 
-    # not aiosafe because we call .result() which will propagate an exception
     async def _open_channel_coroutine(self, node_id, amount_sat, push_sat, password):
-        if node_id == "":
-            peer = next(iter(self.peers.values()))
-        else:
-            peer = self.peers[bfh(node_id)]
+        if node_id not in self.peers:
+            node = self.network.lightning_nodes.get(node_id)
+            if node is None:
+                return False
+            host, port = node['addresses'][0]
+            self.add_peer(host, port, node_id)
+        peer = self.peers[node_id]
         openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password, amount_sat, push_sat * 1000, temp_channel_id=os.urandom(32))
-        self.print_error("SAVING OPENING CHANNEL")
         self.save_channel(openingchannel)
         self.on_channels_updated()
 
