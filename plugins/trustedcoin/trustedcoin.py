@@ -296,6 +296,7 @@ class Wallet_2fa(Multisig_Wallet):
         self.print_error("twofactor: is complete", tx.is_complete())
         # reset billing_info
         self.billing_info = None
+        self.plugin.start_request_thread(self)
 
 
 
@@ -366,6 +367,7 @@ class TrustedCoinPlugin(BasePlugin):
             return
         if wallet.billing_info is None:
             if not wallet.can_sign_without_server():
+                self.start_request_thread(wallet)
                 raise Exception('missing trustedcoin billing info')
             return None
         address = wallet.billing_info['billing_address']
