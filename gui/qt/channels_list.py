@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 from PyQt5 import QtCore, QtWidgets
-from electrum.util import inv_dict, bh2u
+from PyQt5.QtWidgets import *
+
+from electrum.util import inv_dict, bh2u, bfh
 from electrum.i18n import _
 from electrum.lnbase import OpenChannel
-from .util import MyTreeWidget, SortableTreeWidgetItem
+from .util import MyTreeWidget, SortableTreeWidgetItem, WindowModalDialog, Buttons, OkButton, CancelButton
+from .amountedit import BTCAmountEdit
 
 class ChannelsList(MyTreeWidget):
     update_rows = QtCore.pyqtSignal()
@@ -14,6 +17,7 @@ class ChannelsList(MyTreeWidget):
         self.main_window = parent
         self.update_rows.connect(self.do_update_rows)
         self.update_single_row.connect(self.do_update_single_row)
+        self.status = QLabel('')
 
     def format_fields(self, chan):
         status = self.parent.wallet.lnworker.channel_state[chan.channel_id]
@@ -25,7 +29,7 @@ class ChannelsList(MyTreeWidget):
         ]
 
     def create_menu(self, position):
-        menu = QtWidgets.QMenu()
+        menu = QMenu()
         channel_id = self.currentItem().data(0, QtCore.Qt.UserRole)
         print('ID', bh2u(channel_id))
         def close():
@@ -50,35 +54,59 @@ class ChannelsList(MyTreeWidget):
             self.insertTopLevelItem(0, item)
 
     def get_toolbar(self):
-        nodeid_inp = QtWidgets.QLineEdit(self)
-        local_amt_inp = QtWidgets.QLineEdit(self, text='200000')
-        push_amt_inp = QtWidgets.QLineEdit(self, text='0')
-        button = QtWidgets.QPushButton(_('Open channel'), self)
-        button.clicked.connect(lambda: self.main_window.protect(self.open_channel, (nodeid_inp, local_amt_inp, push_amt_inp)))
-        h = QtWidgets.QGridLayout()
-        nodeid_label = QtWidgets.QLabel(self)
-        nodeid_label.setText(_("Node ID"))
-        local_amt_label = QtWidgets.QLabel(self)
-        local_amt_label.setText("Local amount (sat)")
-        push_amt_label = QtWidgets.QLabel(self)
-        push_amt_label.setText("Push amount (sat)")
-        h.addWidget(nodeid_label, 0, 0)
-        h.addWidget(local_amt_label, 0, 1)
-        h.addWidget(push_amt_label, 0, 2)
-        h.addWidget(nodeid_inp, 1, 0)
-        h.addWidget(local_amt_inp, 1, 1)
-        h.addWidget(push_amt_inp, 1, 2)
-        h.addWidget(button, 1, 3)
-        h.setColumnStretch(0, 3)
-        h.setColumnStretch(1, 1)
-        h.setColumnStretch(2, 1)
-        h.setColumnStretch(3, 1)
+        b = QPushButton(_('Open Channel'))
+        b.clicked.connect(self.new_channel_dialog)
+        h = QHBoxLayout()
+        h.addWidget(self.status)
+        h.addStretch()
+        h.addWidget(b)
         return h
 
-    def open_channel(self, nodeIdInput, local_amt_inp, push_amt_inp, password):
-        node_id = str(nodeIdInput.text())
-        local_amt = int(local_amt_inp.text())
-        push_amt = int(push_amt_inp.text())
+    def on_update(self):
+        n = len(self.parent.network.lightning_nodes)
+        np = len(self.parent.wallet.lnworker.peers)
+        self.status.setText(_('{} peers, {} nodes').format(np, n))
+
+    def new_channel_dialog(self):
+        d = WindowModalDialog(self.parent, _('Open Channel'))
+        d.setFixedWidth(700)
+        vbox = QVBoxLayout(d)
+        h = QGridLayout()
+        local_nodeid = QLineEdit()
+        local_nodeid.setText(bh2u(self.parent.wallet.lnworker.pubkey))
+        local_nodeid.setReadOnly(True)
+        local_nodeid.setCursorPosition(0)
+        remote_nodeid = QLineEdit()
+        local_amt_inp = BTCAmountEdit(self.parent.get_decimal_point)
+        local_amt_inp.setAmount(200000)
+        push_amt_inp = BTCAmountEdit(self.parent.get_decimal_point)
+        push_amt_inp.setAmount(0)
+        h.addWidget(QLabel(_('Your Node ID')), 0, 0)
+        h.addWidget(local_nodeid, 0, 1)
+        h.addWidget(QLabel(_('Remote Node ID')), 1, 0)
+        h.addWidget(remote_nodeid, 1, 1)
+        h.addWidget(QLabel('Local amount'), 2, 0)
+        h.addWidget(local_amt_inp, 2, 1)
+        h.addWidget(QLabel('Push amount'), 3, 0)
+        h.addWidget(push_amt_inp, 3, 1)
+        vbox.addLayout(h)
+        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
+        if not d.exec_():
+            return
+        nodeid_hex = str(remote_nodeid.text())
+        local_amt = local_amt_inp.get_amount()
+        push_amt = push_amt_inp.get_amount()
+        try:
+            node_id = bfh(nodeid_hex)
+        except:
+            self.parent.show_error(_('Invalid node ID'))
+            return
+        if node_id not in self.parent.wallet.lnworker.peers and node_id not in self.parent.network.lightning_nodes:
+            self.parent.show_error(_('Unknown node:') + ' ' + nodeid_hex)
+            return
         assert local_amt >= 200000
         assert local_amt >= push_amt
-        obj = self.parent.wallet.lnworker.open_channel(node_id, local_amt, push_amt, password)
+        self.main_window.protect(self.open_channel, (node_id, local_amt, push_amt))
+
+    def open_channel(self, *args, **kwargs):
+        self.parent.wallet.lnworker.open_channel(*args, **kwargs)
