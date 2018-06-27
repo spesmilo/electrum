@@ -257,7 +257,8 @@ class Wallet_2fa(Multisig_Wallet):
             return 0
         n = self.num_prepay(config)
         price = int(self.price_per_tx[n])
-        assert price <= 100000 * n
+        if price > 100000 * n:
+            raise Exception('too high trustedcoin fee ({} for {} txns)'.format(price, n))
         return price
 
     def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None,
@@ -364,7 +365,8 @@ class TrustedCoinPlugin(BasePlugin):
         if type(wallet) != Wallet_2fa:
             return
         if wallet.billing_info is None:
-            assert wallet.can_sign_without_server()
+            if not wallet.can_sign_without_server():
+                raise Exception('missing trustedcoin billing info')
             return None
         address = wallet.billing_info['billing_address']
         for _type, addr, amount in tx.outputs():
@@ -390,10 +392,12 @@ class TrustedCoinPlugin(BasePlugin):
             self.print_error('cannot connect to TrustedCoin server: {}'.format(e))
             return
         billing_address = make_billing_address(wallet, billing_info['billing_index'])
-        assert billing_address == billing_info['billing_address']
+        if billing_address != billing_info['billing_address']:
+            raise Exception('unexpected trustedcoin billing address: expected {}, received {}'
+                            .format(billing_address, billing_info['billing_address']))
         wallet.billing_info = billing_info
         wallet.price_per_tx = dict(billing_info['price_per_tx'])
-        wallet.price_per_tx.pop(1)
+        wallet.price_per_tx.pop(1, None)
         return True
 
     def start_request_thread(self, wallet):
@@ -449,7 +453,8 @@ class TrustedCoinPlugin(BasePlugin):
             # note: pre-2.7 2fa seeds were typically 24-25 words, however they
             # could probabilistically be arbitrarily shorter due to a bug. (see #3611)
             # the probability of it being < 20 words is about 2^(-(256+12-19*11)) = 2^(-59)
-            assert passphrase == ''
+            if passphrase != '':
+                raise Exception('old 2fa seed cannot have passphrase')
             xprv1, xpub1 = self.get_xkeys(' '.join(words[0:12]), '', "m/")
             xprv2, xpub2 = self.get_xkeys(' '.join(words[12:]), '', "m/")
         elif n==12:
@@ -558,11 +563,13 @@ class TrustedCoinPlugin(BasePlugin):
                 return
             _xpub3 = r['xpubkey_cosigner']
             _id = r['id']
-            try:
-                assert _id == short_id, ("user id error", _id, short_id)
-                assert xpub3 == _xpub3, ("xpub3 error", xpub3, _xpub3)
-            except Exception as e:
-                wizard.show_message(str(e))
+            if short_id != _id:
+                wizard.show_message("unexpected trustedcoin short_id: expected {}, received {}"
+                                    .format(short_id, _id))
+                return
+            if xpub3 != _xpub3:
+                wizard.show_message("unexpected trustedcoin xpub3: expected {}, received {}"
+                                    .format(xpub3, _xpub3))
                 return
         self.request_otp_dialog(wizard, short_id, otp_secret, xpub3)
 
@@ -603,10 +610,8 @@ class TrustedCoinPlugin(BasePlugin):
 
     def on_reset_auth(self, wizard, short_id, seed, passphrase, xpub3):
         xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed, passphrase)
-        try:
-            assert xpub1 == wizard.storage.get('x1/')['xpub']
-            assert xpub2 == wizard.storage.get('x2/')['xpub']
-        except:
+        if (wizard.storage.get('x1/')['xpub'] != xpub1 or
+                wizard.storage.get('x2/')['xpub'] != xpub2):
             wizard.show_message(_('Incorrect seed'))
             return
         r = server.get_challenge(short_id)
