@@ -60,6 +60,7 @@ class HTLCStateMachine(PrintError):
 
         self.total_msat_sent = 0
         self.total_msat_received = 0
+        self.pending_feerate = None
 
     def add_htlc(self, htlc):
         """
@@ -188,9 +189,17 @@ class HTLCStateMachine(PrintError):
 
         last_secret, this_point, next_point = self.points
 
+        if self.pending_feerate is not None:
+            new_feerate = self.pending_feerate
+        else:
+            new_feerate = self.state.constraints.feerate
+
         self.state = self.state._replace(
             local_state=self.state.local_state._replace(
                 ctn=self.state.local_state.ctn + 1
+            ),
+            constraints=self.state.constraints._replace(
+                feerate=new_feerate
             )
         )
 
@@ -432,3 +441,10 @@ class HTLCStateMachine(PrintError):
     @property
     def local_commit_fee(self):
         return self.state.constraints.capacity - sum(x[2] for x in self.local_commitment.outputs())
+
+    def update_fee(self, fee):
+        self.pending_feerate = fee
+
+    def receive_update_fee(self, fee):
+        self.pending_feerate = fee
+
