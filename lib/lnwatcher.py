@@ -15,7 +15,7 @@ class LNWatcher(PrintError):
         return response['params'], response['result']
 
     def watch_channel(self, chan, callback):
-        script = funding_output_script(chan.local_config, chan.remote_config)
+        script = funding_output_script(chan.state.local_config, chan.state.remote_config)
         funding_address = redeem_script_to_address('p2wsh', script)
         self.watched_channels[funding_address] = chan, callback
         self.network.subscribe_to_addresses([funding_address], self.on_address_status)

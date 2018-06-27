@@ -250,27 +250,43 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         )
 
         aliceHtlcIndex = alice_channel.add_htlc(htlc)
-
         bobHtlcIndex = bob_channel.receive_htlc(htlc)
-
         force_state_transition(alice_channel, bob_channel)
-
         self.assertEqual(len(alice_channel.local_commitment.outputs()), 3)
-
         self.assertEqual(len(bob_channel.local_commitment.outputs()), 2)
-
         default_fee = calc_static_fee(0)
-
         self.assertEqual(bob_channel.local_commit_fee, default_fee)
-
         bob_channel.settle_htlc(paymentPreimage, htlc.htlc_id)
         alice_channel.receive_htlc_settle(paymentPreimage, aliceHtlcIndex)
-
         force_state_transition(bob_channel, alice_channel)
-
         self.assertEqual(len(alice_channel.local_commitment.outputs()), 2)
-
         self.assertEqual(alice_channel.total_msat_sent // 1000, htlcAmt)
+
+    def test_UpdateFeeSenderCommits(self):
+        alice_channel, bob_channel = create_test_channels()
+
+        paymentPreimage = b"\x01" * 32
+        paymentHash = bitcoin.sha256(paymentPreimage)
+        htlc = lnhtlc.UpdateAddHtlc(
+            payment_hash = paymentHash,
+            amount_msat =  one_bitcoin_in_msat,
+            cltv_expiry =  5, # also in create_test_channels
+            total_fee = 0
+        )
+
+        aliceHtlcIndex = alice_channel.add_htlc(htlc)
+        bobHtlcIndex = bob_channel.receive_htlc(htlc)
+
+        fee = 111
+        alice_channel.update_fee(fee)
+        bob_channel.receive_update_fee(fee)
+
+        alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
+        bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
+        self.assertNotEqual(fee, alice_channel.state.constraints.feerate)
+        rev, _ = alice_channel.revoke_current_commitment()
+        self.assertEqual(fee, alice_channel.state.constraints.feerate)
+        bob_channel.receive_revocation(rev)
 
 def force_state_transition(chanA, chanB):
     chanB.receive_new_commitment(*chanA.sign_next_commitment())
