@@ -17,7 +17,7 @@ Builder.load_string('''
 
 <SettingsDialog@Popup>
     id: settings
-    title: _('Electrum Settings')
+    title: _('Electron Cash Settings')
     disable_pin: False
     use_encryption: False
     BoxLayout:
