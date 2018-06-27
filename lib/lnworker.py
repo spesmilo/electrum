@@ -94,7 +94,7 @@ class LNWorker(PrintError):
         self.channels = {x.channel_id: HTLCStateMachine(x) for x in map(reconstruct_namedtuples, wallet.storage.get("channels", []))}
         self.invoices = wallet.storage.get('lightning_invoices', {})
         peer_list = network.config.get('lightning_peers', node_list)
-        self.channel_state = {chan.state.channel_id: "DISCONNECTED" for chan in self.channels.values()}
+        self.channel_state = {chan.channel_id: "DISCONNECTED" for chan in self.channels.values()}
         for chan_id, chan in self.channels.items():
             self.network.lnwatcher.watch_channel(chan, self.on_channel_utxos)
         for host, port, pubkey in peer_list:
@@ -115,9 +115,9 @@ class LNWorker(PrintError):
 
     def save_channel(self, openchannel):
         assert type(openchannel) is HTLCStateMachine
-        if openchannel.state.channel_id not in self.channel_state:
-            self.channel_state[openchannel.state.channel_id] = "OPENING"
-        self.channels[openchannel.state.channel_id] = openchannel
+        if openchannel.channel_id not in self.channel_state:
+            self.channel_state[openchannel.channel_id] = "OPENING"
+        self.channels[openchannel.channel_id] = openchannel
         for node_id, peer in self.peers.items():
             peer.channels = self.channels_for_peer(node_id)
         if openchannel.state.remote_state.next_per_commitment_point == openchannel.state.remote_state.current_per_commitment_point:
@@ -133,7 +133,7 @@ class LNWorker(PrintError):
 
         If the Funding TX has not been mined, return None
         """
-        assert self.channel_state[chan.state.channel_id] in ["OPEN", "OPENING"]
+        assert self.channel_state[chan.channel_id] in ["OPEN", "OPENING"]
         peer = self.peers[chan.state.node_id]
         conf = self.wallet.get_tx_height(chan.state.funding_outpoint.txid)[1]
         if conf >= chan.state.constraints.funding_txn_minimum_depth:
@@ -150,8 +150,8 @@ class LNWorker(PrintError):
     def on_channel_utxos(self, chan, utxos):
         outpoints = [Outpoint(x["tx_hash"], x["tx_pos"]) for x in utxos]
         if chan.state.funding_outpoint not in outpoints:
-            self.channel_state[chan.state.channel_id] = "CLOSED"
-        elif self.channel_state[chan.state.channel_id] == 'DISCONNECTED':
+            self.channel_state[chan.channel_id] = "CLOSED"
+        elif self.channel_state[chan.channel_id] == 'DISCONNECTED':
             peer = self.peers[chan.state.node_id]
             coro = peer.reestablish_channel(chan)
             asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
@@ -159,14 +159,14 @@ class LNWorker(PrintError):
     def on_network_update(self, event, *args):
         for chan in self.channels.values():
             peer = self.peers[chan.state.node_id]
-            if self.channel_state[chan.state.channel_id] == "OPENING":
+            if self.channel_state[chan.channel_id] == "OPENING":
                 res = self.save_short_chan_id(chan)
                 if not res:
                     self.print_error("network update but funding tx is still not at sufficient depth")
                     continue
                 # this results in the channel being marked OPEN
                 peer.funding_locked(chan)
-            elif self.channel_state[chan.state.channel_id] == "OPEN":
+            elif self.channel_state[chan.channel_id] == "OPEN":
                 conf = self.wallet.get_tx_height(chan.state.funding_outpoint.txid)[1]
                 peer.on_network_update(chan, conf)
 

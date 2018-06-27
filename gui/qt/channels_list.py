@@ -50,8 +50,8 @@ class ChannelsList(MyTreeWidget):
     def do_update_rows(self):
         self.clear()
         for chan in self.parent.wallet.lnworker.channels.values():
-            item = SortableTreeWidgetItem(self.format_fields(chan.state))
-            item.setData(0, QtCore.Qt.UserRole, chan.state.channel_id)
+            item = SortableTreeWidgetItem(self.format_fields(chan))
+            item.setData(0, QtCore.Qt.UserRole, chan.channel_id)
             self.insertTopLevelItem(0, item)
 
     def get_toolbar(self):

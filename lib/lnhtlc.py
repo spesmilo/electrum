@@ -448,3 +448,22 @@ class HTLCStateMachine(PrintError):
     def receive_update_fee(self, fee):
         self.pending_feerate = fee
 
+    @property
+    def local_state(self):
+        return self.state.local_state
+
+    @property
+    def remote_state(self):
+        return self.state.remote_state
+
+    @property
+    def remote_config(self):
+        return self.state.remote_config
+
+    @property
+    def local_config(self):
+        return self.state.local_config
+
+    @property
+    def channel_id(self):
+        return self.state.channel_id
