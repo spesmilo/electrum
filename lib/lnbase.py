@@ -607,7 +607,6 @@ class Peer(PrintError):
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.update_fail_htlc = defaultdict(asyncio.Queue)
         self.localfeatures = (0x08 if request_initial_sync else 0)
-        self.nodes = {}
         self.channels = lnworker.channels
         self.invoices = lnworker.invoices
         self.attempted_route = {}
@@ -757,7 +756,7 @@ class Peer(PrintError):
                 pass
             continue
         alias = payload['alias'].rstrip(b'\x00')
-        self.nodes[pubkey] = {
+        self.network.lightning_nodes[pubkey] = {
             'alias': alias,
             'addresses': addresses
         }
