@@ -1005,6 +1005,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.request_list.update()
         self.clear_receive_tab()
 
+    def delete_lightning_payreq(self, payreq_key):
+        self.wallet.lnworker.delete_invoice(payreq_key)
+        self.request_list.update()
+        self.clear_receive_tab()
+
     def get_request_URI(self, addr):
         req = self.wallet.receive_requests[addr]
         message = self.wallet.labels.get(addr, '')
@@ -1080,7 +1085,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_error(_('Error adding payment request') + ':\n' + repr(e))
         else:
             self.sign_payment_request(addr)
-            self.save_request_button.setEnabled(False)
+            #self.save_request_button.setEnabled(False)
         finally:
             self.address_list.update()
 
