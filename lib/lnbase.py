@@ -4,12 +4,53 @@
   Derived from https://gist.github.com/AdamISZ/046d05c156aaeb56cc897f85eecb3eb8
 """
 
+from collections import namedtuple, defaultdict, OrderedDict, defaultdict
+Keypair = namedtuple("Keypair", ["pubkey", "privkey"])
+Outpoint = namedtuple("Outpoint", ["txid", "output_index"])
+ChannelConfig = namedtuple("ChannelConfig", [
+    "payment_basepoint", "multisig_key", "htlc_basepoint", "delayed_basepoint", "revocation_basepoint",
+    "to_self_delay", "dust_limit_sat", "max_htlc_value_in_flight_msat", "max_accepted_htlcs"])
+OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
+RemoteState = namedtuple("RemoteState", ["ctn", "next_per_commitment_point", "amount_msat", "revocation_store", "current_per_commitment_point", "next_htlc_id"])
+LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amount_msat", "next_htlc_id", "funding_locked_received", "was_announced", "current_commitment_signature"])
+ChannelConstraints = namedtuple("ChannelConstraints", ["feerate", "capacity", "is_initiator", "funding_txn_minimum_depth"])
+#OpenChannel = namedtuple("OpenChannel", ["channel_id", "short_channel_id", "funding_outpoint", "local_config", "remote_config", "remote_state", "local_state", "constraints", "node_id"])
+
+class RevocationStore:
+    """ taken from lnd """
+    def __init__(self):
+        self.buckets = [None] * 48
+        self.index = 2**48 - 1
+    def add_next_entry(self, hsh):
+        new_element = ShachainElement(index=self.index, secret=hsh)
+        bucket = count_trailing_zeros(self.index)
+        for i in range(0, bucket):
+            this_bucket = self.buckets[i]
+            e = shachain_derive(new_element, this_bucket.index)
+
+            if e != this_bucket:
+                raise Exception("hash is not derivable: {} {} {}".format(bh2u(e.secret), bh2u(this_bucket.secret), this_bucket.index))
+        self.buckets[bucket] = new_element
+        self.index -= 1
+    def serialize(self):
+        return {"index": self.index, "buckets": [[bh2u(k.secret), k.index] if k is not None else None for k in self.buckets]}
+    @staticmethod
+    def from_json_obj(decoded_json_obj):
+        store = RevocationStore()
+        decode = lambda to_decode: ShachainElement(bfh(to_decode[0]), int(to_decode[1]))
+        store.buckets = [k if k is None else decode(k) for k in decoded_json_obj["buckets"]]
+        store.index = decoded_json_obj["index"]
+        return store
+    def __eq__(self, o):
+        return type(o) is RevocationStore and self.serialize() == o.serialize()
+    def __hash__(self):
+        return hash(json.dumps(self.serialize(), sort_keys=True))
+
 from ecdsa.util import sigdecode_der, sigencode_string_canonize, sigdecode_string
 from ecdsa.curves import SECP256k1
 import queue
 import traceback
 import json
-from collections import OrderedDict, defaultdict
 import asyncio
 from concurrent.futures import FIRST_COMPLETED
 import os
@@ -18,7 +59,6 @@ import binascii
 import hashlib
 import hmac
 from typing import Sequence, Union, Tuple
-from collections import namedtuple, defaultdict
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
 from cryptography.hazmat.backends import default_backend
@@ -273,17 +313,6 @@ def privkey_to_pubkey(priv):
 def create_ephemeral_key(privkey):
     pub = privkey_to_pubkey(privkey)
     return (privkey[:32], pub)
-
-Keypair = namedtuple("Keypair", ["pubkey", "privkey"])
-Outpoint = namedtuple("Outpoint", ["txid", "output_index"])
-ChannelConfig = namedtuple("ChannelConfig", [
-    "payment_basepoint", "multisig_key", "htlc_basepoint", "delayed_basepoint", "revocation_basepoint",
-    "to_self_delay", "dust_limit_sat", "max_htlc_value_in_flight_msat", "max_accepted_htlcs"])
-OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
-RemoteState = namedtuple("RemoteState", ["ctn", "next_per_commitment_point", "amount_msat", "revocation_store", "current_per_commitment_point", "next_htlc_id"])
-LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amount_msat", "next_htlc_id", "funding_locked_received", "was_announced", "current_commitment_signature"])
-ChannelConstraints = namedtuple("ChannelConstraints", ["feerate", "capacity", "is_initiator", "funding_txn_minimum_depth"])
-OpenChannel = namedtuple("OpenChannel", ["channel_id", "short_channel_id", "funding_outpoint", "local_config", "remote_config", "remote_state", "local_state", "constraints", "node_id"])
 
 
 def aiosafe(f):
@@ -887,14 +916,14 @@ class Peer(PrintError):
         # remote commitment transaction
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_index)
         their_revocation_store = RevocationStore()
-        chan = OpenChannel(
-                node_id=self.pubkey,
-                channel_id=channel_id,
-                short_channel_id=None,
-                funding_outpoint=Outpoint(funding_txid, funding_index),
-                local_config=local_config,
-                remote_config=remote_config,
-                remote_state=RemoteState(
+        chan = {
+                "node_id": self.pubkey,
+                "channel_id": channel_id,
+                "short_channel_id": None,
+                "funding_outpoint": Outpoint(funding_txid, funding_index),
+                "local_config": local_config,
+                "remote_config": remote_config,
+                "remote_state": RemoteState(
                     ctn = -1,
                     next_per_commitment_point=remote_per_commitment_point,
                     current_per_commitment_point=None,
@@ -902,7 +931,7 @@ class Peer(PrintError):
                     revocation_store=their_revocation_store,
                     next_htlc_id = 0
                 ),
-                local_state=LocalState(
+                "local_state": LocalState(
                     ctn = -1,
                     per_commitment_secret_seed=per_commitment_secret_seed,
                     amount_msat=local_amount,
@@ -911,8 +940,8 @@ class Peer(PrintError):
                     was_announced = False,
                     current_commitment_signature = None
                 ),
-                constraints=ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
-        )
+                "constraints": ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
+        }
         m = HTLCStateMachine(chan)
         sig_64, _ = m.sign_next_commitment()
         self.send_message(gen_msg("funding_created",
@@ -927,7 +956,8 @@ class Peer(PrintError):
         # broadcast funding tx
         success, _txid = self.network.broadcast_transaction(funding_tx)
         assert success, success
-        m.state = chan._replace(remote_state=chan.remote_state._replace(ctn=0),local_state=chan.local_state._replace(ctn=0, current_commitment_signature=remote_sig))
+        m.remote_state = m.remote_state._replace(ctn=0)
+        m.local_state = m.local_state._replace(ctn=0, current_commitment_signature=remote_sig)
         return m
 
     @aiosafe
@@ -943,7 +973,7 @@ class Peer(PrintError):
         ))
         await self.channel_reestablished[chan_id]
         self.channel_state[chan_id] = 'OPENING'
-        if chan.local_state.funding_locked_received and chan.state.short_channel_id:
+        if chan.local_state.funding_locked_received and chan.short_channel_id:
             self.mark_open(chan)
         self.network.trigger_callback('channel', chan)
 
@@ -988,9 +1018,10 @@ class Peer(PrintError):
             their_next_point = payload["next_per_commitment_point"]
             new_remote_state = chan.remote_state._replace(next_per_commitment_point=their_next_point, current_per_commitment_point=our_next_point)
             new_local_state = chan.local_state._replace(funding_locked_received = True)
-            chan.state = chan.state._replace(remote_state=new_remote_state, local_state=new_local_state)
+            chan.remote_state=new_remote_state
+            chan.local_state=new_local_state
             self.lnworker.save_channel(chan)
-        if chan.state.short_channel_id:
+        if chan.short_channel_id:
             self.mark_open(chan)
 
     def on_network_update(self, chan, funding_tx_depth):
@@ -1000,7 +1031,7 @@ class Peer(PrintError):
         Runs on the Network thread.
         """
         if not chan.local_state.was_announced and funding_tx_depth >= 6:
-            chan.state = chan.state._replace(local_state=chan.local_state._replace(was_announced=True))
+            chan.local_state=chan.local_state._replace(was_announced=True)
             coro = self.handle_announcements(chan)
             self.lnworker.save_channel(chan)
             asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
@@ -1035,7 +1066,7 @@ class Peer(PrintError):
             len=0,
             #features not set (defaults to zeros)
             chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)),
-            short_channel_id=chan.state.short_channel_id,
+            short_channel_id=chan.short_channel_id,
             node_id_1=node_ids[0],
             node_id_2=node_ids[1],
             bitcoin_key_1=bitcoin_keys[0],
@@ -1051,12 +1082,12 @@ class Peer(PrintError):
             return
         assert chan.local_state.funding_locked_received
         self.channel_state[chan.channel_id] = "OPEN"
-        self.network.trigger_callback('channel', chan.state)
+        self.network.trigger_callback('channel', chan)
         # add channel to database
         sorted_keys = list(sorted([self.pubkey, self.lnworker.pubkey]))
-        self.channel_db.on_channel_announcement({"short_channel_id": chan.state.short_channel_id, "node_id_1": sorted_keys[0], "node_id_2": sorted_keys[1]})
-        self.channel_db.on_channel_update({"short_channel_id": chan.state.short_channel_id, 'flags': b'\x01', 'cltv_expiry_delta': b'\x90', 'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01'})
-        self.channel_db.on_channel_update({"short_channel_id": chan.state.short_channel_id, 'flags': b'\x00', 'cltv_expiry_delta': b'\x90', 'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01'})
+        self.channel_db.on_channel_announcement({"short_channel_id": chan.short_channel_id, "node_id_1": sorted_keys[0], "node_id_2": sorted_keys[1]})
+        self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'flags': b'\x01', 'cltv_expiry_delta': b'\x90', 'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01'})
+        self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'flags': b'\x00', 'cltv_expiry_delta': b'\x90', 'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01'})
 
         self.print_error("CHANNEL OPENING COMPLETED")
 
@@ -1077,7 +1108,7 @@ class Peer(PrintError):
             len=0,
             #features not set (defaults to zeros)
             chain_hash=bytes.fromhex(rev_hex(constants.net.GENESIS)),
-            short_channel_id=chan.state.short_channel_id,
+            short_channel_id=chan.short_channel_id,
             node_id_1=node_ids[0],
             node_id_2=node_ids[1],
             bitcoin_key_1=bitcoin_keys[0],
@@ -1089,7 +1120,7 @@ class Peer(PrintError):
         node_signature = ecc.ECPrivkey(self.privkey).sign(h, sigencode_string_canonize, sigdecode_string)
         self.send_message(gen_msg("announcement_signatures",
             channel_id=chan.channel_id,
-            short_channel_id=chan.state.short_channel_id,
+            short_channel_id=chan.short_channel_id,
             node_signature=node_signature,
             bitcoin_signature=bitcoin_signature
         ))
@@ -1186,7 +1217,7 @@ class Peer(PrintError):
             self.revoke(chan)
         # TODO process above commitment transactions
 
-        bare_ctx = make_commitment_using_open_channel(chan.state, chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
+        bare_ctx = make_commitment_using_open_channel(chan, chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
             msat_remote, msat_local)
 
         sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
@@ -1248,9 +1279,9 @@ class Peer(PrintError):
         self.send_message(gen_msg("update_fulfill_htlc", channel_id=channel_id, id=htlc_id, payment_preimage=payment_preimage))
 
         # remote commitment transaction without htlcs
-        bare_ctx = make_commitment_using_open_channel(m.state, m.state.remote_state.ctn + 1, False, m.state.remote_state.next_per_commitment_point,
-            m.state.remote_state.amount_msat - expected_received_msat, m.state.local_state.amount_msat + expected_received_msat)
-        sig_64 = sign_and_get_sig_string(bare_ctx, m.state.local_config, m.state.remote_config)
+        bare_ctx = make_commitment_using_open_channel(m, m.remote_state.ctn + 1, False, m.remote_state.next_per_commitment_point,
+            m.remote_state.amount_msat - expected_received_msat, m.local_state.amount_msat + expected_received_msat)
+        sig_64 = sign_and_get_sig_string(bare_ctx, m.local_config, m.remote_config)
         self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=0))
 
         await self.receive_revoke(chan)
@@ -1265,7 +1296,7 @@ class Peer(PrintError):
         self.print_error("commitment_signed", payload)
         channel_id = payload['channel_id']
         chan = self.channels[channel_id]
-        chan.state = chan.state._replace(local_state=chan.local_state._replace(current_commitment_signature=payload['signature']))
+        chan.local_state=chan.local_state._replace(current_commitment_signature=payload['signature'])
         self.lnworker.save_channel(chan)
         self.commitment_signed[channel_id].put_nowait(payload)
 
@@ -1312,32 +1343,3 @@ def count_trailing_zeros(index):
 ShachainElement = namedtuple("ShachainElement", ["secret", "index"])
 ShachainElement.__str__ = lambda self: "ShachainElement(" + bh2u(self.secret) + "," + str(self.index) + ")"
 
-class RevocationStore:
-    """ taken from lnd """
-    def __init__(self):
-        self.buckets = [None] * 48
-        self.index = 2**48 - 1
-    def add_next_entry(self, hsh):
-        new_element = ShachainElement(index=self.index, secret=hsh)
-        bucket = count_trailing_zeros(self.index)
-        for i in range(0, bucket):
-            this_bucket = self.buckets[i]
-            e = shachain_derive(new_element, this_bucket.index)
-
-            if e != this_bucket:
-                raise Exception("hash is not derivable: {} {} {}".format(bh2u(e.secret), bh2u(this_bucket.secret), this_bucket.index))
-        self.buckets[bucket] = new_element
-        self.index -= 1
-    def serialize(self):
-        return {"index": self.index, "buckets": [[bh2u(k.secret), k.index] if k is not None else None for k in self.buckets]}
-    @staticmethod
-    def from_json_obj(decoded_json_obj):
-        store = RevocationStore()
-        decode = lambda to_decode: ShachainElement(bfh(to_decode[0]), int(to_decode[1]))
-        store.buckets = [k if k is None else decode(k) for k in decoded_json_obj["buckets"]]
-        store.index = decoded_json_obj["index"]
-        return store
-    def __eq__(self, o):
-        return type(o) is RevocationStore and self.serialize() == o.serialize()
-    def __hash__(self):
-        return hash(json.dumps(self.serialize(), sort_keys=True))
