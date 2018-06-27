@@ -520,6 +520,34 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return clayout.selected_index()
 
     @wizard_dialog
+    def choice_and_line_dialog(self, title, message1, choices, message2,
+                               test_text, run_next) -> (str, str):
+        vbox = QVBoxLayout()
+
+        c_values = [x[0] for x in choices]
+        c_titles = [x[1] for x in choices]
+        c_default_text = [x[2] for x in choices]
+        def on_choice_click(clayout):
+            idx = clayout.selected_index()
+            line.setText(c_default_text[idx])
+        clayout = ChoicesLayout(message1, c_titles, on_choice_click)
+        vbox.addLayout(clayout.layout())
+
+        vbox.addSpacing(50)
+        vbox.addWidget(WWLabel(message2))
+
+        line = QLineEdit()
+        def on_text_change(text):
+            self.next_button.setEnabled(test_text(text))
+        line.textEdited.connect(on_text_change)
+        on_choice_click(clayout)  # set default text for "line"
+        vbox.addWidget(line)
+
+        self.exec_layout(vbox, title)
+        choice = c_values[clayout.selected_index()]
+        return str(line.text()), choice
+
+    @wizard_dialog
     def line_dialog(self, run_next, title, message, default, test, warning='',
                     presets=()):
         vbox = QVBoxLayout()
@@ -535,9 +563,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         for preset in presets:
             button = QPushButton(preset[0])
             button.clicked.connect(lambda __, text=preset[1]: line.setText(text))
-            button.setMaximumWidth(150)
+            button.setMinimumWidth(150)
             hbox = QHBoxLayout()
-            hbox.addWidget(button, Qt.AlignCenter)
+            hbox.addWidget(button, alignment=Qt.AlignCenter)
             vbox.addLayout(hbox)
 
         self.exec_layout(vbox, title, next_enabled=test(default))

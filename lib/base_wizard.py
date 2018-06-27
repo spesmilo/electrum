@@ -30,7 +30,7 @@ from functools import partial
 
 from . import bitcoin
 from . import keystore
-from .keystore import bip44_derivation
+from .keystore import bip44_derivation, purpose48_derivation
 from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types, Wallet
 from .storage import STO_EV_USER_PW, STO_EV_XPUB_PW, get_derivation_used_for_hw_device_encryption
 from .i18n import _
@@ -279,13 +279,9 @@ class BaseWizard(object):
             self.choose_hw_device(purpose)
             return
         if purpose == HWD_SETUP_NEW_WALLET:
-            if self.wallet_type=='multisig':
-                # There is no general standard for HD multisig.
-                # This is partially compatible with BIP45; assumes index=0
-                self.on_hw_derivation(name, device_info, "m/45'/0")
-            else:
-                f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
-                self.derivation_dialog(f)
+            def f(derivation, script_type):
+                self.run('on_hw_derivation', name, device_info, derivation, script_type)
+            self.derivation_and_script_type_dialog(f)
         elif purpose == HWD_SETUP_DECRYPT_WALLET:
             derivation = get_derivation_used_for_hw_device_encryption()
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, 'standard', self)
@@ -302,30 +298,39 @@ class BaseWizard(object):
         else:
             raise Exception('unknown purpose: %s' % purpose)
 
-    def derivation_dialog(self, f):
-        default = bip44_derivation(0, bip43_purpose=44)
-        message = '\n'.join([
-            _('Enter your wallet derivation here.'),
+    def derivation_and_script_type_dialog(self, f):
+        message1 = _('Choose the type of addresses in your wallet.')
+        message2 = '\n'.join([
+            _('You can override the suggested derivation path.'),
             _('If you are not sure what this is, leave this field unchanged.')
         ])
-        presets = (
-            ('legacy BIP44', bip44_derivation(0, bip43_purpose=44)),
-            ('p2sh-segwit BIP49', bip44_derivation(0, bip43_purpose=49)),
-            ('native-segwit BIP84', bip44_derivation(0, bip43_purpose=84)),
-        )
+        if self.wallet_type == 'multisig':
+            # There is no general standard for HD multisig.
+            # For legacy, this is partially compatible with BIP45; assumes index=0
+            # For segwit, a custom path is used, as there is no standard at all.
+            choices = [
+                ('standard',   'legacy multisig (p2sh)',            "m/45'/0"),
+                ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
+                ('p2wsh',      'native segwit multisig (p2wsh)',    purpose48_derivation(0, xtype='p2wsh')),
+            ]
+        else:
+            choices = [
+                ('standard',    'legacy (p2pkh)',            bip44_derivation(0, bip43_purpose=44)),
+                ('p2wpkh-p2sh', 'p2sh-segwit (p2wpkh-p2sh)', bip44_derivation(0, bip43_purpose=49)),
+                ('p2wpkh',      'native segwit (p2wpkh)',    bip44_derivation(0, bip43_purpose=84)),
+            ]
         while True:
             try:
-                self.line_dialog(run_next=f, title=_('Derivation'), message=message,
-                                 default=default, test=bitcoin.is_bip32_derivation,
-                                 presets=presets)
+                self.choice_and_line_dialog(
+                    run_next=f, title=_('Script type and Derivation path'), message1=message1,
+                    message2=message2, choices=choices, test_text=bitcoin.is_bip32_derivation)
                 return
             except ScriptTypeNotSupported as e:
                 self.show_error(e)
                 # let the user choose again
 
-    def on_hw_derivation(self, name, device_info, derivation):
+    def on_hw_derivation(self, name, device_info, derivation, xtype):
         from .keystore import hardware_keystore
-        xtype = keystore.xtype_from_derivation(derivation)
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
         except ScriptTypeNotSupported:
@@ -379,15 +384,16 @@ class BaseWizard(object):
             raise Exception('Unknown seed type', self.seed_type)
 
     def on_restore_bip39(self, seed, passphrase):
-        f = lambda x: self.run('on_bip43', seed, passphrase, str(x))
-        self.derivation_dialog(f)
+        def f(derivation, script_type):
+            self.run('on_bip43', seed, passphrase, derivation, script_type)
+        self.derivation_and_script_type_dialog(f)
 
     def create_keystore(self, seed, passphrase):
         k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig')
         self.on_keystore(k)
 
-    def on_bip43(self, seed, passphrase, derivation):
-        k = keystore.from_bip39_seed(seed, passphrase, derivation)
+    def on_bip43(self, seed, passphrase, derivation, script_type):
+        k = keystore.from_bip39_seed(seed, passphrase, derivation, xtype=script_type)
         self.on_keystore(k)
 
     def on_keystore(self, k):
