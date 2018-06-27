@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14113" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
+    <device id="retina4_7" orientation="portrait">
+        <adaptation id="fullscreen"/>
+    </device>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14088"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner"/>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <view tag="4000" contentMode="scaleToFill" id="5eL-L8-IYe" userLabel="Remove">
+            <rect key="frame" x="0.0" y="0.0" width="74" height="106"/>
+            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+            <subviews>
+                <view contentMode="scaleToFill" verticalCompressionResistancePriority="749" translatesAutoresizingMaskIntoConstraints="NO" id="7Xu-NF-QR8" userLabel="TopSpacer">
+                    <rect key="frame" x="32" y="0.0" width="10" height="30"/>
+                    <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    <constraints>
+                        <constraint firstAttribute="width" constant="10" id="HyI-6b-uru"/>
+                    </constraints>
+                </view>
+                <label opaque="NO" userInteractionEnabled="NO" tag="1" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" verticalCompressionResistancePriority="1000" text="Remove" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="OiU-WV-dh9">
+                    <rect key="frame" x="0.0" y="59" width="74" height="17"/>
+                    <constraints>
+                        <constraint firstAttribute="height" constant="17" id="s0J-w3-ZDa"/>
+                    </constraints>
+                    <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                    <color key="textColor" red="1" green="0.3803921569" blue="0.3803921569" alpha="1" colorSpace="deviceRGB"/>
+                    <nil key="highlightedColor"/>
+                </label>
+                <view contentMode="scaleToFill" verticalCompressionResistancePriority="749" translatesAutoresizingMaskIntoConstraints="NO" id="Cbg-yr-hbt" userLabel="BottomSpacer">
+                    <rect key="frame" x="32" y="76" width="10" height="30"/>
+                    <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    <constraints>
+                        <constraint firstAttribute="width" constant="10" id="N2k-La-MiM"/>
+                    </constraints>
+                </view>
+                <imageView userInteractionEnabled="NO" tag="2" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="trashcan_red.png" translatesAutoresizingMaskIntoConstraints="NO" id="Raz-3R-Rff">
+                    <rect key="frame" x="29" y="30" width="17" height="23"/>
+                    <constraints>
+                        <constraint firstAttribute="width" constant="17" id="3yk-56-lvh"/>
+                        <constraint firstAttribute="height" constant="23" id="AO7-c1-O4W"/>
+                    </constraints>
+                </imageView>
+            </subviews>
+            <color key="backgroundColor" red="0.96470588239999999" green="0.96470588239999999" blue="0.96470588239999999" alpha="1" colorSpace="deviceRGB"/>
+            <constraints>
+                <constraint firstItem="Cbg-yr-hbt" firstAttribute="centerX" secondItem="5eL-L8-IYe" secondAttribute="centerX" id="2U3-Rl-O2G"/>
+                <constraint firstItem="Raz-3R-Rff" firstAttribute="top" secondItem="7Xu-NF-QR8" secondAttribute="bottom" id="2YK-vl-uAe"/>
+                <constraint firstItem="OiU-WV-dh9" firstAttribute="top" secondItem="Raz-3R-Rff" secondAttribute="bottom" constant="6" id="7uZ-na-z57"/>
+                <constraint firstItem="7Xu-NF-QR8" firstAttribute="top" secondItem="5eL-L8-IYe" secondAttribute="top" id="9aO-N7-Yby"/>
+                <constraint firstItem="OiU-WV-dh9" firstAttribute="centerX" secondItem="5eL-L8-IYe" secondAttribute="centerX" id="AMI-yb-ezA"/>
+                <constraint firstItem="Cbg-yr-hbt" firstAttribute="height" secondItem="7Xu-NF-QR8" secondAttribute="height" id="Bun-hK-cpz"/>
+                <constraint firstItem="OiU-WV-dh9" firstAttribute="leading" secondItem="5eL-L8-IYe" secondAttribute="leading" id="FmG-ae-vjk"/>
+                <constraint firstItem="Cbg-yr-hbt" firstAttribute="top" secondItem="OiU-WV-dh9" secondAttribute="bottom" id="Kvj-L6-Nhh"/>
+                <constraint firstAttribute="trailing" secondItem="OiU-WV-dh9" secondAttribute="trailing" id="P5b-5T-yv0"/>
+                <constraint firstItem="Raz-3R-Rff" firstAttribute="centerX" secondItem="5eL-L8-IYe" secondAttribute="centerX" id="eaY-Xt-RtE"/>
+                <constraint firstAttribute="bottom" secondItem="Cbg-yr-hbt" secondAttribute="bottom" id="rEn-L1-9ts"/>
+                <constraint firstItem="7Xu-NF-QR8" firstAttribute="centerX" secondItem="5eL-L8-IYe" secondAttribute="centerX" id="y7i-6x-KiV"/>
+            </constraints>
+            <nil key="simulatedTopBarMetrics"/>
+            <nil key="simulatedBottomBarMetrics"/>
+            <freeformSimulatedSizeMetrics key="simulatedDestinationMetrics"/>
+            <viewLayoutGuide key="safeArea" id="f7u-fA-Tej"/>
+            <point key="canvasLocation" x="-600" y="-932"/>
+        </view>
+        <view tag="6000" contentMode="center" horizontalCompressionResistancePriority="1000" verticalCompressionResistancePriority="1000" translatesAutoresizingMaskIntoConstraints="NO" id="qic-zO-I2b" userLabel="NoCoinsView">
+            <rect key="frame" x="0.0" y="0.0" width="196" height="107"/>
+            <subviews>
+                <imageView userInteractionEnabled="NO" tag="6060" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="empty_table_icon.png" translatesAutoresizingMaskIntoConstraints="NO" id="ae6-Pf-omf">
+                    <rect key="frame" x="67" y="0.5" width="62" height="36"/>
+                    <constraints>
+                        <constraint firstAttribute="height" constant="36" id="NXe-5U-P15"/>
+                        <constraint firstAttribute="width" constant="62" id="STC-Cz-yEU"/>
+                    </constraints>
+                </imageView>
+                <label opaque="NO" userInteractionEnabled="NO" tag="6061" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" usesAttributedText="YES" lineBreakMode="tailTruncation" numberOfLines="2" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="Lcp-fw-jcI">
+                    <rect key="frame" x="0.0" y="65" width="196" height="41"/>
+                    <constraints>
+                        <constraint firstAttribute="height" constant="41" id="41I-yz-Zlb"/>
+                        <constraint firstAttribute="height" relation="greaterThanOrEqual" constant="41" id="I38-iX-8jJ"/>
+                        <constraint firstAttribute="width" constant="196" id="TGH-M2-aRp"/>
+                    </constraints>
+                    <attributedString key="attributedText">
+                        <fragment content="This wallet has no unspent outputs (coins) to display.">
+                            <attributes>
+                                <color key="NSColor" red="0.80000000000000004" green="0.80000000000000004" blue="0.80000000000000004" alpha="1" colorSpace="deviceRGB"/>
+                                <font key="NSFont" size="14" name="SFProDisplay-Italic"/>
+                                <paragraphStyle key="NSParagraphStyle" alignment="center" lineBreakMode="truncatingTail" baseWritingDirection="natural" lineSpacing="7" tighteningFactorForTruncation="0.0"/>
+                            </attributes>
+                        </fragment>
+                    </attributedString>
+                    <nil key="highlightedColor"/>
+                </label>
+            </subviews>
+            <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+            <gestureRecognizers/>
+            <constraints>
+                <constraint firstItem="ae6-Pf-omf" firstAttribute="centerY" secondItem="qic-zO-I2b" secondAttribute="centerY" constant="-35" id="Ajc-y6-y07"/>
+                <constraint firstItem="Lcp-fw-jcI" firstAttribute="centerX" secondItem="qic-zO-I2b" secondAttribute="centerX" id="Atq-q2-NNZ"/>
+                <constraint firstItem="ae6-Pf-omf" firstAttribute="centerX" secondItem="qic-zO-I2b" secondAttribute="centerX" id="eTE-0c-JPY"/>
+                <constraint firstItem="Lcp-fw-jcI" firstAttribute="centerY" secondItem="qic-zO-I2b" secondAttribute="centerY" constant="32" id="jXe-fP-6VS"/>
+            </constraints>
+            <nil key="simulatedTopBarMetrics"/>
+            <nil key="simulatedBottomBarMetrics"/>
+            <freeformSimulatedSizeMetrics key="simulatedDestinationMetrics"/>
+            <viewLayoutGuide key="safeArea" id="iDb-BR-cCx"/>
+            <point key="canvasLocation" x="-733" y="-1125"/>
+        </view>
+    </objects>
+    <resources>
+        <image name="empty_table_icon.png" width="62" height="36"/>
+        <image name="trashcan_red.png" width="17" height="23"/>
+    </resources>
+</document>

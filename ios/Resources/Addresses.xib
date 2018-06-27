@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14109" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
+    <device id="retina4_7" orientation="portrait">
+        <adaptation id="fullscreen"/>
+    </device>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14088"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner" customClass="AddressesVC">
+            <connections>
+                <outlet property="tableView" destination="WeT-Dq-G1P" id="Yya-vm-ndB"/>
+                <outlet property="topComboProxyL" destination="ObN-P4-0Ej" id="fRC-dN-rw7"/>
+                <outlet property="topComboProxyR" destination="QWi-nQ-IHZ" id="Icq-el-PdC"/>
+                <outlet property="topLblL" destination="ul5-F6-NxT" id="Qp8-dS-Bje"/>
+                <outlet property="topLblR" destination="dJd-nt-t89" id="Hjp-Xd-OJQ"/>
+                <outlet property="view" destination="8ga-f9-mi5" id="ip8-DR-VVi"/>
+            </connections>
+        </placeholder>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <view contentMode="scaleToFill" id="8ga-f9-mi5">
+            <rect key="frame" x="0.0" y="0.0" width="375" height="554"/>
+            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+            <subviews>
+                <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="HLA-l8-z3q" userLabel="BgForFakeBorders">
+                    <rect key="frame" x="0.0" y="0.0" width="375" height="43"/>
+                    <color key="backgroundColor" red="0.80000000000000004" green="0.80000000000000004" blue="0.80000000000000004" alpha="1" colorSpace="deviceRGB"/>
+                </view>
+                <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="ObN-P4-0Ej" userLabel="TopAreaL">
+                    <rect key="frame" x="0.0" y="0.0" width="187" height="42"/>
+                    <subviews>
+                        <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="chevron_00000.png" translatesAutoresizingMaskIntoConstraints="NO" id="JF4-zi-pKb">
+                            <rect key="frame" x="157" y="4" width="30" height="35"/>
+                            <constraints>
+                                <constraint firstAttribute="width" constant="30" id="1TQ-p4-xEp"/>
+                                <constraint firstAttribute="width" relation="greaterThanOrEqual" constant="30" id="B0F-9h-VAi"/>
+                                <constraint firstAttribute="height" relation="greaterThanOrEqual" constant="35" id="gKb-RK-Ld0"/>
+                                <constraint firstAttribute="height" constant="35" id="jnf-tb-u3S"/>
+                            </constraints>
+                        </imageView>
+                        <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Type: All" textAlignment="center" lineBreakMode="middleTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="ul5-F6-NxT">
+                            <rect key="frame" x="0.0" y="8.5" width="187" height="26"/>
+                            <constraints>
+                                <constraint firstAttribute="height" constant="26" id="CN8-WU-4uH"/>
+                            </constraints>
+                            <fontDescription key="fontDescription" type="system" pointSize="12"/>
+                            <color key="textColor" red="0.80000000000000004" green="0.80000000000000004" blue="0.80000000000000004" alpha="1" colorSpace="deviceRGB"/>
+                            <nil key="highlightedColor"/>
+                        </label>
+                    </subviews>
+                    <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    <gestureRecognizers/>
+                    <constraints>
+                        <constraint firstAttribute="height" constant="42" id="6nJ-wW-En2"/>
+                        <constraint firstItem="ul5-F6-NxT" firstAttribute="leading" secondItem="ObN-P4-0Ej" secondAttribute="leading" id="Enh-wf-KYZ"/>
+                        <constraint firstItem="JF4-zi-pKb" firstAttribute="centerY" secondItem="ObN-P4-0Ej" secondAttribute="centerY" id="LpD-4q-def"/>
+                        <constraint firstAttribute="trailing" secondItem="JF4-zi-pKb" secondAttribute="trailing" id="VGM-xB-fG8"/>
+                        <constraint firstAttribute="trailing" secondItem="ul5-F6-NxT" secondAttribute="trailing" id="eeH-Ax-e9W"/>
+                        <constraint firstItem="ul5-F6-NxT" firstAttribute="centerY" secondItem="ObN-P4-0Ej" secondAttribute="centerY" id="gye-Xr-FSC"/>
+                    </constraints>
+                    <connections>
+                        <outletCollection property="gestureRecognizers" destination="ufI-6W-JCj" appends="YES" id="Qe4-A1-MsP"/>
+                    </connections>
+                </view>
+                <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="QWi-nQ-IHZ" userLabel="TopAreaR">
+                    <rect key="frame" x="188" y="0.0" width="187" height="42"/>
+                    <subviews>
+                        <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="chevron_00000.png" translatesAutoresizingMaskIntoConstraints="NO" id="4Iz-Ei-Ohx">
+                            <rect key="frame" x="157" y="4" width="30" height="35"/>
+                            <constraints>
+                                <constraint firstAttribute="width" relation="greaterThanOrEqual" constant="30" id="Evp-Gf-erU"/>
+                                <constraint firstAttribute="width" constant="30" id="bBb-gy-mLD"/>
+                                <constraint firstAttribute="height" constant="35" id="cOU-VK-o7i"/>
+                                <constraint firstAttribute="height" relation="greaterThanOrEqual" constant="35" id="tmL-g1-m3d"/>
+                            </constraints>
+                        </imageView>
+                        <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Status: All" textAlignment="center" lineBreakMode="middleTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="dJd-nt-t89">
+                            <rect key="frame" x="0.0" y="8.5" width="187" height="26"/>
+                            <constraints>
+                                <constraint firstAttribute="height" constant="26" id="Zpf-Dt-RKo"/>
+                            </constraints>
+                            <fontDescription key="fontDescription" type="system" pointSize="12"/>
+                            <color key="textColor" red="0.80000000000000004" green="0.80000000000000004" blue="0.80000000000000004" alpha="1" colorSpace="deviceRGB"/>
+                            <nil key="highlightedColor"/>
+                        </label>
+                    </subviews>
+                    <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    <gestureRecognizers/>
+                    <constraints>
+                        <constraint firstAttribute="trailing" secondItem="4Iz-Ei-Ohx" secondAttribute="trailing" id="ETI-xO-6C4"/>
+                        <constraint firstItem="dJd-nt-t89" firstAttribute="centerY" secondItem="QWi-nQ-IHZ" secondAttribute="centerY" id="GD9-pl-ME8"/>
+                        <constraint firstAttribute="trailing" secondItem="dJd-nt-t89" secondAttribute="trailing" id="Tpw-LO-azC"/>
+                        <constraint firstItem="4Iz-Ei-Ohx" firstAttribute="centerY" secondItem="QWi-nQ-IHZ" secondAttribute="centerY" id="f6g-nD-7uH"/>
+                        <constraint firstItem="dJd-nt-t89" firstAttribute="leading" secondItem="QWi-nQ-IHZ" secondAttribute="leading" id="uIN-tJ-1o3"/>
+                    </constraints>
+                    <connections>
+                        <outletCollection property="gestureRecognizers" destination="LY6-ym-89Q" appends="YES" id="JTA-Cq-rML"/>
+                    </connections>
+                </view>
+                <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" style="plain" separatorStyle="default" rowHeight="-1" estimatedRowHeight="-1" sectionHeaderHeight="28" sectionFooterHeight="28" translatesAutoresizingMaskIntoConstraints="NO" id="WeT-Dq-G1P">
+                    <rect key="frame" x="0.0" y="43" width="375" height="511"/>
+                    <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    <inset key="separatorInset" minX="0.0" minY="0.0" maxX="0.0" maxY="0.0"/>
+                    <connections>
+                        <outlet property="dataSource" destination="-1" id="VAN-Ae-uMD"/>
+                        <outlet property="delegate" destination="-1" id="fIn-qn-oQ9"/>
+                    </connections>
+                </tableView>
+            </subviews>
+            <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+            <constraints>
+                <constraint firstItem="WeT-Dq-G1P" firstAttribute="bottom" secondItem="UuD-QY-HzT" secondAttribute="bottom" id="0fu-AI-57a"/>
+                <constraint firstItem="ObN-P4-0Ej" firstAttribute="top" secondItem="HLA-l8-z3q" secondAttribute="top" id="74D-IH-v2d"/>
+                <constraint firstItem="ObN-P4-0Ej" firstAttribute="height" secondItem="HLA-l8-z3q" secondAttribute="height" constant="-1" id="EPe-5P-7F6"/>
+                <constraint firstItem="ObN-P4-0Ej" firstAttribute="leading" secondItem="HLA-l8-z3q" secondAttribute="leading" id="H0g-lW-Qd2"/>
+                <constraint firstItem="WeT-Dq-G1P" firstAttribute="top" secondItem="ObN-P4-0Ej" secondAttribute="bottom" constant="1" id="I6b-Ap-Iqv"/>
+                <constraint firstItem="QWi-nQ-IHZ" firstAttribute="leading" secondItem="ObN-P4-0Ej" secondAttribute="trailing" constant="1" id="O4s-6D-i9c"/>
+                <constraint firstItem="WeT-Dq-G1P" firstAttribute="trailing" secondItem="UuD-QY-HzT" secondAttribute="trailing" id="QJQ-vx-KNt"/>
+                <constraint firstItem="QWi-nQ-IHZ" firstAttribute="width" secondItem="ObN-P4-0Ej" secondAttribute="width" id="T5t-Zi-Sa5"/>
+                <constraint firstItem="UuD-QY-HzT" firstAttribute="trailing" secondItem="QWi-nQ-IHZ" secondAttribute="trailing" id="Ug9-rv-8xi"/>
+                <constraint firstItem="QWi-nQ-IHZ" firstAttribute="top" secondItem="UuD-QY-HzT" secondAttribute="top" id="X2L-px-aRW"/>
+                <constraint firstItem="ObN-P4-0Ej" firstAttribute="leading" secondItem="UuD-QY-HzT" secondAttribute="leading" id="kcc-wA-gFR"/>
+                <constraint firstItem="ObN-P4-0Ej" firstAttribute="top" secondItem="UuD-QY-HzT" secondAttribute="top" id="pdd-Ue-jXx"/>
+                <constraint firstItem="WeT-Dq-G1P" firstAttribute="leading" secondItem="UuD-QY-HzT" secondAttribute="leading" id="q53-q6-SjH"/>
+                <constraint firstItem="QWi-nQ-IHZ" firstAttribute="trailing" secondItem="HLA-l8-z3q" secondAttribute="trailing" id="v8S-FN-Dt6"/>
+                <constraint firstItem="QWi-nQ-IHZ" firstAttribute="height" secondItem="ObN-P4-0Ej" secondAttribute="height" id="zhI-5i-j05"/>
+            </constraints>
+            <simulatedNavigationBarMetrics key="simulatedTopBarMetrics" translucent="NO" prompted="NO"/>
+            <simulatedTabBarMetrics key="simulatedBottomBarMetrics" translucent="NO"/>
+            <viewLayoutGuide key="safeArea" id="UuD-QY-HzT"/>
+            <point key="canvasLocation" x="-19.5" y="130.5"/>
+        </view>
+        <tapGestureRecognizer id="ufI-6W-JCj" userLabel="TopAreaL Tap Gesture Recognizer">
+            <connections>
+                <action selector="onTapComboProxyL" destination="-1" id="yy0-a9-kQ2"/>
+            </connections>
+        </tapGestureRecognizer>
+        <tapGestureRecognizer id="LY6-ym-89Q" userLabel="TopAreaR Tap Gesture Recognizer">
+            <connections>
+                <action selector="onTapComboProxyR" destination="-1" id="7MF-9b-Oy2"/>
+            </connections>
+        </tapGestureRecognizer>
+    </objects>
+    <resources>
+        <image name="chevron_00000.png" width="44" height="44"/>
+    </resources>
+</document>

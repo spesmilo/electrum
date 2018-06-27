@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="11762" systemVersion="15G19009" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" colorMatched="YES">
+    <device id="retina4_7" orientation="portrait">
+        <adaptation id="fullscreen"/>
+    </device>
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="11757"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner"/>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <tableViewCell clipsSubviews="YES" tag="2" contentMode="scaleToFill" selectionStyle="blue" indentationWidth="10" rowHeight="22" id="2uc-ke-2j0">
+            <rect key="frame" x="0.0" y="0.0" width="375" height="22"/>
+            <autoresizingMask key="autoresizingMask"/>
+            <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" tag="10" contentMode="center" tableViewCell="2uc-ke-2j0" id="zVn-8w-fpr">
+                <rect key="frame" x="0.0" y="0.0" width="375" height="21"/>
+                <autoresizingMask key="autoresizingMask"/>
+                <subviews>
+                    <label opaque="NO" userInteractionEnabled="NO" tag="150" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Bla.electrum.foo.com" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="Ll6-Qw-zVZ">
+                        <rect key="frame" x="16" y="0.0" width="281.5" height="21"/>
+                        <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                        <nil key="textColor"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                    <label opaque="NO" userInteractionEnabled="NO" tag="160" contentMode="left" horizontalHuggingPriority="252" verticalHuggingPriority="251" text="123456" textAlignment="right" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="wb0-lx-L4P">
+                        <rect key="frame" x="305.5" y="0.0" width="61.5" height="21"/>
+                        <constraints>
+                            <constraint firstAttribute="width" constant="62" id="TvT-x4-qGW"/>
+                        </constraints>
+                        <fontDescription key="fontDescription" name="Menlo-Regular" family="Menlo" pointSize="17"/>
+                        <nil key="textColor"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                </subviews>
+                <constraints>
+                    <constraint firstItem="wb0-lx-L4P" firstAttribute="top" secondItem="zVn-8w-fpr" secondAttribute="top" id="5DJ-t8-RcU"/>
+                    <constraint firstAttribute="bottom" secondItem="wb0-lx-L4P" secondAttribute="bottom" id="7bj-eS-gbl"/>
+                    <constraint firstItem="wb0-lx-L4P" firstAttribute="centerY" secondItem="Ll6-Qw-zVZ" secondAttribute="centerY" id="8hg-g0-1kI"/>
+                    <constraint firstAttribute="bottom" secondItem="Ll6-Qw-zVZ" secondAttribute="bottom" id="ae8-bs-eyE"/>
+                    <constraint firstItem="Ll6-Qw-zVZ" firstAttribute="leading" secondItem="zVn-8w-fpr" secondAttribute="leading" constant="16" id="dMB-d6-jid"/>
+                    <constraint firstItem="Ll6-Qw-zVZ" firstAttribute="top" secondItem="zVn-8w-fpr" secondAttribute="top" id="kGn-o1-qKe"/>
+                    <constraint firstAttribute="trailing" secondItem="wb0-lx-L4P" secondAttribute="trailing" constant="8" id="m10-BR-exH"/>
+                    <constraint firstItem="wb0-lx-L4P" firstAttribute="leading" secondItem="Ll6-Qw-zVZ" secondAttribute="trailing" constant="8" id="oJ2-eF-6wP"/>
+                </constraints>
+            </tableViewCellContentView>
+            <point key="canvasLocation" x="-1761" y="-360"/>
+        </tableViewCell>
+    </objects>
+</document>

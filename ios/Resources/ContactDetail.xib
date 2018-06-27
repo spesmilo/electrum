@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14113" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
+    <device id="retina4_7" orientation="portrait">
+        <adaptation id="fullscreen"/>
+    </device>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14088"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner" customClass="ContactDetailVC">
+            <connections>
+                <outlet property="address" destination="hU3-ix-UVn" id="3o3-tt-WeB"/>
+                <outlet property="name" destination="Z9W-FB-XEQ" id="R6A-Li-h3H"/>
+                <outlet property="payToBut" destination="R8A-SG-RzJ" id="w0I-L7-U0q"/>
+                <outlet property="qr" destination="nnX-OG-QpY" id="CFi-63-3ab"/>
+                <outlet property="tv" destination="oEQ-oP-mbB" id="iil-5G-LJL"/>
+                <outlet property="view" destination="vc2-GA-rdq" id="EhM-J8-8fP"/>
+            </connections>
+        </placeholder>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <scrollView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" ambiguous="YES" id="vc2-GA-rdq" userLabel="ScrollView">
+            <rect key="frame" x="0.0" y="0.0" width="375" height="554"/>
+            <autoresizingMask key="autoresizingMask"/>
+            <subviews>
+                <view tag="1" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="3WW-S2-Z6u" userLabel="Content View">
+                    <rect key="frame" x="0.0" y="0.0" width="375" height="650"/>
+                    <subviews>
+                        <label opaque="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Thomas Thompson" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumFontSize="14" translatesAutoresizingMaskIntoConstraints="NO" id="Z9W-FB-XEQ">
+                            <rect key="frame" x="15" y="25" width="345" height="18"/>
+                            <constraints>
+                                <constraint firstAttribute="height" constant="18" id="Rg4-aK-L3k"/>
+                            </constraints>
+                            <fontDescription key="fontDescription" type="boldSystem" pointSize="18"/>
+                            <color key="textColor" red="0.25490196079999999" green="0.25490196079999999" blue="0.25490196079999999" alpha="1" colorSpace="deviceRGB"/>
+                            <nil key="highlightedColor"/>
+                            <connections>
+                                <outletCollection property="gestureRecognizers" destination="FYm-QX-yP8" appends="YES" id="733-Of-v7Q"/>
+                            </connections>
+                        </label>
+                        <imageView contentMode="center" horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="nnX-OG-QpY" userLabel="QR">
+                            <rect key="frame" x="0.0" y="53" width="375" height="180"/>
+                            <gestureRecognizers/>
+                            <constraints>
+                                <constraint firstAttribute="height" constant="180" id="ihf-tC-0aE"/>
+                            </constraints>
+                            <connections>
+                                <outletCollection property="gestureRecognizers" destination="NSP-cM-q14" appends="YES" id="Xru-Rd-xwJ"/>
+                            </connections>
+                        </imageView>
+                        <label opaque="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="19KVgvPXU8Lcucswsdvsor484839vnso22c9187709fkj1277nv84ur7kjd" textAlignment="natural" lineBreakMode="middleTruncation" numberOfLines="2" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="hU3-ix-UVn">
+                            <rect key="frame" x="15" y="243" width="345" height="44"/>
+                            <gestureRecognizers/>
+                            <constraints>
+                                <constraint firstAttribute="height" constant="44" id="d0g-ai-d2M"/>
+                            </constraints>
+                            <fontDescription key="fontDescription" type="boldSystem" pointSize="18"/>
+                            <color key="textColor" red="0.25490196079999999" green="0.25490196079999999" blue="0.25490196079999999" alpha="1" colorSpace="deviceRGB"/>
+                            <nil key="highlightedColor"/>
+                            <connections>
+                                <outletCollection property="gestureRecognizers" destination="tcs-NO-X5d" appends="YES" id="s6j-BA-cVz"/>
+                            </connections>
+                        </label>
+                        <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="R8A-SG-RzJ">
+                            <rect key="frame" x="104" y="307" width="167" height="50"/>
+                            <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
+                            <constraints>
+                                <constraint firstAttribute="width" constant="167" id="4dt-Lg-4Kj"/>
+                                <constraint firstAttribute="height" constant="50" id="h4Y-O4-GuP"/>
+                            </constraints>
+                            <fontDescription key="fontDescription" type="system" pointSize="18"/>
+                            <state key="normal" title="Pay to">
+                                <color key="titleColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                            </state>
+                            <userDefinedRuntimeAttributes>
+                                <userDefinedRuntimeAttribute type="number" keyPath="layer.cornerRadius">
+                                    <integer key="value" value="4"/>
+                                </userDefinedRuntimeAttribute>
+                            </userDefinedRuntimeAttributes>
+                            <connections>
+                                <action selector="onPayTo" destination="-1" eventType="primaryActionTriggered" id="d9o-vI-m8p"/>
+                            </connections>
+                        </button>
+                        <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" style="plain" separatorStyle="default" rowHeight="-1" estimatedRowHeight="-1" sectionHeaderHeight="28" sectionFooterHeight="28" translatesAutoresizingMaskIntoConstraints="NO" id="oEQ-oP-mbB" userLabel="TxHistory">
+                            <rect key="frame" x="0.0" y="377" width="375" height="248"/>
+                            <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                            <constraints>
+                                <constraint firstAttribute="height" relation="greaterThanOrEqual" priority="750" constant="148" id="Vqt-8f-yFN"/>
+                            </constraints>
+                            <inset key="separatorInset" minX="0.0" minY="0.0" maxX="0.0" maxY="0.0"/>
+                        </tableView>
+                    </subviews>
+                    <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                    <constraints>
+                        <constraint firstAttribute="bottom" secondItem="oEQ-oP-mbB" secondAttribute="bottom" constant="25" id="0eB-dY-uKS"/>
+                        <constraint firstItem="hU3-ix-UVn" firstAttribute="top" secondItem="nnX-OG-QpY" secondAttribute="bottom" constant="10" id="334-0R-jqo"/>
+                        <constraint firstItem="hU3-ix-UVn" firstAttribute="leading" secondItem="3WW-S2-Z6u" secondAttribute="leading" constant="15" id="653-KV-rne"/>
+                        <constraint firstAttribute="trailing" secondItem="hU3-ix-UVn" secondAttribute="trailing" constant="15" id="MPG-eN-su3"/>
+                        <constraint firstItem="Z9W-FB-XEQ" firstAttribute="leading" secondItem="3WW-S2-Z6u" secondAttribute="leading" constant="15" id="OAI-hr-OqF"/>
+                        <constraint firstItem="R8A-SG-RzJ" firstAttribute="top" secondItem="hU3-ix-UVn" secondAttribute="bottom" constant="20" id="P0h-jb-oXM"/>
+                        <constraint firstItem="nnX-OG-QpY" firstAttribute="top" secondItem="Z9W-FB-XEQ" secondAttribute="bottom" constant="10" id="PIg-Um-y7s"/>
+                        <constraint firstItem="Z9W-FB-XEQ" firstAttribute="top" secondItem="3WW-S2-Z6u" secondAttribute="top" constant="25" id="QWu-co-UxZ"/>
+                        <constraint firstAttribute="trailing" secondItem="Z9W-FB-XEQ" secondAttribute="trailing" constant="15" id="Zcw-QA-lWd"/>
+                        <constraint firstItem="nnX-OG-QpY" firstAttribute="leading" secondItem="3WW-S2-Z6u" secondAttribute="leading" id="f9d-Hc-jgt"/>
+                        <constraint firstItem="oEQ-oP-mbB" firstAttribute="leading" secondItem="3WW-S2-Z6u" secondAttribute="leading" id="hvJ-qC-ViR"/>
+                        <constraint firstAttribute="trailing" secondItem="nnX-OG-QpY" secondAttribute="trailing" id="j6m-1z-Rum"/>
+                        <constraint firstItem="R8A-SG-RzJ" firstAttribute="centerX" secondItem="3WW-S2-Z6u" secondAttribute="centerX" id="kKZ-Z1-OLB"/>
+                        <constraint firstAttribute="height" constant="650" id="ohW-6L-5tW"/>
+                        <constraint firstAttribute="trailing" secondItem="oEQ-oP-mbB" secondAttribute="trailing" id="q27-4x-vaw"/>
+                        <constraint firstItem="oEQ-oP-mbB" firstAttribute="top" secondItem="R8A-SG-RzJ" secondAttribute="bottom" constant="20" id="sEf-fh-qFs"/>
+                    </constraints>
+                </view>
+            </subviews>
+            <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+            <constraints>
+                <constraint firstItem="qwN-Z0-W3u" firstAttribute="trailing" secondItem="3WW-S2-Z6u" secondAttribute="trailing" id="2ge-6a-ydM"/>
+                <constraint firstItem="3WW-S2-Z6u" firstAttribute="top" secondItem="vc2-GA-rdq" secondAttribute="top" id="aMy-fu-5s2"/>
+                <constraint firstItem="3WW-S2-Z6u" firstAttribute="centerX" secondItem="vc2-GA-rdq" secondAttribute="centerX" id="dbc-kd-m1q"/>
+                <constraint firstAttribute="bottom" secondItem="3WW-S2-Z6u" secondAttribute="bottom" id="lWX-Et-q4W"/>
+                <constraint firstItem="3WW-S2-Z6u" firstAttribute="leading" secondItem="qwN-Z0-W3u" secondAttribute="leading" id="rnK-cz-d7m"/>
+            </constraints>
+            <simulatedNavigationBarMetrics key="simulatedTopBarMetrics" translucent="NO" prompted="NO"/>
+            <simulatedTabBarMetrics key="simulatedBottomBarMetrics" translucent="NO"/>
+            <viewLayoutGuide key="safeArea" id="qwN-Z0-W3u"/>
+            <point key="canvasLocation" x="220.5" y="108.5"/>
+        </scrollView>
+        <tapGestureRecognizer id="tcs-NO-X5d" userLabel="Address Tap Gesture Recognizer">
+            <connections>
+                <action selector="cpyAddressToClipboard" destination="-1" id="EDY-g5-oRl"/>
+            </connections>
+        </tapGestureRecognizer>
+        <tapGestureRecognizer id="FYm-QX-yP8" userLabel="Name Tap Gesture Recognizer">
+            <connections>
+                <action selector="cpyNameToClipboard" destination="-1" id="qvX-eB-S5v"/>
+            </connections>
+        </tapGestureRecognizer>
+        <tapGestureRecognizer id="NSP-cM-q14" userLabel="QR Tap Gesture Recognizer">
+            <connections>
+                <action selector="onQRImgTap" destination="-1" id="mKh-rF-zki"/>
+            </connections>
+        </tapGestureRecognizer>
+    </objects>
+</document>
