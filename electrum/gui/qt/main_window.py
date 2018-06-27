@@ -425,6 +425,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.update_console()
         self.clear_receive_tab()
         self.request_list.update()
+        self.channels_list.update()
         self.tabs.show()
         self.init_geometry()
         if self.config.get('hide_gui') and self.gui_object.tray.isVisible():
