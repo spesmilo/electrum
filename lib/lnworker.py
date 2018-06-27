@@ -209,13 +209,22 @@ class LNWorker(PrintError):
         is_open = lambda chan: self.channel_state[chan.channel_id] == "OPEN"
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
-        pay_req = lnencode(LnAddr(RHASH, amount_sat/Decimal(COIN), tags=[('d', message)]), self.privkey)
+        amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
+        pay_req = lnencode(LnAddr(RHASH, amount_btc, tags=[('d', message)]), self.privkey)
         decoded = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
         assert decoded.pubkey.serialize() == privkey_to_pubkey(self.privkey)
         self.invoices[bh2u(payment_preimage)] = pay_req
         self.wallet.storage.put('lightning_invoices', self.invoices)
         self.wallet.storage.write()
         return pay_req
+
+    def delete_invoice(self, payreq_key):
+        try:
+            del self.invoices[payreq_key]
+        except KeyError:
+            return
+        self.wallet.storage.put('lightning_invoices', self.invoices)
+        self.wallet.storage.write()
 
     def list_channels(self):
         return serialize_channels(self.channels)

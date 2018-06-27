@@ -31,8 +31,12 @@ from electrum.i18n import _
 from electrum.util import format_time, age
 from electrum.plugin import run_hook
 from electrum.paymentrequest import PR_UNKNOWN
+from electrum.bitcoin import COIN
 
 from .util import MyTreeView, pr_tooltips, pr_icons
+
+REQUEST_TYPE_BITCOIN = 0
+REQUEST_TYPE_LN = 1
 
 class RequestList(MyTreeView):
     filter_columns = [0, 1, 2, 3, 4]  # Date, Account, Address, Description, Amount
@@ -73,7 +77,7 @@ class RequestList(MyTreeView):
     def update(self):
         self.wallet = self.parent.wallet
         # hide receive tab if no receive requests available
-        b = len(self.wallet.receive_requests) > 0
+        b = len(self.wallet.receive_requests) > 0 or len(self.wallet.lnworker.invoices) > 0
         self.setVisible(b)
         self.parent.receive_requests_label.setVisible(b)
         if not b:
@@ -115,12 +119,15 @@ class RequestList(MyTreeView):
                 items[5].setIcon(self.icon_cache.get(pr_icons.get(status)))
             items[3].setData(address, Qt.UserRole)
             self.model().insertRow(self.model().rowCount(), items)
+            items[0].setData(REQUEST_TYPE_BITCOIN, Qt.UserRole)
+            items[0].setData(address, Qt.UserRole+1)
         # lightning
-        for k, r in self.wallet.lnworker.invoices.items():
+        for payreq_key, r in self.wallet.lnworker.invoices.items():
             from electrum.lightning_payencode.lnaddr import lndecode
             import electrum.constants as constants
             lnaddr = lndecode(r, expected_hrp=constants.net.SEGWIT_HRP)
-            amount_str = self.parent.format_amount(lnaddr.amount*100000000)
+            amount_sat = lnaddr.amount*COIN if lnaddr.amount else None
+            amount_str = self.parent.format_amount(amount_sat) if amount_sat else ''
             for k,v in lnaddr.tags:
                 if k == 'd':
                     description = v
@@ -131,6 +138,8 @@ class RequestList(MyTreeView):
             labels = [date, r, '', description, amount_str, '']
             items = [QStandardItem(e) for e in labels]
             items.setIcon(2, QIcon(":icons/lightning.png"))
+            items[0].setData(REQUEST_TYPE_LN, Qt.UserRole)
+            items[0].setData(payreq_key, Qt.UserRole+1)
             self.model().insertRow(self.model().rowCount(), items)
 
     def create_menu(self, position):
@@ -140,6 +149,16 @@ class RequestList(MyTreeView):
         if not item:
             return
         addr = item.text()
+        request_type = self.model().itemFromIndex(idx.sibling(idx.row(), 0)).data(Qt.UserRole)
+        menu = None
+        if request_type == REQUEST_TYPE_BITCOIN:
+            menu = self.create_menu_bitcoin_payreq(idx, addr)
+        elif request_type == REQUEST_TYPE_LN:
+            menu = self.create_menu_ln_payreq(idx, addr)
+        if menu:
+            menu.exec_(self.viewport().mapToGlobal(position))
+
+    def create_menu_bitcoin_payreq(self, idx, addr):
         req = self.wallet.receive_requests.get(addr)
         if req is None:
             self.update()
@@ -154,4 +173,19 @@ class RequestList(MyTreeView):
         menu.addAction(_("Save as BIP70 file"), lambda: self.parent.export_payment_request(addr))
         menu.addAction(_("Delete"), lambda: self.parent.delete_payment_request(addr))
         run_hook('receive_list_menu', menu, addr)
-        menu.exec_(self.viewport().mapToGlobal(position))
+        return menu
+
+    def create_menu_ln_payreq(self, idx, payreq_key):
+        req = self.wallet.lnworker.invoices.get(payreq_key)
+        if req is None:
+            self.update()
+            return
+        column = idx.column()
+        column_title = self.model().horizontalHeaderItem(column).text()
+        column_data = self.model().itemFromIndex(idx).text()
+        menu = QMenu(self)
+        if column != 2:
+            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
+        menu.addAction(_("Copy URI"), lambda: self.parent.view_and_paste('URI', '', req))
+        menu.addAction(_("Delete"), lambda: self.parent.delete_lightning_payreq(payreq_key))
+        return menu
