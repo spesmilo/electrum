@@ -240,6 +240,7 @@ class Network(util.DaemonThread):
         self.asyncio_loop = loop = asyncio.new_event_loop()
         self.futures = []
         # lightning network
+        self.lightning_nodes = {}
         self.channel_db = lnrouter.ChannelDB()
         self.path_finder = lnrouter.LNPathFinder(self.channel_db)
         self.lnwatcher = lnwatcher.LNWatcher(self)
