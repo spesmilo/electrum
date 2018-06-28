@@ -14,25 +14,22 @@ Usage:
  - gpg
  - 7Zip
  - Wine (>= v2)
- - mingw-w64
+ - (and, for building libsecp256k1)
+   - mingw-w64
+   - autotools-dev
+   - autoconf
+   - libtool
 
 
 For example:
 
-
 ```
-$ sudo apt-get install wine-development dirmngr gnupg2 p7zip-full mingw-w64
-$ wine --version
- wine-2.0 (Debian 2.0-3+b2)
+$ sudo apt-get install wine-development dirmngr gnupg2 p7zip-full
+$ sudo apt-get install mingw-w64 autotools-dev autoconf libtool
 ```
 
-or
-
-```
-$ pacman -S wine gnupg
-$ wine --version
- wine-2.21
-```
+The binaries are also built by Travis CI, so if you are having problems,
+[that script](https://github.com/spesmilo/electrum/blob/master/.travis.yml) might help.
 
 2. Make sure `/opt` is writable by the current user.
 3. Run `build.sh`.
