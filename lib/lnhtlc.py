@@ -1,17 +1,17 @@
 # ported from lnd 42de4400bff5105352d0552155f73589166d162b
+from collections import namedtuple
 import binascii
 import json
-from ecdsa.util import sigencode_string_canonize, sigdecode_der
 from .util import bfh, PrintError
 from .bitcoin import Hash
-from collections import namedtuple
-from ecdsa.curves import SECP256k1
 from .crypto import sha256
 from . import ecc
-from . import lnbase
-from .lnbase import Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore
-HTLC_TIMEOUT_WEIGHT = lnbase.HTLC_TIMEOUT_WEIGHT
-HTLC_SUCCESS_WEIGHT = lnbase.HTLC_SUCCESS_WEIGHT
+from .lnutil import Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore
+from .lnutil import get_per_commitment_secret_from_seed
+from .lnutil import secret_to_pubkey, derive_privkey, derive_pubkey, derive_blinded_pubkey
+from .lnutil import sign_and_get_sig_string
+from .lnutil import make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc
+from .lnutil import HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT
 
 SettleHtlc = namedtuple("SettleHtlc", ["htlc_id"])
 RevokeAndAck = namedtuple("RevokeAndAck", ["per_commitment_secret", "next_per_commitment_point"])
@@ -149,7 +149,6 @@ class HTLCStateMachine(PrintError):
         any). The HTLC signatures are sorted according to the BIP 69 order of the
         HTLC's on the commitment transaction.
         """
-        from .lnbase import sign_and_get_sig_string, derive_privkey, make_htlc_tx_with_open_channel
         for htlc in self.local_update_log:
             if not type(htlc) is UpdateAddHtlc: continue
             if htlc.l_locked_in is None: htlc.l_locked_in = self.local_state.ctn
@@ -168,15 +167,14 @@ class HTLCStateMachine(PrintError):
         for we_receive, htlcs in zip([True, False], [self.htlcs_in_remote, self.htlcs_in_local]):
             assert len(htlcs) <= 1
             for htlc in htlcs:
-                weight = lnbase.HTLC_SUCCESS_WEIGHT if we_receive else lnbase.HTLC_TIMEOUT_WEIGHT
+                weight = HTLC_SUCCESS_WEIGHT if we_receive else HTLC_TIMEOUT_WEIGHT
                 if htlc.amount_msat // 1000 - weight * (self.constraints.feerate // 1000) < self.remote_config.dust_limit_sat:
                     continue
                 original_htlc_output_index = 0
                 args = [self.remote_state.next_per_commitment_point, for_us, we_receive, htlc.amount_msat + htlc.total_fee, htlc.cltv_expiry, htlc.payment_hash, self.remote_commitment, original_htlc_output_index]
                 htlc_tx = make_htlc_tx_with_open_channel(self, *args)
                 sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
-                r, s = sigdecode_der(sig[:-1], SECP256k1.generator.order())
-                htlc_sig = sigencode_string_canonize(r, s, SECP256k1.generator.order())
+                htlc_sig = ecc.sig_string_from_der_sig(sig[:-1])
                 htlcsigs.append(htlc_sig)
 
         return sig_64, htlcsigs
@@ -192,7 +190,6 @@ class HTLCStateMachine(PrintError):
         state, then this newly added commitment becomes our current accepted channel
         state.
         """
-        from .lnbase import make_htlc_tx_with_open_channel , derive_pubkey
 
         self.print_error("receive_new_commitment")
         for htlc in self.remote_update_log:
@@ -252,7 +249,6 @@ class HTLCStateMachine(PrintError):
 
     @property
     def points(self):
-        from .lnbase import get_per_commitment_secret_from_seed, secret_to_pubkey
         last_small_num = self.local_state.ctn
         next_small_num = last_small_num + 2
         this_small_num = last_small_num + 1
@@ -356,7 +352,6 @@ class HTLCStateMachine(PrintError):
 
     @property
     def remote_commitment(self):
-        from .lnbase import make_commitment_using_open_channel, make_received_htlc, make_offered_htlc, derive_pubkey, derive_blinded_pubkey
         remote_msat, total_fee_remote, local_msat, total_fee_local = self.amounts()
         assert local_msat >= 0
         assert remote_msat >= 0
@@ -371,7 +366,7 @@ class HTLCStateMachine(PrintError):
 
         htlcs_in_local = []
         for htlc in self.htlcs_in_local:
-            if htlc.amount_msat // 1000 - lnbase.HTLC_SUCCESS_WEIGHT * (self.constraints.feerate // 1000) < self.remote_config.dust_limit_sat:
+            if htlc.amount_msat // 1000 - HTLC_SUCCESS_WEIGHT * (self.constraints.feerate // 1000) < self.remote_config.dust_limit_sat:
                 trimmed += htlc.amount_msat // 1000
                 continue
             htlcs_in_local.append(
@@ -379,20 +374,19 @@ class HTLCStateMachine(PrintError):
 
         htlcs_in_remote = []
         for htlc in self.htlcs_in_remote:
-            if htlc.amount_msat // 1000 - lnbase.HTLC_TIMEOUT_WEIGHT * (self.constraints.feerate // 1000) < self.remote_config.dust_limit_sat:
+            if htlc.amount_msat // 1000 - HTLC_TIMEOUT_WEIGHT * (self.constraints.feerate // 1000) < self.remote_config.dust_limit_sat:
                 trimmed += htlc.amount_msat // 1000
                 continue
             htlcs_in_remote.append(
                 ( make_offered_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + htlc.total_fee))
 
-        commit = make_commitment_using_open_channel(self, self.remote_state.ctn + 1,
+        commit = self.make_commitment(self.remote_state.ctn + 1,
             False, this_point,
             remote_msat - total_fee_remote, local_msat - total_fee_local, htlcs_in_local + htlcs_in_remote, trimmed)
         return commit
 
     @property
     def local_commitment(self):
-        from .lnbase import make_commitment_using_open_channel, make_received_htlc, make_offered_htlc, derive_pubkey, derive_blinded_pubkey, get_per_commitment_secret_from_seed, secret_to_pubkey
         remote_msat, total_fee_remote, local_msat, total_fee_local = self.amounts()
         assert local_msat >= 0
         assert remote_msat >= 0
@@ -407,7 +401,7 @@ class HTLCStateMachine(PrintError):
 
         htlcs_in_local = []
         for htlc in self.htlcs_in_local:
-            if htlc.amount_msat // 1000 - lnbase.HTLC_TIMEOUT_WEIGHT * (self.constraints.feerate // 1000) < self.local_config.dust_limit_sat:
+            if htlc.amount_msat // 1000 - HTLC_TIMEOUT_WEIGHT * (self.constraints.feerate // 1000) < self.local_config.dust_limit_sat:
                 trimmed += htlc.amount_msat // 1000
                 continue
             htlcs_in_local.append(
@@ -415,13 +409,13 @@ class HTLCStateMachine(PrintError):
 
         htlcs_in_remote = []
         for htlc in self.htlcs_in_remote:
-            if htlc.amount_msat // 1000 - lnbase.HTLC_SUCCESS_WEIGHT * (self.constraints.feerate // 1000) < self.local_config.dust_limit_sat:
+            if htlc.amount_msat // 1000 - HTLC_SUCCESS_WEIGHT * (self.constraints.feerate // 1000) < self.local_config.dust_limit_sat:
                 trimmed += htlc.amount_msat // 1000
                 continue
             htlcs_in_remote.append(
                 ( make_received_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat + htlc.total_fee))
 
-        commit = make_commitment_using_open_channel(self, self.local_state.ctn + 1,
+        commit = self.make_commitment(self.local_state.ctn + 1,
             True, this_point,
             local_msat - total_fee_local, remote_msat - total_fee_remote, htlcs_in_local + htlcs_in_remote, trimmed)
         return commit
@@ -523,3 +517,29 @@ class HTLCStateMachine(PrintError):
 
     def __str__(self):
         return self.serialize()
+
+    def make_commitment(chan, ctn, for_us, pcp, local_msat, remote_msat, htlcs=[], trimmed=0):
+        conf = chan.local_config if for_us else chan.remote_config
+        other_conf = chan.local_config if not for_us else chan.remote_config
+        payment_pubkey = derive_pubkey(other_conf.payment_basepoint.pubkey, pcp)
+        remote_revocation_pubkey = derive_blinded_pubkey(other_conf.revocation_basepoint.pubkey, pcp)
+        return make_commitment(
+            ctn,
+            conf.multisig_key.pubkey,
+            other_conf.multisig_key.pubkey,
+            payment_pubkey,
+            chan.local_config.payment_basepoint.pubkey,
+            chan.remote_config.payment_basepoint.pubkey,
+            remote_revocation_pubkey,
+            derive_pubkey(conf.delayed_basepoint.pubkey, pcp),
+            other_conf.to_self_delay,
+            *chan.funding_outpoint,
+            chan.constraints.capacity,
+            local_msat,
+            remote_msat,
+            chan.local_config.dust_limit_sat,
+            chan.constraints.feerate,
+            for_us,
+            chan.constraints.is_initiator,
+            htlcs=htlcs,
+            trimmed=trimmed)
