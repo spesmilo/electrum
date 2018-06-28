@@ -31,7 +31,7 @@ from . import version
 from . import segwit_addr
 from . import constants
 from . import ecc
-from .crypto import Hash, sha256, hash_160
+from .crypto import Hash, sha256, hash_160, hmac_oneshot
 
 
 ################################## transactions
@@ -149,7 +149,7 @@ def add_number_to_script(i: int) -> bytes:
 
 hash_encode = lambda x: bh2u(x[::-1])
 hash_decode = lambda x: bfh(x)[::-1]
-hmac_sha_512 = lambda x, y: hmac.new(x, y, hashlib.sha512).digest()
+hmac_sha_512 = lambda x, y: hmac_oneshot(x, y, hashlib.sha512)
 
 
 def is_new_seed(x, prefix=version.SEED_PREFIX):
@@ -565,7 +565,7 @@ def _CKD_priv(k, c, s, is_prime):
         raise BitcoinException('Impossible xprv (not within curve order)') from e
     cK = keypair.get_public_key_bytes(compressed=True)
     data = bytes([0]) + k + s if is_prime else cK + s
-    I = hmac.new(c, data, hashlib.sha512).digest()
+    I = hmac_oneshot(c, data, hashlib.sha512)
     I_left = ecc.string_to_number(I[0:32])
     k_n = (I_left + ecc.string_to_number(k)) % ecc.CURVE_ORDER
     if I_left >= ecc.CURVE_ORDER or k_n == 0:
@@ -589,7 +589,7 @@ def CKD_pub(cK, c, n):
 # helper function, callable with arbitrary string.
 # note: 's' does not need to fit into 32 bits here! (c.f. trustedcoin billing)
 def _CKD_pub(cK, c, s):
-    I = hmac.new(c, cK + s, hashlib.sha512).digest()
+    I = hmac_oneshot(c, cK + s, hashlib.sha512)
     pubkey = ecc.ECPrivkey(I[0:32]) + ecc.ECPubkey(cK)
     if pubkey.is_at_infinity():
         raise ecc.InvalidECPointException()
@@ -683,7 +683,7 @@ def xpub_from_xprv(xprv):
 
 
 def bip32_root(seed, xtype):
-    I = hmac.new(b"Bitcoin seed", seed, hashlib.sha512).digest()
+    I = hmac_oneshot(b"Bitcoin seed", seed, hashlib.sha512)
     master_k = I[0:32]
     master_c = I[32:]
     # create xprv first, as that will check if master_k is within curve order
