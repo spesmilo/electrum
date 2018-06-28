@@ -26,6 +26,7 @@
 import base64
 import os
 import hashlib
+import hmac
 
 import pyaes
 
@@ -140,3 +141,11 @@ def hash_160(x: bytes) -> bytes:
         from . import ripemd
         md = ripemd.new(sha256(x))
         return md.digest()
+
+
+def hmac_oneshot(key: bytes, msg: bytes, digest) -> bytes:
+    if hasattr(hmac, 'digest'):
+        # requires python 3.7+; faster
+        return hmac.digest(key, msg, digest)
+    else:
+        return hmac.new(key, msg, digest).digest()
