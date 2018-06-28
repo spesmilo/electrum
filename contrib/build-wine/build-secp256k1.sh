@@ -7,7 +7,12 @@ build_dll() {
     #sudo apt-get install -y mingw-w64
     ./autogen.sh
     echo "LDFLAGS = -no-undefined" >> Makefile.am
-    ./configure --host=$1 --enable-module-recovery --enable-experimental --enable-module-ecdh --disable-jni
+    LDFLAGS="-Wl,--no-insert-timestamp" ./configure \
+        --host=$1 \
+        --enable-module-recovery \
+        --enable-experimental \
+        --enable-module-ecdh \
+        --disable-jni
     make
 }
 
@@ -24,6 +29,8 @@ fi
 
 git reset --hard 452d8e4d2a2f9f1b5be6b02e18f1ba102e5ca0b4
 git clean -f -x -q
+
+export SOURCE_DATE_EPOCH=1530212462
 
 build_dll i686-w64-mingw32  # 64-bit would be: x86_64-w64-mingw32
 mv .libs/libsecp256k1-0.dll libsecp256k1.dll
