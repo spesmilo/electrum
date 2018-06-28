@@ -36,7 +36,7 @@ from ecdsa.ellipticcurve import Point
 from ecdsa.util import string_to_number, number_to_string
 
 from .util import bfh, bh2u, assert_bytes, print_error, to_bytes, InvalidPassword, profiler
-from .crypto import (Hash, aes_encrypt_with_iv, aes_decrypt_with_iv)
+from .crypto import (Hash, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
 from .ecc_fast import do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1
 
 
@@ -285,7 +285,7 @@ class ECPubkey(object):
         ciphertext = aes_encrypt_with_iv(key_e, iv, message)
         ephemeral_pubkey = ephemeral.get_public_key_bytes(compressed=True)
         encrypted = magic + ephemeral_pubkey + ciphertext
-        mac = hmac.new(key_m, encrypted, hashlib.sha256).digest()
+        mac = hmac_oneshot(key_m, encrypted, hashlib.sha256)
 
         return base64.b64encode(encrypted + mac)
 
@@ -424,7 +424,7 @@ class ECPrivkey(ECPubkey):
         ecdh_key = (ephemeral_pubkey * self.secret_scalar).get_public_key_bytes(compressed=True)
         key = hashlib.sha512(ecdh_key).digest()
         iv, key_e, key_m = key[0:16], key[16:32], key[32:]
-        if mac != hmac.new(key_m, encrypted[:-32], hashlib.sha256).digest():
+        if mac != hmac_oneshot(key_m, encrypted[:-32], hashlib.sha256):
             raise InvalidPassword()
         return aes_decrypt_with_iv(key_e, iv, ciphertext)
 
