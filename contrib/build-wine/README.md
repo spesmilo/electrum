@@ -61,3 +61,21 @@ certificate/key) and one or multiple trusted verifiers:
 
 `sign.sh` will check if the signatures match the signer's files. This ensures that the signer's
 build environment is not compromised and that the binaries can be reproduced by anyone.
+
+
+Verify Integrity of signed binary
+=================================
+
+Every user can verify that the official binary was created from the source code in this 
+repository. To do so, the Authenticode signature needs to be stripped since the signature
+is not reproducible.
+
+This procedure removes the differences between the signed and unsigned binary:
+
+1. Remove the signature from the signed binary using osslsigncode or signtool.
+2. Set the COFF image checksum for the signed binary to 0x0. This is necessary
+   because pyinstaller doesn't generate a checksum.
+3. Append null bytes to the _unsigned_ binary until the byte count is a multiple
+   of 8.
+
+The script `unsign.sh` performs these steps.
