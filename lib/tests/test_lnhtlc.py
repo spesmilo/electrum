@@ -4,6 +4,7 @@ import unittest
 import lib.bitcoin as bitcoin
 import lib.lnbase as lnbase
 import lib.lnhtlc as lnhtlc
+import lib.lnutil as lnutil
 import lib.util as util
 import os
 import binascii
@@ -87,10 +88,10 @@ def create_test_channels():
     alice_seed = os.urandom(32)
     bob_seed = os.urandom(32)
 
-    alice_cur = lnbase.secret_to_pubkey(int.from_bytes(lnbase.get_per_commitment_secret_from_seed(alice_seed, 2**48 - 1), "big"))
-    alice_next = lnbase.secret_to_pubkey(int.from_bytes(lnbase.get_per_commitment_secret_from_seed(alice_seed, 2**48 - 2), "big"))
-    bob_cur = lnbase.secret_to_pubkey(int.from_bytes(lnbase.get_per_commitment_secret_from_seed(bob_seed, 2**48 - 1), "big"))
-    bob_next = lnbase.secret_to_pubkey(int.from_bytes(lnbase.get_per_commitment_secret_from_seed(bob_seed, 2**48 - 2), "big"))
+    alice_cur = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(alice_seed, 2**48 - 1), "big"))
+    alice_next = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(alice_seed, 2**48 - 2), "big"))
+    bob_cur = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, 2**48 - 1), "big"))
+    bob_next = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, 2**48 - 2), "big"))
 
     return \
         lnhtlc.HTLCStateMachine(
@@ -240,7 +241,7 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         paymentHash = bitcoin.sha256(paymentPreimage)
         fee_per_kw = alice_channel.constraints.feerate
         self.assertEqual(fee_per_kw, 6000)
-        htlcAmt = 500 + lnbase.HTLC_TIMEOUT_WEIGHT * (fee_per_kw // 1000)
+        htlcAmt = 500 + lnutil.HTLC_TIMEOUT_WEIGHT * (fee_per_kw // 1000)
         self.assertEqual(htlcAmt, 4478)
         htlc = lnhtlc.UpdateAddHtlc(
             payment_hash = paymentHash,
