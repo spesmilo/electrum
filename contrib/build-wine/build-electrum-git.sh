@@ -41,6 +41,9 @@ fi
 git submodule init
 git submodule update
 
+VERSION=`git describe --tags --dirty`
+echo "Last commit: $VERSION"
+
 pushd ./contrib/deterministic-build/electrum-ltc-locale
 for i in ./locale/*; do
     dir=$i/LC_MESSAGES
@@ -49,8 +52,6 @@ for i in ./locale/*; do
 done
 popd
 
-VERSION=`git describe --tags --dirty`
-echo "Last commit: $VERSION"
 find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
