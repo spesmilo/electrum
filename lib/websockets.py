@@ -36,6 +36,7 @@ except ImportError:
 from . import util
 from . import bitcoin
 
+
 request_queue = queue.Queue()
 
 
@@ -74,7 +75,7 @@ class WsClientThread(util.DaemonThread):
         addr = d.get('address')
         amount = d.get('amount')
         scripthash = bitcoin.address_to_scripthash(addr)
-        hash2address[scripthash] = address
+        self.hash2address[scripthash] = addr
         return scripthash, amount
 
     def reading_thread(self):
