@@ -3,7 +3,7 @@ from .crypto import sha256
 import json
 from collections import namedtuple
 from .transaction import Transaction
-from .ecc import CURVE_ORDER, generator, sig_string_from_der_sig, ECPubkey, string_to_number
+from .ecc import CURVE_ORDER, sig_string_from_der_sig, ECPubkey, string_to_number
 from . import ecc, bitcoin, crypto, transaction
 from .transaction import opcodes
 from .bitcoin import push_script
@@ -86,7 +86,7 @@ def derive_pubkey(basepoint, per_commitment_point):
 
 def derive_privkey(secret, per_commitment_point):
     assert type(secret) is int
-    basepoint = (ecc.generator() * secret).get_public_key_bytes()
+    basepoint = secret_to_pubkey(secret)
     basepoint = secret + ecc.string_to_number(sha256(per_commitment_point + basepoint))
     basepoint %= CURVE_ORDER
     return basepoint
