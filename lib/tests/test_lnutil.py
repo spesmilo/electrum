@@ -1,6 +1,6 @@
 import unittest
 import json
-from lib import bitcoin, ecc
+from lib import bitcoin
 from lib.lnutil import RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc, make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output, make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey, derive_pubkey, make_htlc_tx
 from lib.util import bh2u, bfh
 
@@ -445,7 +445,7 @@ class TestLNUtil(unittest.TestCase):
         # actual commitment transaction fee = 0
 
         per_commitment_secret = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100
-        per_commitment_point = (ecc.generator() * per_commitment_secret).get_public_key_bytes()
+        per_commitment_point = secret_to_pubkey(per_commitment_secret)
 
         remote_htlcpubkey = remotepubkey
         local_htlcpubkey = localpubkey
