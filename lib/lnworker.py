@@ -10,12 +10,12 @@ from . import constants
 from .bitcoin import sha256, COIN
 from .util import bh2u, bfh, PrintError
 from .constants import set_testnet, set_simnet
-from .lnbase import Peer, calc_short_channel_id, privkey_to_pubkey
+from .lnbase import Peer, privkey_to_pubkey
 from .lightning_payencode.lnaddr import lnencode, LnAddr, lndecode
-from .ecc import ECPrivkey, CURVE_ORDER, der_sig_from_sig_string
+from .ecc import der_sig_from_sig_string
 from .transaction import Transaction
 from .lnhtlc import HTLCStateMachine
-from .lnbase import Outpoint
+from .lnutil import Outpoint, calc_short_channel_id
 
 # hardcoded nodes
 node_list = [
@@ -33,7 +33,7 @@ class LNWorker(PrintError):
             wallet.storage.put('lightning_privkey', pk)
             wallet.storage.write()
         self.privkey = bfh(pk)
-        self.pubkey = ECPrivkey(self.privkey).get_public_key_bytes()
+        self.pubkey = privkey_to_pubkey(self.privkey)
         self.config = network.config
         self.peers = {}
         self.channels = {x.channel_id: x for x in map(HTLCStateMachine, wallet.storage.get("channels", []))}
@@ -157,8 +157,6 @@ class LNWorker(PrintError):
         RHASH = sha256(payment_preimage)
         amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
         pay_req = lnencode(LnAddr(RHASH, amount_btc, tags=[('d', message)]), self.privkey)
-        decoded = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
-        assert decoded.pubkey.serialize() == privkey_to_pubkey(self.privkey)
         self.invoices[bh2u(payment_preimage)] = pay_req
         self.wallet.storage.put('lightning_invoices', self.invoices)
         self.wallet.storage.write()
