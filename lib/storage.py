@@ -607,7 +607,7 @@ class WalletStorage(PrintError):
         action = run_hook('get_action', self)
         if self.file_exists() and self.requires_upgrade():
             if action:
-                raise WalletFileException(_('Incomplete wallet files cannot be upgraded.'))
+                raise WalletFileException('Incomplete wallet files cannot be upgraded.')
             return 'upgrade_storage'
         if action:
             return action
