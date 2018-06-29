@@ -1,4 +1,4 @@
-# Release 3.2.0 - (unreleased)
+# Release 3.2.0 - Satoshi's Vision (unreleased)
 
  * If present, libsecp256k1 is used to speed up elliptic curve
    operations. The library is bundled in the Windows, MacOS, and
