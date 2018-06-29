@@ -24,18 +24,16 @@ jobs:
   include:
     - stage: binary builds
       sudo: true
+      language: c
+      python: false
       env:
         - TARGET_OS=Windows
-      python: 3.6
+      services:
+        - docker
       install:
-        - sudo dpkg --add-architecture i386
-        - wget -nc https://dl.winehq.org/wine-builds/Release.key
-        - sudo apt-key add Release.key
-        - sudo apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/
-        - sudo apt-get update -qq
-        - sudo apt-get install -qq winehq-stable dirmngr gnupg2 p7zip-full mingw-w64
-      before_script: ls -lah /tmp/electrum-build
-      script: ./contrib/build-wine/build.sh $TRAVIS_COMMIT
+        - sudo docker build  --no-cache -t electrum-wine-builder-img ./contrib/build-wine/docker/
+      script:
+        - sudo docker run --name electrum-wine-builder-cont -v $PWD:/opt/electrum --rm --workdir /opt/electrum/contrib/build-wine electrum-wine-builder-img ./build.sh $TRAVIS_COMMIT
       after_success: true
     - os: osx
       language: c
