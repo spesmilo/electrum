@@ -10,6 +10,7 @@ from electroncash.bitcoin import serialize_xpub
 class GuiMixin(object):
     # Requires: self.proto, self.device
 
+    # ref: https://github.com/trezor/trezor-common/blob/44dfb07cfaafffada4b2ce0d15ba1d90d17cf35e/protob/types.proto#L89
     messages = {
         3: _("Confirm the transaction output on your {} device"),
         4: _("Confirm internal entropy on your {} device to begin"),
@@ -19,6 +20,7 @@ class GuiMixin(object):
         8: _("Confirm the total amount spent and the transaction fee on your "
              "{} device"),
         10: _("Confirm wallet address on your {} device"),
+        14: _("Choose on your {} device where to enter your passphrase"),
         'default': _("Check your {} device to continue"),
     }
 
@@ -50,11 +52,17 @@ class GuiMixin(object):
         else:
             msg = _("Enter your current {} PIN:")
         pin = self.handler.get_pin(msg.format(self.device))
+        if len(pin) > 9:
+            self.handler.show_error(_('The PIN cannot be longer than 9 characters.'))
+            pin = ''  # to cancel below
         if not pin:
             return self.proto.Cancel()
         return self.proto.PinMatrixAck(pin=pin)
 
     def callback_PassphraseRequest(self, req):
+        if req and hasattr(req, 'on_device') and req.on_device is True:
+            return self.proto.PassphraseAck()
+
         if self.creating_wallet:
             msg = _("Enter a passphrase to generate this wallet.  Each time "
                     "you use this wallet your {} will prompt you for the "
@@ -66,21 +74,33 @@ class GuiMixin(object):
         if passphrase is None:
             return self.proto.Cancel()
         passphrase = bip39_normalize_passphrase(passphrase)
-        return self.proto.PassphraseAck(passphrase=passphrase)
+
+        ack = self.proto.PassphraseAck(passphrase=passphrase)
+        length = len(ack.passphrase)
+        if length > 50:
+            self.handler.show_error(_("Too long passphrase ({} > 50 chars).").format(length))
+            return self.proto.Cancel()
+        return ack
+
+    def callback_PassphraseStateRequest(self, msg):
+        return self.proto.PassphraseStateAck()
 
     def callback_WordRequest(self, msg):
+        if (msg.type is not None
+            and msg.type in (self.types.WordRequestType.Matrix9,
+                             self.types.WordRequestType.Matrix6)):
+            num = 9 if msg.type == self.types.WordRequestType.Matrix9 else 6
+            char = self.handler.get_matrix(num)
+            if char == 'x':
+                return self.proto.Cancel()
+            return self.proto.WordAck(word=char)
+
         self.step += 1
         msg = _("Step {}/24.  Enter seed word as explained on "
                 "your {}:").format(self.step, self.device)
         word = self.handler.get_word(msg)
         # Unfortunately the device can't handle self.proto.Cancel()
         return self.proto.WordAck(word=word)
-
-    def callback_CharacterRequest(self, msg):
-        char_info = self.handler.get_char(msg)
-        if not char_info:
-            return self.proto.Cancel()
-        return self.proto.CharacterAck(**char_info)
 
 
 class TrezorClientBase(GuiMixin, PrintError):
@@ -134,7 +154,7 @@ class TrezorClientBase(GuiMixin, PrintError):
     def expand_path(n):
         '''Convert bip32 path to list of uint32 integers with prime flags
         0/-1/1' -> [0, 0x80000001, 0x80000001]'''
-        # This code is similar to code in trezorlib where it unforunately
+        # This code is similar to code in trezorlib where it unfortunately
         # is not declared as a staticmethod.  Our n has an extra element.
         PRIME_DERIVATION_FLAG = 0x80000000
         path = []
@@ -196,7 +216,6 @@ class TrezorClientBase(GuiMixin, PrintError):
         except BaseException as e:
             # If the device was removed it has the same effect...
             self.print_error("clear_session: ignoring error", str(e))
-            pass
 
     def get_public_node(self, address_n, creating):
         self.creating_wallet = creating
@@ -215,6 +234,10 @@ class TrezorClientBase(GuiMixin, PrintError):
 
     def atleast_version(self, major, minor=0, patch=0):
         return self.firmware_version() >= (major, minor, patch)
+
+    def get_trezor_model(self):
+        """Returns '1' for Trezor One, 'T' for Trezor T."""
+        return self.features.model
 
     @staticmethod
     def wrapper(func):

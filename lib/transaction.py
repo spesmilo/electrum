@@ -321,7 +321,7 @@ def get_address_from_output_script(_bytes):
     if match_decoded(decoded, match):
         return TYPE_ADDRESS, Address.from_P2SH_hash(decoded[1][1])
 
-    return TYPE_SCRIPT, ScriptOutput(_bytes)
+    return TYPE_SCRIPT, ScriptOutput(bytes(_bytes))
 
 
 def parse_input(vds):
