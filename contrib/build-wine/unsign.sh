@@ -5,10 +5,12 @@ cd $here
 
 if ! which osslsigncode > /dev/null 2>&1; then
     echo "Please install osslsigncode"
+    exit
 fi
 
-if [ $# -neq 2 ]; then
+if [ $# -ne 2 ]; then
     echo "Usage: $0 signed_binary unsigned_binary"
+    exit
 fi
 
 out="$1-stripped.exe"
