@@ -55,7 +55,6 @@ setup(
     extras_require=extras_require,
     packages=[
         'electrum',
-        'electrum.lightning_payencode',
         'electrum_gui',
         'electrum_gui.qt',
         'electrum_plugins',
