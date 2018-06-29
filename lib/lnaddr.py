@@ -1,4 +1,6 @@
 #! /usr/bin/env python3
+# This was forked from https://github.com/rustyrussell/lightning-payencode/tree/acc16ec13a3fa1dc16c07af6ec67c261bd8aff23
+
 import ecdsa.curves
 from ecdsa.ecdsa import generator_secp256k1
 from ..bitcoin import hash160_to_b58_address, b58_address_to_hash160
