@@ -34,3 +34,48 @@ The binaries are also built by Travis CI, so if you are having problems,
 2. Make sure `/opt` is writable by the current user.
 3. Run `build.sh`.
 4. The generated binaries are in `./dist`.
+
+
+Code Signing
+============
+
+Electrum Windows builds are signed with a Microsoft Authenticode™ code signing
+certificate in addition to the GPG-based signatures.
+
+The advantage of using Authenticode is that Electrum users won't receive a 
+Windows SmartScreen warning when starting it.
+
+The release signing procedure involves a signer (the holder of the
+certificate/key) and one or multiple trusted verifiers:
+
+
+| Signer                                                    | Verifier                          |
+|-----------------------------------------------------------|-----------------------------------|
+| Build .exe files using `build.sh`                         |                                   |
+|                                                           | Build .exe files using `build.sh` |
+|                                                           | Sign .exe files using `gpg -b`    |
+|                                                           | Send signatures to signer         |
+| Place signatures as `$filename.$builder.asc` in `./dist`  |                                   |
+| Run `./sign.sh`                                           |                                   |
+
+
+`sign.sh` will check if the signatures match the signer's files. This ensures that the signer's
+build environment is not compromised and that the binaries can be reproduced by anyone.
+
+
+Verify Integrity of signed binary
+=================================
+
+Every user can verify that the official binary was created from the source code in this 
+repository. To do so, the Authenticode signature needs to be stripped since the signature
+is not reproducible.
+
+This procedure removes the differences between the signed and unsigned binary:
+
+1. Remove the signature from the signed binary using osslsigncode or signtool.
+2. Set the COFF image checksum for the signed binary to 0x0. This is necessary
+   because pyinstaller doesn't generate a checksum.
+3. Append null bytes to the _unsigned_ binary until the byte count is a multiple
+   of 8.
+
+The script `unsign.sh` performs these steps.

@@ -27,9 +27,9 @@ MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
                           + _("Note: If you enable this setting, you will need your hardware device to open your wallet.")
 WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\n\n' +
                  _('A few examples') + ':\n' +
-                 'p2pkh:T4PsyoR5gC8B...     \t\t-> LXqi2tzER...\n' +
+                 'p2pkh:T4PsyoR5gC8B...       \t-> LXqi2tzER...\n' +
                  'p2wpkh-p2sh:T4PsyoR5gC8B... \t-> MUuWxSpVC...\n' +
-                 'p2wpkh:T4PsyoR5gC8B...    \t\t-> ltc1q3fjf...')
+                 'p2wpkh:T4PsyoR5gC8B...      \t-> ltc1q3fjf...')
 # note: full key is T4PsyoR5gC8BGEoTe8So7YQWPnvdkqTJqRVpLoMmZVqBsunDdeuJ
 
 
