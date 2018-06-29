@@ -1,5 +1,5 @@
 from .util import PrintError
-from .lnbase import funding_output_script
+from .lnutil import funding_output_script
 from .bitcoin import redeem_script_to_address
 
 class LNWatcher(PrintError):

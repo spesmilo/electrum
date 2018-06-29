@@ -40,8 +40,8 @@ from . import bitcoin
 from . import ecc
 from . import crypto
 from .crypto import sha256
-from .util import PrintError, bh2u, print_error, bfh, profiler, xor_bytes
-from . import lnbase
+from .util import PrintError, bh2u, profiler, xor_bytes
+from .lnutil import get_ecdh
 
 
 class ChannelInfo(PrintError):
@@ -368,7 +368,7 @@ def get_shared_secrets_along_route(payment_path_pubkeys: Sequence[bytes],
     ephemeral_key = session_key
     # compute shared key for each hop
     for i in range(0, num_hops):
-        hop_shared_secrets[i] = lnbase.get_ecdh(ephemeral_key, payment_path_pubkeys[i])
+        hop_shared_secrets[i] = get_ecdh(ephemeral_key, payment_path_pubkeys[i])
         ephemeral_pubkey = ecc.ECPrivkey(ephemeral_key).get_public_key_bytes()
         blinding_factor = sha256(ephemeral_pubkey + hop_shared_secrets[i])
         blinding_factor_int = int.from_bytes(blinding_factor, byteorder="big")
@@ -435,7 +435,7 @@ ProcessedOnionPacket = namedtuple("ProcessedOnionPacket", ["are_we_final", "hop_
 # TODO replay protection
 def process_onion_packet(onion_packet: OnionPacket, associated_data: bytes,
                          our_onion_private_key: bytes) -> ProcessedOnionPacket:
-    shared_secret = lnbase.get_ecdh(our_onion_private_key, onion_packet.public_key)
+    shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
 
     # check message integrity
     mu_key = get_bolt04_onion_key(b'mu', shared_secret)
@@ -517,6 +517,8 @@ def get_failure_msg_from_onion_error(decrypted_error_packet: bytes) -> OnionRout
     failure_code = int.from_bytes(failure_msg[:2], byteorder='big')
     failure_data = failure_msg[2:]
     return OnionRoutingFailureMessage(failure_code, failure_data)
+
+
 
 
 # <----- bolt 04, "onion"

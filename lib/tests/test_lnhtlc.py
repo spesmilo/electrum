@@ -4,6 +4,7 @@ import unittest
 import lib.bitcoin as bitcoin
 import lib.lnbase as lnbase
 import lib.lnhtlc as lnhtlc
+import lib.lnutil as lnutil
 import lib.util as util
 import os
 import binascii
@@ -36,13 +37,13 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
         max_accepted_htlcs=5
     )
 
-    return lnbase.OpenChannel(
-            channel_id=channel_id,
-            short_channel_id=channel_id[:8],
-            funding_outpoint=lnbase.Outpoint(funding_txid, funding_index),
-            local_config=local_config,
-            remote_config=remote_config,
-            remote_state=lnbase.RemoteState(
+    return {
+            "channel_id":channel_id,
+            "short_channel_id":channel_id[:8],
+            "funding_outpoint":lnbase.Outpoint(funding_txid, funding_index),
+            "local_config":local_config,
+            "remote_config":remote_config,
+            "remote_state":lnbase.RemoteState(
                 ctn = 0,
                 next_per_commitment_point=nex,
                 current_per_commitment_point=cur,
@@ -50,7 +51,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 revocation_store=their_revocation_store,
                 next_htlc_id = 0
             ),
-            local_state=lnbase.LocalState(
+            "local_state":lnbase.LocalState(
                 ctn = 0,
                 per_commitment_secret_seed=seed,
                 amount_msat=local_amount,
@@ -59,9 +60,9 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 was_announced=False,
                 current_commitment_signature=None
             ),
-            constraints=lnbase.ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=is_initiator, funding_txn_minimum_depth=3),
-            node_id=other_node_id
-    )
+            "constraints":lnbase.ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=is_initiator, funding_txn_minimum_depth=3),
+            "node_id":other_node_id
+    }
 
 def bip32(sequence):
     xprv, xpub = bitcoin.bip32_root(b"9dk", 'standard')
@@ -87,10 +88,10 @@ def create_test_channels():
     alice_seed = os.urandom(32)
     bob_seed = os.urandom(32)
 
-    alice_cur = lnbase.secret_to_pubkey(int.from_bytes(lnbase.get_per_commitment_secret_from_seed(alice_seed, 2**48 - 1), "big"))
-    alice_next = lnbase.secret_to_pubkey(int.from_bytes(lnbase.get_per_commitment_secret_from_seed(alice_seed, 2**48 - 2), "big"))
-    bob_cur = lnbase.secret_to_pubkey(int.from_bytes(lnbase.get_per_commitment_secret_from_seed(bob_seed, 2**48 - 1), "big"))
-    bob_next = lnbase.secret_to_pubkey(int.from_bytes(lnbase.get_per_commitment_secret_from_seed(bob_seed, 2**48 - 2), "big"))
+    alice_cur = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(alice_seed, 2**48 - 1), "big"))
+    alice_next = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(alice_seed, 2**48 - 2), "big"))
+    bob_cur = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, 2**48 - 1), "big"))
+    bob_next = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, 2**48 - 2), "big"))
 
     return \
         lnhtlc.HTLCStateMachine(
@@ -184,8 +185,8 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         self.assertEqual(alice_channel.total_msat_received, bobSent, "alice has incorrect milli-satoshis received")
         self.assertEqual(bob_channel.total_msat_sent, bobSent, "bob has incorrect milli-satoshis sent")
         self.assertEqual(bob_channel.total_msat_received, aliceSent, "bob has incorrect milli-satoshis received")
-        self.assertEqual(bob_channel.state.local_state.ctn, 1, "bob has incorrect commitment height")
-        self.assertEqual(alice_channel.state.local_state.ctn, 1, "alice has incorrect commitment height")
+        self.assertEqual(bob_channel.local_state.ctn, 1, "bob has incorrect commitment height")
+        self.assertEqual(alice_channel.local_state.ctn, 1, "alice has incorrect commitment height")
 
         # Both commitment transactions should have three outputs, and one of
         # them should be exactly the amount of the HTLC.
@@ -238,9 +239,9 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
 
         paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(paymentPreimage)
-        fee_per_kw = alice_channel.state.constraints.feerate
+        fee_per_kw = alice_channel.constraints.feerate
         self.assertEqual(fee_per_kw, 6000)
-        htlcAmt = 500 + lnbase.HTLC_TIMEOUT_WEIGHT * (fee_per_kw // 1000)
+        htlcAmt = 500 + lnutil.HTLC_TIMEOUT_WEIGHT * (fee_per_kw // 1000)
         self.assertEqual(htlcAmt, 4478)
         htlc = lnhtlc.UpdateAddHtlc(
             payment_hash = paymentHash,
@@ -250,27 +251,43 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         )
 
         aliceHtlcIndex = alice_channel.add_htlc(htlc)
-
         bobHtlcIndex = bob_channel.receive_htlc(htlc)
-
         force_state_transition(alice_channel, bob_channel)
-
         self.assertEqual(len(alice_channel.local_commitment.outputs()), 3)
-
         self.assertEqual(len(bob_channel.local_commitment.outputs()), 2)
-
         default_fee = calc_static_fee(0)
-
         self.assertEqual(bob_channel.local_commit_fee, default_fee)
-
         bob_channel.settle_htlc(paymentPreimage, htlc.htlc_id)
         alice_channel.receive_htlc_settle(paymentPreimage, aliceHtlcIndex)
-
         force_state_transition(bob_channel, alice_channel)
-
         self.assertEqual(len(alice_channel.local_commitment.outputs()), 2)
-
         self.assertEqual(alice_channel.total_msat_sent // 1000, htlcAmt)
+
+    def test_UpdateFeeSenderCommits(self):
+        alice_channel, bob_channel = create_test_channels()
+
+        paymentPreimage = b"\x01" * 32
+        paymentHash = bitcoin.sha256(paymentPreimage)
+        htlc = lnhtlc.UpdateAddHtlc(
+            payment_hash = paymentHash,
+            amount_msat =  one_bitcoin_in_msat,
+            cltv_expiry =  5, # also in create_test_channels
+            total_fee = 0
+        )
+
+        aliceHtlcIndex = alice_channel.add_htlc(htlc)
+        bobHtlcIndex = bob_channel.receive_htlc(htlc)
+
+        fee = 111
+        alice_channel.update_fee(fee)
+        bob_channel.receive_update_fee(fee)
+
+        alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
+        bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
+        self.assertNotEqual(fee, alice_channel.constraints.feerate)
+        rev, _ = alice_channel.revoke_current_commitment()
+        self.assertEqual(fee, alice_channel.constraints.feerate)
+        bob_channel.receive_revocation(rev)
 
 def force_state_transition(chanA, chanB):
     chanB.receive_new_commitment(*chanA.sign_next_commitment())
