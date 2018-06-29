@@ -1,19 +1,15 @@
 #! /usr/bin/env python3
 # This was forked from https://github.com/rustyrussell/lightning-payencode/tree/acc16ec13a3fa1dc16c07af6ec67c261bd8aff23
 
-import ecdsa.curves
-from ecdsa.ecdsa import generator_secp256k1
-from ..bitcoin import hash160_to_b58_address, b58_address_to_hash160
+from .bitcoin import hash160_to_b58_address, b58_address_to_hash160
 from hashlib import sha256
-from ..segwit_addr import bech32_encode, bech32_decode, CHARSET
-from binascii import hexlify, unhexlify
-from bitstring import BitArray
+from .segwit_addr import bech32_encode, bech32_decode, CHARSET
+from binascii import hexlify
 from decimal import Decimal
-from .. import constants
+from . import constants
 
-from .. import ecc
+from . import ecc
 import bitstring
-import hashlib
 import re
 import time
 
@@ -266,7 +262,7 @@ def lndecode(a, verbose=False, expected_hrp=constants.net.SEGWIT_HRP):
     if not hrp[2:].startswith(expected_hrp):
         raise ValueError("Wrong Lightning invoice HRP " + hrp[2:] + ", should be " + expected_hrp)
 
-    data = u5_to_bitarray(data);
+    data = u5_to_bitarray(data)
 
     # Final signature 65 bytes, split it off.
     if len(data) < 65*8:
