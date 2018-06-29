@@ -3,7 +3,7 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from electrum_gui.kivy.i18n import _
 from kivy.clock import mainthread
-from electrum.lightning_payencode.lnaddr import lndecode
+from electrum.lnaddr import lndecode
 
 Builder.load_string('''
 <LightningPayerDialog@Popup>

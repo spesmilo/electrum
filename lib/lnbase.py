@@ -32,7 +32,7 @@ from . import transaction
 from .util import PrintError, bh2u, print_error, bfh, profiler, xor_bytes
 from .transaction import opcodes, Transaction
 from .lnrouter import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error
-from .lightning_payencode.lnaddr import lndecode
+from .lnaddr import lndecode
 from .lnhtlc import UpdateAddHtlc, HTLCStateMachine, RevokeAndAck, SettleHtlc
 
 REV_GENESIS = bytes.fromhex(bitcoin.rev_hex(constants.net.GENESIS))
