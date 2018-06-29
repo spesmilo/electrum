@@ -152,7 +152,7 @@ class RequestList(MyTreeView):
         self.filter()
         # lightning
         for payreq_key, r in self.wallet.lnworker.invoices.items():
-            from electrum.lightning_payencode.lnaddr import lndecode
+            from electrum.lnaddr import lndecode
             import electrum.constants as constants
             lnaddr = lndecode(r, expected_hrp=constants.net.SEGWIT_HRP)
             amount_sat = lnaddr.amount*COIN if lnaddr.amount else None

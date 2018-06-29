@@ -1881,7 +1881,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.payment_request_error_signal.emit()
 
     def parse_lightning_invoice(self, invoice):
-        from electrum.lightning_payencode.lnaddr import lndecode
+        from electrum.lnaddr import lndecode
         lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         pubkey = bh2u(lnaddr.pubkey.serialize())
         for k,v in lnaddr.tags:

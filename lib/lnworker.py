@@ -11,7 +11,7 @@ from .bitcoin import sha256, COIN
 from .util import bh2u, bfh, PrintError
 from .constants import set_testnet, set_simnet
 from .lnbase import Peer, privkey_to_pubkey
-from .lightning_payencode.lnaddr import lnencode, LnAddr, lndecode
+from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .transaction import Transaction
 from .lnhtlc import HTLCStateMachine
