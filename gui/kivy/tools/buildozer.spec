@@ -24,8 +24,8 @@ source.exclude_dirs = bin, build, dist, contrib, gui/qt, gui/kivy/tools, gui/kiv
 source.exclude_patterns = Makefile,setup*
 
 # (str) Application versioning (method 1)
-version.regex = version_apk = '(.*)'
-version.filename = %(source.dir)s/contrib/versions.py
+version.regex = APK_VERSION = '(.*)'
+version.filename = %(source.dir)s/lib/version.py
 
 # (str) Application versioning (method 2)
 #version = 1.9.8

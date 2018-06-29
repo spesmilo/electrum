@@ -1,18 +1,26 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 import re
 import os
+import sys
 
-from versions import version, version_win, version_mac, version_android, version_apk
-from versions import download_template, download_page
+from electrum.version import ELECTRUM_VERSION, APK_VERSION
+print("version", ELECTRUM_VERSION)
+
+dirname = sys.argv[1]
+print("directory", dirname)
+
+download_page = os.path.join(dirname, "panel-download.html")
+download_template = download_page + ".template"
 
 with open(download_template) as f:
     string = f.read()
 
+version = version_win = version_mac = version_android = ELECTRUM_VERSION
 string = string.replace("##VERSION##", version)
 string = string.replace("##VERSION_WIN##", version_win)
 string = string.replace("##VERSION_MAC##", version_mac)
 string = string.replace("##VERSION_ANDROID##", version_android)
-string = string.replace("##VERSION_APK##", version_apk)
+string = string.replace("##VERSION_APK##", APK_VERSION)
 
 files = {
     'tgz': "Electrum-%s.tar.gz" % version,
@@ -47,5 +55,3 @@ for k, n in files.items():
 
 with open(download_page,'w') as f:
     f.write(string)
-
-
