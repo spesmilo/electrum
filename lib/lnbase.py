@@ -479,6 +479,9 @@ class Peer(PrintError):
 
     @aiosafe
     async def main_loop(self):
+        return await self._main_loop()
+
+    async def _main_loop(self):
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
         await self.handshake()
         # send init

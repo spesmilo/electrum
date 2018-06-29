@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtWidgets import *
+import concurrent.futures
 
 from electrum.util import inv_dict, bh2u, bfh
 from electrum.i18n import _
@@ -84,7 +85,7 @@ class ChannelsList(MyTreeWidget):
         push_amt_inp.setAmount(0)
         h.addWidget(QLabel(_('Your Node ID')), 0, 0)
         h.addWidget(local_nodeid, 0, 1)
-        h.addWidget(QLabel(_('Remote Node ID')), 1, 0)
+        h.addWidget(QLabel(_('Remote Node ID or connection string')), 1, 0)
         h.addWidget(remote_nodeid, 1, 1)
         h.addWidget(QLabel('Local amount'), 2, 0)
         h.addWidget(local_amt_inp, 2, 1)
@@ -94,20 +95,80 @@ class ChannelsList(MyTreeWidget):
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():
             return
-        nodeid_hex = str(remote_nodeid.text())
-        local_amt = local_amt_inp.get_amount()
-        push_amt = push_amt_inp.get_amount()
+        connect_contents = str(remote_nodeid.text())
+        rest = None
+        try:
+            nodeid_hex, rest = connect_contents.split("@")
+        except ValueError:
+            nodeid_hex = connect_contents
         try:
             node_id = bfh(nodeid_hex)
+            assert len(node_id) == 33
         except:
-            self.parent.show_error(_('Invalid node ID'))
+            self.parent.show_error(_('Invalid node ID, must be 33 bytes and hexadecimal'))
             return
-        if node_id not in self.parent.wallet.lnworker.peers and node_id not in self.parent.network.lightning_nodes:
+
+        local_amt = local_amt_inp.get_amount()
+        push_amt = push_amt_inp.get_amount()
+
+        if local_amt < 200000:
+            self.parent.show_error(_('You must specify an decent amount (>=2 mBTC) for ' + \
+                                     'the initial local balance of the channel.'))
+            return
+
+        known = node_id in self.parent.network.lightning_nodes
+        connected = node_id in self.parent.wallet.lnworker.peers
+
+        open_channel_info = (node_id, local_amt, push_amt)
+
+        if connected:
+            peer = self.parent.wallet.lnworker.peers[node_id]
+            if not peer.initialized.done():
+                self.parent.show_error(_('Peer not initialized'))
+                return
+            self.gui_open_channel(None, peer, open_channel_info)
+            return
+
+        if rest is not None: # perfer ip/port from input field
+            try:
+                host, port = rest.split(":")
+            except ValueError:
+                self.parent.show_error(_('Connection strings must be in <node_pubkey>@<host>:<port> format'))
+
+        elif known: # then use config file
+            node = self.network.lightning_nodes.get(node_id)
+            host, port = node['addresses'][0]
+        else:
             self.parent.show_error(_('Unknown node:') + ' ' + nodeid_hex)
             return
-        assert local_amt >= 200000
-        assert local_amt >= push_amt
-        self.main_window.protect(self.open_channel, (node_id, local_amt, push_amt))
+
+        try:
+            int(port)
+        except:
+            self.parent.show_error(_('Port number must be decimal'))
+            return
+
+        peer, coro = self.parent.wallet.lnworker.add_peer(host, port, node_id, aiosafe=False)
+        q = QtCore.QTimer()
+        q.singleShot(3000, lambda: self.gui_open_channel(coro, peer, open_channel_info))
+
+    def gui_open_channel(self, coro, peer, open_channel_info):
+        if coro is not None:
+            try:
+                raise coro.exception(timeout=0)
+            except concurrent.futures.TimeoutError:
+                pass
+            except concurrent.futures.CancelledError:
+                print("Ignoring CancelledError, probably shutting down since main_loop cancelled...")
+                return
+            except Exception as e:
+                self.parent.show_error(_('LN main loop threw:') + ' ' + str(e))
+                return
+
+        if not peer.initialized.done():
+            self.parent.show_error(_('Peer not initialized within 3 seconds'))
+            return
+        self.main_window.protect(self.open_channel, open_channel_info)
 
     def open_channel(self, *args, **kwargs):
         self.parent.wallet.lnworker.open_channel(*args, **kwargs)
