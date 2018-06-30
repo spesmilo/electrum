@@ -11,17 +11,20 @@ fi
 # exit if command fails
 set -e
 
-mkdir -p stripped >/dev/null 2>&1
+rm -rf signed
+mkdir -p signed >/dev/null 2>&1
+mkdir -p signed/stripped >/dev/null 2>&1
 
-cd signed
+version=3.2.0
 
 echo "Found $(ls *.exe | wc -w) files to verify."
-for signed in $(ls *.exe); do
-    mine="../dist/$signed"
-    out="../stripped/$signed"
+for mine in $(ls dist/*.exe); do
+    f=$(basename $mine)
+    wget https://download.electrum.org/$version/$f -O signed/$f
+    out="signed/stripped/$f"
     size=$( wc -c < $mine )
     # Step 1: Remove PE signature from signed binary
-    osslsigncode remove-signature -in $signed -out $out > /dev/null 2>&1
+    osslsigncode remove-signature -in signed/$f -out $out > /dev/null 2>&1
     # Step 2: Remove checksum and padding from signed binary
     python3 <<EOF
 pe_file = "$out"
@@ -42,9 +45,9 @@ with open(pe_file, "wb") as f:
 EOF
     chmod +x $out
     if [ ! $(diff $out $mine) ]; then
-	echo "Success: $signed"
-	#gpg --sign --armor --detach $signed
+	echo "Success: $f"
+	gpg --sign --armor --detach signed/$f
     else
-	echo "Failure: $signed"
+	echo "Failure: $f"
     fi
 done
