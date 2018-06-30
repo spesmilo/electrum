@@ -333,7 +333,7 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
                 txoutputtype.amount = amount
                 if _type == TYPE_SCRIPT:
                     txoutputtype.script_type = self.types.PAYTOOPRETURN
-                    txoutputtype.op_return_data = address.to_ui_string()[2:]
+                    txoutputtype.op_return_data = address.to_script()[2:]
                 elif _type == TYPE_ADDRESS:
                     if address.kind == address.ADDR_P2PKH:
                         txoutputtype.script_type = self.types.PAYTOADDRESS

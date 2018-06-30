@@ -43,14 +43,11 @@ class TrezorKeyStore(Hardware_KeyStore):
     def sign_transaction(self, tx, password):
         if tx.is_complete():
             return
-        # previous transactions used as inputs
-        prev_tx = {}
         # path of the xpubs that are involved
         xpub_path = {}
         for txin in tx.inputs():
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
             tx_hash = txin['prevout_hash']
-            prev_tx[tx_hash] = txin['prev_tx']
             for x_pubkey in x_pubkeys:
                 if not is_xpubkey(x_pubkey):
                     continue
@@ -58,7 +55,11 @@ class TrezorKeyStore(Hardware_KeyStore):
                 if xpub == self.get_master_public_key():
                     xpub_path[xpub] = self.get_derivation()
 
-        self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
+        self.plugin.sign_transaction(self, tx, xpub_path)
+
+    def needs_prevtx(self):
+        # Trezor doesn't neeed previous transactions for Bitcoin Cash
+        return False
 
 
 class TrezorPlugin(HW_PluginBase):
@@ -287,8 +288,7 @@ class TrezorPlugin(HW_PluginBase):
         else:
             return self.types.InputScriptType.SPENDADDRESS
 
-    def sign_transaction(self, keystore, tx, prev_tx, xpub_path):
-        self.prev_tx = prev_tx
+    def sign_transaction(self, keystore, tx, xpub_path):
         self.xpub_path = xpub_path
         client = self.get_client(keystore)
         inputs = self.tx_inputs(tx, True)
@@ -457,22 +457,8 @@ class TrezorPlugin(HW_PluginBase):
 
         return outputs
 
-    def electroncash_tx_to_txtype(self, tx):
-        t = self.types.TransactionType()
-        if tx is None:
-            return t
-        d = deserialize(tx.raw)
-        t.version = d['version']
-        t.lock_time = d['lockTime']
-        inputs = self.tx_inputs(tx)
-        t._extend_inputs(inputs)
-        for vout in d['outputs']:
-            o = t._add_bin_outputs()
-            o.amount = vout['value']
-            o.script_pubkey = bfh(vout['scriptPubKey'])
-        return t
-
     # This function is called from the TREZOR libraries (via tx_api)
     def get_tx(self, tx_hash):
-        tx = self.prev_tx[tx_hash]
-        return self.electroncash_tx_to_txtype(tx)
+        # for electron-cash previous tx is never needed, since it uses
+        # bip-143 signatures.
+        return None

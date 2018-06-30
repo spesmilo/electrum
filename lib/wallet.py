@@ -1187,10 +1187,11 @@ class Abstract_Wallet(PrintError):
                     txin['prev_tx'] = inputtx   # may be needed by hardware wallets
 
     def add_hw_info(self, tx):
-        # add previous tx for hw wallets, if not already there
-        for txin in tx.inputs():
-            if 'prev_tx' not in txin:
-                txin['prev_tx'] = self.get_input_tx(txin['prevout_hash'])
+        # add previous tx for hw wallets, if needed and not already there
+        if any([(isinstance(k, Hardware_KeyStore) and k.can_sign(tx) and k.needs_prevtx()) for k in self.get_keystores()]):
+            for txin in tx.inputs():
+                if 'prev_tx' not in txin:
+                    txin['prev_tx'] = self.get_input_tx(txin['prevout_hash'])
         # add output info for hw wallets
         info = {}
         xpubs = self.get_master_public_keys()

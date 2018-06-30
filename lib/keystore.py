@@ -580,6 +580,11 @@ class Hardware_KeyStore(KeyStore, Xpub):
     def can_change_password(self):
         return False
 
+    def needs_prevtx(self):
+        '''Returns true if this hardware wallet needs to know the input
+        transactions to sign a transactions'''
+        return True
+
 
 
 def bip39_normalize_passphrase(passphrase):
