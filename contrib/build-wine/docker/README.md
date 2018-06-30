@@ -1,7 +1,7 @@
 Deterministic Windows binaries with Docker
 ==========================================
 
-This assumes an Ubuntu host, but it should not be too hard to adopt to another
+This assumes an Ubuntu host, but it should not be too hard to adapt to another
 similar system.
 
 1. Install Docker
@@ -17,7 +17,7 @@ similar system.
 
     ```
     $ cd contrib/build-wine/docker
-    $ PROJECT_ROOT=$(pwd)/../../../
+    $ PROJECT_ROOT=$PWD/../../../
     $ sudo docker build --no-cache -t electrum-wine-builder-img .
     ```
 

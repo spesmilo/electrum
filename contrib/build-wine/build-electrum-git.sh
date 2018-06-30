@@ -45,6 +45,10 @@ VERSION=`git describe --tags --dirty`
 echo "Last commit: $VERSION"
 
 pushd ./contrib/deterministic-build/electrum-locale
+if ! which msgfmt > /dev/null 2>&1; then
+    echo "Please install gettext"
+    exit 1
+fi
 for i in ./locale/*; do
     dir=$i/LC_MESSAGES
     mkdir -p $dir

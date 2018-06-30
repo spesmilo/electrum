@@ -23,6 +23,7 @@ RUN dpkg --add-architecture i386 && \
         autotools-dev=20180224.1 \
         autoconf=2.69-11 \
         libtool=2.4.6-2 \
+        gettext=0.19.8.1-6 \
         && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
