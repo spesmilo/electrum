@@ -181,7 +181,7 @@ def _prepare_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
 
 def do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
     if not _libsecp256k1:
-        print_stderr('[ecc] warning: libsecp256k1 library not available, falling back to python-ecdsa')
+        print_error('[ecc] warning: libsecp256k1 library not available, falling back to python-ecdsa')
         return
     if not _patched_functions.prepared_to_patch:
         raise Exception("can't patch python-ecdsa without preparations")
