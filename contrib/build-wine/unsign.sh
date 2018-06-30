@@ -45,7 +45,7 @@ with open(pe_file, "wb") as f:
     f.write(binary)
 EOF
     chmod +x $out
-    if [ ! $(diff $out $mine) ]; then
+    if cmp -s $out $mine; then
 	echo "Success: $f"
 	gpg --sign --armor --detach signed/$f
     else
