@@ -1,4 +1,11 @@
-# Release 3.2.0 - Satoshi's Vision (unreleased)
+# Release 3.2.1 - (unreleased)
+
+ * fix Windows binaries: due to build process changes, the locale files
+   were not included; the language could not be changed from English
+ * fix Linux distributables: wordlists were not included (#4475)
+
+
+# Release 3.2.0 - Satoshi's Vision (June 30, 2018)
 
  * If present, libsecp256k1 is used to speed up elliptic curve
    operations. The library is bundled in the Windows, MacOS, and
