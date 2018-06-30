@@ -20,8 +20,10 @@ version=`python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)"`
 echo "Found $(ls dist/*.exe | wc -w) files to verify."
 
 for mine in $(ls dist/*.exe); do
+    echo "---------------"
     f=$(basename $mine)
-    wget https://download.electrum.org/$version/$f -O signed/$f
+    echo "Downloading https://download.electrum.org/$version/$f"
+    wget -q https://download.electrum.org/$version/$f -O signed/$f
     out="signed/stripped/$f"
     size=$( wc -c < $mine )
     # Step 1: Remove PE signature from signed binary
@@ -39,7 +41,8 @@ for b in range(4):
 l = len(binary)
 n = l - size
 if n > 0:
-   assert binary[-n:] == bytearray(n)
+   if binary[-n:] != bytearray(n):
+       print('expecting failure for', str(pe_file))
    binary = binary[:size]
 with open(pe_file, "wb") as f:
     f.write(binary)
