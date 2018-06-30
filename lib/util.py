@@ -889,6 +889,19 @@ def export_meta(meta, fileName):
         raise FileExportFailed(e)
 
 
+def get_new_wallet_name(wallet_folder):
+    i = 1
+    while True:
+        filename = "wallet_%d" % i
+        if filename in os.listdir(wallet_folder):
+            i += 1
+        else:
+            break
+    return filename
+
+def format_date(d):
+    return str(datetime.date(d)) if d else _('None')
+
 def make_dir(path, allow_symlink=True):
     """Make directory if it does not yet exist."""
     if not os.path.exists(path):

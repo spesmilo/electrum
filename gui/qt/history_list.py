@@ -29,7 +29,7 @@ import datetime
 from electrum.wallet import AddTransactionException, TX_HEIGHT_LOCAL
 from .util import *
 from electrum.i18n import _
-from electrum.util import block_explorer_URL, profiler
+from electrum.util import block_explorer_URL, profiler, format_date
 
 try:
     from electrum.plot import plot_history, NothingToPlotException
@@ -67,9 +67,6 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.create_toolbar_buttons()
         self.wallet = None
 
-    def format_date(self, d):
-        return str(datetime.date(d.year, d.month, d.day)) if d else _('None')
-
     def refresh_headers(self):
         headers = ['', '', _('Date'), _('Description'), _('Amount'), _('Balance')]
         fx = self.parent.fx
@@ -106,8 +103,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             end_date = datetime.datetime(year+1, 1, 1)
             self.start_timestamp = time.mktime(start_date.timetuple())
             self.end_timestamp = time.mktime(end_date.timetuple())
-            self.start_button.setText(_('From') + ' ' + self.format_date(start_date))
-            self.end_button.setText(_('To') + ' ' + self.format_date(end_date))
+            self.start_button.setText(_('From') + ' ' + format_date(start_date))
+            self.end_button.setText(_('To') + ' ' + format_date(end_date))
         self.update()
 
     def create_toolbar_buttons(self):
@@ -157,7 +154,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             if d.date is None:
                 return None
             date = d.date.toPyDate()
-            button.setText(self.format_date(date))
+            button.setText(format_date(date))
             return time.mktime(date.timetuple())
 
     def show_summary(self):
@@ -173,13 +170,13 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         vbox = QVBoxLayout()
         grid = QGridLayout()
         grid.addWidget(QLabel(_("Start")), 0, 0)
-        grid.addWidget(QLabel(self.format_date(start_date)), 0, 1)
+        grid.addWidget(QLabel(format_date(start_date)), 0, 1)
         grid.addWidget(QLabel(str(h['start_fiat_value']) + '/BTC'), 0, 2)
         grid.addWidget(QLabel(_("Initial balance")), 1, 0)
         grid.addWidget(QLabel(format_amount(h['start_balance'])), 1, 1)
         grid.addWidget(QLabel(str(h.get('start_fiat_balance'))), 1, 2)
         grid.addWidget(QLabel(_("End")), 2, 0)
-        grid.addWidget(QLabel(self.format_date(end_date)), 2, 1)
+        grid.addWidget(QLabel(format_date(end_date)), 2, 1)
         grid.addWidget(QLabel(str(h['end_fiat_value']) + '/BTC'), 2, 2)
         grid.addWidget(QLabel(_("Final balance")), 4, 0)
         grid.addWidget(QLabel(format_amount(h['end_balance'])), 4, 1)

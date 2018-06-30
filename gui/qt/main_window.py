@@ -49,7 +49,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            UserCancelled, NoDynamicFeeEstimates, profiler,
                            export_meta, import_meta, bh2u, bfh, InvalidPassword,
                            base_units, base_units_list, base_unit_name_to_decimal_point,
-                           decimal_point_to_base_unit_name, quantize_feerate)
+                           decimal_point_to_base_unit_name, quantize_feerate, get_new_wallet_name)
 from electrum import Transaction
 from electrum import util, bitcoin, commands, coinchooser
 from electrum import paymentrequest
@@ -449,18 +449,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return os.path.dirname(os.path.abspath(self.config.get_wallet_path()))
 
     def new_wallet(self):
-        try:
-            wallet_folder = self.get_wallet_folder()
-        except FileNotFoundError as e:
-            self.show_error(str(e))
-            return
-        i = 1
-        while True:
-            filename = "wallet_%d" % i
-            if filename in os.listdir(wallet_folder):
-                i += 1
-            else:
-                break
+        wallet_folder = self.get_wallet_folder()
+        filename = get_new_wallet_name(wallet_folder)
         full_path = os.path.join(wallet_folder, filename)
         self.gui_object.start_new_window(full_path, None)
 

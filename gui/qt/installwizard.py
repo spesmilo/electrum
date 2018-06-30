@@ -1,4 +1,4 @@
-
+import datetime
 import os
 import sys
 import threading
@@ -9,7 +9,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
 from electrum import Wallet, WalletStorage
-from electrum.util import UserCancelled, InvalidPassword
+from electrum.util import UserCancelled, InvalidPassword, get_new_wallet_name, format_date
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum.i18n import _
 
@@ -90,8 +90,6 @@ def wizard_dialog(func):
     return func_wrapper
 
 
-
-# WindowModalDialog must come first as it overrides show_error
 class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     accept_signal = pyqtSignal()
@@ -105,7 +103,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.config = config
         # Set for base base class
         self.language_for_seed = config.get('language')
-        self.setMinimumSize(600, 400)
+        self.setMinimumSize(600, 450)
         self.accept_signal.connect(self.accept)
         self.title = QLabel()
         self.main_widget = QWidget()
@@ -149,38 +147,116 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.raise_()
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
-    def run_and_get_wallet(self, get_wallet_from_daemon):
+    @staticmethod
+    def get_wallet_info(wallet):
+        name = os.path.basename(wallet)
+        if os.path.exists(wallet):
+            mdate = format_date(datetime.datetime.fromtimestamp(os.path.getmtime(wallet)))
+        else:
+            mdate = None
+        return name, mdate
 
-        vbox = QVBoxLayout()
-        hbox = QHBoxLayout()
-        hbox.addWidget(QLabel(_('Wallet') + ':'))
-        self.name_e = QLineEdit()
-        hbox.addWidget(self.name_e)
-        button = QPushButton(_('Choose...'))
-        hbox.addWidget(button)
-        vbox.addLayout(hbox)
+    def show_wallet_layout(self, get_wallet_from_daemon):
+        layout_main = QVBoxLayout()
 
-        self.msg_label = QLabel('')
-        vbox.addWidget(self.msg_label)
+        wallet_widget = QFrame()
+        wallet_widget.setLineWidth(1)  # px
+        wallet_widget.setFrameStyle(QFrame.Panel)
+        wallet_heading = QLabel(_('Selected wallet') + ':')
+        heading_font = wallet_heading.font()
+        heading_font.setPointSize(10)
+        heading_font.setBold(True)
+        wallet_heading.setFont(heading_font)
+        layout_wallet = QVBoxLayout()
+        layout_wallet.setSpacing(10)
+        layout_wallet.addWidget(wallet_heading)
+
+        self.wallet_name = QLineEdit('')
+        palette = self.wallet_name.palette()
+        palette.setColor(QPalette.Disabled, QPalette.Base, QColor("transparent"))
+        palette.setColor(QPalette.Disabled, QPalette.Text, palette.color(QPalette.Normal, QPalette.Text))
+        self.wallet_name.setPalette(palette)
+        self.wallet_opened = QLabel(_('Last opened:'))
+
+        layout_wallet_info = QHBoxLayout()
+        layout_wallet_info.addWidget(self.wallet_name)
+        layout_wallet_info.addWidget(self.wallet_opened)
+        layout_wallet.addLayout(layout_wallet_info)
+
+        self.wallet_message = QLabel(_('Enter your password or choose another wallet.'))
+        layout_wallet.addWidget(self.wallet_message)
+
         hbox2 = QHBoxLayout()
         self.pw_e = QLineEdit('', self)
         self.pw_e.setFixedWidth(150)
         self.pw_e.setEchoMode(2)
+        policy = self.pw_e.sizePolicy()
+        policy.setRetainSizeWhenHidden(True)
+        self.pw_e.setSizePolicy(policy)
+
         self.pw_label = QLabel(_('Password') + ':')
         hbox2.addWidget(self.pw_label)
         hbox2.addWidget(self.pw_e)
         hbox2.addStretch()
-        vbox.addLayout(hbox2)
-        self.set_layout(vbox, title=_('Electrum wallet'))
+
+        layout_wallet.addLayout(hbox2)
+
+        wallet_widget.setLayout(layout_wallet)
+
+        layout_main.addWidget(wallet_widget)
+
+        recent_heading = QLabel(_("Recent wallets"))
+        recent_heading.setFont(heading_font)
+        layout_main.addWidget(recent_heading)
+
+        recent = sorted(self.config.get('recently_open', []))
+
+        recent_list = QTableWidget()
+        recent_list.setColumnCount(2)
+        recent_list.setRowCount(len(recent))
+        recent_list.setShowGrid(False)
+        recent_list.horizontalHeader().setDefaultSectionSize(210)
+        recent_list.horizontalHeader().hide()
+        recent_list.verticalHeader().hide()
+        recent_list.setSelectionBehavior(QAbstractItemView.SelectRows)
+        recent_list.setSelectionMode(QAbstractItemView.SingleSelection)
+        recent_list.setEditTriggers(QAbstractItemView.NoEditTriggers)
+
+        def on_select_wallet(selected, deselected):
+            try:
+                row = selected.indexes()[0].row()
+                entry = recent[row]
+            except IndexError:
+                return
+            load_wallet(entry)
+
+        recent_list.selectionModel().selectionChanged.connect(on_select_wallet)
+
+        for i, k in enumerate(sorted(recent)):
+            name, mdate = self.get_wallet_info(k)
+            recent_list.setItem(i, 0, QTableWidgetItem(name))
+            recent_list.setItem(i, 1, QTableWidgetItem(mdate))
+
+        layout_main.addWidget(recent_list)
+
+        hbox = QHBoxLayout()
+        load_button = QPushButton(QIcon(':icons/file.png'), _('Load other wallet'))
+        create_button = QPushButton(QIcon(':icons/create.png'), _('Create wallet'))
+        hbox.addWidget(load_button)
+        hbox.addWidget(create_button)
+        hbox.addStretch()
+        layout_main.addLayout(hbox)
+
+        self.set_layout(layout_main, title=_('Electrum wallet'))
 
         wallet_folder = os.path.dirname(self.storage.path)
 
         def on_choose():
-            path, __ = QFileDialog.getOpenFileName(self, "Select your wallet file", wallet_folder)
+            path, __ = QFileDialog.getOpenFileName(self, _("Select your wallet file"), wallet_folder)
             if path:
-                self.name_e.setText(path)
+                load_wallet(path)
 
-        def on_filename(filename):
+        def load_wallet(filename):
             path = os.path.join(wallet_folder, filename)
             wallet_from_memory = get_wallet_from_daemon(path)
             try:
@@ -192,32 +268,43 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             except BaseException:
                 traceback.print_exc(file=sys.stderr)
                 self.storage = None
-                self.next_button.setEnabled(False)
+            update_wallet_info()
+
+        def update_wallet_info():
             if self.storage:
+                path = self.storage.path
+                wallet_from_memory = get_wallet_from_daemon(path)
+                name, mdate = self.get_wallet_info(path)
+                if self.wallet_name.text() != name:
+                    self.wallet_name.setText(name)
+                self.wallet_opened.setText((_('Last opened:') + ' ' + mdate) if mdate else '')
+                self.next_button.setEnabled(True)
                 if not self.storage.file_exists():
-                    msg =_("This file does not exist.") + '\n' \
-                          + _("Press 'Next' to create this wallet, or choose another file.")
+                    create_button.hide()
+                    msg = _("This wallet does not exist yet.") + '\n' \
+                          + _("Press 'Next' to create it, or choose another wallet.")
                     pw = False
                 elif not wallet_from_memory:
+                    create_button.show()
                     if self.storage.is_encrypted_with_user_pw():
-                        msg = _("This file is encrypted with a password.") + '\n' \
-                              + _('Enter your password or choose another file.')
+                        msg = '\n' + _('Enter your password or choose another file.')
                         pw = True
                     elif self.storage.is_encrypted_with_hw_device():
                         msg = _("This file is encrypted using a hardware device.") + '\n' \
                               + _("Press 'Next' to choose device to decrypt.")
                         pw = False
                     else:
-                        msg = _("Press 'Next' to open this wallet.")
+                        msg = '\n' + _("Press 'Next' to open this wallet.")
                         pw = False
                 else:
                     msg = _("This file is already open in memory.") + "\n" \
                         + _("Press 'Next' to create/focus window.")
                     pw = False
             else:
-                msg = _('Cannot read file')
+                self.next_button.setEnabled(False)
+                msg = '\n' + _('Cannot read file')
                 pw = False
-            self.msg_label.setText(msg)
+            self.wallet_message.setText(msg)
             if pw:
                 self.pw_label.show()
                 self.pw_e.show()
@@ -226,10 +313,18 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 self.pw_label.hide()
                 self.pw_e.hide()
 
-        button.clicked.connect(on_choose)
-        self.name_e.textChanged.connect(on_filename)
-        n = os.path.basename(self.storage.path)
-        self.name_e.setText(n)
+        update_wallet_info()
+        load_button.clicked.connect(on_choose)
+        self.wallet_name.textEdited.connect(load_wallet)
+
+        def new_wallet():
+            recent_list.clearSelection()
+            load_wallet(get_new_wallet_name(wallet_folder))
+
+        create_button.clicked.connect(new_wallet)
+
+    def run_and_get_wallet(self, get_wallet_from_daemon):
+        self.show_wallet_layout(get_wallet_from_daemon)
 
         while True:
             if self.loop.exec_() != 2:  # 2 = next
