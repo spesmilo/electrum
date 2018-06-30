@@ -15,9 +15,10 @@ rm -rf signed
 mkdir -p signed >/dev/null 2>&1
 mkdir -p signed/stripped >/dev/null 2>&1
 
-version=3.2.0
+version=`python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)"`
 
-echo "Found $(ls *.exe | wc -w) files to verify."
+echo "Found $(ls dist/*.exe | wc -w) files to verify."
+
 for mine in $(ls dist/*.exe); do
     f=$(basename $mine)
     wget https://download.electrum.org/$version/$f -O signed/$f
