@@ -8,40 +8,45 @@ if ! which osslsigncode > /dev/null 2>&1; then
     exit
 fi
 
-if [ $# -ne 2 ]; then
-    echo "Usage: $0 signed_binary unsigned_binary"
-    exit
-fi
+# exit if command fails
+set -e
 
-out="$1-stripped.exe"
+mkdir -p stripped >/dev/null 2>&1
 
-set -ex
+cd signed
 
-echo "Step 1: Remove PE signature from signed binary"
-osslsigncode remove-signature -in $1 -out $out
-
-echo "Step 2: Remove checksum from signed binary"
-python3 <<EOF
+echo "Found $(ls *.exe | wc -w) files to verify."
+for signed in $(ls *.exe); do
+    echo $signed
+    mine="../dist/$signed"
+    out="../stripped/$signed"
+    size=$( wc -c < $mine )
+    # Step 1: Remove PE signature from signed binary
+    osslsigncode remove-signature -in $signed -out $out
+    # Step 2: Remove checksum and padding from signed binary
+    python3 <<EOF
 pe_file = "$out"
+size= $size
 with open(pe_file, "rb") as f:
     binary = bytearray(f.read())
-
 pe_offset = int.from_bytes(binary[0x3c:0x3c+4], byteorder="little")
 checksum_offset = pe_offset + 88
-
 for b in range(4):
     binary[checksum_offset + b] = 0
-
+l = len(binary)
+n = l - size
+if n > 0:
+   assert binary[-n:] == bytearray(n)
+   print("removing %d null bytes"% n)
+   binary = binary[:size]
 with open(pe_file, "wb") as f:
     f.write(binary)
 EOF
-
-bytes=$( wc -c < $2 )
-bytes=$((8 - ($bytes%8)))
-bytes=$(($bytes % 8))
-
-echo "Step 3: Appending $bytes null bytes to unsigned binary"
-
-truncate -s +$bytes $2
-
-diff $out $2 && echo "Success!"
+    chmod +x $out
+    if [ ! $(diff $out $mine) ]; then
+	echo "Success!"
+	gpg --sign --armor --detach $signed
+    else
+	echo "failure"
+    fi
+done
