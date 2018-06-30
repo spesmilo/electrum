@@ -52,15 +52,16 @@ certificate/key) and one or multiple trusted verifiers:
 | Signer                                                    | Verifier                          |
 |-----------------------------------------------------------|-----------------------------------|
 | Build .exe files using `build.sh`                         |                                   |
+| Sign .exe with `./sign.sh`                                |                                   |
+| Upload signed files to download server                    |                                   |
 |                                                           | Build .exe files using `build.sh` |
-|                                                           | Sign .exe files using `gpg -b`    |
-|                                                           | Send signatures to signer         |
-| Place signatures as `$filename.$builder.asc` in `./dist`  |                                   |
-| Run `./sign.sh`                                           |                                   |
+|                                                           | Compare files using `unsign.sh`   |
+|                                                           | Sign .exe file using `gpg -b`     |
+
+| Signer and verifiers:
+| Upload signatures to 'electrum-signatures' repo, as `$version/$filename.$builder.asc`         |
 
 
-`sign.sh` will check if the signatures match the signer's files. This ensures that the signer's
-build environment is not compromised and that the binaries can be reproduced by anyone.
 
 
 Verify Integrity of signed binary

@@ -17,12 +17,11 @@ cd signed
 
 echo "Found $(ls *.exe | wc -w) files to verify."
 for signed in $(ls *.exe); do
-    echo $signed
     mine="../dist/$signed"
     out="../stripped/$signed"
     size=$( wc -c < $mine )
     # Step 1: Remove PE signature from signed binary
-    osslsigncode remove-signature -in $signed -out $out
+    osslsigncode remove-signature -in $signed -out $out > /dev/null 2>&1
     # Step 2: Remove checksum and padding from signed binary
     python3 <<EOF
 pe_file = "$out"
@@ -37,16 +36,15 @@ l = len(binary)
 n = l - size
 if n > 0:
    assert binary[-n:] == bytearray(n)
-   print("removing %d null bytes"% n)
    binary = binary[:size]
 with open(pe_file, "wb") as f:
     f.write(binary)
 EOF
     chmod +x $out
     if [ ! $(diff $out $mine) ]; then
-	echo "Success!"
-	gpg --sign --armor --detach $signed
+	echo "Success: $signed"
+	#gpg --sign --armor --detach $signed
     else
-	echo "failure"
+	echo "Failure: $signed"
     fi
 done
