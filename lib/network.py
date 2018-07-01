@@ -592,6 +592,10 @@ class Network(util.DaemonThread):
         elif method == 'blockchain.headers.subscribe':
             if error is None:
                 self.on_notify_header(interface, result)
+            else:
+                # no point in keeping this connection without headers sub
+                self.connection_down(interface.server)
+                return
         elif method == 'server.peers.subscribe':
             if error is None:
                 self.irc_servers = parse_servers(result)
