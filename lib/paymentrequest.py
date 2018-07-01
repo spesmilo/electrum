@@ -111,7 +111,7 @@ class PaymentRequest:
         self.tx = None
 
     def __str__(self):
-        return self.raw
+        return str(self.raw)
 
     def parse(self, r):
         if self.error:
