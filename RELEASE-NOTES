@@ -1,4 +1,4 @@
-# Release 3.2.1 - (unreleased)
+# Release 3.2.1 - (July 1st, 2018)
 
  * fix Windows binaries: due to build process changes, the locale files
    were not included; the language could not be changed from English

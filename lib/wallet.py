@@ -1985,7 +1985,7 @@ class Imported_Wallet(Simple_Wallet):
         self.addresses.pop(address)
         if pubkey:
             # delete key iff no other address uses it (e.g. p2pkh and p2wpkh for same key)
-            for txin_type in bitcoin.SCRIPT_TYPES.keys():
+            for txin_type in bitcoin.WIF_SCRIPT_TYPES.keys():
                 try:
                     addr2 = bitcoin.pubkey_to_address(txin_type, pubkey)
                 except NotImplementedError:
