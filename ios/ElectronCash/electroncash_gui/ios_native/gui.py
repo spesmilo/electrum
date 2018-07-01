@@ -1019,7 +1019,12 @@ class ElectrumGui(PrintError):
         #    self.payment_request_ok_signal.emit()
         #else:
         #    self.payment_request_error_signal.emit()
-        utils.NSLog("On PR: %s -- UNIMPLEMENTED.. IMPLEMENT ME!",str(request))
+        s = "<PaymentRequest>"
+        try:
+            s = str(request.get_dict())
+        except:
+            pass
+        utils.NSLog("On PR verify thread callback not yet implemented. TODO: Implement in next version. (PR was: %s)",s)
     
     def sign_payment_request(self, addr : Address, onSuccess : Callable[[],None] = None, onFailure : Callable[[],None] = None, vc : ObjCInstance = None):
         ''' No-op for now -- needs to be IMPLEMENTED -- requires the alias functionality '''
