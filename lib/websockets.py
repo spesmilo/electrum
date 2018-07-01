@@ -32,6 +32,7 @@ except ImportError:
     sys.exit("install SimpleWebSocketServer")
 
 from . import util
+from . import bitcoin
 
 request_queue = queue.Queue()
 
@@ -95,14 +96,16 @@ class WsClientThread(util.DaemonThread):
                 continue
             util.print_error('response', r)
             method = r.get('method')
-            scripthash = r.get('params')[0]
             result = r.get('result')
             if result is None:
                 continue    
             if method == 'blockchain.scripthash.subscribe':
+                addr = r.get('params')[0]
+                scripthash = bitcoin.address_to_scripthash(addr)
                 self.network.get_balance_for_scripthash(
                         scripthash, self.response_queue.put)
             elif method == 'blockchain.scripthash.get_balance':
+                scripthash = r.get('params')[0]
                 addr = self.network.h2addr.get(scripthash, None)
                 if addr is None:
                     util.print_error(
