@@ -31,8 +31,12 @@ from collections import defaultdict
 import threading
 import socket
 import json
+import sys
 
+import dns
+import dns.resolver
 import socks
+
 from . import util
 from . import bitcoin
 from .bitcoin import COIN
@@ -444,7 +448,30 @@ class Network(util.DaemonThread):
             socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
         else:
             socket.socket = socket._socketobject
-            socket.getaddrinfo = socket._getaddrinfo
+            if sys.platform == 'win32':
+                # On Windows, socket.getaddrinfo takes a mutex, and might hold it for up to 10 seconds
+                # when dns-resolving. To speed it up drastically, we resolve dns ourselves, outside that lock.
+                # see #4421
+                def fast_getaddrinfo(host, *args, **kwargs):
+                    try:
+                        if str(host) not in ('localhost', 'localhost.',):
+                            answers = dns.resolver.query(host)
+                            addr = str(answers[0])
+                        else:
+                            addr = host
+                    except dns.exception.DNSException:
+                        # dns failed for some reason, e.g. dns.resolver.NXDOMAIN
+                        # this is normal. Simply report back failure:
+                        raise socket.gaierror(11001, 'getaddrinfo failed')
+                    except BaseException as e:
+                        # Possibly internal error in dnspython :( see #4483
+                        # Fall back to original socket.getaddrinfo to resolve dns.
+                        self.print_error('dnspython failed to resolve dns with error:', e)
+                        addr = host
+                    return socket._getaddrinfo(addr, *args, **kwargs)
+                socket.getaddrinfo = fast_getaddrinfo
+            else:
+                socket.getaddrinfo = socket._getaddrinfo
 
     @with_interface_lock
     def start_network(self, protocol, proxy):
