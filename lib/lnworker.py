@@ -52,11 +52,16 @@ class LNWorker(PrintError):
         assert type(node_id) is bytes
         return {x: y for (x, y) in self.channels.items() if y.node_id == node_id}
 
-    def add_peer(self, host, port, node_id):
+    def add_peer(self, host, port, node_id, aiosafe=True):
         peer = Peer(self, host, int(port), node_id, request_initial_sync=self.config.get("request_initial_sync", True))
-        self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
+        if not aiosafe:
+            method = peer._main_loop
+        else:
+            method = peer.main_loop
+        coro = asyncio.run_coroutine_threadsafe(method(), asyncio.get_event_loop())
+        self.network.futures.append(coro)
         self.peers[node_id] = peer
-        self.lock = threading.Lock()
+        return peer, coro
 
     def save_channel(self, openchannel):
         assert type(openchannel) is HTLCStateMachine
@@ -115,15 +120,10 @@ class LNWorker(PrintError):
                 conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
                 peer.on_network_update(chan, conf)
 
-    async def _open_channel_coroutine(self, node_id, amount_sat, push_sat, password):
-        if node_id not in self.peers:
-            node = self.network.lightning_nodes.get(node_id)
-            if node is None:
-                return "node not found, peers available are: " + str(self.network.lightning_nodes.keys())
-            host, port = node['addresses'][0]
-            self.add_peer(host, port, node_id)
+    async def _open_channel_coroutine(self, node_id, local_amount_sat, push_sat, password):
+
         peer = self.peers[node_id]
-        openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password, amount_sat, push_sat * 1000, temp_channel_id=os.urandom(32))
+        openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password, local_amount_sat + push_sat, push_sat * 1000, temp_channel_id=os.urandom(32))
         self.save_channel(openingchannel)
         self.on_channels_updated()
 
