@@ -150,12 +150,15 @@ class Synchronizer(ThreadJob):
         if not params:
             return
         tx_hash = params[0]
-        #assert tx_hash == hash_encode(Hash(bytes.fromhex(result)))
         tx = Transaction(result)
         try:
             tx.deserialize()
         except Exception:
             self.print_msg("cannot deserialize transaction, skipping", tx_hash)
+            return
+        if tx_hash != tx.txid():
+            self.print_error("received tx does not match expected txid ({} != {})"
+                             .format(tx_hash, tx.txid()))
             return
         tx_height = self.requested_tx.pop(tx_hash)
         self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
