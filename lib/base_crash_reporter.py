@@ -43,6 +43,7 @@ class BaseCrashReporter(object):
 <h2>Additional information</h2>
 <ul>
   <li>Electrum version: {app_version}</li>
+  <li>Python version: {python_version}</li>
   <li>Operating system: {os}</li>
   <li>Wallet type: {wallet_type}</li>
   <li>Locale: {locale}</li>
@@ -86,6 +87,7 @@ class BaseCrashReporter(object):
     def get_additional_info(self):
         args = {
             "app_version": ELECTRUM_VERSION,
+            "python_version": sys.version,
             "os": self.get_os_version(),
             "wallet_type": "unknown",
             "locale": locale.getdefaultlocale()[0] or "?",
