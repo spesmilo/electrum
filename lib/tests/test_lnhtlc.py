@@ -49,7 +49,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 current_per_commitment_point=cur,
                 amount_msat=remote_amount,
                 revocation_store=their_revocation_store,
-                next_htlc_id = 0
+                next_htlc_id = 0,
+                feerate=local_feerate
             ),
             "local_state":lnbase.LocalState(
                 ctn = 0,
@@ -58,9 +59,10 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 next_htlc_id = 0,
                 funding_locked_received=True,
                 was_announced=False,
-                current_commitment_signature=None
+                current_commitment_signature=None,
+                feerate=local_feerate
             ),
-            "constraints":lnbase.ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=is_initiator, funding_txn_minimum_depth=3),
+            "constraints":lnbase.ChannelConstraints(capacity=funding_sat, is_initiator=is_initiator, funding_txn_minimum_depth=3),
             "node_id":other_node_id
     }
 
@@ -109,19 +111,17 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         else:
             self.assertFalse()
 
-    def test_SimpleAddSettleWorkflow(self):
-
+    def setUp(self):
         # Create a test channel which will be used for the duration of this
         # unittest. The channel will be funded evenly with Alice having 5 BTC,
         # and Bob having 5 BTC.
-        alice_channel, bob_channel = create_test_channels()
+        self.alice_channel, self.bob_channel = create_test_channels()
 
-        paymentPreimage = b"\x01" * 32
-        paymentHash = bitcoin.sha256(paymentPreimage)
-        htlcAmt = one_bitcoin_in_msat
-        htlc = lnhtlc.UpdateAddHtlc(
+        self.paymentPreimage = b"\x01" * 32
+        paymentHash = bitcoin.sha256(self.paymentPreimage)
+        self.htlc = lnhtlc.UpdateAddHtlc(
             payment_hash = paymentHash,
-            amount_msat =  htlcAmt,
+            amount_msat =  one_bitcoin_in_msat,
             cltv_expiry =  5,
             total_fee = 0
         )
@@ -129,9 +129,13 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         # First Alice adds the outgoing HTLC to her local channel's state
         # update log. Then Alice sends this wire message over to Bob who adds
         # this htlc to his remote state update log.
-        aliceHtlcIndex = alice_channel.add_htlc(htlc)
+        self.aliceHtlcIndex = self.alice_channel.add_htlc(self.htlc)
 
-        bobHtlcIndex = bob_channel.receive_htlc(htlc)
+        self.bobHtlcIndex = self.bob_channel.receive_htlc(self.htlc)
+
+    def test_SimpleAddSettleWorkflow(self):
+        alice_channel, bob_channel = self.alice_channel, self.bob_channel
+        htlc = self.htlc
 
         # Next alice commits this change by sending a signature message. Since
         # we expect the messages to be ordered, Bob will receive the HTLC we
@@ -192,15 +196,15 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         # them should be exactly the amount of the HTLC.
         self.assertEqual(len(alice_channel.local_commitment.outputs()), 3, "alice should have three commitment outputs, instead have %s"% len(alice_channel.local_commitment.outputs()))
         self.assertEqual(len(bob_channel.local_commitment.outputs()), 3, "bob should have three commitment outputs, instead have %s"% len(bob_channel.local_commitment.outputs()))
-        self.assertOutputExistsByValue(alice_channel.local_commitment, htlcAmt // 1000)
-        self.assertOutputExistsByValue(bob_channel.local_commitment, htlcAmt // 1000)
+        self.assertOutputExistsByValue(alice_channel.local_commitment, htlc.amount_msat // 1000)
+        self.assertOutputExistsByValue(bob_channel.local_commitment, htlc.amount_msat // 1000)
 
         # Now we'll repeat a similar exchange, this time with Bob settling the
         # HTLC once he learns of the preimage.
-        preimage = paymentPreimage
-        bob_channel.settle_htlc(preimage, bobHtlcIndex)
+        preimage = self.paymentPreimage
+        bob_channel.settle_htlc(preimage, self.bobHtlcIndex)
 
-        alice_channel.receive_htlc_settle(preimage, aliceHtlcIndex)
+        alice_channel.receive_htlc_settle(preimage, self.aliceHtlcIndex)
 
         bobSig2, bobHtlcSigs2 = bob_channel.sign_next_commitment()
         alice_channel.receive_new_commitment(bobSig2, bobHtlcSigs2)
@@ -234,12 +238,71 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         self.assertEqual(alice_channel.local_update_log, [], "alice's local not updated, should be empty, has %s entries instead"% len(alice_channel.local_update_log))
         self.assertEqual(alice_channel.remote_update_log, [], "alice's remote not updated, should be empty, has %s entries instead"% len(alice_channel.remote_update_log))
 
+    def alice_to_bob_fee_update(self):
+        fee = 111
+        self.alice_channel.update_fee(fee)
+        self.bob_channel.receive_update_fee(fee)
+        return fee
+
+    def test_UpdateFeeSenderCommits(self):
+        fee = self.alice_to_bob_fee_update()
+
+        alice_channel, bob_channel = self.alice_channel, self.bob_channel
+
+        alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
+        bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
+
+        self.assertNotEqual(fee, bob_channel.local_state.feerate)
+        rev, _ = bob_channel.revoke_current_commitment()
+        self.assertEqual(fee, bob_channel.local_state.feerate)
+
+        bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
+        alice_channel.receive_revocation(rev)
+        alice_channel.receive_new_commitment(bob_sig, bob_htlc_sigs)
+
+        self.assertNotEqual(fee, alice_channel.local_state.feerate)
+        rev, _ = alice_channel.revoke_current_commitment()
+        self.assertEqual(fee, alice_channel.local_state.feerate)
+
+        bob_channel.receive_revocation(rev)
+
+
+    def test_UpdateFeeReceiverCommits(self):
+        fee = self.alice_to_bob_fee_update()
+
+        alice_channel, bob_channel = self.alice_channel, self.bob_channel
+
+        bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
+        alice_channel.receive_new_commitment(bob_sig, bob_htlc_sigs)
+
+        alice_revocation, _ = alice_channel.revoke_current_commitment()
+        bob_channel.receive_revocation(alice_revocation)
+        alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
+        bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
+
+        self.assertNotEqual(fee, bob_channel.local_state.feerate)
+        bob_revocation, _ = bob_channel.revoke_current_commitment()
+        self.assertEqual(fee, bob_channel.local_state.feerate)
+
+        bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
+        alice_channel.receive_revocation(bob_revocation)
+        alice_channel.receive_new_commitment(bob_sig, bob_htlc_sigs)
+
+        self.assertNotEqual(fee, alice_channel.local_state.feerate)
+        alice_revocation, _ = alice_channel.revoke_current_commitment()
+        self.assertEqual(fee, alice_channel.local_state.feerate)
+
+        bob_channel.receive_revocation(alice_revocation)
+
+
+
+class TestLNHTLCDust(unittest.TestCase):
     def test_HTLCDustLimit(self):
         alice_channel, bob_channel = create_test_channels()
 
         paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(paymentPreimage)
-        fee_per_kw = alice_channel.constraints.feerate
+        fee_per_kw = alice_channel.local_state.feerate
         self.assertEqual(fee_per_kw, 6000)
         htlcAmt = 500 + lnutil.HTLC_TIMEOUT_WEIGHT * (fee_per_kw // 1000)
         self.assertEqual(htlcAmt, 4478)
@@ -263,32 +326,6 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         self.assertEqual(len(alice_channel.local_commitment.outputs()), 2)
         self.assertEqual(alice_channel.total_msat_sent // 1000, htlcAmt)
 
-    def test_UpdateFeeSenderCommits(self):
-        alice_channel, bob_channel = create_test_channels()
-
-        paymentPreimage = b"\x01" * 32
-        paymentHash = bitcoin.sha256(paymentPreimage)
-        htlc = lnhtlc.UpdateAddHtlc(
-            payment_hash = paymentHash,
-            amount_msat =  one_bitcoin_in_msat,
-            cltv_expiry =  5, # also in create_test_channels
-            total_fee = 0
-        )
-
-        aliceHtlcIndex = alice_channel.add_htlc(htlc)
-        bobHtlcIndex = bob_channel.receive_htlc(htlc)
-
-        fee = 111
-        alice_channel.update_fee(fee)
-        bob_channel.receive_update_fee(fee)
-
-        alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
-        bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
-        self.assertNotEqual(fee, alice_channel.constraints.feerate)
-        rev, _ = alice_channel.revoke_current_commitment()
-        self.assertEqual(fee, alice_channel.constraints.feerate)
-        bob_channel.receive_revocation(rev)
-
 def force_state_transition(chanA, chanB):
     chanB.receive_new_commitment(*chanA.sign_next_commitment())
     rev, _ = chanB.revoke_current_commitment()
@@ -301,7 +338,7 @@ def force_state_transition(chanA, chanB):
 # function provides a simple way to allow test balance assertions to take fee
 # calculations into account.
 def calc_static_fee(numHTLCs):
-  commitWeight = 724
-  htlcWeight   = 172
-  feePerKw     = 24//4 * 1000
-  return feePerKw * (commitWeight + htlcWeight*numHTLCs) // 1000
+    commitWeight = 724
+    htlcWeight   = 172
+    feePerKw     = 24//4 * 1000
+    return feePerKw * (commitWeight + htlcWeight*numHTLCs) // 1000

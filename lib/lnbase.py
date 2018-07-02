@@ -596,7 +596,8 @@ class Peer(PrintError):
                     current_per_commitment_point=None,
                     amount_msat=remote_amount,
                     revocation_store=their_revocation_store,
-                    next_htlc_id = 0
+                    next_htlc_id = 0,
+                    feerate=local_feerate
                 ),
                 "local_state": LocalState(
                     ctn = -1,
@@ -605,9 +606,10 @@ class Peer(PrintError):
                     next_htlc_id = 0,
                     funding_locked_received = False,
                     was_announced = False,
-                    current_commitment_signature = None
+                    current_commitment_signature = None,
+                    feerate=local_feerate
                 ),
-                "constraints": ChannelConstraints(capacity=funding_sat, feerate=local_feerate, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
+                "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
         }
         m = HTLCStateMachine(chan)
         sig_64, _ = m.sign_next_commitment()
@@ -942,13 +944,13 @@ class Peer(PrintError):
 
         await self.receive_revoke(chan)
 
-        m.settle_htlc(payment_preimage, htlc_id)
+        chan.settle_htlc(payment_preimage, htlc_id)
         self.send_message(gen_msg("update_fulfill_htlc", channel_id=channel_id, id=htlc_id, payment_preimage=payment_preimage))
 
         # remote commitment transaction without htlcs
-        bare_ctx = chan.make_commitment(m.remote_state.ctn + 1, False, m.remote_state.next_per_commitment_point,
-            m.remote_state.amount_msat - expected_received_msat, m.local_state.amount_msat + expected_received_msat)
-        sig_64 = sign_and_get_sig_string(bare_ctx, m.local_config, m.remote_config)
+        bare_ctx = chan.make_commitment(chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
+            chan.remote_state.amount_msat - expected_received_msat, chan.local_state.amount_msat + expected_received_msat)
+        sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
         self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=0))
 
         await self.receive_revoke(chan)
