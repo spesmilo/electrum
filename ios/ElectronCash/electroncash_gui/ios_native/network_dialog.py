@@ -139,8 +139,8 @@ class NetworkDialogVC(UIViewController):
                 try:
                     self.lastPort = int(tf.text)
                 except ValueError:
-                    pass
-                lastPort = str(py_from_ns(self.lastPort))
+                    self.lastPort = 0
+                lastPort = str(py_from_ns(self.lastPort)) if self.lastPort else ''
                 if lastPort != tf.text:
                     tf.text = lastPort
                 

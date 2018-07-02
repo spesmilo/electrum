@@ -1175,9 +1175,6 @@ class ElectrumGui(PrintError):
 
     def on_new_daemon(self):
         self.daemon.gui = self
-        # hard code some stuff for testing
-        self.daemon.network.auto_connect = True
-        self.config.set_key('auto_connect', self.daemon.network.auto_connect, True)
         self.open_last_wallet()
         self.register_network_callbacks()
         
