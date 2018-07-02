@@ -228,6 +228,15 @@ class Wallet_2fa(Multisig_Wallet):
         Deterministic_Wallet.__init__(self, storage)
         self.is_billing = False
         self.billing_info = None
+        self._load_billing_addresses()
+
+    def _load_billing_addresses(self):
+        billing_addresses = self.storage.get('trustedcoin_billing_addresses', {})
+        self._billing_addresses = {}  # index -> addr
+        # convert keys from str to int
+        for index, addr in list(billing_addresses.items()):
+            self._billing_addresses[int(index)] = addr
+        self._billing_addresses_set = set(self._billing_addresses.values())  # set of addrs
 
     def can_sign_without_server(self):
         return not self.keystores['x2/'].is_watching_only()
@@ -298,6 +307,31 @@ class Wallet_2fa(Multisig_Wallet):
         self.billing_info = None
         self.plugin.start_request_thread(self)
 
+    def add_new_billing_address(self, billing_index: int, address: str):
+        saved_addr = self._billing_addresses.get(billing_index)
+        if saved_addr is not None:
+            if saved_addr == address:
+                return  # already saved this address
+            else:
+                raise Exception('trustedcoin billing address inconsistency.. '
+                                'for index {}, already saved {}, now got {}'
+                                .format(billing_index, saved_addr, address))
+        # do we have all prior indices? (are we synced?)
+        largest_index_we_have = max(self._billing_addresses) if self._billing_addresses else -1
+        if largest_index_we_have + 1 < billing_index:  # need to sync
+            for i in range(largest_index_we_have + 1, billing_index):
+                addr = make_billing_address(self, i)
+                self._billing_addresses[i] = addr
+                self._billing_addresses_set.add(addr)
+        # save this address; and persist to disk
+        self._billing_addresses[billing_index] = address
+        self._billing_addresses_set.add(address)
+        self.storage.put('trustedcoin_billing_addresses', self._billing_addresses)
+        # FIXME this often runs in a daemon thread, where storage.write will fail
+        self.storage.write()
+
+    def is_billing_address(self, addr: str) -> bool:
+        return addr in self._billing_addresses_set
 
 
 # Utility functions
@@ -365,15 +399,9 @@ class TrustedCoinPlugin(BasePlugin):
     def get_tx_extra_fee(self, wallet, tx):
         if type(wallet) != Wallet_2fa:
             return
-        if wallet.billing_info is None:
-            if not wallet.can_sign_without_server():
-                self.start_request_thread(wallet)
-                raise Exception('missing trustedcoin billing info')
-            return None
-        address = wallet.billing_info['billing_address']
         for _type, addr, amount in tx.outputs():
-            if _type == TYPE_ADDRESS and addr == address:
-                return address, amount
+            if _type == TYPE_ADDRESS and wallet.is_billing_address(addr):
+                return addr, amount
 
     def finish_requesting(func):
         def f(self, *args, **kwargs):
@@ -393,10 +421,12 @@ class TrustedCoinPlugin(BasePlugin):
         except ErrorConnectingServer as e:
             self.print_error('cannot connect to TrustedCoin server: {}'.format(e))
             return
-        billing_address = make_billing_address(wallet, billing_info['billing_index'])
+        billing_index = billing_info['billing_index']
+        billing_address = make_billing_address(wallet, billing_index)
         if billing_address != billing_info['billing_address']:
             raise Exception('unexpected trustedcoin billing address: expected {}, received {}'
                             .format(billing_address, billing_info['billing_address']))
+        wallet.add_new_billing_address(billing_index, billing_address)
         wallet.billing_info = billing_info
         wallet.price_per_tx = dict(billing_info['price_per_tx'])
         wallet.price_per_tx.pop(1, None)
