@@ -16,7 +16,10 @@ class FeeSlider(QSlider):
         self.callback = callback
         self.dyn = False
         self.lock = threading.RLock()
-        self.update()
+        if (self.config.get('customfee') is None):
+           self.update()
+        else:
+            self.deactivate()
         self.valueChanged.connect(self.moved)
 
     def moved(self, pos):
@@ -45,6 +48,18 @@ class FeeSlider(QSlider):
             fee_rate = self.config.fee_per_kb()
             pos = min(fee_rate / self.fee_step, 10)
             self.setRange(0, 9)
+            self.setValue(pos)
+            tooltip = self.get_tooltip(pos, fee_rate)
+            self.setToolTip(tooltip)
+
+    # configuraing this as is done is here still required, can't just set range 0,0 to deactivate.
+    # chose to make this a seperate function from update for easier code maintainence
+    def deactivate(self):
+        with self.lock:
+            self.fee_step = self.config.max_fee_rate() / 10
+            fee_rate = self.config.fee_per_kb()
+            pos = min(fee_rate / self.fee_step, 10)
+            self.setRange(0, 0)
             self.setValue(pos)
             tooltip = self.get_tooltip(pos, fee_rate)
             self.setToolTip(tooltip)
