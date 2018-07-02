@@ -1209,9 +1209,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.payto_e.textChanged.connect(self.update_fee)
         self.amount_e.textEdited.connect(self.update_fee)
 
-        def reset_max(t):
+        def reset_max(text):
             self.is_max = False
-            self.max_button.setEnabled(not bool(t))
+            enable = not bool(text) and not self.amount_e.isReadOnly()
+            self.max_button.setEnabled(enable)
         self.amount_e.textEdited.connect(reset_max)
         self.fiat_send_e.textEdited.connect(reset_max)
 
@@ -1656,8 +1657,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def prepare_for_payment_request(self):
         self.show_send_tab()
         self.payto_e.is_pr = True
-        for e in [self.payto_e, self.amount_e, self.message_e]:
+        for e in [self.payto_e, self.message_e]:
             e.setFrozen(True)
+        self.lock_amount(True)
         self.payto_e.setText(_("please wait..."))
         return True
 
