@@ -1,3 +1,9 @@
+# Release 3.2.2 - (July 2nd, 2018)
+
+ * Fix DNS resolution on Windows
+ * Fix websocket bug in daemon
+
+
 # Release 3.2.1 - (July 1st, 2018)
 
  * fix Windows binaries: due to build process changes, the locale files
