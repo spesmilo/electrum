@@ -1849,6 +1849,10 @@ class Abstract_Wallet(PrintError):
                 p = self.price_at_timestamp(txid, price_func)
                 return p * txin_value/Decimal(COIN)
 
+    def is_billing_address(self, addr):
+        # overloaded for TrustedCoin wallets
+        return False
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore

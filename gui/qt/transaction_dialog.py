@@ -278,10 +278,15 @@ class TxDialog(QDialog, MessageBoxMixin):
         chg = QTextCharFormat()
         chg.setBackground(QBrush(ColorScheme.YELLOW.as_color(background=True)))
         chg.setToolTip(_("Wallet change address"))
+        twofactor = QTextCharFormat()
+        twofactor.setBackground(QBrush(ColorScheme.BLUE.as_color(background=True)))
+        twofactor.setToolTip(_("TrustedCoin (2FA) fee for the next batch of transactions"))
 
         def text_format(addr):
             if self.wallet.is_mine(addr):
                 return chg if self.wallet.is_change(addr) else rec
+            elif self.wallet.is_billing_address(addr):
+                return twofactor
             return ext
 
         def format_amount(amt):
