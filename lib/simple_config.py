@@ -37,7 +37,7 @@ def set_config(c):
     config = c
 
 
-FINAL_CONFIG_VERSION = 2
+FINAL_CONFIG_VERSION = 3
 
 
 class SimpleConfig(PrintError):
@@ -164,6 +164,7 @@ class SimpleConfig(PrintError):
             self.print_error('upgrading config')
 
             self.convert_version_2()
+            self.convert_version_3()
 
             self.set_key('config_version', FINAL_CONFIG_VERSION, save=True)
 
@@ -185,6 +186,19 @@ class SimpleConfig(PrintError):
             self._set_key_in_user_config('server', None)
 
         self.set_key('config_version', 2)
+
+    def convert_version_3(self):
+        if not self._is_upgrade_method_needed(2, 2):
+            return
+
+        base_unit = self.user_config.get('base_unit')
+        if isinstance(base_unit, str):
+            self._set_key_in_user_config('base_unit', None)
+            map_ = {'btc':8, 'mbtc':5, 'ubtc':2, 'bits':2, 'sat':0}
+            decimal_point = map_.get(base_unit.lower())
+            self._set_key_in_user_config('decimal_point', decimal_point)
+
+        self.set_key('config_version', 3)
 
     def _is_upgrade_method_needed(self, min_version, max_version):
         cur_version = self.get_config_version()
