@@ -2660,7 +2660,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def on_customfee(x):
             amt = customfee_e.get_amount()
-            m = amt * 1000.0 if amt is not None else None
+            m = int(amt * 1000.0) if amt is not None else None
             self.config.set_key('customfee', m) 
             self.fee_slider.update()
             self.fee_slider_mogrifier()
