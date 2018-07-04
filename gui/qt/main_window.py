@@ -211,10 +211,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.new_fx_history_signal.connect(self.on_fx_history)
 
         # update fee slider in case we missed the callback
-        if (self.config.get('customfee') is None):
-            self.fee_slider.update()
-        else:
-            self.fee_slider.deactivate() 
+        self.fee_slider.update()
         self.load_wallet(wallet)
         self.connect_slots(gui_object.timer)
         self.fetch_alias()
@@ -2638,12 +2635,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def on_customfee(x):
             m = customfee_e.get_amount()
-            if (m is None):
-                self.fee_slider.update()
-            else:
-                self.fee_slider.deactivate()
             self.config.set_key('customfee', m) 
-
+            self.fee_slider.update()
     
         customfee_e = BTCkBEdit2(self.get_decimal_point) 
         customfee_e.setAmount(self.config.custom_fee_rate())

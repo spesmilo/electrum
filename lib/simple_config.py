@@ -292,12 +292,21 @@ class SimpleConfig(PrintError):
         return f
 
     def fee_per_kb(self): 
-       retval=self.get('customfee')
-       if (retval is None):
-           retval=self.get('fee_per_kb')                
-       if (retval is None):
-           retval=1000  # New wallet
+       retval = self.get('customfee')
+       if retval is None:
+           retval = self.get('fee_per_kb')                
+       if retval is None:
+           retval = 1000  # New wallet
        return retval
+
+    def has_custom_fee_rate(self):
+        i = -1
+        # defensive programming below.. to ensure the custom fee rate is valid ;)
+        try:
+            i = int(self.custom_fee_rate())
+        except (ValueError, TypeError):
+            pass
+        return i >= 0
 
     def estimate_fee(self, size):
         return int(self.fee_per_kb() * size / 1000.)
