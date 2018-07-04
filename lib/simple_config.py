@@ -301,7 +301,9 @@ class SimpleConfig(PrintError):
 
     def has_custom_fee_rate(self):
         i = -1
-        # defensive programming below.. to ensure the custom fee rate is valid ;)
+        # Defensive programming below.. to ensure the custom fee rate is valid ;)
+        # This function mainly controls the appearance (or disappearance) of the fee slider in the send tab in Qt GUI
+        # It is tied to the GUI preferences option 'Custom fee rate'.
         try:
             i = int(self.custom_fee_rate())
         except (ValueError, TypeError):
