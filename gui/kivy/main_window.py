@@ -288,6 +288,9 @@ class ElectrumWindow(App):
         return os.path.basename(self.wallet.storage.path) if self.wallet else ' '
 
     def on_pr(self, pr):
+        if not self.wallet:
+            self.show_error(_('No wallet loaded.'))
+            return
         if pr.verify(self.wallet.contacts):
             key = self.wallet.invoices.add(pr)
             if self.invoices_screen:
