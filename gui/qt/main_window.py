@@ -60,7 +60,7 @@ except:
     plot_history = None
 import electroncash.web as web
 
-from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit
+from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit, BTCkBEdit2
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
@@ -211,7 +211,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.new_fx_history_signal.connect(self.on_fx_history)
 
         # update fee slider in case we missed the callback
-        self.fee_slider.update()
+        if (self.config.get('customfee') is None):
+            self.fee_slider.update()
+        else:
+            self.fee_slider.deactivate() 
         self.load_wallet(wallet)
         self.connect_slots(gui_object.timer)
         self.fetch_alias()
@@ -1399,6 +1402,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # IN THE FUTURE IF WE WANT TO APPEND SOMETHING IN THE MSG ABOUT THE FEE, CODE IS COMMENTED OUT:
         #if fee > confirm_rate * tx.estimated_size() / 1000:
         #    msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
+
+        if (fee < (tx.estimated_size())):
+            msg.append(_('Warning') + ': ' + _("You're using a fee less than 1000 sats/kb.  It may take a very long time to confirm."))
 
         if self.wallet.has_password():
             msg.append("")
@@ -2630,19 +2636,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
-        def on_maxfee(x):
-            m = maxfee_e.get_amount()
-            if m: self.config.set_key('max_fee_rate', m)
-            self.fee_slider.update()
-        def update_maxfee():
-            maxfee_e.setDisabled(False)
-            maxfee_label.setDisabled(False)
-        maxfee_label = HelpLabel(_('Max static fee'), _('Max value of the static fee slider'))
-        maxfee_e = BTCkBEdit(self.get_decimal_point)
-        maxfee_e.setAmount(self.config.max_fee_rate())
-        maxfee_e.textChanged.connect(on_maxfee)
-        update_maxfee()
-        fee_widgets.append((maxfee_label, maxfee_e))
+        def on_customfee(x):
+            m = customfee_e.get_amount()
+            if (m is None):
+                self.fee_slider.update()
+            else:
+                self.fee_slider.deactivate()
+            self.config.set_key('customfee', m) 
+
+    
+        customfee_e = BTCkBEdit2(self.get_decimal_point) 
+        customfee_e.setAmount(self.config.custom_fee_rate())
+        customfee_e.textChanged.connect(on_customfee)
+        customfee_label = HelpLabel(_('Custom Fee Rate'), _('Custom Fee Rate in Satoshis per kB')) 
+        fee_widgets.append((customfee_label, customfee_e))
 
         feebox_cb = QCheckBox(_('Edit fees manually'))
         feebox_cb.setChecked(self.config.get('show_fee', False))

@@ -104,3 +104,18 @@ class BTCAmountEdit(AmountEdit):
 class BTCkBEdit(BTCAmountEdit):
     def _base_unit(self):
         return BTCAmountEdit._base_unit(self) + '/kB'
+
+class BTCkBEdit2(BTCAmountEdit):
+    def _base_unit(self):
+        return 'sats' + '/kB'
+    def get_amount(self):
+        try:
+            x = Decimal(str(self.text()))
+        except:
+            return None
+        return int( x) if x > 0 else None
+    def setAmount(self, amount):
+        if amount is None:
+            self.setText(" ") # Space forces repaint in case units changed
+        else:
+            self.setText(format_satoshis_plain(amount, 0))
