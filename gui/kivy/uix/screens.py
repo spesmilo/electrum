@@ -166,8 +166,12 @@ class SendScreen(CScreen):
 
     kvname = 'send'
     payment_request = None
+    payment_request_queued = None
 
     def set_URI(self, text):
+        if not self.app.wallet:
+            self.payment_request_queued = text
+            return
         import electrum
         try:
             uri = electrum.util.parse_URI(text, self.app.on_pr)
@@ -182,7 +186,9 @@ class SendScreen(CScreen):
         self.screen.is_pr = False
 
     def update(self):
-        pass
+        if self.app.wallet and self.payment_request_queued:
+            self.set_URI(self.payment_request_queued)
+            self.payment_request_queued = None
 
     def do_clear(self):
         self.screen.amount = ''
