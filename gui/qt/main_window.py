@@ -60,7 +60,7 @@ except:
     plot_history = None
 import electroncash.web as web
 
-from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit, BTCkBEdit2
+from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit, BTCSatsByteEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
@@ -2659,15 +2659,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_widgets.append((nz_label, nz))
 
         def on_customfee(x):
-            m = customfee_e.get_amount()
+            amt = customfee_e.get_amount()
+            m = amt * 1000.0 if amt is not None else None
             self.config.set_key('customfee', m) 
             self.fee_slider.update()
             self.fee_slider_mogrifier()
     
-        customfee_e = BTCkBEdit2(self.get_decimal_point) 
-        customfee_e.setAmount(self.config.custom_fee_rate())
+        customfee_e = BTCSatsByteEdit() 
+        customfee_e.setAmount(self.config.custom_fee_rate() / 1000.0 if self.config.has_custom_fee_rate() else None)
         customfee_e.textChanged.connect(on_customfee)
-        customfee_label = HelpLabel(_('Custom Fee Rate'), _('Custom Fee Rate in Satoshis per kB')) 
+        customfee_label = HelpLabel(_('Custom Fee Rate'), _('Custom Fee Rate in Satoshis per byte')) 
         fee_widgets.append((customfee_label, customfee_e))
 
         feebox_cb = QCheckBox(_('Edit fees manually'))
