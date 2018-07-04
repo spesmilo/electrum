@@ -211,7 +211,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.new_fx_history_signal.connect(self.on_fx_history)
 
         # update fee slider in case we missed the callback
-        if (self.config.get('customfee') is None):
+        if self.config.get('customfee') is None:
             self.fee_slider.update()
         else:
             self.fee_slider.deactivate() 
