@@ -563,7 +563,6 @@ class Peer(PrintError):
             max_accepted_htlcs=int.from_bytes(payload["max_accepted_htlcs"], 'big')
         )
         funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], 'big')
-        print('remote dust limit', remote_config.dust_limit_sat)
         assert remote_config.dust_limit_sat < 600
         assert int.from_bytes(payload['htlc_minimum_msat'], 'big') < 600 * 1000
         assert remote_config.max_htlc_value_in_flight_msat >= 198 * 1000 * 1000, remote_config.max_htlc_value_in_flight_msat
@@ -571,7 +570,6 @@ class Peer(PrintError):
         self.print_error('funding_txn_minimum_depth', funding_txn_minimum_depth)
         # create funding tx
         redeem_script = funding_output_script(local_config, remote_config)
-        print("REDEEM SCRIPT", redeem_script)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         funding_output = (bitcoin.TYPE_ADDRESS, funding_address, funding_sat)
         funding_tx = wallet.mktx([funding_output], password, config, 1000)
@@ -866,6 +864,7 @@ class Peer(PrintError):
             self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sigs[0]))
             while (await self.commitment_signed[chan.channel_id].get())["htlc_signature"] != b"":
                 self.revoke(chan)
+            # TODO process above commitment transactions
             await self.receive_revoke(chan)
             chan.fail_htlc(htlc)
             sig_64, htlc_sigs = chan.sign_next_commitment()
@@ -878,11 +877,14 @@ class Peer(PrintError):
             failure_coro.cancel()
             update_fulfill_htlc_msg = fulfill_coro.result()
 
-        chan.receive_htlc_settle(update_fulfill_htlc_msg["payment_preimage"], int.from_bytes(update_fulfill_htlc_msg["id"], "big"))
+        preimage = update_fulfill_htlc_msg["payment_preimage"]
+        chan.receive_htlc_settle(preimage, int.from_bytes(update_fulfill_htlc_msg["id"], "big"))
 
         while (await self.commitment_signed[chan.channel_id].get())["htlc_signature"] != b"":
             self.revoke(chan)
         # TODO process above commitment transactions
+
+        self.revoke(chan)
 
         bare_ctx = chan.make_commitment(chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
             msat_remote, msat_local)
@@ -893,6 +895,7 @@ class Peer(PrintError):
         await self.receive_revoke(chan)
 
         self.lnworker.save_channel(chan)
+        return bh2u(preimage)
 
     async def receive_revoke(self, m):
         revoke_and_ack_msg = await self.revoke_and_ack[m.channel_id].get()
