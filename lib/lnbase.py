@@ -851,10 +851,8 @@ class Peer(PrintError):
         self.attempted_route[(chan.channel_id, htlc.htlc_id)] = route
 
         sig_64, htlc_sigs = chan.sign_next_commitment()
-        htlc_sig = htlc_sigs[0]
 
-        self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sig))
-
+        self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
         await self.receive_revoke(chan)
 
         self.revoke(chan)
