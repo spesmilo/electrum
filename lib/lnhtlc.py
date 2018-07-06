@@ -417,13 +417,10 @@ class HTLCStateMachine(PrintError):
         local_htlc_pubkey = derive_pubkey(self.local_config.htlc_basepoint.pubkey, this_point)
         local_revocation_pubkey = derive_blinded_pubkey(self.local_config.revocation_basepoint.pubkey, this_point)
 
-        trimmed = 0
-
         with PendingFeerateApplied(self):
             htlcs_in_local = []
             for htlc in self.htlcs_in_local:
                 if htlc.amount_msat // 1000 - HTLC_SUCCESS_WEIGHT * (self.remote_state.feerate // 1000) < self.remote_config.dust_limit_sat:
-                    trimmed += htlc.amount_msat // 1000
                     continue
                 htlcs_in_local.append(
                     ( make_received_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat + htlc.total_fee))
@@ -431,14 +428,13 @@ class HTLCStateMachine(PrintError):
             htlcs_in_remote = []
             for htlc in self.htlcs_in_remote:
                 if htlc.amount_msat // 1000 - HTLC_TIMEOUT_WEIGHT * (self.remote_state.feerate // 1000) < self.remote_config.dust_limit_sat:
-                    trimmed += htlc.amount_msat // 1000
                     continue
                 htlcs_in_remote.append(
                     ( make_offered_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + htlc.total_fee))
 
             commit = self.make_commitment(self.remote_state.ctn + 1,
                 False, this_point,
-                remote_msat - total_fee_remote, local_msat - total_fee_local, htlcs_in_local + htlcs_in_remote, trimmed)
+                remote_msat - total_fee_remote, local_msat - total_fee_local, htlcs_in_local + htlcs_in_remote)
             return commit
 
     @property
@@ -453,13 +449,10 @@ class HTLCStateMachine(PrintError):
         local_htlc_pubkey = derive_pubkey(self.local_config.htlc_basepoint.pubkey, this_point)
         remote_revocation_pubkey = derive_blinded_pubkey(self.remote_config.revocation_basepoint.pubkey, this_point)
 
-        trimmed = 0
-
         with PendingFeerateApplied(self):
             htlcs_in_local = []
             for htlc in self.htlcs_in_local:
                 if htlc.amount_msat // 1000 - HTLC_TIMEOUT_WEIGHT * (self.local_state.feerate // 1000) < self.local_config.dust_limit_sat:
-                    trimmed += htlc.amount_msat // 1000
                     continue
                 htlcs_in_local.append(
                     ( make_offered_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + htlc.total_fee))
@@ -467,14 +460,13 @@ class HTLCStateMachine(PrintError):
             htlcs_in_remote = []
             for htlc in self.htlcs_in_remote:
                 if htlc.amount_msat // 1000 - HTLC_SUCCESS_WEIGHT * (self.local_state.feerate // 1000) < self.local_config.dust_limit_sat:
-                    trimmed += htlc.amount_msat // 1000
                     continue
                 htlcs_in_remote.append(
                     ( make_received_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat + htlc.total_fee))
 
             commit = self.make_commitment(self.local_state.ctn + 1,
                 True, this_point,
-                local_msat - total_fee_local, remote_msat - total_fee_remote, htlcs_in_local + htlcs_in_remote, trimmed)
+                local_msat - total_fee_local, remote_msat - total_fee_remote, htlcs_in_local + htlcs_in_remote)
             return commit
 
     def gen_htlc_indices(self, subject, just_unsettled=True):
@@ -579,7 +571,7 @@ class HTLCStateMachine(PrintError):
     def __str__(self):
         return self.serialize()
 
-    def make_commitment(chan, ctn, for_us, pcp, local_msat, remote_msat, htlcs=[], trimmed=0):
+    def make_commitment(chan, ctn, for_us, pcp, local_msat, remote_msat, htlcs=[]):
         conf = chan.local_config if for_us else chan.remote_config
         other_conf = chan.local_config if not for_us else chan.remote_config
         payment_pubkey = derive_pubkey(other_conf.payment_basepoint.pubkey, pcp)
@@ -602,5 +594,4 @@ class HTLCStateMachine(PrintError):
             chan.local_state.feerate if for_us else chan.remote_state.feerate,
             for_us,
             chan.constraints.is_initiator,
-            htlcs=htlcs,
-            trimmed=trimmed)
+            htlcs=htlcs)
