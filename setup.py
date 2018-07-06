@@ -75,7 +75,7 @@ setup(
     package_dir={
         'electrum': 'lib',
         'electrum_gui': 'gui',
-        'electrum_plugins': 'plugins',
+        'electrum_plugins': 'electrum_plugins',
     },
     package_data={
         '': ['*.txt', '*.json', '*.ttf', '*.otf'],

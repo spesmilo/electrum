@@ -11,7 +11,7 @@ from lib.simple_config import SimpleConfig
 from lib.wallet import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, sweep
 from lib.util import bfh, bh2u
 
-from plugins.trustedcoin import trustedcoin
+from electrum_plugins.trustedcoin import trustedcoin
 
 from . import TestCaseForTestnet
 from . import SequentialTestCase

@@ -34,7 +34,7 @@ datas = [
     (home+'lib/*.json', 'electrum'),
     (home+'lib/wordlist/english.txt', 'electrum/wordlist'),
     (home+'lib/locale', 'electrum/locale'),
-    (home+'plugins', 'electrum_plugins'),
+    (home+'electrum_plugins', 'electrum_plugins'),
     ('C:\\Program Files (x86)\\ZBar\\bin\\', '.')
 ]
 datas += collect_data_files('trezorlib')
@@ -51,12 +51,12 @@ a = Analysis([home+'electrum',
               home+'lib/bitcoin.py',
               home+'lib/dnssec.py',
               home+'lib/commands.py',
-              home+'plugins/cosigner_pool/qt.py',
-              home+'plugins/email_requests/qt.py',
-              home+'plugins/trezor/client.py',
-              home+'plugins/trezor/qt.py',
-              home+'plugins/keepkey/qt.py',
-              home+'plugins/ledger/qt.py',
+              home+'electrum_plugins/cosigner_pool/qt.py',
+              home+'electrum_plugins/email_requests/qt.py',
+              home+'electrum_plugins/trezor/client.py',
+              home+'electrum_plugins/trezor/qt.py',
+              home+'electrum_plugins/keepkey/qt.py',
+              home+'electrum_plugins/ledger/qt.py',
               #home+'packages/requests/utils.py'
               ],
              binaries=binaries,
