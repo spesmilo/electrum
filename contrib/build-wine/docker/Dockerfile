@@ -3,8 +3,8 @@ FROM ubuntu:18.04@sha256:5f4bdc3467537cbbe563e80db2c3ec95d548a9145d64453b06939c4
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 
 RUN dpkg --add-architecture i386 && \
-    apt-get update -qq && \
-    apt-get install -qq \
+    apt-get update -q && \
+    apt-get install -qy \
         wget=1.19.4-1ubuntu2.1 \
         gnupg2=2.2.4-1ubuntu1.1 \
         dirmngr=2.2.4-1ubuntu1.1 \
@@ -13,8 +13,8 @@ RUN dpkg --add-architecture i386 && \
     wget -nc https://dl.winehq.org/wine-builds/Release.key && \
     apt-key add Release.key && \
     apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ && \
-    apt-get update -qq && \
-    apt-get install -qq \
+    apt-get update -q && \
+    apt-get install -qy \
         winehq-stable=3.0.1~bionic \
         git=1:2.17.1-1ubuntu0.1 \
         p7zip-full=16.02+dfsg-6 \
