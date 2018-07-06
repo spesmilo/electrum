@@ -203,7 +203,9 @@ class HTLCStateMachine(PrintError):
                 assert len(htlcs) <= 1
                 for htlc in htlcs:
                     weight = HTLC_SUCCESS_WEIGHT if we_receive else HTLC_TIMEOUT_WEIGHT
-                    if htlc.amount_msat // 1000 - weight * (self.remote_state.feerate // 1000) < self.remote_config.dust_limit_sat:
+                    fee = self.remote_state.feerate // 1000 * weight
+                    if htlc.amount_msat // 1000 < self.remote_config.dust_limit_sat + fee:
+                        print("value too small, skipping. htlc amt: {}, weight: {}, remote feerate {}, remote dust limit {}".format( htlc.amount_msat, weight, self.remote_state.feerate, self.remote_config.dust_limit_sat))
                         continue
                     original_htlc_output_index = 0
                     args = [self.remote_state.next_per_commitment_point, for_us, we_receive, htlc.amount_msat + htlc.total_fee, htlc.cltv_expiry, htlc.payment_hash, self.pending_remote_commitment, original_htlc_output_index]
