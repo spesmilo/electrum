@@ -228,7 +228,7 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
                     delayed_pubkey, to_self_delay, funding_txid,
                     funding_pos, funding_sat, local_amount, remote_amount,
                     dust_limit_sat, local_feerate, for_us, we_are_initiator,
-                    htlcs, trimmed=0):
+                    htlcs):
 
     pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
     payments = [payment_basepoint, remote_payment_basepoint]
@@ -256,7 +256,6 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
     remote_address = bitcoin.pubkey_to_address('p2wpkh', bh2u(remote_payment_pubkey))
     # TODO trim htlc outputs here while also considering 2nd stage htlc transactions
     fee = local_feerate * overall_weight(len(htlcs))
-    fee -= trimmed * 1000
     assert type(fee) is int
     we_pay_fee = for_us == we_are_initiator
     to_local_amt = local_amount - (fee if we_pay_fee else 0)
