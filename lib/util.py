@@ -267,10 +267,14 @@ def android_data_dir():
     return context.getFilesDir().getPath() + '/data'
 
 def android_headers_dir():
-    d = android_ext_dir() + '/org.electron.electron'
-    if not os.path.exists(d):
-        os.mkdir(d)
-    return d
+    try:
+        import jnius
+        d = android_ext_dir() + '/org.electron.electron'
+        if not os.path.exists(d):
+            os.mkdir(d)
+        return d
+    except ImportError:
+        return android_data_dir()
 
 def get_headers_dir(config):
     return android_headers_dir() if 'ANDROID_DATA' in os.environ else config.path
