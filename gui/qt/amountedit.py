@@ -105,17 +105,19 @@ class BTCkBEdit(BTCAmountEdit):
     def _base_unit(self):
         return BTCAmountEdit._base_unit(self) + '/kB'
 
-class BTCkBEdit2(BTCAmountEdit):
+class BTCSatsByteEdit(BTCAmountEdit):
+    def __init__(self, parent=None):
+        BTCAmountEdit.__init__(self, decimal_point = lambda: 2, is_int = False, parent = parent)
     def _base_unit(self):
-        return 'sats' + '/kB'
+        return 'sats' + '/B'
     def get_amount(self):
         try:
-            x = Decimal(str(self.text()))
+            x = float(Decimal(str(self.text())))
         except:
             return None
-        return int( x) if x > 0 else None
+        return x if x > 0.0 else None    
     def setAmount(self, amount):
         if amount is None:
             self.setText(" ") # Space forces repaint in case units changed
         else:
-            self.setText(format_satoshis_plain(amount, 0))
+            self.setText(str(round(amount*100.0)/100.0))

@@ -60,7 +60,7 @@ except:
     plot_history = None
 import electroncash.web as web
 
-from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit, BTCkBEdit2
+from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, BTCkBEdit, BTCSatsByteEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
@@ -211,10 +211,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.new_fx_history_signal.connect(self.on_fx_history)
 
         # update fee slider in case we missed the callback
-        if self.config.get('customfee') is None:
-            self.fee_slider.update()
-        else:
-            self.fee_slider.deactivate() 
+        self.fee_slider.update()
         self.load_wallet(wallet)
         self.connect_slots(gui_object.timer)
         self.fetch_alias()
@@ -1122,7 +1119,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.fee_slider = FeeSlider(self, self.config, fee_cb)
         self.fee_slider.setFixedWidth(140)
+        
+        self.fee_custom_lbl = HelpLabel(self.get_custom_fee_text(),
+                                        _('This is the fee rate that will be used for this transaction.')
+                                        + "\n\n" + _('It is calculated from the Custom Fee Rate in preferences, but can be overridden from the manual fee edit on this form (if enabled).')
+                                        + "\n\n" + _('Generally, a fee of 1.0 sats/B is a good minimal rate to ensure your transaction will make it into the next block.'))
+        self.fee_custom_lbl.setFixedWidth(140)
 
+        self.fee_slider_mogrifier()
+        
         self.fee_e = BTCAmountEdit(self.get_decimal_point)
         if not self.config.get('show_fee', False):
             self.fee_e.setVisible(False)
@@ -1134,6 +1139,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         grid.addWidget(self.fee_e_label, 5, 0)
         grid.addWidget(self.fee_slider, 5, 1)
+        grid.addWidget(self.fee_custom_lbl, 5, 1)
         grid.addWidget(self.fee_e, 5, 2)
 
         self.preview_button = EnterButton(_("Preview"), self.do_preview)
@@ -1211,6 +1217,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if r:
             return r
         return (TYPE_ADDRESS, self.wallet.dummy_address())
+    
+    def get_custom_fee_text(self, fee_rate = None):
+        if not self.config.has_custom_fee_rate():
+            return ""
+        else:
+            if fee_rate is None: fee_rate = self.config.custom_fee_rate() / 1000.0
+            return str(round(fee_rate*100)/100) + " sats/B"
 
     def do_update_fee(self):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
@@ -1219,6 +1232,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         freeze_fee = (self.fee_e.isModified()
                       and (self.fee_e.text() or self.fee_e.hasFocus()))
         amount = '!' if self.is_max else self.amount_e.get_amount()
+        fee_rate = None
         if amount is None:
             if not freeze_fee:
                 self.fee_e.setAmount(None)
@@ -1248,7 +1262,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if self.is_max:
                 amount = tx.output_value()
                 self.amount_e.setAmount(amount)
-
+            if fee is not None:
+                fee_rate = fee / tx.estimated_size()
+        self.fee_slider_mogrifier(self.get_custom_fee_text(fee_rate))
+    
+    def fee_slider_mogrifier(self, text = None):
+        fee_slider_hidden = self.config.has_custom_fee_rate()
+        self.fee_slider.setHidden(fee_slider_hidden)
+        self.fee_custom_lbl.setHidden(not fee_slider_hidden)
+        if text is not None: self.fee_custom_lbl.setText(text)
 
     def from_list_delete(self, item):
         i = self.from_list.indexOfTopLevelItem(item)
@@ -2637,18 +2659,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_widgets.append((nz_label, nz))
 
         def on_customfee(x):
-            m = customfee_e.get_amount()
-            if (m is None):
-                self.fee_slider.update()
-            else:
-                self.fee_slider.deactivate()
+            amt = customfee_e.get_amount()
+            m = int(amt * 1000.0) if amt is not None else None
             self.config.set_key('customfee', m) 
-
+            self.fee_slider.update()
+            self.fee_slider_mogrifier()
     
-        customfee_e = BTCkBEdit2(self.get_decimal_point) 
-        customfee_e.setAmount(self.config.custom_fee_rate())
+        customfee_e = BTCSatsByteEdit() 
+        customfee_e.setAmount(self.config.custom_fee_rate() / 1000.0 if self.config.has_custom_fee_rate() else None)
         customfee_e.textChanged.connect(on_customfee)
-        customfee_label = HelpLabel(_('Custom Fee Rate'), _('Custom Fee Rate in Satoshis per kB')) 
+        customfee_label = HelpLabel(_('Custom Fee Rate'), _('Custom Fee Rate in Satoshis per byte')) 
         fee_widgets.append((customfee_label, customfee_e))
 
         feebox_cb = QCheckBox(_('Edit fees manually'))
