@@ -188,10 +188,11 @@ else
 	echo ".pbxproj mogrifid ok."
 fi
 
+xcode_target="Electron-Cash"
 echo ""
 echo "Adding HEADER_SEARCH_PATHS to Xcode .pbxproj..."
 echo ""
-python3 -m pbxproj flag iOS/Electron-Cash.xcodeproj/project.pbxproj -- HEADER_SEARCH_PATHS '"$(SDK_DIR)"/usr/include/libxml2'
+python3 -m pbxproj flag -t "${xcode_target}" iOS/"${xcode_file}" -- HEADER_SEARCH_PATHS '"$(SDK_DIR)"/usr/include/libxml2'
 if [ "$?" != 0 ]; then
 	echo "Error adding libxml2 to HEADER_SEARCH_PATHS... aborting."
 	exit 1
@@ -203,12 +204,12 @@ if [ -n "$resources" ]; then
 	echo "Adding Resurces/ and CustomCode/ to project..."
 	echo ""
 	cp -fRav Resources CustomCode iOS/
-	(cd iOS && python3 -m pbxproj folder -r -i "${xcode_file}" Resources)
+	(cd iOS && python3 -m pbxproj folder -t "${xcode_target}" -r -i "${xcode_file}" Resources)
 	if [ "$?" != 0 ]; then
 		echo "Error adding Resources to iOS/$xcode_file... aborting."
 		exit 1
 	fi
-	(cd iOS && python3 -m pbxproj folder -r "${xcode_file}" CustomCode)
+	(cd iOS && python3 -m pbxproj folder -t "${xcode_target}" -r "${xcode_file}" CustomCode)
 	if [ "$?" != 0 ]; then
 		echo "Error adding CustomCode to iOS/$xcode_file... aborting."
 		exit 1
