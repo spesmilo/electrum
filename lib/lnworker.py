@@ -16,6 +16,7 @@ from .ecc import der_sig_from_sig_string
 from .transaction import Transaction
 from .lnhtlc import HTLCStateMachine
 from .lnutil import Outpoint, calc_short_channel_id
+from .lnwatcher import LNChanCloseHandler
 
 # hardcoded nodes
 node_list = [
@@ -96,6 +97,8 @@ class LNWorker(PrintError):
         outpoints = [Outpoint(x["tx_hash"], x["tx_pos"]) for x in utxos]
         if chan.funding_outpoint not in outpoints:
             self.channel_state[chan.channel_id] = "CLOSED"
+            # FIXME is this properly GC-ed? (or too soon?)
+            LNChanCloseHandler(self.network, self.wallet, chan)
         elif self.channel_state[chan.channel_id] == 'DISCONNECTED':
             peer = self.peers[chan.node_id]
             coro = peer.reestablish_channel(chan)
@@ -125,6 +128,7 @@ class LNWorker(PrintError):
         peer = self.peers[node_id]
         openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password, amount_sat, push_sat * 1000, temp_channel_id=os.urandom(32))
         self.save_channel(openingchannel)
+        self.network.lnwatcher.watch_channel(openingchannel, self.on_channel_utxos)
         self.on_channels_updated()
 
     def on_channels_updated(self):
