@@ -302,12 +302,12 @@ class HTLCStateMachine(PrintError):
     @property
     def points(self):
         last_small_num = self.local_state.ctn
-        next_small_num = last_small_num + 2
         this_small_num = last_small_num + 1
-        last_secret = get_per_commitment_secret_from_seed(self.local_state.per_commitment_secret_seed, 2**48-last_small_num-1)
-        this_secret = get_per_commitment_secret_from_seed(self.local_state.per_commitment_secret_seed, 2**48-this_small_num-1)
+        next_small_num = last_small_num + 2
+        last_secret = get_per_commitment_secret_from_seed(self.local_state.per_commitment_secret_seed, RevocationStore.START_INDEX - last_small_num)
+        this_secret = get_per_commitment_secret_from_seed(self.local_state.per_commitment_secret_seed, RevocationStore.START_INDEX - this_small_num)
         this_point = secret_to_pubkey(int.from_bytes(this_secret, 'big'))
-        next_secret = get_per_commitment_secret_from_seed(self.local_state.per_commitment_secret_seed, 2**48-next_small_num-1)
+        next_secret = get_per_commitment_secret_from_seed(self.local_state.per_commitment_secret_seed, RevocationStore.START_INDEX - next_small_num)
         next_point = secret_to_pubkey(int.from_bytes(next_secret, 'big'))
         return last_secret, this_point, next_point
 
