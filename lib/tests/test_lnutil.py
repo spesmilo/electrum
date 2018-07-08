@@ -1,7 +1,10 @@
 import unittest
 import json
 from lib import bitcoin
-from lib.lnutil import RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc, make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output, make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey, derive_pubkey, make_htlc_tx
+from lib.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
+                        make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
+                        make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
+                        derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret)
 from lib.util import bh2u, bfh
 from lib.transaction import Transaction
 
@@ -425,6 +428,12 @@ class TestLNUtil(unittest.TestCase):
                     if not insert["successful"]:
                         raise Exception("Failed ({}): error wasn't received".format(test["name"]))
 
+            for insert in test["inserts"]:
+                secret = bytes.fromhex(insert["secret"])
+                index = insert["index"]
+                if insert["successful"]:
+                    self.assertEqual(secret, receiver.retrieve_secret(index))
+
             print("Passed ({})".format(test["name"]))
 
     def test_shachain_produce_consume(self):
@@ -549,7 +558,7 @@ class TestLNUtil(unittest.TestCase):
 
         local_sig = our_htlc_tx.sign_txin(0, local_privkey[:-1])
 
-        our_htlc_tx_witness = make_htlc_tx_witness(  # FIXME only correct for success=True
+        our_htlc_tx_witness = make_htlc_tx_witness(
             remotehtlcsig=bfh(remote_htlc_sig) + b"\x01",  # 0x01 is SIGHASH_ALL
             localhtlcsig=bfh(local_sig),
             payment_preimage=htlc_payment_preimage if success else b'',  # will put 00 on witness if timeout
@@ -594,6 +603,11 @@ class TestLNUtil(unittest.TestCase):
         self.sign_and_insert_remote_sig(our_commit_tx, remote_funding_pubkey, remote_signature, local_funding_pubkey, local_funding_privkey)
 
         self.assertEqual(str(our_commit_tx), output_commit_tx)
+
+    def test_extract_commitment_number_from_tx(self):
+        raw_tx = "02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8007e80300000000000022002052bfef0479d7b293c27e0f1eb294bea154c63a3294ef092c19af51409bce0e2ad007000000000000220020403d394747cae42e98ff01734ad5c08f82ba123d3d9a620abda88989651e2ab5d007000000000000220020748eba944fedc8827f6b06bc44678f93c0f9e6078b35c6331ed31e75f8ce0c2db80b000000000000220020c20b5d1f8584fd90443e7b7b720136174fa4b9333c261d04dbbd012635c0f419a00f0000000000002200208c48d15160397c9731df9bc3b236656efb6665fbfe92b4a6878e88a499f741c4c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de843110e0a06a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e04004730440220275b0c325a5e9355650dc30c0eccfbc7efb23987c24b556b9dfdd40effca18d202206caceb2c067836c51f296740c7ae807ffcbfbf1dd3a0d56b6de9a5b247985f060147304402204fd4928835db1ccdfc40f5c78ce9bd65249b16348df81f0c44328dcdefc97d630220194d3869c38bc732dd87d13d2958015e2fc16829e74cd4377f84d215c0b7060601475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220"
+        tx = Transaction(raw_tx)
+        self.assertEqual(commitment_number, extract_ctn_from_tx(tx, 0, local_payment_basepoint, remote_payment_basepoint))
 
     def test_per_commitment_secret_from_seed(self):
         self.assertEqual(0x02a40c85b6f28da08dfdbe0926c53fab2de6d28c10301f8f7c4073d5e42e3148.to_bytes(byteorder="big", length=32),

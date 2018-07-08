@@ -22,11 +22,19 @@ LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amo
 ChannelConstraints = namedtuple("ChannelConstraints", ["capacity", "is_initiator", "funding_txn_minimum_depth"])
 #OpenChannel = namedtuple("OpenChannel", ["channel_id", "short_channel_id", "funding_outpoint", "local_config", "remote_config", "remote_state", "local_state", "constraints", "node_id"])
 
+
+class UnableToDeriveSecret(Exception): pass
+
+
 class RevocationStore:
     """ taken from lnd """
+
+    START_INDEX = 2 ** 48 - 1
+
     def __init__(self):
-        self.buckets = [None] * 48
-        self.index = 2**48 - 1
+        self.buckets = [None] * 49
+        self.index = self.START_INDEX
+
     def add_next_entry(self, hsh):
         new_element = ShachainElement(index=self.index, secret=hsh)
         bucket = count_trailing_zeros(self.index)
@@ -38,8 +46,21 @@ class RevocationStore:
                 raise Exception("hash is not derivable: {} {} {}".format(bh2u(e.secret), bh2u(this_bucket.secret), this_bucket.index))
         self.buckets[bucket] = new_element
         self.index -= 1
+
+    def retrieve_secret(self, index: int) -> bytes:
+        for bucket in self.buckets:
+            if bucket is None:
+                raise UnableToDeriveSecret()
+            try:
+                element = shachain_derive(bucket, index)
+            except UnableToDeriveSecret:
+                continue
+            return element.secret
+        raise UnableToDeriveSecret()
+
     def serialize(self):
         return {"index": self.index, "buckets": [[bh2u(k.secret), k.index] if k is not None else None for k in self.buckets]}
+
     @staticmethod
     def from_json_obj(decoded_json_obj):
         store = RevocationStore()
@@ -47,8 +68,10 @@ class RevocationStore:
         store.buckets = [k if k is None else decode(k) for k in decoded_json_obj["buckets"]]
         store.index = decoded_json_obj["index"]
         return store
+
     def __eq__(self, o):
         return type(o) is RevocationStore and self.serialize() == o.serialize()
+
     def __hash__(self):
         return hash(json.dumps(self.serialize(), sort_keys=True))
 
@@ -59,8 +82,17 @@ def count_trailing_zeros(index):
     except ValueError:
         return 48
 
-def shachain_derive(element, toIndex):
-    return ShachainElement(get_per_commitment_secret_from_seed(element.secret, toIndex, count_trailing_zeros(element.index)), toIndex)
+def shachain_derive(element, to_index):
+    def get_prefix(index, pos):
+        mask = (1 << 64) - 1 - ((1 << pos) - 1)
+        return index & mask
+    from_index = element.index
+    zeros = count_trailing_zeros(from_index)
+    if from_index != get_prefix(to_index, zeros):
+        raise UnableToDeriveSecret("prefixes are different; index not derivable")
+    return ShachainElement(
+        get_per_commitment_secret_from_seed(element.secret, to_index, zeros),
+        to_index)
 
 ShachainElement = namedtuple("ShachainElement", ["secret", "index"])
 ShachainElement.__str__ = lambda self: "ShachainElement(" + bh2u(self.secret) + "," + str(self.index) + ")"
@@ -76,25 +108,34 @@ def get_per_commitment_secret_from_seed(seed: bytes, i: int, bits: int = 48) -> 
     bajts = bytes(per_commitment_secret)
     return bajts
 
-def secret_to_pubkey(secret):
+def secret_to_pubkey(secret: int) -> bytes:
     assert type(secret) is int
-    return (ecc.generator() * secret).get_public_key_bytes()
+    return ecc.ECPrivkey.from_secret_scalar(secret).get_public_key_bytes(compressed=True)
 
-def derive_pubkey(basepoint, per_commitment_point):
+def derive_pubkey(basepoint: bytes, per_commitment_point: bytes) -> bytes:
     p = ecc.ECPubkey(basepoint) + ecc.generator() * ecc.string_to_number(sha256(per_commitment_point + basepoint))
     return p.get_public_key_bytes()
 
-def derive_privkey(secret, per_commitment_point):
+def derive_privkey(secret: int, per_commitment_point: bytes) -> int:
     assert type(secret) is int
     basepoint = secret_to_pubkey(secret)
     basepoint = secret + ecc.string_to_number(sha256(per_commitment_point + basepoint))
     basepoint %= CURVE_ORDER
     return basepoint
 
-def derive_blinded_pubkey(basepoint, per_commitment_point):
+def derive_blinded_pubkey(basepoint: bytes, per_commitment_point: bytes) -> bytes:
     k1 = ecc.ECPubkey(basepoint) * ecc.string_to_number(sha256(basepoint + per_commitment_point))
     k2 = ecc.ECPubkey(per_commitment_point) * ecc.string_to_number(sha256(per_commitment_point + basepoint))
     return (k1 + k2).get_public_key_bytes()
+
+def derive_blinded_privkey(basepoint_secret: bytes, per_commitment_secret: bytes) -> bytes:
+    basepoint = ecc.ECPrivkey(basepoint_secret).get_public_key_bytes(compressed=True)
+    per_commitment_point = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
+    k1 = ecc.string_to_number(basepoint_secret) * ecc.string_to_number(sha256(basepoint + per_commitment_point))
+    k2 = ecc.string_to_number(per_commitment_secret) * ecc.string_to_number(sha256(per_commitment_point + basepoint))
+    sum = (k1 + k2) % ecc.CURVE_ORDER
+    return ecc.number_to_string(sum, CURVE_ORDER)
+
 
 def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_delayedpubkey, success, to_self_delay):
     assert type(amount_msat) is int
@@ -250,10 +291,8 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
         'sequence': sequence
     }]
     # commitment tx outputs
-    local_script = bytes([opcodes.OP_IF]) + bfh(push_script(bh2u(revocation_pubkey))) + bytes([opcodes.OP_ELSE]) + bitcoin.add_number_to_script(to_self_delay) \
-                   + bytes([opcodes.OP_CSV, opcodes.OP_DROP]) + bfh(push_script(bh2u(delayed_pubkey))) + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
-    local_address = bitcoin.redeem_script_to_address('p2wsh', bh2u(local_script))
-    remote_address = bitcoin.pubkey_to_address('p2wpkh', bh2u(remote_payment_pubkey))
+    local_address = make_commitment_output_to_local_address(revocation_pubkey, to_self_delay, delayed_pubkey)
+    remote_address = make_commitment_output_to_remote_address(remote_payment_pubkey)
     # TODO trim htlc outputs here while also considering 2nd stage htlc transactions
     fee = local_feerate * overall_weight(len(htlcs))
     assert type(fee) is int
@@ -284,6 +323,20 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
 
     return tx
 
+def make_commitment_output_to_local_witness_script(
+        revocation_pubkey: bytes, to_self_delay: int, delayed_pubkey: bytes) -> bytes:
+    local_script = bytes([opcodes.OP_IF]) + bfh(push_script(bh2u(revocation_pubkey))) + bytes([opcodes.OP_ELSE]) + bitcoin.add_number_to_script(to_self_delay) \
+                   + bytes([opcodes.OP_CSV, opcodes.OP_DROP]) + bfh(push_script(bh2u(delayed_pubkey))) + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
+    return local_script
+
+def make_commitment_output_to_local_address(
+        revocation_pubkey: bytes, to_self_delay: int, delayed_pubkey: bytes) -> str:
+    local_script = make_commitment_output_to_local_witness_script(revocation_pubkey, to_self_delay, delayed_pubkey)
+    return bitcoin.redeem_script_to_address('p2wsh', bh2u(local_script))
+
+def make_commitment_output_to_remote_address(remote_payment_pubkey: bytes) -> str:
+    return bitcoin.pubkey_to_address('p2wpkh', bh2u(remote_payment_pubkey))
+
 def sign_and_get_sig_string(tx, local_config, remote_config):
     pubkeys = sorted([bh2u(local_config.multisig_key.pubkey), bh2u(remote_config.multisig_key.pubkey)])
     tx.sign({bh2u(local_config.multisig_key.pubkey): (local_config.multisig_key.privkey, True)})
@@ -305,6 +358,13 @@ def calc_short_channel_id(block_height: int, tx_pos_in_block: int, output_index:
 def get_obscured_ctn(ctn, local, remote):
     mask = int.from_bytes(sha256(local + remote)[-6:], 'big')
     return ctn ^ mask
+
+def extract_ctn_from_tx(tx, txin_index, local_payment_basepoint, remote_payment_basepoint):
+    tx.deserialize()
+    locktime = tx.locktime
+    sequence = tx.inputs()[txin_index]['sequence']
+    obs = ((sequence & 0xffffff) << 24) + (locktime & 0xffffff)
+    return get_obscured_ctn(obs, local_payment_basepoint, remote_payment_basepoint)
 
 def overall_weight(num_htlc):
     return 500 + 172 * num_htlc + 224
