@@ -174,9 +174,10 @@ class DaemonThread(threading.Thread, PrintError):
 
     def on_stop(self):
         if 'ANDROID_DATA' in os.environ:
-            import jnius
-            jnius.detach()
-            self.print_error("jnius detach")
+            try:
+                import jnius
+                jnius.detach()
+                self.print_error("jnius detach")
             except ImportError:
                 pass  # Chaquopy detaches automatically.
         self.print_error("stopped")
