@@ -382,6 +382,9 @@ class ECPrivkey(ECPubkey):
         privkey_32bytes = number_to_string(scalar, CURVE_ORDER)
         return privkey_32bytes
 
+    def get_secret_bytes(self) -> bytes:
+        return number_to_string(self.secret_scalar, CURVE_ORDER)
+
     def sign(self, data: bytes, sigencode=None, sigdecode=None) -> bytes:
         if sigencode is None:
             sigencode = sig_string_from_r_and_s
