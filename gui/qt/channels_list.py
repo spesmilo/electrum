@@ -34,6 +34,8 @@ class ChannelsList(MyTreeWidget):
         print('ID', bh2u(channel_id))
         def close():
             suc, msg = self.parent.wallet.lnworker.close_channel(channel_id)
+            if not suc:
+                print('channel close broadcast failed:', msg)
             assert suc # TODO show error message in dialog
         menu.addAction(_("Close channel"), close)
         menu.exec_(self.viewport().mapToGlobal(position))
