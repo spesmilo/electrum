@@ -518,7 +518,7 @@ class Peer(PrintError):
             delayed_basepoint=keypair_generator(keyfamilydelaybase, 0),
             revocation_basepoint=keypair_generator(keyfamilyrevocationbase, 0),
             to_self_delay=143,
-            dust_limit_sat=10,
+            dust_limit_sat=546,
             max_htlc_value_in_flight_msat=0xffffffffffffffff,
             max_accepted_htlcs=5
         )
@@ -546,7 +546,7 @@ class Peer(PrintError):
             to_self_delay=local_config.to_self_delay,
             max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
             channel_flags=0x01, # publicly announcing channel
-            channel_reserve_satoshis=10
+            channel_reserve_satoshis=546
         )
         self.send_message(msg)
         payload = await self.channel_accepted[temp_channel_id].get()
