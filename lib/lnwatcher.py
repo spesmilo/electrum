@@ -103,6 +103,8 @@ class LNChanCloseHandler(PrintError):
                 break
 
     # TODO batch sweeps
+    # TODO sweep HTLC outputs
+    # TODO implement nursery that waits for timelocks
     def inspect_spending_tx(self, ctx, txin_idx: int):
         chan = self.chan
         ctn = extract_ctn_from_tx(ctx, txin_idx,
@@ -114,22 +116,27 @@ class LNChanCloseHandler(PrintError):
                          .format(ctx.txid(), ctn, latest_local_ctn, latest_remote_ctn))
         # see if it is a normal unilateral close by them
         if ctn == latest_remote_ctn:
+            # note that we might also get here if this is our ctx and the ctn just happens to match
             their_cur_pcp = chan.remote_state.current_per_commitment_point
-            self.find_and_sweep_their_ctx_to_remote(ctx, their_cur_pcp)
-        # see if we have a revoked secret for this ctn
+            if their_cur_pcp is not None:
+                self.find_and_sweep_their_ctx_to_remote(ctx, their_cur_pcp)
+        # see if we have a revoked secret for this ctn ("breach")
         try:
             per_commitment_secret = chan.remote_state.revocation_store.retrieve_secret(
                 RevocationStore.START_INDEX - ctn)
         except UnableToDeriveSecret:
             self.print_error("revocation store does not have secret for ctx {}".format(ctx.txid()))
         else:
-            # FIXME what if we closed unilaterally?
-            #self.print_error("ctx {} is breach!! by them and we have the revocation secret. "
-            #                 "yay, free money".format(ctx.txid()))
+            # note that we might also get here if this is our ctx and we just happen to have
+            # the secret for the symmetric ctn
             their_pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
             self.find_and_sweep_their_ctx_to_remote(ctx, their_pcp)
             self.find_and_sweep_their_ctx_to_local(ctx, per_commitment_secret)
-            # TODO sweep other outputs
+        # see if it's our ctx
+        our_per_commitment_secret = get_per_commitment_secret_from_seed(
+            chan.local_state.per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
+        our_per_commitment_point = ecc.ECPrivkey(our_per_commitment_secret).get_public_key_bytes(compressed=True)
+        self.find_and_sweep_our_ctx_to_local(ctx, our_per_commitment_point)
 
     def find_and_sweep_their_ctx_to_remote(self, ctx, their_pcp: bytes):
         payment_bp_privkey = ecc.ECPrivkey(self.chan.local_config.payment_basepoint.privkey)
@@ -137,17 +144,19 @@ class LNChanCloseHandler(PrintError):
         our_payment_privkey = ecc.ECPrivkey.from_secret_scalar(our_payment_privkey)
         our_payment_pubkey = our_payment_privkey.get_public_key_bytes(compressed=True)
         to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
-        for output_idx, (type, addr, val) in enumerate(ctx.outputs()):
-            if type == TYPE_ADDRESS and addr == to_remote_address:
+        for output_idx, (type_, addr, val) in enumerate(ctx.outputs()):
+            if type_ == TYPE_ADDRESS and addr == to_remote_address:
                 self.print_error("found to_remote output paying to us: ctx {}:{}".
                                  format(ctx.txid(), output_idx))
                 #self.print_error("ctx {} is normal unilateral close by them".format(ctx.txid()))
                 break
         else:
             return
-        self.sweep_their_ctx_to_remote(ctx, output_idx, our_payment_privkey)
+        sweep_tx = self.create_sweeptx_their_ctx_to_remote(ctx, output_idx, our_payment_privkey)
+        self.network.broadcast_transaction(sweep_tx,
+                                           lambda res: self.print_tx_broadcast_result('sweep_their_ctx_to_remote', res))
 
-    def sweep_their_ctx_to_remote(self, ctx, output_idx: int, our_payment_privkey: ecc.ECPrivkey):
+    def create_sweeptx_their_ctx_to_remote(self, ctx, output_idx: int, our_payment_privkey: ecc.ECPrivkey):
         our_payment_pubkey = our_payment_privkey.get_public_key_hex(compressed=True)
         val = ctx.outputs()[output_idx][2]
         sweep_inputs = [{
@@ -173,8 +182,7 @@ class LNChanCloseHandler(PrintError):
         sweep_tx.sign({our_payment_pubkey: (our_payment_privkey.get_secret_bytes(), True)})
         if not sweep_tx.is_complete():
             raise Exception('channel close sweep tx is not complete')
-        self.network.broadcast_transaction(sweep_tx,
-                                           lambda res: self.print_tx_broadcast_result('sweep_their_ctx_to_remote', res))
+        return sweep_tx
 
     def find_and_sweep_their_ctx_to_local(self, ctx, per_commitment_secret: bytes):
         per_commitment_point = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
@@ -187,17 +195,52 @@ class LNChanCloseHandler(PrintError):
         witness_script = bh2u(lnutil.make_commitment_output_to_local_witness_script(
             revocation_pubkey, to_self_delay, delayed_pubkey))
         to_local_address = redeem_script_to_address('p2wsh', witness_script)
-        for output_idx, (type, addr, val) in enumerate(ctx.outputs()):
-            if type == TYPE_ADDRESS and addr == to_local_address:
+        for output_idx, (type_, addr, val) in enumerate(ctx.outputs()):
+            if type_ == TYPE_ADDRESS and addr == to_local_address:
                 self.print_error("found to_local output paying to them: ctx {}:{}".
                                  format(ctx.txid(), output_idx))
                 break
         else:
             self.print_error('could not find to_local output in their ctx {}'.format(ctx.txid()))
             return
-        self.sweep_their_ctx_to_local(ctx, output_idx, witness_script, revocation_privkey)
+        sweep_tx = self.create_sweeptx_ctx_to_local(ctx, output_idx, witness_script, revocation_privkey, True)
+        self.network.broadcast_transaction(sweep_tx,
+                                           lambda res: self.print_tx_broadcast_result('sweep_their_ctx_to_local', res))
 
-    def sweep_their_ctx_to_local(self, ctx, output_idx: int, witness_script: str, revocation_privkey: bytes):
+    def find_and_sweep_our_ctx_to_local(self, ctx, our_pcp: bytes):
+        delayed_bp_privkey = ecc.ECPrivkey(self.chan.local_config.delayed_basepoint.privkey)
+        our_localdelayed_privkey = derive_privkey(delayed_bp_privkey.secret_scalar, our_pcp)
+        our_localdelayed_privkey = ecc.ECPrivkey.from_secret_scalar(our_localdelayed_privkey)
+        our_localdelayed_pubkey = our_localdelayed_privkey.get_public_key_bytes(compressed=True)
+        revocation_pubkey = lnutil.derive_blinded_pubkey(self.chan.remote_config.revocation_basepoint.pubkey,
+                                                         our_pcp)
+        to_self_delay = self.chan.remote_config.to_self_delay
+        witness_script = bh2u(lnutil.make_commitment_output_to_local_witness_script(
+            revocation_pubkey, to_self_delay, our_localdelayed_pubkey))
+        to_local_address = redeem_script_to_address('p2wsh', witness_script)
+        for output_idx, (type_, addr, val) in enumerate(ctx.outputs()):
+            if type_ == TYPE_ADDRESS and addr == to_local_address:
+                self.print_error("found to_local output paying to us (CSV-locked): ctx {}:{}".
+                                 format(ctx.txid(), output_idx))
+                break
+        else:
+            self.print_error('could not find to_local output in our ctx {}'.format(ctx.txid()))
+            return
+        # TODO if the CSV lock is still pending, this will fail
+        sweep_tx = self.create_sweeptx_ctx_to_local(ctx, output_idx, witness_script,
+                                                    our_localdelayed_privkey.get_secret_bytes(),
+                                                    False, to_self_delay)
+        self.network.broadcast_transaction(sweep_tx,
+                                           lambda res: self.print_tx_broadcast_result('sweep_our_ctx_to_local', res))
+
+    def create_sweeptx_ctx_to_local(self, ctx, output_idx: int, witness_script: str,
+                                    privkey: bytes, is_revocation: bool, to_self_delay: int=None):
+        """Create a txn that sweeps the 'to_local' output of a commitment
+        transaction into our wallet.
+
+        privkey: either revocation_privkey or localdelayed_privkey
+        is_revocation: tells us which ^
+        """
         val = ctx.outputs()[output_idx][2]
         sweep_inputs = [{
             'scriptSig': '',
@@ -210,7 +253,9 @@ class LNChanCloseHandler(PrintError):
             'coinbase': False,
             'preimage_script': witness_script,
         }]
-        tx_size_bytes = 200  # TODO calc size
+        if to_self_delay is not None:
+            sweep_inputs[0]['sequence'] = to_self_delay
+        tx_size_bytes = 121  # approx size of to_local -> p2wpkh
         try:
             fee = self.network.config.estimate_fee(tx_size_bytes)
         except NoDynamicFeeEstimates:
@@ -218,13 +263,11 @@ class LNChanCloseHandler(PrintError):
             fee = self.network.config.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
         sweep_outputs = [(TYPE_ADDRESS, self.wallet.get_receiving_address(), val - fee)]
         locktime = self.network.get_local_height()
-        sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, locktime=locktime)
-        sweep_tx.set_rbf(True)
-        revocation_sig = sweep_tx.sign_txin(0, revocation_privkey)
-        witness = transaction.construct_witness([revocation_sig, 1, witness_script])
+        sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, locktime=locktime, version=2)
+        sig = sweep_tx.sign_txin(0, privkey)
+        witness = transaction.construct_witness([sig, int(is_revocation), witness_script])
         sweep_tx.inputs()[0]['witness'] = witness
-        self.network.broadcast_transaction(sweep_tx,
-                                           lambda res: self.print_tx_broadcast_result('sweep_their_ctx_to_local', res))
+        return sweep_tx
 
     def print_tx_broadcast_result(self, name, res):
         error = res.get('error')
