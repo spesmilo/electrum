@@ -3,7 +3,7 @@ import hashlib
 import sys
 import traceback
 
-from electrum_ltc import bitcoin
+from electrum_ltc import bitcoin, constants
 from electrum_ltc.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
 from electrum_ltc.i18n import _
 from electrum_ltc.plugins import BasePlugin
@@ -175,7 +175,7 @@ class Ledger_Client():
                     raise Exception('Aborted by user - please unplug the dongle and plug it again before retrying')
                 pin = pin.encode()
                 self.dongleObject.verifyPin(pin)
-                self.dongleObject.setAlternateCoinVersions(ADDRTYPE_P2PKH, ADDRTYPE_P2SH)
+                self.dongleObject.setAlternateCoinVersion(constants.net.ADDRTYPE_P2PKH, constants.net.ADDRTYPE_P2SH)
         except BTChipException as e:
             if (e.sw == 0x6faa):
                 raise Exception("Dongle is temporarily locked - please unplug it and replug it again")
