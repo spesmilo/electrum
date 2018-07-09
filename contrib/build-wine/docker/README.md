@@ -2,7 +2,8 @@ Deterministic Windows binaries with Docker
 ==========================================
 
 This assumes an Ubuntu host, but it should not be too hard to adapt to another
-similar system.
+similar system. The docker commands should be executed in the project's root
+folder.
 
 1. Install Docker
 
@@ -16,9 +17,7 @@ similar system.
 2. Build image
 
     ```
-    $ cd contrib/build-wine/docker
-    $ PROJECT_ROOT=$PWD/../../../
-    $ sudo docker build --no-cache -t electrum-wine-builder-img .
+    $ sudo docker build --no-cache -t electrum-wine-builder-img contrib/build-wine/docker
     ```
 
     Note: see [this](https://stackoverflow.com/a/40516974/7499128) if having dns problems
@@ -29,13 +28,13 @@ similar system.
     $ TARGET=master
     $ sudo docker run \
         --name electrum-wine-builder-cont \
-        -v ${PROJECT_ROOT}:/opt/electrum \
+        -v .:/opt/electrum \
         --rm \
         --workdir /opt/electrum/contrib/build-wine \
         electrum-wine-builder-img \
         ./build.sh $TARGET
     ```
-4. The generated binaries are in `$PROJECT_ROOT/contrib/build-wine/dist`.
+4. The generated binaries are in `./contrib/build-wine/dist`.
 
 
 
