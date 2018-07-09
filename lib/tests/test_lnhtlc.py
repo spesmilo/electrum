@@ -319,7 +319,7 @@ class TestLNHTLCDust(unittest.TestCase):
         self.assertEqual(len(alice_channel.local_commitment.outputs()), 3)
         self.assertEqual(len(bob_channel.local_commitment.outputs()), 2)
         default_fee = calc_static_fee(0)
-        self.assertEqual(bob_channel.local_commit_fee, default_fee)
+        self.assertEqual(bob_channel.local_commit_fee, default_fee + htlcAmt)
         bob_channel.settle_htlc(paymentPreimage, htlc.htlc_id)
         alice_channel.receive_htlc_settle(paymentPreimage, aliceHtlcIndex)
         force_state_transition(bob_channel, alice_channel)
