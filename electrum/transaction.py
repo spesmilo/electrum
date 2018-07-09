@@ -749,7 +749,7 @@ class Transaction:
         self._outputs = outputs
         self.locktime = locktime
         self.version = version
-        # TODO set_rbf by default ?
+        # TODO set_rbf by default ? note: inputs might have nSequence set
         # TODO maybe BIP_LI01_sort here? but note: add_outputs and add_inputs
         return self
 
