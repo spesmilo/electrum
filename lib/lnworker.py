@@ -183,7 +183,7 @@ class LNWorker(PrintError):
         # but in this case, we want the current one. So substract one ctn number
         old_local_state = chan.local_state
         chan.local_state=chan.local_state._replace(ctn=chan.local_state.ctn - 1)
-        tx = chan.local_commitment
+        tx = chan.pending_local_commitment
         chan.local_state = old_local_state
         tx.sign({bh2u(chan.local_config.multisig_key.pubkey): (chan.local_config.multisig_key.privkey, True)})
         remote_sig = chan.local_state.current_commitment_signature
