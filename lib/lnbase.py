@@ -862,8 +862,9 @@ class Peer(PrintError):
         if failure_coro.done():
             sig_64, htlc_sigs = chan.sign_next_commitment()
             self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sigs[0]))
+            self.revoke(chan)
             while (await self.commitment_signed[chan.channel_id].get())["htlc_signature"] != b"":
-                self.revoke(chan)
+                pass
             # TODO process above commitment transactions
             await self.receive_revoke(chan)
             chan.fail_htlc(htlc)
@@ -880,11 +881,11 @@ class Peer(PrintError):
         preimage = update_fulfill_htlc_msg["payment_preimage"]
         chan.receive_htlc_settle(preimage, int.from_bytes(update_fulfill_htlc_msg["id"], "big"))
 
-        while (await self.commitment_signed[chan.channel_id].get())["htlc_signature"] != b"":
-            self.revoke(chan)
-        # TODO process above commitment transactions
-
         self.revoke(chan)
+
+        while (await self.commitment_signed[chan.channel_id].get())["htlc_signature"] != b"":
+            pass
+        # TODO process above commitment transactions
 
         bare_ctx = chan.make_commitment(chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
             msat_remote, msat_local)
