@@ -15,7 +15,10 @@ RUN dpkg --add-architecture i386 && \
     apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ && \
     apt-get update -q && \
     apt-get install -qy \
-        winehq-stable=3.0.1~bionic \
+        wine-stable-amd64:amd64=3.0.1~bionic \
+        wine-stable-i386:i386=3.0.1~bionic \
+        wine-stable:amd64=3.0.1~bionic \
+        winehq-stable:amd64=3.0.1~bionic \
         git=1:2.17.1-1ubuntu0.1 \
         p7zip-full=16.02+dfsg-6 \
         make=4.1-9.1ubuntu1 \
