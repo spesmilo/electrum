@@ -422,6 +422,9 @@ class Transaction:
         self._inputs = None
         self.deserialize()
 
+    def set_opreturn(self,op_return):
+        self.op_return=op_return
+
     def inputs(self):
         if self._inputs is None:
             self.deserialize()
@@ -488,13 +491,14 @@ class Transaction:
         return d
 
     @classmethod
-    def from_io(klass, inputs, outputs, locktime=0):
+    def from_io(klass, inputs, outputs, locktime=0, op_return=None):
         assert all(isinstance(output[1], (PublicKey, Address, ScriptOutput))
                    for output in outputs)
         self = klass(None)
         self._inputs = inputs
         self._outputs = outputs.copy()
         self.locktime = locktime
+        self.set_opreturn(op_return)
         return self
 
     @classmethod
@@ -621,6 +625,19 @@ class Transaction:
         s += script
         return s
 
+    def serialize_output_op_return(self):
+        amount=0
+        s = int_to_hex(amount, 8)
+        op_return_code="6a4c"
+        op_return_payload=self.op_return
+        payload_len=int(len(op_return_payload)/2)
+        payload_len_hex= int_to_hex (payload_len,1)
+        script= op_return_code+payload_len_hex+op_return_payload
+        s += var_int(len(script)//2)
+        s += script
+        return s
+
+
     @classmethod
     def nHashType(cls):
         '''Hash type in hex.'''
@@ -637,6 +654,11 @@ class Transaction:
         hashPrevouts = bh2u(Hash(bfh(''.join(self.serialize_outpoint(txin) for txin in inputs))))
         hashSequence = bh2u(Hash(bfh(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs))))
         hashOutputs = bh2u(Hash(bfh(''.join(self.serialize_output(o) for o in outputs))))
+
+        if ((self.op_return is not None) and (self.op_return !="")):
+            op_return_modified_outputs=''.join(self.serialize_output(o) for o in outputs)+self.serialize_output_op_return()
+            hashOutputs = bh2u(Hash(bfh(op_return_modified_outputs)))
+
         outpoint = self.serialize_outpoint(txin)
         preimage_script = self.get_preimage_script(txin)
         scriptCode = var_int(len(preimage_script) // 2) + preimage_script
@@ -653,8 +675,13 @@ class Transaction:
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
+        lenout=len(outputs)
+        if ((self.op_return is not None) and (self.op_return !="")):
+            lenout+=1
         txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size), estimate_size) for txin in inputs)
-        txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
+        txouts = var_int(lenout) + ''.join(self.serialize_output(o) for o in outputs)
+        if ((self.op_return is not None) and (self.op_return !="")):
+            txouts = txouts+self.serialize_output_op_return()
         return nVersion + txins + txouts + nLocktime
 
     def hash(self):
