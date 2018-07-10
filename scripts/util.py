@@ -10,6 +10,7 @@ def get_interfaces(servers, timeout=10):
     '''Returns a map of servers to connected interfaces.  If any
     connections fail or timeout, they will be missing from the map.
     '''
+    assert type(servers) is list
     socket_queue = queue.Queue()
     config = SimpleConfig()
     connecting = {}
@@ -51,6 +52,9 @@ def get_peers():
     peers = {}
     # 1. get connected interfaces
     server = config.get('server')
+    if server is None:
+        print("You need to set a secure server, for example (for mainnet): 'electrum setconfig server helicarrier.bauerj.eu:50002:s'")
+        return []
     interfaces = get_interfaces([server])
     if not interfaces:
         print("No connection to", server)
