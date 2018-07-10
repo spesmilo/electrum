@@ -529,9 +529,10 @@ class Network(util.DaemonThread):
         self.auto_connect = auto_connect
         if self.proxy != proxy or self.protocol != protocol:
             # Restart the network defaulting to the given server
-            self.stop_network()
-            self.default_server = server
-            self.start_network(protocol, proxy)
+            with self.interface_lock:
+                self.stop_network()
+                self.default_server = server
+                self.start_network(protocol, proxy)
         elif self.default_server != server:
             self.switch_to_interface(server)
         else:
