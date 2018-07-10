@@ -936,13 +936,13 @@ class Peer(PrintError):
 
         chan.receive_htlc(htlc)
 
-        assert (await self.receive_commitment(chan)) == 1
+        assert (await self.receive_commitment(chan)) <= 1
 
         self.revoke(chan)
 
         sig_64, htlc_sigs = chan.sign_next_commitment()
-        htlc_sig = htlc_sigs[0]
-        self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sig))
+        htlc_sig = b''.join(htlc_sigs)
+        self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=htlc_sig))
 
         await self.receive_revoke(chan)
 
