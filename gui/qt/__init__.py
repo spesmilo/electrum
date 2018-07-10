@@ -204,6 +204,8 @@ class ElectrumGui:
         opens the wallet and creates a new window for it'''
         try:
             wallet = self.daemon.load_wallet(path, None)
+            if wallet and not wallet.storage.file_writable():
+                raise Exception(_("Wallet file not writable"))
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             d = QMessageBox(QMessageBox.Warning, _('Error'),

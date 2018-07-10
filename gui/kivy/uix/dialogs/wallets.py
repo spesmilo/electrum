@@ -61,5 +61,9 @@ class WalletDialog(Factory.Popup):
         d.open()
 
     def open_wallet(self, app):
-        app.load_wallet_by_name(self.ids.wallet_selector.selection[0])
+        path = self.ids.wallet_selector.selection[0]
+        if not os.access(path, os.W_OK) or not os.access(path, os.R_OK):
+            app.show_error(_("Wallet file not writable"))
+            return
+        app.load_wallet_by_name(path)
 

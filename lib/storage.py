@@ -165,6 +165,15 @@ class WalletStorage(PrintError):
     def file_exists(self):
         return self.path and os.path.exists(self.path)
 
+    def file_writable(self):
+        if not self.file_exists():
+            if not os.access(os.path.dirname(self.path), os.W_OK):
+                return False
+        else:
+            if not os.access(self.path, os.W_OK):
+                return False
+        return True
+
     @staticmethod
     def get_eckey_from_password(password):
         secret = pbkdf2.PBKDF2(password, '', iterations=1024, macmodule=hmac, digestmodule=hashlib.sha512).read(64)

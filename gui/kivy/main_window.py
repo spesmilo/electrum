@@ -509,6 +509,9 @@ class ElectrumWindow(App):
             return
         wallet = self.daemon.load_wallet(path, None)
         if wallet:
+            if not wallet.storage.file_writable():
+                self.show_error(_("Wallet file not writable"))
+                return
             if wallet.has_password():
                 self.password_dialog(wallet, _('Enter PIN code'), lambda x: self.load_wallet(wallet), self.stop)
             else:

@@ -91,6 +91,9 @@ class BaseWizard(object):
         self.run(action, *args)
 
     def new(self):
+        if not self.storage.file_writable():
+            self.show_error(_("Wallet file not writable"))
+            return
         name = os.path.basename(self.storage.path)
         title = _("Create") + ' ' + name
         message = '\n'.join([
