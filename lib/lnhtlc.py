@@ -188,33 +188,32 @@ class HTLCStateMachine(PrintError):
             self.pending_ack_fee_update = self.pending_fee_update
             self.pending_fee_update = None
 
-        with PendingFeerateApplied(self):
-            sig_64 = sign_and_get_sig_string(self.pending_remote_commitment, self.local_config, self.remote_config)
+        sig_64 = sign_and_get_sig_string(self.pending_remote_commitment, self.local_config, self.remote_config)
 
-            their_remote_htlc_privkey_number = derive_privkey(
-                int.from_bytes(self.local_config.htlc_basepoint.privkey, 'big'),
-                self.remote_state.next_per_commitment_point)
-            their_remote_htlc_privkey = their_remote_htlc_privkey_number.to_bytes(32, 'big')
+        their_remote_htlc_privkey_number = derive_privkey(
+            int.from_bytes(self.local_config.htlc_basepoint.privkey, 'big'),
+            self.remote_state.next_per_commitment_point)
+        their_remote_htlc_privkey = their_remote_htlc_privkey_number.to_bytes(32, 'big')
 
-            for_us = False
+        for_us = False
 
-            htlcsigs = []
-            for we_receive, htlcs in zip([True, False], [self.htlcs_in_remote, self.htlcs_in_local]):
-                assert len(htlcs) <= 1
-                for htlc in htlcs:
-                    weight = HTLC_SUCCESS_WEIGHT if we_receive else HTLC_TIMEOUT_WEIGHT
-                    fee = self.remote_state.feerate // 1000 * weight
-                    if htlc.amount_msat // 1000 < self.remote_config.dust_limit_sat + fee:
-                        print("value too small, skipping. htlc amt: {}, weight: {}, remote feerate {}, remote dust limit {}".format( htlc.amount_msat, weight, self.remote_state.feerate, self.remote_config.dust_limit_sat))
-                        continue
-                    original_htlc_output_index = 0
-                    args = [self.remote_state.next_per_commitment_point, for_us, we_receive, htlc.amount_msat + htlc.total_fee, htlc.cltv_expiry, htlc.payment_hash, self.pending_remote_commitment, original_htlc_output_index]
-                    htlc_tx = make_htlc_tx_with_open_channel(self, *args)
-                    sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
-                    htlc_sig = ecc.sig_string_from_der_sig(sig[:-1])
-                    htlcsigs.append(htlc_sig)
+        htlcsigs = []
+        for we_receive, htlcs in zip([True, False], [self.htlcs_in_remote, self.htlcs_in_local]):
+            assert len(htlcs) <= 1
+            for htlc in htlcs:
+                weight = HTLC_SUCCESS_WEIGHT if we_receive else HTLC_TIMEOUT_WEIGHT
+                fee = self.remote_state.feerate // 1000 * weight
+                if htlc.amount_msat // 1000 < self.remote_config.dust_limit_sat + fee:
+                    print("value too small, skipping. htlc amt: {}, weight: {}, remote feerate {}, remote dust limit {}".format( htlc.amount_msat, weight, self.remote_state.feerate, self.remote_config.dust_limit_sat))
+                    continue
+                original_htlc_output_index = 0
+                args = [self.remote_state.next_per_commitment_point, for_us, we_receive, htlc.amount_msat + htlc.total_fee, htlc.cltv_expiry, htlc.payment_hash, self.pending_remote_commitment, original_htlc_output_index]
+                htlc_tx = make_htlc_tx_with_open_channel(self, *args)
+                sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
+                htlc_sig = ecc.sig_string_from_der_sig(sig[:-1])
+                htlcsigs.append(htlc_sig)
 
-            return sig_64, htlcsigs
+        return sig_64, htlcsigs
 
     def receive_new_commitment(self, sig, htlc_sigs):
         """
@@ -238,27 +237,26 @@ class HTLCStateMachine(PrintError):
             self.pending_ack_fee_update = self.pending_fee_update
             self.pending_fee_update = None
 
-        with PendingFeerateApplied(self):
-            preimage_hex = self.pending_local_commitment.serialize_preimage(0)
-            pre_hash = Hash(bfh(preimage_hex))
-            if not ecc.verify_signature(self.remote_config.multisig_key.pubkey, sig, pre_hash):
-                raise Exception('failed verifying signature of our updated commitment transaction: ' + str(sig))
+        preimage_hex = self.pending_local_commitment.serialize_preimage(0)
+        pre_hash = Hash(bfh(preimage_hex))
+        if not ecc.verify_signature(self.remote_config.multisig_key.pubkey, sig, pre_hash):
+            raise Exception('failed verifying signature of our updated commitment transaction: ' + str(sig))
 
-            _, this_point, _ = self.points
+        _, this_point, _ = self.points
 
-            if len(self.htlcs_in_remote) > 0 and len(self.pending_local_commitment.outputs()) == 3:
-                print("CHECKING HTLC SIGS")
-                we_receive = True
-                payment_hash = self.htlcs_in_remote[0].payment_hash
-                amount_msat = self.htlcs_in_remote[0].amount_msat
-                cltv_expiry = self.htlcs_in_remote[0].cltv_expiry
-                htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, amount_msat, cltv_expiry, payment_hash, self.pending_local_commitment, 0)
-                pre_hash = Hash(bfh(htlc_tx.serialize_preimage(0)))
-                remote_htlc_pubkey = derive_pubkey(self.remote_config.htlc_basepoint.pubkey, this_point)
-                if not ecc.verify_signature(remote_htlc_pubkey, htlc_sigs[0], pre_hash):
-                    raise Exception("failed verifying signature an HTLC tx spending from one of our commit tx'es HTLC outputs")
+        if len(self.htlcs_in_remote) > 0 and len(self.pending_local_commitment.outputs()) == 3:
+            print("CHECKING HTLC SIGS")
+            we_receive = True
+            payment_hash = self.htlcs_in_remote[0].payment_hash
+            amount_msat = self.htlcs_in_remote[0].amount_msat
+            cltv_expiry = self.htlcs_in_remote[0].cltv_expiry
+            htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, amount_msat, cltv_expiry, payment_hash, self.pending_local_commitment, 0)
+            pre_hash = Hash(bfh(htlc_tx.serialize_preimage(0)))
+            remote_htlc_pubkey = derive_pubkey(self.remote_config.htlc_basepoint.pubkey, this_point)
+            if not ecc.verify_signature(remote_htlc_pubkey, htlc_sigs[0], pre_hash):
+                raise Exception("failed verifying signature an HTLC tx spending from one of our commit tx'es HTLC outputs")
 
-            # TODO check htlc in htlcs_in_local
+        # TODO check htlc in htlcs_in_local
 
     def revoke_current_commitment(self):
         """
