@@ -79,11 +79,6 @@ retry() {
 here=$(dirname $(readlink -e $0))
 set -e
 
-# Clean up Wine environment
-echo "Cleaning $WINEPREFIX"
-rm -rf $WINEPREFIX
-echo "done"
-
 wine 'wineboot'
 
 cd /tmp/electrum-build
