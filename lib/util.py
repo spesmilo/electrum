@@ -586,6 +586,8 @@ mainnet_block_explorers = {
                         {'tx': 'transaction/', 'addr': 'address/'}),
     'blockonomics.co': ('https://www.blockonomics.co/',
                         {'tx': 'api/tx?txid=', 'addr': '#/search?q='}),
+    'OXT.me': ('https://oxt.me/',
+                        {'tx': 'transaction/', 'addr': 'address/'}),
     'system default': ('blockchain:/',
                         {'tx': 'tx/', 'addr': 'address/'}),
 }
