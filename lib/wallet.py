@@ -218,10 +218,7 @@ class Abstract_Wallet(PrintError):
         self.load_unverified_transactions()
         self.remove_local_transactions_we_dont_have()
 
-        # There is a difference between wallet.up_to_date and network.is_up_to_date().
-        # network.is_up_to_date() returns true when all requests have been answered and processed
-        # wallet.up_to_date is true when the wallet is synchronized (stronger requirement)
-        # Neither of them considers the verifier.
+        # wallet.up_to_date is true when the wallet is synchronized
         self.up_to_date = False
 
         # save wallet type the first time
