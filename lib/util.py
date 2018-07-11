@@ -330,7 +330,10 @@ def android_data_dir():
 def android_headers_dir():
     d = android_ext_dir() + '/org.electrum_ltc.electrum_ltc'
     if not os.path.exists(d):
-        os.mkdir(d)
+        try:
+            os.mkdir(d)
+        except FileExistsError:
+            pass  # in case of race
     return d
 
 def android_check_data_dir():
