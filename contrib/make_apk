@@ -1,6 +1,6 @@
 #!/bin/bash
 
-pushd ./gui/kivy/
+pushd ./electrum/gui/kivy/
 
 if [[ -n "$1"  && "$1" == "release" ]] ; then
     echo -n Keystore Password:

@@ -4,10 +4,9 @@
 build/
 dist/
 *.egg/
-/electrum.py
 contrib/pyinstaller/
 Electrum.egg-info/
-gui/qt/icons_rc.py
+electrum/gui/qt/icons_rc.py
 locale/
 .devlocaltmp/
 *_trial_temp
@@ -17,7 +16,12 @@ env/
 .buildozer/
 bin/
 /app.fil
+contrib/apk_version
 
 # tox files
 .cache/
 .coverage
+
+# kivy
+electrum/gui/kivy/theming/light-0.png
+electrum/gui/kivy/theming/light.atlas
