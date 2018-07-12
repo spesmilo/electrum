@@ -42,42 +42,44 @@ class SPV(ThreadJob):
         interface = self.network.interface
         if not interface:
             return
+
         blockchain = interface.blockchain
         if not blockchain:
             return
-        lh = self.network.get_local_height()
+
+        local_height = self.network.get_local_height()
         unverified = self.wallet.get_unverified_txs()
         for tx_hash, tx_height in unverified.items():
             # do not request merkle branch before headers are available
-            if (tx_height > 0) and (tx_height <= lh):
-                header = blockchain.read_header(tx_height)
-                if header is None:
-                    index = tx_height // 2016
-                    if index < len(blockchain.checkpoints):
-                        self.network.request_chunk(interface, index)
-                else:
-                    if (tx_hash not in self.requested_merkle
-                            and tx_hash not in self.merkle_roots):
+            if tx_height <= 0 or tx_height > local_height:
+                continue
 
-                        self.network.get_merkle_for_transaction(
-                                tx_hash,
-                                tx_height,
-                                self.verify_merkle)
-                        self.print_error('requested merkle', tx_hash)
-                        self.requested_merkle.add(tx_hash)
+            header = blockchain.read_header(tx_height)
+            if header is None:
+                index = tx_height // 2016
+                if index < len(blockchain.checkpoints):
+                    self.network.request_chunk(interface, index)
+            elif (tx_hash not in self.requested_merkle
+                    and tx_hash not in self.merkle_roots):
+                self.network.get_merkle_for_transaction(
+                        tx_hash,
+                        tx_height,
+                        self.verify_merkle)
+                self.print_error('requested merkle', tx_hash)
+                self.requested_merkle.add(tx_hash)
 
         if self.network.blockchain() != self.blockchain:
             self.blockchain = self.network.blockchain()
             self.undo_verifications()
 
-    def verify_merkle(self, r):
+    def verify_merkle(self, response):
         if self.wallet.verifier is None:
             return  # we have been killed, this was just an orphan callback
-        if r.get('error'):
-            self.print_error('received an error:', r)
+        if response.get('error'):
+            self.print_error('received an error:', response)
             return
-        params = r['params']
-        merkle = r['result']
+        params = response['params']
+        merkle = response['result']
         # Verify the hash of the server-provided merkle branch to a
         # transaction matches the merkle root of its block
         tx_hash = params[0]

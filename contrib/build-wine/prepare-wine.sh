@@ -13,7 +13,7 @@ LIBUSB_FILENAME=libusb-1.0.22.7z
 LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-1.0.22/$LIBUSB_FILENAME?download
 LIBUSB_SHA256=671f1a420757b4480e7fadc8313d6fb3cbb75ca00934c417c1efa6e77fb8779b
 
-PYTHON_VERSION=3.5.4
+PYTHON_VERSION=3.6.6
 
 ## These settings probably don't need change
 export WINEPREFIX=/opt/wine64
@@ -85,6 +85,11 @@ rm -rf $WINEPREFIX
 echo "done"
 
 wine 'wineboot'
+
+# HACK to work around https://bugs.winehq.org/show_bug.cgi?id=42474#c22
+# needed for python 3.6+
+rm -f /opt/wine-stable/lib/wine/fakedlls/api-ms-win-core-path-l1-1-0.dll
+rm -f /opt/wine-stable/lib/wine/api-ms-win-core-path-l1-1-0.dll.so
 
 cd /tmp/electrum-ltc-build
 
