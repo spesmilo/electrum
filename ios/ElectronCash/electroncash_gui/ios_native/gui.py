@@ -867,22 +867,26 @@ class ElectrumGui(PrintError):
         self.config.set_key('confirmed_only', bool(b))
         
     def prefs_get_use_change(self) -> tuple: # returns the setting plus a second bool that indicates whether this setting can be modified
+        if not self.wallet: return False, False
         r1 = self.wallet.use_change
         r2 = self.config.is_modifiable('use_change')
         return r1, r2
 
     def prefs_set_use_change(self, x : bool) -> None:
+        if not self.wallet: return
         usechange_result = bool(x)
         if self.wallet.use_change != usechange_result:
             self.wallet.use_change = usechange_result
             self.wallet.storage.put('use_change', self.wallet.use_change)        
    
-    def prefs_get_multiple_change(self) -> list:
+    def prefs_get_multiple_change(self) -> tuple:
+        if not self.wallet: return False, False
         multiple_change = self.wallet.multiple_change
         enabled = self.wallet.use_change
         return multiple_change, enabled
 
     def prefs_set_multiple_change(self, x : bool) -> None:
+        if not self.wallet: return
         multiple = bool(x)
         if self.wallet.multiple_change != multiple:
             self.wallet.multiple_change = multiple

@@ -73,7 +73,7 @@ static BOOL IS_IPHONEX() {
                               delay:SCROLL_DELAY
                             options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInOut
                          animations:^{
-                             textImage.transform = CGAffineTransformMakeTranslation(-[self scrollOffset], 0);
+                             self->textImage.transform = CGAffineTransformMakeTranslation(-[self scrollOffset], 0);
                          } completion:^(BOOL finished) {
                          }];
     } else {

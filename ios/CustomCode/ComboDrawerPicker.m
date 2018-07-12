@@ -168,20 +168,20 @@
 
         [UIView animateWithDuration:0.2 delay:0.0 options: UIViewAnimationOptionAllowUserInteraction |UIViewAnimationOptionCurveLinear animations:^{
             if (rotateChevron)
-                _chevron.transform = CGAffineTransformMakeRotation(DEGREES_TO_RADIANS(179.9f));
-            CGRect frame = _bottomView.frame;
-            frame.size.height = _savedBottomHeight;
-            _bottomView.frame = frame;
+                self->_chevron.transform = CGAffineTransformMakeRotation(DEGREES_TO_RADIANS(179.9f));
+            CGRect frame = self->_bottomView.frame;
+            frame.size.height = self->_savedBottomHeight;
+            self->_bottomView.frame = frame;
         } completion:^(BOOL finished) {
             if (!rotateChevron) {
-                [_chevron stopAnimating];
-                _chevron.highlighted = YES;
-                _chevron.image = _chevronImages[0]; // this forces the end of the animation to use the right image.. avoids a glitch on ios 10
+                [self->_chevron stopAnimating];
+                self->_chevron.highlighted = YES;
+                self->_chevron.image = self->_chevronImages[0]; // this forces the end of the animation to use the right image.. avoids a glitch on ios 10
             }
-            _bottomHeightCS.constant = _savedBottomHeight;
-            _isRotating = NO;
-            _opened = YES;
-            if (finished && _openClosedBlock) _openClosedBlock(YES);
+            self->_bottomHeightCS.constant = self->_savedBottomHeight;
+            self->_isRotating = NO;
+            self->_opened = YES;
+            if (finished && self->_openClosedBlock) self->_openClosedBlock(YES);
         }];
 
     } else {
@@ -219,21 +219,21 @@
 
         [UIView animateWithDuration:0.2 delay:0.0 options: UIViewAnimationOptionAllowUserInteraction |UIViewAnimationOptionCurveLinear animations:^{
             if (rotateChevron)
-                _chevron.transform = CGAffineTransformIdentity;
-            CGRect frame = _bottomView.frame;
+                self->_chevron.transform = CGAffineTransformIdentity;
+            CGRect frame = self->_bottomView.frame;
             frame.size.height = 0;
-            _bottomView.frame = frame;
-            _bottomHeightCS.constant = 0.;
+            self->_bottomView.frame = frame;
+            self->_bottomHeightCS.constant = 0.;
         } completion:^(BOOL finished) {
             if (!rotateChevron) {
-                [_chevron stopAnimating];
-                _chevron.highlighted = NO;
-                _chevron.highlightedImage = _chevronImagesReversed[0]; // this forces the end of the animation to use the right image.. avoids a glitch on ios 10
+                [self->_chevron stopAnimating];
+                self->_chevron.highlighted = NO;
+                self->_chevron.highlightedImage = self->_chevronImagesReversed[0]; // this forces the end of the animation to use the right image.. avoids a glitch on ios 10
             }
-            _bottomHeightCS.constant = 0;
-            _isRotating = NO;
-            _opened = NO;
-            if (finished && _openClosedBlock) _openClosedBlock(NO);
+            self->_bottomHeightCS.constant = 0;
+            self->_isRotating = NO;
+            self->_opened = NO;
+            if (finished && self->_openClosedBlock) self->_openClosedBlock(NO);
         }];
 
     } else {
