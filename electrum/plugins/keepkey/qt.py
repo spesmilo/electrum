@@ -5,11 +5,11 @@ from PyQt5.Qt import Qt
 from PyQt5.Qt import QGridLayout, QInputDialog, QPushButton
 from PyQt5.Qt import QVBoxLayout, QLabel
 
-from ...gui.qt.util import *
-from ...lib.i18n import _
-from ...lib.plugin import hook, DeviceMgr
-from ...lib.util import PrintError, UserCancelled, bh2u
-from ...lib.wallet import Wallet, Standard_Wallet
+from electrum.gui.qt.util import *
+from electrum.i18n import _
+from electrum.plugin import hook, DeviceMgr
+from electrum.util import PrintError, UserCancelled, bh2u
+from electrum.wallet import Wallet, Standard_Wallet
 
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from .keepkey import KeepKeyPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC

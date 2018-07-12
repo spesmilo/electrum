@@ -30,8 +30,8 @@ import PyQt5.QtCore as QtCore
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import *
 
-from ...lib.i18n import _
-from ...lib.base_crash_reporter import BaseCrashReporter
+from electrum.i18n import _
+from electrum.base_crash_reporter import BaseCrashReporter
 from .util import MessageBoxMixin
 
 

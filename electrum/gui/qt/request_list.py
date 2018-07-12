@@ -23,10 +23,10 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from ...lib.i18n import _
-from ...lib.util import format_time, age
-from ...lib.plugin import run_hook
-from ...lib.paymentrequest import PR_UNKNOWN
+from electrum.i18n import _
+from electrum.util import format_time, age
+from electrum.plugin import run_hook
+from electrum.paymentrequest import PR_UNKNOWN
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import QTreeWidgetItem, QMenu

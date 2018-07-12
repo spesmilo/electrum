@@ -6,7 +6,7 @@ from kivy.uix.checkbox import CheckBox
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 
-from .....gui.kivy.i18n import _
+from electrum.gui.kivy.i18n import _
 
 Builder.load_string('''
 <Question@Popup>

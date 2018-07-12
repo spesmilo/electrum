@@ -30,7 +30,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QWidget
 
 from .qrcodewidget import QRCodeWidget
-from ...lib.i18n import _
+from electrum.i18n import _
 
 if platform.system() == 'Windows':
     MONOSPACE_FONT = 'Lucida Console'

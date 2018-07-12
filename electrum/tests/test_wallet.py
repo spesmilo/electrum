@@ -6,7 +6,7 @@ import os
 import json
 
 from io import StringIO
-from ..lib.storage import WalletStorage, FINAL_SEED_VERSION
+from electrum.storage import WalletStorage, FINAL_SEED_VERSION
 
 from . import SequentialTestCase
 

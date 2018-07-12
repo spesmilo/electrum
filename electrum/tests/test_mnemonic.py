@@ -1,8 +1,8 @@
 import unittest
-from ..lib import keystore
-from ..lib import mnemonic
-from ..lib import old_mnemonic
-from ..lib.util import bh2u
+from electrum import keystore
+from electrum import mnemonic
+from electrum import old_mnemonic
+from electrum.util import bh2u
 
 from . import SequentialTestCase
 

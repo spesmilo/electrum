@@ -4,8 +4,8 @@ from decimal import Decimal
 import getpass
 
 import electrum
-from ..lib.util import format_satoshis, set_verbosity
-from ..lib.bitcoin import is_address, COIN, TYPE_ADDRESS
+from electrum.lib.util import format_satoshis, set_verbosity
+from electrum.lib.bitcoin import is_address, COIN, TYPE_ADDRESS
 from .. import Wallet, WalletStorage
 
 _ = lambda x:x

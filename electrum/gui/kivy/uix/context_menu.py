@@ -8,7 +8,7 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.clock import Clock
 
-from ....gui.kivy.i18n import _
+from electrum.gui.kivy.i18n import _
 
 Builder.load_string('''
 <MenuItem@Button>

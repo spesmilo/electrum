@@ -15,8 +15,8 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 from kivy.utils import platform
 
-from .....lib.base_wizard import BaseWizard
-from .....lib.util import is_valid_email
+from electrum.base_wizard import BaseWizard
+from electrum.util import is_valid_email
 
 
 from . import EventsDialog
@@ -759,8 +759,8 @@ class RestoreSeedDialog(WizardDialog):
     def __init__(self, wizard, **kwargs):
         super(RestoreSeedDialog, self).__init__(wizard, **kwargs)
         self._test = kwargs['test']
-        from .....lib.mnemonic import Mnemonic
-        from .....lib.old_mnemonic import words as old_wordlist
+        from electrum.mnemonic import Mnemonic
+        from electrum.old_mnemonic import words as old_wordlist
         self.words = set(Mnemonic('en').wordlist).union(set(old_wordlist))
         self.ids.text_input_seed.text = test_seed if is_test else ''
         self.message = _('Please type your seed phrase using the virtual keyboard.')

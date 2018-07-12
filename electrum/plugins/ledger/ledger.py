@@ -3,17 +3,17 @@ import hashlib
 import sys
 import traceback
 
-from ...lib import bitcoin
-from ...lib.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
-from ...lib.i18n import _
-from ...lib.plugin import BasePlugin
-from ...lib.keystore import Hardware_KeyStore
-from ...lib.transaction import Transaction
-from ...lib.wallet import Standard_Wallet
+from electrum import bitcoin
+from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
+from electrum.i18n import _
+from electrum.plugin import BasePlugin
+from electrum.keystore import Hardware_KeyStore
+from electrum.transaction import Transaction
+from electrum.wallet import Standard_Wallet
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
-from ...lib.util import print_error, is_verbose, bfh, bh2u, versiontuple
-from ...lib.base_wizard import ScriptTypeNotSupported
+from electrum.util import print_error, is_verbose, bfh, bh2u, versiontuple
+from electrum.base_wizard import ScriptTypeNotSupported
 
 try:
     import hid

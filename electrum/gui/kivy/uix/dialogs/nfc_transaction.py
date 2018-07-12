@@ -8,7 +8,7 @@ class NFCTransactionDialog(AnimatedPopup):
         # Delayed Init
         global NFCSCanner
         if NFCSCanner is None:
-            from .....gui.kivy.nfc_scanner import NFCScanner
+            from electrum.gui.kivy.nfc_scanner import NFCScanner
         self.scanner = NFCSCanner
 
         super(NFCTransactionDialog, self).__init__(**kwargs)

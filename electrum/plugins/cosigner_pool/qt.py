@@ -30,14 +30,14 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import QPushButton
 
-from ...lib import bitcoin, util, keystore, ecc
-from ...lib import transaction
-from ...lib.plugin import BasePlugin, hook
-from ...lib.i18n import _
-from ...lib.wallet import Multisig_Wallet
-from ...lib.util import bh2u, bfh
+from electrum import bitcoin, util, keystore, ecc
+from electrum import transaction
+from electrum.plugin import BasePlugin, hook
+from electrum.i18n import _
+from electrum.wallet import Multisig_Wallet
+from electrum.util import bh2u, bfh
 
-from ...gui.qt.transaction_dialog import show_transaction
+from electrum.gui.qt.transaction_dialog import show_transaction
 
 import sys
 import traceback
@@ -160,7 +160,7 @@ class Plugin(BasePlugin):
             d.cosigner_send_button.hide()
 
     def cosigner_can_sign(self, tx, cosigner_xpub):
-        from ...lib.keystore import is_xpubkey, parse_xpubkey
+        from electrum.keystore import is_xpubkey, parse_xpubkey
         xpub_set = set([])
         for txin in tx.inputs():
             for x_pubkey in txin['x_pubkeys']:

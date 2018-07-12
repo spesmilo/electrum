@@ -4,13 +4,13 @@ import shutil
 import tempfile
 from typing import Sequence
 
-from ..lib import storage, bitcoin, keystore, constants
-from ..lib.transaction import Transaction
-from ..lib.simple_config import SimpleConfig
-from ..lib.wallet import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet
-from ..lib.util import bfh, bh2u
+from electrum import storage, bitcoin, keystore, constants
+from electrum import Transaction
+from electrum import SimpleConfig
+from electrum.wallet import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet
+from electrum.util import bfh, bh2u
 
-from ..plugins.trustedcoin import trustedcoin
+from electrum.plugins.trustedcoin import trustedcoin
 
 from . import TestCaseForTestnet
 from . import SequentialTestCase

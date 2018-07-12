@@ -1,8 +1,8 @@
 import shutil
 import tempfile
 
-from ..lib.storage import WalletStorage
-from ..lib.wallet import Wallet
+from electrum.storage import WalletStorage
+from electrum.wallet import Wallet
 
 from .test_wallet import WalletTestCase
 
@@ -258,8 +258,8 @@ class TestStorageUpgrade(WalletTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        from ..lib.plugin import Plugins
-        from ..lib.simple_config import SimpleConfig
+        from electrum.lib.plugin import Plugins
+        from electrum.lib.simple_config import SimpleConfig
 
         cls.electrum_path = tempfile.mkdtemp()
         config = SimpleConfig({'electrum_path': cls.electrum_path})

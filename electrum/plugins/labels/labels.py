@@ -7,9 +7,9 @@ import traceback
 
 import base64
 
-from ...lib.plugin import BasePlugin, hook
-from ...lib.crypto import aes_encrypt_with_iv, aes_decrypt_with_iv
-from ...lib.i18n import _
+from electrum.plugin import BasePlugin, hook
+from electrum.crypto import aes_encrypt_with_iv, aes_decrypt_with_iv
+from electrum.i18n import _
 
 
 class LabelsPlugin(BasePlugin):

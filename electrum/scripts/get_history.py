@@ -2,8 +2,8 @@
 
 import sys
 from .. import Network
-from ..lib.util import json_encode, print_msg
-from ..lib import bitcoin
+from electrum.util import json_encode, print_msg
+from electrum import bitcoin
 
 try:
     addr = sys.argv[1]

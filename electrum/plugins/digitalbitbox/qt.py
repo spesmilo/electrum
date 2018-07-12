@@ -3,9 +3,9 @@ from functools import partial
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 from .digitalbitbox import DigitalBitboxPlugin
 
-from ...lib.i18n import _
-from ...lib.plugin import hook
-from ...lib.wallet import Standard_Wallet
+from electrum.i18n import _
+from electrum.plugin import hook
+from electrum.wallet import Standard_Wallet
 
 
 class Plugin(DigitalBitboxPlugin, QtPluginBase):

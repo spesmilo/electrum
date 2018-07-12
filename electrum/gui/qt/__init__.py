@@ -38,15 +38,15 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 import PyQt5.QtCore as QtCore
 
-from ...lib.i18n import _, set_language
-from ...lib.plugin import run_hook
-from ...lib.storage import WalletStorage
-from ...lib.base_wizard import GoBack
-# from ...lib.synchronizer import Synchronizer
-# from ...lib.verifier import SPV
-# from ...lib.util import DebugMem
-from ...lib.util import (UserCancelled, print_error, WalletFileException, BitcoinException)
-# from ...lib.wallet import Abstract_Wallet
+from electrum.i18n import _, set_language
+from electrum.plugin import run_hook
+from electrum.storage import WalletStorage
+from electrum.base_wizard import GoBack
+# from electrum.synchronizer import Synchronizer
+# from electrum.verifier import SPV
+# from electrum.util import DebugMem
+from electrum.util import (UserCancelled, print_error, WalletFileException, BitcoinException)
+# from electrum.wallet import Abstract_Wallet
 
 from .installwizard import InstallWizard
 

@@ -1,9 +1,9 @@
 import unittest
 
-from ..lib import transaction
-from ..lib.bitcoin import TYPE_ADDRESS
-from ..lib.keystore import xpubkey_to_address
-from ..lib.util import bh2u, bfh
+from electrum import transaction
+from electrum.bitcoin import TYPE_ADDRESS
+from electrum.keystore import xpubkey_to_address
+from electrum.util import bh2u, bfh
 
 from . import SequentialTestCase, TestCaseForTestnet
 from .test_bitcoin import needs_test_with_all_ecc_implementations

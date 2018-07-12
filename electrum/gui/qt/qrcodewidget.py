@@ -8,8 +8,8 @@ from PyQt5.QtWidgets import (
 import os
 import qrcode
 
-from ...lib.simple_config import get_config
-from ...lib.i18n import _
+from electrum.simple_config import get_config
+from electrum.i18n import _
 from .util import WindowModalDialog
 
 

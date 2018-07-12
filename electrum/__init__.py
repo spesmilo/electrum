@@ -10,5 +10,16 @@ from .lib import bitcoin
 from .lib import transaction
 from .lib import daemon
 from .lib.transaction import Transaction
-from .lib.plugin import BasePlugin
+from .lib import plugin
 from .lib.commands import Commands, known_commands
+
+# used in plugins, don't want to have to import through lib
+from .lib import i18n, util, keystore, ecc, wallet, constants, base_wizard
+from .lib import paymentrequest, crypto, storage, mnemonic
+
+# used in gui
+from .lib import old_mnemonic, coinchooser, base_crash_reporter, qrscanner
+from .lib import simple_config
+
+# used in scripts
+from .lib import network, paymentrequest_pb2, blockchain

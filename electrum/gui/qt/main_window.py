@@ -39,18 +39,18 @@ import PyQt5.QtCore as QtCore
 from .exception_window import Exception_Hook
 from PyQt5.QtWidgets import *
 
-from ...lib import keystore, simple_config, ecc, constants, util, bitcoin, commands, coinchooser, paymentrequest
-from ...lib.bitcoin import COIN, is_address, TYPE_ADDRESS
-from ...lib.plugin import run_hook
-from ...lib.i18n import _
-from ...lib.util import (format_time, format_satoshis, format_fee_satoshis,
+from electrum import keystore, simple_config, ecc, constants, util, bitcoin, commands, coinchooser, paymentrequest
+from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
+from electrum.plugin import run_hook
+from electrum.i18n import _
+from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            format_satoshis_plain, NotEnoughFunds, PrintError,
                            UserCancelled, NoDynamicFeeEstimates, profiler,
                            export_meta, import_meta, bh2u, bfh, InvalidPassword,
                            base_units, base_units_list, base_unit_name_to_decimal_point,
                            decimal_point_to_base_unit_name, quantize_feerate)
-from ...lib.transaction import Transaction
-from ...lib.wallet import Multisig_Wallet, AddTransactionException, CannotBumpFee
+from electrum.transaction import Transaction
+from electrum.wallet import Multisig_Wallet, AddTransactionException, CannotBumpFee
 
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
@@ -80,7 +80,7 @@ class StatusBarButton(QPushButton):
             self.func()
 
 
-from ...lib.paymentrequest import PR_PAID
+from electrum.paymentrequest import PR_PAID
 
 
 class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
@@ -1964,7 +1964,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.send_button.setVisible(not self.wallet.is_watching_only())
 
     def change_password_dialog(self):
-        from ...lib.storage import STO_EV_XPUB_PW
+        from electrum.storage import STO_EV_XPUB_PW
         if self.wallet.get_available_storage_encryption_version() == STO_EV_XPUB_PW:
             from .password_dialog import ChangePasswordDialogForHW
             d = ChangePasswordDialogForHW(self, self.wallet)
@@ -2307,7 +2307,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return d.run()
 
     def tx_from_text(self, txt):
-        from ...lib.transaction import tx_from_str
+        from electrum.transaction import tx_from_str
         try:
             tx = tx_from_str(txt)
             return Transaction(tx)
@@ -2316,7 +2316,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
     def read_tx_from_qrcode(self):
-        from ...lib import qrscanner
+        from electrum import qrscanner
         try:
             data = qrscanner.scan_barcode(self.config.get_video_device())
         except BaseException as e:
@@ -2365,7 +2365,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_transaction(tx)
 
     def do_process_from_txid(self):
-        from ...lib import transaction
+        from electrum import transaction
         txid, ok = QInputDialog.getText(self, _('Lookup transaction'), _('Transaction ID') + ':')
         if ok and txid:
             txid = str(txid).strip()
@@ -2544,7 +2544,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         address_e.textChanged.connect(on_address)
         if not d.exec_():
             return
-        from ...lib.wallet import sweep_preparations
+        from electrum.wallet import sweep_preparations
         try:
             self.do_clear()
             coins, keypairs = sweep_preparations(get_pk(), self.network)

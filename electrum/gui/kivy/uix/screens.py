@@ -18,16 +18,16 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.utils import platform
 
-from ....lib.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
-from ....lib import bitcoin
-from ....lib.util import timestamp_to_datetime
-from ....lib.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
-from ....lib.plugin import run_hook
+from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
+from electrum import bitcoin
+from electrum.util import timestamp_to_datetime
+from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum.plugin import run_hook
 
 from .context_menu import ContextMenu
 
 
-from ....gui.kivy.i18n import _
+from electrum.gui.kivy.i18n import _
 
 class HistoryRecycleView(RecycleView):
     pass
@@ -216,7 +216,7 @@ class SendScreen(CScreen):
             # it should be already saved
             return
         # save address as invoice
-        from ....lib.paymentrequest import make_unsigned_request, PaymentRequest
+        from electrum.paymentrequest import make_unsigned_request, PaymentRequest
         req = {'address':self.screen.address, 'memo':self.screen.message}
         amount = self.app.get_amount(self.screen.amount) if self.screen.amount else 0
         req['amount'] = amount
@@ -356,7 +356,7 @@ class ReceiveScreen(CScreen):
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def get_URI(self):
-        from ....lib.util import create_URI
+        from electrum.util import create_URI
         amount = self.screen.amount
         if amount:
             a, u = self.screen.amount.split()

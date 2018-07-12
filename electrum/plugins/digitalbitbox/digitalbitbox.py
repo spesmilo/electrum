@@ -4,19 +4,19 @@
 #
 
 try:
-    from ...lib.crypto import Hash, EncodeAES, DecodeAES
-    from ...lib.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh, is_address,
+    from electrum.crypto import Hash, EncodeAES, DecodeAES
+    from electrum.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh, is_address,
                                   serialize_xpub, deserialize_xpub)
-    from ...lib import ecc
-    from ...lib.ecc import msg_magic
-    from ...lib.wallet import Standard_Wallet
-    from ...lib import constants
-    from ...lib.transaction import Transaction
-    from ...lib.i18n import _
-    from ...lib.keystore import Hardware_KeyStore
+    from electrum import ecc
+    from electrum.ecc import msg_magic
+    from electrum.wallet import Standard_Wallet
+    from electrum import constants
+    from electrum.transaction import Transaction
+    from electrum.i18n import _
+    from electrum.keystore import Hardware_KeyStore
     from ..hw_wallet import HW_PluginBase
-    from ...lib.util import print_error, to_string, UserCancelled
-    from ...lib.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
+    from electrum.util import print_error, to_string, UserCancelled
+    from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 
     import time
     import hid

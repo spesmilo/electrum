@@ -1,7 +1,7 @@
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import (QVBoxLayout, QGridLayout, QPushButton)
-from ...lib.plugin import BasePlugin, hook
-from ...lib.i18n import _
+from electrum.plugin import BasePlugin, hook
+from electrum.i18n import _
 import random
 
 

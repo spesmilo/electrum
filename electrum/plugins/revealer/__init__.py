@@ -1,4 +1,4 @@
-from ...lib.i18n import _
+from electrum.i18n import _
 
 fullname = _('Revealer')
 description = ''.join(["<br/>",

@@ -8,11 +8,11 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
-from ...lib.wallet import Wallet
-from ...lib.storage import WalletStorage
-from ...lib.util import UserCancelled, InvalidPassword
-from ...lib.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
-from ...lib.i18n import _
+from electrum.wallet import Wallet
+from electrum.storage import WalletStorage
+from electrum.util import UserCancelled, InvalidPassword
+from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
+from electrum.i18n import _
 
 from .seed_dialog import SeedLayout, KeysLayout
 from .network_dialog import NetworkChoiceLayout
