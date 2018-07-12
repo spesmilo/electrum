@@ -1,6 +1,0 @@
-#!/usr/bin/env python3
-import util, json
-from electrum.network import filter_protocol
-peers = filter_protocol(util.get_peers())
-results = util.send_request(peers, 'blockchain.estimatefee', [2])
-print(json.dumps(results, indent=4))
