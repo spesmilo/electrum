@@ -1,7 +1,7 @@
 #!/bin/bash
 
 NAME_ROOT=electrum
-PYTHON_VERSION=3.5.4
+PYTHON_VERSION=3.6.6
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
