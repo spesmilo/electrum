@@ -341,6 +341,12 @@
     "Bitcointoyou": [
         "BRL"
     ],
+    "BitcoinVenezuela": [
+        "ARS",
+        "EUR",
+        "USD",
+        "VEF"
+    ],    
     "Bitmarket": [
         "PLN"
     ],
