@@ -139,7 +139,7 @@ def run_non_RPC(config):
             storage.write()
             wallet = Wallet(storage)
         if not config.get('offline'):
-            network = Network(config)
+            network = ElectrumX(config)
             network.start()
             wallet.start_threads(network)
             print_msg("Recovering wallet...")
