@@ -105,16 +105,14 @@ class WsClientThread(util.DaemonThread):
                 continue
             util.print_error('response', r)
             method = r.get('method')
+            scripthash = r.get('params')[0]
             result = r.get('result')
             if result is None:
                 continue
             if method == 'blockchain.scripthash.subscribe':
-                addr = r.get('params')[0]
-                scripthash = bitcoin.address_to_scripthash(addr)
                 self.network.get_balance_for_scripthash(
                         scripthash, self.response_queue.put)
             elif method == 'blockchain.scripthash.get_balance':
-                scripthash = r.get('params')[0]
                 subscription = self.subscriptions.get(scripthash, [])
                 for ws, amount in subscription:
                     if not ws.closed:
