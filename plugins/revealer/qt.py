@@ -56,8 +56,9 @@ class Plugin(BasePlugin):
         make_dir(self.base_dir)
 
     @hook
-    def set_seed(self, seed, parent):
+    def set_seed(self, seed, has_extension, parent):
         self.cseed = seed.upper()
+        self.has_extension = has_extension
         parent.addButton(':icons/revealer.png', partial(self.setup_dialog, parent), "Revealer"+_(" secret backup utility"))
 
     def requires_settings(self):
@@ -165,6 +166,10 @@ class Plugin(BasePlugin):
         self.rawnoise = False
         dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at:").format(self.was, self.version, self.code_id),
                                      "<br/>","<b>", self.base_dir+ self.filename+self.version+"_"+self.code_id,"</b>"]))
+        dialog.close()
+
+    def ext_warning(self, dialog):
+        dialog.show_message(''.join(["<b>",_("Warning: "), "</b>", _("your seed extension will not be included in the encrypted backup.")]))
         dialog.close()
 
     def bdone(self, dialog):
@@ -358,6 +363,9 @@ class Plugin(BasePlugin):
         else:
             self.filename = self.wallet_name+'_'+ _('seed')+'_'
             self.was = self.wallet_name +' ' + _('seed')
+
+        if self.has_extension:
+            self.ext_warning(self.c_dialog)
 
         if not calibration:
             self.toPdf(QImage(cypherseed))
