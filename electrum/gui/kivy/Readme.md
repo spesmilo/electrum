@@ -112,15 +112,7 @@ e.g. those needed in the next step.
     ~/.buildozer/android/platform/android-sdk-20/tools/android update sdk -u -t build-tools-27.0.3,android-19,extra-android-m2repository
 
 
-## 9. Set apk version
-
-Create a file `contrib/versions.py` with contents similar to:
-```
-version_apk = '3.1.999' 
-```
-This will be the version of the Android app.
-
-## 10. Build the APK
+## 9. Build the APK
 
 ```sh
 contrib/make_apk
