@@ -112,4 +112,4 @@ See `contrib/build-wine/`.
 Android
 -------
 
-See `gui/kivy/Readme.txt` file.
+See `electrum/gui/kivy/Readme.md` file.
