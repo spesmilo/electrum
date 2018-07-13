@@ -26,6 +26,7 @@ class Test_LNRouter(unittest.TestCase):
     def test_find_path_for_payment(self):
         class fake_network:
             channel_db = lnrouter.ChannelDB()
+            trigger_callback = lambda x: None
         class fake_ln_worker:
             path_finder = lnrouter.LNPathFinder(fake_network.channel_db)
             privkey = bitcoin.sha256('privkeyseed')

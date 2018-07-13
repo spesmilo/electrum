@@ -100,6 +100,9 @@ class ChannelDB(PrintError):
         self._id_to_channel_info = {}
         self._channels_for_node = defaultdict(set)  # node -> set(short_channel_id)
 
+    def __len__(self):
+        return len(self._id_to_channel_info)
+
     def get_channel_info(self, channel_id):
         return self._id_to_channel_info.get(channel_id, None)
 
