@@ -1,7 +1,7 @@
 import binascii
 from kivy.lang import Builder
 from kivy.factory import Factory
-from electrum_gui.kivy.i18n import _
+from electrum.gui.kivy.i18n import _
 from kivy.clock import mainthread
 from electrum.lnaddr import lndecode
 
