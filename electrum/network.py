@@ -1283,14 +1283,6 @@ class Network(util.DaemonThread):
             invocation,
             callback)
 
-    def subscribe_to_address(self, address, callback=None):
-        command = 'blockchain.address.subscribe'
-        invocation = lambda c: self.send([(command, [address])], c)
-
-        return Network.__with_default_synchronous_callback(
-            invocation,
-            callback)
-
     def get_merkle_for_transaction(self, tx_hash, tx_height, callback=None):
         command = 'blockchain.transaction.get_merkle'
         invocation = lambda c: self._send([(command, [tx_hash, tx_height])], c)
