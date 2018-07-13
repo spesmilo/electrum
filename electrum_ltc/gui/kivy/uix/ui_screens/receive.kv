@@ -1,0 +1,142 @@
+#:import _ electrum_ltc.gui.kivy.i18n._
+#:import Decimal decimal.Decimal
+#:set btc_symbol chr(171)
+#:set mbtc_symbol chr(187)
+#:set font_light 'electrum_ltc/gui/kivy/data/fonts/Roboto-Condensed.ttf'
+
+
+
+ReceiveScreen:
+    id: s
+    name: 'receive'
+
+    address: ''
+    amount: ''
+    message: ''
+    status: ''
+
+    on_address:
+        self.parent.on_address(self.address)
+    on_amount:
+        self.parent.on_amount_or_message()
+    on_message:
+        self.parent.on_amount_or_message()
+
+    BoxLayout
+        padding: '12dp', '12dp', '12dp', '12dp'
+        spacing: '12dp'
+        orientation: 'vertical'
+        size_hint: 1, 1
+        FloatLayout:
+            id: bl
+            QRCodeWidget:
+                id: qr
+                size_hint: None, 1
+                width: min(self.height, bl.width)
+                pos_hint: {'center': (.5, .5)}
+                shaded: False
+                foreground_color: (0, 0, 0, 0.5) if self.shaded else (0, 0, 0, 0)
+                on_touch_down:
+                    touch = args[1]
+                    if self.collide_point(*touch.pos): self.shaded = not self.shaded
+            Label:
+                text: root.status
+                opacity: 1 if root.status else 0
+                pos_hint: {'center': (.5, .5)}
+                size_hint: None, 1
+                width: min(self.height, bl.width)
+                bcolor: 0.3, 0.3, 0.3, 0.9
+                canvas.before:
+                    Color:
+                        rgba: self.bcolor
+                    Rectangle:
+                        pos: self.pos
+                        size: self.size
+
+        SendReceiveBlueBottom:
+            id: blue_bottom
+            size_hint: 1, None
+            height: self.minimum_height
+            BoxLayout:
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://electrum_ltc/gui/kivy/theming/light/globe'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                BlueButton:
+                    id: address_label
+                    text: s.address if s.address else _('Litecoin Address')
+                    shorten: True
+                    on_release: Clock.schedule_once(lambda dt: app.addresses_dialog(s))
+            CardSeparator:
+                opacity: message_selection.opacity
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://electrum_ltc/gui/kivy/theming/light/calculator'
+                    opacity: 0.7
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                BlueButton:
+                    id: amount_label
+                    default_text: _('Amount')
+                    text: s.amount if s.amount else _('Amount')
+                    on_release: Clock.schedule_once(lambda dt: app.amount_dialog(s, False))
+            CardSeparator:
+                opacity: message_selection.opacity
+                color: blue_bottom.foreground_color
+            BoxLayout:
+                id: message_selection
+                opacity: 1
+                size_hint: 1, None
+                height: blue_bottom.item_height
+                spacing: '5dp'
+                Image:
+                    source: 'atlas://electrum_ltc/gui/kivy/theming/light/pen'
+                    size_hint: None, None
+                    size: '22dp', '22dp'
+                    pos_hint: {'center_y': .5}
+                BlueButton:
+                    id: description
+                    text: s.message if s.message else _('Description')
+                    on_release: Clock.schedule_once(lambda dt: app.description_dialog(s))
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            IconButton:
+                icon: 'atlas://electrum_ltc/gui/kivy/theming/light/save'
+                size_hint: 0.6, None
+                height: '48dp'
+                on_release: s.parent.do_save()
+            Button:
+                text: _('Requests')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: Clock.schedule_once(lambda dt: app.requests_dialog(s))
+            Button:
+                text: _('Copy')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: s.parent.do_copy()
+            IconButton:
+                icon: 'atlas://electrum_ltc/gui/kivy/theming/light/share'
+                size_hint: 0.6, None
+                height: '48dp'
+                on_release: s.parent.do_share()
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Widget
+                size_hint: 2, 1
+            Button:
+                text: _('New')
+                size_hint: 1, None
+                height: '48dp'
+                on_release: Clock.schedule_once(lambda dt: s.parent.do_new())

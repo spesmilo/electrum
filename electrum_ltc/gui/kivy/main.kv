@@ -1,0 +1,464 @@
+#:import Clock kivy.clock.Clock
+#:import Window kivy.core.window.Window
+#:import Factory kivy.factory.Factory
+#:import _ electrum_ltc.gui.kivy.i18n._
+
+
+###########################
+#     Global Defaults
+###########################
+
+<Label>
+    markup: True
+    font_name: 'Roboto'
+    font_size: '16sp'
+    bound: False
+    on_text: if isinstance(self.text, _) and not self.bound: self.bound=True; _.bind(self)
+
+<TextInput>
+    on_focus: app._focused_widget = root
+    font_size: '18sp'
+
+<Button>
+    on_parent: self.MIN_STATE_TIME = 0.1
+
+<ListItemButton>
+    font_size: '12sp'
+
+<Carousel>:
+    canvas.before:
+        Color:
+            rgba: 0.1, 0.1, 0.1, 1
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<ActionView>:
+    canvas.before:
+        Color:
+            rgba: 0.1, 0.1, 0.1, 1
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+
+# Custom Global Widgets
+
+<TopLabel>
+    size_hint_y: None
+    text_size: self.width, None
+    height: self.texture_size[1]
+
+<VGridLayout@GridLayout>:
+    rows: 1
+    size_hint: 1, None
+    height: self.minimum_height
+
+
+
+<IconButton@Button>:
+    icon: ''
+    AnchorLayout:
+        pos: self.parent.pos
+        size: self.parent.size
+        orientation: 'lr-tb'
+        Image:
+            source: self.parent.parent.icon
+            size_hint_x: None
+            size: '30dp', '30dp'
+
+
+
+#########################
+#       Dialogs
+#########################
+<BoxLabel@BoxLayout>
+    text: ''
+    value: ''
+    size_hint_y: None
+    height: max(lbl1.height, lbl2.height)
+    TopLabel
+        id: lbl1
+        text: root.text
+        pos_hint: {'top':1}
+    TopLabel
+        id: lbl2
+        text: root.value
+
+<OutputItem>
+    address: ''
+    value: ''
+    size_hint_y: None
+    height: max(lbl1.height, lbl2.height)
+    TopLabel
+        id: lbl1
+        text: '[ref=%s]%s[/ref]'%(root.address, root.address)
+        font_size: '6pt'
+        shorten: True
+        size_hint_x: 0.65
+        on_ref_press:
+            app._clipboard.copy(root.address)
+            app.show_info(_('Address copied to clipboard') + ' ' + root.address)
+    TopLabel
+        id: lbl2
+        text: root.value
+        font_size: '6pt'
+        size_hint_x: 0.35
+        halign: 'right'
+
+
+<OutputList>
+    viewclass: 'OutputItem'
+    size_hint: 1, None
+    height: min(output_list_layout.minimum_height, dp(144))
+    scroll_type: ['bars', 'content']
+    bar_width: dp(15)
+    RecycleBoxLayout:
+        orientation: 'vertical'
+        default_size: None, pt(6)
+        default_size_hint: 1, None
+        size_hint: 1, None
+        height: self.minimum_height
+        id: output_list_layout
+        spacing: '10dp'
+        padding: '10dp'
+        canvas.before:
+            Color:
+                rgb: .3, .3, .3
+            Rectangle:
+                size: self.size
+                pos: self.pos
+
+<RefLabel>
+    font_size: '6pt'
+    name: ''
+    data: ''
+    text: self.data
+    touched: False
+    padding: '10dp', '10dp'
+    on_touch_down:
+        touch = args[1]
+        if self.collide_point(*touch.pos): app.on_ref_label(self, touch)
+        else: self.touched = False
+    canvas.before:
+        Color:
+            rgb: .3, .3, .3
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<TxHashLabel@RefLabel>
+    data: ''
+    text: ' '.join(map(''.join, zip(*[iter(self.data)]*4))) if self.data else ''
+
+<InfoBubble>
+    size_hint: None, None
+    width: '270dp' if root.fs else min(self.width, dp(270))
+    height: self.width if self.fs else (lbl.texture_size[1] + dp(27))
+    BoxLayout:
+        padding: '5dp' if root.fs else 0
+        Widget:
+            size_hint: None, 1
+            width: '4dp' if root.fs else '2dp'
+        Image:
+            id: img
+            source: root.icon
+            mipmap: True
+            size_hint: None, 1
+            width: (root.width - dp(20)) if root.fs  else (0 if not root.icon else '32dp')
+        Widget:
+            size_hint_x: None
+            width: '5dp'
+        Label:
+            id: lbl
+            markup: True
+            font_size: '12sp'
+            text: root.message
+            text_size: self.width, None
+            valign: 'middle'
+            size_hint: 1, 1
+            width: 0 if root.fs else (root.width - img.width)
+
+
+<SendReceiveBlueBottom@GridLayout>
+    item_height: dp(42)
+    foreground_color: .843, .914, .972, 1
+    cols: 1
+    padding: '12dp', 0
+    canvas.before:
+        Color:
+            rgba: 0.192, .498, 0.745, 1
+        BorderImage:
+            source: 'atlas://electrum_ltc/gui/kivy/theming/light/card_bottom'
+            size: self.size
+            pos: self.pos
+
+
+<AddressFilter@GridLayout>
+	item_height: dp(42)
+	item_width: dp(60)
+	foreground_color: .843, .914, .972, 1
+	cols: 1
+	canvas.before:
+		Color:
+			rgba: 0.192, .498, 0.745, 1
+		BorderImage:
+			source: 'atlas://electrum_ltc/gui/kivy/theming/light/card_bottom'
+			size: self.size
+			pos: self.pos
+
+<SearchBox@GridLayout>
+	item_height: dp(42)
+	foreground_color: .843, .914, .972, 1
+	cols: 1
+	padding: '12dp', 0
+	canvas.before:
+		Color:
+			rgba: 0.192, .498, 0.745, 1
+        BorderImage:
+            source: 'atlas://electrum_ltc/gui/kivy/theming/light/card_bottom'
+            size: self.size
+            pos: self.pos
+
+<CardSeparator@Widget>
+    size_hint: 1, None
+    height: dp(1)
+    color: .909, .909, .909, 1
+    canvas:
+        Color:
+            rgba: root.color if root.color else (0, 0, 0, 0)
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<CardItem@ToggleButtonBehavior+BoxLayout>
+    size_hint: 1, None
+    height: '65dp'
+    group: 'requests'
+    padding: dp(12)
+    spacing: dp(5)
+    screen: None
+    on_release:
+        self.screen.show_menu(args[0]) if self.state == 'down' else self.screen.hide_menu()
+    canvas.before:
+        Color:
+            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.15, 0.15, 0.17, 1)
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<BlueButton@Button>:
+    background_color: 1, .585, .878, 0
+    halign: 'left'
+    text_size: (self.width-10, None)
+    size_hint: 0.5, None
+    default_text: ''
+    text: self.default_text
+    padding: '5dp', '5dp'
+    height: '40dp'
+    text_color: self.foreground_color
+    disabled_color: 1, 1, 1, 1
+    foreground_color: 1, 1, 1, 1
+    canvas.before:
+        Color:
+            rgba: (0.9, .498, 0.745, 1) if self.state == 'down' else self.background_color
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<AddressButton@Button>:
+	background_color: 1, .585, .878, 0
+	halign: 'center'
+	text_size: (self.width, None)
+	shorten: True
+	size_hint: 0.5, None
+	default_text: ''
+	text: self.default_text
+	padding: '5dp', '5dp'
+	height: '40dp'
+	text_color: self.foreground_color
+	disabled_color: 1, 1, 1, 1
+	foreground_color: 1, 1, 1, 1
+	canvas.before:
+		Color:
+			rgba: (0.9, .498, 0.745, 1) if self.state == 'down' else self.background_color
+		Rectangle:
+			size: self.size
+			pos: self.pos
+
+<KButton@Button>:
+    size_hint: 1, None
+    height: '60dp'
+    font_size: '30dp'
+    on_release:
+        self.parent.update_amount(self.text)
+
+
+<StripLayout>
+    padding: 0, 0, 0, 0
+
+<TabbedPanelStrip>:
+    on_parent:
+        if self.parent: self.parent.bar_width = 0
+        if self.parent: self.parent.scroll_x = 0.5
+
+
+<TabbedCarousel>
+    carousel: carousel
+    do_default_tab: False
+    Carousel:
+        scroll_timeout: 250
+        scroll_distance: '100dp'
+        anim_type: 'out_quart'
+        min_move: .05
+        anim_move_duration: .1
+        anim_cancel_duration: .54
+        on_index: root.on_index(*args)
+        id: carousel
+
+
+
+<CleanHeader@TabbedPanelHeader>
+    border: 16, 0, 16, 0
+    markup: False
+    text_size: self.size
+    halign: 'center'
+    valign: 'middle'
+    bold: True
+    font_size: '12.5sp'
+    background_normal: 'atlas://electrum_ltc/gui/kivy/theming/light/tab_btn'
+    background_down: 'atlas://electrum_ltc/gui/kivy/theming/light/tab_btn_pressed'
+
+
+<ColoredLabel@Label>:
+    font_size: '48sp'
+    color: (.6, .6, .6, 1)
+    canvas.before:
+        Color:
+            rgb: (.9, .9, .9)
+        Rectangle:
+            pos: self.x + sp(2), self.y + sp(2)
+            size: self.width - sp(4), self.height - sp(4)
+
+
+<SettingsItem@ButtonBehavior+BoxLayout>
+    orientation: 'vertical'
+    title: ''
+    description: ''
+    size_hint: 1, None
+    height: '60dp'
+    canvas.before:
+        Color:
+            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 0)
+        Rectangle:
+            size: self.size
+            pos: self.pos
+    on_release:
+        Clock.schedule_once(self.action)
+    Widget
+    TopLabel:
+        id: title
+        text: self.parent.title
+        bold: True
+        halign: 'left'
+    TopLabel:
+        text: self.parent.description
+        color: 0.8, 0.8, 0.8, 1
+        halign: 'left'
+    Widget
+
+
+
+
+<ScreenTabs@Screen>
+    TabbedCarousel:
+        id: panel
+        tab_height: '48dp'
+        tab_width: panel.width/3
+        strip_border: 0, 0, 0, 0
+        SendScreen:
+            id: send_screen
+            tab: send_tab
+        HistoryScreen:
+            id: history_screen
+            tab: history_tab
+        ReceiveScreen:
+            id: receive_screen
+            tab: receive_tab
+        CleanHeader:
+            id: send_tab
+            text: _('Send')
+            slide: 0
+        CleanHeader:
+            id: history_tab
+            text: _('Balance')
+            slide: 1
+        CleanHeader:
+            id: receive_tab
+            text: _('Receive')
+            slide: 2
+
+
+<ActionOvrButton@ActionButton>
+    #on_release:
+        # fixme: the following line was commented out because it does not seem to do what it is intended
+        # Clock.schedule_once(lambda dt: self.parent.parent.dismiss() if self.parent else None, 0.05)
+    on_press:
+        Clock.schedule_once(lambda dt: app.popup_dialog(self.name), 0.05)
+        self.state = 'normal'
+
+
+BoxLayout:
+    orientation: 'vertical'
+
+    canvas.before:
+        Color:
+            rgb: .6, .6, .6
+        Rectangle:
+            size: self.size
+            source: 'electrum_ltc/gui/kivy/data/background.png'
+
+    ActionBar:
+
+        ActionView:
+            id: av
+            ActionPrevious:
+                app_icon: 'atlas://electrum_ltc/gui/kivy/theming/light/logo'
+                app_icon_width: '100dp'
+                with_previous: False
+                size_hint_x: None
+                on_release: app.popup_dialog('network')
+
+            ActionButton:
+                id: action_status
+                important: True
+                size_hint: 1, 1
+                bold: True
+                color: 0.7, 0.7, 0.7, 1
+                text: app.status
+                font_size: '22dp'
+                #minimum_width: '1dp'
+                on_release: app.popup_dialog('status')
+
+            ActionOverflow:
+                id: ao
+                ActionOvrButton:
+                    name: 'about'
+                    text: _('About')
+                ActionOvrButton:
+                    name: 'wallets'
+                    text: _('Wallets')
+                ActionOvrButton:
+                    name: 'network'
+                    text: _('Network')
+                ActionOvrButton:
+                    name: 'settings'
+                    text: _('Settings')
+                    on_parent:
+                        # when widget overflow drop down is shown, adjust the width
+                        parent = args[1]
+                        if parent: ao._dropdown.width = sp(200)
+    ScreenManager:
+        id: manager
+        ScreenTabs:
+            id: tabs

@@ -62,8 +62,8 @@ popd
 rm -rf $WINEPREFIX/drive_c/electrum-ltc
 cp -r electrum-ltc $WINEPREFIX/drive_c/electrum-ltc
 cp electrum-ltc/LICENCE .
-cp -r ./electrum-ltc/contrib/deterministic-build/electrum-ltc-locale/locale $WINEPREFIX/drive_c/electrum-ltc/lib/
-cp ./electrum-ltc/contrib/deterministic-build/electrum-ltc-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-ltc/gui/qt/
+cp -r ./electrum-ltc/contrib/deterministic-build/electrum-ltc-locale/locale $WINEPREFIX/drive_c/electrum-ltc/electrum_ltc/
+cp ./electrum-ltc/contrib/deterministic-build/electrum-ltc-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-ltc/electrum_ltc/gui/qt/
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt

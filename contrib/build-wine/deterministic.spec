@@ -32,10 +32,9 @@ binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]
 binaries += [('C:/tmp/libsecp256k1.dll', '.')]
 
 datas = [
-    (home+'lib/*.json', 'electrum_ltc'),
-    (home+'lib/wordlist/english.txt', 'electrum_ltc/wordlist'),
-    (home+'lib/locale', 'electrum_ltc/locale'),
-    (home+'plugins', 'electrum_ltc_plugins'),
+    (home+'electrum_ltc/*.json', 'electrum_ltc'),
+    (home+'electrum_ltc/wordlist/english.txt', 'electrum_ltc/wordlist'),
+    (home+'electrum_ltc/locale', 'electrum_ltc/locale'),
     ('C:\\Program Files (x86)\\ZBar\\bin\\', '.')
 ]
 datas += collect_data_files('trezorlib')
@@ -43,22 +42,22 @@ datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
-a = Analysis([home+'electrum-ltc',
-              home+'gui/qt/main_window.py',
-              home+'gui/text.py',
-              home+'lib/util.py',
-              home+'lib/wallet.py',
-              home+'lib/simple_config.py',
-              home+'lib/bitcoin.py',
-              home+'lib/blockchain.py',
-              home+'lib/dnssec.py',
-              home+'lib/commands.py',
-              home+'plugins/cosigner_pool/qt.py',
-              home+'plugins/email_requests/qt.py',
-              home+'plugins/trezor/client.py',
-              home+'plugins/trezor/qt.py',
-              home+'plugins/keepkey/qt.py',
-              home+'plugins/ledger/qt.py',
+a = Analysis([home+'run_electrum',
+              home+'electrum_ltc/gui/qt/main_window.py',
+              home+'electrum_ltc/gui/text.py',
+              home+'electrum_ltc/util.py',
+              home+'electrum_ltc/wallet.py',
+              home+'electrum_ltc/simple_config.py',
+              home+'electrum_ltc/bitcoin.py',
+              home+'electrum_ltc/blockchain.py',
+              home+'electrum_ltc/dnssec.py',
+              home+'electrum_ltc/commands.py',
+              home+'electrum_ltc/plugins/cosigner_pool/qt.py',
+              home+'electrum_ltc/plugins/email_requests/qt.py',
+              home+'electrum_ltc/plugins/trezor/client.py',
+              home+'electrum_ltc/plugins/trezor/qt.py',
+              home+'electrum_ltc/plugins/keepkey/qt.py',
+              home+'electrum_ltc/plugins/ledger/qt.py',
               #home+'packages/requests/utils.py'
               ],
              binaries=binaries,
@@ -70,7 +69,7 @@ a = Analysis([home+'electrum-ltc',
 
 # http://stackoverflow.com/questions/19055089/pyinstaller-onefile-warning-pyconfig-h-when-importing-scipy-or-scipy-signal
 for d in a.datas:
-    if 'pyconfig' in d[0]: 
+    if 'pyconfig' in d[0]:
         a.datas.remove(d)
         break
 
@@ -87,7 +86,7 @@ exe_standalone = EXE(
     pyz,
     a.scripts,
     a.binaries,
-    a.datas, 
+    a.datas,
     name=os.path.join('build\\pyi.win32\\electrum-ltc', cmdline_name + ".exe"),
     debug=False,
     strip=None,

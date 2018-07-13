@@ -15,7 +15,7 @@ with open('contrib/requirements/requirements.txt') as f:
 with open('contrib/requirements/requirements-hw.txt') as f:
     requirements_hw = f.read().splitlines()
 
-version = imp.load_source('version', 'lib/version.py')
+version = imp.load_source('version', 'electrum_ltc/version.py')
 
 if sys.version_info[:3] < (3, 4, 0):
     sys.exit("Error: Electrum requires Python version >= 3.4.0...")
@@ -55,34 +55,32 @@ setup(
     extras_require=extras_require,
     packages=[
         'electrum_ltc',
-        'electrum_ltc_gui',
-        'electrum_ltc_gui.qt',
-        'electrum_ltc_plugins',
-        'electrum_ltc_plugins.audio_modem',
-        'electrum_ltc_plugins.cosigner_pool',
-        'electrum_ltc_plugins.email_requests',
-        'electrum_ltc_plugins.hw_wallet',
-        'electrum_ltc_plugins.keepkey',
-        'electrum_ltc_plugins.labels',
-        'electrum_ltc_plugins.ledger',
-        'electrum_ltc_plugins.revealer',
-        'electrum_ltc_plugins.trezor',
-        'electrum_ltc_plugins.digitalbitbox',
-        'electrum_ltc_plugins.virtualkeyboard',
+        'electrum_ltc.gui',
+        'electrum_ltc.gui.qt',
+        'electrum_ltc.plugins',
+        'electrum_ltc.plugins.audio_modem',
+        'electrum_ltc.plugins.cosigner_pool',
+        'electrum_ltc.plugins.email_requests',
+        'electrum_ltc.plugins.hw_wallet',
+        'electrum_ltc.plugins.keepkey',
+        'electrum_ltc.plugins.labels',
+        'electrum_ltc.plugins.ledger',
+        'electrum_ltc.plugins.revealer',
+        'electrum_ltc.plugins.trezor',
+        'electrum_ltc.plugins.digitalbitbox',
+        'electrum_ltc.plugins.virtualkeyboard',
     ],
     package_dir={
-        'electrum_ltc': 'lib',
-        'electrum_ltc_gui': 'gui',
-        'electrum_ltc_plugins': 'plugins',
+        'electrum_ltc': 'electrum_ltc'
     },
     package_data={
         '': ['*.txt', '*.json', '*.ttf', '*.otf'],
         'electrum_ltc': [
-            'wordlist/*.txt',
-            'locale/*/LC_MESSAGES/electrum.mo',
+            'electrum_ltc/wordlist/*.txt',
+            'electrum_ltc/locale/*/LC_MESSAGES/electrum.mo',
         ],
     },
-    scripts=['electrum-ltc'],
+    scripts=['electrum_ltc/electrum-ltc'],
     data_files=data_files,
     description="Lightweight Litecoin Wallet",
     author="Thomas Voegtlin",

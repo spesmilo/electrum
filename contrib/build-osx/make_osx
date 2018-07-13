@@ -46,8 +46,8 @@ git submodule update
 rm  -rf $BUILDDIR > /dev/null 2>&1
 mkdir $BUILDDIR
 
-cp -R ./contrib/deterministic-build/electrum-ltc-locale/locale/ ./lib/locale/
-cp    ./contrib/deterministic-build/electrum-ltc-icons/icons_rc.py ./gui/qt/
+cp -R ./contrib/deterministic-build/electrum-ltc-locale/locale/ ./electrum_ltc/locale/
+cp    ./contrib/deterministic-build/electrum-ltc-icons/icons_rc.py ./electrum_ltc/gui/qt/
 
 
 info "Downloading libusb..."
