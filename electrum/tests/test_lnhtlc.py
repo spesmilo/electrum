@@ -1,11 +1,11 @@
 # ported from lnd 42de4400bff5105352d0552155f73589166d162b
 
 import unittest
-import lib.bitcoin as bitcoin
-import lib.lnbase as lnbase
-import lib.lnhtlc as lnhtlc
-import lib.lnutil as lnutil
-import lib.util as util
+import electrum.bitcoin as bitcoin
+import electrum.lnbase as lnbase
+import electrum.lnhtlc as lnhtlc
+import electrum.lnutil as lnutil
+import electrum.util as util
 import os
 import binascii
 
