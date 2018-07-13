@@ -34,6 +34,8 @@ MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
 class MissingHeader(Exception):
     pass
 
+class InvalidHeader(Exception):
+    pass
 
 def serialize_header(res):
     s = int_to_hex(res.get('version'), 4) \
@@ -46,9 +48,9 @@ def serialize_header(res):
 
 def deserialize_header(s, height):
     if not s:
-        raise Exception('Invalid header: {}'.format(s))
+        raise InvalidHeader('Invalid header: {}'.format(s))
     if len(s) != 80:
-        raise Exception('Invalid header length: {}'.format(len(s)))
+        raise InvalidHeader('Invalid header length: {}'.format(len(s)))
     hex_to_int = lambda s: int('0x' + bh2u(s[::-1]), 16)
     h = {}
     h['version'] = hex_to_int(s[0:4])
