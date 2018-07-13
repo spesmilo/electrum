@@ -19,13 +19,13 @@ source.include_exts = py,png,jpg,kv,atlas,ttf,txt,gif,pem,mo,vs,fs,json
 source.exclude_exts = spec
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-source.exclude_dirs = bin, build, dist, contrib, gui/qt, gui/kivy/tools, gui/kivy/theming/light
+source.exclude_dirs = bin, build, dist, contrib, electrum/gui/qt, electrum/gui/kivy/tools, electrum/gui/kivy/theming/light
 # (list) List of exclusions using pattern matching
 source.exclude_patterns = Makefile,setup*
 
 # (str) Application versioning (method 1)
 version.regex = APK_VERSION = '(.*)'
-version.filename = %(source.dir)s/lib/version.py
+version.filename = %(source.dir)s/electrum/version.py
 
 # (str) Application versioning (method 2)
 #version = 1.9.8
@@ -87,7 +87,7 @@ android.ndk_path = /opt/crystax-ndk-10.3.2
 
 # (list) List of Java files to add to the android project (can be java or a
 # directory containing the files)
-android.add_src = gui/kivy/data/java-classes/
+android.add_src = electrum/gui/kivy/data/java-classes/
 
 android.gradle_dependencies = me.dm7.barcodescanner:zxing:1.9.8
 
@@ -105,7 +105,7 @@ android.add_activities = org.electrum.qr.SimpleScannerActivity
 #android.ouya.icon.filename = %(source.dir)s/data/ouya_icon.png
 
 # (str) XML file to include as an intent filters in <activity> tag
-android.manifest.intent_filters = gui/kivy/tools/bitcoin_intent.xml
+android.manifest.intent_filters = electrum/gui/kivy/tools/bitcoin_intent.xml
 
 # (str) launchMode to set for the main activity
 android.manifest.launch_mode = singleTask
