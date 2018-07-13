@@ -1,9 +1,9 @@
 import unittest
 
-from lib.util import bh2u, bfh
-from lib.lnbase import Peer
-from lib.lnrouter import OnionHopsDataSingle, new_onion_packet, OnionPerHop
-from lib import bitcoin, lnrouter
+from electrum.util import bh2u, bfh
+from electrum.lnbase import Peer
+from electrum.lnrouter import OnionHopsDataSingle, new_onion_packet, OnionPerHop
+from electrum import bitcoin, lnrouter
 
 class Test_LNRouter(unittest.TestCase):
 

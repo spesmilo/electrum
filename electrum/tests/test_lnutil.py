@@ -1,12 +1,12 @@
 import unittest
 import json
-from lib import bitcoin
-from lib.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
+from electrum import bitcoin
+from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
                         make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
                         make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
                         derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret)
-from lib.util import bh2u, bfh
-from lib.transaction import Transaction
+from electrum.util import bh2u, bfh
+from electrum.transaction import Transaction
 
 funding_tx_id = '8984484a580b825b9972d7adb15050b3ab624ccd731946b3eeddb92f4e7ef6be'
 funding_output_index = 0
