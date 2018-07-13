@@ -130,6 +130,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.create_status_bar()
         self.need_update = threading.Event()
+        self.need_update_ln = threading.Event()
 
         self.decimal_point = config.get('decimal_point', DECIMAL_POINT_DEFAULT)
         try:
@@ -195,7 +196,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
                          'new_transaction', 'status',
                          'banner', 'verified', 'fee', 'fee_histogram', 'on_quotes',
-                         'on_history', 'channel', 'channels']
+                         'on_history', 'channel', 'channels', 'ln_status']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -319,6 +320,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.channels_list.update_rows.emit(*args)
         elif event == 'channel':
             self.channels_list.update_single_row.emit(*args)
+        elif event == 'ln_status':
+            self.need_update_ln.set()
         else:
             self.print_error("unexpected network message:", event, args)
 
@@ -670,6 +673,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.need_update.is_set():
             self.need_update.clear()
             self.update_wallet()
+        if self.need_update_ln.is_set():
+            self.need_update_ln.clear()
+            self.channels_list.update_status()
         # resolve aliases
         # FIXME this is a blocking network call that has a timeout of 5 sec
         self.payto_e.resolve()
