@@ -70,7 +70,7 @@ class ChannelInfo(PrintError):
             self.policy_node1 = ChannelInfoDirectedPolicy(msg_payload)
         else:
             self.policy_node2 = ChannelInfoDirectedPolicy(msg_payload)
-        self.print_error('channel update', binascii.hexlify(self.channel_id).decode("ascii"), flags)
+        #self.print_error('channel update', binascii.hexlify(self.channel_id).decode("ascii"), flags)
 
     def get_policy_for_node(self, node_id):
         if node_id == self.node_id_1:
@@ -112,7 +112,7 @@ class ChannelDB(PrintError):
 
     def on_channel_announcement(self, msg_payload):
         short_channel_id = msg_payload['short_channel_id']
-        self.print_error('channel announcement', binascii.hexlify(short_channel_id).decode("ascii"))
+        #self.print_error('channel announcement', binascii.hexlify(short_channel_id).decode("ascii"))
         channel_info = ChannelInfo(msg_payload)
         self._id_to_channel_info[short_channel_id] = channel_info
         self._channels_for_node[channel_info.node_id_1].add(short_channel_id)

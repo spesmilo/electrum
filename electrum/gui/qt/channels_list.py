@@ -87,7 +87,7 @@ class ChannelsList(MyTreeWidget):
         push_amt_inp.setAmount(0)
         h.addWidget(QLabel(_('Your Node ID')), 0, 0)
         h.addWidget(local_nodeid, 0, 1)
-        h.addWidget(QLabel(_('Remote Node ID')), 1, 0)
+        h.addWidget(QLabel(_('Remote Node ID or connection string')), 1, 0)
         h.addWidget(remote_nodeid, 1, 1)
         h.addWidget(QLabel('Local amount'), 2, 0)
         h.addWidget(local_amt_inp, 2, 1)
@@ -97,19 +97,43 @@ class ChannelsList(MyTreeWidget):
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if not d.exec_():
             return
-        nodeid_hex = str(remote_nodeid.text())
         local_amt = local_amt_inp.get_amount()
         push_amt = push_amt_inp.get_amount()
+        connect_contents = str(remote_nodeid.text())
+        rest = None
+        try:
+            nodeid_hex, rest = connect_contents.split("@")
+        except ValueError:
+            nodeid_hex = connect_contents
         try:
             node_id = bfh(nodeid_hex)
+            assert len(node_id) == 33
         except:
-            self.parent.show_error(_('Invalid node ID'))
+            self.parent.show_error(_('Invalid node ID, must be 33 bytes and hexadecimal'))
             return
-        if node_id not in self.parent.wallet.lnworker.peers and node_id not in self.parent.network.lightning_nodes:
-            self.parent.show_error(_('Unknown node:') + ' ' + nodeid_hex)
-            return
-        assert local_amt >= 200000
-        assert local_amt >= push_amt
+        peer = self.parent.wallet.lnworker.peers.get(node_id)
+
+        if not peer:
+            known = node_id in self.parent.network.lightning_nodes
+            if rest is not None:
+                try:
+                    host, port = rest.split(":")
+                except ValueError:
+                    self.parent.show_error(_('Connection strings must be in <node_pubkey>@<host>:<port> format'))
+            elif known:
+                node = self.network.lightning_nodes.get(node_id)
+                host, port = node['addresses'][0]
+            else:
+                self.parent.show_error(_('Unknown node:') + ' ' + nodeid_hex)
+                return
+            try:
+                int(port)
+            except:
+                self.parent.show_error(_('Port number must be decimal'))
+                return
+
+            self.parent.wallet.lnworker.add_peer(host, port, node_id)
+
         self.main_window.protect(self.open_channel, (node_id, local_amt, push_amt))
 
     def open_channel(self, *args, **kwargs):
