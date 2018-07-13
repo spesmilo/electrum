@@ -1,8 +1,8 @@
 from hashlib import sha256
-from lib.lnaddr import shorten_amount, unshorten_amount, LnAddr, lnencode, lndecode, u5_to_bitarray, bitarray_to_u5
+from electrum.lnaddr import shorten_amount, unshorten_amount, LnAddr, lnencode, lndecode, u5_to_bitarray, bitarray_to_u5
 from decimal import Decimal
 from binascii import unhexlify, hexlify
-from lib.segwit_addr import bech32_encode, bech32_decode
+from electrum.segwit_addr import bech32_encode, bech32_decode
 import pprint
 import unittest
 

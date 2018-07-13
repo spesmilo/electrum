@@ -3,7 +3,7 @@ from kivy.lang import Builder
 from kivy.factory import Factory
 from kivy.uix.popup import Popup
 from kivy.clock import Clock
-from electrum_gui.kivy.uix.context_menu import ContextMenu
+from electrum.gui.kivy.uix.context_menu import ContextMenu
 
 Builder.load_string('''
 <LightningChannelItem@CardItem>
