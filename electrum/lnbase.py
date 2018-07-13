@@ -267,21 +267,24 @@ def create_ephemeral_key(privkey):
 
 
 def aiosafe(f):
+    # save exception in object.
+    # f must be a method of a PrintError instance.
+    # aiosafe calls should not be nested
     async def f2(*args, **kwargs):
+        self = args[0]
         try:
             return await f(*args, **kwargs)
-        except:
-            # if the loop isn't stopped
-            # run_forever in network.py would not return,
-            # the asyncioThread would not die,
-            # and we would block on shutdown
-            asyncio.get_event_loop().stop()
-            traceback.print_exc()
+        except BaseException as e:
+            self.print_msg("Exception in", f.__name__, ":", e.__class__.__name__, str(e))
+            self.exception = e
     return f2
+
+
 
 class Peer(PrintError):
 
     def __init__(self, lnworker, host, port, pubkey, request_initial_sync=False):
+        self.exception = None # set by aiosafe
         self.host = host
         self.port = port
         self.pubkey = pubkey
@@ -307,7 +310,7 @@ class Peer(PrintError):
         self.attempted_route = {}
 
     def diagnostic_name(self):
-        return self.host
+        return 'lnbase:' + self.host
 
     def ping_if_required(self):
         if time.time() - self.ping_time > 120:
@@ -455,7 +458,7 @@ class Peer(PrintError):
             'alias': alias,
             'addresses': addresses
         }
-        self.print_error('node announcement', binascii.hexlify(pubkey), alias, addresses)
+        #self.print_error('node announcement', binascii.hexlify(pubkey), alias, addresses)
         self.network.trigger_callback('ln_status')
 
     def on_init(self, payload):
@@ -476,8 +479,7 @@ class Peer(PrintError):
         else:
             self.announcement_signatures[channel_id].put_nowait(payload)
 
-    @aiosafe
-    async def main_loop(self):
+    async def initialize(self):
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
         await self.handshake()
         # send init
@@ -486,6 +488,10 @@ class Peer(PrintError):
         msg = await self.read_message()
         self.process_message(msg)
         self.initialized.set_result(True)
+
+    @aiosafe
+    async def main_loop(self):
+        await asyncio.wait_for(self.initialize(), 5)
         # loop
         while True:
             self.ping_if_required()
