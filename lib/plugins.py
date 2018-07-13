@@ -31,6 +31,8 @@ import pkgutil
 import time
 import threading
 
+import electrum_plugins as plugins
+
 from .util import print_error
 from .i18n import _
 from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
@@ -46,11 +48,6 @@ class Plugins(DaemonThread):
     @profiler
     def __init__(self, config, is_local, gui_name):
         DaemonThread.__init__(self)
-        if is_local:
-            find = imp.find_module('plugins')
-            plugins = imp.load_module('electrum_plugins', *find)
-        else:
-            import electrum_plugins as plugins
         self.pkgpath = os.path.dirname(plugins.__file__)
         self.config = config
         self.hw_wallets = {}
