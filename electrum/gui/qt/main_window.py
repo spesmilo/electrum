@@ -155,6 +155,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
         self.create_status_bar()
         self.need_update = threading.Event()
+        self.need_update_ln = threading.Event()
 
         self.decimal_point = config.get('decimal_point', DECIMAL_POINT_DEFAULT)
         try:
@@ -221,7 +222,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
                          'new_transaction', 'status',
                          'banner', 'verified', 'fee', 'fee_histogram', 'on_quotes',
-                         'on_history', 'channel', 'channels']
+                         'on_history', 'channel', 'channels', 'ln_status']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -369,6 +370,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.channels_list.update_rows.emit(*args)
         elif event == 'channel':
             self.channels_list.update_single_row.emit(*args)
+        elif event == 'ln_status':
+            self.need_update_ln.set()
         else:
             self.logger.info(f"unexpected network message: {event} {args}")
 

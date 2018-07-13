@@ -65,10 +65,11 @@ class ChannelsList(MyTreeWidget):
         h.addWidget(b)
         return h
 
-    def on_update(self):
+    def update_status(self):
         n = len(self.parent.network.lightning_nodes)
+        nc = len(self.parent.network.channel_db)
         np = len(self.parent.wallet.lnworker.peers)
-        self.status.setText(_('{} peers, {} nodes').format(np, n))
+        self.status.setText(_('{} peers, {} nodes, {} channels').format(np, n, nc))
 
     def new_channel_dialog(self):
         d = WindowModalDialog(self.parent, _('Open Channel'))

@@ -282,7 +282,6 @@ def aiosafe(f):
 class Peer(PrintError):
 
     def __init__(self, lnworker, host, port, pubkey, request_initial_sync=False):
-        self.channel_update_event = asyncio.Event()
         self.host = host
         self.port = port
         self.pubkey = pubkey
@@ -457,17 +456,17 @@ class Peer(PrintError):
             'addresses': addresses
         }
         self.print_error('node announcement', binascii.hexlify(pubkey), alias, addresses)
+        self.network.trigger_callback('ln_status')
 
     def on_init(self, payload):
         pass
 
     def on_channel_update(self, payload):
         self.channel_db.on_channel_update(payload)
-        self.channel_update_event.set()
 
     def on_channel_announcement(self, payload):
         self.channel_db.on_channel_announcement(payload)
-        self.channel_update_event.set()
+        self.network.trigger_callback('ln_status')
 
     def on_announcement_signatures(self, payload):
         channel_id = payload['channel_id']

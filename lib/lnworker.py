@@ -57,7 +57,7 @@ class LNWorker(PrintError):
         peer = Peer(self, host, int(port), node_id, request_initial_sync=self.config.get("request_initial_sync", True))
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[node_id] = peer
-        self.lock = threading.Lock()
+        self.network.trigger_callback('ln_status')
 
     def save_channel(self, openchannel):
         assert type(openchannel) is HTLCStateMachine
