@@ -254,6 +254,10 @@ class Blockchain(util.PrintError):
                 os.fsync(f.fileno())
             self.update_size()
 
+    def is_before_last_checkpoint(self, tx_height):
+        index = tx_height // 2016
+        return index < len(self.checkpoints)
+
     def save_header(self, header):
         delta = header.get('block_height') - self.checkpoint
         data = bfh(serialize_header(header))

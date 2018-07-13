@@ -124,6 +124,7 @@ class Synchronizer(ThreadJob):
         # tx_fees
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
         tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
+
         # Check that txids are unique
         if len(hashes) != len(result):
             self.print_error("error: server history has non-unique txids: %s"% addr)
