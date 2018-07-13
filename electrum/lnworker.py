@@ -5,12 +5,13 @@ import os
 from decimal import Decimal
 import threading
 from collections import defaultdict
+import random
 
 from . import constants
 from .bitcoin import sha256, COIN
 from .util import bh2u, bfh, PrintError
 from .constants import set_testnet, set_simnet
-from .lnbase import Peer, privkey_to_pubkey
+from .lnbase import Peer, privkey_to_pubkey, aiosafe
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .transaction import Transaction
@@ -39,15 +40,13 @@ class LNWorker(PrintError):
         self.peers = {}
         self.channels = {x.channel_id: x for x in map(HTLCStateMachine, wallet.storage.get("channels", []))}
         self.invoices = wallet.storage.get('lightning_invoices', {})
-        peer_list = network.config.get('lightning_peers', node_list)
         self.channel_state = {chan.channel_id: "DISCONNECTED" for chan in self.channels.values()}
         for chan_id, chan in self.channels.items():
             self.network.lnwatcher.watch_channel(chan, self.on_channel_utxos)
-        for host, port, pubkey in peer_list:
-            self.add_peer(host, int(port), bfh(pubkey))
         # wait until we see confirmations
         self.network.register_callback(self.on_network_update, ['updated', 'verified']) # thread safe
         self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
+        asyncio.run_coroutine_threadsafe(self.main_loop(), asyncio.get_event_loop())
 
     def channels_for_peer(self, node_id):
         assert type(node_id) is bytes
@@ -118,15 +117,9 @@ class LNWorker(PrintError):
                 conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
                 peer.on_network_update(chan, conf)
 
-    async def _open_channel_coroutine(self, node_id, amount_sat, push_sat, password):
-        if node_id not in self.peers:
-            node = self.network.lightning_nodes.get(node_id)
-            if node is None:
-                return "node not found, peers available are: " + str(self.network.lightning_nodes.keys())
-            host, port = node['addresses'][0]
-            self.add_peer(host, port, node_id)
+    async def _open_channel_coroutine(self, node_id, local_amount_sat, push_sat, password):
         peer = self.peers[node_id]
-        openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password, amount_sat, push_sat * 1000, temp_channel_id=os.urandom(32))
+        openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password, local_amount_sat + push_sat, push_sat * 1000, temp_channel_id=os.urandom(32))
         self.save_channel(openingchannel)
         self.network.lnwatcher.watch_channel(openingchannel, self.on_channel_utxos)
         self.on_channels_updated()
@@ -192,3 +185,24 @@ class LNWorker(PrintError):
         tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
         assert tx.is_complete()
         return self.network.broadcast_transaction(tx)
+
+    @aiosafe
+    async def main_loop(self):
+        peer_list = self.config.get('lightning_peers', node_list)
+        for host, port, pubkey in peer_list:
+            self.add_peer(host, int(port), bfh(pubkey))
+        while True:
+            await asyncio.sleep(1)
+            for k, peer in list(self.peers.items()):
+                if peer.exception:
+                    self.print_error("removing peer", peer.host)
+                    self.peers.pop(k)
+            if len(self.peers) > 3:
+                continue
+            node_id = random.choice(list(self.network.lightning_nodes.keys()))
+            node = self.network.lightning_nodes.get(node_id)
+            addresses = node.get('addresses')
+            if addresses:
+                host, port = addresses[0]
+                self.print_error("trying node", bh2u(node_id))
+                self.add_peer(host, port, node_id)
