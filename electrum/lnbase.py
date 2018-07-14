@@ -305,7 +305,7 @@ class Peer(PrintError):
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.update_fail_htlc = defaultdict(asyncio.Queue)
         self.localfeatures = (0x08 if request_initial_sync else 0)
-        self.channels = lnworker.channels
+        self.channels = lnworker.channels_for_peer(pubkey)
         self.invoices = lnworker.invoices
         self.attempted_route = {}
 
