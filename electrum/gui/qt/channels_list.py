@@ -72,12 +72,13 @@ class ChannelsList(MyTreeWidget):
         self.status.setText(_('{} peers, {} nodes, {} channels').format(np, n, nc))
 
     def new_channel_dialog(self):
+        lnworker = self.parent.wallet.lnworker
         d = WindowModalDialog(self.parent, _('Open Channel'))
         d.setFixedWidth(700)
         vbox = QVBoxLayout(d)
         h = QGridLayout()
         local_nodeid = QLineEdit()
-        local_nodeid.setText(bh2u(self.parent.wallet.lnworker.pubkey))
+        local_nodeid.setText(bh2u(lnworker.pubkey))
         local_nodeid.setReadOnly(True)
         local_nodeid.setCursorPosition(0)
         remote_nodeid = QLineEdit()
@@ -95,6 +96,9 @@ class ChannelsList(MyTreeWidget):
         h.addWidget(push_amt_inp, 3, 1)
         vbox.addLayout(h)
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
+        suggestion = lnworker.suggest_peer() or b''
+        remote_nodeid.setText(bh2u(suggestion))
+        remote_nodeid.setCursorPosition(0)
         if not d.exec_():
             return
         local_amt = local_amt_inp.get_amount()
@@ -111,8 +115,8 @@ class ChannelsList(MyTreeWidget):
         except:
             self.parent.show_error(_('Invalid node ID, must be 33 bytes and hexadecimal'))
             return
-        peer = self.parent.wallet.lnworker.peers.get(node_id)
 
+        peer = lnworker.peers.get(node_id)
         if not peer:
             known = node_id in self.parent.network.lightning_nodes
             if rest is not None:
@@ -131,8 +135,7 @@ class ChannelsList(MyTreeWidget):
             except:
                 self.parent.show_error(_('Port number must be decimal'))
                 return
-
-            self.parent.wallet.lnworker.add_peer(host, port, node_id)
+            lnworker.add_peer(host, port, node_id)
 
         self.main_window.protect(self.open_channel, (node_id, local_amt, push_amt))
 

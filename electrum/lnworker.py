@@ -43,10 +43,22 @@ class LNWorker(PrintError):
         self.channel_state = {chan.channel_id: "DISCONNECTED" for chan in self.channels.values()}
         for chan_id, chan in self.channels.items():
             self.network.lnwatcher.watch_channel(chan, self.on_channel_utxos)
+        peer_list = self.config.get('lightning_peers', node_list)
+        for host, port, pubkey in peer_list:
+            self.add_peer(host, int(port), bfh(pubkey))
         # wait until we see confirmations
         self.network.register_callback(self.on_network_update, ['updated', 'verified']) # thread safe
         self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
         self.network.futures.append(asyncio.run_coroutine_threadsafe(self.main_loop(), asyncio.get_event_loop()))
+
+    def suggest_peer(self):
+        for node_id, peer in self.peers.items():
+            print(bh2u(node_id), len(peer.channels))
+            if len(peer.channels) > 0:
+                continue
+            if not(peer.initialized.done()):
+                continue
+            return node_id
 
     def channels_for_peer(self, node_id):
         assert type(node_id) is bytes
@@ -63,8 +75,6 @@ class LNWorker(PrintError):
         if openchannel.channel_id not in self.channel_state:
             self.channel_state[openchannel.channel_id] = "OPENING"
         self.channels[openchannel.channel_id] = openchannel
-        for node_id, peer in self.peers.items():
-            peer.channels = self.channels_for_peer(node_id)
         if openchannel.remote_state.next_per_commitment_point == openchannel.remote_state.current_per_commitment_point:
             raise Exception("Tried to save channel with next_point == current_point, this should not happen")
         dumped = [x.serialize() for x in self.channels.values()]
@@ -188,9 +198,6 @@ class LNWorker(PrintError):
 
     @aiosafe
     async def main_loop(self):
-        peer_list = self.config.get('lightning_peers', node_list)
-        for host, port, pubkey in peer_list:
-            self.add_peer(host, int(port), bfh(pubkey))
         while True:
             await asyncio.sleep(1)
             for k, peer in list(self.peers.items()):
