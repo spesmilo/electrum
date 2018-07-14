@@ -46,7 +46,7 @@ class LNWorker(PrintError):
         # wait until we see confirmations
         self.network.register_callback(self.on_network_update, ['updated', 'verified']) # thread safe
         self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
-        asyncio.run_coroutine_threadsafe(self.main_loop(), asyncio.get_event_loop())
+        self.network.futures.append(asyncio.run_coroutine_threadsafe(self.main_loop(), asyncio.get_event_loop()))
 
     def channels_for_peer(self, node_id):
         assert type(node_id) is bytes
