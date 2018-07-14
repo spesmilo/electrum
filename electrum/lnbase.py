@@ -310,7 +310,7 @@ class Peer(PrintError):
         self.attempted_route = {}
 
     def diagnostic_name(self):
-        return 'lnbase:' + self.host
+        return 'lnbase:' + str(self.host)
 
     def ping_if_required(self):
         if time.time() - self.ping_time > 120:
