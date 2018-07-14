@@ -321,8 +321,6 @@ class SimpleConfig(PrintError):
             depth += s
             if fee <= target_fee:
                 break
-        else:
-            return 0
         return depth
 
     def depth_to_fee(self, slider_pos) -> int:
@@ -333,7 +331,7 @@ class SimpleConfig(PrintError):
     @impose_hard_limits_on_fee
     def depth_target_to_fee(self, target: int) -> int:
         """Returns fee in sat/kbyte.
-        target: desired mempool depth in sat/vbyte
+        target: desired mempool depth in vbytes
         """
         depth = 0
         for fee, s in self.mempool_fees:
