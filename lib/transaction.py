@@ -48,6 +48,13 @@ class SerializationError(Exception):
 class InputValueMissing(Exception):
     """ thrown when the value of an input is needed but not present """
 
+class OPReturnError(Exception):
+    """ thrown when the OP_RETURN for a tx not of the right format """
+
+class OPReturnTooLarge(OPReturnError):
+    """ thrown when the OP_RETURN for a tx is >220 bytes """
+
+
 class BCDataStream(object):
     def __init__(self):
         self.input = None
@@ -414,6 +421,7 @@ class Transaction:
             raise BaseException("cannot initialize transaction", raw)
         self._inputs = None
         self._outputs = None
+        self.op_return = None
         self.locktime = 0
         self.version = 1
 
@@ -421,9 +429,6 @@ class Transaction:
         self.raw = raw
         self._inputs = None
         self.deserialize()
-
-    def set_opreturn(self,op_return):
-        self.op_return=op_return
 
     def inputs(self):
         if self._inputs is None:
@@ -498,7 +503,12 @@ class Transaction:
         self._inputs = inputs
         self._outputs = outputs.copy()
         self.locktime = locktime
-        self.set_opreturn(op_return)
+        if op_return:
+            if not isinstance(op_return, str):
+                raise OPReturnError('OP_RETURN parameter needs to be of type \'str\'!')
+            elif len(op_return)//2 > 220:
+                raise OPReturnTooLarge("OP_RETURN needs to be max 220 bytes")
+        self.op_return = op_return
         return self
 
     @classmethod
@@ -626,13 +636,13 @@ class Transaction:
         return s
 
     def serialize_output_op_return(self):
-        amount=0
+        amount = 0
         s = int_to_hex(amount, 8)
-        op_return_code="6a4c"
-        op_return_payload=self.op_return
-        payload_len=int(len(op_return_payload)/2)
-        payload_len_hex= int_to_hex (payload_len,1)
-        script= op_return_code+payload_len_hex+op_return_payload
+        op_return_code = "6a4c"
+        op_return_payload = self.op_return
+        payload_len = int(len(op_return_payload)/2)
+        payload_len_hex = int_to_hex(payload_len,1)
+        script = op_return_code + payload_len_hex + op_return_payload
         s += var_int(len(script)//2)
         s += script
         return s

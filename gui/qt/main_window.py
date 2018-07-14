@@ -51,6 +51,7 @@ from electroncash.util import (format_time, format_satoshis, PrintError,
                            UserCancelled, bh2u, bfh, format_fee_satoshis)
 import electroncash.web as web
 from electroncash import Transaction
+from electroncash.transaction import OPReturnError, OPReturnTooLarge
 from electroncash import util, bitcoin, commands
 from electroncash import paymentrequest
 from electroncash.wallet import Multisig_Wallet, sweep_preparations
@@ -124,6 +125,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.checking_accounts = False
         self.qr_window = None
         self.not_enough_funds = False
+        self.op_return_toolong = False
         self.internalpluginsdialog = None
         self.externalpluginsdialog = None
         self.require_fee_update = False
@@ -1077,12 +1079,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         msg_opreturn = _('OP_RETURN data (optional).') + '\n\n'\
             + _('Posts a PERMANENT note to the BCH Blockchain as part of this transaction.')
-        self.opreturn_label = HelpLabel(_('Op_return'), msg_opreturn)
+        self.opreturn_label = HelpLabel(_('OP_RETURN'), msg_opreturn)
         grid.addWidget(self.opreturn_label,  3, 0)
         self.message_opreturn_e = MyLineEdit()
         grid.addWidget(self.message_opreturn_e,  3 , 1, 1, -1)
 
-        if self.config.get('enable_opreturn', False)==False: 
+        if not self.config.get('enable_opreturn'):
             self.message_opreturn_e.setText("")
             self.message_opreturn_e.setHidden(True)
             self.opreturn_label.setHidden(True)
@@ -1170,6 +1172,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.amount_e.shortcut.connect(self.spend_max)
         self.payto_e.textChanged.connect(self.update_fee)
         self.amount_e.textEdited.connect(self.update_fee)
+        self.message_opreturn_e.textEdited.connect(self.update_fee)
+        self.message_opreturn_e.textChanged.connect(self.update_fee)
+        self.message_opreturn_e.editingFinished.connect(self.update_fee)
 
         def reset_max(t):
             self.is_max = False
@@ -1192,13 +1197,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 amt_color, fee_color = ColorScheme.DEFAULT, ColorScheme.BLUE
             else:
                 amt_color, fee_color = ColorScheme.BLUE, ColorScheme.BLUE
+            opret_color = ColorScheme.DEFAULT
+            if self.op_return_toolong:
+                opret_color = ColorScheme.RED
+                text = _("OP_RETURN message too large, needs to be under 220 bytes") + (", " if text else "") + text
 
             self.statusBar().showMessage(text)
             self.amount_e.setStyleSheet(amt_color.as_stylesheet())
             self.fee_e.setStyleSheet(fee_color.as_stylesheet())
+            self.message_opreturn_e.setStyleSheet(opret_color.as_stylesheet())
 
         self.amount_e.textChanged.connect(entry_changed)
         self.fee_e.textChanged.connect(entry_changed)
+        self.message_opreturn_e.textChanged.connect(entry_changed)
+        self.message_opreturn_e.textEdited.connect(entry_changed)
+        self.message_opreturn_e.editingFinished.connect(entry_changed)
 
         self.invoices_label = QLabel(_('Invoices'))
         from .invoice_list import InvoiceList
@@ -1259,13 +1272,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 _type, addr = self.get_payto_or_dummy()
                 outputs = [(_type, addr, amount)]
             try:
-                opreturn_message = self.message_opreturn_e.text().encode('utf-8').hex()
+                opreturn_message = self.message_opreturn_e.text().encode('utf-8').hex() if self.config.get('enable_opreturn') else None
                 tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee, None, opreturn_message) 
                 self.not_enough_funds = False
+                self.op_return_toolong = False
             except NotEnoughFunds:
                 self.not_enough_funds = True
                 if not freeze_fee:
                     self.fee_e.setAmount(None)
+                return
+            except OPReturnTooLarge:
+                self.op_return_toolong = True
+                return
+            except OPReturnError as e:
+                self.statusBar().showMessage(str(e))
                 return
             except BaseException:
                 return
@@ -1400,16 +1420,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         outputs, fee, tx_desc, coins = r
         try:
-            opreturn_message = self.message_opreturn_e.text().encode('utf-8').hex()
-            if len(opreturn_message)>440:
-                self.show_error(str("Op_return message too large.")) 
-                return
-            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee, None, opreturn_message) 
+            opreturn_message = self.message_opreturn_e.text().encode('utf-8').hex() if self.config.get('enable_opreturn') else None
+            tx = self.wallet.make_unsigned_transaction(coins, outputs, self.config, fee, None, opreturn_message)
         except NotEnoughFunds:
             self.show_message(_("Insufficient funds"))
             return
         except ExcessiveFee:
             self.show_message(_("Your fee is too high.  Max is 50 sat/byte."))
+            return
+        except OPReturnTooLarge:
+            self.show_message(_("OP_RETURN message too large, needs to be under 220 bytes"))
+            return
+        except OPReturnError as e:
+            self.show_message(str(e))
             return
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
@@ -1448,7 +1471,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             msg.append(_('Warning') + ': ' + _("You're using a fee less than 1000 sats/kb.  It may take a very long time to confirm."))
 
         if ((self.message_opreturn_e.text() is not None) and (self.message_opreturn_e.text() !="")):
-            msg.append(_('Warning') + ': ' + _("You are using an OP_RETURN message.  This gets written PERMANENTLY in the blockchain!"))
+            msg.append(_("You are using an OP_RETURN message. This gets permanently written to the blockchain."))
 
         if self.wallet.has_password():
             msg.append("")
@@ -1627,9 +1650,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_clear(self):
         self.is_max = False
         self.not_enough_funds = False
+        self.op_return_toolong = False
         self.payment_request = None
         self.payto_e.is_pr = False
-        for e in [self.payto_e, self.message_e, self.amount_e, self.fiat_send_e, self.fee_e]:
+        for e in [self.payto_e, self.message_e, self.amount_e, self.fiat_send_e, self.fee_e, self.message_opreturn_e]:
             e.setText('')
             e.setFrozen(False)
         self.set_pay_from([])
@@ -2873,9 +2897,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.message_opreturn_e.setHidden(False)
                 self.opreturn_label.setHidden(False)
              
-        enable_opreturn= self.config.get('enable_opreturn',False)
+        enable_opreturn = bool(self.config.get('enable_opreturn'))
         opret_cb = QCheckBox(_('Enable OP_RETURN output'))
-        opret_cb.setToolTip(_('Enable posting messages with op_return.'))
+        opret_cb.setToolTip(_('Enable posting messages with OP_RETURN.'))
         opret_cb.setChecked(enable_opreturn)
         opret_cb.stateChanged.connect(on_opret)
         tx_widgets.append((opret_cb,None))
