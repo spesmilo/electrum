@@ -41,8 +41,8 @@ from .exception_window import Exception_Hook
 from PyQt5.QtWidgets import *
 
 from electroncash import keystore
-from electroncash.address import Address
-from electroncash.bitcoin import COIN, TYPE_ADDRESS
+from electroncash.address import Address, ScriptOutput
+from electroncash.bitcoin import COIN, TYPE_ADDRESS, TYPE_SCRIPT
 from electroncash.networks import NetworkConstants
 from electroncash.plugins import run_hook
 from electroncash.i18n import _
@@ -67,7 +67,6 @@ from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
 
 from .util import *
-
 
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
@@ -124,6 +123,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.checking_accounts = False
         self.qr_window = None
         self.not_enough_funds = False
+        self.op_return_toolong = False
         self.internalpluginsdialog = None
         self.externalpluginsdialog = None
         self.require_fee_update = False
@@ -1075,12 +1075,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.message_e = MyLineEdit()
         grid.addWidget(self.message_e, 2, 1, 1, -1)
 
+        msg_opreturn = ( _('OP_RETURN data (optional).') + '\n\n'
+                        + _('Posts a PERMANENT note to the BCH blockchain as part of this transaction.')
+                        + '\n\n' + _('If you specify OP_RETURN text, you may leave the \'Pay to\' field blank.') )
+        self.opreturn_label = HelpLabel(_('OP_RETURN'), msg_opreturn)
+        grid.addWidget(self.opreturn_label,  3, 0)
+        self.message_opreturn_e = MyLineEdit()
+        grid.addWidget(self.message_opreturn_e,  3 , 1, 1, -1)
+
+        if not self.config.get('enable_opreturn'):
+            self.message_opreturn_e.setText("")
+            self.message_opreturn_e.setHidden(True)
+            self.opreturn_label.setHidden(True)
+
+
+
         self.from_label = QLabel(_('From'))
-        grid.addWidget(self.from_label, 3, 0)
+        grid.addWidget(self.from_label, 4, 0)
         self.from_list = MyTreeWidget(self, self.from_list_menu, ['',''])
         self.from_list.setHeaderHidden(True)
         self.from_list.setMaximumHeight(80)
-        grid.addWidget(self.from_list, 3, 1, 1, -1)
+        grid.addWidget(self.from_list, 4, 1, 1, -1)
         self.set_pay_from([])
 
         msg = _('Amount to be sent.') + '\n\n' \
@@ -1088,22 +1103,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
               + _('Note that if you have frozen some of your addresses, the available funds will be lower than your total balance.') + '\n\n' \
               + _('Keyboard shortcut: type "!" to send all your coins.')
         amount_label = HelpLabel(_('Amount'), msg)
-        grid.addWidget(amount_label, 4, 0)
-        grid.addWidget(self.amount_e, 4, 1)
+        grid.addWidget(amount_label, 5, 0)
+        grid.addWidget(self.amount_e, 5, 1)
 
         self.fiat_send_e = AmountEdit(self.fx.get_currency if self.fx else '')
         if not self.fx or not self.fx.is_enabled():
             self.fiat_send_e.setVisible(False)
-        grid.addWidget(self.fiat_send_e, 4, 2)
+        grid.addWidget(self.fiat_send_e, 5, 2)
         self.amount_e.frozen.connect(
             lambda: self.fiat_send_e.setFrozen(self.amount_e.isReadOnly()))
 
         self.max_button = EnterButton(_("Max"), self.spend_max)
         self.max_button.setFixedWidth(140)
-        grid.addWidget(self.max_button, 4, 3)
+        grid.addWidget(self.max_button, 5, 3)
         hbox = QHBoxLayout()
         hbox.addStretch(1)
-        grid.addLayout(hbox, 4, 4)
+        grid.addLayout(hbox, 5, 4)
 
         msg = _('Bitcoin Cash transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
@@ -1137,10 +1152,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_e.editingFinished.connect(self.update_fee)
         self.connect_fields(self, self.amount_e, self.fiat_send_e, self.fee_e)
 
-        grid.addWidget(self.fee_e_label, 5, 0)
-        grid.addWidget(self.fee_slider, 5, 1)
-        grid.addWidget(self.fee_custom_lbl, 5, 1)
-        grid.addWidget(self.fee_e, 5, 2)
+        grid.addWidget(self.fee_e_label, 6, 0)
+        grid.addWidget(self.fee_slider, 6, 1)
+        grid.addWidget(self.fee_custom_lbl, 6, 1)
+        grid.addWidget(self.fee_e, 6, 2)
 
         self.preview_button = EnterButton(_("Preview"), self.do_preview)
         self.preview_button.setToolTip(_('Display the details of your transactions before signing it.'))
@@ -1151,11 +1166,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         buttons.addWidget(self.clear_button)
         buttons.addWidget(self.preview_button)
         buttons.addWidget(self.send_button)
-        grid.addLayout(buttons, 6, 1, 1, 3)
+        grid.addLayout(buttons, 7, 1, 1, 3)
 
         self.amount_e.shortcut.connect(self.spend_max)
         self.payto_e.textChanged.connect(self.update_fee)
         self.amount_e.textEdited.connect(self.update_fee)
+        self.message_opreturn_e.textEdited.connect(self.update_fee)
+        self.message_opreturn_e.textChanged.connect(self.update_fee)
+        self.message_opreturn_e.editingFinished.connect(self.update_fee)
 
         def reset_max(t):
             self.is_max = False
@@ -1178,13 +1196,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 amt_color, fee_color = ColorScheme.DEFAULT, ColorScheme.BLUE
             else:
                 amt_color, fee_color = ColorScheme.BLUE, ColorScheme.BLUE
+            opret_color = ColorScheme.DEFAULT
+            if self.op_return_toolong:
+                opret_color = ColorScheme.RED
+                text = _("OP_RETURN message too large, needs to be under 220 bytes") + (", " if text else "") + text
 
             self.statusBar().showMessage(text)
             self.amount_e.setStyleSheet(amt_color.as_stylesheet())
             self.fee_e.setStyleSheet(fee_color.as_stylesheet())
+            self.message_opreturn_e.setStyleSheet(opret_color.as_stylesheet())
 
         self.amount_e.textChanged.connect(entry_changed)
         self.fee_e.textChanged.connect(entry_changed)
+        self.message_opreturn_e.textChanged.connect(entry_changed)
+        self.message_opreturn_e.textEdited.connect(entry_changed)
+        self.message_opreturn_e.editingFinished.connect(entry_changed)
 
         self.invoices_label = QLabel(_('Invoices'))
         from .invoice_list import InvoiceList
@@ -1225,6 +1251,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if fee_rate is None: fee_rate = self.config.custom_fee_rate() / 1000.0
             return str(round(fee_rate*100)/100) + " sats/B"
 
+    @staticmethod
+    def output_for_opreturn_stringdata(op_return):
+        if not isinstance(op_return, str):
+            raise OPReturnError('OP_RETURN parameter needs to be of type str!')
+        op_return_code = "OP_RETURN "
+        op_return_encoded = op_return.encode('utf-8')
+        if len(op_return_encoded) > 220:
+            raise OPReturnTooLarge(_("OP_RETURN message too large, needs to be under 220 bytes"))
+        op_return_payload = op_return_encoded.hex()
+        script = op_return_code + op_return_payload
+        amount = 0
+        return (TYPE_SCRIPT, ScriptOutput.from_string(script), amount)
+
     def do_update_fee(self):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
         still build the TX to see if there are enough funds.
@@ -1245,12 +1284,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 _type, addr = self.get_payto_or_dummy()
                 outputs = [(_type, addr, amount)]
             try:
-                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
+                opreturn_message = self.message_opreturn_e.text() if self.config.get('enable_opreturn') else None
+                if opreturn_message:
+                    outputs.append(self.output_for_opreturn_stringdata(opreturn_message))
+                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee) 
                 self.not_enough_funds = False
+                self.op_return_toolong = False
             except NotEnoughFunds:
                 self.not_enough_funds = True
                 if not freeze_fee:
                     self.fee_e.setAmount(None)
+                return
+            except OPReturnTooLarge:
+                self.op_return_toolong = True
+                return
+            except OPReturnError as e:
+                self.statusBar().showMessage(str(e))
                 return
             except BaseException:
                 return
@@ -1360,6 +1409,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if not self.question(msg):
                     return
 
+        try:
+            # handle op_return if specified and enabled
+            opreturn_message = self.message_opreturn_e.text() if self.config.get('enable_opreturn') else None
+            if opreturn_message:
+                outputs.append(self.output_for_opreturn_stringdata(opreturn_message))
+        except OPReturnTooLarge as e:
+            self.show_error(str(e))
+            return
+        except OPReturnError as e:
+            self.show_error(str(e))
+            return
+
         if not outputs:
             self.show_error(_('No outputs'))
             return
@@ -1427,6 +1488,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         if (fee < (tx.estimated_size())):
             msg.append(_('Warning') + ': ' + _("You're using a fee less than 1000 sats/kb.  It may take a very long time to confirm."))
+
+        if self.config.get('enable_opreturn') and self.message_opreturn_e.text():
+            msg.append(_("You are using an OP_RETURN message. This gets permanently written to the blockchain."))
 
         if self.wallet.has_password():
             msg.append("")
@@ -1605,9 +1669,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_clear(self):
         self.is_max = False
         self.not_enough_funds = False
+        self.op_return_toolong = False
         self.payment_request = None
         self.payto_e.is_pr = False
-        for e in [self.payto_e, self.message_e, self.amount_e, self.fiat_send_e, self.fee_e]:
+        for e in [self.payto_e, self.message_e, self.amount_e, self.fiat_send_e, self.fee_e, self.message_opreturn_e]:
             e.setText('')
             e.setFrozen(False)
         self.set_pay_from([])
@@ -1722,7 +1787,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.pay_from:
             return self.pay_from
         else:
-            return self.wallet.get_spendable_coins(None, self.config,isInvoice)
+            return self.wallet.get_spendable_coins(None, self.config, isInvoice)
 
     def spend_coins(self, coins):
         self.set_pay_from(coins)
@@ -2839,6 +2904,22 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         fiat_address_checkbox = QCheckBox()
         ccy_combo = QComboBox()
         ex_combo = QComboBox()
+
+
+        def on_opret(x):
+            self.config.set_key('enable_opreturn', bool(x))
+            if not x:
+                self.message_opreturn_e.setText("")
+                self.op_return_toolong = False
+            self.message_opreturn_e.setHidden(not x)
+            self.opreturn_label.setHidden(not x)
+             
+        enable_opreturn = bool(self.config.get('enable_opreturn'))
+        opret_cb = QCheckBox(_('Enable OP_RETURN output'))
+        opret_cb.setToolTip(_('Enable posting messages with OP_RETURN.'))
+        opret_cb.setChecked(enable_opreturn)
+        opret_cb.stateChanged.connect(on_opret)
+        tx_widgets.append((opret_cb,None))
 
         def update_currencies():
             if not self.fx: return

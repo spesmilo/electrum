@@ -643,6 +643,12 @@ class SortableTreeWidgetItem(QTreeWidgetItem):
             # If not, we will just do string comparison
             return self.text(column) < other.text(column)
 
+class OPReturnError(Exception):
+    """ thrown when the OP_RETURN for a tx not of the right format """
+
+class OPReturnTooLarge(OPReturnError):
+    """ thrown when the OP_RETURN for a tx is >220 bytes """
+
 
 if __name__ == "__main__":
     app = QApplication([])
