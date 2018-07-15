@@ -240,15 +240,33 @@ class ScriptOutput(namedtuple("ScriptAddressTuple", "script")):
                 script.extend(Script.push_data(binascii.unhexlify(word)))
         return ScriptOutput(bytes(script))
 
-    def to_ui_string(self):
-        '''Convert to a hexadecimal string.'''
+    def to_ui_string(self, hex_only = False):
+        '''Convert to user-readable OP-codes (plus text), or to a hexadecimal string if that fails.
+           Note that this function is the inverse of from_string() only if called with hex_only = True!'''
+        if self.script and not hex_only:
+            try:
+                ret = ''
+                ops = Script.get_ops(self.script)
+                for op in ops:
+                    if ret: ret += ", "
+                    def lookup(x):
+                        return OpCodes.reverseLookup.get(x, ('('+str(x)+')'))
+                    if isinstance(op, tuple):
+                        ret += lookup(op[0]) + " " + op[1].decode('utf-8')
+                    elif isinstance(op, int):
+                        ret += lookup(op)
+                    else:
+                        ret += '[' + str(op) + ']'
+                return ret
+            except:
+                pass      
         return self.script.hex()
 
     def to_script(self):
         return self.script
 
     def __str__(self):
-        return self.to_ui_string()
+        return self.to_ui_string(True)
 
     def __repr__(self):
         return '<ScriptOutput {}>'.format(self.__str__())
