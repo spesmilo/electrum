@@ -1255,12 +1255,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def output_for_opreturn_stringdata(op_return):
         if not isinstance(op_return, str):
             raise OPReturnError('OP_RETURN parameter needs to be of type str!')
-        elif len(op_return) > 220:
-            raise OPReturnTooLarge(_("OP_RETURN message too large, needs to be under 220 bytes"))
-        amount = 0
         op_return_code = "OP_RETURN "
-        op_return_payload = op_return.encode('utf-8').hex()
+        op_return_encoded = op_return.encode('utf-8')
+        if len(op_return_encoded) > 220:
+            raise OPReturnTooLarge(_("OP_RETURN message too large, needs to be under 220 bytes"))
+        op_return_payload = op_return_encoded.hex()
         script = op_return_code + op_return_payload
+        amount = 0
         return (TYPE_SCRIPT, ScriptOutput.from_string(script), amount)
 
     def do_update_fee(self):
