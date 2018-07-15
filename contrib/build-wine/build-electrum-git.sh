@@ -19,23 +19,7 @@ set -e
 mkdir -p tmp
 cd tmp
 
-if [ -d ./electrum-ltc ]; then
-  rm ./electrum-ltc -rf
-fi
-
-git clone https://github.com/pooler/electrum-ltc -b master
-
-pushd electrum-ltc
-if [ ! -z "$1" ]; then
-    # a commit/tag/branch was specified
-    if ! git cat-file -e "$1" 2> /dev/null
-    then  # can't find target
-        # try pull requests
-        git config --local --add remote.origin.fetch '+refs/pull/*/merge:refs/remotes/origin/pr/*'
-        git fetch --all
-    fi
-    git checkout $1
-fi
+pushd $WINEPREFIX/drive_c/electrum-ltc
 
 # Load electrum-icons and electrum-locale for this release
 git submodule init
@@ -59,11 +43,9 @@ popd
 find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
-rm -rf $WINEPREFIX/drive_c/electrum-ltc
-cp -r electrum-ltc $WINEPREFIX/drive_c/electrum-ltc
-cp electrum-ltc/LICENCE .
-cp -r ./electrum-ltc/contrib/deterministic-build/electrum-ltc-locale/locale $WINEPREFIX/drive_c/electrum-ltc/electrum_ltc/
-cp ./electrum-ltc/contrib/deterministic-build/electrum-ltc-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-ltc/electrum_ltc/gui/qt/
+cp $WINEPREFIX/drive_c/electrum-ltc/LICENCE .
+cp -r $WINEPREFIX/drive_c/electrum-ltc/contrib/deterministic-build/electrum-ltc-locale/locale $WINEPREFIX/drive_c/electrum-ltc/electrum_ltc/
+cp $WINEPREFIX/drive_c/electrum-ltc/contrib/deterministic-build/electrum-ltc-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-ltc/electrum_ltc/gui/qt/
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt

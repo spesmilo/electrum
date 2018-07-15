@@ -79,11 +79,6 @@ retry() {
 here=$(dirname $(readlink -e $0))
 set -e
 
-# Clean up Wine environment
-echo "Cleaning $WINEPREFIX"
-rm -rf $WINEPREFIX
-echo "done"
-
 wine 'wineboot'
 
 # HACK to work around https://bugs.winehq.org/show_bug.cgi?id=42474#c22
