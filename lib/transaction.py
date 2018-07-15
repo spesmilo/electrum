@@ -654,9 +654,8 @@ class Transaction:
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
-        lenout=len(outputs)
         txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size), estimate_size) for txin in inputs)
-        txouts = var_int(lenout) + ''.join(self.serialize_output(o) for o in outputs)
+        txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
         return nVersion + txins + txouts + nLocktime
 
     def hash(self):

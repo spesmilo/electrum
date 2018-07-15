@@ -1489,7 +1489,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if (fee < (tx.estimated_size())):
             msg.append(_('Warning') + ': ' + _("You're using a fee less than 1000 sats/kb.  It may take a very long time to confirm."))
 
-        if ((self.message_opreturn_e.text() is not None) and (self.message_opreturn_e.text() !="")):
+        if self.config.get('enable_opreturn') and self.message_opreturn_e.text():
             msg.append(_("You are using an OP_RETURN message. This gets permanently written to the blockchain."))
 
         if self.wallet.has_password():

@@ -165,7 +165,8 @@ class CoinChooserBase(PrintError):
             self.print_error('not keeping dust', dust)
         return change
 
-    def make_tx(self, coins, outputs, change_addrs, fee_estimator, dust_threshold):
+    def make_tx(self, coins, outputs, change_addrs, fee_estimator,
+                dust_threshold):
         '''Select unspent coins to spend to pay outputs.  If the change is
         greater than dust_threshold (after adding the change output to
         the transaction) it is kept, otherwise none is sent and it is
