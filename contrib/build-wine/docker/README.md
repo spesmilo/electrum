@@ -25,14 +25,14 @@ folder.
 3. Build Windows binaries
 
     ```
-    $ TARGET=master
+    $ git checkout $REV
     $ sudo docker run \
         --name electrum-wine-builder-cont \
-        -v .:/opt/electrum \
+        -v $PWD:/opt/wine64/drive_c/electrum \
         --rm \
-        --workdir /opt/electrum/contrib/build-wine \
+        --workdir /opt/wine64/drive_c/electrum/contrib/build-wine \
         electrum-wine-builder-img \
-        ./build.sh $TARGET
+        ./build.sh
     ```
 4. The generated binaries are in `./contrib/build-wine/dist`.
 

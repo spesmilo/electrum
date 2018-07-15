@@ -7,7 +7,7 @@ import os
 
 PACKAGE='Electrum'
 PYPKG='electrum'
-MAIN_SCRIPT='electrum'
+MAIN_SCRIPT='run_electrum'
 ICONS_FILE='electrum.icns'
 
 for i, x in enumerate(sys.argv):
@@ -28,10 +28,9 @@ hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 
 datas = [
-    (electrum+'lib/*.json', PYPKG),
-    (electrum+'lib/wordlist/english.txt', PYPKG + '/wordlist'),
-    (electrum+'lib/locale', PYPKG + '/locale'),
-    (electrum+'plugins', PYPKG + '_plugins'),
+    (electrum+'electrum/*.json', PYPKG),
+    (electrum+'electrum/wordlist/english.txt', PYPKG + '/wordlist'),
+    (electrum+'electrum/locale', PYPKG + '/locale')
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
@@ -45,21 +44,21 @@ binaries += [(electrum + "contrib/build-osx/libsecp256k1.0.dylib", ".")]
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
-a = Analysis([electrum+MAIN_SCRIPT,
-              electrum+'gui/qt/main_window.py',
-              electrum+'gui/text.py',
-              electrum+'lib/util.py',
-              electrum+'lib/wallet.py',
-              electrum+'lib/simple_config.py',
-              electrum+'lib/bitcoin.py',
-              electrum+'lib/dnssec.py',
-              electrum+'lib/commands.py',
-              electrum+'plugins/cosigner_pool/qt.py',
-              electrum+'plugins/email_requests/qt.py',
-              electrum+'plugins/trezor/client.py',
-              electrum+'plugins/trezor/qt.py',
-              electrum+'plugins/keepkey/qt.py',
-              electrum+'plugins/ledger/qt.py',
+a = Analysis([electrum+ MAIN_SCRIPT,
+              electrum+'electrum/gui/qt/main_window.py',
+              electrum+'electrum/gui/text.py',
+              electrum+'electrum/util.py',
+              electrum+'electrum/wallet.py',
+              electrum+'electrum/simple_config.py',
+              electrum+'electrum/bitcoin.py',
+              electrum+'electrum/dnssec.py',
+              electrum+'electrum/commands.py',
+              electrum+'electrum/plugins/cosigner_pool/qt.py',
+              electrum+'electrum/plugins/email_requests/qt.py',
+              electrum+'electrum/plugins/trezor/client.py',
+              electrum+'electrum/plugins/trezor/qt.py',
+              electrum+'electrum/plugins/keepkey/qt.py',
+              electrum+'electrum/plugins/ledger/qt.py',
               ],
              binaries=binaries,
              datas=datas,
