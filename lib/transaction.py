@@ -637,7 +637,6 @@ class Transaction:
         hashPrevouts = bh2u(Hash(bfh(''.join(self.serialize_outpoint(txin) for txin in inputs))))
         hashSequence = bh2u(Hash(bfh(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs))))
         hashOutputs = bh2u(Hash(bfh(''.join(self.serialize_output(o) for o in outputs))))
-
         outpoint = self.serialize_outpoint(txin)
         preimage_script = self.get_preimage_script(txin)
         scriptCode = var_int(len(preimage_script) // 2) + preimage_script
