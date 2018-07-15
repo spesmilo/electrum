@@ -1595,6 +1595,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.payto_e.is_pr = True
         for e in [self.payto_e, self.amount_e, self.message_e]:
             e.setFrozen(True)
+        self.max_button.setDisabled(True)
         self.payto_e.setText(_("please wait..."))
         return True
 
@@ -1675,6 +1676,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         for e in [self.payto_e, self.message_e, self.amount_e, self.fiat_send_e, self.fee_e, self.message_opreturn_e]:
             e.setText('')
             e.setFrozen(False)
+        self.max_button.setDisabled(False)
         self.set_pay_from([])
         self.tx_external_keypairs = {}
         self.update_status()
