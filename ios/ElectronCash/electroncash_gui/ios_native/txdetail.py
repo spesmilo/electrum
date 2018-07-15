@@ -12,7 +12,7 @@ from .uikit_bindings import *
 from .history import HistoryEntry, StatusImages
 from . import addresses
 from electroncash.transaction import Transaction
-from electroncash.address import Address, PublicKey
+from electroncash.address import Address, PublicKey, ScriptOutput
 from electroncash.util import timestamp_to_datetime
 import json, sys
 from . import coins
@@ -254,6 +254,15 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
             print("Data=%s"%str(data))
             return data
         
+        def isScriptOutput(x) -> bool:
+            if not isInput:
+                try:
+                    addr, v = x
+                    if isinstance(addr, ScriptOutput): return True
+                except:
+                    pass
+            return False
+        
         def onCpy(isAddr : bool) -> None:
             print ("onCpy %s"%str(isAddr))
             parent.copy_to_clipboard(getData(x,isAddr,isInput))
@@ -264,8 +273,13 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
             qrvc = utils.present_qrcode_vc_for_data(vc, data)
             parent.add_navigation_bar_close_to_modal_vc(qrvc)
 
-        def onBlkXplo() -> None:
+        def onBlkXplo(forceShowTx : bool = False) -> None:
             print ("onBlkXplo")
+            if forceShowTx:
+                tx = utils.nspy_get(self)
+                txid = tx.txid()
+                if tx and txid: parent.view_on_block_explorer(txid, 'tx')
+                return
             if isInput:
                 data = getData(x, False, True)
             else:
@@ -284,6 +298,14 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
         if not isInput:
             actions.pop(2)
             actions.pop(2)
+            
+            if isScriptOutput(x):
+                # it's a script output, so indicate that in the messaging
+                actions[0][0] = _('Copy Script')
+                actions[1][0] = _('Show Script QR')
+                actions[2].append(True) # force view block explorer to go to the TX since this isn't an output address
+                message += " " + _("(Script Output)")
+
             # see if we have this output as a "Coin" in our wallet (UTXO)
             try:
                 def get_name():
