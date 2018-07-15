@@ -1,7 +1,7 @@
 #!/bin/bash
 
 NAME_ROOT=electrum
-PYTHON_VERSION=3.5.4
+PYTHON_VERSION=3.6.6
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
@@ -44,8 +44,8 @@ find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 cp $WINEPREFIX/drive_c/electrum/LICENCE .
-cp -r $WINEPREFIX/drive_c/electrum/contrib/deterministic-build/electrum-locale/locale $WINEPREFIX/drive_c/electrum/lib/
-cp $WINEPREFIX/drive_c/electrum/contrib/deterministic-build/electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum/gui/qt/
+cp -r $WINEPREFIX/drive_c/electrum/contrib/deterministic-build/electrum-locale/locale $WINEPREFIX/drive_c/electrum/electrum/
+cp $WINEPREFIX/drive_c/electrum/contrib/deterministic-build/electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum/electrum/gui/qt/
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt

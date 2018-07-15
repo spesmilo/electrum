@@ -36,7 +36,7 @@ Electrum from its root directory, without installing it on your
 system; all the python dependencies are included in the 'packages'
 directory. To run Electrum from its root directory, just do::
 
-    ./electrum
+    ./run_electrum
 
 You can also install Electrum on your system, by running this command::
 
@@ -73,12 +73,12 @@ Render the SVG icons to PNGs (optional)::
 Compile the icons file for Qt::
 
     sudo apt-get install pyqt5-dev-tools
-    pyrcc5 icons.qrc -o gui/qt/icons_rc.py
+    pyrcc5 icons.qrc -o electrum/gui/qt/icons_rc.py
 
 Compile the protobuf description file::
 
     sudo apt-get install protobuf-compiler
-    protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
+    protoc --proto_path=electrum --python_out=electrum electrum/paymentrequest.proto
 
 Create translations (optional)::
 
@@ -112,4 +112,4 @@ See `contrib/build-wine/`.
 Android
 -------
 
-See `gui/kivy/Readme.txt` file.
+See `electrum/gui/kivy/Readme.md` file.
