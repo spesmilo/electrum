@@ -41,6 +41,9 @@ hex_to_bytes = bytes.fromhex
 class AddressError(Exception):
     '''Exception used for Address errors.'''
 
+class ScriptError(Exception):
+    '''Exception used for Script errors.'''
+
 
 OpCodes = Enumeration("OpCodes", [
     ("OP_0", 0), ("OP_PUSHDATA1",76), "OP_PUSHDATA2", "OP_PUSHDATA4", "OP_1NEGATE", "OP_RESERVED",
@@ -258,7 +261,8 @@ class ScriptOutput(namedtuple("ScriptAddressTuple", "script")):
                     else:
                         ret += '[' + str(op) + ']'
                 return ret
-            except:
+            except ScriptError:
+                # Truncated script -- so just default to normal 'hex' encoding below.
                 pass      
         return self.script.hex()
 
