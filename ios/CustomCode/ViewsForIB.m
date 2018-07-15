@@ -75,7 +75,7 @@ static BOOL IS_IPHONE_5(void) {
             self.drawerBottom.frame = frameBottom;
             self.drawerBottom.hidden = YES;
         } completion:^(BOOL finished) {
-            isRotating = NO;
+            self->isRotating = NO;
             self.isOpen = NO;
             if (!rotateChevron)
                 self.chevron.image = self.chevron.animationImages.lastObject;
@@ -114,7 +114,7 @@ static BOOL IS_IPHONE_5(void) {
             self.drawer.frame = frame;
             self.drawerBottom.frame = frameBottom;
         } completion:^(BOOL finished) {
-            isRotating = NO;
+            self->isRotating = NO;
             self.isOpen = YES;
             self.drawerBottom.hidden = NO;
             if (!rotateChevron)

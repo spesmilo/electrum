@@ -27,7 +27,7 @@
         [UIView animateWithDuration:0.2 delay:0.0 options: UIViewAnimationOptionAllowUserInteraction |UIViewAnimationOptionCurveLinear animations:^{
             self.imageView.transform = CGAffineTransformIdentity;
         } completion:^(BOOL finished) {
-            isRotating = NO;
+            self->isRotating = NO;
         }];
         
     } else {
@@ -46,7 +46,7 @@
         [UIView animateWithDuration:0.2 delay:0.0 options: UIViewAnimationOptionAllowUserInteraction |UIViewAnimationOptionCurveLinear animations:^{
             self.imageView.transform = CGAffineTransformMakeRotation(DEGREES_TO_RADIANS(-179.99f));
         } completion:^(BOOL finished) {
-            isRotating = NO;
+            self->isRotating = NO;
         }];
         
     } else {

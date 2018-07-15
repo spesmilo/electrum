@@ -140,7 +140,7 @@
 
         [button setFrame:rect];
         
-        if (_adjustsButtonTopInset) {
+        if (self->_adjustsButtonTopInset) {
             CGFloat topInset = (self.barPosition > UIBarPositionBottom) ? -4.0f : 4.0f;
             button.titleEdgeInsets = UIEdgeInsetsMake(0.0f, 0.0f, topInset, 0.0f);
         }
