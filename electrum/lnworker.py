@@ -111,6 +111,7 @@ class LNWorker(PrintError):
             peer = self.peers[chan.node_id]
             coro = peer.reestablish_channel(chan)
             asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+        self.network.trigger_callback('channel', chan)
 
     def on_network_update(self, event, *args):
         for chan in self.channels.values():
