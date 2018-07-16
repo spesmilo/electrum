@@ -355,7 +355,6 @@ class AddressSynchronizer(Logger):
         # Store fees
         self.db.update_tx_fees(tx_fees)
 
-
     @profiler
     def load_local_history(self):
         self._history_local = {}  # address -> set(txid)
