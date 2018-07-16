@@ -34,9 +34,8 @@ class ChannelsList(MyTreeWidget):
         def close():
             suc, msg = self.parent.wallet.lnworker.close_channel(channel_id)
             if not suc:
-                print('channel close broadcast failed:', msg)
-            assert suc # TODO show error message in dialog
-        menu.addAction(_("Close channel"), close)
+                self.main_window.show_error('Force-close failed:\n{}'.format(msg))
+        menu.addAction(_("Force-close channel"), close)
         menu.exec_(self.viewport().mapToGlobal(position))
 
     @QtCore.pyqtSlot(HTLCStateMachine)
