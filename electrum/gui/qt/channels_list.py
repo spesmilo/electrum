@@ -20,12 +20,11 @@ class ChannelsList(MyTreeWidget):
         self.status = QLabel('')
 
     def format_fields(self, chan):
-        status = self.parent.wallet.lnworker.channel_state[chan.channel_id]
         return [
             bh2u(chan.node_id),
             self.parent.format_amount(chan.local_state.amount_msat//1000),
             self.parent.format_amount(chan.remote_state.amount_msat//1000),
-            status
+            chan.state
         ]
 
     def create_menu(self, position):
