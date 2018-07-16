@@ -1058,13 +1058,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         i = self.expires_combo.currentIndex()
         expiration = list(map(lambda x: x[1], expiration_values))[i]
         if self.receive_type.currentIndex() == 1:
-            self.create_lightning_request(amount, message, expiration)
+            key = self.wallet.lnworker.add_invoice(amount, message)
         else:
-            self.create_bitcoin_request(amount, message, expiration)
+            key = self.create_bitcoin_request(amount, message, expiration)
+            self.address_list.update()
+        self.clear_receive_tab()
         self.request_list.update()
-
-    def create_lightning_request(self, amount, message, expiration):
-        req = self.wallet.lnworker.add_invoice(amount, message)
+        items = self.request_list.findItems(key, Qt.UserRole|Qt.MatchContains|Qt.MatchRecursive, column=0)
+        self.request_list.setCurrentItem(items[0])
 
     def create_bitcoin_request(self, amount, message, expiration):
         addr = self.wallet.get_unused_address()
@@ -1089,8 +1090,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         else:
             self.sign_payment_request(addr)
             #self.save_request_button.setEnabled(False)
-        finally:
-            self.address_list.update()
 
     def view_and_paste(self, title, msg, data):
         dialog = WindowModalDialog(self, title)
