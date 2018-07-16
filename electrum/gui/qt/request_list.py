@@ -190,7 +190,7 @@ class RequestList(MyTreeView):
             if column == self.Columns.AMOUNT:
                 column_data = column_data.strip()
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
-        menu.addAction(_("Copy"), lambda: self.parent.app.clipboard().setText(req))
+        menu.addAction(_("Copy URI"), lambda: self.parent.view_and_paste('URI', '', self.parent.get_request_URI(addr)))
         menu.addAction(_("Save as BIP70 file"), lambda: self.parent.export_payment_request(addr))
         menu.addAction(_("Delete"), lambda: self.parent.delete_payment_request(addr))
         run_hook('receive_list_menu', menu, addr)
@@ -207,6 +207,6 @@ class RequestList(MyTreeView):
         menu = QMenu(self)
         if column != 2:
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
-        menu.addAction(_("Copy"), lambda: self.parent.app.clipboard().setText(req))
+        menu.addAction(_("Copy BOLT-11 Lightning invoice"), lambda: self.parent.view_and_paste('Invoice', '', req))
         menu.addAction(_("Delete"), lambda: self.parent.delete_lightning_payreq(payreq_key))
         return menu
