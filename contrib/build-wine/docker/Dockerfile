@@ -31,3 +31,7 @@ RUN dpkg --add-architecture i386 && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
     apt-get clean
+
+COPY . /opt/wine64/drive_c/electrum
+
+RUN cd /opt/wine64/drive_c/electrum/contrib/build-wine && ./build.sh
