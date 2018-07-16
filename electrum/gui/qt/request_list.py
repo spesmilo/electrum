@@ -65,21 +65,13 @@ class RequestList(MyTreeWidget):
             return
         if not item.isSelected():
             return
-        addr = str(item.text(1))
-        self.parent.receive_address_e.setText(addr)
-        #req = self.wallet.receive_requests.get(addr)
-        #if req is None:
-        #    self.update()
-        #    return
-        #expires = age(req['time'] + req['exp']) if req.get('exp') else _('Never')
-        #amount = req['amount']
-        #message = self.wallet.labels.get(addr, '')
-        #self.parent.receive_message_e.setText(message)
-        #self.parent.receive_amount_e.setAmount(amount)
-        #self.parent.expires_combo.hide()
-        #self.parent.expires_label.show()
-        #self.parent.expires_label.setText(expires)
-        #self.parent.new_request_button.setEnabled(True)
+        request_type = item.data(0, Qt.UserRole)
+        key = str(item.data(0, Qt.UserRole + 1))
+        if request_type == REQUEST_TYPE_BITCOIN:
+            req = self.parent.get_request_URI(key)
+        elif request_type == REQUEST_TYPE_LN:
+            req = self.wallet.lnworker.invoices.get(key)
+        self.parent.receive_address_e.setText(req)
 
     def on_update(self):
         self.wallet = self.parent.wallet
@@ -115,7 +107,7 @@ class RequestList(MyTreeWidget):
             requestor = req.get('name', '')
             amount_str = self.parent.format_amount(amount) if amount else ""
             URI = self.parent.get_request_URI(address)
-            item = QTreeWidgetItem([date, URI, message, amount_str, pr_tooltips.get(status,'')])
+            item = QTreeWidgetItem([date, address, message, amount_str, pr_tooltips.get(status,'')])
             if signature is not None:
                 item.setIcon(1, self.icon_cache.get(":icons/seal.png"))
                 item.setToolTip(1, 'signed by '+ requestor)
@@ -167,8 +159,8 @@ class RequestList(MyTreeWidget):
         column_title = self.headerItem().text(column)
         column_data = item.text(column)
         menu = QMenu(self)
+        menu.addAction(_("Copy"), lambda: self.parent.app.clipboard().setText(req))
         menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
-        menu.addAction(_("Copy URI"), lambda: self.parent.view_and_paste('URI', '', self.parent.get_request_URI(addr)))
         menu.addAction(_("Save as BIP70 file"), lambda: self.parent.export_payment_request(addr))
         menu.addAction(_("Delete"), lambda: self.parent.delete_payment_request(addr))
         run_hook('receive_list_menu', menu, addr)
@@ -184,7 +176,7 @@ class RequestList(MyTreeWidget):
         column_title = self.headerItem().text(column)
         column_data = item.text(column)
         menu = QMenu(self)
+        menu.addAction(_("Copy"), lambda: self.parent.app.clipboard().setText(req))
         menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
-        menu.addAction(_("Copy URI"), lambda: self.parent.view_and_paste('URI', '', req))
         menu.addAction(_("Delete"), lambda: self.parent.delete_lightning_payreq(payreq_key))
         return menu
