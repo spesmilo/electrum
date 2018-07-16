@@ -57,23 +57,14 @@ class RequestList(MyTreeView):
         if req is None:
             self.update()
             return
-        expires = age(req['time'] + req['exp']) if req.get('exp') else _('Never')
-        amount = req['amount']
-        message = req['memo']
-        self.parent.receive_address_e.setText(addr)
-        #req = self.wallet.receive_requests.get(addr)
-        #if req is None:
-        #    self.update()
-        #    return
-        #expires = age(req['time'] + req['exp']) if req.get('exp') else _('Never')
-        #amount = req['amount']
-        #message = self.wallet.labels.get(addr, '')
-        #self.parent.receive_message_e.setText(message)
-        #self.parent.receive_amount_e.setAmount(amount)
-        #self.parent.expires_combo.hide()
-        #self.parent.expires_label.show()
-        #self.parent.expires_label.setText(expires)
-        #self.parent.new_request_button.setEnabled(True)
+        item = self.model().itemFromIndex(idx.sibling(idx.row(), 0))
+        request_type = item.data(Qt.UserRole)
+        key = str(item.data(Qt.UserRole + 1))
+        if request_type == REQUEST_TYPE_BITCOIN:
+            req = self.parent.get_request_URI(key)
+        elif request_type == REQUEST_TYPE_LN:
+            req = self.wallet.lnworker.invoices.get(key)
+        self.parent.receive_address_e.setText(req)
 
     def update(self):
         self.wallet = self.parent.wallet
@@ -100,7 +91,6 @@ class RequestList(MyTreeView):
 
         self.model().clear()
         self.update_headers([_('Date'), _('Address'), '', _('Description'), _('Amount'), _('Status')])
-        self.hideColumn(1) # hide address column
         for req in self.wallet.get_sorted_requests(self.config):
             address = req['address']
             if address not in domain:
@@ -114,8 +104,7 @@ class RequestList(MyTreeView):
             signature = req.get('sig')
             requestor = req.get('name', '')
             amount_str = self.parent.format_amount(amount) if amount else ""
-            URI = self.parent.get_request_URI(address)
-            labels = [date, URI, '', message, amount_str, pr_tooltips.get(status,'')]
+            labels = [date, address, '', message, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             if signature is not None:
@@ -175,7 +164,7 @@ class RequestList(MyTreeView):
         menu = QMenu(self)
         if column != 2:
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
-        menu.addAction(_("Copy URI"), lambda: self.parent.view_and_paste('URI', '', self.parent.get_request_URI(addr)))
+        menu.addAction(_("Copy"), lambda: self.parent.app.clipboard().setText(req))
         menu.addAction(_("Save as BIP70 file"), lambda: self.parent.export_payment_request(addr))
         menu.addAction(_("Delete"), lambda: self.parent.delete_payment_request(addr))
         run_hook('receive_list_menu', menu, addr)
@@ -192,6 +181,6 @@ class RequestList(MyTreeView):
         menu = QMenu(self)
         if column != 2:
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
-        menu.addAction(_("Copy URI"), lambda: self.parent.view_and_paste('URI', '', req))
+        menu.addAction(_("Copy"), lambda: self.parent.app.clipboard().setText(req))
         menu.addAction(_("Delete"), lambda: self.parent.delete_lightning_payreq(payreq_key))
         return menu
