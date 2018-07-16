@@ -148,11 +148,20 @@ class Commands:
         """Return a configuration variable. """
         return self.config.get(key)
 
+    @classmethod
+    def _setconfig_normalize_value(cls, key, value):
+        if key not in ('rpcuser', 'rpcpassword'):
+            value = json_decode(value)
+            try:
+                value = ast.literal_eval(value)
+            except:
+                pass
+        return value
+
     @command('')
     def setconfig(self, key, value):
         """Set a configuration variable. 'value' may be a string or a Python expression."""
-        if key not in ('rpcuser', 'rpcpassword'):
-            value = json_decode(value)
+        value = self._setconfig_normalize_value(key, value)
         self.config.set_key(key, value)
         return True
 

@@ -93,7 +93,7 @@ def get_payment_request(url):
                 error = "payment URL not pointing to a valid server"
     elif u.scheme == 'file':
         try:
-            with open(u.path, 'r') as f:
+            with open(u.path, 'r', encoding='utf-8') as f:
                 data = f.read()
         except IOError:
             data = None
@@ -388,9 +388,9 @@ def check_ssl_config(config):
     from . import pem
     key_path = config.get('ssl_privkey')
     cert_path = config.get('ssl_chain')
-    with open(key_path, 'r') as f:
+    with open(key_path, 'r', encoding='utf-8') as f:
         params = pem.parse_private_key(f.read())
-    with open(cert_path, 'r') as f:
+    with open(cert_path, 'r', encoding='utf-8') as f:
         s = f.read()
     bList = pem.dePemList(s, "CERTIFICATE")
     # verify chain
@@ -408,10 +408,10 @@ def check_ssl_config(config):
 
 def sign_request_with_x509(pr, key_path, cert_path):
     from . import pem
-    with open(key_path, 'r') as f:
+    with open(key_path, 'r', encoding='utf-8') as f:
         params = pem.parse_private_key(f.read())
         privkey = rsakey.RSAKey(*params)
-    with open(cert_path, 'r') as f:
+    with open(cert_path, 'r', encoding='utf-8') as f:
         s = f.read()
         bList = pem.dePemList(s, "CERTIFICATE")
     certificates = pb2.X509Certificates()

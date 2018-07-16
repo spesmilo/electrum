@@ -246,7 +246,7 @@ class Network(util.DaemonThread):
         if not self.config.path:
             return []
         try:
-            with open(self.recent_servers_file(), "r") as f:
+            with open(self.recent_servers_file(), "r", encoding='utf-8') as f:
                 data = f.read()
                 return json.loads(data)
         except:
@@ -257,7 +257,7 @@ class Network(util.DaemonThread):
             return
         s = json.dumps(self.recent_servers, indent=4, sort_keys=True)
         try:
-            with open(self.recent_servers_file(), "w") as f:
+            with open(self.recent_servers_file(), "w", encoding='utf-8') as f:
                 f.write(s)
         except:
             pass

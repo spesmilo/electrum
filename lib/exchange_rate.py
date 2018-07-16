@@ -66,7 +66,7 @@ class ExchangeBase(PrintError):
         if os.path.exists(filename):
             timestamp = os.stat(filename).st_mtime
             try:
-                with open(filename, 'r') as f:
+                with open(filename, 'r', encoding='utf-8') as f:
                     h = json.loads(f.read())
             except:
                 h = None
@@ -90,7 +90,7 @@ class ExchangeBase(PrintError):
                 self.print_error("failed fx history:", e)
                 return
             filename = os.path.join(cache_dir, self.name() + '_' + ccy)
-            with open(filename, 'w') as f:
+            with open(filename, 'w', encoding='utf-8') as f:
                 f.write(json.dumps(h))
         self.history[ccy] = h
         self.on_history()
@@ -223,7 +223,7 @@ def get_exchanges_and_currencies():
     import os, json
     path = os.path.join(os.path.dirname(__file__), 'currencies.json')
     try:
-        with open(path, 'r') as f:
+        with open(path, 'r', encoding='utf-8') as f:
             return json.loads(f.read())
     except:
         pass
@@ -240,7 +240,7 @@ def get_exchanges_and_currencies():
         except:
             print(name, "error")
             continue
-    with open(path, 'w') as f:
+    with open(path, 'w', encoding='utf-8') as f:
         f.write(json.dumps(d, indent=4, sort_keys=True))
     return d
 
