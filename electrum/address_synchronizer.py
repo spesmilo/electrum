@@ -388,9 +388,6 @@ class AddressSynchronizer(PrintError):
         for tx_hash, raw in tx_list.items():
             tx = Transaction(raw)
             self.transactions[tx_hash] = tx
-            if self.txi.get(tx_hash) is None and self.txo.get(tx_hash) is None:
-                self.print_error("removing unreferenced tx", tx_hash)
-                self.transactions.pop(tx_hash)
         # load spent_outpoints
         _spent_outpoints = self.storage.get('spent_outpoints', {})
         self.spent_outpoints = defaultdict(dict)
