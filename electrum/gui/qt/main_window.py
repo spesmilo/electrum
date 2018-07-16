@@ -980,7 +980,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.address_list.update()
         self.clear_receive_tab()
         self.request_list.update()
-        items = self.request_list.findItems(key, Qt.UserRole|Qt.MatchContains|Qt.MatchRecursive, column=0)
+        items = self.request_list.findItems(key, Qt.UserRole|Qt.MatchContains|Qt.MatchRecursive, column=1)
         self.request_list.setCurrentItem(items[0])
 
     def create_bitcoin_request(self, amount, message, expiration):
@@ -1006,6 +1006,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             self.sign_payment_request(addr)
             #self.save_request_button.setEnabled(False)
+        return addr
 
     def view_and_paste(self, title, msg, data):
         dialog = WindowModalDialog(self, title)

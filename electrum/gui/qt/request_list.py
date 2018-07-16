@@ -66,7 +66,7 @@ class RequestList(MyTreeWidget):
         if not item.isSelected():
             return
         request_type = item.data(0, Qt.UserRole)
-        key = str(item.data(0, Qt.UserRole + 1))
+        key = str(item.data(1, Qt.UserRole))
         if request_type == REQUEST_TYPE_BITCOIN:
             req = self.parent.get_request_URI(key)
         elif request_type == REQUEST_TYPE_LN:
@@ -82,15 +82,9 @@ class RequestList(MyTreeWidget):
         if not b:
             self.parent.expires_label.hide()
             self.parent.expires_combo.show()
+            return
 
-        # update the receive address if necessary
-        #current_address = self.parent.receive_address_e.text()
         domain = self.wallet.get_receiving_addresses()
-        #addr = self.wallet.get_unused_address()
-        #if not current_address in domain and addr:
-        #    self.parent.set_receive_address(addr)
-        #self.parent.new_request_button.setEnabled(addr != current_address)
-
         # clear the list and fill it again
         self.clear()
         for req in self.wallet.get_sorted_requests(self.config):
@@ -114,7 +108,7 @@ class RequestList(MyTreeWidget):
             if status is not PR_UNKNOWN:
                 item.setIcon(6, self.icon_cache.get(pr_icons.get(status)))
             item.setData(0, Qt.UserRole, REQUEST_TYPE_BITCOIN)
-            item.setData(0, Qt.UserRole+1, address)
+            item.setData(1, Qt.UserRole, address)
             self.addTopLevelItem(item)
         # lightning
         for payreq_key, r in self.wallet.lnworker.invoices.items():
@@ -150,7 +144,7 @@ class RequestList(MyTreeWidget):
             menu.exec_(self.viewport().mapToGlobal(position))
 
     def create_menu_bitcoin_payreq(self, item):
-        addr = str(item.data(0, Qt.UserRole + 1))
+        addr = str(item.data(1, Qt.UserRole))
         req = self.wallet.receive_requests.get(addr)
         if req is None:
             self.update()
@@ -167,7 +161,7 @@ class RequestList(MyTreeWidget):
         return menu
 
     def create_menu_ln_payreq(self, item):
-        payreq_key = item.data(0, Qt.UserRole + 1)
+        payreq_key = item.data(1, Qt.UserRole)
         req = self.wallet.lnworker.invoices.get(payreq_key)
         if req is None:
             self.update()
