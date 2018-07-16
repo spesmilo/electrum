@@ -53,7 +53,6 @@ class LNWorker(PrintError):
 
     def suggest_peer(self):
         for node_id, peer in self.peers.items():
-            print(bh2u(node_id), len(peer.channels))
             if len(peer.channels) > 0:
                 continue
             if not(peer.initialized.done()):
@@ -205,6 +204,8 @@ class LNWorker(PrintError):
                     self.print_error("removing peer", peer.host)
                     self.peers.pop(k)
             if len(self.peers) > 3:
+                continue
+            if not self.network.lightning_nodes:
                 continue
             node_id = random.choice(list(self.network.lightning_nodes.keys()))
             node = self.network.lightning_nodes.get(node_id)
