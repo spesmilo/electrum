@@ -139,6 +139,8 @@ class HTLCStateMachine(PrintError):
         self.local_commitment = self.pending_local_commitment
         self.remote_commitment = self.pending_remote_commitment
 
+        self.state = 'DISCONNECTED'
+
     def add_htlc(self, htlc):
         """
         AddHTLC adds an HTLC to the state machine's local update log. This method

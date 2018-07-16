@@ -292,7 +292,6 @@ class Peer(PrintError):
         self.privkey = lnworker.privkey
         self.network = lnworker.network
         self.channel_db = lnworker.network.channel_db
-        self.channel_state = lnworker.channel_state
         self.read_buffer = b''
         self.ping_time = 0
         self.initialized = asyncio.Future()
@@ -305,9 +304,12 @@ class Peer(PrintError):
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.update_fail_htlc = defaultdict(asyncio.Queue)
         self.localfeatures = (0x08 if request_initial_sync else 0)
-        self.channels = lnworker.channels_for_peer(pubkey)
         self.invoices = lnworker.invoices
         self.attempted_route = {}
+
+    @property
+    def channels(self):
+        return self.lnworker.channels_for_peer(self.pubkey)
 
     def diagnostic_name(self):
         return 'lnbase:' + str(self.host)
@@ -630,13 +632,14 @@ class Peer(PrintError):
         assert success, success
         m.remote_state = m.remote_state._replace(ctn=0)
         m.local_state = m.local_state._replace(ctn=0, current_commitment_signature=remote_sig)
+        m.state = 'OPENING'
         return m
 
     @aiosafe
     async def reestablish_channel(self, chan):
         await self.initialized
         chan_id = chan.channel_id
-        self.channel_state[chan_id] = 'REESTABLISHING'
+        chan.state = 'REESTABLISHING'
         self.network.trigger_callback('channel', chan)
         self.send_message(gen_msg("channel_reestablish",
             channel_id=chan_id,
@@ -644,7 +647,7 @@ class Peer(PrintError):
             next_remote_revocation_number=chan.remote_state.ctn
         ))
         await self.channel_reestablished[chan_id]
-        self.channel_state[chan_id] = 'OPENING'
+        chan.state = 'OPENING'
         if chan.local_state.funding_locked_received and chan.short_channel_id:
             self.mark_open(chan)
         self.network.trigger_callback('channel', chan)
@@ -684,6 +687,7 @@ class Peer(PrintError):
         channel_id = payload['channel_id']
         chan = self.channels.get(channel_id)
         if not chan:
+            print(self.channels)
             raise Exception("Got unknown funding_locked", channel_id)
         if not chan.local_state.funding_locked_received:
             our_next_point = chan.remote_state.next_per_commitment_point
@@ -750,10 +754,10 @@ class Peer(PrintError):
         print("SENT CHANNEL ANNOUNCEMENT")
 
     def mark_open(self, chan):
-        if self.channel_state[chan.channel_id] == "OPEN":
+        if chan.state == "OPEN":
             return
         assert chan.local_state.funding_locked_received
-        self.channel_state[chan.channel_id] = "OPEN"
+        chan.state = "OPEN"
         self.network.trigger_callback('channel', chan)
         # add channel to database
         sorted_keys = list(sorted([self.pubkey, self.lnworker.pubkey]))
@@ -827,7 +831,7 @@ class Peer(PrintError):
 
     @aiosafe
     async def pay(self, path, chan, amount_msat, payment_hash, pubkey_in_invoice, min_final_cltv_expiry):
-        assert self.channel_state[chan.channel_id] == "OPEN"
+        assert chan.state == "OPEN"
         assert amount_msat > 0, "amount_msat is not greater zero"
         height = self.network.get_local_height()
         route = self.network.path_finder.create_route_from_path(path, self.lnworker.pubkey)
@@ -929,7 +933,7 @@ class Peer(PrintError):
         htlc_id = int.from_bytes(htlc["id"], 'big')
         assert htlc_id == chan.remote_state.next_htlc_id, (htlc_id, chan.remote_state.next_htlc_id)
 
-        assert self.channel_state[channel_id] == "OPEN"
+        assert chan.state == "OPEN"
 
         cltv_expiry = int.from_bytes(htlc["cltv_expiry"], 'big')
         # TODO verify sanity of their cltv expiry
