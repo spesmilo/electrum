@@ -31,9 +31,9 @@ class Test_LNRouter(unittest.TestCase):
             path_finder = lnrouter.LNPathFinder(fake_network.channel_db)
             privkey = bitcoin.sha256('privkeyseed')
             network = fake_network
-            channel_state = {}
             channels = []
             invoices = {}
+            channels_for_peer = lambda x: []
         p = Peer(fake_ln_worker, '', 0, 'a')
         p.on_channel_announcement({'node_id_1': b'b', 'node_id_2': b'c', 'short_channel_id': bfh('0000000000000001')})
         p.on_channel_announcement({'node_id_1': b'b', 'node_id_2': b'e', 'short_channel_id': bfh('0000000000000002')})
