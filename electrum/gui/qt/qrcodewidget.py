@@ -68,14 +68,13 @@ class QRCodeWidget(QWidget):
         size = k*boxsize
         left = (r.width() - size)/2
         top = (r.height() - size)/2
-
-        # Make a white margin around the QR in case of dark theme use
+        # Draw white background with margin
         qp.setBrush(white)
         qp.setPen(white)
-        qp.drawRect(left-margin, top-margin, size+(margin*2), size+(margin*2))
+        qp.drawRect(0, 0, framesize, framesize)
+        # Draw qr code
         qp.setBrush(black)
         qp.setPen(black)
-
         for r in range(k):
             for c in range(k):
                 if matrix[r][c]:
