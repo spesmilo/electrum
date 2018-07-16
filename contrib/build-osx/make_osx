@@ -15,7 +15,7 @@ cd $src_dir/../..
 export PYTHONHASHSEED=22
 VERSION=`git describe --tags --dirty`
 
-which brew > /dev/null 2>&1 || which port > /dev/null 2>&1 || fail "Please install either Homebrew (from https://brew.sh/) or MacPorts (from https://www.macports.org/) to continue"
+which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
 
 info "Installing Python $PYTHON_VERSION"
 export PATH="~/.pyenv/bin:~/.pyenv/shims:~/Library/Python/3.6/bin:$PATH"
