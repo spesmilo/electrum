@@ -127,7 +127,7 @@ class RequestList(MyTreeWidget):
             item = QTreeWidgetItem([date, r, description, amount_str, ''])
             item.setIcon(1, self.icon_cache.get(":icons/lightning.png"))
             item.setData(0, Qt.UserRole, REQUEST_TYPE_LN)
-            item.setData(0, Qt.UserRole+1, payreq_key)
+            item.setData(1, Qt.UserRole, payreq_key)
             self.addTopLevelItem(item)
 
     def create_menu(self, position):
