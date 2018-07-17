@@ -122,6 +122,9 @@ class WalletFileException(Exception): pass
 class BitcoinException(Exception): pass
 
 
+class InvoiceError(Exception): pass
+
+
 # Throw this exception to unwind the stack like when an error occurs.
 # However unlike other exceptions the user won't be informed.
 class UserCancelled(Exception):
