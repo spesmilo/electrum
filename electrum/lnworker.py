@@ -114,21 +114,27 @@ class LNWorker(PrintError):
         self.network.trigger_callback('channel', chan)
 
     def on_network_update(self, event, *args):
-        for chan in self.channels.values():
-            if chan.state == "OPENING":
-                res = self.save_short_chan_id(chan)
-                if not res:
-                    self.print_error("network update but funding tx is still not at sufficient depth")
-                    continue
-                # this results in the channel being marked OPEN
-                peer = self.peers[chan.node_id]
-                peer.funding_locked(chan)
-            elif chan.state == "OPEN":
-                if event == 'fee_histogram':
-                    peer.on_bitcoin_fee_update(chan)
-                conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
-                peer = self.peers[chan.node_id]
-                peer.on_network_update(chan, conf)
+        """ called from network thread """
+        # Race discovered in save_channel (assertion failing):
+        # since short_channel_id could be changed while saving.
+        # Mitigated by posting to loop:
+        async def network_jobs():
+            for chan in self.channels.values():
+                if chan.state == "OPENING":
+                    res = self.save_short_chan_id(chan)
+                    if not res:
+                        self.print_error("network update but funding tx is still not at sufficient depth")
+                        continue
+                    # this results in the channel being marked OPEN
+                    peer = self.peers[chan.node_id]
+                    peer.funding_locked(chan)
+                elif chan.state == "OPEN":
+                    if event == 'fee_histogram':
+                        peer.on_bitcoin_fee_update(chan)
+                    conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
+                    peer = self.peers[chan.node_id]
+                    peer.on_network_update(chan, conf)
+        asyncio.run_coroutine_threadsafe(network_jobs(), self.network.asyncio_loop).result()
 
     async def _open_channel_coroutine(self, node_id, local_amount_sat, push_sat, password):
         peer = self.peers[node_id]
