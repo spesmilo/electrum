@@ -140,6 +140,44 @@ class ChannelDB(PrintError):
             except KeyError:
                 pass
 
+    def print_graph(self, full_ids=False):
+        # used for debugging.
+        # FIXME there is a race here - iterables could change size from another thread
+        def other_node_id(node_id, channel_id):
+            channel_info = self._id_to_channel_info[channel_id]
+            if node_id == channel_info.node_id_1:
+                other = channel_info.node_id_2
+            else:
+                other = channel_info.node_id_1
+            return other if full_ids else other[-4:]
+
+        self.print_msg('node: {(channel, other_node), ...}')
+        for node_id, short_channel_ids in list(self._channels_for_node.items()):
+            short_channel_ids = {(bh2u(cid), bh2u(other_node_id(node_id, cid)))
+                                 for cid in short_channel_ids}
+            node_id = bh2u(node_id) if full_ids else bh2u(node_id[-4:])
+            self.print_msg('{}: {}'.format(node_id, short_channel_ids))
+
+        self.print_msg('channel: node1, node2, direction')
+        for short_channel_id, channel_info in list(self._id_to_channel_info.items()):
+            node1 = channel_info.node_id_1
+            node2 = channel_info.node_id_2
+            direction1 = channel_info.get_policy_for_node(node1) is not None
+            direction2 = channel_info.get_policy_for_node(node2) is not None
+            if direction1 and direction2:
+                direction = 'both'
+            elif direction1:
+                direction = 'forward'
+            elif direction2:
+                direction = 'backward'
+            else:
+                direction = 'none'
+            self.print_msg('{}: {}, {}, {}'
+                           .format(bh2u(short_channel_id),
+                                   bh2u(node1) if full_ids else bh2u(node1[-4:]),
+                                   bh2u(node2) if full_ids else bh2u(node2[-4:]),
+                                   direction))
+
 
 class RouteEdge:
 
