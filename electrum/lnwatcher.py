@@ -84,13 +84,6 @@ class LNChanCloseHandler(PrintError):
             self.watched_addresses.add(addr)
             self.wallet.synchronizer.add(addr)
 
-    # TODO: de-duplicate?
-    def parse_response(self, response):
-        if response.get('error'):
-            self.print_error("response error:", response)
-            return None, None
-        return response['params'], response['result']
-
     def check_onchain_situation(self):
         funding_outpoint = self.chan.funding_outpoint
         ctx_candidate_txid = self.wallet.spent_outpoints[funding_outpoint.txid].get(funding_outpoint.output_index)
