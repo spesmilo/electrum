@@ -53,7 +53,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            export_meta, import_meta, bh2u, bfh, InvalidPassword,
                            base_units, base_units_list, base_unit_name_to_decimal_point,
                            decimal_point_to_base_unit_name, quantize_feerate,
-                           UnknownBaseUnit, DECIMAL_POINT_DEFAULT)
+                           UnknownBaseUnit, DECIMAL_POINT_DEFAULT, InvoiceError)
 from electrum.transaction import Transaction, TxOutput
 from electrum.address_synchronizer import AddTransactionException
 from electrum.wallet import Multisig_Wallet, CannotBumpFee
@@ -1557,8 +1557,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.do_send(preview = True)
 
     def pay_lightning_invoice(self, invoice):
-        f = self.wallet.lnworker.pay(invoice)
-        self.do_clear()
+        try:
+            amount = self.amount_e.get_amount()
+            f = self.wallet.lnworker.pay(invoice, amount_sat=amount)
+        except InvoiceError as e:
+            self.show_error(str(e))
+        else:
+            self.do_clear()
 
     def do_send(self, preview = False):
         if self.payto_e.is_lightning:
@@ -1781,7 +1786,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.payto_e.setFrozen(True)
         self.payto_e.setText(pubkey)
         self.message_e.setText(description)
-        self.amount_e.setAmount(lnaddr.amount * COIN)
+        if lnaddr.amount is not None:
+            self.amount_e.setAmount(lnaddr.amount * COIN)
         #self.amount_e.textEdited.emit("")
         self.payto_e.is_lightning = True
 
