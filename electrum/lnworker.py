@@ -121,15 +121,16 @@ class LNWorker(PrintError):
         # Mitigated by posting to loop:
         async def network_jobs():
             for chan in self.channels.values():
-                peer = self.peers[chan.node_id]
                 if chan.state == "OPENING":
                     res = self.save_short_chan_id(chan)
                     if not res:
                         self.print_error("network update but funding tx is still not at sufficient depth")
                         continue
                     # this results in the channel being marked OPEN
+                    peer = self.peers[chan.node_id]
                     peer.funding_locked(chan)
                 elif chan.state == "OPEN":
+                    peer = self.peers[chan.node_id]
                     if event == 'fee_histogram':
                         peer.on_bitcoin_fee_update(chan)
                     conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
