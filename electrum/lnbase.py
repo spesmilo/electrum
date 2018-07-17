@@ -1025,6 +1025,8 @@ class Peer(PrintError):
             # TODO force close if initiator does not update_fee enough
             return
 
+        # TODO should use target_to_fee from master
+        # target_to_fee(10*1000000) # 10 MB
         feerate_per_kvbyte = self.network.config.depth_to_fee(10)
         feerate_per_kw = feerate_per_kvbyte / 4
         self.print_error("current feerate", chan.remote_state.feerate)
