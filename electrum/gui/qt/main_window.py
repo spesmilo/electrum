@@ -61,7 +61,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            decimal_point_to_base_unit_name, quantize_feerate,
                            UnknownBaseUnit, DECIMAL_POINT_DEFAULT, UserFacingException,
                            get_new_wallet_name, send_exception_to_crash_reporter,
-                           InvalidBitcoinURI)
+                           InvalidBitcoinURI, InvoiceError)
 from electrum.transaction import Transaction, TxOutput
 from electrum.address_synchronizer import AddTransactionException
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
@@ -1660,8 +1660,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.do_send(preview = True)
 
     def pay_lightning_invoice(self, invoice):
-        f = self.wallet.lnworker.pay(invoice)
-        self.do_clear()
+        try:
+            amount = self.amount_e.get_amount()
+            f = self.wallet.lnworker.pay(invoice, amount_sat=amount)
+        except InvoiceError as e:
+            self.show_error(str(e))
+        else:
+            self.do_clear()
 
     def do_send(self, preview = False):
         if self.payto_e.is_lightning:
@@ -1896,7 +1901,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.payto_e.setFrozen(True)
         self.payto_e.setText(pubkey)
         self.message_e.setText(description)
-        self.amount_e.setAmount(lnaddr.amount * COIN)
+        if lnaddr.amount is not None:
+            self.amount_e.setAmount(lnaddr.amount * COIN)
         #self.amount_e.textEdited.emit("")
         self.payto_e.is_lightning = True
 

@@ -840,6 +840,7 @@ class Peer(PrintError):
         assert amount_msat > 0, "amount_msat is not greater zero"
         height = self.network.get_local_height()
         route = self.network.path_finder.create_route_from_path(path, self.lnworker.pubkey)
+        # TODO check that first edge (our channel) has enough balance to support amount_msat
         hops_data = []
         sum_of_deltas = sum(route_edge.channel_policy.cltv_expiry_delta for route_edge in route[1:])
         total_fee = 0
@@ -1028,7 +1029,7 @@ class Peer(PrintError):
         # TODO should use target_to_fee from master
         # target_to_fee(10*1000000) # 10 MB
         feerate_per_kvbyte = self.network.config.depth_to_fee(10)
-        feerate_per_kw = feerate_per_kvbyte / 4
+        feerate_per_kw = max(253, feerate_per_kvbyte // 4)
         self.print_error("current feerate", chan.remote_state.feerate)
         self.print_error("new feerate", feerate_per_kw)
         if feerate_per_kw < chan.remote_state.feerate / 2:

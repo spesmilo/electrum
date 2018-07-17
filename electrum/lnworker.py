@@ -9,7 +9,7 @@ import random
 
 from . import constants
 from .bitcoin import sha256, COIN
-from .util import bh2u, bfh, PrintError
+from .util import bh2u, bfh, PrintError, InvoiceError
 from .constants import set_testnet, set_simnet
 from .lnbase import Peer, privkey_to_pubkey, aiosafe
 from .lnaddr import lnencode, LnAddr, lndecode
@@ -18,6 +18,7 @@ from .transaction import Transaction
 from .lnhtlc import HTLCStateMachine
 from .lnutil import Outpoint, calc_short_channel_id
 from .lnwatcher import LNChanCloseHandler
+from .i18n import _
 
 # hardcoded nodes
 node_list = [
@@ -129,10 +130,10 @@ class LNWorker(PrintError):
                     peer = self.peers[chan.node_id]
                     peer.funding_locked(chan)
                 elif chan.state == "OPEN":
+                    peer = self.peers[chan.node_id]
                     if event == 'fee_histogram':
                         peer.on_bitcoin_fee_update(chan)
                     conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
-                    peer = self.peers[chan.node_id]
                     peer.on_network_update(chan, conf)
         asyncio.run_coroutine_threadsafe(network_jobs(), self.network.asyncio_loop).result()
 
@@ -150,11 +151,14 @@ class LNWorker(PrintError):
         coro = self._open_channel_coroutine(node_id, local_amt_sat, push_amt_sat, None if pw == "" else pw)
         return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
-    def pay(self, invoice):
+    def pay(self, invoice, amount_sat=None):
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         payment_hash = addr.paymenthash
         invoice_pubkey = addr.pubkey.serialize()
-        amount_msat = int(addr.amount * COIN * 1000)
+        amount_sat = (addr.amount * COIN) if addr.amount else amount_sat
+        if amount_sat is None:
+            raise InvoiceError(_("Missing amount"))
+        amount_msat = int(amount_sat * 1000)
         path = self.network.path_finder.find_path_for_payment(self.pubkey, invoice_pubkey, amount_msat)
         if path is None:
             raise Exception("No path found")
