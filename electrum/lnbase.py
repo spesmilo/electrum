@@ -825,8 +825,9 @@ class Peer(PrintError):
             short_chan_id = route[sender_idx + 1].short_channel_id
         except IndexError:
             print("payment destination reported error")
+        else:
+            self.network.path_finder.blacklist.add(short_chan_id)
 
-        self.network.path_finder.blacklist.add(short_chan_id)
         self.update_fail_htlc[payload["channel_id"]].put_nowait("HTLC failure with code {} (categories {})".format(code, codes))
 
     @aiosafe
