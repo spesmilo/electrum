@@ -46,7 +46,7 @@ class LNWorker(PrintError):
         for host, port, pubkey in peer_list:
             self.add_peer(host, int(port), bfh(pubkey))
         # wait until we see confirmations
-        self.network.register_callback(self.on_network_update, ['updated', 'verified']) # thread safe
+        self.network.register_callback(self.on_network_update, ['updated', 'verified', 'fee_histogram']) # thread safe
         self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
         self.network.futures.append(asyncio.run_coroutine_threadsafe(self.main_loop(), asyncio.get_event_loop()))
 
@@ -124,6 +124,8 @@ class LNWorker(PrintError):
                 peer = self.peers[chan.node_id]
                 peer.funding_locked(chan)
             elif chan.state == "OPEN":
+                if event == 'fee_histogram':
+                    peer.on_bitcoin_fee_update(chan)
                 conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
                 peer = self.peers[chan.node_id]
                 peer.on_network_update(chan, conf)
