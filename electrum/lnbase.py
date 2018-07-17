@@ -666,7 +666,11 @@ class Peer(PrintError):
         local_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
         if local_ctn != chan.local_state.ctn:
             raise Exception("expected local ctn {}, got {}".format(chan.local_state.ctn, local_ctn))
-        their = channel_reestablish_msg["my_current_per_commitment_point"]
+        try:
+            their = channel_reestablish_msg["my_current_per_commitment_point"]
+        except KeyError: # no data_protect option
+            self.channel_reestablished[chan_id].set_result(True)
+            return
         our = chan.remote_state.current_per_commitment_point
         if our is None:
             our = chan.remote_state.next_per_commitment_point
@@ -1011,7 +1015,28 @@ class Peer(PrintError):
 
     def on_update_fee(self, payload):
         channel_id = payload["channel_id"]
-        self.channels[channel_id].update_fee(int.from_bytes(payload["feerate_per_kw"], "big"))
+        self.channels[channel_id].receive_update_fee(int.from_bytes(payload["feerate_per_kw"], "big"))
 
+    def on_bitcoin_fee_update(self, chan):
+        """
+        called when the fee histogram (based on current mempool) changed
+        """
+        if not chan.constraints.is_initiator:
+            # TODO force close if initiator does not update_fee enough
+            return
 
+        feerate_per_kvbyte = self.network.config.depth_to_fee(10)
+        feerate_per_kw = feerate_per_kvbyte / 4
+        self.print_error("current feerate", chan.remote_state.feerate)
+        self.print_error("new feerate", feerate_per_kw)
+        if feerate_per_kw < chan.remote_state.feerate / 2:
+            self.print_error("FEES HAVE FALLEN")
+            chan.update_fee(feerate_per_kw)
+        elif feerate_per_kw > chan.remote_state.feerate * 2:
+            self.print_error("FEES HAVE RISEN")
+            chan.update_fee(feerate_per_kw)
+        else:
+            return
 
+        self.send_message(gen_msg("update_fee", channel_id=chan.channel_id, feerate_per_kw=feerate_per_kw))
+        self.lnworker.save_channel(chan)
