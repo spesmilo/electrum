@@ -114,6 +114,9 @@ class ChannelDB(PrintError):
         short_channel_id = msg_payload['short_channel_id']
         #self.print_error('channel announcement', binascii.hexlify(short_channel_id).decode("ascii"))
         channel_info = ChannelInfo(msg_payload)
+        if short_channel_id in self._id_to_channel_info:
+            self.print_error("IGNORING CHANNEL ANNOUNCEMENT, WE ALREADY KNOW THIS CHANNEL")
+            return
         self._id_to_channel_info[short_channel_id] = channel_info
         self._channels_for_node[channel_info.node_id_1].add(short_channel_id)
         self._channels_for_node[channel_info.node_id_2].add(short_channel_id)
