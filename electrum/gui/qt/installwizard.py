@@ -32,6 +32,12 @@ WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\
                  'p2wpkh-p2sh:KxZcY47uGp9a... \t-> 3NhNeZQXF...\n' +
                  'p2wpkh:KxZcY47uGp9a...      \t-> bc1q3fjfk...')
 # note: full key is KxZcY47uGp9aVQAb6VVvuBs8SwHKgkSR2DbZUzjDzXf2N2GPhG9n
+MSG_PASSPHRASE_WARN_ISSUE4566 = _("Warning") + ": "\
+                              + _("You have multiple consecutive whitespaces or leading/trailing "
+                                  "whitespaces in your passphrase.") + " " \
+                              + _("This is discouraged.") + " " \
+                              + _("Due to a bug, old versions of Electrum will NOT be creating the "
+                                  "same wallet as newer versions or other software.")
 
 
 class CosignWidget(QWidget):
@@ -550,16 +556,23 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     @wizard_dialog
     def line_dialog(self, run_next, title, message, default, test, warning='',
-                    presets=()):
+                    presets=(), warn_issue4566=False):
         vbox = QVBoxLayout()
         vbox.addWidget(WWLabel(message))
         line = QLineEdit()
         line.setText(default)
         def f(text):
             self.next_button.setEnabled(test(text))
+            if warn_issue4566:
+                text_whitespace_normalised = ' '.join(text.split())
+                warn_issue4566_label.setVisible(text != text_whitespace_normalised)
         line.textEdited.connect(f)
         vbox.addWidget(line)
         vbox.addWidget(WWLabel(warning))
+
+        warn_issue4566_label = WWLabel(MSG_PASSPHRASE_WARN_ISSUE4566)
+        warn_issue4566_label.setVisible(False)
+        vbox.addWidget(warn_issue4566_label)
 
         for preset in presets:
             button = QPushButton(preset[0])
@@ -570,7 +583,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             vbox.addLayout(hbox)
 
         self.exec_layout(vbox, title, next_enabled=test(default))
-        return ' '.join(line.text().split())
+        return line.text()
 
     @wizard_dialog
     def show_xpub_dialog(self, xpub, run_next):
