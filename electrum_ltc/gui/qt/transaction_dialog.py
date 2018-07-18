@@ -37,7 +37,6 @@ from electrum_ltc.plugin import run_hook
 from electrum_ltc import simple_config
 
 from electrum_ltc.util import bfh
-from electrum_ltc.wallet import AddTransactionException
 from electrum_ltc.transaction import SerializationError
 
 from .util import *

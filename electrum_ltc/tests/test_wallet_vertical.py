@@ -7,7 +7,8 @@ from typing import Sequence
 from electrum_ltc import storage, bitcoin, keystore, constants
 from electrum_ltc import Transaction
 from electrum_ltc import SimpleConfig
-from electrum_ltc.wallet import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT, sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet
+from electrum_ltc.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
+from electrum_ltc.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet
 from electrum_ltc.util import bfh, bh2u
 
 from . import TestCaseForTestnet

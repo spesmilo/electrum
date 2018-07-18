@@ -26,7 +26,7 @@
 import webbrowser
 import datetime
 
-from electrum_ltc.wallet import AddTransactionException, TX_HEIGHT_LOCAL
+from electrum_ltc.address_synchronizer import TX_HEIGHT_LOCAL
 from .util import *
 from electrum_ltc.i18n import _
 from electrum_ltc.util import block_explorer_URL, profiler, print_error
