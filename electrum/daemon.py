@@ -28,6 +28,7 @@ import os
 import time
 import traceback
 import sys
+import asyncio
 
 # from jsonrpc import JSONRPCResponseManager
 import jsonrpclib
@@ -163,6 +164,7 @@ class Daemon(DaemonThread):
         return True
 
     def run_daemon(self, config_options):
+        asyncio.set_event_loop(self.network.asyncio_loop)
         config = SimpleConfig(config_options)
         sub = config.get('subcommand')
         assert sub in [None, 'start', 'stop', 'status', 'load_wallet', 'close_wallet']
