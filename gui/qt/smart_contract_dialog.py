@@ -16,8 +16,9 @@ from electrum.bitcoin import is_contract_address, is_address, b58_address_to_has
 from electrum.util import bh2u, print_error
 import os
 
-float_validator = QRegExpValidator(QRegExp('^(-?\d+)(\.\d+)?$'))
+float_validator = QRegExpValidator(QRegExp('^(-?\d+)(\.\d{8})?$'))
 int_validator = QIntValidator(0, 10 ** 9 - 1)
+name_validator = QRegExpValidator(QRegExp('^.{10}$'))
 
 
 class ContractInfoLayout(QVBoxLayout):
@@ -35,6 +36,7 @@ class ContractInfoLayout(QVBoxLayout):
 
         self.addWidget(QLabel(_("Contract Name:")))
         self.name_e = ButtonsLineEdit()
+        self.name_e.setValidator(name_validator)
         self.addWidget(self.name_e)
 
         self.addWidget(QLabel(_("Address:")))
@@ -363,7 +365,7 @@ class ContractCreateLayout(QVBoxLayout):
         params_layout.addWidget(QLabel(_("Bytecode:")))
         self.bytecode_e = QLineEdit()
         self.bytecode_e.setFixedWidth(400)
-        self.bytecode_e.setText(self.path)
+        #self.bytecode_e.setText(self.path)
         params_layout.addWidget(self.bytecode_e)
 
 

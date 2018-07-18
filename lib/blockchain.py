@@ -356,7 +356,6 @@ class Blockchain(util.PrintError):
         print("target:",hex(target))
         new_target = min(util.ub_default_diffculty(is_pos), (target  // nTargetTimespan)* nActualTimespan)
         print("target:", hex(new_target))
-        print("targetblock :",hex(self.bits_to_target(0x1f28f582)))
         return new_target
 
 

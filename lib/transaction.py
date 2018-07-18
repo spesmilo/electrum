@@ -31,7 +31,7 @@ from .util import print_error, profiler
 
 from . import bitcoin,script
 from .bitcoin import *
-from .script import CScript,OP_CALL,OP_SPEND,OP_CREATE,OP_DEPOSIT_TO_CONTRACT,hash160
+from .script import CScript,CScriptNum,OP_CALL,OP_SPEND,OP_CREATE,OP_DEPOSIT_TO_CONTRACT,hash160,OP_0,OP_1,OP_16
 import struct
 from decimal import Decimal
 import hashlib
@@ -384,6 +384,17 @@ def Contract_cal_address_from_data(cls,caller_address,index,trx_id):
     return "CON"+ bitcoin.EncodeBase58Check(hs_data)
 
 
+def convert_OP_1_N(data):
+    if data[0] ==opcodes.OP_0:
+        r = bytearray(0)
+        r.append(0)
+        return (data[0], r, data[2])
+    if data[0]>=opcodes.OP_1 and data[0]<=opcodes.OP_16:
+        r =bytearray(0)
+        r.append(data[0]-opcodes.OP_1+1)
+        return (data[0],r,data[2])
+    return data
+
 
 def get_address_from_output_script(_bytes,index = -1,txid = ''):
     decoded = [x for x in script_GetOp(_bytes)]
@@ -426,13 +437,13 @@ def get_address_from_output_script(_bytes,index = -1,txid = ''):
         return TYPE_CONTRACT_ADDRESS,decoded[3][1].decode()
     TO_DEPOSIT_TO_CONTRACT = [-1, -1, -1, -1, -1, -1,-1, opcodes.OP_DEPOSIT_TO_CONTRACT]
     if match_decoded(decoded, TO_DEPOSIT_TO_CONTRACT):
-        return TYPE_CONTRACT_DEPOSIT_ADDRESS,(decoded[3][1].decode(),int(''.join(map(hex, decoded[2][1])).replace('0x', ''), 16))
+        return TYPE_CONTRACT_DEPOSIT_ADDRESS,(decoded[3][1].decode(),int(''.join(map(hex, convert_OP_1_N(decoded[2])[1])).replace('0x', ''), 16))
     TO_UPGRADE = [-1, -1, -1, -1, -1, -1, -1, opcodes.OP_UPGRADE]
     if match_decoded(decoded, TO_UPGRADE):
         return TYPE_CONTRACT_ADDRESS,decoded[3][1].decode()
     TO_SPENT = [-1, -1, opcodes.OP_SPEND]
     if match_decoded(decoded, TO_SPENT):
-        return TYPE_CONTRACT_WITHDRAW_ADDRESS,(decoded[1][1].decode(),int(''.join(map(hex, decoded[0][1])).replace('0x', ''), 16))
+        return TYPE_CONTRACT_WITHDRAW_ADDRESS,(decoded[1][1].decode(),int(''.join(map(hex, convert_OP_1_N(decoded[0])[1])).replace('0x', ''), 16))
 
     return TYPE_SCRIPT, bh2u(_bytes)
 
@@ -454,7 +465,7 @@ def contract_script_call(caller_addr,contract_addr,gas_limit, gas_price, api_nam
 
 def contract_script_deposit(caller_addr,contract_addr,gas_limit, gas_price, deposit_amount,deposit_memo):
     script = CScript(
-        [b'\x01', deposit_memo.encode('utf8'), int(deposit_amount),
+        [b'\x01', deposit_memo.encode('utf8'), CScriptNum(int(deposit_amount)),
          contract_addr.encode("utf8"),
          caller_addr.encode('utf8'),
          gas_limit, gas_price, OP_DEPOSIT_TO_CONTRACT]).hex()
