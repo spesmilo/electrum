@@ -29,7 +29,7 @@ import json
 import copy
 import re
 import stat
-import pbkdf2, hmac, hashlib
+import hmac, hashlib
 import base64
 import zlib
 from collections import defaultdict
@@ -165,7 +165,7 @@ class WalletStorage(PrintError):
 
     @staticmethod
     def get_eckey_from_password(password):
-        secret = pbkdf2.PBKDF2(password, '', iterations=1024, macmodule=hmac, digestmodule=hashlib.sha512).read(64)
+        secret = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'), b'', iterations=1024)
         ec_key = ecc.ECPrivkey.from_arbitrary_size_secret(secret)
         return ec_key
 
@@ -637,7 +637,7 @@ class WalletStorage(PrintError):
             # version 1.9.8 created v6 wallets when an incorrect seed was entered in the restore dialog
             msg += '\n\nThis file was created because of a bug in version 1.9.8.'
             if self.get('master_public_keys') is None and self.get('master_private_keys') is None and self.get('imported_keys') is None:
-                # pbkdf2 was not included with the binaries, and wallet creation aborted.
+                # pbkdf2 (at that time an additional dependency) was not included with the binaries, and wallet creation aborted.
                 msg += "\nIt does not contain any keys, and can safely be removed."
             else:
                 # creation was complete if electrum was run from source
