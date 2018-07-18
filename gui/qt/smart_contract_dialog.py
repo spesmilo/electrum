@@ -320,6 +320,9 @@ class ContractFuncLayout(QGridLayout):
             return
 
         gas_limit, gas_price, amount = self.parse_values()
+        if gas_limit <10 or gas_price <10 or gas_limit>=1000000000:
+            self.dialog.show_message(str("gas limit or gas price is illegal!"))
+            return
         self.dialog.do_transferto( args, gas_limit, gas_price, amount, sender)
 
 
@@ -451,6 +454,9 @@ class ContractCreateLayout(QVBoxLayout):
             self.dialog.show_message(str(e))
             return
         gas_limit, gas_price = self.parse_values()
+        if gas_limit <10 or gas_price <10 or gas_limit>=1000000000:
+            self.dialog.show_message(str("gas limit or gas price is illegal!"))
+            return
         bytecode_file_path = self.bytecode_e.text()
         try:
             with open(bytecode_file_path, 'rb') as f:
