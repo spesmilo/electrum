@@ -31,8 +31,8 @@ os.system(cmd)
 
 os.chdir('lib')
 
-crowdin_identifier = 'electrum'
-crowdin_file_name = 'files[electrum-client/messages.pot]'
+crowdin_identifier = 'electron-cash'
+crowdin_file_name = 'files[electron-cash-client/messages.pot]'
 locale_file_name = 'locale/messages.pot'
 crowdin_api_key = None
 
