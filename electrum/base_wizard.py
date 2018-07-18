@@ -348,7 +348,7 @@ class BaseWizard(object):
         k = hardware_keystore(d)
         self.on_keystore(k)
 
-    def passphrase_dialog(self, run_next):
+    def passphrase_dialog(self, run_next, is_restoring=False):
         title = _('Seed extension')
         message = '\n'.join([
             _('You may extend your seed with custom words.'),
@@ -358,7 +358,10 @@ class BaseWizard(object):
             _('Note that this is NOT your encryption password.'),
             _('If you do not know what this is, leave this field empty.'),
         ])
-        self.line_dialog(title=title, message=message, warning=warning, default='', test=lambda x:True, run_next=run_next)
+        warn_issue4566 = is_restoring and self.seed_type == 'bip39'
+        self.line_dialog(title=title, message=message, warning=warning,
+                         default='', test=lambda x:True, run_next=run_next,
+                         warn_issue4566=warn_issue4566)
 
     def restore_from_seed(self):
         self.opt_bip39 = True
@@ -371,10 +374,10 @@ class BaseWizard(object):
         self.seed_type = 'bip39' if is_bip39 else bitcoin.seed_type(seed)
         if self.seed_type == 'bip39':
             f = lambda passphrase: self.on_restore_bip39(seed, passphrase)
-            self.passphrase_dialog(run_next=f) if is_ext else f('')
+            self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
         elif self.seed_type in ['standard', 'segwit']:
             f = lambda passphrase: self.run('create_keystore', seed, passphrase)
-            self.passphrase_dialog(run_next=f) if is_ext else f('')
+            self.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
         elif self.seed_type == 'old':
             self.run('create_keystore', seed, '')
         elif self.seed_type == '2fa':
