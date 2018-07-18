@@ -104,7 +104,7 @@ class DigitalBitbox_Client():
     def dbb_has_password(self):
         reply = self.hid_send_plain(b'{"ping":""}')
         if 'ping' not in reply:
-            raise Exception('Device communication error. Please unplug and replug your Digital Bitbox.')
+            raise Exception(_('Device communication error. Please unplug and replug your Digital Bitbox.'))
         if reply['ping'] == 'password':
             return True
         return False
@@ -122,9 +122,11 @@ class DigitalBitbox_Client():
             if password is None:
                 return None
             if len(password) < 4:
-                msg = _("Password must have at least 4 characters.\r\n\r\nEnter password:")
+                msg = _("Password must have at least 4 characters.") \
+                      + "\n\n" + _("Enter password:")
             elif len(password) > 64:
-                msg = _("Password must have less than 64 characters.\r\n\r\nEnter password:")
+                msg = _("Password must have less than 64 characters.") \
+                      + "\n\n" + _("Enter password:")
             else:
                 return password.encode('utf8')
 
@@ -135,9 +137,11 @@ class DigitalBitbox_Client():
             if password is None:
                 return False
             if len(password) < 4:
-                msg = _("Password must have at least 4 characters.\r\n\r\nEnter password:")
+                msg = _("Password must have at least 4 characters.") + \
+                      "\n\n" + _("Enter password:")
             elif len(password) > 64:
-                msg = _("Password must have less than 64 characters.\r\n\r\nEnter password:")
+                msg = _("Password must have less than 64 characters.") + \
+                      "\n\n" + _("Enter password:")
             else:
                 self.password = password.encode('utf8')
                 return True
@@ -148,10 +152,11 @@ class DigitalBitbox_Client():
         if self.password is None and not self.dbb_has_password():
             if not self.setupRunning:
                 return False # A fresh device cannot connect to an existing wallet
-            msg = _("An uninitialized Digital Bitbox is detected. " \
-                    "Enter a new password below.\r\n\r\n REMEMBER THE PASSWORD!\r\n\r\n" \
-                    "You cannot access your coins or a backup without the password.\r\n" \
-                    "A backup is saved automatically when generating a new wallet.")
+            msg = _("An uninitialized Digital Bitbox is detected.") + " " + \
+                  _("Enter a new password below.") + "\n\n" + \
+                  _("REMEMBER THE PASSWORD!") + "\n\n" + \
+                  _("You cannot access your coins or a backup without the password.") + "\n" + \
+                  _("A backup is saved automatically when generating a new wallet.")
             if self.password_dialog(msg):
                 reply = self.hid_send_plain(b'{"password":"' + self.password + b'"}')
             else:
@@ -166,14 +171,14 @@ class DigitalBitbox_Client():
             if 'error' in reply:
                 self.password = None
                 if reply['error']['code'] == 109:
-                    msg = _("Incorrect password entered.\r\n\r\n"  \
-                            + reply['error']['message'] + "\r\n\r\n" \
-                            "Enter your Digital Bitbox password:")
+                    msg = _("Incorrect password entered.") + "\n\n" + \
+                          reply['error']['message'] + "\n\n" + \
+                          _("Enter your Digital Bitbox password:")
                 else:
                     # Should never occur
-                    msg = _("Unexpected error occurred.\r\n\r\n"  \
-                            + reply['error']['message'] + "\r\n\r\n" \
-                            "Enter your Digital Bitbox password:")
+                    msg = _("Unexpected error occurred.") + "\n\n" + \
+                          reply['error']['message'] + "\n\n" + \
+                          _("Enter your Digital Bitbox password:")
 
         # Initialize device if not yet initialized
         if not self.setupRunning:
@@ -189,7 +194,7 @@ class DigitalBitbox_Client():
 
 
     def recover_or_erase_dialog(self):
-        msg = _("The Digital Bitbox is already seeded. Choose an option:\n")
+        msg = _("The Digital Bitbox is already seeded. Choose an option:") + "\n"
         choices = [
             (_("Create a wallet using the current seed")),
             (_("Load a wallet from the micro SD card (the current seed is overwritten)")),
@@ -206,13 +211,13 @@ class DigitalBitbox_Client():
                 return
         else:
             if self.hid_send_encrypt(b'{"device":"info"}')['device']['lock']:
-                raise Exception("Full 2FA enabled. This is not supported yet.")
+                raise Exception(_("Full 2FA enabled. This is not supported yet."))
             # Use existing seed
         self.isInitialized = True
 
 
     def seed_device_dialog(self):
-        msg = _("Choose how to initialize your Digital Bitbox:\n")
+        msg = _("Choose how to initialize your Digital Bitbox:") + "\n"
         choices = [
             (_("Generate a new random wallet")),
             (_("Load a wallet from the micro SD card"))
@@ -251,7 +256,7 @@ class DigitalBitbox_Client():
 
         choices = [
             _('Do not pair'),
-            _('Import pairing from the digital bitbox desktop app'),
+            _('Import pairing from the Digital Bitbox desktop app'),
         ]
         try:
             reply = self.handler.win.query_choice(_('Mobile pairing options'), choices)
@@ -278,9 +283,9 @@ class DigitalBitbox_Client():
 
 
     def dbb_erase(self):
-        self.handler.show_message(_("Are you sure you want to erase the Digital Bitbox?\r\n\r\n" \
-                                    "To continue, touch the Digital Bitbox's light for 3 seconds.\r\n\r\n" \
-                                    "To cancel, briefly touch the light or wait for the timeout."))
+        self.handler.show_message(_("Are you sure you want to erase the Digital Bitbox?") + "\n\n" +
+                                  _("To continue, touch the Digital Bitbox's light for 3 seconds.") + "\n\n" +
+                                  _("To cancel, briefly touch the light or wait for the timeout."))
         hid_reply = self.hid_send_encrypt(b'{"reset":"__ERASE__"}')
         self.handler.finished()
         if 'error' in hid_reply:
@@ -303,10 +308,10 @@ class DigitalBitbox_Client():
             raise Exception('Canceled by user')
         key = self.stretch_key(key)
         if show_msg:
-            self.handler.show_message(_("Loading backup...\r\n\r\n" \
-                                        "To continue, touch the Digital Bitbox's light for 3 seconds.\r\n\r\n" \
-                                        "To cancel, briefly touch the light or wait for the timeout."))
-        msg = b'{"seed":{"source": "backup", "key": "%s", "filename": "%s"}}' % (key, backups['backup'][f].encode('utf8'))
+            self.handler.show_message(_("Loading backup...") + "\n\n" +
+                                      _("To continue, touch the Digital Bitbox's light for 3 seconds.") + "\n\n" +
+                                      _("To cancel, briefly touch the light or wait for the timeout."))
+        msg = ('{"seed":{"source": "backup", "key": "%s", "filename": "%s"}}' % (key, backups['backup'][f])).encode('utf8')
         hid_reply = self.hid_send_encrypt(msg)
         self.handler.finished()
         if 'error' in hid_reply:
@@ -439,12 +444,12 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             dbb_client = self.plugin.get_client(self)
 
             if not dbb_client.is_paired():
-                raise Exception("Could not sign message.")
+                raise Exception(_("Could not sign message."))
 
             reply = dbb_client.hid_send_encrypt(msg)
-            self.handler.show_message(_("Signing message ...\r\n\r\n" \
-                                        "To continue, touch the Digital Bitbox's blinking light for 3 seconds.\r\n\r\n" \
-                                        "To cancel, briefly touch the blinking light or wait for the timeout."))
+            self.handler.show_message(_("Signing message ...") + "\n\n" +
+                                      _("To continue, touch the Digital Bitbox's blinking light for 3 seconds.") + "\n\n" +
+                                      _("To cancel, briefly touch the blinking light or wait for the timeout."))
             reply = dbb_client.hid_send_encrypt(msg) # Send twice, first returns an echo for smart verification (not implemented)
             self.handler.finished()
 
@@ -452,7 +457,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 raise Exception(reply['error']['message'])
 
             if 'sign' not in reply:
-                raise Exception("Could not sign message.")
+                raise Exception(_("Could not sign message."))
 
             if 'recid' in reply['sign'][0]:
                 # firmware > v2.1.1
@@ -461,7 +466,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 pk = point_to_ser(pk.pubkey.point, compressed)
                 addr = public_key_to_p2pkh(pk)
                 if verify_message(addr, sig, message) is False:
-                    raise Exception("Could not sign message")
+                    raise Exception(_("Could not sign message"))
             elif 'pubkey' in reply['sign'][0]:
                 # firmware <= v2.1.1
                 for i in range(4):
@@ -473,7 +478,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     except Exception:
                         continue
                 else:
-                    raise Exception("Could not sign message")
+                    raise Exception(_("Could not sign message"))
 
 
         except BaseException as e:
@@ -574,14 +579,14 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     self.plugin.comserver_post_notification(reply)
 
                 if steps > 1:
-                    self.handler.show_message(_("Signing large transaction. Please be patient ...\r\n\r\n" \
-                                                "To continue, touch the Digital Bitbox's blinking light for 3 seconds. " \
-                                                "(Touch " + str(step + 1) + " of " + str(int(steps)) + ")\r\n\r\n" \
-                                                "To cancel, briefly touch the blinking light or wait for the timeout.\r\n\r\n"))
+                    self.handler.show_message(_("Signing large transaction. Please be patient ...") + "\n\n" +
+                                              _("To continue, touch the Digital Bitbox's blinking light for 3 seconds.") + " " +
+                                              _("(Touch {} of {})").format((step + 1), steps) + "\n\n" +
+                                              _("To cancel, briefly touch the blinking light or wait for the timeout.") + "\n\n")
                 else:
-                    self.handler.show_message(_("Signing transaction ...\r\n\r\n" \
-                                                "To continue, touch the Digital Bitbox's blinking light for 3 seconds.\r\n\r\n" \
-                                                "To cancel, briefly touch the blinking light or wait for the timeout."))
+                    self.handler.show_message(_("Signing transaction...") + "\n\n" +
+                                              _("To continue, touch the Digital Bitbox's blinking light for 3 seconds.") + "\n\n" +
+                                              _("To cancel, briefly touch the blinking light or wait for the timeout."))
 
                 # Send twice, first returns an echo for smart verification
                 reply = dbb_client.hid_send_encrypt(msg)
@@ -673,6 +678,9 @@ class DigitalBitboxPlugin(HW_PluginBase):
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
+        if client is None:
+            raise Exception(_('Failed to create a client for this device.') + '\n' +
+                            _('Make sure it is in the correct state.'))
         client.handler = self.create_handler(wizard)
         client.setupRunning = True
         client.get_xpub("m/44'/0'", 'standard')
