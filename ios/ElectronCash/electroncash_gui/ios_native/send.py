@@ -204,7 +204,7 @@ class SendVC(SendBase):
         fee_e.fixedUnitLabelWidth = 50.0
 
         # Error Label
-        self.message.text = _("")
+        self.message.text = ""
 
         self.descDel.placeholderFont = UIFont.italicSystemFontOfSize_(14.0)
         self.descDel.tv = self.desc

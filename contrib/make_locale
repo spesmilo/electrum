@@ -12,7 +12,7 @@ original_dir = os.getcwd()
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 os.chdir('..')
 
-code_directories = 'gui plugins lib'
+code_directories = 'gui plugins lib ios/ElectronCash/electroncash_gui/ios_native'
 cmd = "find {} -type f -name '*.py' -o -name '*.kv'".format(code_directories)
 
 files = subprocess.check_output(cmd, shell=True)

@@ -401,13 +401,13 @@ class NetworkDialogVC(UIViewController):
                 server_or_branch = extraData[1]
                 if is_server:                
                     server, port, *bla = deserialize_server(server_or_branch)
-                    message = _("Do you wish to use\n%s:%s\nas the wallet server?")%(str(server),str(port))
+                    message = _("Do you wish to use\n{}:{}\nas the wallet server?").format(str(server),str(port))
                     title = str(_("Use as server") + '?')
                 else:
                     branch = server_or_branch
                     name = extraData[2]
                     title = str(_("Follow this branch") + '?')
-                    message = str(_("Do you wish to follow the\n%s@%s\nbranch?")%(str(name),str(branch)))
+                    message = str(_("Do you wish to follow the\n{}@{}\nbranch?").format(str(name),str(branch)))
                 def wantsToChangeServerOrBranch() -> None:
                     if is_server:
                         self.followServer_(str(server_or_branch))
@@ -425,7 +425,7 @@ class NetworkDialogVC(UIViewController):
             if srv is not None:
                 h, d, ser = srv
                 server, port, *bla = deserialize_server(ser)
-                message = _("Do you wish to use\n%s:%s\nas the blockchain server?")%(str(server),str(port))
+                message = _("Do you wish to use\n{}:{}\nas the blockchain server?").format(str(server),str(port))
                 title = str(_("Use as server") + '?')
                 def wantsToChangeServer() -> None:
                     self.setServer_(ser)
