@@ -552,13 +552,12 @@ def bip39_normalize_passphrase(passphrase):
     return normalize('NFKD', passphrase or '')
 
 def bip39_to_seed(mnemonic, passphrase):
-    import pbkdf2, hashlib, hmac
+    import hashlib, hmac
     PBKDF2_ROUNDS = 2048
     mnemonic = normalize('NFKD', ' '.join(mnemonic.split()))
     passphrase = bip39_normalize_passphrase(passphrase)
-    return pbkdf2.PBKDF2(mnemonic, 'mnemonic' + passphrase,
-                         iterations = PBKDF2_ROUNDS, macmodule = hmac,
-                         digestmodule = hashlib.sha512).read(64)
+    return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'),
+        b'mnemonic' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 
 # returns tuple (is_checksum_valid, is_wordlist_valid)
 def bip39_is_checksum_valid(mnemonic):
