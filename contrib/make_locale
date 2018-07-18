@@ -59,7 +59,6 @@ if crowdin_api_key:
 
 if len(sys.argv) < 2:
     # Download & unzip
-    print('https://crowdin.com/backend/download/project/' + crowdin_identifier + '.zip')
     s = requests.request('GET', 'https://crowdin.com/backend/download/project/' + crowdin_identifier + '.zip').content
     zfobj = zipfile.ZipFile(io.BytesIO(s))
 else:
@@ -67,13 +66,11 @@ else:
 
 print('Unzip translations')
 for name in zfobj.namelist():
-    if not name.startswith('electrum-client/locale'):
-        continue
     if name.endswith('/'):
-        if not os.path.exists(name[16:]):
-            os.mkdir(name[16:])
+        if not os.path.exists(name):
+            os.mkdir(name)
     else:
-        with open(name[16:], 'wb') as output:
+        with open(name, 'wb') as output:
             output.write(zfobj.read(name))
 
 # Convert .po to .mo
@@ -82,9 +79,9 @@ for lang in os.listdir('locale'):
     if lang.startswith('messages'):
         continue
     # Check LC_MESSAGES folder
-    mo_dir = 'locale/%s/LC_MESSAGES' % lang
-    if not os.path.exists(mo_dir):
-        os.mkdir(mo_dir)
-    cmd = 'msgfmt --output-file="%s/electron-cash.mo" "locale/%s/electrum.po"' % (mo_dir,lang)
+    msg_dir = 'locale/{}/LC_MESSAGES'.format(lang)
+    if not os.path.exists(msg_dir):
+        os.mkdir(msg_dir)
+    cmd = 'msgfmt --output-file="{0}/electron-cash.mo" "{0}/electron-cash.po"'.format(msg_dir)
     print('Installing', lang)
     os.system(cmd)
