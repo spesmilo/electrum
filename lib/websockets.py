@@ -32,6 +32,7 @@ except ImportError:
     sys.exit("install SimpleWebSocketServer")
 
 from . import util
+from .address import Address
 
 request_queue = queue.Queue()
 
