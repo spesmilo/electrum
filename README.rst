@@ -15,9 +15,9 @@ Electrum - Lightweight Bitcoin client
 .. image:: https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master
     :target: https://coveralls.io/github/spesmilo/electrum?branch=master
     :alt: Test coverage statistics
-.. image:: https://img.shields.io/badge/help-translating-blue.svg
+.. image:: https://d322cqt584bo4o.cloudfront.net/electrum/localized.svg
     :target: https://crowdin.com/project/electrum
-    :alt: Help translating Electrum online
+    :alt: Help translate Electrum online
 
 
 
