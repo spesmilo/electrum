@@ -15,7 +15,7 @@ with open('contrib/requirements/requirements.txt') as f:
 with open('contrib/requirements/requirements-hw.txt') as f:
     requirements_hw = f.read().splitlines()
 
-version = imp.load_source('version', 'lib/version.py')
+version = imp.load_source('version', 'electrum/version.py')
 
 if sys.version_info[:3] < (3, 4, 0):
     sys.exit("Error: Electrum requires Python version >= 3.4.0...")
@@ -55,36 +55,35 @@ setup(
     extras_require=extras_require,
     packages=[
         'electrum',
-        'electrum_gui',
-        'electrum_gui.qt',
-        'electrum_plugins',
-        'electrum_plugins.audio_modem',
-        'electrum_plugins.cosigner_pool',
-        'electrum_plugins.email_requests',
-        'electrum_plugins.greenaddress_instant',
-        'electrum_plugins.hw_wallet',
-        'electrum_plugins.keepkey',
-        'electrum_plugins.labels',
-        'electrum_plugins.ledger',
-        'electrum_plugins.revealer',
-        'electrum_plugins.trezor',
-        'electrum_plugins.safe_t',
-        'electrum_plugins.digitalbitbox',
-        'electrum_plugins.trustedcoin',
-        'electrum_plugins.virtualkeyboard',
+        'electrum.gui',
+        'electrum.gui.qt',
+        'electrum.plugins',
+        'electrum.plugins.audio_modem',
+        'electrum.plugins.cosigner_pool',
+        'electrum.plugins.email_requests',
+        'electrum.plugins.greenaddress_instant',
+        'electrum.plugins.hw_wallet',
+        'electrum.plugins.keepkey',
+        'electrum.plugins.labels',
+        'electrum.plugins.ledger',
+        'electrum.plugins.revealer',
+        'electrum.plugins.safe_t',
+        'electrum.plugins.trezor',
+        'electrum.plugins.digitalbitbox',
+        'electrum.plugins.trustedcoin',
+        'electrum.plugins.virtualkeyboard',
     ],
     package_dir={
-        'electrum': 'lib',
-        'electrum_gui': 'gui',
-        'electrum_plugins': 'plugins',
+        'electrum': 'electrum'
     },
     package_data={
         '': ['*.txt', '*.json', '*.ttf', '*.otf'],
         'electrum': [
-            'locale/*/LC_MESSAGES/electrum.mo',
+            'electrum/wordlist/*.txt',
+            'electrum/locale/*/LC_MESSAGES/electrum.mo',
         ],
     },
-    scripts=['electrum'],
+    scripts=['electrum/electrum'],
     data_files=data_files,
     description="Lightweight Bitcoin Wallet",
     author="Thomas Voegtlin",

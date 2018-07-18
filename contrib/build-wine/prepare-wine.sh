@@ -13,7 +13,7 @@ LIBUSB_FILENAME=libusb-1.0.22.7z
 LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-1.0.22/$LIBUSB_FILENAME?download
 LIBUSB_SHA256=671f1a420757b4480e7fadc8313d6fb3cbb75ca00934c417c1efa6e77fb8779b
 
-PYTHON_VERSION=3.5.4
+PYTHON_VERSION=3.6.6
 
 ## These settings probably don't need change
 export WINEPREFIX=/opt/wine64
@@ -79,12 +79,12 @@ retry() {
 here=$(dirname $(readlink -e $0))
 set -e
 
-# Clean up Wine environment
-echo "Cleaning $WINEPREFIX"
-rm -rf $WINEPREFIX
-echo "done"
-
 wine 'wineboot'
+
+# HACK to work around https://bugs.winehq.org/show_bug.cgi?id=42474#c22
+# needed for python 3.6+
+rm -f /opt/wine-stable/lib/wine/fakedlls/api-ms-win-core-path-l1-1-0.dll
+rm -f /opt/wine-stable/lib/wine/api-ms-win-core-path-l1-1-0.dll.so
 
 cd /tmp/electrum-build
 
@@ -93,8 +93,14 @@ cd /tmp/electrum-build
 # keys from https://www.python.org/downloads/#pubkeys
 KEYLIST_PYTHON_DEV="531F072D39700991925FED0C0EDDC5F26A45C816 26DEA9D4613391EF3E25C9FF0A5B101836580288 CBC547978A3964D14B9AB36A6AF053F07D9DC8D2 C01E1CAD5EA2C4F0B8E3571504C367C218ADD4FF 12EF3DC38047DA382D18A5B999CDEA9DA4135B38 8417157EDBE73D9EAC1E539B126EB563A74B06BF DBBF2EEBF925FAADCF1F3FFFD9866941EA5BBD71 2BA0DB82515BBB9EFFAC71C5C9BE28DEE6DF025C 0D96DF4D4110E5C43FBFB17F2D347EA6AA65421D C9B104B3DD3AA72D7CCB1066FB9921286F5E1540 97FC712E4C024BBEA48A61ED3A5CA953F73C700D 7ED10B6531D7C8E1BC296021FC624643487034E5"
 KEYRING_PYTHON_DEV="keyring-electrum-build-python-dev.gpg"
-KEYSERVER_PYTHON_DEV="hkp://pool.sks-keyservers.net"
-retry gpg --no-default-keyring --keyring $KEYRING_PYTHON_DEV --keyserver $KEYSERVER_PYTHON_DEV --recv-keys $KEYLIST_PYTHON_DEV
+for server in $(shuf -e ha.pool.sks-keyservers.net \
+                        hkp://p80.pool.sks-keyservers.net:80 \
+                        keyserver.ubuntu.com \
+                        hkp://keyserver.ubuntu.com:80 \
+                        pgp.mit.edu) ; do
+    retry gpg --no-default-keyring --keyring $KEYRING_PYTHON_DEV --keyserver "$server" --recv-keys $KEYLIST_PYTHON_DEV \
+    && break || : ;
+done
 for msifile in core dev exe lib pip tools; do
     echo "Installing $msifile..."
     wget -N -c "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"

@@ -1,0 +1,754 @@
+#:kivy 1.0
+
+<Label>:
+    canvas:
+        Color:
+            rgba: self.disabled_color if self.disabled else (self.color if not self.markup else (1, 1, 1, 1))
+        Rectangle:
+            texture: self.texture
+            size: self.texture_size
+            pos: int(self.center_x - self.texture_size[0] / 2.), int(self.center_y - self.texture_size[1] / 2.)
+
+<-Button,-ToggleButton>:
+    state_image: self.background_normal if self.state == 'normal' else self.background_down
+    disabled_image: self.background_disabled_normal if self.state == 'normal' else self.background_disabled_down
+    canvas:
+        Color:
+            rgba: self.background_color
+        BorderImage:
+            border: self.border
+            pos: self.pos
+            size: self.size
+            source: self.disabled_image if self.disabled else self.state_image
+        Color:
+            rgba: self.disabled_color if self.disabled else self.color
+        Rectangle:
+            texture: self.texture
+            size: self.texture_size
+            pos: int(self.center_x - self.texture_size[0] / 2.), int(self.center_y - self.texture_size[1] / 2.)
+
+<BubbleContent>
+    opacity: .7 if self.disabled else 1
+    rows: 1
+    canvas:
+        Color:
+            rgba: self.parent.background_color if self.parent else (1, 1, 1, 1)
+        BorderImage:
+            border: self.parent.border if self.parent else (16, 16, 16, 16)
+            texture: root.parent._bk_img.texture if root.parent else None
+            size: self.size
+            pos: self.pos
+
+<BubbleButton>:
+    background_normal: 'atlas://data/images/defaulttheme/bubble_btn'
+    background_down: 'atlas://data/images/defaulttheme/bubble_btn_pressed'
+    background_disabled_normal: 'atlas://data/images/defaulttheme/bubble_btn'
+    background_disabled_down: 'atlas://data/images/defaulttheme/bubble_btn_pressed'
+    border: (0, 0, 0, 0)
+
+<Slider>:
+    canvas:
+        Color:
+            rgb: 1, 1, 1
+        BorderImage:
+            border: (0, 18, 0, 18) if self.orientation == 'horizontal' else (18, 0, 18, 0)
+            pos: (self.x + self.padding, self.center_y - sp(18)) if self.orientation == 'horizontal' else (self.center_x - 18, self.y + self.padding)
+            size: (self.width - self.padding * 2, sp(36)) if self.orientation == 'horizontal' else (sp(36), self.height - self.padding * 2)
+            source: 'atlas://data/images/defaulttheme/slider{}_background{}'.format(self.orientation[0], '_disabled' if self.disabled else '')
+        Rectangle:
+            pos: (self.value_pos[0] - sp(16), self.center_y - sp(17)) if self.orientation == 'horizontal' else (self.center_x - (16), self.value_pos[1] - sp(16))
+            size: (sp(32), sp(32))
+            source: 'atlas://data/images/defaulttheme/slider_cursor{}'.format('_disabled' if self.disabled else '')
+
+<RelativeLayout>:
+    canvas.before:
+        PushMatrix
+        Translate:
+            xy: self.pos
+    canvas.after:
+        PopMatrix
+
+<Image,AsyncImage>:
+    canvas:
+        Color:
+            rgba: self.color
+        Rectangle:
+            texture: self.texture
+            size: self.norm_image_size
+            pos: self.center_x - self.norm_image_size[0] / 2., self.center_y - self.norm_image_size[1] / 2.
+
+<TabbedPanelContent>
+    rows: 1
+    padding: 3
+    canvas:
+        Color:
+            rgba: self.parent.background_color if self.parent else (1, 1, 1, 1)
+        BorderImage:
+            border: self.parent.border if self.parent else (16, 16, 16, 16)
+            source: (root.parent.background_disabled_image if self.disabled else root.parent.background_image) if root.parent else None
+            size: self.size
+            pos: self.pos
+
+<TabbedPanelStrip>
+    rows: 1
+
+<StripLayout>
+    padding: '2dp', '2dp', '2dp', '2dp'
+    canvas.before:
+        BorderImage:
+            pos: self.pos
+            size: self.size
+            border: root.border
+            source: root.background_image
+
+<TabbedPanelHeader>:
+    halign: 'center'
+    valign: 'middle'
+    background_normal: 'atlas://data/images/defaulttheme/tab_btn'
+    background_disabled_normal: 'atlas://data/images/defaulttheme/tab_btn_disabled'
+    background_down: 'atlas://data/images/defaulttheme/tab_btn_pressed'
+    background_disabled_down: 'atlas://data/images/defaulttheme/tab_btn_pressed'
+    border: (8, 8, 8, 8)
+    font_size: '15sp'
+
+<Selector>
+    allow_stretch: True
+
+<TextInput>:
+    canvas.before:
+        Color:
+            rgba: self.background_color
+        BorderImage:
+            border: self.border
+            pos: self.pos
+            size: self.size
+            source: (self.background_disabled_active if self.disabled else self.background_active) if self.focus else (self.background_disabled_normal if self.disabled else self.background_normal)
+        Color:
+            rgba: (self.cursor_color if self.focus and not self.cursor_blink else (0, 0, 0, 0))
+        Rectangle:
+            pos: [int(x) for x in self.cursor_pos]
+            size: 1, -self.line_height
+        Color:
+            rgba: self.disabled_foreground_color if self.disabled else (self.hint_text_color if not self.text and not self.focus else self.foreground_color)
+
+<TextInputCutCopyPaste>:
+    but_cut: cut.__self__
+    but_copy: copy.__self__
+    but_paste: paste.__self__
+    but_selectall: selectall.__self__
+
+    size_hint: None, None
+    size: '150sp', '50sp'
+    BubbleButton:
+        id: cut
+        text: 'Cut'
+        on_release: root.do('cut')
+    BubbleButton:
+        id: copy
+        text: 'Copy'
+        on_release: root.do('copy')
+    BubbleButton:
+        id: paste
+        text: 'Paste'
+        on_release: root.do('paste')
+    BubbleButton:
+        id: selectall
+        text: 'Select All'
+        on_release: root.do('selectall')
+
+<CodeInput>:
+    font_name: 'data/fonts/RobotoMono-Regular.ttf'
+
+
+<TreeViewNode>:
+    canvas.before:
+        Color:
+            rgba: self.color_selected if self.is_selected else self.odd_color if self.odd else self.even_color
+        Rectangle:
+            pos: [self.parent.x, self.y] if self.parent else [0, 0]
+            size: [self.parent.width, self.height] if self.parent else [1, 1]
+        Color:
+            rgba: 1, 1, 1, int(not self.is_leaf)
+        Rectangle:
+            source: 'atlas://data/images/defaulttheme/tree_%s' % ('opened' if self.is_open else 'closed')
+            size: 16, 16
+            pos: self.x - 20, self.center_y - 8
+    canvas.after:
+        Color:
+            rgba: .5, .5, .5, .2
+        Line:
+            points: [self.parent.x, self.y, self.parent.right, self.y] if self.parent else []
+
+
+<TreeViewLabel>:
+    width: self.texture_size[0]
+    height: max(self.texture_size[1] + dp(10), dp(24))
+    text_size: self.width, None
+
+
+<StencilView>:
+    canvas.before:
+        StencilPush
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        StencilUse
+
+    canvas.after:
+        StencilUnUse
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        StencilPop
+
+
+<FileChooserListLayout>:
+    on_entry_added: treeview.add_node(args[1])
+    on_entries_cleared: treeview.root.nodes = []
+    on_subentry_to_entry: not args[2].locked and treeview.add_node(args[1], args[2])
+    on_remove_subentry: args[2].nodes = []
+    BoxLayout:
+        pos: root.pos
+        size: root.size
+        size_hint: None, None
+        orientation: 'vertical'
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            orientation: 'horizontal'
+            Widget:
+                # Just for spacing
+                width: 10
+                size_hint_x: None
+            Label:
+                text: 'Name'
+                text_size: self.size
+                halign: 'left'
+                bold: True
+            Label:
+                text: 'Size'
+                text_size: self.size
+                size_hint_x: None
+                halign: 'right'
+                bold: True
+            Widget:
+                # Just for spacing
+                width: 10
+                size_hint_x: None
+        ScrollView:
+            id: scrollview
+            do_scroll_x: False
+            Scatter:
+                do_rotation: False
+                do_scale: False
+                do_translation: False
+                size: treeview.size
+                size_hint_y: None
+                TreeView:
+                    id: treeview
+                    hide_root: True
+                    size_hint_y: None
+                    width: scrollview.width
+                    height: self.minimum_height
+                    on_node_expand: root.controller.entry_subselect(args[1])
+                    on_node_collapse: root.controller.close_subselection(args[1])
+
+<FileChooserListView>:
+    layout: layout
+    FileChooserListLayout:
+        id: layout
+        controller: root
+
+[FileListEntry@FloatLayout+TreeViewNode]:
+    locked: False
+    entries: []
+    path: ctx.path
+    # FIXME: is_selected is actually a read_only treeview property. In this
+    # case, however, we're doing this because treeview only has single-selection
+    # hardcoded in it. The fix to this would be to update treeview to allow
+    # multiple selection.
+    is_selected: self.path in ctx.controller().selection
+
+    orientation: 'horizontal'
+    size_hint_y: None
+    height: '48dp' if dp(1) > 1 else '24dp'
+    # Don't allow expansion of the ../ node
+    is_leaf: not ctx.isdir or ctx.name.endswith('..' + ctx.sep) or self.locked
+    on_touch_down: self.collide_point(*args[1].pos) and ctx.controller().entry_touched(self, args[1])
+    on_touch_up: self.collide_point(*args[1].pos) and ctx.controller().entry_released(self, args[1])
+    BoxLayout:
+        pos: root.pos
+        Label:
+            id: filename
+            text_size: self.width, None
+            halign: 'left'
+            shorten: True
+            text: ctx.name
+        Label:
+            text_size: self.width, None
+            size_hint_x: None
+            halign: 'right'
+            text: '{}'.format(ctx.get_nice_size())
+
+
+<FileChooserIconLayout>:
+    on_entry_added: stacklayout.add_widget(args[1])
+    on_entries_cleared: stacklayout.clear_widgets()
+    ScrollView:
+        id: scrollview
+        pos: root.pos
+        size: root.size
+        size_hint: None, None
+        do_scroll_x: False
+        Scatter:
+            do_rotation: False
+            do_scale: False
+            do_translation: False
+            size_hint_y: None
+            height: stacklayout.height
+            StackLayout:
+                id: stacklayout
+                width: scrollview.width
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: '10dp'
+                padding: '10dp'
+
+<FileChooserIconView>:
+    layout: layout
+    FileChooserIconLayout:
+        id: layout
+        controller: root
+
+[FileIconEntry@Widget]:
+    locked: False
+    path: ctx.path
+    selected: self.path in ctx.controller().selection
+    size_hint: None, None
+
+    on_touch_down: self.collide_point(*args[1].pos) and ctx.controller().entry_touched(self, args[1])
+    on_touch_up: self.collide_point(*args[1].pos) and ctx.controller().entry_released(self, args[1])
+    size: '100dp', '100dp'
+
+    canvas:
+        Color:
+            rgba: 1, 1, 1, 1 if self.selected else 0
+        BorderImage:
+            border: 8, 8, 8, 8
+            pos: root.pos
+            size: root.size
+            source: 'atlas://data/images/defaulttheme/filechooser_selected'
+
+    Image:
+        size: '48dp', '48dp'
+        source: 'atlas://data/images/defaulttheme/filechooser_%s' % ('folder' if ctx.isdir else 'file')
+        pos: root.x + dp(24), root.y + dp(40)
+    Label:
+        text: ctx.name
+        text_size: (root.width, self.height)
+        halign: 'center'
+        shorten: True
+        size: '100dp', '16dp'
+        pos: root.x, root.y + dp(16)
+
+    Label:
+        text: '{}'.format(ctx.get_nice_size())
+        font_size: '11sp'
+        color: .8, .8, .8, 1
+        size: '100dp', '16sp'
+        pos: root.pos
+        halign: 'center'
+
+<FileChooserProgress>:
+    pos_hint: {'x': 0, 'y': 0}
+    canvas:
+        Color:
+            rgba: 0, 0, 0, .8
+        Rectangle:
+            pos: self.pos
+            size: self.size
+    Label:
+        pos_hint: {'x': .2, 'y': .6}
+        size_hint: .6, .2
+        text: 'Opening %s' % root.path
+    FloatLayout:
+        pos_hint: {'x': .2, 'y': .4}
+        size_hint: .6, .2
+        ProgressBar:
+            id: pb
+            pos_hint: {'x': 0, 'center_y': .5}
+            max: root.total
+            value: root.index
+        Label:
+            pos_hint: {'x': 0}
+            text: '%d / %d' % (root.index, root.total)
+            size_hint_y: None
+            height: self.texture_size[1]
+            y: pb.center_y - self.height - 8
+            font_size: '13sp'
+            color: (.8, .8, .8, .8)
+
+    AnchorLayout:
+        pos_hint: {'x': .2, 'y': .2}
+        size_hint: .6, .2
+
+        Button:
+            text: 'Cancel'
+            size_hint: None, None
+            size: 150, 44
+            on_release: root.cancel()
+
+
+
+# Switch widget
+<Switch>:
+    active_norm_pos: max(0., min(1., (int(self.active) + self.touch_distance / sp(41))))
+    canvas:
+        Color:
+            rgb: 1, 1, 1
+        Rectangle:
+            source: 'atlas://data/images/defaulttheme/switch-background{}'.format('_disabled' if self.disabled else '')
+            size: sp(83), sp(32)
+            pos: int(self.center_x - sp(41)), int(self.center_y - sp(16))
+        Rectangle:
+            source: 'atlas://data/images/defaulttheme/switch-button{}'.format('_disabled' if self.disabled else '')
+            size: sp(43), sp(32)
+            pos: int(self.center_x - sp(41) + self.active_norm_pos * sp(41)), int(self.center_y - sp(16))
+
+
+# ModalView widget
+<ModalView>:
+    canvas:
+        Color:
+            rgba: root.background_color[:3] + [root.background_color[-1] * self._anim_alpha]
+        Rectangle:
+            size: self._window.size if self._window else (0, 0)
+
+        Color:
+            rgb: 1, 1, 1
+        BorderImage:
+            source: root.background
+            border: root.border
+            pos: self.pos
+            size: self.size
+
+
+# Popup widget
+<Popup>:
+    _container: container
+    GridLayout:
+        padding: '12dp'
+        cols: 1
+        size_hint: None, None
+        pos: root.pos
+        size: root.size
+
+        Label:
+            text: root.title
+            color: root.title_color
+            size_hint_y: None
+            height: self.texture_size[1] + dp(16)
+            text_size: self.width - dp(16), None
+            font_size: root.title_size
+            font_name: root.title_font
+            halign: root.title_align
+
+        Widget:
+            size_hint_y: None
+            height: dp(4)
+            canvas:
+                Color:
+                    rgba: root.separator_color
+                Rectangle:
+                    pos: self.x, self.y + root.separator_height / 2.
+                    size: self.width, root.separator_height
+
+        BoxLayout:
+            id: container
+
+# =============================================================================
+# Spinner widget
+# =============================================================================
+
+<SpinnerOption>:
+    size_hint_y: None
+    height: '48dp'
+
+<Spinner>:
+    background_normal: 'atlas://data/images/defaulttheme/spinner'
+    background_disabled_normal: 'atlas://data/images/defaulttheme/spinner_disabled'
+    background_down: 'atlas://data/images/defaulttheme/spinner_pressed'
+
+# =============================================================================
+# ActionBar widget
+# =============================================================================
+
+<ActionBar>:
+    height: '48dp'
+    size_hint_y: None
+    spacing: '4dp'
+    canvas:
+        Color:
+            rgba: self.background_color
+        BorderImage:
+            border: root.border
+            pos: self.pos
+            size: self.size
+            source: self.background_image
+
+<ActionView>:
+    orientation: 'horizontal'
+    canvas:
+        Color:
+            rgba: self.background_color
+        BorderImage:
+            pos: self.pos
+            size: self.size
+            source: self.background_image
+
+<ActionSeparator>:
+    size_hint_x: None
+    minimum_width: '2sp'
+    width: self.minimum_width
+    canvas:
+        Rectangle:
+            pos: self.x, self.y + sp(4)
+            size: self.width, self.height - sp(8)
+            source: self.background_image
+
+<ActionButton,ActionToggleButton>:
+    background_normal: 'atlas://data/images/defaulttheme/' + ('action_bar' if self.inside_group else 'action_item')
+    background_down: 'atlas://data/images/defaulttheme/action_item_down'
+    size_hint_x: None if not root.inside_group else 1
+    width: [dp(48) if (root.icon and not root.inside_group) else max(dp(48), (self.texture_size[0] + dp(32))), self.size_hint_x][0]
+    color: self.color[:3] + [0 if (root.icon and not root.inside_group) else 1]
+
+    Image:
+        allow_stretch: True
+        opacity: 1 if (root.icon and not root.inside_group) else 0
+        source: root.icon
+        mipmap: root.mipmap
+        pos: root.x + dp(4), root.y + dp(4)
+        size: root.width - dp(8), root.height - sp(8)
+
+<ActionLabel>:
+    size_hint_x: None if not root.inside_group else 1
+    width: self.texture_size[0] + dp(32)
+
+<ActionGroup>:
+    size_hint_x: None
+    width: self.texture_size[0] + dp(32)
+
+<ActionCheck>:
+    background_normal: 'atlas://data/images/defaulttheme/action_bar' if self.inside_group else 'atlas://data/images/defaulttheme/action_item'
+
+<ActionPreviousImage@Image>:
+    temp_width: 0
+    temp_height: 0
+
+<ActionPreviousButton@Button>:
+    background_normal: 'atlas://data/images/defaulttheme/action_item'
+    background_down: 'atlas://data/images/defaulttheme/action_item_down'
+
+<ActionPrevious>:
+    size_hint_x: 1
+    minimum_width: layout.minimum_width + min(sp(100), title.width)
+    important: True
+    GridLayout:
+        id: layout
+        rows: 1
+        pos: root.pos
+        size_hint_x: None
+        width: self.minimum_width
+        ActionPreviousButton:
+            on_press: root.dispatch('on_press')
+            on_release: root.dispatch('on_release')
+            size_hint_x: None
+            width: prevlayout.width
+            GridLayout:
+                id: prevlayout
+                rows: 1
+                width: self.minimum_width
+                height: self.parent.height
+                pos: self.parent.pos
+                ActionPreviousImage:
+                    id: prev_icon_image
+                    source: root.previous_image
+                    opacity: 1 if root.with_previous else 0
+                    allow_stretch: True
+                    size_hint_x: None
+                    temp_width: root.previous_image_width or dp(prev_icon_image.texture_size[0])
+                    temp_height: root.previous_image_height or dp(prev_icon_image.texture_size[1])
+                    width:
+                        (self.temp_width if self.temp_height <= self.height else \
+                        self.temp_width * (self.height / self.temp_height)) \
+                        if self.texture else dp(8)
+                    mipmap: root.mipmap
+                ActionPreviousImage:
+                    id: app_icon_image
+                    source: root.app_icon
+                    allow_stretch: True
+                    size_hint_x: None
+                    temp_width: root.app_icon_width or dp(app_icon_image.texture_size[0])
+                    temp_height: root.app_icon_height or dp(app_icon_image.texture_size[1])
+                    width:
+                        (self.temp_width if self.temp_height <= self.height else \
+                        self.temp_width * (self.height / self.temp_height)) \
+                        if self.texture else dp(8)
+                    mipmap: root.mipmap
+                Widget:
+                    size_hint_x: None
+                    width: '5sp'
+    Label:
+        id: title
+        text: root.title
+        text_size: self.size
+        color: root.color
+        shorten: True
+        shorten_from: 'right'
+        halign: 'left'
+        valign: 'middle'
+
+<ActionGroup>:
+    background_normal: 'atlas://data/images/defaulttheme/action_group'
+    background_down: 'atlas://data/images/defaulttheme/action_group_down'
+    background_disabled_normal: 'atlas://data/images/defaulttheme/action_group_disabled'
+    border: 30, 30, 3, 3
+    ActionSeparator:
+        pos: root.pos
+        size: root.separator_width, root.height
+        opacity: 1 if root.use_separator else 0
+        background_image: root.separator_image if root.use_separator else 'action_view'
+
+<ActionOverflow>:
+    border: 3, 3, 3, 3
+    background_normal: 'atlas://data/images/defaulttheme/action_item'
+    background_down: 'atlas://data/images/defaulttheme/action_item_down'
+    background_disabled_normal: 'atlas://data/images/defaulttheme/button_disabled'
+    size_hint_x: None
+    minimum_width: '48sp'
+    width: self.texture_size[0] if self.texture else self.minimum_width
+    canvas.after:
+        Color:
+            rgb: 1, 1, 1
+        Rectangle:
+            pos: root.center_x - sp(16), root.center_y - sp(16)
+            size: sp(32), sp(32)
+            source: root.overflow_image
+
+<ActionDropDown>:
+    auto_width: False
+
+
+# =============================================================================
+# Accordion widget
+# =============================================================================
+
+[AccordionItemTitle@Label]:
+    text: ctx.title
+    normal_background: ctx.item.background_normal if ctx.item.collapse else ctx.item.background_selected
+    disabled_background: ctx.item.background_disabled_normal if ctx.item.collapse else ctx.item.background_disabled_selected
+    canvas.before:
+        Color:
+            rgba: self.disabled_color if self.disabled else self.color
+        BorderImage:
+            source: self.disabled_background if self.disabled else self.normal_background
+            pos: self.pos
+            size: self.size
+        PushMatrix
+        Translate:
+            xy: self.center_x, self.center_y
+        Rotate:
+            angle: 90 if ctx.item.orientation == 'horizontal' else 0
+            axis: 0, 0, 1
+        Translate:
+            xy: -self.center_x, -self.center_y
+    canvas.after:
+        PopMatrix
+
+
+<AccordionItem>:
+    container: container
+    container_title: container_title
+
+    BoxLayout:
+        orientation: root.orientation
+        pos: root.pos
+        BoxLayout:
+            size_hint_x: None if root.orientation == 'horizontal' else 1
+            size_hint_y: None if root.orientation == 'vertical' else 1
+            width: root.min_space if root.orientation == 'horizontal' else 100
+            height: root.min_space if root.orientation == 'vertical' else 100
+            id: container_title
+
+        StencilView:
+            id: sv
+
+            BoxLayout:
+                id: container
+                pos: sv.pos
+                size: root.content_size
+
+
+<ScrollView>:
+    _handle_y_pos: (self.right - self.bar_width - self.bar_margin) if self.bar_pos_y == 'right' else (self.x + self.bar_margin), self.y + self.height * self.vbar[0]
+    _handle_y_size: min(self.bar_width, self.width), self.height * self.vbar[1]
+    _handle_x_pos: self.x + self.width * self.hbar[0], (self.y + self.bar_margin) if self.bar_pos_x == 'bottom' else (self.top - self.bar_margin - self.bar_width)
+    _handle_x_size: self.width * self.hbar[1], min(self.bar_width, self.height)
+    canvas.after:
+        Color:
+            rgba: self._bar_color if (self.do_scroll_y and self.viewport_size[1] > self.height) else [0, 0, 0, 0]
+        Rectangle:
+            pos: root._handle_y_pos or (0, 0)
+            size: root._handle_y_size or (0, 0)
+        Color:
+            rgba: self._bar_color if (self.do_scroll_x and self.viewport_size[0] > self.width) else [0, 0, 0, 0]
+        Rectangle:
+            pos: root._handle_x_pos or (0, 0)
+            size: root._handle_x_size or (0, 0)
+
+
+<CheckBox>:
+    _checkbox_state_image:
+        self.background_checkbox_down \
+        if self.active else self.background_checkbox_normal
+    _checkbox_disabled_image:
+        self.background_checkbox_disabled_down \
+        if self.active else self.background_checkbox_disabled_normal
+    _radio_state_image:
+        self.background_radio_down \
+        if self.active else self.background_radio_normal
+    _radio_disabled_image:
+        self.background_radio_disabled_down \
+        if self.active else self.background_radio_disabled_normal
+    _checkbox_image:
+        self._checkbox_disabled_image \
+        if self.disabled else self._checkbox_state_image
+    _radio_image:
+        self._radio_disabled_image \
+        if self.disabled else self._radio_state_image
+    canvas:
+        Color:
+            rgb: 1, 1, 1
+        Rectangle:
+            source: self._radio_image if self.group else self._checkbox_image
+            size: sp(32), sp(32)
+            pos: int(self.center_x - sp(16)), int(self.center_y - sp(16))
+
+# =============================================================================
+# Screen Manager
+# =============================================================================
+
+<ScreenManager>:
+    canvas.before:
+        StencilPush
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        StencilUse
+    canvas.after:
+        StencilUnUse
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        StencilPop

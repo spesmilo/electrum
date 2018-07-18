@@ -5,10 +5,17 @@ set -e
 
 build_dll() {
     #sudo apt-get install -y mingw-w64
+    export SOURCE_DATE_EPOCH=1530212462
     ./autogen.sh
     echo "LDFLAGS = -no-undefined" >> Makefile.am
-    ./configure --host=$1 --enable-module-recovery --enable-experimental --enable-module-ecdh --disable-jni
+    LDFLAGS="-Wl,--no-insert-timestamp" ./configure \
+        --host=$1 \
+        --enable-module-recovery \
+        --enable-experimental \
+        --enable-module-ecdh \
+        --disable-jni
     make
+    ${1}-strip .libs/libsecp256k1-0.dll
 }
 
 
