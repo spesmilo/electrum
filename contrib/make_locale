@@ -59,8 +59,8 @@ if crowdin_api_key:
 
 if len(sys.argv) < 2:
     # Download & unzip
-    print('Download translations')
-    s = requests.request('GET', 'https://crowdin.com/download/project/' + crowdin_identifier + '.zip').content
+    print('https://crowdin.com/backend/download/project/' + crowdin_identifier + '.zip')
+    s = requests.request('GET', 'https://crowdin.com/backend/download/project/' + crowdin_identifier + '.zip').content
     zfobj = zipfile.ZipFile(io.BytesIO(s))
 else:
     zfobj = zipfile.ZipFile(os.path.join(os.path.relpath(original_dir, os.getcwd()), sys.argv[1]))

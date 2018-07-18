@@ -9,7 +9,7 @@ Electron Cash - Lightweight Bitcoin Cash client
   Homepage: https://electroncash.org/
 
 
-.. image:: https://img.shields.io/badge/help-translating-blue.svg
+.. image:: https://d322cqt584bo4o.cloudfront.net/electron-cash/localized.svg
     :target: https://crowdin.com/project/electron-cash
     :alt: Help translate Electron Cash online
 
