@@ -25,6 +25,7 @@
 # SOFTWARE.
 import os
 import sys
+import re
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
@@ -375,9 +376,6 @@ if __name__ == '__main__':
     if config_options.get('portable'):
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
 
-    # kivy sometimes freezes when we write to sys.stderr
-    set_verbosity(config_options.get('verbose') and config_options.get('gui')!='kivy')
-
     # check uri
     uri = config_options.get('url')
     if uri:
@@ -396,6 +394,48 @@ if __name__ == '__main__':
         constants.set_regtest()
     elif config.get('simnet'):
         constants.set_simnet()
+
+    verbose = config_options.get('verbose')
+    verbose_modules = config.get('verbose_module')
+
+    if verbose_modules is not None and not verbose:
+        print_msg("Can't set -V (log whitelist) without setting -v (verbose).")
+        sys.exit(1)
+
+    set_verbosity(verbose) # set old global flag just for ledger
+
+    import logging
+    class MyLogger(logging.getLoggerClass()):
+        def getEffectiveLevel(self):
+            # kivy sometimes freezes when we write to sys.stderr
+            if not config_options.get('verbose') or config_options.get('gui') == 'kivy':
+                return logging.CRITICAL
+            if verbose_modules is None:
+                return logging.NOTSET
+            stack = self.findCaller(True)[3] # tuple is (filename, lineno, funcname, stackinfo)
+            caller = stack.split("\n")[-4]
+            if any(x in caller for x in verbose_modules):
+                return logging.NOTSET
+            return logging.CRITICAL
+    logging.setLoggerClass(MyLogger)
+
+    FORMAT = '%(filename)s:%(lineno)d %(name)s %(message)s'
+    logging.basicConfig(format=FORMAT, level=logging.DEBUG if verbose else logging.WARNING)
+
+    old_factory = logging.getLogRecordFactory()
+
+    def record_factory(*args, **kwargs):
+        record = old_factory(*args, **kwargs)
+        if record.stack_info is None:
+            return record
+        relevant_stack_line = record.stack_info.split("\n")[-4] # skip the stack in util/PrintError
+        record.lineno = int(re.match(".* line (\d+), in [^ ]+$", relevant_stack_line).group(1))
+        full_path = relevant_stack_line.split('"')[1]
+        record.filename = os.path.basename(full_path)
+        record.stack_info = None # if we don't remove this, it would be dumped
+        return record
+
+    logging.setLogRecordFactory(record_factory)
 
     # run non-RPC commands separately
     if cmdname in ['create', 'restore']:
