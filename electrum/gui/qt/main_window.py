@@ -51,7 +51,8 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            base_units, base_units_list, base_unit_name_to_decimal_point,
                            decimal_point_to_base_unit_name, quantize_feerate)
 from electrum.transaction import Transaction
-from electrum.wallet import Multisig_Wallet, AddTransactionException, CannotBumpFee
+from electrum.address_synchronizer import AddTransactionException
+from electrum.wallet import Multisig_Wallet, CannotBumpFee
 
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
