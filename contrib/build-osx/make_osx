@@ -51,14 +51,15 @@ rm -rf ./dist
 rm  -rf $BUILDDIR > /dev/null 2>&1
 mkdir $BUILDDIR
 
-info "Downloading icons and locale..."
-for repo in icons locale; do
+info "Downloading icons..."
+for repo in icons; do
   git clone $GIT_REPO-$repo $BUILDDIR/electrum-$repo
 done
 
-cp -R $BUILDDIR/electrum-locale/locale/ ./lib/locale/
 cp    $BUILDDIR/electrum-icons/icons_rc.py ./gui/qt/
 
+info "Making locale..."
+./contrib/make_locale || fail "Failed to make locale..."
 
 info "Downloading libusb..."
 curl https://homebrew.bintray.com/bottles/libusb-1.0.21.el_capitan.bottle.tar.gz | \
