@@ -25,6 +25,7 @@
 # SOFTWARE.
 import os
 import sys
+import logging
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
@@ -71,7 +72,7 @@ from electrum.wallet import Wallet, Imported_Wallet
 from electrum import bitcoin, util, constants
 from electrum.storage import WalletStorage, get_derivation_used_for_hw_device_encryption
 from electrum.util import print_msg, print_stderr, json_encode, json_decode, UserCancelled
-from electrum.util import set_verbosity, InvalidPassword
+from electrum.util import set_verbosity, InvalidPassword, ElectrumLogFilter
 from electrum.commands import get_parser, known_commands, Commands, config_variables
 from electrum import daemon
 from electrum import keystore
@@ -375,9 +376,6 @@ if __name__ == '__main__':
     if config_options.get('portable'):
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
 
-    # kivy sometimes freezes when we write to sys.stderr
-    set_verbosity(config_options.get('verbose') and config_options.get('gui')!='kivy')
-
     # check uri
     uri = config_options.get('url')
     if uri:
@@ -396,6 +394,21 @@ if __name__ == '__main__':
         constants.set_regtest()
     elif config.get('simnet'):
         constants.set_simnet()
+
+    verbose = config_options.get('verbose')
+    verbose_modules = config.get('verbose_module')
+    is_kivy = config_options.get('gui') == 'kivy'
+
+    if verbose_modules is not None and not verbose:
+        print_msg("Can't set -V (log whitelist) without setting -v (verbose).")
+        sys.exit(1)
+
+    set_verbosity(verbose and not is_kivy)
+
+    hand = logging.StreamHandler()
+    hand.addFilter(ElectrumLogFilter(verbose_modules, is_kivy))
+
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.WARNING, handlers=(hand,))
 
     # run non-RPC commands separately
     if cmdname in ['create', 'restore']:

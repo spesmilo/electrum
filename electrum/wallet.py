@@ -193,6 +193,8 @@ class Abstract_Wallet(AddressSynchronizer):
 
         self.coin_price_cache = {}
 
+        self.log_label = "W"
+
     def diagnostic_name(self):
         return self.basename()
 

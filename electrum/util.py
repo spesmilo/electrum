@@ -20,6 +20,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import logging
 import binascii
 import os, sys, re, json
 from collections import defaultdict
@@ -162,8 +163,19 @@ class MyEncoder(json.JSONEncoder):
             return list(obj)
         return super(MyEncoder, self).default(obj)
 
-class PrintError(object):
+class PrintError:
     '''A handy base class'''
+
+    @property
+    def log_label(self):
+        raise Exception("Don't read log_label, just set it!")
+
+    @log_label.setter
+    def log_label(self, val):
+        def log(*msg):
+            logging.getLogger(val).debug('[' + self.diagnostic_name() + '] ' + ' '.join(str(y) for y in msg))
+        self.print_error = log
+
     def diagnostic_name(self):
         return self.__class__.__name__
 
@@ -221,6 +233,7 @@ class DaemonThread(threading.Thread, PrintError):
         self.running_lock = threading.Lock()
         self.job_lock = threading.Lock()
         self.jobs = []
+        self.log_label = "D"
 
     def add_jobs(self, jobs):
         with self.job_lock:
@@ -268,7 +281,6 @@ is_verbose = True
 def set_verbosity(b):
     global is_verbose
     is_verbose = b
-
 
 def print_error(*args):
     if not is_verbose: return
@@ -901,3 +913,11 @@ def make_dir(path, allow_symlink=True):
             raise Exception('Dangling link: ' + path)
         os.mkdir(path)
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+
+class ElectrumLogFilter(logging.Filter):
+    def __init__(self, verbose_modules, is_kivy):
+        self.verbose_modules = verbose_modules
+        self.is_kivy = is_kivy
+    def filter(self, record):
+        if self.is_kivy: return False
+        return self.verbose_modules is None or record.name in self.verbose_modules

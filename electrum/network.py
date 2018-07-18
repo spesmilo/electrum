@@ -239,6 +239,7 @@ class Network(util.DaemonThread):
         self.socket_queue = queue.Queue()
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
+        self.log_label = "N"
 
     def with_interface_lock(func):
         def func_wrapper(self, *args, **kwargs):
