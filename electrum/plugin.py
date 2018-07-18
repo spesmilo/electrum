@@ -56,6 +56,7 @@ class Plugins(DaemonThread):
         self.device_manager = DeviceMgr(config)
         self.load_plugins()
         self.add_jobs(self.device_manager.thread_jobs())
+        self.log_label = "P"
         self.start()
 
     def load_plugins(self):
