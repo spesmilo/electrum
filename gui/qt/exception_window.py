@@ -169,9 +169,9 @@ class Exception_Window(QWidget):
         return issue_template.format(**info)
 
 
-def _show_window(*args):
+def _show_window(main_window, exctype, value, tb):
     if not Exception_Window._active_window:
-        Exception_Window._active_window = Exception_Window(*args)
+        Exception_Window._active_window = Exception_Window(main_window, exctype, value, tb)
 
 
 class Exception_Hook(QObject):
@@ -185,5 +185,8 @@ class Exception_Hook(QObject):
         sys.excepthook = self.handler
         self._report_exception.connect(_show_window)
 
-    def handler(self, *args):
-        self._report_exception.emit(self.main_window, *args)
+    def handler(self, exctype, value, tb):
+        if exctype is KeyboardInterrupt or exctype is SystemExit:
+            sys.__excepthook__(exctype, value, tb)
+        else:
+            self._report_exception.emit(self.main_window, exctype, value, tb)
