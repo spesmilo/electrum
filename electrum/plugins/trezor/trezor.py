@@ -362,7 +362,7 @@ class TrezorPlugin(HW_PluginBase):
         for txin in tx.inputs():
             txinputtype = self.types.TxInputType()
             if txin['type'] == 'coinbase':
-                prev_hash = "\0"*32
+                prev_hash = b"\x00"*32
                 prev_index = 0xffffffff  # signed int -1
             else:
                 if for_sig:
