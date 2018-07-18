@@ -80,5 +80,11 @@ python3 setup.py install --user > /dev/null || fail "Could not build $PACKAGE"
 info "Building binary"
 pyinstaller --noconfirm --ascii --name $VERSION contrib/build-osx/osx.spec || fail "Could not build binary"
 
+info "Adding bitcoincash URI types to Info.plist"
+plutil -insert 'CFBundleURLTypes' \
+	-xml '<array><dict> <key>CFBundleURLName</key> <string>bitcoincash</string> <key>CFBundleURLSchemes</key> <array><string>bitcoincash</string></array> </dict></array>' \
+	-- dist/$PACKAGE.app/Contents/Info.plist \
+	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
+
 info "Creating .DMG"
 hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/$PACKAGE-$VERSION.dmg || fail "Could not create .DMG"

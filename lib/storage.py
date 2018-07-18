@@ -72,7 +72,7 @@ class WalletStorage(PrintError):
         self.pubkey = None
         if self.file_exists():
             try:
-                with open(self.path, "r") as f:
+                with open(self.path, "r", encoding='utf-8') as f:
                     self.raw = f.read()
             except UnicodeDecodeError as e:
                 raise IOError("Error reading file: "+ str(e))
@@ -185,7 +185,7 @@ class WalletStorage(PrintError):
             s = s.decode('utf8')
 
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
-        with open(temp_path, "w") as f:
+        with open(temp_path, "w", encoding='utf-8') as f:
             f.write(s)
             f.flush()
             os.fsync(f.fileno())

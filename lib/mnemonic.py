@@ -91,7 +91,7 @@ def normalize_text(seed):
 
 def load_wordlist(filename):
     path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
-    with open(path, 'r') as f:
+    with open(path, 'r', encoding='utf-8') as f:
         s = f.read().strip()
     s = unicodedata.normalize('NFKD', s)
     lines = s.split('\n')

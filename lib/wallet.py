@@ -1385,9 +1385,9 @@ class Abstract_Wallet(PrintError):
                 f.write(pr.SerializeToString())
             # reload
             req = self.get_payment_request(addr, config)
-            with open(os.path.join(path, key + '.json'), 'w') as f:
+            req['address'] = req['address'].to_ui_string()
+            with open(os.path.join(path, key + '.json'), 'w', encoding='utf-8') as f:
                 f.write(json.dumps(req))
-        return req
 
     def remove_payment_request(self, addr, config):
         if isinstance(addr, str):

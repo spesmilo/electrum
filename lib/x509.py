@@ -313,7 +313,7 @@ def load_certificates(ca_path):
     ca_list = {}
     ca_keyID = {}
     # ca_path = '/tmp/tmp.txt'
-    with open(ca_path, 'r') as f:
+    with open(ca_path, 'r', encoding='utf-8') as f:
         s = f.read()
     bList = pem.dePemList(s, "CERTIFICATE")
     for b in bList:
