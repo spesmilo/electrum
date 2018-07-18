@@ -20,6 +20,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import logging
 import binascii
 import os, sys, re, json
 from collections import defaultdict
@@ -168,8 +169,7 @@ class PrintError(object):
         return self.__class__.__name__
 
     def print_error(self, *msg):
-        # only prints with --verbose flag
-        print_error("[%s]" % self.diagnostic_name(), *msg)
+        logging.getLogger(self.diagnostic_name()).debug(" ".join(str(x) for x in msg), stack_info=True)
 
     def print_stderr(self, *msg):
         print_stderr("[%s]" % self.diagnostic_name(), *msg)
@@ -269,10 +269,8 @@ def set_verbosity(b):
     global is_verbose
     is_verbose = b
 
-
 def print_error(*args):
-    if not is_verbose: return
-    print_stderr(*args)
+    logging.getLogger("global").debug(" ".join(str(x) for x in args), stack_info=True)
 
 def print_stderr(*args):
     args = [str(item) for item in args]
