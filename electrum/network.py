@@ -170,6 +170,7 @@ class Network(util.DaemonThread):
           get_parameters(), get_server_height(), get_status_value(),
           is_connected(), set_parameters(), stop()
     """
+    verbosity_filter = 'n'
 
     def __init__(self, config=None):
         if config is None:

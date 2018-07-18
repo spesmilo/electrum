@@ -165,6 +165,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     max_change_outputs = 3
     gap_limit_for_change = 6
+    verbosity_filter = 'w'
 
     def __init__(self, storage):
         AddressSynchronizer.__init__(self, storage)
