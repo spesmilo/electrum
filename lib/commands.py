@@ -648,7 +648,7 @@ class Commands:
                 util.print_error('Got Response for %s' % address)
             except BaseException as e:
                 util.print_error(str(e))
-        h = self.network.addr_to_scripthash(address)
+        h = Address.from_string(address).to_scripthash_hex()
         self.network.send([('blockchain.scripthash.subscribe', [h])], callback)
         return True
 
