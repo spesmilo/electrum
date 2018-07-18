@@ -53,7 +53,8 @@ from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPU
 from . import transaction, bitcoin, coinchooser, paymentrequest, contacts
 from .transaction import Transaction
 from .plugin import run_hook
-from .address_synchronizer import AddressSynchronizer
+from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
+                                   TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED)
 
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .paymentrequest import InvoiceStore
