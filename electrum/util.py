@@ -170,7 +170,7 @@ class PrintError(object):
         return self.__class__.__name__
 
     def print_error(self, *msg):
-        if self.verbosity_filter in verbosity:
+        if self.verbosity_filter in verbosity or verbosity == '*':
             print_stderr("[%s]" % self.diagnostic_name(), *msg)
 
     def print_stderr(self, *msg):
@@ -266,7 +266,7 @@ class DaemonThread(threading.Thread, PrintError):
         self.print_error("stopped")
 
 
-verbosity = ''
+verbosity = '*'
 def set_verbosity(b):
     global verbosity
     verbosity = b
