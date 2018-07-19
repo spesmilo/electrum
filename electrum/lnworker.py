@@ -43,6 +43,9 @@ class LNWorker(PrintError):
         self.invoices = wallet.storage.get('lightning_invoices', {})
         for chan_id, chan in self.channels.items():
             self.network.lnwatcher.watch_channel(chan, self.on_channel_utxos)
+        # TODO peers that we have channels with should also be added now
+        # but we don't store their IP/port yet.. also what if it changes?
+        # need to listen for node_announcements and save the new IP/port
         peer_list = self.config.get('lightning_peers', node_list)
         for host, port, pubkey in peer_list:
             self.add_peer(host, int(port), bfh(pubkey))
@@ -130,7 +133,10 @@ class LNWorker(PrintError):
                     peer = self.peers[chan.node_id]
                     peer.funding_locked(chan)
                 elif chan.state == "OPEN":
-                    peer = self.peers[chan.node_id]
+                    peer = self.peers.get(chan.node_id)
+                    if peer is None:
+                        self.print_error("peer not found for {}".format(bh2u(chan.node_id)))
+                        return
                     if event == 'fee_histogram':
                         peer.on_bitcoin_fee_update(chan)
                     conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
