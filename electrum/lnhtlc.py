@@ -596,7 +596,7 @@ class HTLCStateMachine(PrintError):
             chan.constraints.capacity,
             local_msat,
             remote_msat,
-            chan.local_config.dust_limit_sat,
+            conf.dust_limit_sat,
             chan.local_state.feerate if for_us else chan.remote_state.feerate,
             for_us,
             chan.constraints.is_initiator,
