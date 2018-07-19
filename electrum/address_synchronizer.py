@@ -26,7 +26,7 @@ import itertools
 from collections import defaultdict
 
 from . import bitcoin
-from .bitcoin import COINBASE_MATURITY
+from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
 from .util import PrintError, profiler
 from .transaction import Transaction
 from .synchronizer import Synchronizer
