@@ -27,10 +27,11 @@ from collections import defaultdict
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
-from .util import PrintError, profiler
+from .util import PrintError, profiler, bfh
 from .transaction import Transaction
 from .synchronizer import Synchronizer
 from .verifier import SPV
+from .i18n import _
 
 TX_HEIGHT_LOCAL = -2
 TX_HEIGHT_UNCONF_PARENT = -1
