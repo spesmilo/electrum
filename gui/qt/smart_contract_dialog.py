@@ -152,11 +152,11 @@ class ContractFuncLayout(QGridLayout):
         self.gas_limit_e = ButtonsLineEdit()
         self.gas_limit_e.setValidator(int_validator)
         self.gas_limit_e.setText('100')
-        gas_price_lb = QLabel(_('gas price: '))
+        gas_price_lb = QLabel(_('gas price(UB): '))
         self.gas_price_e = ButtonsLineEdit()
         self.gas_price_e.setValidator(float_validator)
         self.gas_price_e.setText('0.0000001')
-        amount_lb = QLabel(_('amount: '))
+        amount_lb = QLabel(_('amount(UB): '))
         self.amount_e = ButtonsLineEdit()
         self.amount_e.setValidator(float_validator)
         optional_layout.addWidget(gas_limit_lb)
@@ -383,7 +383,7 @@ class ContractCreateLayout(QVBoxLayout):
         self.gas_limit_e = ButtonsLineEdit()
         self.gas_limit_e.setValidator(int_validator)
         self.gas_limit_e.setText('2500')
-        gas_price_lb = QLabel(_('gas price:'))
+        gas_price_lb = QLabel(_('gas price(UB):'))
         self.gas_price_e = ButtonsLineEdit()
         self.gas_price_e.setValidator(float_validator)
         self.gas_price_e.setText('0.00000010')
@@ -411,7 +411,7 @@ class ContractCreateLayout(QVBoxLayout):
 
     def changePath(self):
         open = QFileDialog()
-        self.path = open.getOpenFileName()
+        self.path = open.getOpenFileName(filter="GPC FILE (*.gpc)")
         # self.path = open.getExistingDirectory()
         self.bytecode_e.setText(self.path[0])
 
@@ -426,6 +426,7 @@ class ContractCreateLayout(QVBoxLayout):
     def parse_values(self):
         def parse_edit_value(edit, times=10 ** 8):
             try:
+
                 return int(float(edit.text()) * times)
             except ValueError:
                 return 0
