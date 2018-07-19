@@ -143,7 +143,7 @@ class HTLCStateMachine(PrintError):
 
         self.state = 'DISCONNECTED'
 
-    def get_funding_addres(self):
+    def get_funding_address(self):
         script = funding_output_script(self.local_config, self.remote_config)
         return redeem_script_to_address('p2wsh', script)
 
