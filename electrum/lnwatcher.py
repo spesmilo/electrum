@@ -1,7 +1,7 @@
 import threading
 
 from .util import PrintError, bh2u, bfh, NoDynamicFeeEstimates
-from .lnutil import (funding_output_script, extract_ctn_from_tx, derive_privkey,
+from .lnutil import (extract_ctn_from_tx, derive_privkey,
                      get_per_commitment_secret_from_seed, derive_pubkey,
                      make_commitment_output_to_remote_address,
                      RevocationStore, UnableToDeriveSecret)
@@ -29,7 +29,7 @@ class LNWatcher(PrintError):
         return response['params'], response['result']
 
     def watch_channel(self, chan, callback):
-        funding_address = funding_address_for_channel(chan)
+        funding_address = chan.get_funding_address()
         self.watched_channels[funding_address] = chan, callback
         self.network.subscribe_to_addresses([funding_address], self.on_address_status)
 
@@ -51,9 +51,6 @@ class LNWatcher(PrintError):
         callback(chan, result)
 
 
-def funding_address_for_channel(chan):
-    script = funding_output_script(chan.local_config, chan.remote_config)
-    return redeem_script_to_address('p2wsh', script)
 
 
 class LNChanCloseHandler(PrintError):
@@ -66,7 +63,7 @@ class LNChanCloseHandler(PrintError):
         self.wallet = wallet
         self.chan = chan
         self.lock = threading.Lock()
-        self.funding_address = funding_address_for_channel(chan)
+        self.funding_address = chan.get_funding_address()
         self.watched_addresses = set()
         network.register_callback(self.on_network_update, ['updated'])
         self.watch_address(self.funding_address)

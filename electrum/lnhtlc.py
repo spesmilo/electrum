@@ -4,6 +4,7 @@ import binascii
 import json
 from .util import bfh, PrintError
 from .bitcoin import Hash
+from .bitcoin import redeem_script_to_address
 from .crypto import sha256
 from . import ecc
 from .lnutil import Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore
@@ -12,6 +13,7 @@ from .lnutil import secret_to_pubkey, derive_privkey, derive_pubkey, derive_blin
 from .lnutil import sign_and_get_sig_string
 from .lnutil import make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc
 from .lnutil import HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT
+from .lnutil import funding_output_script
 from contextlib import contextmanager
 
 SettleHtlc = namedtuple("SettleHtlc", ["htlc_id"])
@@ -140,6 +142,10 @@ class HTLCStateMachine(PrintError):
         self.remote_commitment = self.pending_remote_commitment
 
         self.state = 'DISCONNECTED'
+
+    def get_funding_addres(self):
+        script = funding_output_script(self.local_config, self.remote_config)
+        return redeem_script_to_address('p2wsh', script)
 
     def add_htlc(self, htlc):
         """
