@@ -59,6 +59,7 @@ def Connection(server, queue, config_path):
 
 
 class TcpConnection(threading.Thread, util.PrintError):
+    verbosity_filter = 'i'
 
     def __init__(self, server, queue, config_path):
         threading.Thread.__init__(self)
