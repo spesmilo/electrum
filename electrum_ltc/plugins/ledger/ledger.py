@@ -12,7 +12,7 @@ from electrum_ltc.transaction import Transaction
 from electrum_ltc.wallet import Standard_Wallet
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
-from electrum_ltc.util import print_error, is_verbose, bfh, bh2u, versiontuple
+from electrum_ltc.util import print_error, bfh, bh2u, versiontuple
 from electrum_ltc.base_wizard import ScriptTypeNotSupported
 
 try:
@@ -24,7 +24,7 @@ try:
     from btchip.btchipFirmwareWizard import checkFirmware, updateFirmware
     from btchip.btchipException import BTChipException
     BTCHIP = True
-    BTCHIP_DEBUG = is_verbose
+    BTCHIP_DEBUG = False
 except ImportError:
     BTCHIP = False
 

@@ -876,13 +876,17 @@ class Network(util.DaemonThread):
         if not connect:
             self.connection_down(interface.server)
             return
-        # If not finished, get the next chunk
-        if index >= len(blockchain.checkpoints) and blockchain.height() < interface.tip:
-            self.request_chunk(interface, index+1)
+        if index >= len(blockchain.checkpoints):
+            # If not finished, get the next chunk
+            if blockchain.height() < interface.tip:
+                self.request_chunk(interface, index+1)
+            else:
+                interface.mode = 'default'
+                interface.print_error('catch up done', blockchain.height())
+                blockchain.catch_up = None
         else:
-            interface.mode = 'default'
-            interface.print_error('catch up done', blockchain.height())
-            blockchain.catch_up = None
+            # the verifier must have asked for this chunk
+            pass
         self.notify('updated')
 
     def on_get_header(self, interface, response):
