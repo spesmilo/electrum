@@ -61,6 +61,7 @@ class LNChanCloseHandler(PrintError):
     def __init__(self, network, wallet, chan):
         self.network = network
         self.wallet = wallet
+        self.sweep_address = wallet.get_receiving_address()
         self.chan = chan
         self.lock = threading.Lock()
         self.funding_address = chan.get_funding_address()
@@ -189,7 +190,7 @@ class LNChanCloseHandler(PrintError):
             return False
         elif stx_mined_status in (TX_MINED_STATUS_SHALLOW, TX_MINED_STATUS_MEMPOOL):
             return True
-        sweep_tx = create_sweeptx_their_ctx_to_remote(self.network, self.wallet, ctx,
+        sweep_tx = create_sweeptx_their_ctx_to_remote(self.network, self.sweep_address, ctx,
                                                       output_idx, our_payment_privkey)
         self.network.broadcast_transaction(sweep_tx,
                                            lambda res: self.print_tx_broadcast_result('sweep_their_ctx_to_remote', res))
@@ -226,7 +227,7 @@ class LNChanCloseHandler(PrintError):
             return False
         elif stx_mined_status in (TX_MINED_STATUS_SHALLOW, TX_MINED_STATUS_MEMPOOL):
             return True
-        sweep_tx = create_sweeptx_ctx_to_local(self.network, self.wallet, ctx, output_idx,
+        sweep_tx = create_sweeptx_ctx_to_local(self.network, self.sweep_address, ctx, output_idx,
                                                witness_script, revocation_privkey, True)
         self.network.broadcast_transaction(sweep_tx,
                                            lambda res: self.print_tx_broadcast_result('sweep_their_ctx_to_local', res))
@@ -267,7 +268,7 @@ class LNChanCloseHandler(PrintError):
         if to_self_delay > ctx_num_conf:
             self.print_error('waiting for CSV ({} < {}) for ctx {}'.format(ctx_num_conf, to_self_delay, ctx.txid()))
             return True
-        sweep_tx = create_sweeptx_ctx_to_local(self.network, self.wallet, ctx, output_idx,
+        sweep_tx = create_sweeptx_ctx_to_local(self.network, self.sweep_address, ctx, output_idx,
                                                witness_script, our_localdelayed_privkey.get_secret_bytes(),
                                                False, to_self_delay)
         self.network.broadcast_transaction(sweep_tx,
@@ -282,7 +283,7 @@ class LNChanCloseHandler(PrintError):
             self.print_error('{} broadcast succeeded'.format(name))
 
 
-def create_sweeptx_their_ctx_to_remote(network, wallet, ctx, output_idx: int, our_payment_privkey: ecc.ECPrivkey):
+def create_sweeptx_their_ctx_to_remote(network, address, ctx, output_idx: int, our_payment_privkey: ecc.ECPrivkey):
     our_payment_pubkey = our_payment_privkey.get_public_key_hex(compressed=True)
     val = ctx.outputs()[output_idx][2]
     sweep_inputs = [{
@@ -301,7 +302,7 @@ def create_sweeptx_their_ctx_to_remote(network, wallet, ctx, output_idx: int, ou
     except NoDynamicFeeEstimates:
         fee_per_kb = network.config.fee_per_kb(dyn=False)
         fee = network.config.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
-    sweep_outputs = [(TYPE_ADDRESS, wallet.get_receiving_address(), val-fee)]
+    sweep_outputs = [(TYPE_ADDRESS, address, val-fee)]
     locktime = network.get_local_height()
     sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, locktime=locktime)
     sweep_tx.set_rbf(True)
@@ -311,7 +312,7 @@ def create_sweeptx_their_ctx_to_remote(network, wallet, ctx, output_idx: int, ou
     return sweep_tx
 
 
-def create_sweeptx_ctx_to_local(network, wallet, ctx, output_idx: int, witness_script: str,
+def create_sweeptx_ctx_to_local(network, address, ctx, output_idx: int, witness_script: str,
                                 privkey: bytes, is_revocation: bool, to_self_delay: int=None):
     """Create a txn that sweeps the 'to_local' output of a commitment
     transaction into our wallet.
@@ -339,7 +340,7 @@ def create_sweeptx_ctx_to_local(network, wallet, ctx, output_idx: int, witness_s
     except NoDynamicFeeEstimates:
         fee_per_kb = network.config.fee_per_kb(dyn=False)
         fee = network.config.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
-    sweep_outputs = [(TYPE_ADDRESS, wallet.get_receiving_address(), val - fee)]
+    sweep_outputs = [(TYPE_ADDRESS, address, val - fee)]
     locktime = network.get_local_height()
     sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, locktime=locktime, version=2)
     sig = sweep_tx.sign_txin(0, privkey)
