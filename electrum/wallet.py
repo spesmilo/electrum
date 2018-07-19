@@ -182,8 +182,6 @@ class Abstract_Wallet(AddressSynchronizer):
         self.load_addresses()
         self.test_addresses_sanity()
 
-        self.check_history()
-
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
             self.storage.put('wallet_type', self.wallet_type)
@@ -202,26 +200,6 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def get_master_public_key(self):
         return None
-
-    @profiler
-    def check_history(self):
-        save = False
-        hist_addrs_mine = list(filter(lambda k: self.is_mine(k), self.history.keys()))
-        hist_addrs_not_mine = list(filter(lambda k: not self.is_mine(k), self.history.keys()))
-        for addr in hist_addrs_not_mine:
-            self.history.pop(addr)
-            save = True
-        for addr in hist_addrs_mine:
-            hist = self.history[addr]
-            for tx_hash, tx_height in hist:
-                if self.txi.get(tx_hash) or self.txo.get(tx_hash):
-                    continue
-                tx = self.transactions.get(tx_hash)
-                if tx is not None:
-                    self.add_transaction(tx_hash, tx, allow_unrelated=True)
-                    save = True
-        if save:
-            self.save_transactions()
 
     def basename(self):
         return os.path.basename(self.storage.path)
@@ -290,9 +268,6 @@ class Abstract_Wallet(AddressSynchronizer):
         except:
             return
 
-    def is_mine(self, address):
-        return address in self.get_addresses()
-
     def is_change(self, address):
         if not self.is_mine(address):
             return False
@@ -317,100 +292,8 @@ class Abstract_Wallet(AddressSynchronizer):
     def get_public_keys(self, address):
         return [self.get_public_key(address)]
 
-    def get_txpos(self, tx_hash):
-        "return position, even if the tx is unverified"
-        with self.lock:
-            if tx_hash in self.verified_tx:
-                height, timestamp, pos = self.verified_tx[tx_hash]
-                return height, pos
-            elif tx_hash in self.unverified_tx:
-                height = self.unverified_tx[tx_hash]
-                return (height, 0) if height > 0 else ((1e9 - height), 0)
-            else:
-                return (1e9+1, 0)
-
     def is_found(self):
         return self.history.values() != [[]] * len(self.history)
-
-    def get_num_tx(self, address):
-        """ return number of transactions where address is involved """
-        return len(self.history.get(address, []))
-
-    def get_tx_delta(self, tx_hash, address):
-        "effect of tx on address"
-        delta = 0
-        # substract the value of coins sent from address
-        d = self.txi.get(tx_hash, {}).get(address, [])
-        for n, v in d:
-            delta -= v
-        # add the value of the coins received at address
-        d = self.txo.get(tx_hash, {}).get(address, [])
-        for n, v, cb in d:
-            delta += v
-        return delta
-
-    def get_tx_value(self, txid):
-        " effect of tx on the entire domain"
-        delta = 0
-        for addr, d in self.txi.get(txid, {}).items():
-            for n, v in d:
-                delta -= v
-        for addr, d in self.txo.get(txid, {}).items():
-            for n, v, cb in d:
-                delta += v
-        return delta
-
-    def get_wallet_delta(self, tx):
-        """ effect of tx on wallet """
-        is_relevant = False  # "related to wallet?"
-        is_mine = False
-        is_pruned = False
-        is_partial = False
-        v_in = v_out = v_out_mine = 0
-        for txin in tx.inputs():
-            addr = self.get_txin_address(txin)
-            if self.is_mine(addr):
-                is_mine = True
-                is_relevant = True
-                d = self.txo.get(txin['prevout_hash'], {}).get(addr, [])
-                for n, v, cb in d:
-                    if n == txin['prevout_n']:
-                        value = v
-                        break
-                else:
-                    value = None
-                if value is None:
-                    is_pruned = True
-                else:
-                    v_in += value
-            else:
-                is_partial = True
-        if not is_mine:
-            is_partial = False
-        for addr, value in tx.get_outputs():
-            v_out += value
-            if self.is_mine(addr):
-                v_out_mine += value
-                is_relevant = True
-        if is_pruned:
-            # some inputs are mine:
-            fee = None
-            if is_mine:
-                v = v_out_mine - v_out
-            else:
-                # no input is mine
-                v = v_out_mine
-        else:
-            v = v_out_mine - v_in
-            if is_partial:
-                # some inputs are mine, but not all
-                fee = None
-            else:
-                # all inputs are mine
-                fee = v_in - v_out
-        if not is_mine:
-            fee = None
-        return is_relevant, is_mine, v, fee
 
     def get_tx_info(self, tx):
         is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
@@ -461,142 +344,15 @@ class Abstract_Wallet(AddressSynchronizer):
 
         return tx_hash, status, label, can_broadcast, can_bump, amount, fee, height, conf, timestamp, exp_n
 
-    def get_addr_io(self, address):
-        h = self.get_address_history(address)
-        received = {}
-        sent = {}
-        for tx_hash, height in h:
-            l = self.txo.get(tx_hash, {}).get(address, [])
-            for n, v, is_cb in l:
-                received[tx_hash + ':%d'%n] = (height, v, is_cb)
-        for tx_hash, height in h:
-            l = self.txi.get(tx_hash, {}).get(address, [])
-            for txi, v in l:
-                sent[txi] = height
-        return received, sent
-
-    def get_addr_utxo(self, address):
-        coins, spent = self.get_addr_io(address)
-        for txi in spent:
-            coins.pop(txi)
-        out = {}
-        for txo, v in coins.items():
-            tx_height, value, is_cb = v
-            prevout_hash, prevout_n = txo.split(':')
-            x = {
-                'address':address,
-                'value':value,
-                'prevout_n':int(prevout_n),
-                'prevout_hash':prevout_hash,
-                'height':tx_height,
-                'coinbase':is_cb
-            }
-            out[txo] = x
-        return out
-
-    # return the total amount ever received by an address
-    def get_addr_received(self, address):
-        received, sent = self.get_addr_io(address)
-        return sum([v for height, v, is_cb in received.values()])
-
-    # return the balance of a bitcoin address: confirmed and matured, unconfirmed, unmatured
-    def get_addr_balance(self, address):
-        received, sent = self.get_addr_io(address)
-        c = u = x = 0
-        local_height = self.get_local_height()
-        for txo, (tx_height, v, is_cb) in received.items():
-            if is_cb and tx_height + COINBASE_MATURITY > local_height:
-                x += v
-            elif tx_height > 0:
-                c += v
-            else:
-                u += v
-            if txo in sent:
-                if sent[txo] > 0:
-                    c -= v
-                else:
-                    u -= v
-        return c, u, x
-
     def get_spendable_coins(self, domain, config):
         confirmed_only = config.get('confirmed_only', False)
-        return self.get_utxos(domain, exclude_frozen=True, mature=True, confirmed_only=confirmed_only)
-
-    def get_utxos(self, domain = None, exclude_frozen = False, mature = False, confirmed_only = False):
-        coins = []
-        if domain is None:
-            domain = self.get_addresses()
-        domain = set(domain)
-        if exclude_frozen:
-            domain = set(domain) - self.frozen_addresses
-        for addr in domain:
-            utxos = self.get_addr_utxo(addr)
-            for x in utxos.values():
-                if confirmed_only and x['height'] <= 0:
-                    continue
-                if mature and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
-                    continue
-                coins.append(x)
-                continue
-        return coins
+        return self.get_utxos(domain, excluded=self.frozen_addresses, mature=True, confirmed_only=confirmed_only)
 
     def dummy_address(self):
         return self.get_receiving_addresses()[0]
 
-    def get_addresses(self):
-        out = []
-        out += self.get_receiving_addresses()
-        out += self.get_change_addresses()
-        return out
-
     def get_frozen_balance(self):
         return self.get_balance(self.frozen_addresses)
-
-    def get_balance(self, domain=None):
-        if domain is None:
-            domain = self.get_addresses()
-        domain = set(domain)
-        cc = uu = xx = 0
-        for addr in domain:
-            c, u, x = self.get_addr_balance(addr)
-            cc += c
-            uu += u
-            xx += x
-        return cc, uu, xx
-
-    def get_address_history(self, addr):
-        h = []
-        # we need self.transaction_lock but get_tx_height will take self.lock
-        # so we need to take that too here, to enforce order of locks
-        with self.lock, self.transaction_lock:
-            related_txns = self._history_local.get(addr, set())
-            for tx_hash in related_txns:
-                tx_height = self.get_tx_height(tx_hash)[0]
-                h.append((tx_hash, tx_height))
-        return h
-
-    def get_txin_address(self, txi):
-        addr = txi.get('address')
-        if addr and addr != "(pubkey)":
-            return addr
-        prevout_hash = txi.get('prevout_hash')
-        prevout_n = txi.get('prevout_n')
-        dd = self.txo.get(prevout_hash, {})
-        for addr, l in dd.items():
-            for n, v, is_cb in l:
-                if n == prevout_n:
-                    return addr
-        return None
-
-    def get_txout_address(self, txo):
-        _type, x, v = txo
-        if _type == TYPE_ADDRESS:
-            addr = x
-        elif _type == TYPE_PUBKEY:
-            addr = bitcoin.public_key_to_p2pkh(bfh(x))
-        else:
-            addr = None
-        return addr
 
     def balance_at_timestamp(self, domain, target_timestamp):
         h = self.get_history(domain)
@@ -883,17 +639,6 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def can_export(self):
         return not self.is_watching_only() and hasattr(self.keystore, 'get_private_key')
-
-    def is_used(self, address):
-        h = self.history.get(address,[])
-        if len(h) == 0:
-            return False
-        c, u, x = self.get_addr_balance(address)
-        return c + u + x == 0
-
-    def is_empty(self, address):
-        c, u, x = self.get_addr_balance(address)
-        return c+u+x == 0
 
     def address_is_old(self, address, age_limit=2):
         age = -1
@@ -1458,14 +1203,8 @@ class Imported_Wallet(Simple_Wallet):
     def is_beyond_limit(self, address):
         return False
 
-    def is_mine(self, address):
-        return address in self.addresses
-
     def get_fingerprint(self):
         return ''
-
-    def get_addresses(self, include_change=False):
-        return sorted(self.addresses.keys())
 
     def get_receiving_addresses(self):
         return self.get_addresses()
@@ -1698,9 +1437,6 @@ class Deterministic_Wallet(Abstract_Wallet):
             if self.history.get(addr):
                 return False
         return True
-
-    def is_mine(self, address):
-        return address in self._addr_to_addr_index
 
     def get_address_index(self, address):
         return self._addr_to_addr_index[address]
