@@ -67,6 +67,10 @@ class AddressSynchronizer(PrintError):
         self.unverified_tx = defaultdict(int)
         # true when synchronized
         self.up_to_date = False
+
+        self.load_and_cleanup()
+
+    def load_and_cleanup(self):
         self.load_transactions()
         self.load_local_history()
         self.check_history()
