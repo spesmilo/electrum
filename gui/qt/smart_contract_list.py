@@ -19,12 +19,23 @@ class SmartContractList(MyTreeWidget,MessageBoxMixin):
     def __init__(self, parent):
         MyTreeWidget.__init__(self, parent, self.create_menu, [_('Name'), _('Address')], 1, [0])
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.header().setContextMenuPolicy(Qt.CustomContextMenu)
+        self.header().customContextMenuRequested.connect(self.create_menu_title)
         self.setSortingEnabled(True)
-        self.tab_name = "Contracts"
+        self.tab_name = "Smart Contract"
 
     def on_doubleclick(self, item, column):
         address = item.data(0, Qt.UserRole)
         self.parent.contract_func_dialog(address,self)
+
+    def create_menu_title(self, position):
+        menu = QMenu()
+
+        menu.addAction(_("Add contract"), lambda: self.parent.contract_add_dialog())
+        menu.addAction(_("Create contract"), lambda: self.parent.contract_create_dialog())
+
+        run_hook('create_smart_contract_menu', menu, [])
+        menu.exec_(self.viewport().mapToGlobal(position))
 
     def create_menu(self, position):
         menu = QMenu()

@@ -199,6 +199,11 @@ class ContractFuncLayout(QGridLayout):
         self.call_button.setHidden(True)
         self.testtransfer_button.setHidden(True)
         self.transferto_button.setHidden(True)
+        def hide_sendto():
+            self.sendto_button.setHidden(True)
+            self.transferto_button.setHidden(True)
+
+        self.args_e.textChanged.connect(hide_sendto)
 
         def show_call():
             self.optional_widget.setEnabled(False)
