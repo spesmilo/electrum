@@ -280,9 +280,7 @@ class ECPubkey(object):
         """
         assert_bytes(message)
 
-        randint = ecdsa.util.randrange(CURVE_ORDER)
-        ephemeral_exponent = number_to_string(randint, CURVE_ORDER)
-        ephemeral = ECPrivkey(ephemeral_exponent)
+        ephemeral = ECPrivkey.generate_random_key()
         ecdh_key = (self * ephemeral.secret_scalar).get_public_key_bytes(compressed=True)
         key = hashlib.sha512(ecdh_key).digest()
         iv, key_e, key_m = key[0:16], key[16:32], key[32:]
@@ -389,6 +387,12 @@ class ECPrivkey(ECPubkey):
 
     def __repr__(self):
         return f"<ECPrivkey {self.get_public_key_hex()}>"
+
+    @classmethod
+    def generate_random_key(cls):
+        randint = ecdsa.util.randrange(CURVE_ORDER)
+        ephemeral_exponent = number_to_string(randint, CURVE_ORDER)
+        return ECPrivkey(ephemeral_exponent)
 
     def get_secret_bytes(self) -> bytes:
         return number_to_string(self.secret_scalar, CURVE_ORDER)

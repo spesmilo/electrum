@@ -242,9 +242,7 @@ def get_bolt8_hkdf(salt, ikm):
     assert len(T1 + T2) == 64
     return T1, T2
 
-def act1_initiator_message(hs, my_privkey):
-    #Get a new ephemeral key
-    epriv, epub = create_ephemeral_key(my_privkey)
+def act1_initiator_message(hs, epriv, epub):
     hs.update(epub)
     ss = get_ecdh(epriv, hs.responder_pub)
     ck2, temp_k1 = get_bolt8_hkdf(hs.ck, ss)
@@ -256,12 +254,12 @@ def act1_initiator_message(hs, my_privkey):
     assert len(msg) == 50
     return msg
 
-def privkey_to_pubkey(priv):
+def privkey_to_pubkey(priv: bytes) -> bytes:
     return ecc.ECPrivkey(priv[:32]).get_public_key_bytes()
 
-def create_ephemeral_key(privkey):
-    pub = privkey_to_pubkey(privkey)
-    return (privkey[:32], pub)
+def create_ephemeral_key() -> (bytes, bytes):
+    privkey = ecc.ECPrivkey.generate_random_key()
+    return privkey.get_secret_bytes(), privkey.get_public_key_bytes()
 
 
 def aiosafe(f):
@@ -349,7 +347,10 @@ class Peer(PrintError):
 
     async def handshake(self):
         hs = HandshakeState(self.pubkey)
-        msg = act1_initiator_message(hs, self.privkey)
+        # Get a new ephemeral key
+        epriv, epub = create_ephemeral_key()
+
+        msg = act1_initiator_message(hs, epriv, epub)
         # act 1
         self.writer.write(msg)
         rspns = await self.reader.read(2**10)
@@ -358,8 +359,7 @@ class Peer(PrintError):
         assert bytes([hver]) == hs.handshake_version
         # act 2
         hs.update(alice_epub)
-        myepriv, myepub = create_ephemeral_key(self.privkey)
-        ss = get_ecdh(myepriv, alice_epub)
+        ss = get_ecdh(epriv, alice_epub)
         ck, temp_k2 = get_bolt8_hkdf(hs.ck, ss)
         hs.ck = ck
         p = aead_decrypt(temp_k2, 0, hs.h, tag)
