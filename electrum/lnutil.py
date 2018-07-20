@@ -153,6 +153,7 @@ def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_dela
     p2wsh = bitcoin.redeem_script_to_address('p2wsh', bh2u(script))
     weight = HTLC_SUCCESS_WEIGHT if success else HTLC_TIMEOUT_WEIGHT
     fee = local_feerate * weight
+    fee = fee // 1000 * 1000
     final_amount_sat = (amount_msat - fee) // 1000
     assert final_amount_sat > 0, final_amount_sat
     output = (bitcoin.TYPE_ADDRESS, p2wsh, final_amount_sat)
@@ -242,7 +243,7 @@ def make_htlc_tx_with_open_channel(chan, pcp, for_us, we_receive, amount_msat, c
     is_htlc_success = for_us == we_receive
     htlc_tx_output = make_htlc_tx_output(
         amount_msat = amount_msat,
-        local_feerate = chan.local_state.feerate if for_us else chan.remote_state.feerate,
+        local_feerate = chan.pending_local_feerate if for_us else chan.pending_remote_feerate,
         revocationpubkey=revocation_pubkey,
         local_delayedpubkey=delayedpubkey,
         success = is_htlc_success,
@@ -295,13 +296,11 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
     remote_address = make_commitment_output_to_remote_address(remote_payment_pubkey)
     # TODO trim htlc outputs here while also considering 2nd stage htlc transactions
     fee = local_feerate * overall_weight(len(htlcs))
-    assert type(fee) is int
+    fee = fee // 1000 * 1000
     we_pay_fee = for_us == we_are_initiator
     to_local_amt = local_amount - (fee if we_pay_fee else 0)
-    assert type(to_local_amt) is int
     to_local = (bitcoin.TYPE_ADDRESS, local_address, to_local_amt // 1000)
     to_remote_amt = remote_amount - (fee if not we_pay_fee else 0)
-    assert type(to_remote_amt) is int
     to_remote = (bitcoin.TYPE_ADDRESS, remote_address, to_remote_amt // 1000)
     c_outputs = [to_local, to_remote]
     for script, msat_amount in htlcs:
