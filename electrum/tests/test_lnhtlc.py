@@ -74,12 +74,12 @@ def bip32(sequence):
     assert type(k) is bytes
     return k
 
-def create_test_channels():
+def create_test_channels(feerate=6000, local=None, remote=None):
     funding_txid = binascii.hexlify(os.urandom(32)).decode("ascii")
     funding_index = 0
-    funding_sat = bitcoin.COIN * 10
-    local_amount = (funding_sat * 1000) // 2
-    remote_amount = (funding_sat * 1000) // 2
+    funding_sat = ((local + remote) // 1000) if local is not None and remote is not None else (bitcoin.COIN * 10)
+    local_amount = local if local is not None else (funding_sat * 1000 // 2)
+    remote_amount = remote if remote is not None else (funding_sat * 1000 // 2)
     alice_raw = [ bip32("m/" + str(i)) for i in range(5) ]
     bob_raw = [ bip32("m/" + str(i)) for i in range(5,11) ]
     alice_privkeys = [lnbase.Keypair(lnbase.privkey_to_pubkey(x), x) for x in alice_raw]
@@ -97,11 +97,20 @@ def create_test_channels():
 
     return \
         lnhtlc.HTLCStateMachine(
-            create_channel_state(funding_txid, funding_index, funding_sat, 6000, True, local_amount, remote_amount, alice_privkeys, bob_pubkeys, alice_seed, bob_cur, bob_next, b"\x02"*33, l_dust=200, r_dust=1300, l_csv=5, r_csv=4), "alice"), \
+            create_channel_state(funding_txid, funding_index, funding_sat, feerate, True, local_amount, remote_amount, alice_privkeys, bob_pubkeys, alice_seed, bob_cur, bob_next, b"\x02"*33, l_dust=200, r_dust=1300, l_csv=5, r_csv=4), "alice"), \
         lnhtlc.HTLCStateMachine(
-            create_channel_state(funding_txid, funding_index, funding_sat, 6000, False, remote_amount, local_amount, bob_privkeys, alice_pubkeys, bob_seed, alice_cur, alice_next, b"\x01"*33, l_dust=1300, r_dust=200, l_csv=4, r_csv=5), "bob")
+            create_channel_state(funding_txid, funding_index, funding_sat, feerate, False, remote_amount, local_amount, bob_privkeys, alice_pubkeys, bob_seed, alice_cur, alice_next, b"\x01"*33, l_dust=1300, r_dust=200, l_csv=4, r_csv=5), "bob")
 
 one_bitcoin_in_msat = bitcoin.COIN * 1000
+
+class TestFee(unittest.TestCase):
+    """
+    test
+    https://github.com/lightningnetwork/lightning-rfc/blob/e0c436bd7a3ed6a028e1cb472908224658a14eca/03-transactions.md#requirements-2
+    """
+    def test_SimpleAddSettleWorkflow(self):
+        alice_channel, bob_channel = create_test_channels(253, 10000000000, 5000000000)
+        self.assertIn(9999817, [x[2] for x in alice_channel.local_commitment.outputs()])
 
 class TestLNBaseHTLCStateMachine(unittest.TestCase):
     def assertOutputExistsByValue(self, tx, amt_sat):
