@@ -196,7 +196,7 @@ class CoinChooserBase(PrintError):
         def sufficient_funds(buckets):
             '''Given a list of buckets, return True if it has enough
             value to pay for the transaction'''
-            total_input = sum(bucket.value for bucket in buckets) + withdraw_from_balance
+            total_input = sum(bucket.value for bucket in buckets) + int(withdraw_from_balance)
             total_size = sum(bucket.size for bucket in buckets) + base_size
             return total_input >= spent_amount + fee_estimator(total_size)
 

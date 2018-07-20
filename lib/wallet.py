@@ -928,7 +928,7 @@ class Abstract_Wallet(PrintError):
             tx = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
                                       fee_estimator, self.dust_threshold(),sender,withdraw_from_balance)
         else:
-            sendable = sum(map(lambda x:x['value'], inputs))+withdraw_from_balance
+            sendable = sum(map(lambda x:x['value'], inputs))+int(withdraw_from_balance)
             _type, data, value,scri = outputs[i_max]
             outputs[i_max] = (_type, data, 0,"")
             tx = Transaction.from_io(inputs, outputs[:])

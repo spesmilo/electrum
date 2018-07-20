@@ -3150,7 +3150,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             withdraw_from_balance = 0
             for withdraw_from_contract_addr, withdraw_amount in withdraw_froms.items():
                 spend_contract_script = contract_script_spend (withdraw_amount,withdraw_from_contract_addr)
-                withdraw_from_balance += withdraw_amount * 10**8
+                withdraw_from_balance += int(withdraw_amount * 10**8)
                 spend_contract_script_hex = spend_contract_script
                 outputs.append((TYPE_SCRIPT,spend_contract_script_hex,0,""))
 

@@ -437,13 +437,29 @@ def get_address_from_output_script(_bytes,index = -1,txid = ''):
         return TYPE_CONTRACT_ADDRESS,decoded[3][1].decode()
     TO_DEPOSIT_TO_CONTRACT = [-1, -1, -1, -1, -1, -1,-1, opcodes.OP_DEPOSIT_TO_CONTRACT]
     if match_decoded(decoded, TO_DEPOSIT_TO_CONTRACT):
-        return TYPE_CONTRACT_DEPOSIT_ADDRESS,(decoded[3][1].decode(),int(''.join(map(hex, convert_OP_1_N(decoded[2])[1])).replace('0x', ''), 16))
+        data = convert_OP_1_N(decoded[2])[1]
+        data.reverse()
+        res_data = ""
+        for b in data:
+            tmp = hex(b)
+            if len(tmp) == 3:
+                tmp = tmp.replace('0x', '0x0')
+            res_data += tmp
+        return TYPE_CONTRACT_DEPOSIT_ADDRESS,(decoded[3][1].decode(),int(res_data.replace('0x', ''), 16))
     TO_UPGRADE = [-1, -1, -1, -1, -1, -1, -1, opcodes.OP_UPGRADE]
     if match_decoded(decoded, TO_UPGRADE):
         return TYPE_CONTRACT_ADDRESS,decoded[3][1].decode()
     TO_SPENT = [-1, -1, opcodes.OP_SPEND]
     if match_decoded(decoded, TO_SPENT):
-        return TYPE_CONTRACT_WITHDRAW_ADDRESS,(decoded[1][1].decode(),int(''.join(map(hex, convert_OP_1_N(decoded[0])[1])).replace('0x', ''), 16))
+        data = convert_OP_1_N(decoded[0])[1]
+        data.reverse()
+        res_data = ""
+        for b in data:
+            tmp = hex(b)
+            if len(tmp) == 3:
+                tmp = tmp.replace('0x','0x0')
+            res_data+=tmp
+        return TYPE_CONTRACT_WITHDRAW_ADDRESS,(decoded[1][1].decode(),int(res_data.replace('0x', ''), 16))
 
     return TYPE_SCRIPT, bh2u(_bytes)
 
