@@ -245,11 +245,15 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         return fee
 
     def test_UpdateFeeSenderCommits(self):
+        old_feerate = self.alice_channel.pending_local_feerate
         fee = self.alice_to_bob_fee_update()
 
         alice_channel, bob_channel = self.alice_channel, self.bob_channel
 
+        self.assertEqual(self.alice_channel.pending_local_feerate, old_feerate)
         alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
+        self.assertEqual(self.alice_channel.pending_local_feerate, old_feerate)
+
         bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
 
         self.assertNotEqual(fee, bob_channel.local_state.feerate)
@@ -265,6 +269,7 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         self.assertEqual(fee, alice_channel.local_state.feerate)
 
         bob_channel.receive_revocation(rev)
+        self.assertEqual(fee, bob_channel.remote_state.feerate)
 
 
     def test_UpdateFeeReceiverCommits(self):
@@ -293,6 +298,7 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         self.assertEqual(fee, alice_channel.local_state.feerate)
 
         bob_channel.receive_revocation(alice_revocation)
+        self.assertEqual(fee, bob_channel.remote_state.feerate)
 
 
 
@@ -319,7 +325,7 @@ class TestLNHTLCDust(unittest.TestCase):
         self.assertEqual(len(alice_channel.local_commitment.outputs()), 3)
         self.assertEqual(len(bob_channel.local_commitment.outputs()), 2)
         default_fee = calc_static_fee(0)
-        self.assertEqual(bob_channel.local_commit_fee, default_fee + htlcAmt)
+        self.assertEqual(bob_channel.pending_local_fee, default_fee + htlcAmt)
         bob_channel.settle_htlc(paymentPreimage, htlc.htlc_id)
         alice_channel.receive_htlc_settle(paymentPreimage, aliceHtlcIndex)
         force_state_transition(bob_channel, alice_channel)
