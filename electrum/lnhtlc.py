@@ -2,7 +2,7 @@
 from collections import namedtuple
 import binascii
 import json
-from .util import bfh, PrintError
+from .util import bfh, PrintError, bh2u
 from .bitcoin import Hash
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256
@@ -199,14 +199,16 @@ class HTLCStateMachine(PrintError):
 
         for_us = False
 
+        feerate = self.pending_remote_feerate
+
         htlcsigs = []
         for we_receive, htlcs in zip([True, False], [self.htlcs_in_remote, self.htlcs_in_local]):
             assert len(htlcs) <= 1
             for htlc in htlcs:
                 weight = HTLC_SUCCESS_WEIGHT if we_receive else HTLC_TIMEOUT_WEIGHT
-                fee = self.remote_state.feerate // 1000 * weight
+                fee = feerate // 1000 * weight
                 if htlc.amount_msat // 1000 < self.remote_config.dust_limit_sat + fee:
-                    print("value too small, skipping. htlc amt: {}, weight: {}, remote feerate {}, remote dust limit {}".format( htlc.amount_msat, weight, self.remote_state.feerate, self.remote_config.dust_limit_sat))
+                    print("value too small, skipping. htlc amt: {}, weight: {}, remote feerate {}, remote dust limit {}".format( htlc.amount_msat, weight, feerate, self.remote_config.dust_limit_sat))
                     continue
                 original_htlc_output_index = 0
                 args = [self.remote_state.next_per_commitment_point, for_us, we_receive, htlc.amount_msat + htlc.total_fee, htlc.cltv_expiry, htlc.payment_hash, self.pending_remote_commitment, original_htlc_output_index]
@@ -244,7 +246,7 @@ class HTLCStateMachine(PrintError):
         preimage_hex = self.pending_local_commitment.serialize_preimage(0)
         pre_hash = Hash(bfh(preimage_hex))
         if not ecc.verify_signature(self.remote_config.multisig_key.pubkey, sig, pre_hash):
-            raise Exception('failed verifying signature of our updated commitment transaction: ' + str(sig))
+            raise Exception('failed verifying signature of our updated commitment transaction: ' + bh2u(sig) + ' preimage is ' + preimage_hex)
 
         _, this_point, _ = self.points
 
