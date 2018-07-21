@@ -554,8 +554,8 @@ class Network(util.DaemonThread):
                 self.print_error("relayfee", self.relay_fee)
         elif method == 'blockchain.block.headers':
             self.on_block_headers(interface, response)
-        elif method == 'blockchain.block.get_header':
-            self.on_get_header(interface, response)
+        elif method == 'blockchain.block.header':
+            self.on_header(interface, response)
 
         for callback in callbacks:
             callback(response)
@@ -690,7 +690,7 @@ class Network(util.DaemonThread):
         # server.version should be the first message
         params = [PACKAGE_VERSION, PROTOCOL_VERSION]
         self.queue_request('server.version', params, interface)
-        self.queue_request('blockchain.headers.subscribe', [True], interface)
+        self.queue_request('blockchain.headers.subscribe', [], interface)
         if server == self.default_server:
             self.switch_to_interface(server)
         #self.notify('interfaces')
@@ -777,23 +777,24 @@ class Network(util.DaemonThread):
 
     def request_header(self, interface, height):
         #interface.print_error("requesting header %d" % height)
-        self.queue_request('blockchain.block.get_header', [height], interface)
+        self.queue_request('blockchain.block.header', [height], interface)
         interface.request = height
         interface.req_time = time.time()
 
-    def on_get_header(self, interface, response):
+    def on_header(self, interface, response):
         '''Handle receiving a single block header'''
-        header = response.get('result')
-        if not header:
+        header_hex = response.get('result')
+        if not header_hex:
             interface.print_error(response)
             self.connection_down(interface.server)
             return
-        height = header.get('block_height')
+        height = response['params'][0]   # ugh, all of network.py is so wrong
         if interface.request != height:
             interface.print_error("unsolicited header",interface.request, height)
             self.connection_down(interface.server)
             return
 
+        header = blockchain.deserialize_header(bfh(header_hex), height)
         chain = blockchain.check_header(header)
         if interface.mode == 'backward':
             if chain:
