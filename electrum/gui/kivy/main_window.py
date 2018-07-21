@@ -10,12 +10,12 @@ import threading
 from electrum.bitcoin import TYPE_ADDRESS
 from electrum.storage import WalletStorage
 from electrum.wallet import Wallet
-from electrum.i18n import _
 from electrum.paymentrequest import InvoiceStore
 from electrum.util import profiler, InvalidPassword
 from electrum.plugin import run_hook
 from electrum.util import format_satoshis, format_satoshis_plain
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from .i18n import _
 
 from kivy.app import App
 from kivy.core.window import Window
