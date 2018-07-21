@@ -391,9 +391,16 @@ class ElectrumWindow(App):
         popup.export = self.export_private_keys
         popup.open()
 
-    def qr_dialog(self, title, data, show_text=False):
+    def qr_dialog(self, title, data, show_text=False, text_for_clipboard=None):
         from .uix.dialogs.qr_dialog import QRDialog
-        popup = QRDialog(title, data, show_text)
+        def on_qr_failure():
+            popup.dismiss()
+            msg = _('Failed to display QR code.')
+            if text_for_clipboard:
+                msg += '\n' + _('Text copied to clipboard.')
+                self._clipboard.copy(text_for_clipboard)
+            Clock.schedule_once(lambda dt: self.show_info(msg))
+        popup = QRDialog(title, data, show_text, on_qr_failure)
         popup.open()
 
     def scan_qr(self, on_complete):

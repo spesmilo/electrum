@@ -36,11 +36,12 @@ Builder.load_string('''
 ''')
 
 class QRDialog(Factory.Popup):
-    def __init__(self, title, data, show_text):
+    def __init__(self, title, data, show_text, failure_cb=None):
         Factory.Popup.__init__(self)
         self.title = title
         self.data = data
         self.show_text = show_text
+        self.failure_cb = failure_cb
 
     def on_open(self):
-        self.ids.qr.set_data(self.data)
+        self.ids.qr.set_data(self.data, self.failure_cb)

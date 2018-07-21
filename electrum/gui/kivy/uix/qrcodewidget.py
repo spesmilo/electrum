@@ -5,6 +5,7 @@ from threading import Thread
 from functools import partial
 
 import qrcode
+from qrcode import exceptions
 
 from kivy.uix.floatlayout import FloatLayout
 from kivy.graphics.texture import Texture
@@ -50,15 +51,23 @@ class QRCodeWidget(FloatLayout):
         self.data = None
         self.qr = None
         self._qrtexture = None
+        self.failure_cb = None
 
     def on_data(self, instance, value):
         if not (self.canvas or value):
             return
-        self.update_qr()
+        try:
+            self.update_qr()
+        except qrcode.exceptions.DataOverflowError:
+            if self.failure_cb:
+                self.failure_cb()
+            else:
+                raise
 
-    def set_data(self, data):
+    def set_data(self, data, failure_cb=None):
         if self.data == data:
             return
+        self.failure_cb = failure_cb
         MinSize = 210 if len(data) < 128 else 500
         self.setMinimumSize((MinSize, MinSize))
         self.data = data
