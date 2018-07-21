@@ -23,7 +23,7 @@ for repo in electrum; do
     if [ -d $repo ]; then
 	cd $repo
 	git pull
-	git checkout 3.3
+	git checkout 3.3.1
 	cd ..
     else
 	URL=https://github.com/fyookball/$repo.git
