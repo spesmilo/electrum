@@ -39,9 +39,9 @@ class Plugin(BasePlugin):
         BasePlugin.__init__(self, parent, config, name)
         self.base_dir = config.electrum_path()+'/revealer/'
 
-        if self.config.get('calibration_h') == None:
+        if self.config.get('calibration_h') is None:
             self.config.set_key('calibration_h', 0)
-        if self.config.get('calibration_v') == None:
+        if self.config.get('calibration_v') is None:
             self.config.set_key('calibration_v', 0)
 
         self.calibration_h = self.config.get('calibration_h')
@@ -268,7 +268,7 @@ class Plugin(BasePlugin):
             max_letters = 17
             max_lines = 6
             max_words = 3
-        if len(txt) > 102:
+        else:
             fontsize = 9
             linespace = 10
             max_letters = 24
@@ -596,8 +596,8 @@ class Plugin(BasePlugin):
                 qr_qt = self.paintQR(self.hex_noise.upper() +self.code_id)
                 target = QRectF(base_img.width()-65-qr_size,
                                 base_img.height()-65-qr_size,
-                                qr_size, qr_size );
-                painter.drawImage(target, qr_qt);
+                                qr_size, qr_size )
+                painter.drawImage(target, qr_qt)
                 painter.setPen(QPen(Qt.black, 4))
                 painter.drawLine(base_img.width()-65-qr_size,
                                 base_img.height()-65-qr_size,
