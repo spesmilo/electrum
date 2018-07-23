@@ -217,7 +217,9 @@ class MyEncoder(json.JSONEncoder):
             return obj.isoformat(' ')[:-3]
         if isinstance(obj, set):
             return list(obj)
-        return super().default(obj)
+        if hasattr(obj, 'to_json') and callable(obj.to_json):
+            return obj.to_json()
+        return super(MyEncoder, self).default(obj)
 
 
 class ThreadJob(Logger):

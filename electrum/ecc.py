@@ -313,7 +313,7 @@ def msg_magic(message: bytes) -> bytes:
     return b"\x18Bitcoin Signed Message:\n" + length + message
 
 
-def verify_signature(pubkey, sig, h):
+def verify_signature(pubkey: bytes, sig: bytes, h: bytes) -> bool:
     try:
         ECPubkey(pubkey).verify_message_hash(sig, h)
     except:
