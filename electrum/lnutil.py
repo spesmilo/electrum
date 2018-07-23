@@ -344,8 +344,11 @@ def sign_and_get_sig_string(tx, local_config, remote_config):
     sig_64 = sig_string_from_der_sig(sig[:-1])
     return sig_64
 
-def funding_output_script(local_config, remote_config):
-    pubkeys = sorted([bh2u(local_config.multisig_key.pubkey), bh2u(remote_config.multisig_key.pubkey)])
+def funding_output_script(local_config, remote_config) -> str:
+    return funding_output_script_from_keys(local_config.multisig_key.pubkey, remote_config.multisig_key.pubkey)
+
+def funding_output_script_from_keys(pubkey1: bytes, pubkey2: bytes) -> str:
+    pubkeys = sorted([bh2u(pubkey1), bh2u(pubkey2)])
     return transaction.multisig_script(pubkeys, 2)
 
 def calc_short_channel_id(block_height: int, tx_pos_in_block: int, output_index: int) -> bytes:
@@ -353,6 +356,12 @@ def calc_short_channel_id(block_height: int, tx_pos_in_block: int, output_index:
     tpos = tx_pos_in_block.to_bytes(3, byteorder='big')
     oi = output_index.to_bytes(2, byteorder='big')
     return bh + tpos + oi
+
+def invert_short_channel_id(short_channel_id: bytes) -> (int, int, int):
+    bh = int.from_bytes(short_channel_id[:3], byteorder='big')
+    tpos = int.from_bytes(short_channel_id[3:6], byteorder='big')
+    oi = int.from_bytes(short_channel_id[6:8], byteorder='big')
+    return bh, tpos, oi
 
 def get_obscured_ctn(ctn, local, remote):
     mask = int.from_bytes(sha256(local + remote)[-6:], 'big')
