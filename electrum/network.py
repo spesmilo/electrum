@@ -1064,6 +1064,11 @@ class Network(Logger):
             raise Exception(f"{repr(sh)} is not a scripthash")
         return await self.interface.session.send_request('blockchain.scripthash.get_balance', [sh])
 
+    @best_effort_reliable
+    async def get_txid_from_txpos(self, tx_height, tx_pos, merkle):
+        command = 'blockchain.transaction.id_from_pos'
+        return await self.interface.session.send_request(command, [tx_height, tx_pos, merkle])
+
     def blockchain(self) -> Blockchain:
         interface = self.interface
         if interface and interface.blockchain is not None:
