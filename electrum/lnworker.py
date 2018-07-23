@@ -146,6 +146,9 @@ class LNWorker(PrintError):
     async def _open_channel_coroutine(self, node_id, local_amount_sat, push_sat, password):
         peer = self.peers[node_id]
         openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password, local_amount_sat + push_sat, push_sat * 1000, temp_channel_id=os.urandom(32))
+        if not openingchannel:
+            self.print_error("Channel_establishment_flow returned None")
+            return
         self.save_channel(openingchannel)
         self.network.lnwatcher.watch_channel(openingchannel, self.on_channel_utxos)
         self.on_channels_updated()

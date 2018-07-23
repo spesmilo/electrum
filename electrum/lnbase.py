@@ -411,7 +411,7 @@ class Peer(PrintError):
         f(payload)
 
     def on_error(self, payload):
-        self.print_error("error", payload)
+        self.print_error("error", payload["data"].decode("ascii"))
 
     def on_ping(self, payload):
         l = int.from_bytes(payload['num_pong_bytes'], 'big')
@@ -897,8 +897,7 @@ class Peer(PrintError):
 
         self.revoke(chan)
 
-        while (await self.commitment_signed[chan.channel_id].get())["htlc_signature"] != b"":
-            pass
+        commitment_signed_msg = await self.commitment_signed[chan.channel_id].get()
         # TODO process above commitment transactions
 
         bare_ctx = chan.make_commitment(chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
@@ -908,6 +907,12 @@ class Peer(PrintError):
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=0))
 
         await self.receive_revoke(chan)
+
+        if commitment_signed_msg["htlc_signature"] == b"":
+            # this happens when we send dust amounts
+            print("CHANNEL WILL BREAK") # TODO
+        else:
+            commitment_signed_msg = await self.commitment_signed[chan.channel_id].get()
 
         self.lnworker.save_channel(chan)
         return bh2u(preimage)
@@ -969,11 +974,36 @@ class Peer(PrintError):
         sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
         self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=0))
 
-        await self.receive_revoke(chan)
+        revoke_coro = asyncio.ensure_future(self.revoke_and_ack[chan.channel_id].get())
+        commit_coro = asyncio.ensure_future(self.commitment_signed[chan.channel_id].get())
+        _done, _pending = await asyncio.wait([revoke_coro, commit_coro], return_when=FIRST_COMPLETED)
 
-        assert (await self.receive_commitment(chan)) == 0
+        def process_commit(commitment_signed_msg):
+            data = commitment_signed_msg["htlc_signature"]
+            htlc_sigs = [data[i:i+64] for i in range(0, len(data), 64)]
+            chan.receive_new_commitment(commitment_signed_msg["signature"], htlc_sigs)
+        def process_revoke(revoke_and_ack_msg):
+            chan.receive_revocation(RevokeAndAck(revoke_and_ack_msg["per_commitment_secret"], revoke_and_ack_msg["next_per_commitment_point"]))
 
-        self.revoke(chan)
+        if commit_coro.done():
+            # this branch is taken with lnd after a fee update (initiated by us, of course)
+
+            # TODO process_commit(commit_coro.result())
+            await asyncio.wait([revoke_coro])
+            process_revoke(revoke_coro.result())
+            self.revoke(chan)
+            await self.receive_commitment(chan)
+            self.revoke(chan)
+            sig_64, htlc_sigs = chan.sign_next_commitment()
+
+            self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
+            await self.receive_revoke(chan)
+        elif revoke_coro.done():
+            process_revoke(revoke_coro.result())
+
+            await asyncio.wait([commit_coro])
+            process_commit(commit_coro.result())
+            self.revoke(chan)
 
         self.lnworker.save_channel(chan)
 
