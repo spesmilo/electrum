@@ -234,7 +234,7 @@ class Network(PrintError):
         self._thread.start()
         # lightning network
         self.lightning_nodes = {}
-        self.channel_db = lnrouter.ChannelDB()
+        self.channel_db = lnrouter.ChannelDB(self)
         self.path_finder = lnrouter.LNPathFinder(self.channel_db)
         self.lnwatcher = lnwatcher.LNWatcher(self)
 
@@ -859,6 +859,7 @@ class Network(PrintError):
         assert self._thread != threading.current_thread(), 'must not be called from network thread'
         fut = asyncio.run_coroutine_threadsafe(self._stop(full_shutdown=True), self.asyncio_loop)
         fut.result()
+        self.channel_db.save_data()
 
     def join(self):
         self._thread.join(1)
