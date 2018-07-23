@@ -797,5 +797,98 @@
     "length": "4"
    }
   }
+ },
+ "query_short_channel_ids": {
+  "type": "261",
+  "payload": {
+   "chain_hash": {
+    "position": "0",
+    "length": "32"
+   },
+   "len": {
+    "position": "32",
+    "length": "2"
+   },
+   "encoded_short_ids": {
+    "position": "34",
+    "length": "len"
+   }
+  }
+ },
+ "reply_short_channel_ids_end": {
+  "type": "262",
+  "payload": {
+   "chain_hash": {
+    "position": "0",
+    "length": "32"
+   },
+   "complete": {
+    "position": "32",
+    "length": "1"
+   }
+  }
+ },
+ "query_channel_range": {
+  "type": "263",
+  "payload": {
+   "chain_hash": {
+    "position": "0",
+    "length": "32"
+   },
+   "first_blocknum": {
+    "position": "32",
+    "length": "4"
+   },
+   "number_of_blocks": {
+    "position": "36",
+    "length": "4"
+   }
+  }
+ },
+ "reply_channel_range": {
+  "type": "264",
+  "payload": {
+   "chain_hash": {
+    "position": "0",
+    "length": "32"
+   },
+   "first_blocknum": {
+    "position": "32",
+    "length": "4"
+   },
+   "number_of_blocks": {
+    "position": "36",
+    "length": "4"
+   },
+   "complete": {
+    "position": "40",
+    "length": "1"
+   },
+   "len": {
+    "position": "41",
+    "length": "2"
+   },
+   "encoded_short_ids": {
+    "position": "43",
+    "length": "len"
+   }
+  }
+ },
+ "gossip_timestamp_filter": {
+  "type": "265",
+  "payload": {
+   "chain_hash": {
+    "position": "0",
+    "length": "32"
+   },
+   "first_timestamp": {
+    "position": "32",
+    "length": "4"
+   },
+   "timestamp_range": {
+    "position": "36",
+    "length": "4"
+   }
+  }
  }
 }
