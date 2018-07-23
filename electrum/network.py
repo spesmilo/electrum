@@ -235,7 +235,7 @@ class Network(PrintError):
                            deserialize_proxy(self.config.get('proxy')))
         # lightning network
         self.lightning_nodes = {}
-        self.channel_db = lnrouter.ChannelDB()
+        self.channel_db = lnrouter.ChannelDB(self)
         self.path_finder = lnrouter.LNPathFinder(self.channel_db)
         self.lnwatcher = lnwatcher.LNWatcher(self)
 
@@ -786,6 +786,7 @@ class Network(PrintError):
 
     def stop(self):
         asyncio.run_coroutine_threadsafe(self.main_taskgroup.cancel_remaining(), self.asyncio_loop)
+        self.channel_db.save_data()
 
     def join(self):
         self._wrapper_thread.join(1)
