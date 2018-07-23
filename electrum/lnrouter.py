@@ -105,7 +105,7 @@ class ChannelInfo(PrintError):
     def set_capacity(self, capacity):
         self.capacity_sat = capacity
 
-    def on_channel_update(self, msg_payload):
+    def on_channel_update(self, msg_payload, trusted=False):
         assert self.channel_id == msg_payload['short_channel_id']
         flags = int.from_bytes(msg_payload['flags'], 'big')
         direction = flags & 1
@@ -118,7 +118,7 @@ class ChannelInfo(PrintError):
             node_id = self.node_id_2
         if old_policy and old_policy.timestamp >= new_policy.timestamp:
             return  # ignore
-        if not verify_sig_for_channel_update(msg_payload, node_id):
+        if not trusted and not verify_sig_for_channel_update(msg_payload, node_id):
             return  # ignore
         # save new policy
         if direction == 0:
@@ -227,16 +227,19 @@ class ChannelDB(JsonDB):
             self._channels_for_node[channel_info.node_id_1].add(short_channel_id)
             self._channels_for_node[channel_info.node_id_2].add(short_channel_id)
 
-    def on_channel_announcement(self, msg_payload):
+    def on_channel_announcement(self, msg_payload, trusted=False):
         short_channel_id = msg_payload['short_channel_id']
         if short_channel_id in self._id_to_channel_info:
             return
         if constants.net.rev_genesis_bytes() != msg_payload['chain_hash']:
             return
         channel_info = ChannelInfo(msg_payload)
-        self.ca_verifier.add_new_channel_info(channel_info)
+        if trusted:
+            self.add_verified_channel_info(short_channel_id, channel_info)
+        else:
+            self.ca_verifier.add_new_channel_info(channel_info)
 
-    def on_channel_update(self, msg_payload):
+    def on_channel_update(self, msg_payload, trusted=False):
         short_channel_id = msg_payload['short_channel_id']
         if constants.net.rev_genesis_bytes() != msg_payload['chain_hash']:
             return
@@ -252,7 +255,7 @@ class ChannelDB(JsonDB):
         if channel_info is None:
             self.print_error("could not find", short_channel_id)
             return
-        channel_info.on_channel_update(msg_payload)
+        channel_info.on_channel_update(msg_payload, trusted=trusted)
 
     def remove_channel(self, short_channel_id):
         try:
