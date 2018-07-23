@@ -102,16 +102,6 @@ class BitcoinTestnet(AbstractNet):
     BIP44_COIN_TYPE = 1
 
 
-class BitcoinSimnet(BitcoinTestnet):
-    ADDRTYPE_P2PKH = 0x3f
-    ADDRTYPE_P2SH = 0x7b
-    SEGWIT_HRP = "sb"
-    GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
-    WIF_PREFIX = 0x00
-    DEFAULT_SERVERS = read_json('servers_regtest.json', {})  # Note: regtest!
-    CHECKPOINTS = []
-
-
 class BitcoinRegtest(BitcoinTestnet):
 
     SEGWIT_HRP = "bcrt"
@@ -122,6 +112,9 @@ class BitcoinRegtest(BitcoinTestnet):
 
 class BitcoinSimnet(BitcoinTestnet):
 
+    WIF_PREFIX = 0x64
+    ADDRTYPE_P2PKH = 0x3f
+    ADDRTYPE_P2SH = 0x7b
     SEGWIT_HRP = "sb"
     GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
