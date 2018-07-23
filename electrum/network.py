@@ -716,6 +716,10 @@ class Network(PrintError):
     async def request_chunk(self, height, tip=None, *, can_return_early=False):
         return await self.interface.request_chunk(height, tip=tip, can_return_early=can_return_early)
 
+    async def get_txid_from_txpos(self, tx_height, tx_pos, merkle):
+        command = 'blockchain.transaction.id_from_pos'
+        return await self.interface.session.send_request(command, [tx_height, tx_pos, merkle])
+
     @with_interface_lock
     def blockchain(self):
         if self.interface and self.interface.blockchain is not None:
