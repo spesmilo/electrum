@@ -763,10 +763,25 @@ class Peer(PrintError):
         chan.state = "OPEN"
         self.network.trigger_callback('channel', chan)
         # add channel to database
-        sorted_keys = list(sorted([self.pubkey, self.lnworker.pubkey]))
-        self.channel_db.on_channel_announcement({"short_channel_id": chan.short_channel_id, "node_id_1": sorted_keys[0], "node_id_2": sorted_keys[1]})
-        self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'flags': b'\x01', 'cltv_expiry_delta': b'\x90', 'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01'})
-        self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'flags': b'\x00', 'cltv_expiry_delta': b'\x90', 'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01'})
+        node_ids = [self.pubkey, self.lnworker.pubkey]
+        bitcoin_keys = [chan.local_config.multisig_key.pubkey, chan.remote_config.multisig_key.pubkey]
+        sorted_node_ids = list(sorted(node_ids))
+        if sorted_node_ids != node_ids:
+            node_ids = sorted_node_ids
+            bitcoin_keys.reverse()
+        now = int(time.time()).to_bytes(4, byteorder="big")
+        self.channel_db.on_channel_announcement({"short_channel_id": chan.short_channel_id, "node_id_1": node_ids[0], "node_id_2": node_ids[1],
+                                                 'chain_hash': constants.net.rev_genesis_bytes(), 'len': b'\x00\x00', 'features': b'',
+                                                 'bitcoin_key_1': bitcoin_keys[0], 'bitcoin_key_2': bitcoin_keys[1]},
+                                                trusted=True)
+        self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'flags': b'\x01', 'cltv_expiry_delta': b'\x90',
+                                           'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01',
+                                           'chain_hash': constants.net.rev_genesis_bytes(), 'timestamp': now},
+                                          trusted=True)
+        self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'flags': b'\x00', 'cltv_expiry_delta': b'\x90',
+                                           'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01',
+                                           'chain_hash': constants.net.rev_genesis_bytes(), 'timestamp': now},
+                                          trusted=True)
 
         self.print_error("CHANNEL OPENING COMPLETED")
 
