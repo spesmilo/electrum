@@ -287,23 +287,24 @@ class HTLCStateMachine(PrintError):
         last_secret, this_point, next_point = self.points
 
         new_local_feerate = self.local_state.feerate
+        new_remote_feerate = self.remote_state.feerate
 
         if self.pending_fee is not None:
             if not self.constraints.is_initiator and (self.pending_fee.progress & FUNDEE_SIGNED):
-                new_local_feerate = self.pending_fee.rate
-                self.remote_state=self.remote_state._replace(
-                    feerate=self.pending_fee.rate
-                )
+                new_local_feerate = new_remote_feerate = self.pending_fee.rate
                 self.pending_fee = None
                 print("FEERATE CHANGE COMPLETE (non-initiator)")
             if self.constraints.is_initiator and (self.pending_fee.progress & FUNDER_SIGNED):
-                new_local_feerate = self.pending_fee.rate
+                new_local_feerate = new_remote_feerate = self.pending_fee.rate
                 self.pending_fee = None
                 print("FEERATE CHANGE COMPLETE (initiator)")
 
         self.local_state=self.local_state._replace(
             ctn=self.local_state.ctn + 1,
             feerate=new_local_feerate
+        )
+        self.remote_state=self.remote_state._replace(
+            feerate=new_remote_feerate
         )
 
         self.local_commitment = self.pending_local_commitment
