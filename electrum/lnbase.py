@@ -884,12 +884,15 @@ class Peer(PrintError):
 
         self.revoke(chan)
 
+        commitment_signed_msg = await self.commitment_signed[chan.channel_id].get()
+
         fulfill_coro = asyncio.ensure_future(self.update_fulfill_htlc[chan.channel_id].get())
         failure_coro = asyncio.ensure_future(self.update_fail_htlc[chan.channel_id].get())
 
         done, pending = await asyncio.wait([fulfill_coro, failure_coro], return_when=FIRST_COMPLETED)
         if failure_coro.done():
             sig_64, htlc_sigs = chan.sign_next_commitment()
+            # TODO this is wrong when the htlc is dust
             self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sigs[0]))
             self.revoke(chan)
             while (await self.commitment_signed[chan.channel_id].get())["htlc_signature"] != b"":
@@ -903,9 +906,9 @@ class Peer(PrintError):
             fulfill_coro.cancel()
             self.lnworker.save_channel(chan)
             return failure_coro.result()
-        if fulfill_coro.done():
-            failure_coro.cancel()
-            update_fulfill_htlc_msg = fulfill_coro.result()
+
+        failure_coro.cancel()
+        update_fulfill_htlc_msg = fulfill_coro.result()
 
         preimage = update_fulfill_htlc_msg["payment_preimage"]
         chan.receive_htlc_settle(preimage, int.from_bytes(update_fulfill_htlc_msg["id"], "big"))
@@ -923,12 +926,6 @@ class Peer(PrintError):
 
         await self.receive_revoke(chan)
 
-        if commitment_signed_msg["htlc_signature"] == b"":
-            # this happens when we send dust amounts
-            print("CHANNEL WILL BREAK") # TODO
-        else:
-            commitment_signed_msg = await self.commitment_signed[chan.channel_id].get()
-
         self.lnworker.save_channel(chan)
         return bh2u(preimage)
 
@@ -943,8 +940,9 @@ class Peer(PrintError):
             per_commitment_secret=rev.per_commitment_secret,
             next_per_commitment_point=rev.next_per_commitment_point))
 
-    async def receive_commitment(self, m):
-        commitment_signed_msg = await self.commitment_signed[m.channel_id].get()
+    async def receive_commitment(self, m, commitment_signed_msg=None):
+        if commitment_signed_msg is None:
+            commitment_signed_msg = await self.commitment_signed[m.channel_id].get()
         data = commitment_signed_msg["htlc_signature"]
         htlc_sigs = [data[i:i+64] for i in range(0, len(data), 64)]
         m.receive_new_commitment(commitment_signed_msg["signature"], htlc_sigs)
@@ -993,17 +991,13 @@ class Peer(PrintError):
         commit_coro = asyncio.ensure_future(self.commitment_signed[chan.channel_id].get())
         _done, _pending = await asyncio.wait([revoke_coro, commit_coro], return_when=FIRST_COMPLETED)
 
-        def process_commit(commitment_signed_msg):
-            data = commitment_signed_msg["htlc_signature"]
-            htlc_sigs = [data[i:i+64] for i in range(0, len(data), 64)]
-            chan.receive_new_commitment(commitment_signed_msg["signature"], htlc_sigs)
         def process_revoke(revoke_and_ack_msg):
             chan.receive_revocation(RevokeAndAck(revoke_and_ack_msg["per_commitment_secret"], revoke_and_ack_msg["next_per_commitment_point"]))
 
         if commit_coro.done():
             # this branch is taken with lnd after a fee update (initiated by us, of course)
 
-            # TODO process_commit(commit_coro.result())
+            # TODO await process_commit(chan, commit_coro.result())
             await asyncio.wait([revoke_coro])
             process_revoke(revoke_coro.result())
             self.revoke(chan)
@@ -1017,7 +1011,7 @@ class Peer(PrintError):
             process_revoke(revoke_coro.result())
 
             await asyncio.wait([commit_coro])
-            process_commit(commit_coro.result())
+            await self.receive_commitment(chan, commit_coro.result())
             self.revoke(chan)
 
         self.lnworker.save_channel(chan)
@@ -1031,6 +1025,7 @@ class Peer(PrintError):
         self.commitment_signed[channel_id].put_nowait(payload)
 
     def on_update_fulfill_htlc(self, payload):
+        self.print_error("update_fulfill")
         channel_id = payload["channel_id"]
         self.update_fulfill_htlc[channel_id].put_nowait(payload)
 
