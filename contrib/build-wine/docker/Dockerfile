@@ -8,7 +8,7 @@ RUN dpkg --add-architecture i386 && \
         wget=1.19.4-1ubuntu2.1 \
         gnupg2=2.2.4-1ubuntu1.1 \
         dirmngr=2.2.4-1ubuntu1.1 \
-        software-properties-common=0.96.24.32.3 \
+        software-properties-common=0.96.24.32.4 \
         && \
     wget -nc https://dl.winehq.org/wine-builds/Release.key && \
     apt-key add Release.key && \
