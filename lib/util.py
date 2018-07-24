@@ -304,7 +304,7 @@ def ub_default_diffculty(is_pos):
     if is_pos == 0:
         return 0x00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     else:
-        return 0x0fffff0000000000000000000000000000000000000000000000000000000000
+        return 0x000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 
 def android_ext_dir():
