@@ -278,7 +278,7 @@ class NetworkDialogVC(UIViewController):
             extraData = None
             if n_chains > 1:
                 secHeader = "(" + (name + '@%d'%b.get_checkpoint()) + ") " + _("Host") + ", " + _("Height")
-                extraData = [ False, b.checkpoint, name ]
+                extraData = [ False, b.base_height, name ]
             for i in items:
                 star = ' *' if i == network.interface else ''
                 extraData = [True, i.server, ''] #if n_chains <= 1 else extraData

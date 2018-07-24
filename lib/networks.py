@@ -65,6 +65,9 @@ class NetworkConstants:
         cls.BITCOIN_CASH_FORK_BLOCK_HEIGHT = 478559
         cls.BITCOIN_CASH_FORK_BLOCK_HASH = "000000000000000000651ef99cb9fcbe0dadde1d424bd9f15ff20136191a5eec"
 
+        cls.VERIFICATION_BLOCK_MERKLE_ROOT = "3848ff6c001ebf78ec1a798c2002f154ace4ba6c0f0a58ccb22f66934eda7143"
+        cls.VERIFICATION_BLOCK_HEIGHT = 540250
+        
     @classmethod
     def set_testnet(cls):
         cls.TESTNET = True
@@ -83,6 +86,9 @@ class NetworkConstants:
         # Bitcoin Cash fork block specification
         cls.BITCOIN_CASH_FORK_BLOCK_HEIGHT = 1155876
         cls.BITCOIN_CASH_FORK_BLOCK_HASH = "00000000000e38fef93ed9582a7df43815d5c2ba9fd37ef70c9a0ea4a285b8f5"
+        
+        cls.VERIFICATION_BLOCK_MERKLE_ROOT = "029d920720e864945b8a5f97cd83e78e13fa001349cd1998815bdf2a6996dfa7"
+        cls.VERIFICATION_BLOCK_HEIGHT = 1248199
 
 
 NetworkConstants.set_mainnet()

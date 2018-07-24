@@ -275,6 +275,12 @@ class Abstract_Wallet(PrintError):
             if write:
                 self.storage.write()
 
+    def save_verified_tx(self, write=False):
+        with self.lock:
+            self.storage.put('verified_tx3', self.verified_tx)
+            if write:
+                self.storage.write()
+                
     def clear_history(self):
         with self.transaction_lock:
             self.txi = {}
@@ -347,6 +353,10 @@ class Abstract_Wallet(PrintError):
             self.up_to_date = up_to_date
         if up_to_date:
             self.save_transactions(write=True)
+            # if the verifier is also up to date, persist that too;
+            # otherwise it will persist its results when it finishes
+            if self.verifier and self.verifier.is_up_to_date():
+                self.save_verified_tx(write=True)
 
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
@@ -791,6 +801,9 @@ class Abstract_Wallet(PrintError):
 
         # Store fees
         self.tx_fees.update(tx_fees)
+        
+        if self.network:
+            self.network.trigger_callback('on_history')
 
     def get_history(self, domain=None):
         # get domain
@@ -1067,7 +1080,7 @@ class Abstract_Wallet(PrintError):
             # remain so they will be GC-ed
             self.storage.put('stored_height', self.get_local_height())
         self.save_transactions()
-        self.storage.put('verified_tx3', self.verified_tx)
+        self.save_verified_tx()
         self.storage.write()
 
     def wait_until_synchronized(self, callback=None):
@@ -1536,7 +1549,8 @@ class ImportedWalletBase(Simple_Wallet):
                 self.transactions.pop(tx_hash, None)
                 # FIXME: what about pruned_txo?
 
-        self.storage.put('verified_tx3', self.verified_tx)
+            self.storage.put('verified_tx3', self.verified_tx)
+            
         self.save_transactions()
 
         self.set_label(address.to_storage_string(), None)

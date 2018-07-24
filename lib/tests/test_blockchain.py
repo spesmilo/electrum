@@ -5,8 +5,6 @@ import lib.blockchain as bc
 class MyBlockchain(bc.Blockchain):
 
     def __init__(self):
-        self.cur_chunk = None
-        self.cur_chunk_index = 0
         self.filename = '/something'
         self.catch_up = None
         self.is_saved = True
@@ -56,11 +54,11 @@ class TestBlockchain(unittest.TestCase):
             'block_height': 0
         }
         blocks = [first]
-        chunk = bytes.fromhex(bc.serialize_header(first))
+        chunk_bytes = bytes.fromhex(bc.serialize_header(first))
         for n in range(1, 1000):
             block = get_block(blocks[-1], 600, first['bits'])
             blocks.append(block)
-            chunk += bytes.fromhex(bc.serialize_header(block))
+            chunk_bytes += bytes.fromhex(bc.serialize_header(block))
 
         chain = MyBlockchain()
 
@@ -68,13 +66,11 @@ class TestBlockchain(unittest.TestCase):
         for n in range(11):
             block = get_block(blocks[-1], 2 * 3600, first['bits'])
             blocks.append(block)
-            chunk += bytes.fromhex(bc.serialize_header(block))
-            chain.cur_chunk = chunk
-            self.assertEqual(chain.get_bits(block),
-                             first['bits'])
+            chunk_bytes += bytes.fromhex(bc.serialize_header(block))
+            chunk = bc.HeaderChunk(0, chunk_bytes)
+            self.assertEqual(chain.get_bits(block, chunk), first['bits'])
 
         # Now we expect difficulty to decrease
         # MTP(1010) is TimeStamp(1005), MTP(1004) is TimeStamp(999)
         hdr = {'block_height': block['block_height'] + 1}
-        self.assertEqual(chain.get_bits(hdr),
-                         0x1801b553)
+        self.assertEqual(chain.get_bits(hdr), 0x1801b553)
