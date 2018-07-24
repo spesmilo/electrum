@@ -8,7 +8,7 @@ class MyBlockchain(bc.Blockchain):
         self.filename = '/something'
         self.catch_up = None
         self.is_saved = True
-        self.checkpoint = 0
+        self.base_height = 0
         self.headers = []
 
     def set_local_height(self):
@@ -73,4 +73,4 @@ class TestBlockchain(unittest.TestCase):
         # Now we expect difficulty to decrease
         # MTP(1010) is TimeStamp(1005), MTP(1004) is TimeStamp(999)
         hdr = {'block_height': block['block_height'] + 1}
-        self.assertEqual(chain.get_bits(hdr), 0x1801b553)
+        self.assertEqual(chain.get_bits(hdr, chunk), 0x1801b553)
