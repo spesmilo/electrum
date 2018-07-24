@@ -20,12 +20,18 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
+from typing import Sequence, Optional
+
 from .util import ThreadJob, bh2u
 from .bitcoin import Hash, hash_decode, hash_encode
 from .transaction import Transaction
 
 
-class InnerNodeOfSpvProofIsValidTx(Exception): pass
+class MerkleVerificationFailure(Exception): pass
+class MissingBlockHeader(MerkleVerificationFailure): pass
+class MerkleRootMismatch(MerkleVerificationFailure): pass
+class InnerNodeOfSpvProofIsValidTx(MerkleVerificationFailure): pass
 
 
 class SPV(ThreadJob):
@@ -85,28 +91,17 @@ class SPV(ThreadJob):
         tx_hash = params[0]
         tx_height = merkle.get('block_height')
         pos = merkle.get('pos')
-        try:
-            merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, pos)
-        except InnerNodeOfSpvProofIsValidTx:
-            self.print_error("merkle verification failed for {} (inner node looks like tx)"
-                             .format(tx_hash))
-            return
+        merkle_branch = merkle.get('merkle')
         header = self.network.blockchain().read_header(tx_height)
-        # FIXME: if verification fails below,
-        # we should make a fresh connection to a server to
-        # recover from this, as this TX will now never verify
-        if not header:
-            self.print_error(
-                "merkle verification failed for {} (missing header {})"
-                .format(tx_hash, tx_height))
-            return
-        if header.get('merkle_root') != merkle_root:
-            self.print_error(
-                "merkle verification failed for {} (merkle root mismatch {} != {})"
-                .format(tx_hash, header.get('merkle_root'), merkle_root))
+        try:
+            verify_tx_is_in_block(tx_hash, merkle_branch, pos, header, tx_height)
+        except MerkleVerificationFailure as e:
+            self.print_error(str(e))
+            # FIXME: we should make a fresh connection to a server
+            # to recover from this, as this TX will now never verify
             return
         # we passed all the tests
-        self.merkle_roots[tx_hash] = merkle_root
+        self.merkle_roots[tx_hash] = header.get('merkle_root')
         try:
             # note: we could pop in the beginning, but then we would request
             # this proof again in case of verification failure from the same server
@@ -118,11 +113,17 @@ class SPV(ThreadJob):
             self.wallet.save_verified_tx(write=True)
 
     @classmethod
-    def hash_merkle_root(cls, merkle_s, target_hash, pos):
-        h = hash_decode(target_hash)
-        for i in range(len(merkle_s)):
-            item = merkle_s[i]
-            h = Hash(hash_decode(item) + h) if ((pos >> i) & 1) else Hash(h + hash_decode(item))
+    def hash_merkle_root(cls, merkle_branch: Sequence[str], tx_hash: str, leaf_pos_in_tree: int):
+        """Return calculated merkle root."""
+        try:
+            h = hash_decode(tx_hash)
+            merkle_branch_bytes = [hash_decode(item) for item in merkle_branch]
+            int(leaf_pos_in_tree)  # raise if invalid
+        except Exception as e:
+            raise MerkleVerificationFailure(e)
+
+        for i, item in enumerate(merkle_branch_bytes):
+            h = Hash(item + h) if ((leaf_pos_in_tree >> i) & 1) else Hash(h + item)
             cls._raise_if_valid_tx(bh2u(h))
         return hash_encode(h)
 
@@ -156,3 +157,16 @@ class SPV(ThreadJob):
 
     def is_up_to_date(self):
         return not self.requested_merkle
+
+
+def verify_tx_is_in_block(tx_hash: str, merkle_branch: Sequence[str],
+                          leaf_pos_in_tree: int, block_header: Optional[dict],
+                          block_height: int) -> None:
+    """Raise MerkleVerificationFailure if verification fails."""
+    if not block_header:
+        raise MissingBlockHeader("merkle verification failed for {} (missing header {})"
+                                 .format(tx_hash, block_height))
+    calc_merkle_root = SPV.hash_merkle_root(merkle_branch, tx_hash, leaf_pos_in_tree)
+    if block_header.get('merkle_root') != calc_merkle_root:
+        raise MerkleRootMismatch("merkle verification failed for {} ({} != {})".format(
+            tx_hash, block_header.get('merkle_root'), calc_merkle_root))
