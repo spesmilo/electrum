@@ -108,7 +108,7 @@ class NodesListWidget(QTreeWidget):
             if n_chains >1:
                 x = QTreeWidgetItem([name + '@%d'%b.get_checkpoint(), '%d'%b.height()])
                 x.setData(0, Qt.UserRole, 1)
-                x.setData(1, Qt.UserRole, b.checkpoint)
+                x.setData(1, Qt.UserRole, b.base_height)
             else:
                 x = self
             for i in items:

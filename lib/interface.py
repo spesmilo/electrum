@@ -265,6 +265,12 @@ class Interface(util.PrintError):
         self.unanswered_requests = {}
         self.last_send = time.time()
         self.closed_remotely = False
+        
+        self.mode = None
+        
+    def set_mode(self, mode):
+        self.print_msg("set_mode({})".format(mode))
+        self.mode = mode
 
     def diagnostic_name(self):
         return self.host

@@ -257,10 +257,10 @@ class Commands:
         return tx.deserialize()
 
     @command('n')
-    def broadcast(self, tx, timeout=30):
+    def broadcast(self, tx):
         """Broadcast a transaction to the network. """
         tx = Transaction(tx)
-        return self.network.broadcast(tx, timeout)
+        return self.network.broadcast_transaction(tx)
 
     @command('')
     def createmultisig(self, num, pubkeys):
