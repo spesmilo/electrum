@@ -220,8 +220,8 @@ class ForkData:
     second_fork_max_index = 283
 
     third_fork_chunk_size = 1
-    third_fork_height = 524000
-    third_fork_max_index = 2043
+    third_fork_height = 551111 # 524000
+    third_fork_max_index = 4755
     MINING_TYPE_POW = 0x02000000
     MINING_TYPE_POS = 0x01000000
 
