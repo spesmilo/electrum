@@ -28,11 +28,10 @@ class FeeUpdate:
         self.progress = 0
 
 class UpdateAddHtlc:
-    def __init__(self, amount_msat, payment_hash, cltv_expiry, total_fee):
+    def __init__(self, amount_msat, payment_hash, cltv_expiry):
         self.amount_msat = amount_msat
         self.payment_hash = payment_hash
         self.cltv_expiry = cltv_expiry
-        self.total_fee = total_fee
 
         # the height the htlc was locked in at, or None
         self.r_locked_in = None
@@ -41,7 +40,7 @@ class UpdateAddHtlc:
         self.htlc_id = None
 
     def as_tuple(self):
-        return (self.htlc_id, self.amount_msat, self.payment_hash, self.cltv_expiry, self.r_locked_in, self.l_locked_in, self.total_fee)
+        return (self.htlc_id, self.amount_msat, self.payment_hash, self.cltv_expiry, self.r_locked_in, self.l_locked_in)
 
     def __hash__(self):
         return hash(self.as_tuple())
@@ -211,7 +210,7 @@ class HTLCStateMachine(PrintError):
                     print("value too small, skipping. htlc amt: {}, weight: {}, remote feerate {}, remote dust limit {}".format( htlc.amount_msat, weight, feerate, self.remote_config.dust_limit_sat))
                     continue
                 original_htlc_output_index = 0
-                args = [self.remote_state.next_per_commitment_point, for_us, we_receive, htlc.amount_msat + htlc.total_fee, htlc.cltv_expiry, htlc.payment_hash, self.pending_remote_commitment, original_htlc_output_index]
+                args = [self.remote_state.next_per_commitment_point, for_us, we_receive, htlc.amount_msat, htlc.cltv_expiry, htlc.payment_hash, self.pending_remote_commitment, original_htlc_output_index]
                 htlc_tx = make_htlc_tx_with_open_channel(self, *args)
                 sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
                 htlc_sig = ecc.sig_string_from_der_sig(sig[:-1])
@@ -343,12 +342,11 @@ class HTLCStateMachine(PrintError):
                 continue
             settle_fails2.append(x)
 
-        sent_this_batch, sent_fees = 0, 0
+        sent_this_batch = 0
 
         for x in settle_fails2:
             htlc = self.lookup_htlc(self.local_update_log, x.htlc_id)
             sent_this_batch += htlc.amount_msat
-            sent_fees += htlc.total_fee
 
         self.total_msat_sent += sent_this_batch
 
@@ -374,8 +372,6 @@ class HTLCStateMachine(PrintError):
 
         self.total_msat_received += received_this_batch
 
-        received_fees = sum(x.total_fee for x in to_remove)
-
         self.remote_state.revocation_store.add_next_entry(revocation.per_commitment_secret)
 
         next_point = self.remote_state.next_per_commitment_point
@@ -386,10 +382,10 @@ class HTLCStateMachine(PrintError):
             ctn=self.remote_state.ctn + 1,
             current_per_commitment_point=next_point,
             next_per_commitment_point=revocation.next_per_commitment_point,
-            amount_msat=self.remote_state.amount_msat + (sent_this_batch - received_this_batch) + sent_fees - received_fees
+            amount_msat=self.remote_state.amount_msat + (sent_this_batch - received_this_batch)
         )
         self.local_state=self.local_state._replace(
-            amount_msat = self.local_state.amount_msat + (received_this_batch - sent_this_batch) - sent_fees + received_fees
+            amount_msat = self.local_state.amount_msat + (received_this_batch - sent_this_batch)
         )
 
         if self.pending_fee:
@@ -402,28 +398,24 @@ class HTLCStateMachine(PrintError):
     @staticmethod
     def htlcsum(htlcs):
         amount_unsettled = 0
-        fee = 0
         for x in htlcs:
             amount_unsettled += x.amount_msat
-            fee += x.total_fee
-        return amount_unsettled, fee
+        return amount_unsettled
 
     def amounts(self):
-        remote_settled_value, remote_settled_fee = self.htlcsum(self.gen_htlc_indices("remote", False))
-        local_settled_value, local_settled_fee = self.htlcsum(self.gen_htlc_indices("local", False))
-        htlc_value_local, total_fee_local = self.htlcsum(self.htlcs_in_local)
-        htlc_value_remote, total_fee_remote = self.htlcsum(self.htlcs_in_remote)
-        total_fee_local += local_settled_fee
-        total_fee_remote += remote_settled_fee
+        remote_settled_value = self.htlcsum(self.gen_htlc_indices("remote", False))
+        local_settled_value = self.htlcsum(self.gen_htlc_indices("local", False))
+        htlc_value_local = self.htlcsum(self.htlcs_in_local)
+        htlc_value_remote = self.htlcsum(self.htlcs_in_remote)
         local_msat = self.local_state.amount_msat -\
           htlc_value_local + remote_settled_value - local_settled_value
         remote_msat = self.remote_state.amount_msat -\
           htlc_value_remote + local_settled_value - remote_settled_value
-        return remote_msat, total_fee_remote, local_msat, total_fee_local
+        return remote_msat, local_msat
 
     @property
     def pending_remote_commitment(self):
-        remote_msat, total_fee_remote, local_msat, total_fee_local = self.amounts()
+        remote_msat, local_msat = self.amounts()
         assert local_msat >= 0
         assert remote_msat >= 0
 
@@ -440,23 +432,23 @@ class HTLCStateMachine(PrintError):
             if htlc.amount_msat // 1000 - HTLC_SUCCESS_WEIGHT * (feerate // 1000) < self.remote_config.dust_limit_sat:
                 continue
             htlcs_in_local.append(
-                ( make_received_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat + htlc.total_fee))
+                ( make_received_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat))
 
         htlcs_in_remote = []
         for htlc in self.htlcs_in_remote:
             if htlc.amount_msat // 1000 - HTLC_TIMEOUT_WEIGHT * (feerate // 1000) < self.remote_config.dust_limit_sat:
                 continue
             htlcs_in_remote.append(
-                ( make_offered_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + htlc.total_fee))
+                ( make_offered_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash), htlc.amount_msat))
 
         commit = self.make_commitment(self.remote_state.ctn + 1,
             False, this_point,
-            remote_msat - total_fee_remote, local_msat - total_fee_local, htlcs_in_local + htlcs_in_remote)
+            remote_msat, local_msat, htlcs_in_local + htlcs_in_remote)
         return commit
 
     @property
     def pending_local_commitment(self):
-        remote_msat, total_fee_remote, local_msat, total_fee_local = self.amounts()
+        remote_msat, local_msat = self.amounts()
         assert local_msat >= 0
         assert remote_msat >= 0
 
@@ -473,18 +465,18 @@ class HTLCStateMachine(PrintError):
             if htlc.amount_msat // 1000 - HTLC_TIMEOUT_WEIGHT * (feerate // 1000) < self.local_config.dust_limit_sat:
                 continue
             htlcs_in_local.append(
-                ( make_offered_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash), htlc.amount_msat + htlc.total_fee))
+                ( make_offered_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash), htlc.amount_msat))
 
         htlcs_in_remote = []
         for htlc in self.htlcs_in_remote:
             if htlc.amount_msat // 1000 - HTLC_SUCCESS_WEIGHT * (feerate // 1000) < self.local_config.dust_limit_sat:
                 continue
             htlcs_in_remote.append(
-                ( make_received_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat + htlc.total_fee))
+                ( make_received_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat))
 
         commit = self.make_commitment(self.local_state.ctn + 1,
             True, this_point,
-            local_msat - total_fee_local, remote_msat - total_fee_remote, htlcs_in_local + htlcs_in_remote)
+            local_msat, remote_msat, htlcs_in_local + htlcs_in_remote)
         return commit
 
     def gen_htlc_indices(self, subject, just_unsettled=True):
