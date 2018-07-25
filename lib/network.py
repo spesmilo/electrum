@@ -1032,7 +1032,7 @@ class Network(util.DaemonThread):
             
         # If not finished, get the next header
         if next_height:
-            if interface.mode == 'catch_up' and interface.tip > next_height + 50:
+            if interface.mode == 'catch_up' and interface.tip > next_height:
                 self.request_headers(interface, next_height, 2016)
             else:
                 self.request_header(interface, next_height)
