@@ -440,7 +440,7 @@ class TestLNUtil(unittest.TestCase):
         seed = bitcoin.sha256(b"shachaintest")
         consumer = RevocationStore()
         for i in range(10000):
-            secret = get_per_commitment_secret_from_seed(seed, 2**48 - i - 1)
+            secret = get_per_commitment_secret_from_seed(seed, RevocationStore.START_INDEX - i)
             try:
                 consumer.add_next_entry(secret)
             except Exception as e:
