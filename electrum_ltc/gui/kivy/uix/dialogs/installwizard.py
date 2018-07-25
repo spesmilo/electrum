@@ -957,7 +957,12 @@ class InstallWizard(BaseWizard, Widget):
             # on  completion hide message
             Clock.schedule_once(lambda dt: app.info_bubble.hide(now=True), -1)
             if on_finished:
-                Clock.schedule_once(lambda dt: on_finished(), -1)
+                def protected_on_finished():
+                    try:
+                        on_finished()
+                    except Exception as e:
+                        self.show_error(str(e))
+                Clock.schedule_once(lambda dt: protected_on_finished(), -1)
 
         app = App.get_running_app()
         app.show_info_bubble(

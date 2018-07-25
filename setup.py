@@ -2,7 +2,7 @@
 
 # python setup.py sdist --format=zip,gztar
 
-from setuptools import setup
+from setuptools import setup, find_packages
 import os
 import sys
 import platform
@@ -57,26 +57,15 @@ setup(
         'electrum_ltc.gui',
         'electrum_ltc.gui.qt',
         'electrum_ltc.plugins',
-        'electrum_ltc.plugins.audio_modem',
-        'electrum_ltc.plugins.cosigner_pool',
-        'electrum_ltc.plugins.email_requests',
-        'electrum_ltc.plugins.hw_wallet',
-        'electrum_ltc.plugins.keepkey',
-        'electrum_ltc.plugins.labels',
-        'electrum_ltc.plugins.ledger',
-        'electrum_ltc.plugins.revealer',
-        'electrum_ltc.plugins.trezor',
-        'electrum_ltc.plugins.digitalbitbox',
-        'electrum_ltc.plugins.virtualkeyboard',
-    ],
+    ] + [('electrum_ltc.plugins.'+pkg) for pkg in find_packages('electrum_ltc/plugins')],
     package_dir={
         'electrum_ltc': 'electrum_ltc'
     },
     package_data={
         '': ['*.txt', '*.json', '*.ttf', '*.otf'],
         'electrum_ltc': [
-            'electrum_ltc/wordlist/*.txt',
-            'electrum_ltc/locale/*/LC_MESSAGES/electrum.mo',
+            'wordlist/*.txt',
+            'locale/*/LC_MESSAGES/electrum.mo',
         ],
     },
     scripts=['electrum_ltc/electrum-ltc'],

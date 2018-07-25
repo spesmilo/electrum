@@ -159,6 +159,9 @@ class ElectrumWindow(App):
         Logger.info("on_history")
         self._trigger_update_history()
 
+    def on_fee_histogram(self, *args):
+        self._trigger_update_history()
+
     def _get_bu(self):
         decimal_point = self.electrum_config.get('decimal_point', 8)
         return decimal_point_to_base_unit_name(decimal_point)
@@ -483,7 +486,7 @@ class ElectrumWindow(App):
             interests = ['updated', 'status', 'new_transaction', 'verified', 'interfaces']
             self.network.register_callback(self.on_network_event, interests)
             self.network.register_callback(self.on_fee, ['fee'])
-            self.network.register_callback(self.on_history, ['fee_histogram'])
+            self.network.register_callback(self.on_fee_histogram, ['fee_histogram'])
             self.network.register_callback(self.on_quotes, ['on_quotes'])
             self.network.register_callback(self.on_history, ['on_history'])
         # load wallet
