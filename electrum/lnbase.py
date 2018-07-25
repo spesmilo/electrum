@@ -879,12 +879,9 @@ class Peer(PrintError):
         self.attempted_route[(chan.channel_id, htlc.htlc_id)] = route
 
         sig_64, htlc_sigs = chan.sign_next_commitment()
-
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
         await self.receive_revoke(chan)
-
         await self.receive_commitment(chan)
-
         self.revoke(chan)
 
         fulfill_coro = asyncio.ensure_future(self.update_fulfill_htlc[chan.channel_id].get())
@@ -892,42 +889,31 @@ class Peer(PrintError):
 
         done, pending = await asyncio.wait([fulfill_coro, failure_coro], return_when=FIRST_COMPLETED)
         if failure_coro.done():
+            fulfill_coro.cancel()
             sig_64, htlc_sigs = chan.sign_next_commitment()
-            # TODO this is wrong when the htlc is dust
-            self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=1, htlc_signature=htlc_sigs[0]))
-            self.revoke(chan)
-            while (await self.commitment_signed[chan.channel_id].get())["htlc_signature"] != b"":
-                pass
-            # TODO process above commitment transactions
+            self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
             await self.receive_revoke(chan)
             chan.fail_htlc(htlc)
+            await self.receive_commitment(chan)
+            self.revoke(chan)
             sig_64, htlc_sigs = chan.sign_next_commitment()
-            self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=0))
-            await self.receive_revoke(chan)
-            fulfill_coro.cancel()
-            self.lnworker.save_channel(chan)
-            return failure_coro.result()
+            res = failure_coro.result()
+        else:
+            failure_coro.cancel()
+            update_fulfill_htlc_msg = fulfill_coro.result()
+            preimage = update_fulfill_htlc_msg["payment_preimage"]
+            chan.receive_htlc_settle(preimage, int.from_bytes(update_fulfill_htlc_msg["id"], "big"))
+            await self.receive_commitment(chan)
+            self.revoke(chan)
+            bare_ctx = chan.make_commitment(chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
+                msat_remote, msat_local)
+            sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
+            res = bh2u(preimage)
 
-        failure_coro.cancel()
-        update_fulfill_htlc_msg = fulfill_coro.result()
-
-        preimage = update_fulfill_htlc_msg["payment_preimage"]
-        chan.receive_htlc_settle(preimage, int.from_bytes(update_fulfill_htlc_msg["id"], "big"))
-
-        await self.receive_commitment(chan)
-
-        self.revoke(chan)
-
-        bare_ctx = chan.make_commitment(chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
-            msat_remote, msat_local)
-
-        sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=0))
-
         await self.receive_revoke(chan)
-
         self.lnworker.save_channel(chan)
-        return bh2u(preimage)
+        return res
 
     async def receive_revoke(self, m):
         revoke_and_ack_msg = await self.revoke_and_ack[m.channel_id].get()
@@ -996,9 +982,7 @@ class Peer(PrintError):
 
         if commit_coro.done():
             # this branch is taken with lnd after a fee update (initiated by us, of course)
-
-            # TODO await process_commit(chan, commit_coro.result())
-            await asyncio.wait([revoke_coro])
+            await revoke_coro
             process_revoke(revoke_coro.result())
             self.revoke(chan)
             await self.receive_commitment(chan)
@@ -1010,7 +994,7 @@ class Peer(PrintError):
         elif revoke_coro.done():
             process_revoke(revoke_coro.result())
 
-            await asyncio.wait([commit_coro])
+            await commit_coro
             await self.receive_commitment(chan, commit_coro.result())
             self.revoke(chan)
 
