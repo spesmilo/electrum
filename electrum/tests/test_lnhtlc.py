@@ -133,7 +133,6 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
             payment_hash = paymentHash,
             amount_msat =  one_bitcoin_in_msat,
             cltv_expiry =  5,
-            total_fee = 0
         )
 
         # First Alice adds the outgoing HTLC to her local channel's state
@@ -326,7 +325,6 @@ class TestLNHTLCDust(unittest.TestCase):
             payment_hash = paymentHash,
             amount_msat =  1000 * htlcAmt,
             cltv_expiry =  5, # also in create_test_channels
-            total_fee = 0
         )
 
         aliceHtlcIndex = alice_channel.add_htlc(htlc)
