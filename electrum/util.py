@@ -164,12 +164,14 @@ class MyEncoder(json.JSONEncoder):
 
 class PrintError(object):
     '''A handy base class'''
+    verbosity_filter = ''
+
     def diagnostic_name(self):
         return self.__class__.__name__
 
     def print_error(self, *msg):
-        # only prints with --verbose flag
-        print_error("[%s]" % self.diagnostic_name(), *msg)
+        if self.verbosity_filter in verbosity or verbosity == '*':
+            print_stderr("[%s]" % self.diagnostic_name(), *msg)
 
     def print_stderr(self, *msg):
         print_stderr("[%s]" % self.diagnostic_name(), *msg)
@@ -213,6 +215,7 @@ class DebugMem(ThreadJob):
 
 class DaemonThread(threading.Thread, PrintError):
     """ daemon thread that terminates cleanly """
+    verbosity_filter = 'd'
 
     def __init__(self):
         threading.Thread.__init__(self)
@@ -263,15 +266,14 @@ class DaemonThread(threading.Thread, PrintError):
         self.print_error("stopped")
 
 
-# TODO: disable
-is_verbose = True
+verbosity = '*'
 def set_verbosity(b):
-    global is_verbose
-    is_verbose = b
+    global verbosity
+    verbosity = b
 
 
 def print_error(*args):
-    if not is_verbose: return
+    if not verbosity: return
     print_stderr(*args)
 
 def print_stderr(*args):

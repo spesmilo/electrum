@@ -46,7 +46,6 @@ def check_imports():
         import ecdsa
         import requests
         import qrcode
-        import pbkdf2
         import google.protobuf
         import jsonrpclib
     except ImportError as e:
@@ -356,7 +355,7 @@ if __name__ == '__main__':
     # config is an object passed to the various constructors (wallet, interface, gui)
     if is_android:
         config_options = {
-            'verbose': True,
+            'verbosity': '',
             'cmd': 'gui',
             'gui': 'kivy',
         }
@@ -377,7 +376,7 @@ if __name__ == '__main__':
         config_options['electrum_path'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'electrum_data')
 
     # kivy sometimes freezes when we write to sys.stderr
-    set_verbosity(config_options.get('verbose') and config_options.get('gui')!='kivy')
+    set_verbosity(config_options.get('verbosity') if config_options.get('gui') != 'kivy' else '')
 
     # check uri
     uri = config_options.get('url')

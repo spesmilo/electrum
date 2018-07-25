@@ -2,7 +2,7 @@
 
 # python setup.py sdist --format=zip,gztar
 
-from setuptools import setup
+from setuptools import setup, find_packages
 import os
 import sys
 import platform
@@ -43,7 +43,6 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
 extras_require = {
     'hardware': requirements_hw,
     'fast': ['pycryptodomex'],
-    ':python_version < "3.5"': ['typing>=3.0.0'],
 }
 extras_require['full'] = extras_require['hardware'] + extras_require['fast']
 
@@ -58,29 +57,15 @@ setup(
         'electrum.gui',
         'electrum.gui.qt',
         'electrum.plugins',
-        'electrum.plugins.audio_modem',
-        'electrum.plugins.cosigner_pool',
-        'electrum.plugins.email_requests',
-        'electrum.plugins.greenaddress_instant',
-        'electrum.plugins.hw_wallet',
-        'electrum.plugins.keepkey',
-        'electrum.plugins.labels',
-        'electrum.plugins.ledger',
-        'electrum.plugins.revealer',
-        'electrum.plugins.safe_t',
-        'electrum.plugins.trezor',
-        'electrum.plugins.digitalbitbox',
-        'electrum.plugins.trustedcoin',
-        'electrum.plugins.virtualkeyboard',
-    ],
+    ] + [('electrum.plugins.'+pkg) for pkg in find_packages('electrum/plugins')],
     package_dir={
         'electrum': 'electrum'
     },
     package_data={
         '': ['*.txt', '*.json', '*.ttf', '*.otf'],
         'electrum': [
-            'electrum/wordlist/*.txt',
-            'electrum/locale/*/LC_MESSAGES/electrum.mo',
+            'wordlist/*.txt',
+            'locale/*/LC_MESSAGES/electrum.mo',
         ],
     },
     scripts=['electrum/electrum'],

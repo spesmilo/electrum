@@ -10,12 +10,12 @@ import threading
 from electrum.bitcoin import TYPE_ADDRESS
 from electrum.storage import WalletStorage
 from electrum.wallet import Wallet
-from electrum.i18n import _
 from electrum.paymentrequest import InvoiceStore
 from electrum.util import profiler, InvalidPassword
 from electrum.plugin import run_hook
 from electrum.util import format_satoshis, format_satoshis_plain
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from .i18n import _
 
 from kivy.app import App
 from kivy.core.window import Window
@@ -157,6 +157,9 @@ class ElectrumWindow(App):
 
     def on_history(self, d):
         Logger.info("on_history")
+        self._trigger_update_history()
+
+    def on_fee_histogram(self, *args):
         self._trigger_update_history()
 
     def _get_bu(self):
@@ -391,9 +394,16 @@ class ElectrumWindow(App):
         popup.export = self.export_private_keys
         popup.open()
 
-    def qr_dialog(self, title, data, show_text=False):
+    def qr_dialog(self, title, data, show_text=False, text_for_clipboard=None):
         from .uix.dialogs.qr_dialog import QRDialog
-        popup = QRDialog(title, data, show_text)
+        def on_qr_failure():
+            popup.dismiss()
+            msg = _('Failed to display QR code.')
+            if text_for_clipboard:
+                msg += '\n' + _('Text copied to clipboard.')
+                self._clipboard.copy(text_for_clipboard)
+            Clock.schedule_once(lambda dt: self.show_info(msg))
+        popup = QRDialog(title, data, show_text, on_qr_failure)
         popup.open()
 
     def scan_qr(self, on_complete):
@@ -476,6 +486,7 @@ class ElectrumWindow(App):
             interests = ['updated', 'status', 'new_transaction', 'verified', 'interfaces']
             self.network.register_callback(self.on_network_event, interests)
             self.network.register_callback(self.on_fee, ['fee'])
+            self.network.register_callback(self.on_fee_histogram, ['fee_histogram'])
             self.network.register_callback(self.on_quotes, ['on_quotes'])
             self.network.register_callback(self.on_history, ['on_history'])
         # load wallet

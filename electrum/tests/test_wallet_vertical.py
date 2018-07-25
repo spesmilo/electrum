@@ -18,6 +18,11 @@ from . import SequentialTestCase
 from .test_bitcoin import needs_test_with_all_ecc_implementations
 
 
+_UNICODE_HORROR_HEX = 'e282bf20f09f988020f09f98882020202020e3818620e38191e3819fe381be20e3828fe3828b2077cda2cda2cd9d68cda16fcda2cda120ccb8cda26bccb5cd9f6eccb4cd98c7ab77ccb8cc9b73cd9820cc80cc8177cd98cda2e1b8a9ccb561d289cca1cda27420cca7cc9568cc816fccb572cd8fccb5726f7273cca120ccb6cda1cda06cc4afccb665cd9fcd9f20ccb6cd9d696ecda220cd8f74cc9568ccb7cca1cd9f6520cd9fcd9f64cc9b61cd9c72cc95cda16bcca2cca820cda168ccb465cd8f61ccb7cca2cca17274cc81cd8f20ccb4ccb7cda0c3b2ccb5ccb666ccb82075cca7cd986ec3adcc9bcd9c63cda2cd8f6fccb7cd8f64ccb8cda265cca1cd9d3fcd9e'
+UNICODE_HORROR = bfh(_UNICODE_HORROR_HEX).decode('utf-8')
+# '₿ 😀 😈     う けたま わる w͢͢͝h͡o͢͡ ̸͢k̵͟n̴͘ǫw̸̛s͘ ̀́w͘͢ḩ̵a҉̡͢t ̧̕h́o̵r͏̵rors̡ ̶͡͠lį̶e͟͟ ̶͝in͢ ͏t̕h̷̡͟e ͟͟d̛a͜r̕͡k̢̨ ͡h̴e͏a̷̢̡rt́͏ ̴̷͠ò̵̶f̸ u̧͘ní̛͜c͢͏o̷͏d̸͢e̡͝?͞'
+
+
 class WalletIntegrityHelper:
 
     gap_limit = 1  # make tests run faster
@@ -68,7 +73,6 @@ class WalletIntegrityHelper:
         return w
 
 
-# TODO passphrase/seed_extension
 class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
 
     @needs_test_with_all_ecc_implementations
@@ -110,6 +114,26 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
 
         self.assertEqual(w.get_receiving_addresses()[0], 'bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af')
         self.assertEqual(w.get_change_addresses()[0], 'bc1qdy94n2q5qcp0kg7v9yzwe6wvfkhnvyzje7nx2p')
+
+    @needs_test_with_all_ecc_implementations
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_electrum_seed_segwit_passphrase(self, mock_write):
+        seed_words = 'bitter grass shiver impose acquire brush forget axis eager alone wine silver'
+        self.assertEqual(bitcoin.seed_type(seed_words), 'segwit')
+
+        ks = keystore.from_seed(seed_words, UNICODE_HORROR, False)
+
+        WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks)
+        self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
+
+        self.assertEqual(ks.xprv, 'zprvAZDmEQiCLUcZXPfrBXoksCD2R6RMAzAre7SUyBotibisy9c7vGhLYvHaP3d9rYU12DKAWdZfscPNA7qEPgTkCDqX5sE93ryAJAQvkDbfLxU')
+        self.assertEqual(ks.xpub, 'zpub6nD7dvF6ArArjskKHZLmEL9ky8FqaSti1LN5maDWGwFrqwwGTp1b6ic4EHwciFNaYDmCXcQYxXSiF9BjcLCMPcaYkVN2nQD6QjYQ8vpSR3Z')
+
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(w.txin_type, 'p2wpkh')
+
+        self.assertEqual(w.get_receiving_addresses()[0], 'bc1qx94dutas7ysn2my645cyttujrms5d9p57f6aam')
+        self.assertEqual(w.get_change_addresses()[0], 'bc1qcywwsy87sdp8vz5rfjh3sxdv6rt95kujdqq38g')
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
@@ -182,6 +206,25 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
 
         self.assertEqual(w.get_receiving_addresses()[0], '16j7Dqk3Z9DdTdBtHcCVLaNQy9MTgywUUo')
         self.assertEqual(w.get_change_addresses()[0], '1GG5bVeWgAp5XW7JLCphse14QaC4qiHyWn')
+
+    @needs_test_with_all_ecc_implementations
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_bip39_seed_bip44_standard_passphrase(self, mock_write):
+        seed_words = 'treat dwarf wealth gasp brass outside high rent blood crowd make initial'
+        self.assertEqual(keystore.bip39_is_checksum_valid(seed_words), (True, True))
+
+        ks = keystore.from_bip39_seed(seed_words, UNICODE_HORROR, "m/44'/0'/0'")
+
+        self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
+
+        self.assertEqual(ks.xprv, 'xprv9z8izheguGnLopSqkY7GcGFrP2Gu6rzBvvHo6uB9B8DWJhsows6WDZAsbBTaP3ncP2AVbTQphyEQkahrB9s1L7ihZtfz5WGQPMbXwsUtSik')
+        self.assertEqual(ks.xpub, 'xpub6D85QDBajeLe2JXJrZeGyQCaw47PWKi3J9DPuHakjTkVBWCxVQQkmMVMSSfnw39tj9FntbozpRtb1AJ8ubjeVSBhyK4M5mzdvsXZzKPwodT')
+
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(w.txin_type, 'p2pkh')
+
+        self.assertEqual(w.get_receiving_addresses()[0], '1F88g2naBMhDB7pYFttPWGQgryba3hPevM')
+        self.assertEqual(w.get_change_addresses()[0], '1H4QD1rg2zQJ4UjuAVJr5eW1fEM8WMqyxh')
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')

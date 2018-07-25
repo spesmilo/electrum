@@ -141,7 +141,10 @@ class KeepKeyPlugin(HW_PluginBase):
                      'download the updated firmware from {}')
                    .format(self.device, client.label(), self.firmware_URL))
             self.print_error(msg)
-            handler.show_error(msg)
+            if handler:
+                handler.show_error(msg)
+            else:
+                raise Exception(msg)
             return None
 
         return client
@@ -288,7 +291,7 @@ class KeepKeyPlugin(HW_PluginBase):
         for txin in tx.inputs():
             txinputtype = self.types.TxInputType()
             if txin['type'] == 'coinbase':
-                prev_hash = "\0"*32
+                prev_hash = b"\x00"*32
                 prev_index = 0xffffffff  # signed int -1
             else:
                 if for_sig:
