@@ -530,7 +530,7 @@ class Peer(PrintError):
         )
         # TODO derive this?
         per_commitment_secret_seed = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100.to_bytes(32, 'big')
-        per_commitment_secret_index = 2**48 - 1
+        per_commitment_secret_index = RevocationStore.START_INDEX
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index)
         per_commitment_point_first = secret_to_pubkey(int.from_bytes(per_commitment_secret_first, 'big'))
@@ -680,7 +680,7 @@ class Peer(PrintError):
 
     def funding_locked(self, chan):
         channel_id = chan.channel_id
-        per_commitment_secret_index = 2**48 - 2
+        per_commitment_secret_index = RevocationStore.START_INDEX - 1
         per_commitment_point_second = secret_to_pubkey(int.from_bytes(
             get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, per_commitment_secret_index), 'big'))
         self.send_message(gen_msg("funding_locked", channel_id=channel_id, next_per_commitment_point=per_commitment_point_second))
