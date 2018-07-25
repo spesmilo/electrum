@@ -868,10 +868,10 @@ class Peer(PrintError):
         self.secret_key = os.urandom(32)
         hops_data += [OnionHopsDataSingle(OnionPerHop(b"\x00"*8, amount_msat.to_bytes(8, "big"), (final_cltv_expiry_without_deltas).to_bytes(4, "big")))]
         onion = new_onion_packet([x.node_id for x in route], self.secret_key, hops_data, associated_data)
-        msat_local = chan.local_state.amount_msat - (amount_msat + total_fee)
-        msat_remote = chan.remote_state.amount_msat + (amount_msat + total_fee)
-        htlc = UpdateAddHtlc(amount_msat, payment_hash, final_cltv_expiry_with_deltas, total_fee)
         amount_msat += total_fee
+        msat_local = chan.local_state.amount_msat - amount_msat
+        msat_remote = chan.remote_state.amount_msat + amount_msat
+        htlc = UpdateAddHtlc(amount_msat, payment_hash, final_cltv_expiry_with_deltas)
 
         self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=chan.local_state.next_htlc_id, cltv_expiry=final_cltv_expiry_with_deltas, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
 
@@ -964,7 +964,7 @@ class Peer(PrintError):
         assert amount_msat == expected_received_msat
         payment_hash = htlc["payment_hash"]
 
-        htlc = UpdateAddHtlc(amount_msat, payment_hash, cltv_expiry, 0)
+        htlc = UpdateAddHtlc(amount_msat, payment_hash, cltv_expiry)
 
         chan.receive_htlc(htlc)
 
