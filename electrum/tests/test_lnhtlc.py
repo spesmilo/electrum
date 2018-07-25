@@ -60,6 +60,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 funding_locked_received=True,
                 was_announced=False,
                 current_commitment_signature=None,
+                current_htlc_signatures=None,
                 feerate=local_feerate
             ),
             "constraints":lnbase.ChannelConstraints(capacity=funding_sat, is_initiator=is_initiator, funding_txn_minimum_depth=3),
