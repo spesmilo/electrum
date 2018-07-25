@@ -2691,16 +2691,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         lang_label = HelpLabel(_('Language') + ':', lang_help)
         lang_combo = QComboBox()
         from electroncash.i18n import languages
-        lang_combo.addItems(list(languages.values()))
+
+        language_names = []
+        language_keys = []
+        for item in languages.items():
+            language_keys.append(item[0])
+            language_names.append(item[1])
+        lang_combo.addItems(language_names)
         try:
-            index = languages.keys().index(self.config.get("language",''))
-        except Exception:
+            index = language_keys.index(self.config.get("language",''))
+        except ValueError:
             index = 0
         lang_combo.setCurrentIndex(index)
+        
         if not self.config.is_modifiable('language'):
-            for w in [lang_combo, lang_label]: w.setEnabled(False)
+            for w in [lang_combo, lang_label]:
+                w.setEnabled(False)
+                
         def on_lang(x):
-            lang_request = list(languages.keys())[lang_combo.currentIndex()]
+            lang_request = language_keys[lang_combo.currentIndex()]
             if lang_request != self.config.get('language'):
                 self.config.set_key("language", lang_request, True)
                 self.need_restart = True
