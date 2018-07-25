@@ -31,7 +31,7 @@ from . import constants
 from . import transaction
 from .util import PrintError, bh2u, print_error, bfh, profiler, xor_bytes
 from .transaction import opcodes, Transaction
-from .lnrouter import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error
+from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error
 from .lnaddr import lndecode
 from .lnhtlc import UpdateAddHtlc, HTLCStateMachine, RevokeAndAck, SettleHtlc
 
