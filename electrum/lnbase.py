@@ -883,9 +883,9 @@ class Peer(PrintError):
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
         await self.receive_revoke(chan)
 
-        self.revoke(chan)
+        await self.receive_commitment(chan)
 
-        commitment_signed_msg = await self.commitment_signed[chan.channel_id].get()
+        self.revoke(chan)
 
         fulfill_coro = asyncio.ensure_future(self.update_fulfill_htlc[chan.channel_id].get())
         failure_coro = asyncio.ensure_future(self.update_fail_htlc[chan.channel_id].get())
@@ -914,10 +914,9 @@ class Peer(PrintError):
         preimage = update_fulfill_htlc_msg["payment_preimage"]
         chan.receive_htlc_settle(preimage, int.from_bytes(update_fulfill_htlc_msg["id"], "big"))
 
-        self.revoke(chan)
+        await self.receive_commitment(chan)
 
-        commitment_signed_msg = await self.commitment_signed[chan.channel_id].get()
-        # TODO process above commitment transactions
+        self.revoke(chan)
 
         bare_ctx = chan.make_commitment(chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
             msat_remote, msat_local)
