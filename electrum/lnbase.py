@@ -611,6 +611,7 @@ class Peer(PrintError):
                     funding_locked_received = False,
                     was_announced = False,
                     current_commitment_signature = None,
+                    current_htlc_signatures = None,
                     feerate=local_feerate
                 ),
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth)
@@ -1020,7 +1021,9 @@ class Peer(PrintError):
         self.print_error("commitment_signed", payload)
         channel_id = payload['channel_id']
         chan = self.channels[channel_id]
-        chan.local_state=chan.local_state._replace(current_commitment_signature=payload['signature'])
+        chan.local_state=chan.local_state._replace(
+            current_commitment_signature=payload['signature'],
+            current_htlc_signatures=payload['htlc_signature'])
         self.lnworker.save_channel(chan)
         self.commitment_signed[channel_id].put_nowait(payload)
 
