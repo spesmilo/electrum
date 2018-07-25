@@ -319,7 +319,7 @@ class WalletStorage(JsonDB):
             storage2.upgrade()
             storage2.write()
             result = [storage1.path, storage2.path]
-        elif wallet_type in ['bip44', 'trezor', 'keepkey', 'ledger', 'btchip', 'digitalbitbox']:
+        elif wallet_type in ['bip44', 'trezor', 'keepkey', 'ledger', 'btchip', 'digitalbitbox', 'safe_t']:
             mpk = storage.get('master_public_keys')
             for k in d.keys():
                 i = int(k)
@@ -416,7 +416,7 @@ class WalletStorage(JsonDB):
             self.put('wallet_type', 'standard')
             self.put('keystore', d)
 
-        elif wallet_type in ['trezor', 'keepkey', 'ledger', 'digitalbitbox']:
+        elif wallet_type in ['trezor', 'keepkey', 'ledger', 'digitalbitbox', 'safe_t']:
             xpub = xpubs["x/0'"]
             derivation = self.get('derivation', bip44_derivation(0))
             d = {
