@@ -56,7 +56,7 @@ is_key = lambda k: k.endswith("_basepoint") or k.endswith("_key")
 
 def maybeDecode(k, v):
     assert type(v) is not list
-    if k in ["node_id", "channel_id", "short_channel_id", "pubkey", "privkey", "current_per_commitment_point", "next_per_commitment_point", "per_commitment_secret_seed", "current_commitment_signature"] and v is not None:
+    if k in ["node_id", "channel_id", "short_channel_id", "pubkey", "privkey", "current_per_commitment_point", "next_per_commitment_point", "per_commitment_secret_seed", "current_commitment_signature", "current_htlc_signatures"] and v is not None:
         return binascii.unhexlify(v)
     return v
 
