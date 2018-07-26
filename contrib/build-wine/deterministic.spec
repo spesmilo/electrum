@@ -18,6 +18,7 @@ home = 'C:\\electrum-ltc\\'
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
 hiddenimports += collect_submodules('trezorlib')
+hiddenimports += collect_submodules('safetlib')
 hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
@@ -38,6 +39,7 @@ datas = [
     ('C:\\Program Files (x86)\\ZBar\\bin\\', '.')
 ]
 datas += collect_data_files('trezorlib')
+datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 
@@ -56,6 +58,8 @@ a = Analysis([home+'run_electrum',
               home+'electrum_ltc/plugins/email_requests/qt.py',
               home+'electrum_ltc/plugins/trezor/client.py',
               home+'electrum_ltc/plugins/trezor/qt.py',
+              home+'electrum_ltc/plugins/safe_t/client.py',
+              home+'electrum_ltc/plugins/safe_t/qt.py',
               home+'electrum_ltc/plugins/keepkey/qt.py',
               home+'electrum_ltc/plugins/ledger/qt.py',
               #home+'packages/requests/utils.py'
