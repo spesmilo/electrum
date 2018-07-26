@@ -64,10 +64,12 @@ class ChannelsList(MyTreeWidget):
         return h
 
     def update_status(self):
-        n = len(self.parent.network.lightning_nodes)
-        nc = len(self.parent.network.channel_db)
-        np = len(self.parent.wallet.lnworker.peers)
-        self.status.setText(_('{} peers, {} nodes, {} channels').format(np, n, nc))
+        channel_db = self.parent.network.channel_db
+        num_nodes = len(channel_db.nodes)
+        num_channels = len(channel_db)
+        num_peers = len(self.parent.wallet.lnworker.peers)
+        self.status.setText(_('{} peers, {} nodes, {} channels')
+                            .format(num_peers, num_nodes, num_channels))
 
     def new_channel_dialog(self):
         lnworker = self.parent.wallet.lnworker
@@ -116,15 +118,16 @@ class ChannelsList(MyTreeWidget):
 
         peer = lnworker.peers.get(node_id)
         if not peer:
-            known = node_id in self.parent.network.lightning_nodes
+            all_nodes = self.parent.network.channel_db.nodes
+            node_info = all_nodes.get(node_id, None)
             if rest is not None:
                 try:
                     host, port = rest.split(":")
                 except ValueError:
                     self.parent.show_error(_('Connection strings must be in <node_pubkey>@<host>:<port> format'))
-            elif known:
-                node = self.network.lightning_nodes.get(node_id)
-                host, port = node['addresses'][0]
+                    return
+            elif node_info:
+                host, port = node_info.addresses[0]
             else:
                 self.parent.show_error(_('Unknown node:') + ' ' + nodeid_hex)
                 return
