@@ -410,7 +410,7 @@ def user_dir():
     elif os.name == 'posix':
         return os.path.join(os.environ["HOME"], ".ubtc_electrum")
     elif "APPDATA" in os.environ:
-        return os.path.join(os.environ["APPDATA"], "ubtc_Electrum_test")
+        return os.path.join(os.environ["APPDATA"], "ubtc_Electrum")
     elif "LOCALAPPDATA" in os.environ:
         return os.path.join(os.environ["LOCALAPPDATA"], "ubtc_Electrum")
     else:
