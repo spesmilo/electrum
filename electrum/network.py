@@ -44,8 +44,8 @@ from aiohttp import ClientResponse
 
 from . import util
 from .util import (PrintError, print_error, log_exceptions, ignore_exceptions,
-                   bfh, SilentTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter)
-
+                   bfh, SilentTaskGroup, make_aiohttp_session,
+                   send_exception_to_crash_reporter, is_ip_address)
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
@@ -272,7 +272,6 @@ class Network(PrintError):
         self._set_status('disconnected')
 
         # lightning network
-        self.lightning_nodes = {}
         self.channel_db = lnrouter.ChannelDB(self)
         self.path_finder = lnrouter.LNPathFinder(self.channel_db)
         self.lnwatcher = lnwatcher.LNWatcher(self)
@@ -512,11 +511,8 @@ class Network(PrintError):
     @staticmethod
     def _fast_getaddrinfo(host, *args, **kwargs):
         def needs_dns_resolving(host2):
-            try:
-                ipaddress.ip_address(host2)
-                return False  # already valid IP
-            except ValueError:
-                pass  # not an IP
+            if is_ip_address(host2):
+                return False
             if str(host) in ('localhost', 'localhost.',):
                 return False
             return True

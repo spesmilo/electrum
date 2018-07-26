@@ -1,4 +1,4 @@
-from .util import bfh, bh2u
+from .util import bfh, bh2u, inv_dict
 from .crypto import sha256
 import json
 from collections import namedtuple
@@ -380,3 +380,19 @@ def overall_weight(num_htlc):
 def get_ecdh(priv: bytes, pub: bytes) -> bytes:
     pt = ECPubkey(pub) * string_to_number(priv)
     return sha256(pt.get_public_key_bytes())
+
+
+LN_LOCAL_FEATURE_BITS = {
+    0: 'option_data_loss_protect_req',
+    1: 'option_data_loss_protect_opt',
+    3: 'initial_routing_sync',
+    4: 'option_upfront_shutdown_script_req',
+    5: 'option_upfront_shutdown_script_opt',
+    6: 'gossip_queries_req',
+    7: 'gossip_queries_opt',
+}
+LN_LOCAL_FEATURE_BITS_INV = inv_dict(LN_LOCAL_FEATURE_BITS)
+
+LN_GLOBAL_FEATURE_BITS = {}
+LN_GLOBAL_FEATURE_BITS_INV = inv_dict(LN_GLOBAL_FEATURE_BITS)
+
