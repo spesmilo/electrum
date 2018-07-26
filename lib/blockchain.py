@@ -339,9 +339,12 @@ class Blockchain(util.PrintError):
             tNbits.append(last_header)
             tempBits.add(last_header["bits"])
             if is_pos and height <= util.ForkData.third_fork_height:
-                return util.ub_default_diffculty(is_pos)
+                return util.ub_default_diffculty(is_pos,True)
             if last_header is None :
-                return util.ub_default_diffculty(is_pos)
+                if is_pos:
+                    return util.ub_default_diffculty(is_pos,True)
+                else:
+                    return self.get_third_fork_pow_difficult()
             if len(tempBits)>1:
                 return  self.bits_to_target(first["bits"])
 
@@ -354,12 +357,19 @@ class Blockchain(util.PrintError):
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
         target = self.bits_to_target(first["bits"])
         print("target:",hex(target))
-        new_target = min(util.ub_default_diffculty(is_pos), (target  // nTargetTimespan)* nActualTimespan)
+        print("target bits", hex(self.target_to_bits(target)))
+        if is_pos:
+            new_target = min(util.ub_default_diffculty(is_pos), (target // nTargetTimespan)* nActualTimespan)
+        else:
+            new_target = min(util.ub_default_diffculty(is_pos), (target* nActualTimespan) // nTargetTimespan)
         print("target:", hex(new_target))
+        print("target bits",hex(self.target_to_bits(new_target)))
         return new_target
 
 
-
+    def get_third_fork_pow_difficult(self):
+        data = self.read_header(util.ForkData.third_fork_height - 1)
+        return self.bits_to_target(data["bits"])
 
     def get_target(self, index,is_pos = False):
         # compute target from chunk x, used in chunk x+1
@@ -422,8 +432,10 @@ class Blockchain(util.PrintError):
             print("third fork block num ",util.ForkData.third_fork_height + index-util.ForkData.third_fork_max_index)
 #修改为新的难度调整算法
 
-            if index - util.ForkData.third_fork_max_index <9:
-                return util.ub_default_diffculty(is_pos)
+            if is_pos and index - util.ForkData.third_fork_max_index <9:
+                return util.ub_default_diffculty(is_pos,True)
+            elif not is_pos and index - util.ForkData.third_fork_max_index <9:
+                return self.get_third_fork_pow_difficult()
 
             return self.get_next_target_require(util.ub_start_height_of_index(index),is_pos)
 

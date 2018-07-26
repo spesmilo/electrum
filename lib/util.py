@@ -301,7 +301,7 @@ def ub_start_height_of_index(index):
         return (index - ForkData.third_fork_max_index) * ForkData.third_fork_chunk_size + ForkData.third_fork_height
 
 def ub_default_diffculty(is_pos):
-    if is_pos == 0:
+    if is_pos ==0:
         return 0x00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     else:
         return 0x000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffff
