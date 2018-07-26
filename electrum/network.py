@@ -300,7 +300,6 @@ class Network(Logger):
         self._set_status('disconnected')
 
         # lightning network
-        self.lightning_nodes = {}
         self.channel_db = lnrouter.ChannelDB(self)
         self.path_finder = lnrouter.LNPathFinder(self.channel_db)
         self.lnwatcher = lnwatcher.LNWatcher(self)

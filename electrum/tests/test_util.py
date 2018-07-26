@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from electrum.util import (format_satoshis, format_fee_satoshis, parse_URI,
-                           is_hash256_str, chunks)
+                           is_hash256_str, chunks, is_ip_address, list_enabled_bits)
 
 from . import SequentialTestCase
 
@@ -110,3 +110,22 @@ class TestUtil(SequentialTestCase):
                          list(chunks([1, 2, 3, 4, 5], 2)))
         with self.assertRaises(ValueError):
             list(chunks([1, 2, 3], 0))
+
+    def test_list_enabled_bits(self):
+        self.assertEqual((0, 2, 3, 6), list_enabled_bits(77))
+        self.assertEqual((), list_enabled_bits(0))
+
+    def test_is_ip_address(self):
+        self.assertTrue(is_ip_address("127.0.0.1"))
+        self.assertTrue(is_ip_address("127.000.000.1"))
+        self.assertTrue(is_ip_address("255.255.255.255"))
+        self.assertFalse(is_ip_address("255.255.256.255"))
+        self.assertFalse(is_ip_address("123.456.789.000"))
+        self.assertTrue(is_ip_address("2001:0db8:0000:0000:0000:ff00:0042:8329"))
+        self.assertTrue(is_ip_address("2001:db8:0:0:0:ff00:42:8329"))
+        self.assertTrue(is_ip_address("2001:db8::ff00:42:8329"))
+        self.assertFalse(is_ip_address("2001:::db8::ff00:42:8329"))
+        self.assertTrue(is_ip_address("::1"))
+        self.assertFalse(is_ip_address("2001:db8:0:0:g:ff00:42:8329"))
+        self.assertFalse(is_ip_address("lol"))
+        self.assertFalse(is_ip_address(":@ASD:@AS\x77\x22\xff¬!"))

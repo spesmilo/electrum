@@ -228,11 +228,12 @@ class LNWorker(PrintError):
                     self.peers.pop(k)
             if len(self.peers) > 3:
                 continue
-            if not self.network.lightning_nodes:
+            if not self.network.channel_db.nodes:
                 continue
-            node_id = random.choice(list(self.network.lightning_nodes.keys()))
-            node = self.network.lightning_nodes.get(node_id)
-            addresses = node.get('addresses')
+            all_nodes = self.network.channel_db.nodes
+            node_id = random.choice(list(all_nodes))
+            node = all_nodes.get(node_id)
+            addresses = node.addresses
             if addresses:
                 host, port = addresses[0]
                 self.print_error("trying node", bh2u(node_id))

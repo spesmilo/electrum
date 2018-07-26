@@ -29,17 +29,31 @@ import json
 import threading
 from collections import namedtuple, defaultdict
 from typing import Sequence, Union, Tuple, Optional
-
+import binascii
+import base64
 
 from . import constants
-from .util import PrintError, bh2u, profiler, get_headers_dir, bfh
+from .util import PrintError, bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits
 from .storage import JsonDB
 from .lnchanannverifier import LNChanAnnVerifier, verify_sig_for_channel_update
+from .crypto import Hash
+from . import ecc
+from .lnutil import LN_GLOBAL_FEATURE_BITS
+
+
+class UnknownEvenFeatureBits(Exception): pass
 
 
 class ChannelInfo(PrintError):
 
     def __init__(self, channel_announcement_payload):
+        self.features_len = channel_announcement_payload['len']
+        self.features = channel_announcement_payload['features']
+        enabled_features = list_enabled_bits(int.from_bytes(self.features, "big"))
+        for fbit in enabled_features:
+            if fbit not in LN_GLOBAL_FEATURE_BITS and fbit % 2 == 0:
+                raise UnknownEvenFeatureBits()
+
         self.channel_id = channel_announcement_payload['short_channel_id']
         self.node_id_1 = channel_announcement_payload['node_id_1']
         self.node_id_2 = channel_announcement_payload['node_id_2']
@@ -47,8 +61,6 @@ class ChannelInfo(PrintError):
         assert type(self.node_id_2) is bytes
         assert list(sorted([self.node_id_1, self.node_id_2])) == [self.node_id_1, self.node_id_2]
 
-        self.features_len = channel_announcement_payload['len']
-        self.features = channel_announcement_payload['features']
         self.bitcoin_key_1 = channel_announcement_payload['bitcoin_key_1']
         self.bitcoin_key_2 = channel_announcement_payload['bitcoin_key_2']
 
@@ -162,6 +174,86 @@ class ChannelInfoDirectedPolicy:
         return ChannelInfoDirectedPolicy(d2)
 
 
+class NodeInfo(PrintError):
+
+    def __init__(self, node_announcement_payload, addresses_already_parsed=False):
+        self.pubkey = node_announcement_payload['node_id']
+        self.features_len = node_announcement_payload['flen']
+        self.features = node_announcement_payload['features']
+        enabled_features = list_enabled_bits(int.from_bytes(self.features, "big"))
+        for fbit in enabled_features:
+            if fbit not in LN_GLOBAL_FEATURE_BITS and fbit % 2 == 0:
+                raise UnknownEvenFeatureBits()
+        if not addresses_already_parsed:
+            self.addresses = self.parse_addresses_field(node_announcement_payload['addresses'])
+        else:
+            self.addresses = node_announcement_payload['addresses']
+        self.alias = node_announcement_payload['alias'].rstrip(b'\x00')
+        self.timestamp = int.from_bytes(node_announcement_payload['timestamp'], "big")
+
+    @classmethod
+    def parse_addresses_field(cls, addresses_field):
+        buf = addresses_field
+        def read(n):
+            nonlocal buf
+            data, buf = buf[0:n], buf[n:]
+            return data
+        addresses = []
+        while buf:
+            atype = ord(read(1))
+            if atype == 0:
+                pass
+            elif atype == 1:  # IPv4
+                ipv4_addr = '.'.join(map(lambda x: '%d' % x, read(4)))
+                port = int.from_bytes(read(2), 'big')
+                if is_ip_address(ipv4_addr) and port != 0:
+                    addresses.append((ipv4_addr, port))
+            elif atype == 2:  # IPv6
+                ipv6_addr = b':'.join([binascii.hexlify(read(2)) for i in range(8)])
+                ipv6_addr = ipv6_addr.decode('ascii')
+                port = int.from_bytes(read(2), 'big')
+                if is_ip_address(ipv6_addr) and port != 0:
+                    addresses.append((ipv6_addr, port))
+            elif atype == 3:  # onion v2
+                host = base64.b32encode(read(10)) + b'.onion'
+                host = host.decode('ascii').lower()
+                port = int.from_bytes(read(2), 'big')
+                addresses.append((host, port))
+            elif atype == 4:  # onion v3
+                host = base64.b32encode(read(35)) + b'.onion'
+                host = host.decode('ascii').lower()
+                port = int.from_bytes(read(2), 'big')
+                addresses.append((host, port))
+            else:
+                # unknown address type
+                # we don't know how long it is -> have to escape
+                # if there are other addresses we could have parsed later, they are lost.
+                break
+        return addresses
+
+    def to_json(self) -> dict:
+        d = {}
+        d['node_id'] = bh2u(self.pubkey)
+        d['flen'] = bh2u(self.features_len)
+        d['features'] = bh2u(self.features)
+        d['addresses'] = self.addresses
+        d['alias'] = bh2u(self.alias)
+        d['timestamp'] = self.timestamp
+        return d
+
+    @classmethod
+    def from_json(cls, d: dict):
+        if d is None: return None
+        d2 = {}
+        d2['node_id'] = bfh(d['node_id'])
+        d2['flen'] = bfh(d['flen'])
+        d2['features'] = bfh(d['features'])
+        d2['addresses'] = d['addresses']
+        d2['alias'] = bfh(d['alias'])
+        d2['timestamp'] = d['timestamp'].to_bytes(4, "big")
+        return NodeInfo(d2, addresses_already_parsed=True)
+
+
 class ChannelDB(JsonDB):
 
     def __init__(self, network):
@@ -173,6 +265,7 @@ class ChannelDB(JsonDB):
         self.lock = threading.Lock()
         self._id_to_channel_info = {}
         self._channels_for_node = defaultdict(set)  # node -> set(short_channel_id)
+        self.nodes = {}  # node_id -> NodeInfo
 
         self.ca_verifier = LNChanAnnVerifier(network, self)
         self.network.add_jobs([self.ca_verifier])
@@ -184,21 +277,35 @@ class ChannelDB(JsonDB):
             with open(self.path, "r", encoding='utf-8') as f:
                 raw = f.read()
                 self.data = json.loads(raw)
+        # channels
         channel_infos = self.get('channel_infos', {})
         for short_channel_id, channel_info_d in channel_infos.items():
             channel_info = ChannelInfo.from_json(channel_info_d)
             short_channel_id = bfh(short_channel_id)
             self.add_verified_channel_info(short_channel_id, channel_info)
+        # nodes
+        node_infos = self.get('node_infos', {})
+        for node_id, node_info_d in node_infos.items():
+            node_info = NodeInfo.from_json(node_info_d)
+            node_id = bfh(node_id)
+            self.nodes[node_id] = node_info
 
     def save_data(self):
         with self.lock:
+            # channels
             channel_infos = {}
             for short_channel_id, channel_info in self._id_to_channel_info.items():
                 channel_infos[bh2u(short_channel_id)] = channel_info
             self.put('channel_infos', channel_infos)
+            # nodes
+            node_infos = {}
+            for node_id, node_info in self.nodes.items():
+                node_infos[bh2u(node_id)] = node_info
+            self.put('node_infos', node_infos)
         self.write()
 
     def __len__(self):
+        # number of channels
         return len(self._id_to_channel_info)
 
     def get_channel_info(self, channel_id) -> Optional[ChannelInfo]:
@@ -220,7 +327,10 @@ class ChannelDB(JsonDB):
             return
         if constants.net.rev_genesis_bytes() != msg_payload['chain_hash']:
             return
-        channel_info = ChannelInfo(msg_payload)
+        try:
+            channel_info = ChannelInfo(msg_payload)
+        except UnknownEvenFeatureBits:
+            return
         if trusted:
             self.add_verified_channel_info(short_channel_id, channel_info)
         else:
@@ -243,6 +353,21 @@ class ChannelDB(JsonDB):
             self.print_error("could not find", short_channel_id)
             return
         channel_info.on_channel_update(msg_payload, trusted=trusted)
+
+    def on_node_announcement(self, msg_payload):
+        pubkey = msg_payload['node_id']
+        signature = msg_payload['signature']
+        h = Hash(msg_payload['raw'][66:])
+        if not ecc.verify_signature(pubkey, signature, h):
+            return
+        old_node_info = self.nodes.get(pubkey, None)
+        try:
+            new_node_info = NodeInfo(msg_payload)
+        except UnknownEvenFeatureBits:
+            return
+        if old_node_info and old_node_info.timestamp >= new_node_info.timestamp:
+            return  # ignore
+        self.nodes[pubkey] = new_node_info
 
     def remove_channel(self, short_channel_id):
         try:
