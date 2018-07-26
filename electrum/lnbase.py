@@ -29,7 +29,7 @@ from . import crypto
 from .crypto import sha256
 from . import constants
 from . import transaction
-from .util import PrintError, bh2u, print_error, bfh, profiler, xor_bytes
+from .util import PrintError, bh2u, print_error, bfh
 from .transaction import opcodes, Transaction
 from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error
 from .lnaddr import lndecode
@@ -428,38 +428,7 @@ class Peer(PrintError):
         self.funding_signed[channel_id].put_nowait(payload)
 
     def on_node_announcement(self, payload):
-        pubkey = payload['node_id']
-        signature = payload['signature']
-        h = bitcoin.Hash(payload['raw'][66:])
-        if not ecc.verify_signature(pubkey, signature, h):
-            return False
-        self.s = payload['addresses']
-        def read(n):
-            data, self.s = self.s[0:n], self.s[n:]
-            return data
-        addresses = []
-        while self.s:
-            atype = ord(read(1))
-            if atype == 0:
-                pass
-            elif atype == 1:
-                ipv4_addr = '.'.join(map(lambda x: '%d' % x, read(4)))
-                port = int.from_bytes(read(2), 'big')
-                x = ipv4_addr, port, binascii.hexlify(pubkey)
-                addresses.append((ipv4_addr, port))
-            elif atype == 2:
-                ipv6_addr = b':'.join([binascii.hexlify(read(2)) for i in range(4)])
-                port = int.from_bytes(read(2), 'big')
-                addresses.append((ipv6_addr, port))
-            else:
-                pass
-            continue
-        alias = payload['alias'].rstrip(b'\x00')
-        self.network.lightning_nodes[pubkey] = {
-            'alias': alias,
-            'addresses': addresses
-        }
-        #self.print_error('node announcement', binascii.hexlify(pubkey), alias, addresses)
+        self.channel_db.on_node_announcement(payload)
         self.network.trigger_callback('ln_status')
 
     def on_init(self, payload):

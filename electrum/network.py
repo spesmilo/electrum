@@ -40,7 +40,7 @@ import dns.resolver
 from aiorpcx import TaskGroup
 
 from . import util
-from .util import PrintError, print_error, aiosafe, bfh
+from .util import PrintError, print_error, aiosafe, bfh, is_ip_address
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
@@ -234,7 +234,6 @@ class Network(PrintError):
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
         # lightning network
-        self.lightning_nodes = {}
         self.channel_db = lnrouter.ChannelDB(self)
         self.path_finder = lnrouter.LNPathFinder(self.channel_db)
         self.lnwatcher = lnwatcher.LNWatcher(self)
@@ -463,11 +462,8 @@ class Network(PrintError):
     @staticmethod
     def _fast_getaddrinfo(host, *args, **kwargs):
         def needs_dns_resolving(host2):
-            try:
-                ipaddress.ip_address(host2)
-                return False  # already valid IP
-            except ValueError:
-                pass  # not an IP
+            if is_ip_address(host2):
+                return False
             if str(host) in ('localhost', 'localhost.',):
                 return False
             return True
