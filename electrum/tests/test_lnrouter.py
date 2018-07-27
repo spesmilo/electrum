@@ -43,6 +43,7 @@ class Test_LNRouter(TestCaseForTestnet):
         class fake_network:
             config = self.config
             add_jobs = lambda *args: None
+            trigger_callback = lambda *args: None
         fake_network.channel_db = lnrouter.ChannelDB(fake_network())
         cdb = fake_network.channel_db
         path_finder = lnrouter.LNPathFinder(cdb)
