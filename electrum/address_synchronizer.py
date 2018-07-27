@@ -22,6 +22,7 @@
 # SOFTWARE.
 
 import threading
+import asyncio
 import itertools
 from collections import defaultdict
 
@@ -138,16 +139,18 @@ class AddressSynchronizer(PrintError):
         self.network = network
         if self.network is not None:
             self.verifier = SPV(self.network, self)
-            self.synchronizer = Synchronizer(self, network)
-            #network.add_jobs([self.verifier, self.synchronizer])
+            self.synchronizer = Synchronizer(self)
+            #network.add_jobs([self.verifier])
+            self.network.futures.append(asyncio.run_coroutine_threadsafe(self.synchronizer.send_subscriptions(), self.network.asyncio_loop))
+            self.network.futures.append(asyncio.run_coroutine_threadsafe(self.synchronizer.handle_status(), self.network.asyncio_loop))
+            self.network.futures.append(asyncio.run_coroutine_threadsafe(self.synchronizer.main(), self.network.asyncio_loop))
         else:
             self.verifier = None
             self.synchronizer = None
 
     def stop_threads(self):
         if self.network:
-            #self.network.remove_jobs([self.synchronizer, self.verifier])
-            self.synchronizer.release()
+            #self.network.remove_jobs([self.verifier])
             self.synchronizer = None
             self.verifier = None
             # Now no references to the synchronizer or verifier
