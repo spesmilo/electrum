@@ -77,6 +77,11 @@ class BitcoinMainnet(AbstractNet):
         'p2wsh':       0x02aa7ed3,  # Zpub
     }
     BIP44_COIN_TYPE = 0
+    LN_REALM_BYTE = 0
+    LN_DNS_SEEDS = [
+        'nodes.lightning.directory.',
+        'lseed.bitcoinstats.com.',
+    ]
 
 
 class BitcoinTestnet(AbstractNet):
@@ -106,6 +111,11 @@ class BitcoinTestnet(AbstractNet):
         'p2wsh':       0x02575483,  # Vpub
     }
     BIP44_COIN_TYPE = 1
+    LN_REALM_BYTE = 1
+    LN_DNS_SEEDS = [
+        'test.nodes.lightning.directory.',
+        'lseed.bitcoinstats.com.',
+    ]
 
 
 class BitcoinRegtest(BitcoinTestnet):
@@ -114,6 +124,7 @@ class BitcoinRegtest(BitcoinTestnet):
     GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
+    LN_DNS_SEEDS = []
 
 
 class BitcoinSimnet(BitcoinTestnet):
@@ -125,6 +136,7 @@ class BitcoinSimnet(BitcoinTestnet):
     GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
+    LN_DNS_SEEDS = []
 
 
 # don't import net directly, import the module instead (so that net is singleton)
