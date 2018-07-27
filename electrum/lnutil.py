@@ -7,6 +7,7 @@ from .ecc import CURVE_ORDER, sig_string_from_der_sig, ECPubkey, string_to_numbe
 from . import ecc, bitcoin, crypto, transaction
 from .transaction import opcodes
 from .bitcoin import push_script
+from . import segwit_addr
 
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
@@ -396,3 +397,20 @@ LN_LOCAL_FEATURE_BITS_INV = inv_dict(LN_LOCAL_FEATURE_BITS)
 LN_GLOBAL_FEATURE_BITS = {}
 LN_GLOBAL_FEATURE_BITS_INV = inv_dict(LN_GLOBAL_FEATURE_BITS)
 
+
+class LNPeerAddr(namedtuple('LNPeerAddr', ['host', 'port', 'pubkey'])):
+    __slots__ = ()
+
+    def __str__(self):
+        return '{}@{}:{}'.format(bh2u(self.pubkey), self.host, self.port)
+
+
+def get_compressed_pubkey_from_bech32(bech32_pubkey: str) -> bytes:
+    hrp, data_5bits = segwit_addr.bech32_decode(bech32_pubkey)
+    if hrp != 'ln':
+        raise Exception('unexpected hrp: {}'.format(hrp))
+    data_8bits = segwit_addr.convertbits(data_5bits, 5, 8, False)
+    # pad with zeroes
+    COMPRESSED_PUBKEY_LENGTH = 33
+    data_8bits = data_8bits + ((COMPRESSED_PUBKEY_LENGTH - len(data_8bits)) * [0])
+    return bytes(data_8bits)
