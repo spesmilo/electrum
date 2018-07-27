@@ -48,6 +48,7 @@ def check_imports():
         import qrcode
         import google.protobuf
         import jsonrpclib
+        import aiorpcx
     except ImportError as e:
         sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%str(e))
     # the following imports are for pyinstaller
