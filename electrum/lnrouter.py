@@ -38,7 +38,7 @@ from .storage import JsonDB
 from .lnchanannverifier import LNChanAnnVerifier, verify_sig_for_channel_update
 from .crypto import Hash
 from . import ecc
-from .lnutil import LN_GLOBAL_FEATURE_BITS
+from .lnutil import LN_GLOBAL_FEATURE_BITS, LNPeerAddr
 
 
 class UnknownEvenFeatureBits(Exception): pass
@@ -256,16 +256,19 @@ class NodeInfo(PrintError):
 
 class ChannelDB(JsonDB):
 
+    NUM_MAX_RECENT_PEERS = 20
+
     def __init__(self, network):
         self.network = network
 
         path = os.path.join(get_headers_dir(network.config), 'channel_db')
         JsonDB.__init__(self, path)
 
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self._id_to_channel_info = {}
         self._channels_for_node = defaultdict(set)  # node -> set(short_channel_id)
         self.nodes = {}  # node_id -> NodeInfo
+        self._recent_peers = []
 
         self.ca_verifier = LNChanAnnVerifier(network, self)
         self.network.add_jobs([self.ca_verifier])
@@ -289,6 +292,11 @@ class ChannelDB(JsonDB):
             node_info = NodeInfo.from_json(node_info_d)
             node_id = bfh(node_id)
             self.nodes[node_id] = node_info
+        # recent peers
+        recent_peers = self.get('recent_peers', {})
+        for host, port, pubkey in recent_peers:
+            peer = LNPeerAddr(str(host), int(port), bfh(pubkey))
+            self._recent_peers.append(peer)
 
     def save_data(self):
         with self.lock:
@@ -302,6 +310,12 @@ class ChannelDB(JsonDB):
             for node_id, node_info in self.nodes.items():
                 node_infos[bh2u(node_id)] = node_info
             self.put('node_infos', node_infos)
+            # recent peers
+            recent_peers = []
+            for peer in self._recent_peers:
+                recent_peers.append(
+                    [str(peer.host), int(peer.port), bh2u(peer.pubkey)])
+            self.put('recent_peers', recent_peers)
         self.write()
 
     def __len__(self):
@@ -320,12 +334,26 @@ class ChannelDB(JsonDB):
             self._id_to_channel_info[short_channel_id] = channel_info
             self._channels_for_node[channel_info.node_id_1].add(short_channel_id)
             self._channels_for_node[channel_info.node_id_2].add(short_channel_id)
+        self.network.trigger_callback('ln_status')
+
+    def get_recent_peers(self):
+        with self.lock:
+            return list(self._recent_peers)
+
+    def add_recent_peer(self, peer: LNPeerAddr):
+        with self.lock:
+            # list is ordered
+            if peer in self._recent_peers:
+                self._recent_peers.remove(peer)
+            self._recent_peers.insert(0, peer)
+            self._recent_peers = self._recent_peers[:self.NUM_MAX_RECENT_PEERS]
 
     def on_channel_announcement(self, msg_payload, trusted=False):
         short_channel_id = msg_payload['short_channel_id']
         if short_channel_id in self._id_to_channel_info:
             return
         if constants.net.rev_genesis_bytes() != msg_payload['chain_hash']:
+            #self.print_error("ChanAnn has unexpected chain_hash {}".format(bh2u(msg_payload['chain_hash'])))
             return
         try:
             channel_info = ChannelInfo(msg_payload)
@@ -365,6 +393,10 @@ class ChannelDB(JsonDB):
             new_node_info = NodeInfo(msg_payload)
         except UnknownEvenFeatureBits:
             return
+        # TODO if this message is for a new node, and if we have no associated
+        # channels for this node, we should ignore the message and return here,
+        # to mitigate DOS. but race condition: the channels we have for this
+        # node, might be under verification in self.ca_verifier, what then?
         if old_node_info and old_node_info.timestamp >= new_node_info.timestamp:
             return  # ignore
         self.nodes[pubkey] = new_node_info

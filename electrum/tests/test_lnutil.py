@@ -2,9 +2,10 @@ import unittest
 import json
 from electrum import bitcoin
 from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_seed, make_offered_htlc,
-                        make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
-                        make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
-                        derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret)
+                             make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
+                             make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
+                             derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
+                             get_compressed_pubkey_from_bech32)
 from electrum.util import bh2u, bfh
 from electrum.transaction import Transaction
 
@@ -675,3 +676,7 @@ class TestLNUtil(unittest.TestCase):
         index_of_pubkey = pubkeys.index(bh2u(remote_pubkey))
         tx._inputs[0]["signatures"][index_of_pubkey] = remote_signature + "01"
         tx.raw = None
+
+    def test_get_compressed_pubkey_from_bech32(self):
+        self.assertEqual(b'\x03\x84\xef\x87\xd9d\xa2\xaaa7=\xff\xb8\xfe=t8[}>;\n\x13\xa8e\x8eo:\xf5Mi\xb5H',
+                         get_compressed_pubkey_from_bech32('ln1qwzwlp7evj325cfh8hlm3l3awsu9klf78v9p82r93ehn4a2ddx65s66awg5'))

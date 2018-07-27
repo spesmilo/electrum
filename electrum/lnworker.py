@@ -1,35 +1,39 @@
-import json
-import binascii
 import asyncio
 import os
 from decimal import Decimal
-import threading
-from collections import defaultdict
 import random
+import time
+from typing import Optional, Sequence
+
+import dns.resolver
+import dns.exception
 
 from . import constants
 from .bitcoin import sha256, COIN
-from .util import bh2u, bfh, PrintError, InvoiceError
-from .constants import set_testnet, set_simnet
+from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv
 from .lnbase import Peer, privkey_to_pubkey, aiosafe
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
-from .transaction import Transaction
 from .lnhtlc import HTLCStateMachine
-from .lnutil import Outpoint, calc_short_channel_id
+from .lnutil import Outpoint, calc_short_channel_id, LNPeerAddr, get_compressed_pubkey_from_bech32
 from .lnwatcher import LNChanCloseHandler
 from .i18n import _
 
-# hardcoded nodes
-node_list = [
-    ('ecdsa.net', '9735', '038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff'),
-]
+
+NUM_PEERS_TARGET = 4
+PEER_RETRY_INTERVAL = 600  # seconds
+
+FALLBACK_NODE_LIST = (
+    LNPeerAddr('ecdsa.net', 9735, bfh('038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff')),
+)
+
 
 class LNWorker(PrintError):
 
     def __init__(self, wallet, network):
         self.wallet = wallet
         self.network = network
+        self.channel_db = self.network.channel_db
         pk = wallet.storage.get('lightning_privkey')
         if pk is None:
             pk = bh2u(os.urandom(32))
@@ -43,16 +47,20 @@ class LNWorker(PrintError):
         self.invoices = wallet.storage.get('lightning_invoices', {})
         for chan_id, chan in self.channels.items():
             self.network.lnwatcher.watch_channel(chan, self.on_channel_utxos)
+        self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
         # TODO peers that we have channels with should also be added now
         # but we don't store their IP/port yet.. also what if it changes?
         # need to listen for node_announcements and save the new IP/port
-        peer_list = self.config.get('lightning_peers', node_list)
-        for host, port, pubkey in peer_list:
-            self.add_peer(host, int(port), bfh(pubkey))
+        self._add_peers_from_config()
         # wait until we see confirmations
         self.network.register_callback(self.on_network_update, ['updated', 'verified', 'fee_histogram']) # thread safe
         self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
         self.network.futures.append(asyncio.run_coroutine_threadsafe(self.main_loop(), asyncio.get_event_loop()))
+
+    def _add_peers_from_config(self):
+        peer_list = self.config.get('lightning_peers', [])
+        for host, port, pubkey in peer_list:
+            self.add_peer(host, int(port), bfh(pubkey))
 
     def suggest_peer(self):
         for node_id, peer in self.peers.items():
@@ -67,7 +75,8 @@ class LNWorker(PrintError):
         return {x: y for (x, y) in self.channels.items() if y.node_id == node_id}
 
     def add_peer(self, host, port, node_id):
-        peer = Peer(self, host, int(port), node_id, request_initial_sync=self.config.get("request_initial_sync", True))
+        port = int(port)
+        peer = Peer(self, host, port, node_id, request_initial_sync=self.config.get("request_initial_sync", True))
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[node_id] = peer
         self.network.trigger_callback('ln_status')
@@ -218,6 +227,80 @@ class LNWorker(PrintError):
         assert tx.is_complete()
         return self.network.broadcast_transaction(tx)
 
+    def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
+        now = time.time()
+        recent_peers = self.channel_db.get_recent_peers()
+        # maintenance for last tried times
+        for peer in list(self._last_tried_peer):
+            if now >= self._last_tried_peer[peer] + PEER_RETRY_INTERVAL:
+                del self._last_tried_peer[peer]
+        # first try from recent peers
+        for peer in recent_peers:
+            if peer in self.peers:
+                continue
+            if peer in self._last_tried_peer:
+                # due to maintenance above, this means we tried recently
+                continue
+            return [peer]
+        # try random peer from graph
+        all_nodes = self.channel_db.nodes
+        if all_nodes:
+            self.print_error('trying to get ln peers from channel db')
+            node_ids = list(all_nodes)
+            max_tries = min(200, len(all_nodes))
+            for i in range(max_tries):
+                node_id = random.choice(node_ids)
+                node = all_nodes.get(node_id)
+                if node is None: continue
+                addresses = node.addresses
+                if not addresses: continue
+                host, port = addresses[0]
+                peer = LNPeerAddr(host, port, node_id)
+                if peer in self._last_tried_peer:
+                    continue
+                self.print_error('taking random ln peer from our channel db')
+                return [peer]
+
+        # TODO remove this. For some reason the dns seeds seem to ignore the realm byte
+        # and only return mainnet nodes. so for the time being dns seeding is disabled:
+        if constants.net in (constants.BitcoinTestnet, ):
+            return [random.choice(FALLBACK_NODE_LIST)]
+        else:
+            return []
+
+        # try peers from dns seed.
+        # return several peers to reduce the number of dns queries.
+        if not constants.net.LN_DNS_SEEDS:
+            return []
+        dns_seed = random.choice(constants.net.LN_DNS_SEEDS)
+        self.print_error('asking dns seed "{}" for ln peers'.format(dns_seed))
+        try:
+            # note: this might block for several seconds
+            # this will include bech32-encoded-pubkeys and ports
+            srv_answers = resolve_dns_srv('r{}.{}'.format(
+                constants.net.LN_REALM_BYTE, dns_seed))
+        except dns.exception.DNSException as e:
+            return []
+        random.shuffle(srv_answers)
+        num_peers = 2 * NUM_PEERS_TARGET
+        srv_answers = srv_answers[:num_peers]
+        # we now have pubkeys and ports but host is still needed
+        peers = []
+        for srv_ans in srv_answers:
+            try:
+                # note: this might block for several seconds
+                answers = dns.resolver.query(srv_ans['host'])
+            except dns.exception.DNSException:
+                continue
+            else:
+                ln_host = str(answers[0])
+                port = int(srv_ans['port'])
+                bech32_pubkey = srv_ans['host'].split('.')[0]
+                pubkey = get_compressed_pubkey_from_bech32(bech32_pubkey)
+                peers.append(LNPeerAddr(ln_host, port, pubkey))
+        self.print_error('got {} ln peers from dns seed'.format(len(peers)))
+        return peers
+
     @aiosafe
     async def main_loop(self):
         while True:
@@ -226,15 +309,10 @@ class LNWorker(PrintError):
                 if peer.exception:
                     self.print_error("removing peer", peer.host)
                     self.peers.pop(k)
-            if len(self.peers) > 3:
+            if len(self.peers) >= NUM_PEERS_TARGET:
                 continue
-            if not self.network.channel_db.nodes:
-                continue
-            all_nodes = self.network.channel_db.nodes
-            node_id = random.choice(list(all_nodes))
-            node = all_nodes.get(node_id)
-            addresses = node.addresses
-            if addresses:
-                host, port = addresses[0]
-                self.print_error("trying node", bh2u(node_id))
-                self.add_peer(host, port, node_id)
+            peers = self._get_next_peers_to_try()
+            for peer in peers:
+                self._last_tried_peer[peer] = time.time()
+                self.print_error("trying node", peer)
+                self.add_peer(peer.host, peer.port, peer.pubkey)
