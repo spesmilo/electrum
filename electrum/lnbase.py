@@ -7,7 +7,7 @@
 from collections import namedtuple, defaultdict, OrderedDict, defaultdict
 from .lnutil import Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore
 from .lnutil import sign_and_get_sig_string, funding_output_script, get_ecdh, get_per_commitment_secret_from_seed
-from .lnutil import secret_to_pubkey
+from .lnutil import secret_to_pubkey, LNPeerAddr
 from .bitcoin import COIN
 
 from ecdsa.util import sigdecode_der, sigencode_string_canonize, sigdecode_string
@@ -439,7 +439,6 @@ class Peer(PrintError):
 
     def on_channel_announcement(self, payload):
         self.channel_db.on_channel_announcement(payload)
-        self.network.trigger_callback('ln_status')
 
     def on_announcement_signatures(self, payload):
         channel_id = payload['channel_id']
@@ -462,6 +461,7 @@ class Peer(PrintError):
     @aiosafe
     async def main_loop(self):
         await asyncio.wait_for(self.initialize(), 5)
+        self.channel_db.add_recent_peer(LNPeerAddr(self.host, self.port, self.pubkey))
         # loop
         while True:
             self.ping_if_required()
