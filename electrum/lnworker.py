@@ -42,7 +42,7 @@ class LNWorker(PrintError):
         self.privkey = bfh(pk)
         self.pubkey = privkey_to_pubkey(self.privkey)
         self.config = network.config
-        self.peers = {}
+        self.peers = {}  # pubkey -> Peer
         self.channels = {x.channel_id: x for x in map(HTLCStateMachine, wallet.storage.get("channels", []))}
         self.invoices = wallet.storage.get('lightning_invoices', {})
         for chan_id, chan in self.channels.items():
@@ -77,11 +77,12 @@ class LNWorker(PrintError):
     def add_peer(self, host, port, node_id):
         port = int(port)
         peer_addr = LNPeerAddr(host, port, node_id)
-        if peer_addr in self.peers:
+        if node_id in self.peers:
             return
         if peer_addr in self._last_tried_peer:
             return
         self._last_tried_peer[peer_addr] = time.time()
+        self.print_error("adding peer", peer_addr)
         peer = Peer(self, host, port, node_id, request_initial_sync=self.config.get("request_initial_sync", True))
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[node_id] = peer
@@ -243,7 +244,7 @@ class LNWorker(PrintError):
                 del self._last_tried_peer[peer]
         # first try from recent peers
         for peer in recent_peers:
-            if peer in self.peers: continue
+            if peer.pubkey in self.peers: continue
             if peer in self._last_tried_peer: continue
             return [peer]
         # try random peer from graph
@@ -260,7 +261,7 @@ class LNWorker(PrintError):
                 if not addresses: continue
                 host, port = addresses[0]
                 peer = LNPeerAddr(host, port, node_id)
-                if peer in self.peers: continue
+                if peer.pubkey in self.peers: continue
                 if peer in self._last_tried_peer: continue
                 self.print_error('taking random ln peer from our channel db')
                 return [peer]
@@ -312,10 +313,10 @@ class LNWorker(PrintError):
     async def main_loop(self):
         while True:
             await asyncio.sleep(1)
-            for k, peer in list(self.peers.items()):
+            for node_id, peer in list(self.peers.items()):
                 if peer.exception:
                     self.print_error("removing peer", peer.host)
-                    self.peers.pop(k)
+                    self.peers.pop(node_id)
             if len(self.peers) >= NUM_PEERS_TARGET:
                 continue
             peers = self._get_next_peers_to_try()
