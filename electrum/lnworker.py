@@ -76,6 +76,12 @@ class LNWorker(PrintError):
 
     def add_peer(self, host, port, node_id):
         port = int(port)
+        peer_addr = LNPeerAddr(host, port, node_id)
+        if peer_addr in self.peers:
+            return
+        if peer_addr in self._last_tried_peer:
+            return
+        self._last_tried_peer[peer_addr] = time.time()
         peer = Peer(self, host, port, node_id, request_initial_sync=self.config.get("request_initial_sync", True))
         self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
         self.peers[node_id] = peer
@@ -231,16 +237,14 @@ class LNWorker(PrintError):
         now = time.time()
         recent_peers = self.channel_db.get_recent_peers()
         # maintenance for last tried times
+        # due to this, below we can just test membership in _last_tried_peer
         for peer in list(self._last_tried_peer):
             if now >= self._last_tried_peer[peer] + PEER_RETRY_INTERVAL:
                 del self._last_tried_peer[peer]
         # first try from recent peers
         for peer in recent_peers:
-            if peer in self.peers:
-                continue
-            if peer in self._last_tried_peer:
-                # due to maintenance above, this means we tried recently
-                continue
+            if peer in self.peers: continue
+            if peer in self._last_tried_peer: continue
             return [peer]
         # try random peer from graph
         all_nodes = self.channel_db.nodes
@@ -256,8 +260,8 @@ class LNWorker(PrintError):
                 if not addresses: continue
                 host, port = addresses[0]
                 peer = LNPeerAddr(host, port, node_id)
-                if peer in self._last_tried_peer:
-                    continue
+                if peer in self.peers: continue
+                if peer in self._last_tried_peer: continue
                 self.print_error('taking random ln peer from our channel db')
                 return [peer]
 
@@ -292,12 +296,15 @@ class LNWorker(PrintError):
                 answers = dns.resolver.query(srv_ans['host'])
             except dns.exception.DNSException:
                 continue
-            else:
+            try:
                 ln_host = str(answers[0])
                 port = int(srv_ans['port'])
                 bech32_pubkey = srv_ans['host'].split('.')[0]
                 pubkey = get_compressed_pubkey_from_bech32(bech32_pubkey)
                 peers.append(LNPeerAddr(ln_host, port, pubkey))
+            except Exception as e:
+                self.print_error('error with parsing peer from dns seed: {}'.format(e))
+                continue
         self.print_error('got {} ln peers from dns seed'.format(len(peers)))
         return peers
 
@@ -313,6 +320,4 @@ class LNWorker(PrintError):
                 continue
             peers = self._get_next_peers_to_try()
             for peer in peers:
-                self._last_tried_peer[peer] = time.time()
-                self.print_error("trying node", peer)
                 self.add_peer(peer.host, peer.port, peer.pubkey)
