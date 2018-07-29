@@ -912,6 +912,9 @@ class Network(util.DaemonThread):
                 next_height = height + 1
                 interface.blockchain.catch_up = interface.server
             elif chain:
+                # FIXME should await "initial chunk download".
+                # binary search will NOT do the correct thing if we don't yet
+                # have all headers up to the fork height
                 interface.print_error("binary search")
                 interface.mode = 'binary'
                 interface.blockchain = chain
@@ -973,8 +976,10 @@ class Network(util.DaemonThread):
                             interface.blockchain = b
                             interface.print_error("new chain", b.checkpoint)
                             interface.mode = 'catch_up'
-                            next_height = interface.bad + 1
-                            interface.blockchain.catch_up = interface.server
+                            maybe_next_height = interface.bad + 1
+                            if maybe_next_height <= interface.tip:
+                                next_height = maybe_next_height
+                                interface.blockchain.catch_up = interface.server
                     else:
                         assert bh == interface.good
                         if interface.blockchain.catch_up is None and bh < interface.tip:
