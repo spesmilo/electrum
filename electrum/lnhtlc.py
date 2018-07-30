@@ -138,7 +138,21 @@ class HTLCStateMachine(PrintError):
         self.local_commitment = self.pending_local_commitment
         self.remote_commitment = self.pending_remote_commitment
 
-        self.state = 'DISCONNECTED'
+        self._is_funding_txo_spent = None  # "don't know"
+        self.set_state('DISCONNECTED')
+
+    def set_state(self, state: str):
+        self._state = state
+
+    def get_state(self):
+        return self._state
+
+    def set_funding_txo_spentness(self, is_spent: bool):
+        assert isinstance(is_spent, bool)
+        self._is_funding_txo_spent = is_spent
+
+    def should_try_to_reestablish_peer(self) -> bool:
+        return self._is_funding_txo_spent is False and self._state == 'DISCONNECTED'
 
     def get_funding_address(self):
         script = funding_output_script(self.local_config, self.remote_config)
