@@ -24,7 +24,7 @@ class ChannelsList(MyTreeWidget):
             bh2u(chan.node_id),
             self.parent.format_amount(chan.local_state.amount_msat//1000),
             self.parent.format_amount(chan.remote_state.amount_msat//1000),
-            chan.state
+            chan.get_state()
         ]
 
     def create_menu(self, position):

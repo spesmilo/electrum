@@ -463,13 +463,22 @@ class Peer(PrintError):
         await asyncio.wait_for(self.initialize(), 5)
         self.channel_db.add_recent_peer(LNPeerAddr(self.host, self.port, self.pubkey))
         # loop
-        while True:
-            self.ping_if_required()
-            msg = await self.read_message()
-            self.process_message(msg)
+        try:
+            while True:
+                self.ping_if_required()
+                msg = await self.read_message()
+                self.process_message(msg)
+        except LightningPeerConnectionClosed:
+            pass
         # close socket
-        self.print_error('closing lnbase')
         self.writer.close()
+        try:
+            del self.lnworker.peers[self.pubkey]
+        except KeyError:
+            pass
+        for chan in self.channels.values():
+            chan.set_state('DISCONNECTED')
+            self.network.trigger_callback('channel', chan)
 
     @aiosafe
     async def channel_establishment_flow(self, wallet, config, password, funding_sat, push_msat, temp_channel_id):
@@ -601,14 +610,18 @@ class Peer(PrintError):
         assert success, success
         m.remote_state = m.remote_state._replace(ctn=0)
         m.local_state = m.local_state._replace(ctn=0, current_commitment_signature=remote_sig)
-        m.state = 'OPENING'
+        m.set_state('OPENING')
         return m
 
     @aiosafe
     async def reestablish_channel(self, chan):
         await self.initialized
         chan_id = chan.channel_id
-        chan.state = 'REESTABLISHING'
+        if chan.get_state() != 'DISCONNECTED':
+            self.print_error('reestablish_channel was called but channel {} already in state {}'
+                             .format(chan_id, chan.get_state()))
+            return
+        chan.set_state('REESTABLISHING')
         self.network.trigger_callback('channel', chan)
         self.send_message(gen_msg("channel_reestablish",
             channel_id=chan_id,
@@ -616,7 +629,7 @@ class Peer(PrintError):
             next_remote_revocation_number=chan.remote_state.ctn
         ))
         await self.channel_reestablished[chan_id]
-        chan.state = 'OPENING'
+        chan.set_state('OPENING')
         if chan.local_state.funding_locked_received and chan.short_channel_id:
             self.mark_open(chan)
         self.network.trigger_callback('channel', chan)
@@ -727,10 +740,10 @@ class Peer(PrintError):
         print("SENT CHANNEL ANNOUNCEMENT")
 
     def mark_open(self, chan):
-        if chan.state == "OPEN":
+        if chan.get_state() == "OPEN":
             return
         assert chan.local_state.funding_locked_received
-        chan.state = "OPEN"
+        chan.set_state("OPEN")
         self.network.trigger_callback('channel', chan)
         # add channel to database
         node_ids = [self.pubkey, self.lnworker.pubkey]
@@ -820,7 +833,7 @@ class Peer(PrintError):
 
     @aiosafe
     async def pay(self, path, chan, amount_msat, payment_hash, pubkey_in_invoice, min_final_cltv_expiry):
-        assert chan.state == "OPEN"
+        assert chan.get_state() == "OPEN"
         assert amount_msat > 0, "amount_msat is not greater zero"
         height = self.network.get_local_height()
         route = self.network.path_finder.create_route_from_path(path, self.lnworker.pubkey)
@@ -911,7 +924,7 @@ class Peer(PrintError):
         htlc_id = int.from_bytes(htlc["id"], 'big')
         assert htlc_id == chan.remote_state.next_htlc_id, (htlc_id, chan.remote_state.next_htlc_id)
 
-        assert chan.state == "OPEN"
+        assert chan.get_state() == "OPEN"
 
         cltv_expiry = int.from_bytes(htlc["cltv_expiry"], 'big')
         # TODO verify sanity of their cltv expiry
