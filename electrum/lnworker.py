@@ -4,6 +4,7 @@ from decimal import Decimal
 import random
 import time
 from typing import Optional, Sequence
+import threading
 
 import dns.resolver
 import dns.exception
@@ -22,6 +23,7 @@ from .i18n import _
 
 NUM_PEERS_TARGET = 4
 PEER_RETRY_INTERVAL = 600  # seconds
+PEER_RETRY_INTERVAL_FOR_CHANNELS = 30  # seconds
 
 FALLBACK_NODE_LIST = (
     LNPeerAddr('ecdsa.net', 9735, bfh('038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff')),
@@ -34,6 +36,7 @@ class LNWorker(PrintError):
         self.wallet = wallet
         self.network = network
         self.channel_db = self.network.channel_db
+        self.lock = threading.RLock()
         pk = wallet.storage.get('lightning_privkey')
         if pk is None:
             pk = bh2u(os.urandom(32))
@@ -48,9 +51,6 @@ class LNWorker(PrintError):
         for chan_id, chan in self.channels.items():
             self.network.lnwatcher.watch_channel(chan, self.on_channel_utxos)
         self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
-        # TODO peers that we have channels with should also be added now
-        # but we don't store their IP/port yet.. also what if it changes?
-        # need to listen for node_announcements and save the new IP/port
         self._add_peers_from_config()
         # wait until we see confirmations
         self.network.register_callback(self.on_network_update, ['updated', 'verified', 'fee_histogram']) # thread safe
@@ -72,14 +72,13 @@ class LNWorker(PrintError):
 
     def channels_for_peer(self, node_id):
         assert type(node_id) is bytes
-        return {x: y for (x, y) in self.channels.items() if y.node_id == node_id}
+        with self.lock:
+            return {x: y for (x, y) in self.channels.items() if y.node_id == node_id}
 
     def add_peer(self, host, port, node_id):
         port = int(port)
         peer_addr = LNPeerAddr(host, port, node_id)
         if node_id in self.peers:
-            return
-        if peer_addr in self._last_tried_peer:
             return
         self._last_tried_peer[peer_addr] = time.time()
         self.print_error("adding peer", peer_addr)
@@ -90,10 +89,11 @@ class LNWorker(PrintError):
 
     def save_channel(self, openchannel):
         assert type(openchannel) is HTLCStateMachine
-        self.channels[openchannel.channel_id] = openchannel
         if openchannel.remote_state.next_per_commitment_point == openchannel.remote_state.current_per_commitment_point:
             raise Exception("Tried to save channel with next_point == current_point, this should not happen")
-        dumped = [x.serialize() for x in self.channels.values()]
+        with self.lock:
+            self.channels[openchannel.channel_id] = openchannel
+            dumped = [x.serialize() for x in self.channels.values()]
         self.wallet.storage.put("channels", dumped)
         self.wallet.storage.write()
         self.network.trigger_callback('channel', openchannel)
@@ -104,7 +104,7 @@ class LNWorker(PrintError):
 
         If the Funding TX has not been mined, return None
         """
-        assert chan.state in ["OPEN", "OPENING"]
+        assert chan.get_state() in ["OPEN", "OPENING"]
         peer = self.peers[chan.node_id]
         conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
         if conf >= chan.constraints.funding_txn_minimum_depth:
@@ -121,16 +121,12 @@ class LNWorker(PrintError):
     def on_channel_utxos(self, chan, utxos):
         outpoints = [Outpoint(x["tx_hash"], x["tx_pos"]) for x in utxos]
         if chan.funding_outpoint not in outpoints:
-            chan.state = "CLOSED"
+            chan.set_funding_txo_spentness(True)
+            chan.set_state("CLOSED")
             # FIXME is this properly GC-ed? (or too soon?)
             LNChanCloseHandler(self.network, self.wallet, chan)
-        elif chan.state == 'DISCONNECTED':
-            if chan.node_id not in self.peers:
-                self.print_error("received channel_utxos for channel which does not have peer (errored?)")
-                return
-            peer = self.peers[chan.node_id]
-            coro = peer.reestablish_channel(chan)
-            asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+        else:
+            chan.set_funding_txo_spentness(False)
         self.network.trigger_callback('channel', chan)
 
     def on_network_update(self, event, *args):
@@ -139,8 +135,10 @@ class LNWorker(PrintError):
         # since short_channel_id could be changed while saving.
         # Mitigated by posting to loop:
         async def network_jobs():
-            for chan in self.channels.values():
-                if chan.state == "OPENING":
+            with self.lock:
+                channels = list(self.channels.values())
+            for chan in channels:
+                if chan.get_state() == "OPENING":
                     res = self.save_short_chan_id(chan)
                     if not res:
                         self.print_error("network update but funding tx is still not at sufficient depth")
@@ -148,7 +146,7 @@ class LNWorker(PrintError):
                     # this results in the channel being marked OPEN
                     peer = self.peers[chan.node_id]
                     peer.funding_locked(chan)
-                elif chan.state == "OPEN":
+                elif chan.get_state() == "OPEN":
                     peer = self.peers.get(chan.node_id)
                     if peer is None:
                         self.print_error("peer not found for {}".format(bh2u(chan.node_id)))
@@ -177,6 +175,7 @@ class LNWorker(PrintError):
         return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     def pay(self, invoice, amount_sat=None):
+        # TODO try some number of paths (e.g. 10) in case of failures
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         payment_hash = addr.paymenthash
         invoice_pubkey = addr.pubkey.serialize()
@@ -189,7 +188,9 @@ class LNWorker(PrintError):
             raise Exception("No path found")
         node_id, short_channel_id = path[0]
         peer = self.peers[node_id]
-        for chan in self.channels.values():
+        with self.lock:
+            channels = list(self.channels.values())
+        for chan in channels:
             if chan.short_channel_id == short_channel_id:
                 break
         else:
@@ -216,7 +217,8 @@ class LNWorker(PrintError):
         self.wallet.storage.write()
 
     def list_channels(self):
-        return [str(x) for x in self.channels]
+        with self.lock:
+            return [str(x) for x in self.channels]
 
     def close_channel(self, chan_id):
         chan = self.channels[chan_id]
@@ -250,7 +252,7 @@ class LNWorker(PrintError):
         # try random peer from graph
         all_nodes = self.channel_db.nodes
         if all_nodes:
-            self.print_error('trying to get ln peers from channel db')
+            #self.print_error('trying to get ln peers from channel db')
             node_ids = list(all_nodes)
             max_tries = min(200, len(all_nodes))
             for i in range(max_tries):
@@ -259,7 +261,7 @@ class LNWorker(PrintError):
                 if node is None: continue
                 addresses = node.addresses
                 if not addresses: continue
-                host, port = addresses[0]
+                host, port = random.choice(addresses)
                 peer = LNPeerAddr(host, port, node_id)
                 if peer.pubkey in self.peers: continue
                 if peer in self._last_tried_peer: continue
@@ -309,16 +311,54 @@ class LNWorker(PrintError):
         self.print_error('got {} ln peers from dns seed'.format(len(peers)))
         return peers
 
+    def reestablish_peers_and_channels(self):
+        def reestablish_peer_for_given_channel():
+            # try last good address first
+            peer = self.channel_db.get_last_good_address(chan.node_id)
+            if peer:
+                last_tried = self._last_tried_peer.get(peer, 0)
+                if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
+                    self.add_peer(peer.host, peer.port, peer.pubkey)
+                    return
+            # try random address for node_id
+            node_info = self.channel_db.nodes.get(chan.node_id, None)
+            if not node_info: return
+            addresses = node_info.addresses
+            if not addresses: return
+            host, port = random.choice(addresses)
+            peer = LNPeerAddr(host, port, chan.node_id)
+            last_tried = self._last_tried_peer.get(peer, 0)
+            if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:
+                self.add_peer(host, port, chan.node_id)
+
+        with self.lock:
+            channels = list(self.channels.values())
+        now = time.time()
+        for chan in channels:
+            if not chan.should_try_to_reestablish_peer():
+                continue
+            peer = self.peers.get(chan.node_id, None)
+            if peer is None:
+                reestablish_peer_for_given_channel()
+            else:
+                coro = peer.reestablish_channel(chan)
+                asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+
     @aiosafe
     async def main_loop(self):
         while True:
             await asyncio.sleep(1)
+            now = time.time()
             for node_id, peer in list(self.peers.items()):
                 if peer.exception:
                     self.print_error("removing peer", peer.host)
+                    peer.close_and_cleanup()
                     self.peers.pop(node_id)
+            self.reestablish_peers_and_channels()
             if len(self.peers) >= NUM_PEERS_TARGET:
                 continue
             peers = self._get_next_peers_to_try()
             for peer in peers:
-                self.add_peer(peer.host, peer.port, peer.pubkey)
+                last_tried = self._last_tried_peer.get(peer, 0)
+                if last_tried + PEER_RETRY_INTERVAL < now:
+                    self.add_peer(peer.host, peer.port, peer.pubkey)
