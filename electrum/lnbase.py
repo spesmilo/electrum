@@ -207,6 +207,10 @@ class HandshakeState(object):
         self.h = sha256(self.h + data)
         return self.h
 
+
+class HandshakeFailed(Exception): pass
+
+
 def get_nonce_bytes(n):
     """BOLT 8 requires the nonce to be 12 bytes, 4 bytes leading
     zeroes and 8 bytes little endian encoded 64 bit integer.
@@ -285,6 +289,7 @@ class Peer(PrintError):
         self.host = host
         self.port = port
         self.pubkey = pubkey
+        self.peer_addr = LNPeerAddr(host, port, pubkey)
         self.lnworker = lnworker
         self.privkey = lnworker.privkey
         self.network = lnworker.network
@@ -340,7 +345,10 @@ class Peer(PrintError):
                     self.read_buffer = self.read_buffer[offset:]
                     msg = aead_decrypt(rk_m, rn_m, b'', c)
                     return msg
-            s = await self.reader.read(2**10)
+            try:
+                s = await self.reader.read(2**10)
+            except:
+                s = None
             if not s:
                 raise LightningPeerConnectionClosed()
             self.read_buffer += s
@@ -354,9 +362,11 @@ class Peer(PrintError):
         # act 1
         self.writer.write(msg)
         rspns = await self.reader.read(2**10)
-        assert len(rspns) == 50, "Lightning handshake act 1 response has bad length, are you sure this is the right pubkey? " + str(bh2u(self.pubkey))
+        if len(rspns) != 50:
+            raise HandshakeFailed("Lightning handshake act 1 response has bad length, are you sure this is the right pubkey? " + str(bh2u(self.pubkey)))
         hver, alice_epub, tag = rspns[0], rspns[1:34], rspns[34:]
-        assert bytes([hver]) == hs.handshake_version
+        if bytes([hver]) != hs.handshake_version:
+            raise HandshakeFailed("unexpected handshake version: {}".format(hver))
         # act 2
         hs.update(alice_epub)
         ss = get_ecdh(epriv, alice_epub)
@@ -461,20 +471,17 @@ class Peer(PrintError):
     @aiosafe
     async def main_loop(self):
         await asyncio.wait_for(self.initialize(), 5)
-        self.channel_db.add_recent_peer(LNPeerAddr(self.host, self.port, self.pubkey))
+        self.channel_db.add_recent_peer(self.peer_addr)
         # loop
+        while True:
+            self.ping_if_required()
+            msg = await self.read_message()
+            self.process_message(msg)
+
+    def close_and_cleanup(self):
         try:
-            while True:
-                self.ping_if_required()
-                msg = await self.read_message()
-                self.process_message(msg)
-        except LightningPeerConnectionClosed:
-            pass
-        # close socket
-        self.writer.close()
-        try:
-            del self.lnworker.peers[self.pubkey]
-        except KeyError:
+            self.writer.close()
+        except:
             pass
         for chan in self.channels.values():
             chan.set_state('DISCONNECTED')
