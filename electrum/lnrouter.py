@@ -269,6 +269,7 @@ class ChannelDB(JsonDB):
         self._channels_for_node = defaultdict(set)  # node -> set(short_channel_id)
         self.nodes = {}  # node_id -> NodeInfo
         self._recent_peers = []
+        self._last_good_address = {}  # node_id -> LNPeerAddr
 
         self.ca_verifier = LNChanAnnVerifier(network, self)
         self.network.add_jobs([self.ca_verifier])
@@ -297,6 +298,11 @@ class ChannelDB(JsonDB):
         for host, port, pubkey in recent_peers:
             peer = LNPeerAddr(str(host), int(port), bfh(pubkey))
             self._recent_peers.append(peer)
+        # last good address
+        last_good_addr = self.get('last_good_address', {})
+        for node_id, host_and_port in last_good_addr.items():
+            host, port = host_and_port
+            self._last_good_address[bfh(node_id)] = LNPeerAddr(str(host), int(port), bfh(node_id))
 
     def save_data(self):
         with self.lock:
@@ -316,6 +322,11 @@ class ChannelDB(JsonDB):
                 recent_peers.append(
                     [str(peer.host), int(peer.port), bh2u(peer.pubkey)])
             self.put('recent_peers', recent_peers)
+            # last good address
+            last_good_addr = {}
+            for node_id, peer in self._last_good_address.items():
+                last_good_addr[bh2u(node_id)] = [str(peer.host), int(peer.port)]
+            self.put('last_good_address', last_good_addr)
         self.write()
 
     def __len__(self):
@@ -347,6 +358,10 @@ class ChannelDB(JsonDB):
                 self._recent_peers.remove(peer)
             self._recent_peers.insert(0, peer)
             self._recent_peers = self._recent_peers[:self.NUM_MAX_RECENT_PEERS]
+            self._last_good_address[peer.pubkey] = peer
+
+    def get_last_good_address(self, node_id: bytes) -> Optional[LNPeerAddr]:
+        return self._last_good_address.get(node_id, None)
 
     def on_channel_announcement(self, msg_payload, trusted=False):
         short_channel_id = msg_payload['short_channel_id']
