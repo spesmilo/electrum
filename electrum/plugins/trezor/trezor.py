@@ -464,7 +464,7 @@ class TrezorPlugin(HW_PluginBase):
             txoutputtype.amount = amount
             if _type == TYPE_SCRIPT:
                 txoutputtype.script_type = self.types.OutputScriptType.PAYTOOPRETURN
-                txoutputtype.op_return_data = address[2:]
+                txoutputtype.op_return_data = bfh(address)[2:]
             elif _type == TYPE_ADDRESS:
                 txoutputtype.script_type = self.types.OutputScriptType.PAYTOADDRESS
                 txoutputtype.address = address
