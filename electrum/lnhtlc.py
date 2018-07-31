@@ -572,7 +572,6 @@ class HTLCStateMachine(PrintError):
                 "constraints": self.constraints,
                 "funding_outpoint": self.funding_outpoint,
                 "node_id": self.node_id,
-                "channel_id": self.channel_id
         }
 
     def serialize(self):

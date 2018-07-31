@@ -53,7 +53,7 @@ class LNWorker(PrintError):
         self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
         # wait until we see confirmations
-        self.network.register_callback(self.on_network_update, ['updated', 'verified', 'fee_histogram']) # thread safe
+        self.network.register_callback(self.on_network_update, ['updated', 'verified', 'fee']) # thread safe
         self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
         self.network.futures.append(asyncio.run_coroutine_threadsafe(self.main_loop(), asyncio.get_event_loop()))
 
@@ -151,7 +151,7 @@ class LNWorker(PrintError):
                     if peer is None:
                         self.print_error("peer not found for {}".format(bh2u(chan.node_id)))
                         return
-                    if event == 'fee_histogram':
+                    if event == 'fee':
                         peer.on_bitcoin_fee_update(chan)
                     conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
                     peer.on_network_update(chan, conf)

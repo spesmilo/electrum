@@ -284,7 +284,6 @@ def aiosafe(f):
 class Peer(PrintError):
 
     def __init__(self, lnworker, host, port, pubkey, request_initial_sync=False):
-        self.REV_GENESIS = bytes.fromhex(bitcoin.rev_hex(constants.net.GENESIS))
         self.exception = None # set by aiosafe
         self.host = host
         self.port = port
@@ -499,7 +498,7 @@ class Peer(PrintError):
         keyfamilyrevocationroot = 5
         keyfamilynodekey = 6 # TODO currently unused
         # amounts
-        local_feerate = 20000
+        local_feerate = self.current_feerate_per_kw()
         # key derivation
         keypair_generator = lambda family, i: Keypair(*wallet.keystore.get_keypair([family, i], password))
         local_config=ChannelConfig(
@@ -522,7 +521,7 @@ class Peer(PrintError):
         msg = gen_msg(
             "open_channel",
             temporary_channel_id=temp_channel_id,
-            chain_hash=self.REV_GENESIS,
+            chain_hash=constants.net.rev_genesis_bytes(),
             funding_satoshis=funding_sat,
             push_msat=push_msat,
             dust_limit_satoshis=local_config.dust_limit_sat,
@@ -734,7 +733,7 @@ class Peer(PrintError):
             bitcoin_signature_2=bitcoin_sigs[1],
             len=0,
             #features not set (defaults to zeros)
-            chain_hash=self.REV_GENESIS,
+            chain_hash=constants.net.rev_genesis_bytes(),
             short_channel_id=chan.short_channel_id,
             node_id_1=node_ids[0],
             node_id_2=node_ids[1],
@@ -791,7 +790,7 @@ class Peer(PrintError):
         chan_ann = gen_msg("channel_announcement",
             len=0,
             #features not set (defaults to zeros)
-            chain_hash=self.REV_GENESIS,
+            chain_hash=constants.net.rev_genesis_bytes(),
             short_channel_id=chan.short_channel_id,
             node_id_1=node_ids[0],
             node_id_2=node_ids[1],
@@ -1034,7 +1033,7 @@ class Peer(PrintError):
 
     def on_bitcoin_fee_update(self, chan):
         """
-        called when the fee histogram (based on current mempool) changed
+        called when our fee estimates change
         """
         if not chan.constraints.is_initiator:
             # TODO force close if initiator does not update_fee enough
@@ -1056,5 +1055,8 @@ class Peer(PrintError):
         self.lnworker.save_channel(chan)
 
     def current_feerate_per_kw(self):
-        feerate_per_kvbyte = self.network.config.depth_target_to_fee(10*1000000) # 10 MB
+        from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE
+        feerate_per_kvbyte = self.network.config.eta_target_to_fee(FEE_LN_ETA_TARGET)
+        if feerate_per_kvbyte is None:
+            feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
         return max(253, feerate_per_kvbyte // 4)
