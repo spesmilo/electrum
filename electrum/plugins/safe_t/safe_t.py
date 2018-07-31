@@ -13,7 +13,7 @@ from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey, xtyp
 from electrum.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
-from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
+from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data
 
 
 # Safe-T mini initialization methods
@@ -453,7 +453,7 @@ class SafeTPlugin(HW_PluginBase):
             txoutputtype.amount = amount
             if _type == TYPE_SCRIPT:
                 txoutputtype.script_type = self.types.OutputScriptType.PAYTOOPRETURN
-                txoutputtype.op_return_data = bfh(address)[2:]
+                txoutputtype.op_return_data = trezor_validate_op_return_output_and_get_data(_type, address, amount)
             elif _type == TYPE_ADDRESS:
                 txoutputtype.script_type = self.types.OutputScriptType.PAYTOADDRESS
                 txoutputtype.address = address
