@@ -28,7 +28,7 @@ from collections import defaultdict
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
 from .util import PrintError, profiler, bfh, VerifiedTxInfo, TxMinedStatus
-from .transaction import Transaction
+from .transaction import Transaction, TxOutput
 from .synchronizer import Synchronizer
 from .verifier import SPV
 from .blockchain import hash_header
@@ -112,12 +112,11 @@ class AddressSynchronizer(PrintError):
                     return addr
         return None
 
-    def get_txout_address(self, txo):
-        _type, x, v = txo
-        if _type == TYPE_ADDRESS:
-            addr = x
-        elif _type == TYPE_PUBKEY:
-            addr = bitcoin.public_key_to_p2pkh(bfh(x))
+    def get_txout_address(self, txo: TxOutput):
+        if txo.type == TYPE_ADDRESS:
+            addr = txo.address
+        elif txo.type == TYPE_PUBKEY:
+            addr = bitcoin.public_key_to_p2pkh(bfh(txo.address))
         else:
             addr = None
         return addr

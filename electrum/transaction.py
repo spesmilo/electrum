@@ -27,7 +27,7 @@
 
 # Note: The deserialization code originally comes from ABE.
 
-from typing import Sequence, Union
+from typing import Sequence, Union, NamedTuple
 
 from .util import print_error, profiler
 
@@ -57,6 +57,10 @@ class UnknownTxinType(Exception):
 
 class NotRecognizedRedeemScript(Exception):
     pass
+
+
+TxOutput = NamedTuple("TxOutput", [('type', int), ('address', str), ('value', Union[int, str])])
+# ^ value is str when the output is set to max: '!'
 
 
 class BCDataStream(object):
@@ -721,7 +725,7 @@ class Transaction:
             return
         d = deserialize(self.raw, force_full_parse)
         self._inputs = d['inputs']
-        self._outputs = [(x['type'], x['address'], x['value']) for x in d['outputs']]
+        self._outputs = [TxOutput(x['type'], x['address'], x['value']) for x in d['outputs']]
         self.locktime = d['lockTime']
         self.version = d['version']
         self.is_partial_originally = d['partial']
@@ -1180,17 +1184,17 @@ class Transaction:
 
     def get_outputs(self):
         """convert pubkeys to addresses"""
-        o = []
-        for type, x, v in self.outputs():
-            if type == TYPE_ADDRESS:
-                addr = x
-            elif type == TYPE_PUBKEY:
+        outputs = []
+        for o in self.outputs():
+            if o.type == TYPE_ADDRESS:
+                addr = o.address
+            elif o.type == TYPE_PUBKEY:
                 # TODO do we really want this conversion? it's not really that address after all
-                addr = bitcoin.public_key_to_p2pkh(bfh(x))
+                addr = bitcoin.public_key_to_p2pkh(bfh(o.address))
             else:
-                addr = 'SCRIPT ' + x
-            o.append((addr,v))      # consider using yield (addr, v)
-        return o
+                addr = 'SCRIPT ' + o.address
+            outputs.append((addr, o.value))      # consider using yield (addr, v)
+        return outputs
 
     def get_output_addresses(self):
         return [addr for addr, val in self.get_outputs()]

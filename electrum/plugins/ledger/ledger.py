@@ -394,9 +394,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     self.give_error("Transaction with more than 2 outputs not supported")
             has_change = False
             any_output_on_change_branch = is_any_tx_output_on_change_branch(tx)
-            for _type, address, amount in tx.outputs():
-                assert _type == TYPE_ADDRESS
-                info = tx.output_info.get(address)
+            for o in tx.outputs():
+                assert o.type == TYPE_ADDRESS
+                info = tx.output_info.get(o.address)
                 if (info is not None) and len(tx.outputs()) > 1 \
                         and not has_change:
                     index, xpubs, m = info
@@ -407,9 +407,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
                         changePath = self.get_derivation()[2:] + "/%d/%d"%index
                         has_change = True
                     else:
-                        output = address
+                        output = o.address
                 else:
-                    output = address
+                    output = o.address
 
         self.handler.show_message(_("Confirm Transaction on your Ledger device..."))
         try:
