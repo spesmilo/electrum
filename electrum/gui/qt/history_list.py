@@ -332,7 +332,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             column_title = self.headerItem().text(column)
             column_data = item.text(column)
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
-        height, conf, timestamp = self.wallet.get_tx_height(tx_hash)
+        height, conf, timestamp, header_hash = self.wallet.get_tx_height(tx_hash)
         tx = self.wallet.transactions.get(tx_hash)
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         is_unconfirmed = height <= 0
