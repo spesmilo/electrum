@@ -602,7 +602,7 @@ class ElectrumWindow(App):
         self.num_nodes = len(self.network.get_interfaces())
         self.num_chains = len(self.network.get_blockchains())
         chain = self.network.blockchain()
-        self.blockchain_checkpoint = chain.get_checkpoint()
+        self.blockchain_checkpoint = chain.get_base_height()
         self.blockchain_name = chain.get_name()
         if self.network.interface:
             self.server_host = self.network.interface.host

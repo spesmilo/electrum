@@ -259,7 +259,7 @@ class NetworkDialogVC(UIViewController):
         self.statusLbl.text = str(status)
         if len(chains)>1:
             chain = network.blockchain()
-            checkpoint = chain.get_checkpoint()
+            checkpoint = chain.get_base_height()
             name = chain.get_name()
             msg = _('Chain split detected at block %d')%checkpoint + '\n'
             msg += (_('You are following branch') if auto_connect else _('Your server is on branch'))+ ' ' + name
@@ -277,7 +277,7 @@ class NetworkDialogVC(UIViewController):
             secItems = list()
             extraData = None
             if n_chains > 1:
-                secHeader = "(" + (name + '@%d'%b.get_checkpoint()) + ") " + _("Host") + ", " + _("Height")
+                secHeader = "(" + (name + '@%d'%b.get_base_height()) + ") " + _("Host") + ", " + _("Height")
                 extraData = [ False, b.base_height, name ]
             for i in items:
                 star = ' *' if i == network.interface else ''
