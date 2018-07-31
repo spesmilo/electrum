@@ -886,6 +886,7 @@ class ElectrumWindow(App):
                     self.wallet.invoices.save()
                     self.update_tab('invoices')
             else:
+                msg = msg[:500] if msg else _('There was an error broadcasting the transaction.')
                 self.show_error(msg)
 
         if self.network and self.network.is_connected():
