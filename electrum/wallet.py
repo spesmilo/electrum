@@ -318,7 +318,8 @@ class Abstract_Wallet(AddressSynchronizer):
         if tx.is_complete():
             if tx_hash in self.transactions.keys():
                 label = self.get_label(tx_hash)
-                height, conf, timestamp, header_hash = self.get_tx_height(tx_hash)
+                tx_mined_status = self.get_tx_height(tx_hash)
+                height, conf = tx_mined_status.height, tx_mined_status.conf
                 if height > 0:
                     if conf:
                         status = _("{} confirmations").format(conf)
@@ -368,8 +369,9 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def balance_at_timestamp(self, domain, target_timestamp):
         h = self.get_history(domain)
-        for tx_hash, height, conf, timestamp, value, balance in h:
-            if timestamp > target_timestamp:
+        balance = 0
+        for tx_hash, tx_mined_status, value, balance in h:
+            if tx_mined_status.timestamp > target_timestamp:
                 return balance - value
         # return last balance
         return balance
@@ -384,16 +386,17 @@ class Abstract_Wallet(AddressSynchronizer):
         fiat_income = Decimal(0)
         fiat_expenditures = Decimal(0)
         h = self.get_history(domain)
-        for tx_hash, height, conf, timestamp, value, balance in h:
+        for tx_hash, tx_mined_status, value, balance in h:
+            timestamp = tx_mined_status.timestamp
             if from_timestamp and (timestamp or time.time()) < from_timestamp:
                 continue
             if to_timestamp and (timestamp or time.time()) >= to_timestamp:
                 continue
             item = {
-                'txid':tx_hash,
-                'height':height,
-                'confirmations':conf,
-                'timestamp':timestamp,
+                'txid': tx_hash,
+                'height': tx_mined_status.height,
+                'confirmations': tx_mined_status.conf,
+                'timestamp': timestamp,
                 'value': Satoshis(value),
                 'balance': Satoshis(balance)
             }
@@ -483,9 +486,12 @@ class Abstract_Wallet(AddressSynchronizer):
             return ', '.join(labels)
         return ''
 
-    def get_tx_status(self, tx_hash, height, conf, timestamp):
+    def get_tx_status(self, tx_hash, tx_mined_status):
         from .util import format_time
         extra = []
+        height = tx_mined_status.height
+        conf = tx_mined_status.conf
+        timestamp = tx_mined_status.timestamp
         if conf == 0:
             tx = self.transactions.get(tx_hash)
             if not tx:
@@ -839,8 +845,7 @@ class Abstract_Wallet(AddressSynchronizer):
             txid, n = txo.split(':')
             info = self.verified_tx.get(txid)
             if info:
-                tx_height, timestamp, pos, header_hash = info
-                conf = local_height - tx_height
+                conf = local_height - info.height
             else:
                 conf = 0
             l.append((conf, v))
@@ -1091,7 +1096,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def price_at_timestamp(self, txid, price_func):
         """Returns fiat price of bitcoin at the time tx got confirmed."""
-        height, conf, timestamp, header_hash = self.get_tx_height(txid)
+        timestamp = self.get_tx_height(txid).timestamp
         return price_func(timestamp if timestamp else time.time())
 
     def unrealized_gains(self, domain, price_func, ccy):
@@ -1258,7 +1263,7 @@ class Imported_Wallet(Simple_Wallet):
                 self.verified_tx.pop(tx_hash, None)
                 self.unverified_tx.pop(tx_hash, None)
                 self.transactions.pop(tx_hash, None)
-            self.storage.put('verified_tx3', self.verified_tx)
+            self.save_verified_tx()
         self.save_transactions()
 
         self.set_label(address, None)

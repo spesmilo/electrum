@@ -87,9 +87,9 @@ class ElectrumGui:
         + "%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
         messages = []
 
-        for item in self.wallet.get_history():
-            tx_hash, height, conf, timestamp, delta, balance = item
-            if conf:
+        for tx_hash, tx_mined_status, delta, balance in self.wallet.get_history():
+            if tx_mined_status.conf:
+                timestamp = tx_mined_status.timestamp
                 try:
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 except Exception:
