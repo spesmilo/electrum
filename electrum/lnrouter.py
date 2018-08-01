@@ -107,7 +107,7 @@ class ChannelInfo(PrintError):
     def on_channel_update(self, msg_payload, trusted=False):
         assert self.channel_id == msg_payload['short_channel_id']
         flags = int.from_bytes(msg_payload['flags'], 'big')
-        direction = flags & 1
+        direction = flags & ChannelInfoDirectedPolicy.FLAG_DIRECTION
         new_policy = ChannelInfoDirectedPolicy(msg_payload)
         if direction == 0:
             old_policy = self.policy_node1
@@ -136,6 +136,9 @@ class ChannelInfo(PrintError):
 
 class ChannelInfoDirectedPolicy:
 
+    FLAG_DIRECTION = 1 << 0
+    FLAG_DISABLE   = 1 << 1
+
     def __init__(self, channel_update_payload):
         cltv_expiry_delta           = channel_update_payload['cltv_expiry_delta']
         htlc_minimum_msat           = channel_update_payload['htlc_minimum_msat']
@@ -150,6 +153,8 @@ class ChannelInfoDirectedPolicy:
         self.fee_proportional_millionths = int.from_bytes(fee_proportional_millionths, "big")
         self.flags                       = int.from_bytes(flags, "big")
         self.timestamp                   = int.from_bytes(timestamp, "big")
+
+        self.disabled = self.flags & self.FLAG_DISABLE
 
     def to_json(self) -> dict:
         d = {}
@@ -495,6 +500,7 @@ class LNPathFinder(PrintError):
 
         channel_policy = channel_info.get_policy_for_node(start_node)
         if channel_policy is None: return float('inf')
+        if channel_policy.disabled: return float('inf')
         cltv_expiry_delta           = channel_policy.cltv_expiry_delta
         htlc_minimum_msat           = channel_policy.htlc_minimum_msat
         fee_base_msat               = channel_policy.fee_base_msat
