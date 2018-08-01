@@ -414,3 +414,6 @@ def get_compressed_pubkey_from_bech32(bech32_pubkey: str) -> bytes:
     COMPRESSED_PUBKEY_LENGTH = 33
     data_8bits = data_8bits + ((COMPRESSED_PUBKEY_LENGTH - len(data_8bits)) * [0])
     return bytes(data_8bits)
+
+
+class PaymentFailure(Exception): pass
