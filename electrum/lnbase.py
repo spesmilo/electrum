@@ -31,7 +31,7 @@ from . import constants
 from . import transaction
 from .util import PrintError, bh2u, print_error, bfh
 from .transaction import opcodes, Transaction
-from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error
+from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error, ONION_FAILURE_CODE_MAP
 from .lnaddr import lndecode
 from .lnhtlc import UpdateAddHtlc, HTLCStateMachine, RevokeAndAck, SettleHtlc
 
@@ -817,25 +817,19 @@ class Peer(PrintError):
         route = self.attempted_route[key]
         failure_msg, sender_idx = decode_onion_error(payload["reason"], [x.node_id for x in route], self.secret_key)
         code = failure_msg.code
+        code_name = ONION_FAILURE_CODE_MAP.get(code, 'unknown_error!!')
         data = failure_msg.data
-        codes = []
-        if code & 0x8000:
-            codes += ["BADONION"]
-        if code & 0x4000:
-            codes += ["PERM"]
-        if code & 0x2000:
-            codes += ["NODE"]
-        if code & 0x1000:
-            codes += ["UPDATE"]
-        print("UPDATE_FAIL_HTLC", codes, code, data)
+        print("UPDATE_FAIL_HTLC", code_name, code, data)
         try:
             short_chan_id = route[sender_idx + 1].short_channel_id
         except IndexError:
             print("payment destination reported error")
         else:
+            # TODO this should depend on the error
+            # also, we need finer blacklisting (directed edges; nodes)
             self.network.path_finder.blacklist.add(short_chan_id)
 
-        self.update_fail_htlc[payload["channel_id"]].put_nowait("HTLC failure with code {} (categories {})".format(code, codes))
+        self.update_fail_htlc[payload["channel_id"]].put_nowait("HTLC failure with code {} ({})".format(code, code_name))
 
     @aiosafe
     async def pay(self, path, chan, amount_msat, payment_hash, pubkey_in_invoice, min_final_cltv_expiry):
