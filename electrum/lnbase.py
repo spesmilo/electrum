@@ -7,7 +7,7 @@
 from collections import namedtuple, defaultdict, OrderedDict, defaultdict
 from .lnutil import Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore
 from .lnutil import sign_and_get_sig_string, funding_output_script, get_ecdh, get_per_commitment_secret_from_seed
-from .lnutil import secret_to_pubkey, LNPeerAddr
+from .lnutil import secret_to_pubkey, LNPeerAddr, PaymentFailure
 from .bitcoin import COIN
 
 from ecdsa.util import sigdecode_der, sigencode_string_canonize, sigdecode_string
@@ -841,9 +841,9 @@ class Peer(PrintError):
     async def pay(self, path, chan, amount_msat, payment_hash, pubkey_in_invoice, min_final_cltv_expiry):
         assert chan.get_state() == "OPEN"
         assert amount_msat > 0, "amount_msat is not greater zero"
+
         height = self.network.get_local_height()
         route = self.network.path_finder.create_route_from_path(path, self.lnworker.pubkey)
-        # TODO check that first edge (our channel) has enough balance to support amount_msat
         hops_data = []
         sum_of_deltas = sum(route_edge.channel_policy.cltv_expiry_delta for route_edge in route[1:])
         total_fee = 0
@@ -857,9 +857,18 @@ class Peer(PrintError):
         hops_data += [OnionHopsDataSingle(OnionPerHop(b"\x00"*8, amount_msat.to_bytes(8, "big"), (final_cltv_expiry_without_deltas).to_bytes(4, "big")))]
         onion = new_onion_packet([x.node_id for x in route], self.secret_key, hops_data, associated_data)
         amount_msat += total_fee
+        # FIXME this below will probably break with multiple HTLCs
         msat_local = chan.local_state.amount_msat - amount_msat
         msat_remote = chan.remote_state.amount_msat + amount_msat
         htlc = UpdateAddHtlc(amount_msat, payment_hash, final_cltv_expiry_with_deltas)
+
+        if len(chan.htlcs_in_local) + 1 > chan.remote_config.max_accepted_htlcs:
+            raise PaymentFailure('too many HTLCs already in channel')
+        if chan.htlcsum(chan.htlcs_in_local) + amount_msat > chan.remote_config.max_htlc_value_in_flight_msat:
+            raise PaymentFailure('HTLC value sum would exceed max allowed')
+        if msat_local < 0:
+            # FIXME what about channel_reserve_satoshis? will the remote fail the channel if we go below? test.
+            raise PaymentFailure('not enough local balance')
 
         self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=chan.local_state.next_htlc_id, cltv_expiry=final_cltv_expiry_with_deltas, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
 
@@ -876,6 +885,8 @@ class Peer(PrintError):
         failure_coro = asyncio.ensure_future(self.update_fail_htlc[chan.channel_id].get())
 
         done, pending = await asyncio.wait([fulfill_coro, failure_coro], return_when=FIRST_COMPLETED)
+        # TODO what if HTLC gets stuck in multihop payment (A->B->C->D->E; on the way back C goes offline)
+        payment_succeeded = False
         if failure_coro.done():
             fulfill_coro.cancel()
             sig_64, htlc_sigs = chan.sign_next_commitment()
@@ -886,6 +897,7 @@ class Peer(PrintError):
             self.revoke(chan)
             sig_64, htlc_sigs = chan.sign_next_commitment()
             res = failure_coro.result()
+            payment_succeeded = True
         else:
             failure_coro.cancel()
             update_fulfill_htlc_msg = fulfill_coro.result()
@@ -901,7 +913,11 @@ class Peer(PrintError):
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=0))
         await self.receive_revoke(chan)
         self.lnworker.save_channel(chan)
-        return res
+
+        if payment_succeeded:
+            return res
+        else:
+            raise PaymentFailure(res)
 
     async def receive_revoke(self, m):
         revoke_and_ack_msg = await self.revoke_and_ack[m.channel_id].get()
