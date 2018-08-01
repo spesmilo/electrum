@@ -104,7 +104,11 @@ def run_non_RPC(config):
     if cmdname == 'restore':
         text = config.get('text').strip()
         passphrase = config.get('passphrase', '')
-        password = password_dialog() if keystore.is_private(text) else None
+        password = None
+        if keystore.is_private(text):
+            password = config.get('password', None)
+            if password is None:
+                password = password_dialog()
         if keystore.is_address_list(text):
             wallet = Imported_Wallet(storage)
             for x in text.split():
