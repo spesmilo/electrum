@@ -248,7 +248,9 @@ class LnAddr(object):
             ", ".join([k + '=' + str(v) for k, v in self.tags])
         )
 
-def lndecode(a, verbose=False, expected_hrp=constants.net.SEGWIT_HRP):
+def lndecode(a, verbose=False, expected_hrp=None):
+    if expected_hrp is None:
+        expected_hrp = constants.net.SEGWIT_HRP
     hrp, data = bech32_decode(a, ignore_long_length=True)
     if not hrp:
         raise ValueError("Bad bech32 checksum")

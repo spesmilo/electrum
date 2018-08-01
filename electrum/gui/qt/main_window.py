@@ -1664,13 +1664,37 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.do_send(preview = True)
 
     def pay_lightning_invoice(self, invoice):
-        try:
-            amount = self.amount_e.get_amount()
-            f = self.wallet.lnworker.pay(invoice, amount_sat=amount)
-        except InvoiceError as e:
-            self.show_error(str(e))
-        else:
+        amount = self.amount_e.get_amount()
+        LN_NUM_PAYMENT_ATTEMPTS = 1  # TODO increase
+
+        def on_success(result):
+            self.print_error('ln payment success', result)
             self.do_clear()
+        def on_failure(exc_info):
+            type_, e, traceback = exc_info
+            if isinstance(e, PaymentFailure):
+                self.show_error(_('Payment failed. Tried {} times:\n{}')
+                                .format(LN_NUM_PAYMENT_ATTEMPTS, e))
+            elif isinstance(e, InvoiceError):
+                self.show_error(_('InvoiceError: {}').format(e))
+            else:
+                raise e
+        def task():
+            failure_list = []
+            for i in range(LN_NUM_PAYMENT_ATTEMPTS):
+                try:
+                    future = self.wallet.lnworker.pay(invoice, amount_sat=amount)
+                    future.result()
+                    break
+                except PaymentFailure as e:
+                    failure_list.append(e)
+                    # try again
+            else:
+                msg = '\n'.join(str(e) for e in failure_list)
+                raise PaymentFailure(msg)
+
+        msg = _('Sending lightning payment...')
+        WaitingDialog(self, msg, task, on_success, on_failure)
 
     def do_send(self, preview = False):
         if self.payto_e.is_lightning:

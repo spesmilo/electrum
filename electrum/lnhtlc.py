@@ -511,10 +511,12 @@ class HTLCStateMachine(PrintError):
 
     @property
     def htlcs_in_local(self):
+        """in the local log. 'offered by us'"""
         return self.gen_htlc_indices("local")
 
     @property
     def htlcs_in_remote(self):
+        """in the remote log. 'offered by them'"""
         return self.gen_htlc_indices("remote")
 
     def settle_htlc(self, preimage, htlc_id):
