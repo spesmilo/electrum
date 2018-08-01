@@ -297,3 +297,35 @@ def get_failure_msg_from_onion_error(decrypted_error_packet: bytes) -> OnionRout
     failure_code = int.from_bytes(failure_msg[:2], byteorder='big')
     failure_data = failure_msg[2:]
     return OnionRoutingFailureMessage(failure_code, failure_data)
+
+
+ONION_FC_BADONION = BADONION = 0x8000
+ONION_FC_PERM     = PERM     = 0x4000
+ONION_FC_NODE     = NODE     = 0x2000
+ONION_FC_UPDATE   = UPDATE   = 0x1000
+ONION_FAILURE_CODE_MAP = {
+    PERM | 1 : 'invalid_realm',
+    NODE | 2 : 'temporary_node_failure',
+    PERM | NODE | 2 : 'permanent_node_failure',
+    PERM | NODE | 3 : 'required_node_feature_missing',
+    BADONION | PERM | 4 : 'invalid_onion_version',
+    BADONION | PERM | 5 : 'invalid_onion_hmac',
+    BADONION | PERM | 6 : 'invalid_onion_key',
+    UPDATE | 7 : 'temporary_channel_failure',
+    PERM | 8 : 'permanent_channel_failure',
+    PERM | 9 : 'required_channel_feature_missing',
+    PERM | 10 : 'unknown_next_peer',
+    UPDATE | 11 : 'amount_below_minimum',
+    UPDATE | 12 : 'fee_insufficient',
+    UPDATE | 13 : 'incorrect_cltv_expiry',
+    UPDATE | 14 : 'expiry_too_soon',
+    PERM | 15 : 'unknown_payment_hash',
+    PERM | 16 : 'incorrect_payment_amount',
+    17 : 'final_expiry_too_soon',
+    18 : 'final_incorrect_cltv_expiry',
+    19 : 'final_incorrect_htlc_amount',
+    UPDATE | 20 : 'channel_disabled',
+    21 : 'expiry_too_far',
+}
+# don't use these elsewhere, the names are ambiguous without context
+del BADONION; del PERM; del NODE; del UPDATE
