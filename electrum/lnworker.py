@@ -16,7 +16,8 @@ from .lnbase import Peer, privkey_to_pubkey, aiosafe
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .lnhtlc import HTLCStateMachine
-from .lnutil import Outpoint, calc_short_channel_id, LNPeerAddr, get_compressed_pubkey_from_bech32
+from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr, get_compressed_pubkey_from_bech32,
+                     PaymentFailure)
 from .lnwatcher import LNChanCloseHandler
 from .i18n import _
 
@@ -175,7 +176,6 @@ class LNWorker(PrintError):
         return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     def pay(self, invoice, amount_sat=None):
-        # TODO try some number of paths (e.g. 10) in case of failures
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         payment_hash = addr.paymenthash
         invoice_pubkey = addr.pubkey.serialize()
@@ -185,7 +185,7 @@ class LNWorker(PrintError):
         amount_msat = int(amount_sat * 1000)
         path = self.network.path_finder.find_path_for_payment(self.pubkey, invoice_pubkey, amount_msat)
         if path is None:
-            raise Exception("No path found")
+            raise PaymentFailure(_("No path found"))
         node_id, short_channel_id = path[0]
         peer = self.peers[node_id]
         with self.lock:
@@ -194,7 +194,7 @@ class LNWorker(PrintError):
             if chan.short_channel_id == short_channel_id:
                 break
         else:
-            raise Exception("ChannelDB returned path with short_channel_id that is not in channel list")
+            raise Exception("ChannelDB returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
         coro = peer.pay(path, chan, amount_msat, payment_hash, invoice_pubkey, addr.min_final_cltv_expiry)
         return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
