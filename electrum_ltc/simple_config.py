@@ -4,7 +4,7 @@ import time
 import os
 import stat
 from decimal import Decimal
-from typing import Union
+from typing import Union, Optional
 from numbers import Real
 
 from copy import deepcopy
@@ -296,19 +296,27 @@ class SimpleConfig(PrintError):
             return fee
         return get_fee_within_limits
 
-    @impose_hard_limits_on_fee
-    def eta_to_fee(self, slider_pos) -> Union[int, None]:
+    def eta_to_fee(self, slider_pos) -> Optional[int]:
         """Returns fee in sat/kbyte."""
         slider_pos = max(slider_pos, 0)
         slider_pos = min(slider_pos, len(FEE_ETA_TARGETS))
         if slider_pos < len(FEE_ETA_TARGETS):
-            target_blocks = FEE_ETA_TARGETS[slider_pos]
-            fee = self.fee_estimates.get(target_blocks)
+            num_blocks = FEE_ETA_TARGETS[slider_pos]
+            fee = self.eta_target_to_fee(num_blocks)
         else:
+            fee = self.eta_target_to_fee(1)
+        return fee
+
+    @impose_hard_limits_on_fee
+    def eta_target_to_fee(self, num_blocks: int) -> Optional[int]:
+        """Returns fee in sat/kbyte."""
+        if num_blocks == 1:
             fee = self.fee_estimates.get(2)
             if fee is not None:
-                fee += fee/2
+                fee += fee / 2
                 fee = int(fee)
+        else:
+            fee = self.fee_estimates.get(num_blocks)
         return fee
 
     def fee_to_depth(self, target_fee: Real) -> int:

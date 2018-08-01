@@ -44,7 +44,7 @@ from .keystore import bip44_derivation
 
 OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 17     # electrum >= 2.7 will set this to prevent
+FINAL_SEED_VERSION = 18     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -356,6 +356,7 @@ class WalletStorage(JsonDB):
         self.convert_version_15()
         self.convert_version_16()
         self.convert_version_17()
+        self.convert_version_18()
 
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
         self.write()
@@ -569,6 +570,15 @@ class WalletStorage(JsonDB):
         self.put('spent_outpoints', spent_outpoints)
 
         self.put('seed_version', 17)
+
+    def convert_version_18(self):
+        # delete verified_tx3 as its structure changed
+        if not self._is_upgrade_method_needed(17, 17):
+            return
+
+        self.put('verified_tx3', None)
+
+        self.put('seed_version', 18)
 
     def convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):

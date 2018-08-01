@@ -131,8 +131,8 @@ class HistoryScreen(CScreen):
         d = LabelDialog(_('Enter Transaction Label'), text, callback)
         d.open()
 
-    def get_card(self, tx_hash, height, conf, timestamp, value, balance):
-        status, status_str = self.app.wallet.get_tx_status(tx_hash, height, conf, timestamp)
+    def get_card(self, tx_hash, tx_mined_status, value, balance):
+        status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_status)
         icon = "atlas://electrum_ltc/gui/kivy/theming/light/" + TX_ICONS[status]
         label = self.app.wallet.get_label(tx_hash) if tx_hash else _('Pruned transaction outputs')
         ri = {}
@@ -141,7 +141,7 @@ class HistoryScreen(CScreen):
         ri['icon'] = icon
         ri['date'] = status_str
         ri['message'] = label
-        ri['confirmations'] = conf
+        ri['confirmations'] = tx_mined_status.conf
         if value is not None:
             ri['is_mine'] = value < 0
             if value < 0: value = - value
@@ -158,7 +158,6 @@ class HistoryScreen(CScreen):
             return
         history = reversed(self.app.wallet.get_history())
         history_card = self.screen.ids.history_container
-        count = 0
         history_card.data = [self.get_card(*item) for item in history]
 
 

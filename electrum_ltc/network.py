@@ -89,6 +89,10 @@ def filter_version(servers):
     return {k: v for k, v in servers.items() if is_recent(v.get('version'))}
 
 
+def filter_noonion(servers):
+    return {k: v for k, v in servers.items() if not k.endswith('.onion')}
+
+
 def filter_protocol(hostmap, protocol='s'):
     '''Filters the hostmap for those implementing protocol.
     The result is a list in serialized form.'''
@@ -409,6 +413,8 @@ class Network(util.DaemonThread):
                     continue
                 if host not in out:
                     out[host] = {protocol: port}
+        if self.config.get('noonion'):
+            out = filter_noonion(out)
         return out
 
     @with_interface_lock

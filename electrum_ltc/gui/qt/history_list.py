@@ -29,7 +29,7 @@ import datetime
 from electrum_ltc.address_synchronizer import TX_HEIGHT_LOCAL
 from .util import *
 from electrum_ltc.i18n import _
-from electrum_ltc.util import block_explorer_URL, profiler, print_error
+from electrum_ltc.util import block_explorer_URL, profiler, print_error, TxMinedStatus
 
 try:
     from electrum_ltc.plot import plot_history, NothingToPlotException
@@ -237,7 +237,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             value = tx_item['value'].value
             balance = tx_item['balance'].value
             label = tx_item['label']
-            status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
+            tx_mined_status = TxMinedStatus(height, conf, timestamp, None)
+            status, status_str = self.wallet.get_tx_status(tx_hash, tx_mined_status)
             has_invoice = self.wallet.invoices.paid.get(tx_hash)
             icon = self.icon_cache.get(":icons/" + TX_ICONS[status])
             v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)
@@ -304,10 +305,11 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             label = self.wallet.get_label(txid)
             item.setText(3, label)
 
-    def update_item(self, tx_hash, height, conf, timestamp):
+    def update_item(self, tx_hash, tx_mined_status):
         if self.wallet is None:
             return
-        status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
+        conf = tx_mined_status.conf
+        status, status_str = self.wallet.get_tx_status(tx_hash, tx_mined_status)
         icon = self.icon_cache.get(":icons/" +  TX_ICONS[status])
         items = self.findItems(tx_hash, Qt.UserRole|Qt.MatchContains|Qt.MatchRecursive, column=1)
         if items:
@@ -332,7 +334,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             column_title = self.headerItem().text(column)
             column_data = item.text(column)
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
-        height, conf, timestamp = self.wallet.get_tx_height(tx_hash)
+        height = self.wallet.get_tx_height(tx_hash).height
         tx = self.wallet.transactions.get(tx_hash)
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         is_unconfirmed = height <= 0
