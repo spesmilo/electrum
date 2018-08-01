@@ -1328,11 +1328,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         hbox.addWidget(self.feerounding_icon, Qt.AlignLeft)
         hbox.addStretch(1)
 
-        vbox_feecontrol = QVBoxLayout()
+        self.feecontrol_fields = QWidget()
+        vbox_feecontrol = QVBoxLayout(self.feecontrol_fields)
+        vbox_feecontrol.setContentsMargins(0, 0, 0, 0)
         vbox_feecontrol.addWidget(self.fee_adv_controls)
         vbox_feecontrol.addWidget(self.fee_slider)
 
-        grid.addLayout(vbox_feecontrol, 5, 1, 1, -1)
+        grid.addWidget(self.feecontrol_fields, 5, 1, 1, -1)
 
         if not self.config.get('show_fee', False):
             self.fee_adv_controls.setVisible(False)
@@ -1436,6 +1438,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         '''Recalculate the fee.  If the fee was manually input, retain it, but
         still build the TX to see if there are enough funds.
         '''
+        if self.payto_e.is_lightning:
+            return
         freeze_fee = self.is_send_fee_frozen()
         freeze_feerate = self.is_send_feerate_frozen()
         amount = '!' if self.max_button.isChecked() else self.amount_e.get_amount()
@@ -1905,6 +1909,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.amount_e.setAmount(lnaddr.amount * COIN)
         #self.amount_e.textEdited.emit("")
         self.payto_e.is_lightning = True
+        self.show_send_tab_onchain_fees(False)
+
+    def show_send_tab_onchain_fees(self, b: bool):
+        self.feecontrol_fields.setVisible(b)
+        self.fee_e_label.setVisible(b)
 
     def pay_to_URI(self, URI):
         if not URI:
@@ -1943,6 +1952,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.payment_request = None
         self.payto_e.is_pr = False
         self.payto_e.is_lightning = False
+        self.show_send_tab_onchain_fees(True)
         for e in [self.payto_e, self.message_e, self.amount_e, self.fiat_send_e,
                   self.fee_e, self.feerate_e]:
             e.setText('')
