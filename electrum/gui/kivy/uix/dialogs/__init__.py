@@ -206,9 +206,9 @@ class OutputList(RecycleView):
 
     def update(self, outputs):
         res = []
-        for (type, address, amount) in outputs:
-            value = self.app.format_amount_and_units(amount)
-            res.append({'address': address, 'value': value})
+        for o in outputs:
+            value = self.app.format_amount_and_units(o.value)
+            res.append({'address': o.address, 'value': value})
         self.data = res
 
 
