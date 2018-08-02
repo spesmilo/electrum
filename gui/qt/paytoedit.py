@@ -141,7 +141,7 @@ class PayToEdit(ScanQRTextEdit):
                 self.errors.append((i, line.strip()))
                 continue
 
-            outputs.append((_type, to_address, amount))
+            outputs.append((_type, to_address, amount,""))
             if amount == '!':
                 is_max = True
             else:

@@ -1104,7 +1104,7 @@ class Abstract_Wallet(PrintError):
             return
         self.add_input_info(item)
         inputs = [item]
-        outputs = [(TYPE_ADDRESS, address, value - fee)]
+        outputs = [(TYPE_ADDRESS, address, value - fee,"")]
         locktime = self.get_local_height()
         return Transaction.from_io(inputs, outputs, locktime=locktime)
 
