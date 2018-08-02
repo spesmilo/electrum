@@ -38,7 +38,7 @@ from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_enc
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
-from .transaction import Transaction, multisig_script
+from .transaction import Transaction, multisig_script, TxOutput
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .plugin import run_hook
 
@@ -226,7 +226,7 @@ class Commands:
                 txin['signatures'] = [None]
                 txin['num_sig'] = 1
 
-        outputs = [(TYPE_ADDRESS, x['address'], int(x['value'])) for x in outputs]
+        outputs = [TxOutput(TYPE_ADDRESS, x['address'], int(x['value'])) for x in outputs]
         tx = Transaction.from_io(inputs, outputs, locktime=locktime)
         tx.sign(keypairs)
         return tx.as_dict()
@@ -415,7 +415,7 @@ class Commands:
         for address, amount in outputs:
             address = self._resolver(address)
             amount = satoshis(amount)
-            final_outputs.append((TYPE_ADDRESS, address, amount))
+            final_outputs.append(TxOutput(TYPE_ADDRESS, address, amount))
 
         coins = self.wallet.get_spendable_coins(domain, self.config)
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)

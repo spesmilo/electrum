@@ -713,13 +713,14 @@ class ElectrumWindow(App):
         self.fiat_balance = self.fx.format_amount(c+u+x) + ' [size=22dp]%s[/size]'% self.fx.ccy
 
     def get_max_amount(self):
+        from electrum_ltc.transaction import TxOutput
         if run_hook('abort_send', self):
             return ''
         inputs = self.wallet.get_spendable_coins(None, self.electrum_config)
         if not inputs:
             return ''
         addr = str(self.send_screen.screen.address) or self.wallet.dummy_address()
-        outputs = [(TYPE_ADDRESS, addr, '!')]
+        outputs = [TxOutput(TYPE_ADDRESS, addr, '!')]
         try:
             tx = self.wallet.make_unsigned_transaction(inputs, outputs, self.electrum_config)
         except NoDynamicFeeEstimates as e:

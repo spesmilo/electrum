@@ -20,6 +20,7 @@ from kivy.utils import platform
 
 from electrum_ltc.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum_ltc import bitcoin
+from electrum_ltc.transaction import TxOutput
 from electrum_ltc.util import timestamp_to_datetime
 from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum_ltc.plugin import run_hook
@@ -256,7 +257,7 @@ class SendScreen(CScreen):
             except:
                 self.app.show_error(_('Invalid amount') + ':\n' + self.screen.amount)
                 return
-            outputs = [(bitcoin.TYPE_ADDRESS, address, amount)]
+            outputs = [TxOutput(bitcoin.TYPE_ADDRESS, address, amount)]
         message = self.screen.message
         amount = sum(map(lambda x:x[2], outputs))
         if self.app.electrum_config.get('use_rbf'):

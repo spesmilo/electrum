@@ -6,6 +6,7 @@ import getpass
 import electrum_ltc as electrum
 from electrum_ltc.util import format_satoshis, set_verbosity
 from electrum_ltc.bitcoin import is_address, COIN, TYPE_ADDRESS
+from electrum_ltc.transaction import TxOutput
 from .. import Wallet, WalletStorage
 
 _ = lambda x:x
@@ -340,7 +341,8 @@ class ElectrumGui:
         else:
             password = None
         try:
-            tx = self.wallet.mktx([(TYPE_ADDRESS, self.str_recipient, amount)], password, self.config, fee)
+            tx = self.wallet.mktx([TxOutput(TYPE_ADDRESS, self.str_recipient, amount)],
+                                  password, self.config, fee)
         except Exception as e:
             self.show_message(str(e))
             return

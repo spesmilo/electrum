@@ -32,6 +32,7 @@ import urllib
 import threading
 import hmac
 import stat
+import inspect
 
 from .i18n import _
 
@@ -310,14 +311,24 @@ def constant_time_compare(val1, val2):
 
 # decorator that prints execution time
 def profiler(func):
-    def do_profile(func, args, kw_args):
-        n = func.__name__
+    def get_func_name(args):
+        arg_names_from_sig = inspect.getfullargspec(func).args
+        # prepend class name if there is one (and if we can find it)
+        if len(arg_names_from_sig) > 0 and len(args) > 0 \
+                and arg_names_from_sig[0] in ('self', 'cls', 'klass'):
+            classname = args[0].__class__.__name__
+        else:
+            classname = ''
+        name = '{}.{}'.format(classname, func.__name__) if classname else func.__name__
+        return name
+    def do_profile(args, kw_args):
+        name = get_func_name(args)
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0
-        print_error("[profiler]", n, "%.4f"%t)
+        print_error("[profiler]", name, "%.4f"%t)
         return o
-    return lambda *args, **kw_args: do_profile(func, args, kw_args)
+    return lambda *args, **kw_args: do_profile(args, kw_args)
 
 
 def android_ext_dir():
