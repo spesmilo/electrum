@@ -1200,7 +1200,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             outputs = self.payto_e.get_outputs(self.is_max)
             if not outputs:
                 _type, addr = self.get_payto_or_dummy()
-                outputs = [(_type, addr, amount)]
+                outputs = [(_type, addr, amount,"")]
             try:
                 is_sweep = bool(self.tx_external_keypairs)
                 tx = self.wallet.make_unsigned_transaction(

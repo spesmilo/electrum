@@ -260,7 +260,7 @@ class SendScreen(CScreen):
             except:
                 self.app.show_error(_('Invalid amount') + ':\n' + self.screen.amount)
                 return
-            outputs = [(bitcoin.TYPE_ADDRESS, address, amount)]
+            outputs = [(bitcoin.TYPE_ADDRESS, address, amount,"")]
         message = self.screen.message
         amount = sum(map(lambda x:x[2], outputs))
         if self.app.electrum_config.get('use_rbf'):

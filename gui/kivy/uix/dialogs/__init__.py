@@ -204,7 +204,7 @@ class OutputList(Factory.GridLayout):
 
     def update(self, outputs):
         self.clear_widgets()
-        for (type, address, amount) in outputs:
+        for (type, address, amount,script) in outputs:
             self.add_output(address, amount)
 
     def add_output(self, address, amount):
