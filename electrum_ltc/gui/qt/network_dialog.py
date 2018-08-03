@@ -106,9 +106,9 @@ class NodesListWidget(QTreeWidget):
             b = network.blockchains[k]
             name = b.get_name()
             if n_chains >1:
-                x = QTreeWidgetItem([name + '@%d'%b.get_checkpoint(), '%d'%b.height()])
+                x = QTreeWidgetItem([name + '@%d'%b.get_forkpoint(), '%d'%b.height()])
                 x.setData(0, Qt.UserRole, 1)
-                x.setData(1, Qt.UserRole, b.checkpoint)
+                x.setData(1, Qt.UserRole, b.forkpoint)
             else:
                 x = self
             for i in items:
@@ -357,9 +357,9 @@ class NetworkChoiceLayout(object):
         chains = self.network.get_blockchains()
         if len(chains)>1:
             chain = self.network.blockchain()
-            checkpoint = chain.get_checkpoint()
+            forkpoint = chain.get_forkpoint()
             name = chain.get_name()
-            msg = _('Chain split detected at block {0}').format(checkpoint) + '\n'
+            msg = _('Chain split detected at block {0}').format(forkpoint) + '\n'
             msg += (_('You are following branch') if auto_connect else _('Your server is on branch'))+ ' ' + name
             msg += ' (%d %s)' % (chain.get_branch_size(), _('blocks'))
         else:

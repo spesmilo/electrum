@@ -136,14 +136,14 @@ class AddressesDialog(Factory.Popup):
         for address in _list:
             label = wallet.labels.get(address, '')
             balance = sum(wallet.get_addr_balance(address))
-            is_used = wallet.is_used(address)
-            if self.show_used == 1 and (balance or is_used):
+            is_used_and_empty = wallet.is_used(address) and balance == 0
+            if self.show_used == 1 and (balance or is_used_and_empty):
                 continue
             if self.show_used == 2 and balance == 0:
                 continue
-            if self.show_used == 3 and not is_used:
+            if self.show_used == 3 and not is_used_and_empty:
                 continue
-            card = self.get_card(address, balance, is_used, label)
+            card = self.get_card(address, balance, is_used_and_empty, label)
             if search and not self.ext_search(card, search):
                 continue
             cards.append(card)

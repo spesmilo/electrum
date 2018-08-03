@@ -43,7 +43,7 @@ from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    TimeoutException, WalletFileException, BitcoinException,
-                   InvalidPassword)
+                   InvalidPassword, format_time)
 
 from .bitcoin import *
 from .version import *
@@ -386,11 +386,12 @@ class Abstract_Wallet(AddressSynchronizer):
         fiat_income = Decimal(0)
         fiat_expenditures = Decimal(0)
         h = self.get_history(domain)
+        now = time.time()
         for tx_hash, tx_mined_status, value, balance in h:
             timestamp = tx_mined_status.timestamp
-            if from_timestamp and (timestamp or time.time()) < from_timestamp:
+            if from_timestamp and (timestamp or now) < from_timestamp:
                 continue
-            if to_timestamp and (timestamp or time.time()) >= to_timestamp:
+            if to_timestamp and (timestamp or now) >= to_timestamp:
                 continue
             item = {
                 'txid': tx_hash,
@@ -398,10 +399,10 @@ class Abstract_Wallet(AddressSynchronizer):
                 'confirmations': tx_mined_status.conf,
                 'timestamp': timestamp,
                 'value': Satoshis(value),
-                'balance': Satoshis(balance)
+                'balance': Satoshis(balance),
+                'date': timestamp_to_datetime(timestamp),
+                'label': self.get_label(tx_hash),
             }
-            item['date'] = timestamp_to_datetime(timestamp)
-            item['label'] = self.get_label(tx_hash)
             if show_addresses:
                 tx = self.transactions.get(tx_hash)
                 item['inputs'] = list(map(lambda x: dict((k, x[k]) for k in ('prevout_hash', 'prevout_n')), tx.inputs()))
@@ -416,10 +417,9 @@ class Abstract_Wallet(AddressSynchronizer):
                 income += value
             # fiat computations
             if fx and fx.is_enabled():
-                date = timestamp_to_datetime(timestamp)
                 fiat_value = self.get_fiat_value(tx_hash, fx.ccy)
                 fiat_default = fiat_value is None
-                fiat_value = fiat_value if fiat_value is not None else value / Decimal(COIN) * self.price_at_timestamp(tx_hash, fx.timestamp_rate)
+                fiat_value = fiat_value if fiat_value is not None else value / Decimal(COIN) * self.price_at_timestamp(tx_hash, fx.timestamp_rate)  #
                 item['fiat_value'] = Fiat(fiat_value, fx.ccy)
                 item['fiat_default'] = fiat_default
                 if value < 0:
@@ -487,7 +487,6 @@ class Abstract_Wallet(AddressSynchronizer):
         return ''
 
     def get_tx_status(self, tx_hash, tx_mined_status):
-        from .util import format_time
         extra = []
         height = tx_mined_status.height
         conf = tx_mined_status.conf
@@ -1220,6 +1219,10 @@ class Imported_Wallet(Simple_Wallet):
     def get_fingerprint(self):
         return ''
 
+    def get_addresses(self):
+        # note: overridden so that the history can be cleared
+        return sorted(self.addresses.keys())
+
     def get_receiving_addresses(self):
         return self.get_addresses()
 
@@ -1352,7 +1355,8 @@ class Deterministic_Wallet(Abstract_Wallet):
         return self.keystore.has_seed()
 
     def get_addresses(self):
-        # overloaded so that addresses are ordered based on derivation
+        # note: overridden so that the history can be cleared.
+        # addresses are ordered based on derivation
         out = []
         out += self.get_receiving_addresses()
         out += self.get_change_addresses()

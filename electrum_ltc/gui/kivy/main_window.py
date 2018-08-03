@@ -88,7 +88,7 @@ class ElectrumWindow(App):
     balance = StringProperty('')
     fiat_balance = StringProperty('')
     is_fiat = BooleanProperty(False)
-    blockchain_checkpoint = NumericProperty(0)
+    blockchain_forkpoint = NumericProperty(0)
 
     auto_connect = BooleanProperty(False)
     def on_auto_connect(self, instance, x):
@@ -654,7 +654,7 @@ class ElectrumWindow(App):
         self.num_nodes = len(self.network.get_interfaces())
         self.num_chains = len(self.network.get_blockchains())
         chain = self.network.blockchain()
-        self.blockchain_checkpoint = chain.get_checkpoint()
+        self.blockchain_forkpoint = chain.get_forkpoint()
         self.blockchain_name = chain.get_name()
         interface = self.network.interface
         if interface:

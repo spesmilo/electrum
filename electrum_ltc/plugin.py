@@ -26,7 +26,6 @@ from collections import namedtuple
 import traceback
 import sys
 import os
-import imp
 import pkgutil
 import time
 import threading

@@ -145,7 +145,7 @@ class SPV(ThreadJob):
             raise InnerNodeOfSpvProofIsValidTx()
 
     def undo_verifications(self):
-        height = self.blockchain.get_checkpoint()
+        height = self.blockchain.get_forkpoint()
         tx_hashes = self.wallet.undo_verifications(self.blockchain, height)
         for tx_hash in tx_hashes:
             self.print_error("redoing", tx_hash)
