@@ -757,10 +757,7 @@ class AddressSynchronizer(PrintError):
 
     def is_used(self, address):
         h = self.history.get(address,[])
-        if len(h) == 0:
-            return False
-        c, u, x = self.get_addr_balance(address)
-        return c + u + x == 0
+        return len(h) != 0
 
     def is_empty(self, address):
         c, u, x = self.get_addr_balance(address)
