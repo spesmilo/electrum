@@ -79,12 +79,12 @@ def read_blockchains(config):
     l = filter(lambda x: x.startswith('fork_'), os.listdir(fdir))
     l = sorted(l, key = lambda x: int(x.split('_')[1]))
     for filename in l:
-        checkpoint = int(filename.split('_')[2])
+        forkpoint = int(filename.split('_')[2])
         parent_id = int(filename.split('_')[1])
-        b = Blockchain(config, checkpoint, parent_id)
-        h = b.read_header(b.checkpoint)
+        b = Blockchain(config, forkpoint, parent_id)
+        h = b.read_header(b.forkpoint)
         if b.parent().can_connect(h, check_height=False):
-            blockchains[b.checkpoint] = b
+            blockchains[b.forkpoint] = b
         else:
             util.print_error("cannot connect", filename)
     return blockchains
@@ -109,10 +109,10 @@ class Blockchain(util.PrintError):
     Manages blockchain headers and their verification
     """
 
-    def __init__(self, config, checkpoint, parent_id):
+    def __init__(self, config, forkpoint, parent_id):
         self.config = config
-        self.catch_up = None # interface catching up
-        self.checkpoint = checkpoint
+        self.catch_up = None  # interface catching up
+        self.forkpoint = forkpoint
         self.checkpoints = constants.net.CHECKPOINTS
         self.parent_id = parent_id
         self.lock = threading.Lock()
@@ -123,18 +123,18 @@ class Blockchain(util.PrintError):
         return blockchains[self.parent_id]
 
     def get_max_child(self):
-        children = list(filter(lambda y: y.parent_id==self.checkpoint, blockchains.values()))
-        return max([x.checkpoint for x in children]) if children else None
+        children = list(filter(lambda y: y.parent_id==self.forkpoint, blockchains.values()))
+        return max([x.forkpoint for x in children]) if children else None
 
-    def get_checkpoint(self):
+    def get_forkpoint(self):
         mc = self.get_max_child()
-        return mc if mc is not None else self.checkpoint
+        return mc if mc is not None else self.forkpoint
 
     def get_branch_size(self):
-        return self.height() - self.get_checkpoint() + 1
+        return self.height() - self.get_forkpoint() + 1
 
     def get_name(self):
-        return self.get_hash(self.get_checkpoint()).lstrip('00')[0:10]
+        return self.get_hash(self.get_forkpoint()).lstrip('00')[0:10]
 
     def check_header(self, header):
         header_hash = hash_header(header)
@@ -142,14 +142,14 @@ class Blockchain(util.PrintError):
         return header_hash == self.get_hash(height)
 
     def fork(parent, header):
-        checkpoint = header.get('block_height')
-        self = Blockchain(parent.config, checkpoint, parent.checkpoint)
+        forkpoint = header.get('block_height')
+        self = Blockchain(parent.config, forkpoint, parent.forkpoint)
         open(self.path(), 'w+').close()
         self.save_header(header)
         return self
 
     def height(self):
-        return self.checkpoint + self.size() - 1
+        return self.forkpoint + self.size() - 1
 
     def size(self):
         with self.lock:
@@ -183,12 +183,11 @@ class Blockchain(util.PrintError):
 
     def path(self):
         d = util.get_headers_dir(self.config)
-        filename = 'blockchain_headers' if self.parent_id is None else os.path.join('forks', 'fork_%d_%d'%(self.parent_id, self.checkpoint))
+        filename = 'blockchain_headers' if self.parent_id is None else os.path.join('forks', 'fork_%d_%d'%(self.parent_id, self.forkpoint))
         return os.path.join(d, filename)
 
     def save_chunk(self, index, chunk):
-        filename = self.path()
-        d = (index * 2016 - self.checkpoint) * 80
+        d = (index * 2016 - self.forkpoint) * 80
         if d < 0:
             chunk = chunk[-d:]
             d = 0
@@ -199,28 +198,28 @@ class Blockchain(util.PrintError):
     def swap_with_parent(self):
         if self.parent_id is None:
             return
-        parent_branch_size = self.parent().height() - self.checkpoint + 1
+        parent_branch_size = self.parent().height() - self.forkpoint + 1
         if parent_branch_size >= self.size():
             return
-        self.print_error("swap", self.checkpoint, self.parent_id)
+        self.print_error("swap", self.forkpoint, self.parent_id)
         parent_id = self.parent_id
-        checkpoint = self.checkpoint
+        forkpoint = self.forkpoint
         parent = self.parent()
         self.assert_headers_file_available(self.path())
         with open(self.path(), 'rb') as f:
             my_data = f.read()
         self.assert_headers_file_available(parent.path())
         with open(parent.path(), 'rb') as f:
-            f.seek((checkpoint - parent.checkpoint)*80)
+            f.seek((forkpoint - parent.forkpoint)*80)
             parent_data = f.read(parent_branch_size*80)
         self.write(parent_data, 0)
-        parent.write(my_data, (checkpoint - parent.checkpoint)*80)
+        parent.write(my_data, (forkpoint - parent.forkpoint)*80)
         # store file path
         for b in blockchains.values():
             b.old_path = b.path()
         # swap parameters
         self.parent_id = parent.parent_id; parent.parent_id = parent_id
-        self.checkpoint = parent.checkpoint; parent.checkpoint = checkpoint
+        self.forkpoint = parent.forkpoint; parent.forkpoint = forkpoint
         self._size = parent._size; parent._size = parent_branch_size
         # move files
         for b in blockchains.values():
@@ -229,8 +228,8 @@ class Blockchain(util.PrintError):
                 self.print_error("renaming", b.old_path, b.path())
                 os.rename(b.old_path, b.path())
         # update pointers
-        blockchains[self.checkpoint] = self
-        blockchains[parent.checkpoint] = parent
+        blockchains[self.forkpoint] = self
+        blockchains[parent.forkpoint] = parent
 
     def assert_headers_file_available(self, path):
         if os.path.exists(path):
@@ -255,7 +254,7 @@ class Blockchain(util.PrintError):
             self.update_size()
 
     def save_header(self, header):
-        delta = header.get('block_height') - self.checkpoint
+        delta = header.get('block_height') - self.forkpoint
         data = bfh(serialize_header(header))
         assert delta == self.size()
         assert len(data) == 80
@@ -263,14 +262,14 @@ class Blockchain(util.PrintError):
         self.swap_with_parent()
 
     def read_header(self, height):
-        assert self.parent_id != self.checkpoint
+        assert self.parent_id != self.forkpoint
         if height < 0:
             return
-        if height < self.checkpoint:
+        if height < self.forkpoint:
             return self.parent().read_header(height)
         if height > self.height():
             return
-        delta = height - self.checkpoint
+        delta = height - self.forkpoint
         name = self.path()
         self.assert_headers_file_available(name)
         with open(name, 'rb') as f:

@@ -46,7 +46,7 @@ Popup:
 
                 CardSeparator
                 SettingsItem:
-                    title: _('Fork detected at block {}').format(app.blockchain_checkpoint) if app.num_chains>1 else _('No fork detected')
+                    title: _('Fork detected at block {}').format(app.blockchain_forkpoint) if app.num_chains>1 else _('No fork detected')
                     fork_description: (_('You are following branch') if app.auto_connect else _("Your server is on branch")) + ' ' + app.blockchain_name
                     description: self.fork_description if app.num_chains>1 else _('Connected nodes are on the same chain')
                     action: app.choose_blockchain_dialog
