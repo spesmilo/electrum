@@ -115,9 +115,16 @@ class Blockchain(util.PrintError):
         self.forkpoint = forkpoint
         self.checkpoints = constants.net.CHECKPOINTS
         self.parent_id = parent_id
-        self.lock = threading.Lock()
+        assert parent_id != forkpoint
+        self.lock = threading.RLock()
         with self.lock:
             self.update_size()
+
+    def with_lock(func):
+        def func_wrapper(self, *args, **kwargs):
+            with self.lock:
+                return func(self, *args, **kwargs)
+        return func_wrapper
 
     def parent(self):
         return blockchains[self.parent_id]
@@ -186,15 +193,27 @@ class Blockchain(util.PrintError):
         filename = 'blockchain_headers' if self.parent_id is None else os.path.join('forks', 'fork_%d_%d'%(self.parent_id, self.forkpoint))
         return os.path.join(d, filename)
 
+    @with_lock
     def save_chunk(self, index, chunk):
-        d = (index * 2016 - self.forkpoint) * 80
-        if d < 0:
-            chunk = chunk[-d:]
-            d = 0
-        truncate = index >= len(self.checkpoints)
-        self.write(chunk, d, truncate)
+        chunk_within_checkpoint_region = index < len(self.checkpoints)
+        # chunks in checkpoint region are the responsibility of the 'main chain'
+        if chunk_within_checkpoint_region and self.parent_id is not None:
+            main_chain = blockchains[0]
+            main_chain.save_chunk(index, chunk)
+            return
+
+        delta_height = (index * 2016 - self.forkpoint)
+        delta_bytes = delta_height * 80
+        # if this chunk contains our forkpoint, only save the part after forkpoint
+        # (the part before is the responsibility of the parent)
+        if delta_bytes < 0:
+            chunk = chunk[-delta_bytes:]
+            delta_bytes = 0
+        truncate = not chunk_within_checkpoint_region
+        self.write(chunk, delta_bytes, truncate)
         self.swap_with_parent()
 
+    @with_lock
     def swap_with_parent(self):
         if self.parent_id is None:
             return
@@ -253,9 +272,11 @@ class Blockchain(util.PrintError):
                 os.fsync(f.fileno())
             self.update_size()
 
+    @with_lock
     def save_header(self, header):
         delta = header.get('block_height') - self.forkpoint
         data = bfh(serialize_header(header))
+        # headers are only _appended_ to the end:
         assert delta == self.size()
         assert len(data) == 80
         self.write(data, delta*80)
