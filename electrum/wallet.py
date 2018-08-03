@@ -1219,6 +1219,10 @@ class Imported_Wallet(Simple_Wallet):
     def get_fingerprint(self):
         return ''
 
+    def get_addresses(self):
+        # note: overridden so that the history can be cleared
+        return sorted(self.addresses.keys())
+
     def get_receiving_addresses(self):
         return self.get_addresses()
 
@@ -1351,7 +1355,8 @@ class Deterministic_Wallet(Abstract_Wallet):
         return self.keystore.has_seed()
 
     def get_addresses(self):
-        # overloaded so that addresses are ordered based on derivation
+        # note: overridden so that the history can be cleared.
+        # addresses are ordered based on derivation
         out = []
         out += self.get_receiving_addresses()
         out += self.get_change_addresses()
