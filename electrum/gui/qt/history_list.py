@@ -229,6 +229,9 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         current_tx = item.data(0, Qt.UserRole) if item else None
         self.clear()
         if fx: fx.history_used_spot = False
+        blue_brush = QBrush(QColor("#1E1EFF"))
+        red_brush = QBrush(QColor("#BC1E1E"))
+        monospace_font = QFont(MONOSPACE_FONT)
         for tx_item in self.transactions:
             tx_hash = tx_item['txid']
             height = tx_item['height']
@@ -263,12 +266,12 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                 if i>3:
                     item.setTextAlignment(i, Qt.AlignRight | Qt.AlignVCenter)
                 if i!=2:
-                    item.setFont(i, QFont(MONOSPACE_FONT))
+                    item.setFont(i, monospace_font)
             if value and value < 0:
-                item.setForeground(3, QBrush(QColor("#BC1E1E")))
-                item.setForeground(4, QBrush(QColor("#BC1E1E")))
+                item.setForeground(3, red_brush)
+                item.setForeground(4, red_brush)
             if fiat_value and not tx_item['fiat_default']:
-                item.setForeground(6, QBrush(QColor("#1E1EFF")))
+                item.setForeground(6, blue_brush)
             if tx_hash:
                 item.setData(0, Qt.UserRole, tx_hash)
             self.insertTopLevelItem(0, item)

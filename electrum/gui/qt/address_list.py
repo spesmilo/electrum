@@ -93,8 +93,9 @@ class AddressList(MyTreeWidget):
         else:
             addr_list = self.wallet.get_addresses()
         self.clear()
+        fx = self.parent.fx
         for address in addr_list:
-            num = len(self.wallet.get_address_history(address))
+            num = self.wallet.get_address_history_len(address)
             label = self.wallet.labels.get(address, '')
             c, u, x = self.wallet.get_addr_balance(address)
             balance = c + u + x
@@ -106,7 +107,6 @@ class AddressList(MyTreeWidget):
             if self.show_used == 3 and not is_used_and_empty:
                 continue
             balance_text = self.parent.format_amount(balance, whitespaces=True)
-            fx = self.parent.fx
             # create item
             if fx and fx.get_fiat_address_config():
                 rate = fx.exchange_rate()

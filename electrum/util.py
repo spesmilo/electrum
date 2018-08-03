@@ -33,6 +33,7 @@ import threading
 import hmac
 import stat
 import inspect
+from locale import localeconv
 
 from .i18n import _
 
@@ -120,6 +121,8 @@ class UserCancelled(Exception):
     pass
 
 class Satoshis(object):
+    __slots__ = ('value',)
+
     def __new__(cls, value):
         self = super(Satoshis, cls).__new__(cls)
         self.value = value
@@ -132,6 +135,8 @@ class Satoshis(object):
         return format_satoshis(self.value) + " BTC"
 
 class Fiat(object):
+    __slots__ = ('value', 'ccy')
+
     def __new__(cls, value, ccy):
         self = super(Fiat, cls).__new__(cls)
         self.ccy = ccy
@@ -477,8 +482,10 @@ def format_satoshis_plain(x, decimal_point = 8):
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
 
+DECIMAL_POINT = localeconv()['decimal_point']
+
+
 def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False):
-    from locale import localeconv
     if x is None:
         return 'unknown'
     if precision is None:
@@ -488,7 +495,7 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
         decimal_format = '+' + decimal_format
     result = ("{:" + decimal_format + "f}").format(x / pow (10, decimal_point)).rstrip('0')
     integer_part, fract_part = result.split(".")
-    dp = localeconv()['decimal_point']
+    dp = DECIMAL_POINT
     if len(fract_part) < num_zeros:
         fract_part += "0" * (num_zeros - len(fract_part))
     result = integer_part + dp + fract_part

@@ -101,6 +101,9 @@ class AddressSynchronizer(PrintError):
                 h.append((tx_hash, tx_height))
         return h
 
+    def get_address_history_len(self, addr: str) -> int:
+        return len(self._history_local.get(addr, ()))
+
     def get_txin_address(self, txi):
         addr = txi.get('address')
         if addr and addr != "(pubkey)":
