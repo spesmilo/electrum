@@ -216,8 +216,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.connect_slots(gui_object.timer)
         self.fetch_alias()
 
+    last_update_time = time.time()
+
     def on_history(self, b):
-        self.new_fx_history_signal.emit()
+        if time.time() - self.last_update_time > 1.0:
+            self.last_update_time = time.time()
+            self.new_fx_history_signal.emit()
 
     def setup_exception_hook(self):
         Exception_Hook(self)
@@ -592,9 +596,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
          ])
         self.show_message(msg, title="Electron Cash - " + _("Reporting Bugs"))
 
+    last_notify_transactions_time = time.time()
+
     def notify_transactions(self):
         if not self.network or not self.network.is_connected():
             return
+        if self.last_notify_transactions_time < 45.0:
+            return
+        self.last_notify_transactions_time = time.time()
+
         self.print_error("Notifying GUI")
         if len(self.tx_notifications) > 0:
             # Combine the transactions if there are at least three
@@ -650,6 +660,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.need_update.is_set():
             self.need_update.clear()
             self.update_wallet()
+        elif time.time() - self.last_update_time > 1.0:
+            self.last_update_time = time.time()
+            self.on_fx_history()
+
         # resolve aliases
         # FIXME this is a blocking network call that has a timeout of 5 sec
         self.payto_e.resolve()
@@ -1134,7 +1148,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.fee_slider = FeeSlider(self, self.config, fee_cb)
         self.fee_slider.setFixedWidth(140)
-        
+
         self.fee_custom_lbl = HelpLabel(self.get_custom_fee_text(),
                                         _('This is the fee rate that will be used for this transaction.')
                                         + "\n\n" + _('It is calculated from the Custom Fee Rate in preferences, but can be overridden from the manual fee edit on this form (if enabled).')
@@ -1142,7 +1156,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_custom_lbl.setFixedWidth(140)
 
         self.fee_slider_mogrifier()
-        
+
         self.fee_e = BTCAmountEdit(self.get_decimal_point)
         if not self.config.get('show_fee', False):
             self.fee_e.setVisible(False)
@@ -1243,7 +1257,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if r:
             return r
         return (TYPE_ADDRESS, self.wallet.dummy_address())
-    
+
     def get_custom_fee_text(self, fee_rate = None):
         if not self.config.has_custom_fee_rate():
             return ""
@@ -1287,7 +1301,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 opreturn_message = self.message_opreturn_e.text() if self.config.get('enable_opreturn') else None
                 if opreturn_message:
                     outputs.append(self.output_for_opreturn_stringdata(opreturn_message))
-                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee) 
+                tx = self.wallet.make_unsigned_transaction(self.get_coins(), outputs, self.config, fee)
                 self.not_enough_funds = False
                 self.op_return_toolong = False
             except NotEnoughFunds:
@@ -1314,7 +1328,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if fee is not None:
                 fee_rate = fee / tx.estimated_size()
         self.fee_slider_mogrifier(self.get_custom_fee_text(fee_rate))
-    
+
     def fee_slider_mogrifier(self, text = None):
         fee_slider_hidden = self.config.has_custom_fee_rate()
         self.fee_slider.setHidden(fee_slider_hidden)
@@ -2703,11 +2717,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         except ValueError:
             index = 0
         lang_combo.setCurrentIndex(index)
-        
+
         if not self.config.is_modifiable('language'):
             for w in [lang_combo, lang_label]:
                 w.setEnabled(False)
-                
+
         def on_lang(x):
             lang_request = language_keys[lang_combo.currentIndex()]
             if lang_request != self.config.get('language'):
@@ -2737,14 +2751,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def on_customfee(x):
             amt = customfee_e.get_amount()
             m = int(amt * 1000.0) if amt is not None else None
-            self.config.set_key('customfee', m) 
+            self.config.set_key('customfee', m)
             self.fee_slider.update()
             self.fee_slider_mogrifier()
-    
-        customfee_e = BTCSatsByteEdit() 
+
+        customfee_e = BTCSatsByteEdit()
         customfee_e.setAmount(self.config.custom_fee_rate() / 1000.0 if self.config.has_custom_fee_rate() else None)
         customfee_e.textChanged.connect(on_customfee)
-        customfee_label = HelpLabel(_('Custom Fee Rate'), _('Custom Fee Rate in Satoshis per byte')) 
+        customfee_label = HelpLabel(_('Custom Fee Rate'), _('Custom Fee Rate in Satoshis per byte'))
         fee_widgets.append((customfee_label, customfee_e))
 
         feebox_cb = QCheckBox(_('Edit fees manually'))
@@ -2924,7 +2938,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.op_return_toolong = False
             self.message_opreturn_e.setHidden(not x)
             self.opreturn_label.setHidden(not x)
-             
+
         enable_opreturn = bool(self.config.get('enable_opreturn'))
         opret_cb = QCheckBox(_('Enable OP_RETURN output'))
         opret_cb.setToolTip(_('Enable posting messages with OP_RETURN.'))
@@ -3059,7 +3073,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.wallet.thread.stop()
         if self.network:
             self.network.unregister_callback(self.on_network)
-            
+
         # We catch these errors with the understanding that there is no recovery at
         # this point, given user has likely performed an action we cannot recover
         # cleanly from.  So we attempt to exit as cleanly as possible.
