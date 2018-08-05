@@ -269,7 +269,7 @@ class Interface(util.PrintError):
         self.mode = None
         
     def set_mode(self, mode):
-        self.print_msg("set_mode({})".format(mode))
+        self.print_error("set_mode({})".format(mode))
         self.mode = mode
 
     def diagnostic_name(self):

@@ -39,12 +39,12 @@ class SPV(ThreadJob):
     def run(self):
         interface = self.network.interface
         if not interface:
-            print("v.no interface")
+            self.print_error("v.no interface")
             return
 
         blockchain = interface.blockchain
         if not blockchain:
-            print("v.no blockchain", interface.server)
+            self.print_error("v.no blockchain", interface.server)
             return
 
         local_height = self.network.get_local_height()
