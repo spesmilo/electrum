@@ -842,11 +842,6 @@ class Abstract_Wallet(PrintError):
                 balance -= delta
         h2.reverse()
 
-        # fixme: this may happen if history is incomplete
-        if balance not in [None, 0]:
-            self.print_error("Error: history not synchronized")
-            return []
-
         return h2
 
     def export_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
