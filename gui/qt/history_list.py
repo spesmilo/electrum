@@ -55,6 +55,11 @@ class HistoryList(MyTreeWidget):
         self.setSortingEnabled(True)
         self.sortByColumn(0, Qt.AscendingOrder)
 
+        self.monospaceFont = QFont(MONOSPACE_FONT)
+        self.withdrawalBrush = QBrush(QColor("#BC1E1E"))
+        self.invoiceIcon = QIcon(":icons/seal")
+        self.statusIcons = {}
+
     def refresh_headers(self):
         headers = ['', '', _('Date'), _('Description') , _('Amount'), _('Balance')]
         fx = self.parent.fx
@@ -65,7 +70,7 @@ class HistoryList(MyTreeWidget):
     def get_domain(self):
         '''Replaced in address_dialog.py'''
         return self.wallet.get_addresses()
-
+        
     @profiler
     def on_update(self):
         self.wallet = self.parent.wallet
@@ -79,7 +84,9 @@ class HistoryList(MyTreeWidget):
             tx_hash, height, conf, timestamp, value, balance = h_item
             status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
             has_invoice = self.wallet.invoices.paid.get(tx_hash)
-            icon = QIcon(":icons/" + TX_ICONS[status])
+            if status not in self.statusIcons:
+                self.statusIcons[status] = QIcon(":icons/" + TX_ICONS[status])
+            icon = self.statusIcons[status]
             v_str = self.parent.format_amount(value, True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             label = self.wallet.get_label(tx_hash)
@@ -94,17 +101,16 @@ class HistoryList(MyTreeWidget):
             item.setToolTip(0, str(conf) + " confirmation" + ("s" if conf != 1 else ""))
             item.setData(0, SortableTreeWidgetItem.DataRole, (status, conf))
             if has_invoice:
-                item.setIcon(3, QIcon(":icons/seal"))
+                item.setIcon(3, self.invoiceIcon)
             for i in range(len(entry)):
                 if i>3:
                     item.setTextAlignment(i, Qt.AlignRight)
                 if i!=2:
-                    item.setFont(i, QFont(MONOSPACE_FONT))
+                    item.setFont(i, self.monospaceFont)
             if value and value < 0:
-                item.setForeground(3, QBrush(QColor("#BC1E1E")))
-                item.setForeground(4, QBrush(QColor("#BC1E1E")))
-            if tx_hash:
-                item.setData(0, Qt.UserRole, tx_hash)
+                item.setForeground(3, self.withdrawalBrush)
+                item.setForeground(4, self.withdrawalBrush)
+            item.setData(0, Qt.UserRole, tx_hash)
             self.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
