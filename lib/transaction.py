@@ -780,7 +780,7 @@ class Transaction:
         return self
 
     @classmethod
-    def pay_script(self, output_type, addr,script_pub):
+    def pay_script(self, output_type, addr,script_pub=""):
         if output_type == TYPE_SCRIPT:
             return addr
         elif output_type == TYPE_ADDRESS:
@@ -963,14 +963,12 @@ class Transaction:
             return
         if self.is_cal_withdraw_balance:
             return
-        index = 0
         for t,x,v,scri in self._outputs:
             if t ==TYPE_SCRIPT:
                 if x[-2:] == "c5":
-                    dt,da = get_address_from_output_script(bytearray.fromhex(x) ,index )
+                    dt,da = get_address_from_output_script(bytearray.fromhex(x))
                     if dt == TYPE_CONTRACT_WITHDRAW_ADDRESS:
                         self.contract_withdraw_balance += da[1]
-            index +=1
         self.is_cal_withdraw_balance = True
 
 
