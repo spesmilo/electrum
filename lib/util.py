@@ -220,8 +220,10 @@ class ForkData:
     second_fork_max_index = 283
 
     third_fork_chunk_size = 1
-    third_fork_height = 551111 # 524000
-    third_fork_max_index = 4755
+    # third_fork_height = 551111 # 524000
+    # third_fork_max_index = 4755
+    third_fork_height = 524111  # 524000
+    third_fork_max_index = 2055
     MINING_TYPE_POW = 0x02000000
     MINING_TYPE_POS = 0x01000000
 
@@ -304,7 +306,8 @@ def ub_default_diffculty(is_pos):
     if is_pos ==0:
         return 0x00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     else:
-        return 0x000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffff
+        #return 0x000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffff
+        return 0x0fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 
 def android_ext_dir():
@@ -410,7 +413,7 @@ def user_dir():
     elif os.name == 'posix':
         return os.path.join(os.environ["HOME"], ".ubtc_electrum")
     elif "APPDATA" in os.environ:
-        return os.path.join(os.environ["APPDATA"], "ubtc_Electrum")
+        return os.path.join(os.environ["APPDATA"], "ubtc_Electrum_test")
     elif "LOCALAPPDATA" in os.environ:
         return os.path.join(os.environ["LOCALAPPDATA"], "ubtc_Electrum")
     else:

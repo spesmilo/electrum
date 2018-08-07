@@ -438,6 +438,7 @@ def get_address_from_output_script(_bytes,index = -1,txid = ''):
     TO_DEPOSIT_TO_CONTRACT = [-1, -1, -1, -1, -1, -1,-1, opcodes.OP_DEPOSIT_TO_CONTRACT]
     if match_decoded(decoded, TO_DEPOSIT_TO_CONTRACT):
         data = convert_OP_1_N(decoded[2])[1]
+        data = bytearray(data)
         data.reverse()
         res_data = ""
         for b in data:
@@ -452,6 +453,7 @@ def get_address_from_output_script(_bytes,index = -1,txid = ''):
     TO_SPENT = [-1, -1, opcodes.OP_SPEND]
     if match_decoded(decoded, TO_SPENT):
         data = convert_OP_1_N(decoded[0])[1]
+        data = bytearray(data)
         data.reverse()
         res_data = ""
         for b in data:
@@ -952,6 +954,14 @@ class Transaction:
             script_pub = ""
         else:
             output_type, addr, amount,script_pub = output
+        if script_pub!="":
+            tmp_type,tmp_value = get_address_from_output_script(bfh(script_pub))
+            if tmp_type == TYPE_CONTRACT_DEPOSIT_ADDRESS or tmp_type == TYPE_CONTRACT_WITHDRAW_ADDRESS:
+                s= int_to_hex(0,8)
+                script = self.pay_script(output_type, addr,script_pub)
+                s += var_int(len(script) // 2)
+                s += script
+                return s
         s = int_to_hex(amount, 8)
         script = self.pay_script(output_type, addr,script_pub)
         s += var_int(len(script)//2)
