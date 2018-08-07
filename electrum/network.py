@@ -89,6 +89,10 @@ def filter_version(servers):
     return {k: v for k, v in servers.items() if is_recent(v.get('version'))}
 
 
+def filter_noonion(servers):
+    return {k: v for k, v in servers.items() if not k.endswith('.onion')}
+
+
 def filter_protocol(hostmap, protocol='s'):
     '''Filters the hostmap for those implementing protocol.
     The result is a list in serialized form.'''
@@ -409,6 +413,8 @@ class Network(util.DaemonThread):
                     continue
                 if host not in out:
                     out[host] = {protocol: port}
+        if self.config.get('noonion'):
+            out = filter_noonion(out)
         return out
 
     @with_interface_lock
@@ -897,6 +903,7 @@ class Network(util.DaemonThread):
             self.connection_down(interface.server)
             return
         height = header.get('block_height')
+        #interface.print_error('got header', height, blockchain.hash_header(header))
         if interface.request != height:
             interface.print_error("unsolicited header",interface.request, height)
             self.connection_down(interface.server)
@@ -911,6 +918,9 @@ class Network(util.DaemonThread):
                 next_height = height + 1
                 interface.blockchain.catch_up = interface.server
             elif chain:
+                # FIXME should await "initial chunk download".
+                # binary search will NOT do the correct thing if we don't yet
+                # have all headers up to the fork height
                 interface.print_error("binary search")
                 interface.mode = 'binary'
                 interface.blockchain = chain
@@ -952,9 +962,9 @@ class Network(util.DaemonThread):
                     elif branch.parent().check_header(header):
                         interface.print_error('reorg', interface.bad, interface.tip)
                         interface.blockchain = branch.parent()
-                        next_height = None
+                        next_height = interface.bad
                     else:
-                        interface.print_error('checkpoint conflicts with existing fork', branch.path())
+                        interface.print_error('forkpoint conflicts with existing fork', branch.path())
                         branch.write(b'', 0)
                         branch.save_header(interface.bad_header)
                         interface.mode = 'catch_up'
@@ -970,10 +980,12 @@ class Network(util.DaemonThread):
                             with self.blockchains_lock:
                                 self.blockchains[interface.bad] = b
                             interface.blockchain = b
-                            interface.print_error("new chain", b.checkpoint)
+                            interface.print_error("new chain", b.forkpoint)
                             interface.mode = 'catch_up'
-                            next_height = interface.bad + 1
-                            interface.blockchain.catch_up = interface.server
+                            maybe_next_height = interface.bad + 1
+                            if maybe_next_height <= interface.tip:
+                                next_height = maybe_next_height
+                                interface.blockchain.catch_up = interface.server
                     else:
                         assert bh == interface.good
                         if interface.blockchain.catch_up is None and bh < interface.tip:
@@ -1086,6 +1098,7 @@ class Network(util.DaemonThread):
         except InvalidHeader:
             self.connection_down(interface.server)
             return
+        #interface.print_error('notified of header', height, blockchain.hash_header(header))
         if height < self.max_checkpoint():
             self.connection_down(interface.server)
             return
@@ -1130,7 +1143,7 @@ class Network(util.DaemonThread):
     @with_interface_lock
     def blockchain(self):
         if self.interface and self.interface.blockchain is not None:
-            self.blockchain_index = self.interface.blockchain.checkpoint
+            self.blockchain_index = self.interface.blockchain.forkpoint
         return self.blockchains[self.blockchain_index]
 
     @with_interface_lock

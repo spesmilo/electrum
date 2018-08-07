@@ -20,6 +20,7 @@ from kivy.utils import platform
 
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
 from electrum import bitcoin
+from electrum.transaction import TxOutput
 from electrum.util import timestamp_to_datetime
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum.plugin import run_hook
@@ -131,8 +132,8 @@ class HistoryScreen(CScreen):
         d = LabelDialog(_('Enter Transaction Label'), text, callback)
         d.open()
 
-    def get_card(self, tx_hash, height, conf, timestamp, value, balance):
-        status, status_str = self.app.wallet.get_tx_status(tx_hash, height, conf, timestamp)
+    def get_card(self, tx_hash, tx_mined_status, value, balance):
+        status, status_str = self.app.wallet.get_tx_status(tx_hash, tx_mined_status)
         icon = "atlas://electrum/gui/kivy/theming/light/" + TX_ICONS[status]
         label = self.app.wallet.get_label(tx_hash) if tx_hash else _('Pruned transaction outputs')
         ri = {}
@@ -141,7 +142,7 @@ class HistoryScreen(CScreen):
         ri['icon'] = icon
         ri['date'] = status_str
         ri['message'] = label
-        ri['confirmations'] = conf
+        ri['confirmations'] = tx_mined_status.conf
         if value is not None:
             ri['is_mine'] = value < 0
             if value < 0: value = - value
@@ -158,7 +159,6 @@ class HistoryScreen(CScreen):
             return
         history = reversed(self.app.wallet.get_history())
         history_card = self.screen.ids.history_container
-        count = 0
         history_card.data = [self.get_card(*item) for item in history]
 
 
@@ -257,7 +257,7 @@ class SendScreen(CScreen):
             except:
                 self.app.show_error(_('Invalid amount') + ':\n' + self.screen.amount)
                 return
-            outputs = [(bitcoin.TYPE_ADDRESS, address, amount)]
+            outputs = [TxOutput(bitcoin.TYPE_ADDRESS, address, amount)]
         message = self.screen.message
         amount = sum(map(lambda x:x[2], outputs))
         if self.app.electrum_config.get('use_rbf'):

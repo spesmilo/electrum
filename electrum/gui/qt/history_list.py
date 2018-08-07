@@ -29,7 +29,7 @@ import datetime
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from .util import *
 from electrum.i18n import _
-from electrum.util import block_explorer_URL, profiler, print_error
+from electrum.util import block_explorer_URL, profiler, print_error, TxMinedStatus
 
 try:
     from electrum.plot import plot_history, NothingToPlotException
@@ -229,6 +229,9 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         current_tx = item.data(0, Qt.UserRole) if item else None
         self.clear()
         if fx: fx.history_used_spot = False
+        blue_brush = QBrush(QColor("#1E1EFF"))
+        red_brush = QBrush(QColor("#BC1E1E"))
+        monospace_font = QFont(MONOSPACE_FONT)
         for tx_item in self.transactions:
             tx_hash = tx_item['txid']
             height = tx_item['height']
@@ -237,7 +240,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             value = tx_item['value'].value
             balance = tx_item['balance'].value
             label = tx_item['label']
-            status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
+            tx_mined_status = TxMinedStatus(height, conf, timestamp, None)
+            status, status_str = self.wallet.get_tx_status(tx_hash, tx_mined_status)
             has_invoice = self.wallet.invoices.paid.get(tx_hash)
             icon = self.icon_cache.get(":icons/" + TX_ICONS[status])
             v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)
@@ -262,12 +266,12 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                 if i>3:
                     item.setTextAlignment(i, Qt.AlignRight | Qt.AlignVCenter)
                 if i!=2:
-                    item.setFont(i, QFont(MONOSPACE_FONT))
+                    item.setFont(i, monospace_font)
             if value and value < 0:
-                item.setForeground(3, QBrush(QColor("#BC1E1E")))
-                item.setForeground(4, QBrush(QColor("#BC1E1E")))
+                item.setForeground(3, red_brush)
+                item.setForeground(4, red_brush)
             if fiat_value and not tx_item['fiat_default']:
-                item.setForeground(6, QBrush(QColor("#1E1EFF")))
+                item.setForeground(6, blue_brush)
             if tx_hash:
                 item.setData(0, Qt.UserRole, tx_hash)
             self.insertTopLevelItem(0, item)
@@ -304,10 +308,11 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             label = self.wallet.get_label(txid)
             item.setText(3, label)
 
-    def update_item(self, tx_hash, height, conf, timestamp):
+    def update_item(self, tx_hash, tx_mined_status):
         if self.wallet is None:
             return
-        status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
+        conf = tx_mined_status.conf
+        status, status_str = self.wallet.get_tx_status(tx_hash, tx_mined_status)
         icon = self.icon_cache.get(":icons/" +  TX_ICONS[status])
         items = self.findItems(tx_hash, Qt.UserRole|Qt.MatchContains|Qt.MatchRecursive, column=1)
         if items:
@@ -332,7 +337,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             column_title = self.headerItem().text(column)
             column_data = item.text(column)
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
-        height, conf, timestamp = self.wallet.get_tx_height(tx_hash)
+        height = self.wallet.get_tx_height(tx_hash).height
         tx = self.wallet.transactions.get(tx_hash)
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         is_unconfirmed = height <= 0

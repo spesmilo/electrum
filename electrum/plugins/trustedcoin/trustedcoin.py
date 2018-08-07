@@ -33,6 +33,7 @@ from urllib.parse import quote
 
 from electrum import bitcoin, ecc, constants, keystore, version
 from electrum.bitcoin import *
+from electrum.transaction import TxOutput
 from electrum.mnemonic import Mnemonic
 from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum.i18n import _
@@ -273,7 +274,7 @@ class Wallet_2fa(Multisig_Wallet):
         fee = self.extra_fee(config) if not is_sweep else 0
         if fee:
             address = self.billing_info['billing_address']
-            fee_output = (TYPE_ADDRESS, address, fee)
+            fee_output = TxOutput(TYPE_ADDRESS, address, fee)
             try:
                 tx = mk_tx(outputs + [fee_output])
             except NotEnoughFunds:
@@ -395,9 +396,9 @@ class TrustedCoinPlugin(BasePlugin):
     def get_tx_extra_fee(self, wallet, tx):
         if type(wallet) != Wallet_2fa:
             return
-        for _type, addr, amount in tx.outputs():
-            if _type == TYPE_ADDRESS and wallet.is_billing_address(addr):
-                return addr, amount
+        for o in tx.outputs():
+            if o.type == TYPE_ADDRESS and wallet.is_billing_address(o.address):
+                return o.address, o.value
 
     def finish_requesting(func):
         def f(self, *args, **kwargs):

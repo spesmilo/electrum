@@ -31,6 +31,8 @@
     <file>icons/qrcode.png</file>
     <file>icons/qrcode_white.png</file>
     <file>icons/preferences.png</file>
+    <file>icons/safe-t_unpaired.png</file>
+    <file>icons/safe-t.png</file>
     <file>icons/seed.png</file>
     <file>icons/status_connected.png</file>
     <file>icons/status_connected_proxy.png</file>

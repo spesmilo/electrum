@@ -2,35 +2,42 @@ from binascii import hexlify, unhexlify
 import traceback
 import sys
 
-from electrum.util import bfh, bh2u, UserCancelled
-from electrum.bitcoin import (b58_address_to_hash160, xpub_from_pubkey,
-                              TYPE_ADDRESS, TYPE_SCRIPT,
-                              is_segwit_address)
+from electrum.util import bfh, bh2u, versiontuple, UserCancelled
+from electrum.bitcoin import (b58_address_to_hash160, xpub_from_pubkey, deserialize_xpub,
+                              TYPE_ADDRESS, TYPE_SCRIPT, is_address)
 from electrum import constants
 from electrum.i18n import _
-from electrum.plugin import BasePlugin
+from electrum.plugin import BasePlugin, Device
 from electrum.transaction import deserialize, Transaction
-from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
-from electrum.wallet import Standard_Wallet
+from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey, xtype_from_derivation
 from electrum.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data
 
 
-# TREZOR initialization methods
+# Safe-T mini initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
+# script "generation"
+SCRIPT_GEN_LEGACY, SCRIPT_GEN_P2SH_SEGWIT, SCRIPT_GEN_NATIVE_SEGWIT = range(0, 3)
 
-class KeepKey_KeyStore(Hardware_KeyStore):
-    hw_type = 'keepkey'
-    device = 'KeepKey'
+
+class SafeTKeyStore(Hardware_KeyStore):
+    hw_type = 'safe_t'
+    device = 'Safe-T mini'
 
     def get_derivation(self):
         return self.derivation
 
-    def is_segwit(self):
-        return self.derivation.startswith("m/49'/")
+    def get_script_gen(self):
+        xtype = xtype_from_derivation(self.derivation)
+        if xtype in ('p2wpkh', 'p2wsh'):
+            return SCRIPT_GEN_NATIVE_SEGWIT
+        elif xtype in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
+            return SCRIPT_GEN_P2SH_SEGWIT
+        else:
+            return SCRIPT_GEN_LEGACY
 
     def get_client(self, force_pair=True):
         return self.plugin.get_client(self, force_pair)
@@ -68,18 +75,19 @@ class KeepKey_KeyStore(Hardware_KeyStore):
         self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
 
 
-class KeepKeyPlugin(HW_PluginBase):
+class SafeTPlugin(HW_PluginBase):
     # Derived classes provide:
     #
     #  class-static variables: client_class, firmware_URL, handler_class,
     #     libraries_available, libraries_URL, minimum_firmware,
-    #     wallet_class, ckd_public, types, HidTransport
+    #     wallet_class, types
 
-    firmware_URL = 'https://www.keepkey.com'
-    libraries_URL = 'https://github.com/keepkey/python-keepkey'
-    minimum_firmware = (1, 0, 0)
-    keystore_class = KeepKey_KeyStore
-    SUPPORTED_XTYPES = ('standard', )
+    firmware_URL = 'https://safe-t.io'
+    libraries_URL = 'https://github.com/archos-safe-t/python-safet'
+    minimum_firmware = (1, 0, 5)
+    keystore_class = SafeTKeyStore
+    minimum_library = (0, 1, 0)
+    SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
 
     MAX_LABEL_LEN = 32
 
@@ -87,46 +95,53 @@ class KeepKeyPlugin(HW_PluginBase):
         HW_PluginBase.__init__(self, parent, config, name)
 
         try:
-            from . import client
-            import keepkeylib
-            import keepkeylib.ckd_public
-            import keepkeylib.transport_hid
-            self.client_class = client.KeepKeyClient
-            self.ckd_public = keepkeylib.ckd_public
-            self.types = keepkeylib.client.types
-            self.DEVICE_IDS = keepkeylib.transport_hid.DEVICE_IDS
-            self.device_manager().register_devices(self.DEVICE_IDS)
+            # Minimal test if python-safet is installed
+            import safetlib
+            try:
+                library_version = safetlib.__version__
+            except AttributeError:
+                # python-safet only introduced __version__ in 0.1.0
+                library_version = 'unknown'
+            if library_version == 'unknown' or \
+                    versiontuple(library_version) < self.minimum_library:
+                self.libraries_available_message = (
+                        _("Library version for '{}' is too old.").format(name)
+                        + '\nInstalled: {}, Needed: {}'
+                        .format(library_version, self.minimum_library))
+                self.print_stderr(self.libraries_available_message)
+                raise ImportError()
             self.libraries_available = True
         except ImportError:
             self.libraries_available = False
+            return
 
-    def hid_transport(self, pair):
-        from keepkeylib.transport_hid import HidTransport
-        return HidTransport(pair)
+        from . import client
+        from . import transport
+        import safetlib.messages
+        self.client_class = client.SafeTClient
+        self.types = safetlib.messages
+        self.DEVICE_IDS = ('Safe-T mini',)
 
-    def _try_hid(self, device):
-        self.print_error("Trying to connect over USB...")
-        if device.interface_number == 1:
-            pair = [None, device.path]
-        else:
-            pair = [device.path, None]
+        self.transport_handler = transport.SafeTTransport()
+        self.device_manager().register_enumerate_func(self.enumerate)
 
+    def enumerate(self):
+        devices = self.transport_handler.enumerate_devices()
+        return [Device(d.get_path(), -1, d.get_path(), 'Safe-T mini', 0) for d in devices]
+
+    def create_client(self, device, handler):
         try:
-            return self.hid_transport(pair)
+            self.print_error("connecting to device at", device.path)
+            transport = self.transport_handler.get_transport(device.path)
         except BaseException as e:
-            # see fdb810ba622dc7dbe1259cbafb5b28e19d2ab114
-            # raise
             self.print_error("cannot connect at", device.path, str(e))
             return None
 
-    def create_client(self, device, handler):
-        transport = self._try_hid(device)
         if not transport:
-            self.print_error("cannot connect to device")
+            self.print_error("cannot connect at", device.path)
             return
 
         self.print_error("connected to device at", device.path)
-
         client = self.client_class(transport, handler, self)
 
         # Try a ping for device sanity
@@ -181,7 +196,7 @@ class KeepKeyPlugin(HW_PluginBase):
         ]
         def f(method):
             import threading
-            settings = self.request_trezor_init_settings(wizard, method, self.device)
+            settings = self.request_safe_t_init_settings(wizard, method, self.device)
             t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
             t.setDaemon(True)
             t.start()
@@ -209,14 +224,26 @@ class KeepKeyPlugin(HW_PluginBase):
     def _initialize_device(self, settings, method, device_id, wizard, handler):
         item, label, pin_protection, passphrase_protection = settings
 
+        if method == TIM_RECOVER:
+            handler.show_error(_(
+                "You will be asked to enter 24 words regardless of your "
+                "seed's actual length.  If you enter a word incorrectly or "
+                "misspell it, you cannot change it or go back - you will need "
+                "to start again from the beginning.\n\nSo please enter "
+                "the words carefully!"),
+                blocking=True)
+
         language = 'english'
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
 
         if method == TIM_NEW:
             strength = 64 * (item + 2)  # 128, 192 or 256
+            u2f_counter = 0
+            skip_backup = False
             client.reset_device(True, strength, passphrase_protection,
-                                pin_protection, label, language)
+                                pin_protection, label, language,
+                                u2f_counter, skip_backup)
         elif method == TIM_RECOVER:
             word_count = 6 * (item + 2)  # 12, 18 or 24
             client.step = 0
@@ -231,6 +258,17 @@ class KeepKeyPlugin(HW_PluginBase):
             pin = pin_protection  # It's the pin, not a boolean
             client.load_device_by_xprv(item, pin, passphrase_protection,
                                        label, language)
+
+    def _make_node_path(self, xpub, address_n):
+        _, depth, fingerprint, child_num, chain_code, key = deserialize_xpub(xpub)
+        node = self.types.HDNodeType(
+            depth=depth,
+            fingerprint=int.from_bytes(fingerprint, 'big'),
+            child_num=int.from_bytes(child_num, 'big'),
+            chain_code=chain_code,
+            public_key=key,
+        )
+        return self.types.HDNodePathType(node=node, address_n=address_n)
 
     def setup_device(self, device_info, wizard, purpose):
         devmgr = self.device_manager()
@@ -256,12 +294,23 @@ class KeepKeyPlugin(HW_PluginBase):
         client.used()
         return xpub
 
+    def get_safet_input_script_type(self, script_gen, is_multisig):
+        if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
+            return self.types.InputScriptType.SPENDWITNESS
+        elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
+            return self.types.InputScriptType.SPENDP2SHWITNESS
+        else:
+            if is_multisig:
+                return self.types.InputScriptType.SPENDMULTISIG
+            else:
+                return self.types.InputScriptType.SPENDADDRESS
+
     def sign_transaction(self, keystore, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx
         self.xpub_path = xpub_path
         client = self.get_client(keystore)
-        inputs = self.tx_inputs(tx, True, keystore.is_segwit())
-        outputs = self.tx_outputs(keystore.get_derivation(), tx, keystore.is_segwit())
+        inputs = self.tx_inputs(tx, True, keystore.get_script_gen())
+        outputs = self.tx_outputs(keystore.get_derivation(), tx, keystore.get_script_gen())
         signatures = client.sign_tx(self.get_coin_name(), inputs, outputs, lock_time=tx.locktime)[0]
         signatures = [(bh2u(x) + '01') for x in signatures]
         tx.update_signatures(signatures)
@@ -271,22 +320,36 @@ class KeepKeyPlugin(HW_PluginBase):
             keystore = wallet.get_keystore()
         if not self.show_address_helper(wallet, address, keystore):
             return
-        if type(wallet) is not Standard_Wallet:
-            keystore.handler.show_error(_('This function is only available for standard wallets when using {}.').format(self.device))
-            return
-        client = self.get_client(wallet.keystore)
-        if not client.atleast_version(1, 3):
-            wallet.keystore.handler.show_error(_("Your device firmware is too old"))
+        client = self.get_client(keystore)
+        if not client.atleast_version(1, 0):
+            keystore.handler.show_error(_("Your device firmware is too old"))
             return
         change, index = wallet.get_address_index(address)
-        derivation = wallet.keystore.derivation
+        derivation = keystore.derivation
         address_path = "%s/%d/%d"%(derivation, change, index)
         address_n = client.expand_path(address_path)
-        segwit = wallet.keystore.is_segwit()
-        script_type = self.types.SPENDP2SHWITNESS if segwit else self.types.SPENDADDRESS
-        client.get_address(self.get_coin_name(), address_n, True, script_type=script_type)
+        xpubs = wallet.get_master_public_keys()
+        if len(xpubs) == 1:
+            script_gen = keystore.get_script_gen()
+            script_type = self.get_safet_input_script_type(script_gen, is_multisig=False)
+            client.get_address(self.get_coin_name(), address_n, True, script_type=script_type)
+        else:
+            def f(xpub):
+                return self._make_node_path(xpub, [change, index])
+            pubkeys = wallet.get_public_keys(address)
+            # sort xpubs using the order of pubkeys
+            sorted_pubkeys, sorted_xpubs = zip(*sorted(zip(pubkeys, xpubs)))
+            pubkeys = list(map(f, sorted_xpubs))
+            multisig = self.types.MultisigRedeemScriptType(
+               pubkeys=pubkeys,
+               signatures=[b''] * wallet.n,
+               m=wallet.m,
+            )
+            script_gen = keystore.get_script_gen()
+            script_type = self.get_safet_input_script_type(script_gen, is_multisig=True)
+            client.get_address(self.get_coin_name(), address_n, True, multisig=multisig, script_type=script_type)
 
-    def tx_inputs(self, tx, for_sig=False, segwit=False):
+    def tx_inputs(self, tx, for_sig=False, script_gen=SCRIPT_GEN_LEGACY):
         inputs = []
         for txin in tx.inputs():
             txinputtype = self.types.TxInputType()
@@ -300,8 +363,8 @@ class KeepKeyPlugin(HW_PluginBase):
                         x_pubkey = x_pubkeys[0]
                         xpub, s = parse_xpubkey(x_pubkey)
                         xpub_n = self.client_class.expand_path(self.xpub_path[xpub])
-                        txinputtype.address_n.extend(xpub_n + s)
-                        txinputtype.script_type = self.types.SPENDP2SHWITNESS if segwit else self.types.SPENDADDRESS
+                        txinputtype._extend_address_n(xpub_n + s)
+                        txinputtype.script_type = self.get_safet_input_script_type(script_gen, is_multisig=False)
                     else:
                         def f(x_pubkey):
                             if is_xpubkey(x_pubkey):
@@ -309,15 +372,14 @@ class KeepKeyPlugin(HW_PluginBase):
                             else:
                                 xpub = xpub_from_pubkey(0, bfh(x_pubkey))
                                 s = []
-                            node = self.ckd_public.deserialize(xpub)
-                            return self.types.HDNodePathType(node=node, address_n=s)
-                        pubkeys = map(f, x_pubkeys)
+                            return self._make_node_path(xpub, s)
+                        pubkeys = list(map(f, x_pubkeys))
                         multisig = self.types.MultisigRedeemScriptType(
                             pubkeys=pubkeys,
-                            signatures=map(lambda x: bfh(x)[:-1] if x else b'', txin.get('signatures')),
+                            signatures=list(map(lambda x: bfh(x)[:-1] if x else b'', txin.get('signatures'))),
                             m=txin.get('num_sig'),
                         )
-                        script_type = self.types.SPENDP2SHWITNESS if segwit else self.types.SPENDMULTISIG
+                        script_type = self.get_safet_input_script_type(script_gen, is_multisig=True)
                         txinputtype = self.types.TxInputType(
                             script_type=script_type,
                             multisig=multisig
@@ -328,7 +390,7 @@ class KeepKeyPlugin(HW_PluginBase):
                                 xpub, s = parse_xpubkey(x_pubkey)
                                 if xpub in self.xpub_path:
                                     xpub_n = self.client_class.expand_path(self.xpub_path[xpub])
-                                    txinputtype.address_n.extend(xpub_n + s)
+                                    txinputtype._extend_address_n(xpub_n + s)
                                     break
 
                 prev_hash = unhexlify(txin['prevout_hash'])
@@ -349,12 +411,17 @@ class KeepKeyPlugin(HW_PluginBase):
 
         return inputs
 
-    def tx_outputs(self, derivation, tx, segwit=False):
+    def tx_outputs(self, derivation, tx, script_gen=SCRIPT_GEN_LEGACY):
 
         def create_output_by_derivation(info):
             index, xpubs, m = info
             if len(xpubs) == 1:
-                script_type = self.types.PAYTOP2SHWITNESS if segwit else self.types.PAYTOADDRESS
+                if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
+                    script_type = self.types.OutputScriptType.PAYTOWITNESS
+                elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
+                    script_type = self.types.OutputScriptType.PAYTOP2SHWITNESS
+                else:
+                    script_type = self.types.OutputScriptType.PAYTOADDRESS
                 address_n = self.client_class.expand_path(derivation + "/%d/%d" % index)
                 txoutputtype = self.types.TxOutputType(
                     amount=amount,
@@ -362,10 +429,14 @@ class KeepKeyPlugin(HW_PluginBase):
                     address_n=address_n,
                 )
             else:
-                script_type = self.types.PAYTOP2SHWITNESS if segwit else self.types.PAYTOMULTISIG
+                if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
+                    script_type = self.types.OutputScriptType.PAYTOWITNESS
+                elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
+                    script_type = self.types.OutputScriptType.PAYTOP2SHWITNESS
+                else:
+                    script_type = self.types.OutputScriptType.PAYTOMULTISIG
                 address_n = self.client_class.expand_path("/%d/%d" % index)
-                nodes = map(self.ckd_public.deserialize, xpubs)
-                pubkeys = [self.types.HDNodePathType(node=node, address_n=address_n) for node in nodes]
+                pubkeys = [self._make_node_path(xpub, address_n) for xpub in xpubs]
                 multisig = self.types.MultisigRedeemScriptType(
                     pubkeys=pubkeys,
                     signatures=[b''] * len(pubkeys),
@@ -381,19 +452,10 @@ class KeepKeyPlugin(HW_PluginBase):
             txoutputtype = self.types.TxOutputType()
             txoutputtype.amount = amount
             if _type == TYPE_SCRIPT:
-                txoutputtype.script_type = self.types.PAYTOOPRETURN
+                txoutputtype.script_type = self.types.OutputScriptType.PAYTOOPRETURN
                 txoutputtype.op_return_data = trezor_validate_op_return_output_and_get_data(o)
             elif _type == TYPE_ADDRESS:
-                if is_segwit_address(address):
-                    txoutputtype.script_type = self.types.PAYTOWITNESS
-                else:
-                    addrtype, hash_160 = b58_address_to_hash160(address)
-                    if addrtype == constants.net.ADDRTYPE_P2PKH:
-                        txoutputtype.script_type = self.types.PAYTOADDRESS
-                    elif addrtype == constants.net.ADDRTYPE_P2SH:
-                        txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
-                    else:
-                        raise Exception('addrtype: ' + str(addrtype))
+                txoutputtype.script_type = self.types.OutputScriptType.PAYTOADDRESS
                 txoutputtype.address = address
             return txoutputtype
 
@@ -411,6 +473,8 @@ class KeepKeyPlugin(HW_PluginBase):
                 on_change_branch = index[0] == 1
                 # prioritise hiding outputs on the 'change' branch from user
                 # because no more than one change address allowed
+                # note: ^ restriction can be removed once we require fw
+                # that has https://github.com/trezor/trezor-mcu/pull/306
                 if on_change_branch == any_output_on_change_branch:
                     use_create_by_derivation = True
                     has_change = True
@@ -425,13 +489,16 @@ class KeepKeyPlugin(HW_PluginBase):
 
     def electrum_tx_to_txtype(self, tx):
         t = self.types.TransactionType()
+        if tx is None:
+            # probably for segwit input and we don't need this prev txn
+            return t
         d = deserialize(tx.raw)
         t.version = d['version']
         t.lock_time = d['lockTime']
         inputs = self.tx_inputs(tx)
-        t.inputs.extend(inputs)
+        t._extend_inputs(inputs)
         for vout in d['outputs']:
-            o = t.bin_outputs.add()
+            o = t._add_bin_outputs()
             o.amount = vout['value']
             o.script_pubkey = bfh(vout['scriptPubKey'])
         return t

@@ -4,6 +4,7 @@ _ = lambda x:x
 from electrum import WalletStorage, Wallet
 from electrum.util import format_satoshis, set_verbosity
 from electrum.bitcoin import is_address, COIN, TYPE_ADDRESS
+from electrum.transaction import TxOutput
 import getpass, datetime
 
 # minimal fdisk like gui for console usage
@@ -87,9 +88,9 @@ class ElectrumGui:
         + "%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
         messages = []
 
-        for item in self.wallet.get_history():
-            tx_hash, height, conf, timestamp, delta, balance = item
-            if conf:
+        for tx_hash, tx_mined_status, delta, balance in self.wallet.get_history():
+            if tx_mined_status.conf:
+                timestamp = tx_mined_status.timestamp
                 try:
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 except Exception:
@@ -189,7 +190,8 @@ class ElectrumGui:
             if c == "n": return
 
         try:
-            tx = self.wallet.mktx([(TYPE_ADDRESS, self.str_recipient, amount)], password, self.config, fee)
+            tx = self.wallet.mktx([TxOutput(TYPE_ADDRESS, self.str_recipient, amount)],
+                                  password, self.config, fee)
         except Exception as e:
             print(str(e))
             return

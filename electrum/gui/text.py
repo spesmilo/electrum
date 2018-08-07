@@ -6,6 +6,7 @@ import getpass
 import electrum
 from electrum.util import format_satoshis, set_verbosity
 from electrum.bitcoin import is_address, COIN, TYPE_ADDRESS
+from electrum.transaction import TxOutput
 from .. import Wallet, WalletStorage
 
 _ = lambda x:x
@@ -109,9 +110,9 @@ class ElectrumGui:
 
         b = 0
         self.history = []
-        for item in self.wallet.get_history():
-            tx_hash, height, conf, timestamp, value, balance = item
-            if conf:
+        for tx_hash, tx_mined_status, value, balance in self.wallet.get_history():
+            if tx_mined_status.conf:
+                timestamp = tx_mined_status.timestamp
                 try:
                     time_str = datetime.datetime.fromtimestamp(timestamp).isoformat(' ')[:-3]
                 except Exception:
@@ -340,7 +341,8 @@ class ElectrumGui:
         else:
             password = None
         try:
-            tx = self.wallet.mktx([(TYPE_ADDRESS, self.str_recipient, amount)], password, self.config, fee)
+            tx = self.wallet.mktx([TxOutput(TYPE_ADDRESS, self.str_recipient, amount)],
+                                  password, self.config, fee)
         except Exception as e:
             self.show_message(str(e))
             return

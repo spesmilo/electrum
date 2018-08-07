@@ -23,6 +23,7 @@
 import binascii
 import os, sys, re, json
 from collections import defaultdict
+from typing import NamedTuple
 from datetime import datetime
 import decimal
 from decimal import Decimal
@@ -31,6 +32,8 @@ import urllib
 import threading
 import hmac
 import stat
+import inspect
+from locale import localeconv
 
 from .i18n import _
 
@@ -118,6 +121,8 @@ class UserCancelled(Exception):
     pass
 
 class Satoshis(object):
+    __slots__ = ('value',)
+
     def __new__(cls, value):
         self = super(Satoshis, cls).__new__(cls)
         self.value = value
@@ -130,6 +135,8 @@ class Satoshis(object):
         return format_satoshis(self.value) + " BTC"
 
 class Fiat(object):
+    __slots__ = ('value', 'ccy')
+
     def __new__(cls, value, ccy):
         self = super(Fiat, cls).__new__(cls)
         self.ccy = ccy
@@ -171,7 +178,7 @@ class PrintError(object):
 
     def print_error(self, *msg):
         if self.verbosity_filter in verbosity or verbosity == '*':
-            print_stderr("[%s]" % self.diagnostic_name(), *msg)
+            print_error("[%s]" % self.diagnostic_name(), *msg)
 
     def print_stderr(self, *msg):
         print_stderr("[%s]" % self.diagnostic_name(), *msg)
@@ -309,14 +316,24 @@ def constant_time_compare(val1, val2):
 
 # decorator that prints execution time
 def profiler(func):
-    def do_profile(func, args, kw_args):
-        n = func.__name__
+    def get_func_name(args):
+        arg_names_from_sig = inspect.getfullargspec(func).args
+        # prepend class name if there is one (and if we can find it)
+        if len(arg_names_from_sig) > 0 and len(args) > 0 \
+                and arg_names_from_sig[0] in ('self', 'cls', 'klass'):
+            classname = args[0].__class__.__name__
+        else:
+            classname = ''
+        name = '{}.{}'.format(classname, func.__name__) if classname else func.__name__
+        return name
+    def do_profile(args, kw_args):
+        name = get_func_name(args)
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0
-        print_error("[profiler]", n, "%.4f"%t)
+        print_error("[profiler]", name, "%.4f"%t)
         return o
-    return lambda *args, **kw_args: do_profile(func, args, kw_args)
+    return lambda *args, **kw_args: do_profile(args, kw_args)
 
 
 def android_ext_dir():
@@ -465,8 +482,10 @@ def format_satoshis_plain(x, decimal_point = 8):
     return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
 
 
+DECIMAL_POINT = localeconv()['decimal_point']
+
+
 def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False):
-    from locale import localeconv
     if x is None:
         return 'unknown'
     if precision is None:
@@ -476,7 +495,7 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
         decimal_format = '+' + decimal_format
     result = ("{:" + decimal_format + "f}").format(x / pow (10, decimal_point)).rstrip('0')
     integer_part, fract_part = result.split(".")
-    dp = localeconv()['decimal_point']
+    dp = DECIMAL_POINT
     if len(fract_part) < num_zeros:
         fract_part += "0" * (num_zeros - len(fract_part))
     result = integer_part + dp + fract_part
@@ -903,3 +922,13 @@ def make_dir(path, allow_symlink=True):
             raise Exception('Dangling link: ' + path)
         os.mkdir(path)
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+
+
+TxMinedStatus = NamedTuple("TxMinedStatus", [("height", int),
+                                             ("conf", int),
+                                             ("timestamp", int),
+                                             ("header_hash", str)])
+VerifiedTxInfo = NamedTuple("VerifiedTxInfo", [("height", int),
+                                               ("timestamp", int),
+                                               ("txpos", int),
+                                               ("header_hash", str)])
