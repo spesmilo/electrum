@@ -1,19 +1,39 @@
 apply plugin: 'com.android.application'
-
 apply plugin: 'kotlin-android'
-
 apply plugin: 'kotlin-android-extensions'
+apply plugin: 'com.chaquo.python'
 
 android {
-    compileSdkVersion 27
+    compileSdkVersion 26
     defaultConfig {
         applicationId "org.electroncash.electroncash3"
         minSdkVersion 15
-        targetSdkVersion 27
+        targetSdkVersion 26
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+        python {
+            version "3.6.5"
+            pip {
+                install "-r", "../../contrib/deterministic-build/requirements.txt"
+            }
+        }
+        ndk {
+            abiFilters "x86", "armeabi-v7a"
+        }
     }
+
+    sourceSets {
+        main {
+            python {
+                srcDir "../.."
+                include "lib/**"                // In ../..
+                include "electroncash_gui/**"   // In src/main/python
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -22,10 +42,24 @@ android {
     }
 }
 
+// Rename package directory, like package_dir in setup.py.
+afterEvaluate {
+    for (variant in android.applicationVariants) {
+        def task = project.tasks.getByName("merge${variant.name.capitalize()}PythonSources")
+        task.doLast {
+            def src = "$task.destinationDir/lib"
+            def dst = "$task.destinationDir/electroncash"
+            if (! file(src).renameTo(dst)) {
+                throw new GradleException("Failed to rename $src to $dst")
+            }
+        }
+    }
+}
+
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation"org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    implementation 'com.android.support:appcompat-v7:27.1.1'
+    implementation 'com.android.support:appcompat-v7:26.1.0'
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
