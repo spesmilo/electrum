@@ -43,7 +43,7 @@ from . import pem
 
 
 def Connection(server, queue, config_path):
-    """Makes asynchronous connections to a remote electrum-grs server.
+    """Makes asynchronous connections to a remote Electrum-GRS server.
     Returns the running thread that is making the connection.
 
     Once the thread has connected, it finishes, placing a tuple on the
@@ -145,13 +145,16 @@ class TcpConnection(threading.Thread, util.PrintError):
                     s = context.wrap_socket(s, do_handshake_on_connect=True)
                 except ssl.SSLError as e:
                     self.print_error(e)
-                    s = None
                 except:
                     return
-
-                if s and self.check_host_name(s.getpeercert(), self.host):
-                    self.print_error("SSL certificate signed by CA")
-                    return s
+                else:
+                    try:
+                        peer_cert = s.getpeercert()
+                    except OSError:
+                        return
+                    if self.check_host_name(peer_cert, self.host):
+                        self.print_error("SSL certificate signed by CA")
+                        return s
                 # get server certificate.
                 # Do not use ssl.get_server_certificate because it does not work with proxy
                 s = self.get_simple_socket()
@@ -166,12 +169,16 @@ class TcpConnection(threading.Thread, util.PrintError):
                 except:
                     return
 
-                dercert = s.getpeercert(True)
+                try:
+                    dercert = s.getpeercert(True)
+                except OSError:
+                    return
                 s.close()
                 cert = ssl.DER_cert_to_PEM_cert(dercert)
                 # workaround android bug
                 cert = re.sub("([^\n])-----END CERTIFICATE-----","\\1\n-----END CERTIFICATE-----",cert)
                 temporary_path = cert_path + '.temp'
+                util.assert_datadir_available(self.config_path)
                 with open(temporary_path, "w", encoding='utf-8') as f:
                     f.write(cert)
                     f.flush()
@@ -201,6 +208,7 @@ class TcpConnection(threading.Thread, util.PrintError):
                         os.unlink(rej)
                     os.rename(temporary_path, rej)
                 else:
+                    util.assert_datadir_available(self.config_path)
                     with open(cert_path, encoding='utf-8') as f:
                         cert = f.read()
                     try:
@@ -240,7 +248,7 @@ class TcpConnection(threading.Thread, util.PrintError):
 
 class Interface(util.PrintError):
     """The Interface class handles a socket connected to a single remote
-    electrum-grs server.  It's exposed API is:
+    Electrum-GRS server.  Its exposed API is:
 
     - Member functions close(), fileno(), get_responses(), has_timed_out(),
       ping_required(), queue_request(), send_requests()
@@ -258,9 +266,7 @@ class Interface(util.PrintError):
         self.debug = False
         self.unsent_requests = []
         self.unanswered_requests = {}
-        # Set last ping to zero to ensure immediate ping
-        self.last_request = time.time()
-        self.last_ping = 0
+        self.last_send = time.time()
         self.closed_remotely = False
 
     def diagnostic_name(self):
@@ -292,13 +298,14 @@ class Interface(util.PrintError):
 
     def send_requests(self):
         '''Sends queued requests.  Returns False on failure.'''
+        self.last_send = time.time()
         make_dict = lambda m, p, i: {'method': m, 'params': p, 'id': i}
         n = self.num_requests()
         wire_requests = self.unsent_requests[0:n]
         try:
             self.pipe.send_all([make_dict(*r) for r in wire_requests])
-        except socket.error as e:
-            self.print_error("socket error:", e)
+        except BaseException as e:
+            self.print_error("pipe send error:", e)
             return False
         self.unsent_requests = self.unsent_requests[n:]
         for request in wire_requests:
@@ -308,14 +315,8 @@ class Interface(util.PrintError):
         return True
 
     def ping_required(self):
-        '''Maintains time since last ping.  Returns True if a ping should
-        be sent.
-        '''
-        now = time.time()
-        if now - self.last_ping > 60:
-            self.last_ping = now
-            return True
-        return False
+        '''Returns True if a ping should be sent.'''
+        return time.time() - self.last_send > 300
 
     def has_timed_out(self):
         '''Returns True if the interface has timed out.'''

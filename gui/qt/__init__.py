@@ -41,6 +41,7 @@ import PyQt5.QtCore as QtCore
 from electrum_grs.i18n import _, set_language
 from electrum_grs.plugins import run_hook
 from electrum_grs import WalletStorage
+from electrum_grs.base_wizard import GoBack
 # from electrum_grs.synchronizer import Synchronizer
 # from electrum_grs.verifier import SPV
 # from electrum_grs.util import DebugMem
@@ -48,7 +49,7 @@ from electrum_grs.util import (UserCancelled, print_error,
                            WalletFileException, BitcoinException)
 # from electrum_grs.wallet import Abstract_Wallet
 
-from .installwizard import InstallWizard, GoBack
+from .installwizard import InstallWizard
 
 
 try:
@@ -116,8 +117,22 @@ class ElectrumGui:
         self.build_tray_menu()
         self.tray.show()
         self.app.new_window_signal.connect(self.start_new_window)
+        self.set_dark_theme_if_needed()
         run_hook('init_qt', self)
-        ColorScheme.update_from_widget(QWidget())
+
+    def set_dark_theme_if_needed(self):
+        use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
+        if use_dark_theme:
+            try:
+                import qdarkstyle
+                self.app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
+            except BaseException as e:
+                use_dark_theme = False
+                print_error('Error setting dark theme: {}'.format(e))
+        # Even if we ourselves don't set the dark theme,
+        # the OS/window manager/etc might set *a dark theme*.
+        # Hence, try to choose colors accordingly:
+        ColorScheme.update_from_widget(QWidget(), force_dark=use_dark_theme)
 
     def build_tray_menu(self):
         # Avoid immediate GC of old menu when window closed via its action
@@ -184,7 +199,7 @@ class ElectrumGui:
         run_hook('on_new_window', w)
         return w
 
-    def start_new_window(self, path, uri):
+    def start_new_window(self, path, uri, app_is_starting=False):
         '''Raises the window for the wallet if it is open.  Otherwise
         opens the wallet and creates a new window for it'''
         try:
@@ -194,7 +209,11 @@ class ElectrumGui:
             d = QMessageBox(QMessageBox.Warning, _('Error'),
                             _('Cannot load wallet') + ' (1):\n' + str(e))
             d.exec_()
-            return
+            if app_is_starting:
+                # do not return so that the wizard can appear
+                wallet = None
+            else:
+                return
         if not wallet:
             storage = WalletStorage(path, manual_upgrades=True)
             wizard = InstallWizard(self.config, self.app, self.plugins, storage)
@@ -269,7 +288,7 @@ class ElectrumGui:
         self.timer.start()
         self.config.open_last_wallet()
         path = self.config.get_wallet_path()
-        if not self.start_new_window(path, self.config.get('url')):
+        if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
             return
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
 

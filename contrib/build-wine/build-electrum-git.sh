@@ -19,19 +19,36 @@ set -e
 mkdir -p tmp
 cd tmp
 
-for repo in electrum-grs electrum-grs-locale electrum-grs-icons; do
-    if [ -d $repo ]; then
-	cd $repo
-	git pull
-	git checkout master
-	cd ..
-    else
-	URL=https://github.com/groestlcoin/$repo.git
-	git clone -b master $URL $repo
-    fi
-done
+if [ -d ./electrum-grs ]; then
+  rm ./electrum-grs -rf
+fi
 
-pushd electrum-grs-locale
+git clone https://github.com/Groestlcoin/electrum-grs -b master
+
+pushd electrum-grs
+if [ ! -z "$1" ]; then
+    # a commit/tag/branch was specified
+    if ! git cat-file -e "$1" 2> /dev/null
+    then  # can't find target
+        # try pull requests
+        git config --local --add remote.origin.fetch '+refs/pull/*/merge:refs/remotes/origin/pr/*'
+        git fetch --all
+    fi
+    git checkout $1
+fi
+
+# Load electrum-grs-icons and electrum-grs-locale for this release
+git submodule init
+git submodule update
+
+VERSION=`git describe --tags --dirty`
+echo "Last commit: $VERSION"
+
+pushd ./contrib/deterministic-build/electrum-grs-locale
+if ! which msgfmt > /dev/null 2>&1; then
+    echo "Please install gettext"
+    exit 1
+fi
 for i in ./locale/*; do
     dir=$i/LC_MESSAGES
     mkdir -p $dir
@@ -39,21 +56,14 @@ for i in ./locale/*; do
 done
 popd
 
-pushd electrum-grs
-if [ ! -z "$1" ]; then
-    git checkout $1
-fi
-
-VERSION=`git describe --tags`
-echo "Last commit: $VERSION"
 find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 rm -rf $WINEPREFIX/drive_c/electrum-grs
 cp -r electrum-grs $WINEPREFIX/drive_c/electrum-grs
 cp electrum-grs/LICENCE .
-cp -r electrum-grs-locale/locale $WINEPREFIX/drive_c/electrum-grs/lib/
-cp electrum-grs-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-grs/gui/qt/
+cp -r ./electrum-grs/contrib/deterministic-build/electrum-grs-locale/locale $WINEPREFIX/drive_c/electrum-grs/lib/
+cp ./electrum-grs/contrib/deterministic-build/electrum-grs-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-grs/gui/qt/
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt
@@ -69,7 +79,7 @@ cd ..
 rm -rf dist/
 
 # build standalone and portable versions
-wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION -w deterministic.spec
+wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --clean --name $NAME_ROOT-$VERSION -w deterministic.spec
 
 # set timestamps in dist, in order to make the installer reproducible
 pushd dist
@@ -77,7 +87,7 @@ find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 # build NSIS installer
-# $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script iself.
+# $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script itself.
 wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrum.nsi
 
 cd dist

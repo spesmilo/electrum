@@ -8,8 +8,10 @@ for i, x in enumerate(sys.argv):
         cmdline_name = sys.argv[i+1]
         break
 else:
-    raise BaseException('no name')
+    raise Exception('no name')
 
+PYTHON_VERSION = '3.5.4'
+PYHOME = 'c:/python' + PYTHON_VERSION
 
 home = 'C:\\electrum-grs\\'
 
@@ -21,17 +23,15 @@ hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 
 # Add libusb binary
-binaries = [("c:/python3.5.4/libusb-1.0.dll", ".")]
+binaries = [(PYHOME+"/libusb-1.0.dll", ".")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'qwindowsvista' in b[0]]
 
+binaries += [('C:/tmp/libsecp256k1.dll', '.')]
+
 datas = [
-    (home+'lib/currencies.json', 'electrum_grs'),
-    (home+'lib/servers.json', 'electrum_grs'),
-    (home+'lib/checkpoints.json', 'electrum_grs'),
-    (home+'lib/servers_testnet.json', 'electrum_grs'),
-    (home+'lib/checkpoints_testnet.json', 'electrum_grs'),
+    (home+'lib/*.json', 'electrum_grs'),
     (home+'lib/wordlist/english.txt', 'electrum_grs/wordlist'),
     (home+'lib/locale', 'electrum_grs/locale'),
     (home+'plugins', 'electrum_grs_plugins'),

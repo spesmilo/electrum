@@ -24,11 +24,16 @@ import os
 import threading
 
 from . import util
-from . import bitcoin
+from .bitcoin import groestlHash, hash_encode, int_to_hex, rev_hex
 from . import constants
-from .bitcoin import *
+from .util import bfh, bh2u
 
 MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
+
+
+class MissingHeader(Exception):
+    pass
+
 
 def serialize_header(res):
     s = int_to_hex(res.get('version'), 4) \
@@ -40,6 +45,10 @@ def serialize_header(res):
     return s
 
 def deserialize_header(s, height):
+    if not s:
+        raise Exception('Invalid header: {}'.format(s))
+    if len(s) != 80:
+        raise Exception('Invalid header length: {}'.format(len(s)))
     hex_to_int = lambda s: int('0x' + bh2u(s[::-1]), 16)
     h = {}
     h['version'] = hex_to_int(s[0:4])
@@ -64,8 +73,7 @@ blockchains = {}
 def read_blockchains(config):
     blockchains[0] = Blockchain(config, 0, None)
     fdir = os.path.join(util.get_headers_dir(config), 'forks')
-    if not os.path.exists(fdir):
-        os.mkdir(fdir)
+    util.make_dir(fdir)
     l = filter(lambda x: x.startswith('fork_'), os.listdir(fdir))
     l = sorted(l, key = lambda x: int(x.split('_')[1]))
     for filename in l:
@@ -154,14 +162,14 @@ class Blockchain(util.PrintError):
     def verify_header(self, header, prev_hash, target):
         _hash = hash_header(header)
         if prev_hash != header.get('prev_block_hash'):
-            raise BaseException("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
+            raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         if constants.net.TESTNET or not USE_DIFF_RETARGET or header['block_height'] < DGW3_START_HEIGHT:
             return
         bits = self.target_to_bits(target)
         if bits != header.get('bits'):
-            raise BaseException("bits mismatch: %s vs %s" % (bits, header.get('bits')))
+            raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
         if int('0x' + _hash, 16) > target:
-            raise BaseException("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
+            raise Exception("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
 
     def verify_chunk(self, index, data):
         num = len(data) // 80
@@ -205,8 +213,10 @@ class Blockchain(util.PrintError):
         parent_id = self.parent_id
         checkpoint = self.checkpoint
         parent = self.parent()
+        self.assert_headers_file_available(self.path())
         with open(self.path(), 'rb') as f:
             my_data = f.read()
+        self.assert_headers_file_available(parent.path())
         with open(parent.path(), 'rb') as f:
             f.seek((checkpoint - parent.checkpoint)*80)
             parent_data = f.read(parent_branch_size*80)
@@ -229,9 +239,18 @@ class Blockchain(util.PrintError):
         blockchains[self.checkpoint] = self
         blockchains[parent.checkpoint] = parent
 
+    def assert_headers_file_available(self, path):
+        if os.path.exists(path):
+            return
+        elif not os.path.exists(util.get_headers_dir(self.config)):
+            raise FileNotFoundError('Electrum headers_dir does not exist. Was it deleted while running?')
+        else:
+            raise FileNotFoundError('Cannot find headers file but headers_dir is there. Should be at {}'.format(path))
+
     def write(self, data, offset, truncate=True):
         filename = self.path()
         with self.lock:
+            self.assert_headers_file_available(filename)
             with open(filename, 'rb+') as f:
                 if truncate and offset != self._size*80:
                     f.seek(offset)
@@ -260,14 +279,12 @@ class Blockchain(util.PrintError):
             return
         delta = height - self.checkpoint
         name = self.path()
-        if os.path.exists(name):
-            with open(name, 'rb') as f:
-                f.seek(delta * 80)
-                h = f.read(80)
-        elif not os.path.exists(util.get_headers_dir(self.config)):
-            raise Exception('Electrum-GRS datadir does not exist. Was it deleted while running?')
-        else:
-            raise Exception('Cannot find headers file but datadir is there. Should be at {}'.format(name))
+        self.assert_headers_file_available(name)
+        with open(name, 'rb') as f:
+            f.seek(delta * 80)
+            h = f.read(80)
+            if len(h) < 80:
+                raise Exception('Expected to read a full header. This was only {} bytes'.format(len(h)))
         if h == bytes([0])*80:
             return None
         return deserialize_header(h, height)
@@ -288,10 +305,10 @@ class Blockchain(util.PrintError):
     def bits_to_target(self, bits):
         bitsN = (bits >> 24) & 0xff
         if not (bitsN >= 0x03 and bitsN <= 0x1e):
-            raise BaseException("First part of bits should be in [0x03, 0x1e]")
+            raise Exception("First part of bits should be in [0x03, 0x1e]")
         bitsBase = bits & 0xffffff
         if not (bitsBase >= 0x8000 and bitsBase <= 0x7fffff):
-            raise BaseException("Second part of bits should be in [0x8000, 0x7fffff]")
+            raise Exception("Second part of bits should be in [0x8000, 0x7fffff]")
         return bitsBase << (8 * (bitsN-3))
 
     def target_to_bits(self, target):
@@ -313,6 +330,8 @@ class Blockchain(util.PrintError):
             for h in chain:
                 if h.get('block_height') == block_height-1:
                     last = h
+        if not last:
+            raise MissingHeader()
 
         # params
         BlockLastSolved = last
@@ -352,6 +371,8 @@ class Blockchain(util.PrintError):
                 for br in chain:
                     if br.get('block_height') == (block_height-1) - CountBlocks:
                         BlockReading = br
+            if not BlockReading:
+                raise MissingHeader()
 
         bnNew = PastDifficultyAverage
         nTargetTimespan = CountBlocks * 60
@@ -392,7 +413,10 @@ class Blockchain(util.PrintError):
             return False
         if prev_hash != header.get('prev_block_hash'):
             return False
-        target = self.get_target(height)
+        try:
+            target = self.get_target(height)
+        except MissingHeader:
+            return False
         try:
             self.verify_header(header, prev_hash, target)
         except BaseException as e:

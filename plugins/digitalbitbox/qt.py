@@ -32,7 +32,7 @@ class Plugin(DigitalBitboxPlugin, QtPluginBase):
 
         if len(addrs) == 1:
             def show_address():
-                keystore.thread.add(partial(self.show_address, wallet, keystore, addrs[0]))
+                keystore.thread.add(partial(self.show_address, wallet, addrs[0], keystore))
 
             menu.addAction(_("Show on {}").format(self.device), show_address)
 

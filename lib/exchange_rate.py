@@ -13,7 +13,7 @@ from decimal import Decimal
 from . import constants
 from .bitcoin import COIN
 from .i18n import _
-from .util import PrintError, ThreadJob
+from .util import PrintError, ThreadJob, make_dir
 
 
 # See https://en.wikipedia.org/wiki/ISO_4217
@@ -228,8 +228,7 @@ class FxThread(ThreadJob):
         self.hist_checkbox = None
         self.cache_dir = os.path.join(config.path, 'cache')
         self.set_exchange(self.config_exchange())
-        if not os.path.exists(self.cache_dir):
-            os.mkdir(self.cache_dir)
+        make_dir(self.cache_dir)
 
     def get_currencies(self, h):
         d = get_exchanges_by_ccy(h)
@@ -365,6 +364,6 @@ class FxThread(ThreadJob):
         return self.fiat_value(satoshis, self.history_rate(d_t))
 
     def timestamp_rate(self, timestamp):
-        from electrum_grs.util import timestamp_to_datetime
+        from .util import timestamp_to_datetime
         date = timestamp_to_datetime(timestamp)
         return self.history_rate(date)

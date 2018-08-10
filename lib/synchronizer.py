@@ -50,6 +50,8 @@ class Synchronizer(ThreadJob):
         self.requested_histories = {}
         self.requested_addrs = set()
         self.lock = Lock()
+
+        self.initialized = False
         self.initialize()
 
     def parse_response(self, response):
@@ -84,7 +86,7 @@ class Synchronizer(ThreadJob):
         return bh2u(hashlib.sha256(status.encode('ascii')).digest())
 
     def on_address_status(self, response):
-        if self.wallet.synchronizer is None:
+        if self.wallet.synchronizer is None and self.initialized:
             return  # we have been killed, this was just an orphan callback
         params, result = self.parse_response(response)
         if not params:
@@ -92,7 +94,10 @@ class Synchronizer(ThreadJob):
         addr = params[0]
         history = self.wallet.history.get(addr, [])
         if self.get_status(history) != result:
-            if self.requested_histories.get(addr) is None:
+            # note that at this point 'result' can be None;
+            # if we had a history for addr but now the server is telling us
+            # there is no history
+            if addr not in self.requested_histories:
                 self.requested_histories[addr] = result
                 self.network.request_address_history(addr, self.on_address_history)
         # remove addr from list only after it is added to requested_histories
@@ -100,14 +105,20 @@ class Synchronizer(ThreadJob):
             self.requested_addrs.remove(addr)
 
     def on_address_history(self, response):
-        if self.wallet.synchronizer is None:
+        if self.wallet.synchronizer is None and self.initialized:
             return  # we have been killed, this was just an orphan callback
         params, result = self.parse_response(response)
         if not params:
             return
         addr = params[0]
+        try:
+            server_status = self.requested_histories[addr]
+        except KeyError:
+            # note: server_status can be None even if we asked for the history,
+            # so it is not sufficient to test that
+            self.print_error("receiving history (unsolicited)", addr, len(result))
+            return
         self.print_error("receiving history", addr, len(result))
-        server_status = self.requested_histories[addr]
         hashes = set(map(lambda item: item['tx_hash'], result))
         hist = list(map(lambda item: (item['tx_hash'], item['height']), result))
         # tx_fees
@@ -115,7 +126,9 @@ class Synchronizer(ThreadJob):
         tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
         # Note if the server hasn't been patched to sort the items properly
         if hist != sorted(hist, key=lambda x:x[1]):
-            self.network.interface.print_error("serving improperly sorted address histories")
+            interface = self.network.interface
+            # note: we don't actually know which interface was used if it was *just* changed
+            if interface: interface.print_error("serving improperly sorted address histories")
         # Check that txids are unique
         if len(hashes) != len(result):
             self.print_error("error: server history has non-unique txids: %s"% addr)
@@ -130,8 +143,8 @@ class Synchronizer(ThreadJob):
         # Remove request; this allows up_to_date to be True
         self.requested_histories.pop(addr)
 
-    def tx_response(self, response):
-        if self.wallet.synchronizer is None:
+    def on_tx_response(self, response):
+        if self.wallet.synchronizer is None and self.initialized:
             return  # we have been killed, this was just an orphan callback
         params, result = self.parse_response(response)
         if not params:
@@ -153,19 +166,18 @@ class Synchronizer(ThreadJob):
         if not self.requested_tx:
             self.network.trigger_callback('updated')
 
-
     def request_missing_txs(self, hist):
         # "hist" is a list of [tx_hash, tx_height] lists
-        requests = []
+        transaction_hashes = []
         for tx_hash, tx_height in hist:
             if tx_hash in self.requested_tx:
                 continue
             if tx_hash in self.wallet.transactions:
                 continue
-            requests.append(('blockchain.transaction.get', [tx_hash]))
+            transaction_hashes.append(tx_hash)
             self.requested_tx[tx_hash] = tx_height
-        self.network.send(requests, self.tx_response)
 
+        self.network.get_transactions(transaction_hashes, self.on_tx_response)
 
     def initialize(self):
         '''Check the initial state of the wallet.  Subscribe to all its
@@ -183,6 +195,7 @@ class Synchronizer(ThreadJob):
         if self.requested_tx:
             self.print_error("missing tx", self.requested_tx)
         self.subscribe_to_addresses(set(self.wallet.get_addresses()))
+        self.initialized = True
 
     def run(self):
         '''Called from the network proxy thread main loop.'''

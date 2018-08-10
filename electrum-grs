@@ -26,21 +26,6 @@
 import os
 import sys
 
-# from https://gist.github.com/tito/09c42fb4767721dc323d
-import threading
-try:
-    import jnius
-except:
-    jnius = None
-if jnius:
-    orig_thread_run = threading.Thread.run
-    def thread_check_run(*args, **kwargs):
-        try:
-            return orig_thread_run(*args, **kwargs)
-        finally:
-            jnius.detach()
-    threading.Thread.run = thread_check_run
-
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
 is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electrum-grs.desktop"))
@@ -84,7 +69,6 @@ if is_local or is_android:
     import imp
     imp.load_module('electrum_grs', *imp.find_module('lib'))
     imp.load_module('electrum_grs_gui', *imp.find_module('gui'))
-    imp.load_module('electrum_grs_plugins', *imp.find_module('plugins'))
 
 
 
@@ -99,7 +83,6 @@ from electrum_grs.commands import get_parser, known_commands, Commands, config_v
 from electrum_grs import daemon
 from electrum_grs import keystore
 from electrum_grs.mnemonic import Mnemonic
-import electrum_grs_plugins
 
 # get password routine
 def prompt_password(prompt, confirm=True):
@@ -286,7 +269,7 @@ def get_connected_hw_devices(plugins):
 def get_password_for_hw_device_encrypted_storage(plugins):
     devices = get_connected_hw_devices(plugins)
     if len(devices) == 0:
-        print_msg("Error: No connected hw device found. Can not decrypt this wallet.")
+        print_msg("Error: No connected hw device found. Cannot decrypt this wallet.")
         sys.exit(1)
     elif len(devices) > 1:
         print_msg("Warning: multiple hardware devices detected. "
@@ -351,7 +334,7 @@ def init_plugins(config, gui_name):
 if __name__ == '__main__':
     # The hook will only be used in the Qt GUI right now
     util.setup_thread_excepthook()
-    # on osx, delete Process Serial Number arg generated for apps launched in Finder
+    # on macOS, delete Process Serial Number arg generated for apps launched in Finder
     sys.argv = list(filter(lambda x: not x.startswith('-psn'), sys.argv))
 
     # old 'help' syntax
@@ -366,7 +349,7 @@ if __name__ == '__main__':
                 sys.argv[i] = sys.stdin.read()
                 break
             else:
-                raise BaseException('Cannot get argument from stdin')
+                raise Exception('Cannot get argument from stdin')
         elif arg == '?':
             sys.argv[i] = input("Enter argument:")
         elif arg == ':':
@@ -416,6 +399,10 @@ if __name__ == '__main__':
 
     if config.get('testnet'):
         constants.set_testnet()
+    elif config.get('regtest'):
+        constants.set_regtest()
+    elif config.get('simnet'):
+        constants.set_simnet()
 
     # run non-RPC commands separately
     if cmdname in ['create', 'restore']:

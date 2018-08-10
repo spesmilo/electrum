@@ -40,10 +40,12 @@ directory. To run Electrum-GRS from its root directory, just do::
 You can also install Electrum-GRS on your system, by running this command::
 
     sudo apt-get install python3-setuptools
-    python3 setup.py install
+    pip3 install .[fast]
 
 This will download and install the Python dependencies used by
 Electrum-GRS, instead of using the 'packages' directory.
+The 'fast' extra contains some optional dependencies that we think
+are often useful but they are not strictly needed.
 
 If you cloned the git repository, you need to compile extra files
 before you can run Electrum-GRS. Read the next section, "Development
@@ -54,14 +56,18 @@ Version".
 Development version
 ===================
 
-Check out the code from Github::
+Check out the code from GitHub::
 
     git clone git://github.com/groestlcoin/electrum-grs.git
     cd electrum-grs
 
 Run install (this should install dependencies)::
 
-    python3 setup.py install
+    pip3 install .[fast]
+
+Render the SVG icons to PNGs (optional)::
+
+    for i in lock unlock confirmed status_lagging status_disconnected status_connected_proxy status_connected status_waiting preferences; do convert -background none icons/$i.svg icons/$i.png; done
 
 Compile the icons file for Qt::
 

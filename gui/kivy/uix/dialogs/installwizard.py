@@ -1,6 +1,7 @@
 
 from functools import partial
 import threading
+import os
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -15,6 +16,7 @@ from kivy.clock import Clock
 from kivy.utils import platform
 
 from electrum_grs.base_wizard import BaseWizard
+from electrum_grs.util import is_valid_email
 
 
 from . import EventsDialog
@@ -24,6 +26,7 @@ from .password_dialog import PasswordDialog
 # global Variables
 is_test = (platform == "linux")
 test_seed = "time taxi field recycle tiny license olive virus report rare steel portion achieve"
+test_seed = "grape impose jazz bind spatial mind jelly tourist tank today holiday stomach"
 test_xpub = "xpub661MyMwAqRbcEbvVtRRSjqxVnaWVUMewVzMiURAKyYratih4TtBpMypzzefmv8zUNebmNVzB3PojdC5sV2P9bDgMoo9B3SARw1MXUUfU1GL"
 
 Builder.load_string('''
@@ -63,10 +66,6 @@ Builder.load_string('''
     #auto_dismiss: False
     size_hint: None, None
     canvas.before:
-        Color:
-            rgba: 0, 0, 0, .9
-        Rectangle:
-            size: Window.size
         Color:
             rgba: .239, .588, .882, 1
         Rectangle:
@@ -170,6 +169,112 @@ Builder.load_string('''
         cols: 1
         spacing: '14dp'
         size_hint: 1, None
+
+<WizardConfirmDialog>
+    message : ''
+    Widget:
+        size_hint: 1, 1
+    Label:
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: root.message
+    Widget
+        size_hint: 1, 1
+
+<WizardTOSDialog>
+    message : ''
+    size_hint: 1, 1
+    ScrollView:
+        size_hint: 1, 1
+        TextInput:
+            color: root.text_color
+            size_hint: 1, None
+            text_size: self.width, None
+            height: self.minimum_height
+            text: root.message
+            disabled: True
+
+<WizardEmailDialog>
+    Label:
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: 'Please enter your email address'
+    WizardTextInput:
+        id: email
+        on_text: Clock.schedule_once(root.on_text)
+        multiline: False
+        on_text_validate: Clock.schedule_once(root.on_enter)
+
+<WizardKnownOTPDialog>
+    message : ''
+    message2: ''
+    Widget:
+        size_hint: 1, 1
+    Label:
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: root.message
+    Widget
+        size_hint: 1, 1
+    WizardTextInput:
+        id: otp
+        on_text: Clock.schedule_once(root.on_text)
+        multiline: False
+        on_text_validate: Clock.schedule_once(root.on_enter)
+    Widget
+        size_hint: 1, 1
+    Label:
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: root.message2
+    Widget
+        size_hint: 1, 1
+        height: '48sp'
+    BoxLayout:
+        orientation: 'horizontal'
+        WizardButton:
+            id: cb
+            text: _('Request new secret')
+            on_release: root.request_new_secret()
+            size_hint: 1, None
+        WizardButton:
+            id: abort
+            text: _('Abort creation')
+            on_release: root.abort_wallet_creation()
+            size_hint: 1, None
+
+
+<WizardNewOTPDialog>
+    message : ''
+    message2 : ''
+    Label:
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: root.message
+    QRCodeWidget:
+        id: qr
+        size_hint: 1, 1
+    Label:
+        color: root.text_color
+        size_hint: 1, None
+        text_size: self.width, None
+        height: self.texture_size[1]
+        text: root.message2
+    WizardTextInput:
+        id: otp
+        on_text: Clock.schedule_once(root.on_text)
+        multiline: False
+        on_text_validate: Clock.schedule_once(root.on_enter)
 
 <MButton@Button>:
     size_hint: 1, None
@@ -485,6 +590,101 @@ class WizardMultisigDialog(WizardDialog):
         n = self.ids.n.value
         return m, n
 
+
+class WizardOTPDialogBase(WizardDialog):
+
+    def get_otp(self):
+        otp = self.ids.otp.text
+        if len(otp) != 6:
+            return
+        try:
+            return int(otp)
+        except:
+            return
+
+    def on_text(self, dt):
+        self.ids.next.disabled = self.get_otp() is None
+
+    def on_enter(self, dt):
+        # press next
+        next = self.ids.next
+        if not next.disabled:
+            next.dispatch('on_release')
+
+
+class WizardKnownOTPDialog(WizardOTPDialogBase):
+
+    def __init__(self, wizard, **kwargs):
+        WizardOTPDialogBase.__init__(self, wizard, **kwargs)
+        self.message = _("This wallet is already registered with TrustedCoin. To finalize wallet creation, please enter your Google Authenticator Code.")
+        self.message2 =_("If you have lost your Google Authenticator account, you can request a new secret. You will need to retype your seed.")
+        self.request_new = False
+
+    def get_params(self, button):
+        return (self.get_otp(), self.request_new)
+
+    def request_new_secret(self):
+        self.request_new = True
+        self.on_release(True)
+
+    def abort_wallet_creation(self):
+        self._on_release = True
+        os.unlink(self.wizard.storage.path)
+        self.wizard.terminate()
+        self.dismiss()
+
+
+class WizardNewOTPDialog(WizardOTPDialogBase):
+
+    def __init__(self, wizard, **kwargs):
+        WizardOTPDialogBase.__init__(self, wizard, **kwargs)
+        otp_secret = kwargs['otp_secret']
+        uri = "otpauth://totp/%s?secret=%s"%('trustedcoin.com', otp_secret)
+        self.message = "Please scan the following QR code in Google Authenticator. You may also use the secret key: %s"%otp_secret
+        self.message2 = _('Then, enter your Google Authenticator code:')
+        self.ids.qr.set_data(uri)
+
+    def get_params(self, button):
+        return (self.get_otp(), False)
+
+class WizardTOSDialog(WizardDialog):
+
+    def __init__(self, wizard, **kwargs):
+        WizardDialog.__init__(self, wizard, **kwargs)
+        self.ids.next.text = 'Accept'
+        self.ids.next.disabled = False
+        self.message = kwargs['tos']
+        self.message2 = _('Enter your email address:')
+
+class WizardEmailDialog(WizardDialog):
+
+    def get_params(self, button):
+        return (self.ids.email.text,)
+
+    def on_text(self, dt):
+        self.ids.next.disabled = not is_valid_email(self.ids.email.text)
+
+    def on_enter(self, dt):
+        # press next
+        next = self.ids.next
+        if not next.disabled:
+            next.dispatch('on_release')
+
+class WizardConfirmDialog(WizardDialog):
+
+    def __init__(self, wizard, **kwargs):
+        super(WizardConfirmDialog, self).__init__(wizard, **kwargs)
+        self.message = kwargs.get('message', '')
+        self.value = 'ok'
+
+    def on_parent(self, instance, value):
+        if value:
+            app = App.get_running_app()
+            self._back = _back = partial(app.dispatch, 'on_back')
+
+    def get_params(self, button):
+        return (True,)
+
 class WizardChoiceDialog(WizardDialog):
 
     def __init__(self, wizard, **kwargs):
@@ -744,7 +944,7 @@ class InstallWizard(BaseWizard, Widget):
         """overriden by main_window"""
         pass
 
-    def waiting_dialog(self, task, msg):
+    def waiting_dialog(self, task, msg, on_finished=None):
         '''Perform a blocking task in the background by running the passed
         method in a thread.
         '''
@@ -756,6 +956,8 @@ class InstallWizard(BaseWizard, Widget):
                 self.show_error(str(err))
             # on  completion hide message
             Clock.schedule_once(lambda dt: app.info_bubble.hide(now=True), -1)
+            if on_finished:
+                Clock.schedule_once(lambda dt: on_finished(), -1)
 
         app = App.get_running_app()
         app.show_info_bubble(
@@ -787,6 +989,21 @@ class InstallWizard(BaseWizard, Widget):
     def restore_seed_dialog(self, **kwargs):
         RestoreSeedDialog(self, **kwargs).open()
 
+    def confirm_dialog(self, **kwargs):
+        WizardConfirmDialog(self, **kwargs).open()
+
+    def tos_dialog(self, **kwargs):
+        WizardTOSDialog(self, **kwargs).open()
+
+    def email_dialog(self, **kwargs):
+        WizardEmailDialog(self, **kwargs).open()
+
+    def otp_dialog(self, **kwargs):
+        if kwargs['otp_secret']:
+            WizardNewOTPDialog(self, **kwargs).open()
+        else:
+            WizardKnownOTPDialog(self, **kwargs).open()
+
     def add_xpub_dialog(self, **kwargs):
         kwargs['message'] += ' ' + _('Use the camera button to scan a QR code.')
         AddXpubDialog(self, **kwargs).open()
@@ -797,6 +1014,8 @@ class InstallWizard(BaseWizard, Widget):
         AddXpubDialog(self, **kwargs).open()
 
     def show_xpub_dialog(self, **kwargs): ShowXpubDialog(self, **kwargs).open()
+
+    def show_message(self, msg): self.show_error(msg)
 
     def show_error(self, msg):
         app = App.get_running_app()

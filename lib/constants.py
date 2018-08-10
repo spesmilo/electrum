@@ -63,6 +63,7 @@ class BitcoinMainnet:
         'p2wpkh':      0x04b24746,  # zpub
         'p2wsh':       0x02aa7ed3,  # Zpub
     }
+    BIP44_COIN_TYPE = 17
 
 
 class BitcoinTestnet:
@@ -87,15 +88,35 @@ class BitcoinTestnet:
     XPUB_HEADERS = {
         'standard':    0x043587cf,  # tpub
         'p2wpkh-p2sh': 0x044a5262,  # upub
-        'p2wsh-p2sh':  0x024285ef,  # Upub
+        'p2wsh-p2sh':  0x024289ef,  # Upub
         'p2wpkh':      0x045f1cf6,  # vpub
         'p2wsh':       0x02575483,  # Vpub
     }
+    BIP44_COIN_TYPE = 1
+
+
+class BitcoinRegtest(BitcoinTestnet):
+
+    SEGWIT_HRP = "bcrt"
+    GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+    DEFAULT_SERVERS = read_json('servers_regtest.json', {})
+    CHECKPOINTS = []
+
+
+class BitcoinSimnet(BitcoinTestnet):
+
+    SEGWIT_HRP = "sb"
+    GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
+    DEFAULT_SERVERS = read_json('servers_regtest.json', {})
+    CHECKPOINTS = []
 
 
 # don't import net directly, import the module instead (so that net is singleton)
 net = BitcoinMainnet
 
+def set_simnet():
+    global net
+    net = BitcoinSimnet
 
 def set_mainnet():
     global net
@@ -105,3 +126,8 @@ def set_mainnet():
 def set_testnet():
     global net
     net = BitcoinTestnet
+
+
+def set_regtest():
+    global net
+    net = BitcoinRegtest

@@ -76,7 +76,7 @@ class BumpFeeDialog(Factory.Popup):
         self.callback = callback
         self.config = app.electrum_config
         self.mempool = self.config.use_mempool_fees()
-        self.dynfees = self.config.is_dynfee() and self.app.network and self.config.has_dynamic_fees_ready()
+        self.dynfees = self.config.is_dynfee() and bool(self.app.network) and self.config.has_dynamic_fees_ready()
         self.ids.old_fee.value = self.app.format_amount_and_units(self.init_fee)
         self.update_slider()
         self.update_text()
@@ -115,8 +115,4 @@ class BumpFeeDialog(Factory.Popup):
         self.callback(self.init_fee, new_fee, is_final)
 
     def on_slider(self, value):
-        self.update_text()
-
-    def on_checkbox(self, b):
-        self.dynfees = b
         self.update_text()

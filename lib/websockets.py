@@ -32,6 +32,7 @@ except ImportError:
     sys.exit("install SimpleWebSocketServer")
 
 from . import util
+from . import bitcoin
 
 request_queue = queue.Queue()
 
@@ -84,9 +85,7 @@ class WsClientThread(util.DaemonThread):
             l = self.subscriptions.get(addr, [])
             l.append((ws, amount))
             self.subscriptions[addr] = l
-            h = self.network.addr_to_scripthash(addr)
-            self.network.send([('blockchain.scripthash.subscribe', [h])], self.response_queue.put)
-
+            self.network.subscribe_to_addresses([addr], self.response_queue.put)
 
     def run(self):
         threading.Thread(target=self.reading_thread).start()
@@ -97,17 +96,20 @@ class WsClientThread(util.DaemonThread):
                 continue
             util.print_error('response', r)
             method = r.get('method')
-            params = r.get('params')
             result = r.get('result')
             if result is None:
                 continue    
             if method == 'blockchain.scripthash.subscribe':
-                self.network.send([('blockchain.scripthash.get_balance', params)], self.response_queue.put)
+                addr = r.get('params')[0]
+                scripthash = bitcoin.address_to_scripthash(addr)
+                self.network.get_balance_for_scripthash(
+                        scripthash, self.response_queue.put)
             elif method == 'blockchain.scripthash.get_balance':
-                h = params[0]
-                addr = self.network.h2addr.get(h, None)
+                scripthash = r.get('params')[0]
+                addr = self.network.h2addr.get(scripthash, None)
                 if addr is None:
-                    util.print_error("can't find address for scripthash: %s" % h)
+                    util.print_error(
+                        "can't find address for scripthash: %s" % scripthash)
                 l = self.subscriptions.get(addr, [])
                 for ws, amount in l:
                     if not ws.closed:

@@ -9,6 +9,7 @@ import base64
 
 import electrum_grs
 from electrum_grs.plugins import BasePlugin, hook
+from electrum_grs.crypto import aes_encrypt_with_iv, aes_decrypt_with_iv
 from electrum_grs.i18n import _
 
 
@@ -21,14 +22,14 @@ class LabelsPlugin(BasePlugin):
 
     def encode(self, wallet, msg):
         password, iv, wallet_id = self.wallets[wallet]
-        encrypted = electrum_grs.bitcoin.aes_encrypt_with_iv(password, iv,
+        encrypted = aes_encrypt_with_iv(password, iv,
                                                          msg.encode('utf8'))
         return base64.b64encode(encrypted).decode()
 
     def decode(self, wallet, message):
         password, iv, wallet_id = self.wallets[wallet]
         decoded = base64.b64decode(message)
-        decrypted = electrum_grs.bitcoin.aes_decrypt_with_iv(password, iv, decoded)
+        decrypted = aes_decrypt_with_iv(password, iv, decoded)
         return decrypted.decode('utf8')
 
     def get_nonce(self, wallet):
@@ -72,10 +73,10 @@ class LabelsPlugin(BasePlugin):
             kwargs['headers']['Content-Type'] = 'application/json'
         response = requests.request(method, url, **kwargs)
         if response.status_code != 200:
-            raise BaseException(response.status_code, response.text)
+            raise Exception(response.status_code, response.text)
         response = response.json()
         if "error" in response:
-            raise BaseException(response["error"])
+            raise Exception(response["error"])
         return response
 
     def do_request_safe(self, *args, **kwargs):

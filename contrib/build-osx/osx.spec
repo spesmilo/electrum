@@ -15,7 +15,7 @@ for i, x in enumerate(sys.argv):
         VERSION = sys.argv[i+1]
         break
 else:
-    raise BaseException('no version')
+    raise Exception('no version')
 
 electrum = os.path.abspath(".") + "/"
 block_cipher = None
@@ -28,11 +28,7 @@ hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 
 datas = [
-    (electrum+'lib/currencies.json', PYPKG),
-    (electrum+'lib/servers.json', PYPKG),
-    (electrum+'lib/checkpoints.json', PYPKG),
-    (electrum+'lib/servers_testnet.json', PYPKG),
-    (electrum+'lib/checkpoints_testnet.json', PYPKG),
+    (electrum+'lib/*.json', PYPKG),
     (electrum+'lib/wordlist/english.txt', PYPKG + '/wordlist'),
     (electrum+'lib/locale', PYPKG + '/locale'),
     (electrum+'plugins', PYPKG + '_plugins'),
@@ -43,6 +39,7 @@ datas += collect_data_files('keepkeylib')
 
 # Add libusb so Trezor will work
 binaries = [(electrum + "contrib/build-osx/libusb-1.0.dylib", ".")]
+binaries += [(electrum + "contrib/build-osx/libsecp256k1.0.dylib", ".")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]

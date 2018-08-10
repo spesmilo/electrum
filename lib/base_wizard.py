@@ -26,11 +26,12 @@
 import os
 import sys
 import traceback
+from functools import partial
 
 from . import bitcoin
 from . import keystore
-from .keystore import bip44_derivation
-from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types
+from .keystore import bip44_derivation, purpose48_derivation
+from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types, Wallet
 from .storage import STO_EV_USER_PW, STO_EV_XPUB_PW, get_derivation_used_for_hw_device_encryption
 from .i18n import _
 from .util import UserCancelled, InvalidPassword
@@ -38,14 +39,19 @@ from .util import UserCancelled, InvalidPassword
 # hardware device setup purpose
 HWD_SETUP_NEW_WALLET, HWD_SETUP_DECRYPT_WALLET = range(0, 2)
 
+
 class ScriptTypeNotSupported(Exception): pass
+
+
+class GoBack(Exception): pass
 
 
 class BaseWizard(object):
 
-    def __init__(self, config, storage):
+    def __init__(self, config, plugins, storage):
         super(BaseWizard, self).__init__()
         self.config = config
+        self.plugins = plugins
         self.storage = storage
         self.wallet = None
         self.stack = []
@@ -53,6 +59,9 @@ class BaseWizard(object):
         self.keystores = []
         self.is_kivy = config.get('gui') == 'kivy'
         self.seed_type = None
+
+    def set_icon(self, icon):
+        pass
 
     def run(self, *args):
         action = args[0]
@@ -69,7 +78,7 @@ class BaseWizard(object):
             f = getattr(self, action)
             f(*args)
         else:
-            raise BaseException("unknown action", action)
+            raise Exception("unknown action", action)
 
     def can_go_back(self):
         return len(self.stack)>1
@@ -96,6 +105,12 @@ class BaseWizard(object):
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
+
+    def upgrade_storage(self):
+        def on_finished():
+            self.wallet = Wallet(self.storage)
+            self.terminate()
+        self.waiting_dialog(partial(self.storage.upgrade), _('Upgrading wallet format...'), on_finished=on_finished)
 
     def load_2fa(self):
         self.storage.put('wallet_type', '2fa')
@@ -152,7 +167,7 @@ class BaseWizard(object):
         title = _("Import Groestlcoin Addresses")
         message = _("Enter a list of Groestlcoin addresses (this will create a watching-only wallet), or a list of private keys.")
         self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
-                             is_valid=v, allow_multi=True)
+                             is_valid=v, allow_multi=True, show_wif_help=True)
 
     def on_import(self, text):
         # create a temporary wallet and exploit that modifications
@@ -207,21 +222,28 @@ class BaseWizard(object):
             scanned_devices = devmgr.scan_devices()
         except BaseException as e:
             devmgr.print_error('error scanning devices: {}'.format(e))
+            debug_msg = '  {}:\n    {}'.format(_('Error scanning devices'), e)
         else:
+            debug_msg = ''
             for name, description, plugin in support:
                 try:
                     # FIXME: side-effect: unpaired_device_info sets client.handler
                     u = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices)
                 except BaseException as e:
                     devmgr.print_error('error getting device infos for {}: {}'.format(name, e))
+                    debug_msg += '  {}:\n    {}\n'.format(plugin.name, e)
                     continue
                 devices += list(map(lambda x: (name, x), u))
+        if not debug_msg:
+            debug_msg = '  {}'.format(_('No exceptions encountered.'))
         if not devices:
             msg = ''.join([
                 _('No hardware device detected.') + '\n',
                 _('To trigger a rescan, press \'Next\'.') + '\n\n',
                 _('If your device is not detected on Windows, go to "Settings", "Devices", "Connected devices", and do "Remove device". Then, plug your device again.') + ' ',
-                _('On Linux, you might have to add a new permission to your udev rules.'),
+                _('On Linux, you might have to add a new permission to your udev rules.') + '\n\n',
+                _('Debug message') + '\n',
+                debug_msg
             ])
             self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device(purpose))
             return
@@ -249,21 +271,18 @@ class BaseWizard(object):
             devmgr.unpair_id(device_info.device.id_)
             self.choose_hw_device(purpose)
             return
-        except UserCancelled:
+        except (UserCancelled, GoBack):
             self.choose_hw_device(purpose)
             return
         except BaseException as e:
+            traceback.print_exc(file=sys.stderr)
             self.show_error(str(e))
             self.choose_hw_device(purpose)
             return
         if purpose == HWD_SETUP_NEW_WALLET:
-            if self.wallet_type=='multisig':
-                # There is no general standard for HD multisig.
-                # This is partially compatible with BIP45; assumes index=0
-                self.on_hw_derivation(name, device_info, "m/45'/0")
-            else:
-                f = lambda x: self.run('on_hw_derivation', name, device_info, str(x))
-                self.derivation_dialog(f)
+            def f(derivation, script_type):
+                self.run('on_hw_derivation', name, device_info, derivation, script_type)
+            self.derivation_and_script_type_dialog(f)
         elif purpose == HWD_SETUP_DECRYPT_WALLET:
             derivation = get_derivation_used_for_hw_device_encryption()
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, 'standard', self)
@@ -280,30 +299,39 @@ class BaseWizard(object):
         else:
             raise Exception('unknown purpose: %s' % purpose)
 
-    def derivation_dialog(self, f):
-        default = bip44_derivation(0, bip43_purpose=44)
-        message = '\n'.join([
-            _('Enter your wallet derivation here.'),
+    def derivation_and_script_type_dialog(self, f):
+        message1 = _('Choose the type of addresses in your wallet.')
+        message2 = '\n'.join([
+            _('You can override the suggested derivation path.'),
             _('If you are not sure what this is, leave this field unchanged.')
         ])
-        presets = (
-            ('legacy BIP44', bip44_derivation(0, bip43_purpose=44)),
-            ('p2sh-segwit BIP49', bip44_derivation(0, bip43_purpose=49)),
-            ('native-segwit BIP84', bip44_derivation(0, bip43_purpose=84)),
-        )
+        if self.wallet_type == 'multisig':
+            # There is no general standard for HD multisig.
+            # For legacy, this is partially compatible with BIP45; assumes index=0
+            # For segwit, a custom path is used, as there is no standard at all.
+            choices = [
+                ('standard',   'legacy multisig (p2sh)',            "m/45'/0"),
+                ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
+                ('p2wsh',      'native segwit multisig (p2wsh)',    purpose48_derivation(0, xtype='p2wsh')),
+            ]
+        else:
+            choices = [
+                ('standard',    'legacy (p2pkh)',            bip44_derivation(0, bip43_purpose=44)),
+                ('p2wpkh-p2sh', 'p2sh-segwit (p2wpkh-p2sh)', bip44_derivation(0, bip43_purpose=49)),
+                ('p2wpkh',      'native segwit (p2wpkh)',    bip44_derivation(0, bip43_purpose=84)),
+            ]
         while True:
             try:
-                self.line_dialog(run_next=f, title=_('Derivation'), message=message,
-                                 default=default, test=bitcoin.is_bip32_derivation,
-                                 presets=presets)
+                self.choice_and_line_dialog(
+                    run_next=f, title=_('Script type and Derivation path'), message1=message1,
+                    message2=message2, choices=choices, test_text=bitcoin.is_bip32_derivation)
                 return
             except ScriptTypeNotSupported as e:
                 self.show_error(e)
                 # let the user choose again
 
-    def on_hw_derivation(self, name, device_info, derivation):
+    def on_hw_derivation(self, name, device_info, derivation, xtype):
         from .keystore import hardware_keystore
-        xtype = keystore.xtype_from_derivation(derivation)
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
         except ScriptTypeNotSupported:
@@ -351,25 +379,22 @@ class BaseWizard(object):
         elif self.seed_type == 'old':
             self.run('create_keystore', seed, '')
         elif self.seed_type == '2fa':
-            if self.is_kivy:
-                self.show_error(_('2FA seeds are not supported in this version'))
-                self.run('restore_from_seed')
-            else:
-                self.load_2fa()
-                self.run('on_restore_seed', seed, is_ext)
+            self.load_2fa()
+            self.run('on_restore_seed', seed, is_ext)
         else:
-            raise BaseException('Unknown seed type', self.seed_type)
+            raise Exception('Unknown seed type', self.seed_type)
 
     def on_restore_bip39(self, seed, passphrase):
-        f = lambda x: self.run('on_bip43', seed, passphrase, str(x))
-        self.derivation_dialog(f)
+        def f(derivation, script_type):
+            self.run('on_bip43', seed, passphrase, derivation, script_type)
+        self.derivation_and_script_type_dialog(f)
 
     def create_keystore(self, seed, passphrase):
         k = keystore.from_seed(seed, passphrase, self.wallet_type == 'multisig')
         self.on_keystore(k)
 
-    def on_bip43(self, seed, passphrase, derivation):
-        k = keystore.from_bip39_seed(seed, passphrase, derivation)
+    def on_bip43(self, seed, passphrase, derivation, script_type):
+        k = keystore.from_bip39_seed(seed, passphrase, derivation, xtype=script_type)
         self.on_keystore(k)
 
     def on_keystore(self, k):

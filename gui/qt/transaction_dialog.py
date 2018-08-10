@@ -42,6 +42,11 @@ from electrum_grs.transaction import SerializationError
 
 from .util import *
 
+
+SAVE_BUTTON_ENABLED_TOOLTIP = _("Save transaction offline")
+SAVE_BUTTON_DISABLED_TOOLTIP = _("Please sign this transaction in order to save it")
+
+
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
 
 
@@ -67,7 +72,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         # Take a copy; it might get updated in the main window by
         # e.g. the FX plugin.  If this happens during or after a long
         # sign operation the signatures are lost.
-        self.tx = copy.deepcopy(tx)
+        self.tx = tx = copy.deepcopy(tx)
         try:
             self.tx.deserialize()
         except BaseException as e:
@@ -78,7 +83,12 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.saved = False
         self.desc = desc
 
-        self.setMinimumWidth(750)
+        # if the wallet can populate the inputs with more info, do it now.
+        # as a result, e.g. we might learn an imported address tx is segwit,
+        # in which case it's ok to display txid
+        self.wallet.add_input_info_to_all_inputs(tx)
+
+        self.setMinimumWidth(950)
         self.setWindowTitle(_("Transaction"))
 
         vbox = QVBoxLayout()
@@ -113,14 +123,14 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.broadcast_button = b = QPushButton(_("Broadcast"))
         b.clicked.connect(self.do_broadcast)
 
-        self.save_button = QPushButton(_("Save"))
+        self.save_button = b = QPushButton(_("Save"))
         save_button_disabled = not tx.is_complete()
-        self.save_button.setDisabled(save_button_disabled)
+        b.setDisabled(save_button_disabled)
         if save_button_disabled:
-            self.save_button.setToolTip(_("Please sign this transaction in order to save it"))
+            b.setToolTip(SAVE_BUTTON_DISABLED_TOOLTIP)
         else:
-            self.save_button.setToolTip("")
-        self.save_button.clicked.connect(self.save)
+            b.setToolTip(SAVE_BUTTON_ENABLED_TOOLTIP)
+        b.clicked.connect(self.save)
 
         self.export_button = b = QPushButton(_("Export"))
         b.clicked.connect(self.export)
@@ -136,9 +146,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.copy_button = CopyButton(lambda: str(self.tx), parent.app)
 
         # Action buttons
-        self.buttons = [self.sign_button, self.broadcast_button, self.save_button, self.cancel_button]
+        self.buttons = [self.sign_button, self.broadcast_button, self.cancel_button]
         # Transaction sharing buttons
-        self.sharing_buttons = [self.copy_button, self.qr_button, self.export_button]
+        self.sharing_buttons = [self.copy_button, self.qr_button, self.export_button, self.save_button]
 
         run_hook('transaction_dialog', self)
 
@@ -184,7 +194,7 @@ class TxDialog(QDialog, MessageBoxMixin):
                 self.prompt_if_unsaved = True
                 self.saved = False
                 self.save_button.setDisabled(False)
-                self.save_button.setToolTip("")
+                self.save_button.setToolTip(SAVE_BUTTON_ENABLED_TOOLTIP)
             self.update()
             self.main_window.pop_top_level_window(self)
 
@@ -193,9 +203,11 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.main_window.sign_tx(self.tx, sign_done)
 
     def save(self):
+        self.main_window.push_top_level_window(self)
         if self.main_window.save_transaction_into_wallet(self.tx):
             self.save_button.setDisabled(True)
             self.saved = True
+        self.main_window.pop_top_level_window(self)
 
 
     def export(self):
@@ -231,7 +243,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             self.date_label.show()
         elif exp_n:
             text = '%.2f MB'%(exp_n/1000000)
-            self.date_label.setText(_('Position in mempool') + ': ' + text + ' ' + _('from tip'))
+            self.date_label.setText(_('Position in mempool: {} from tip').format(text))
             self.date_label.show()
         else:
             self.date_label.hide()
@@ -273,7 +285,7 @@ class TxDialog(QDialog, MessageBoxMixin):
             return ext
 
         def format_amount(amt):
-            return self.main_window.format_amount(amt, whitespaces = True)
+            return self.main_window.format_amount(amt, whitespaces=True)
 
         i_text = QTextEdit()
         i_text.setFont(QFont(MONOSPACE_FONT))
@@ -286,15 +298,10 @@ class TxDialog(QDialog, MessageBoxMixin):
             else:
                 prevout_hash = x.get('prevout_hash')
                 prevout_n = x.get('prevout_n')
-                cursor.insertText(prevout_hash[0:8] + '...', ext)
-                cursor.insertText(prevout_hash[-8:] + ":%-4d " % prevout_n, ext)
-                addr = x.get('address')
-                if addr == "(pubkey)":
-                    _addr = self.wallet.get_txin_address(x)
-                    if _addr:
-                        addr = _addr
+                cursor.insertText(prevout_hash + ":%-4d " % prevout_n, ext)
+                addr = self.wallet.get_txin_address(x)
                 if addr is None:
-                    addr = _('unknown')
+                    addr = ''
                 cursor.insertText(addr, text_format(addr))
                 if x.get('value'):
                     cursor.insertText(format_amount(x['value']), ext)

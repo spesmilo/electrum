@@ -26,6 +26,7 @@
 
 from electrum_grs.plugins import BasePlugin, hook
 from electrum_grs.i18n import _
+from electrum_grs.bitcoin import is_address
 
 
 class HW_PluginBase(BasePlugin):
@@ -58,3 +59,31 @@ class HW_PluginBase(BasePlugin):
         uninitialized, go through the initialization process.
         """
         raise NotImplementedError()
+
+    def show_address(self, wallet, address, keystore=None):
+        pass  # implemented in child classes
+
+    def show_address_helper(self, wallet, address, keystore=None):
+        if keystore is None:
+            keystore = wallet.get_keystore()
+        if not is_address(address):
+            keystore.handler.show_error(_('Invalid Bitcoin Address'))
+            return False
+        if not wallet.is_mine(address):
+            keystore.handler.show_error(_('Address not in wallet.'))
+            return False
+        if type(keystore) != self.keystore_class:
+            return False
+        return True
+
+
+def is_any_tx_output_on_change_branch(tx):
+    if not hasattr(tx, 'output_info'):
+        return False
+    for _type, address, amount in tx.outputs():
+        info = tx.output_info.get(address)
+        if info is not None:
+            index, xpubs, m = info
+            if index[0] == 1:
+                return True
+    return False

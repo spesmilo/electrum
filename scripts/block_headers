@@ -21,7 +21,8 @@ if not network.is_connected():
 
 # 2. send the subscription
 callback = lambda response: print_msg(json_encode(response.get('result')))
-network.send([('blockchain.headers.subscribe',[])], callback)
+network.send([('server.version',["block_headers script", "1.2"])], callback)
+network.subscribe_to_headers(callback)
 
 # 3. wait for results
 while network.is_connected():

@@ -33,8 +33,8 @@ import base64
 from functools import wraps
 from decimal import Decimal
 
-from .import util
-from .util import bfh, bh2u, format_satoshis, json_decode, print_error
+from .import util, ecc
+from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode
 from .import bitcoin
 from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
@@ -81,7 +81,7 @@ def command(s):
             wallet = args[0].wallet
             password = kwargs.get('password')
             if c.requires_wallet and wallet is None:
-                raise BaseException("wallet not loaded. Use 'electrum-grs daemon load_wallet'")
+                raise Exception("wallet not loaded. Use 'electrum-grs daemon load_wallet'")
             if c.requires_password and password is None and wallet.has_password():
                 return {'error': 'Password required' }
             return func(*args, **kwargs)
@@ -125,7 +125,7 @@ class Commands:
     @command('')
     def create(self, segwit=False):
         """Create a new wallet"""
-        raise BaseException('Not a JSON-RPC command')
+        raise Exception('Not a JSON-RPC command')
 
     @command('wn')
     def restore(self, text):
@@ -133,7 +133,7 @@ class Commands:
         public key, a master private key, a list of groestlcoin addresses
         or groestlcoin private keys. If you want to be prompted for your
         seed, type '?' or ':' (concealed) """
-        raise BaseException('Not a JSON-RPC command')
+        raise Exception('Not a JSON-RPC command')
 
     @command('wp')
     def password(self, password=None, new_password=None):
@@ -150,11 +150,20 @@ class Commands:
         """Return a configuration variable. """
         return self.config.get(key)
 
+    @classmethod
+    def _setconfig_normalize_value(cls, key, value):
+        if key not in ('rpcuser', 'rpcpassword'):
+            value = json_decode(value)
+            try:
+                value = ast.literal_eval(value)
+            except:
+                pass
+        return value
+
     @command('')
     def setconfig(self, key, value):
         """Set a configuration variable. 'value' may be a string or a Python expression."""
-        if key not in ('rpcuser', 'rpcpassword'):
-            value = json_decode(value)
+        value = self._setconfig_normalize_value(key, value)
         self.config.set_key(key, value)
         return True
 
@@ -172,7 +181,7 @@ class Commands:
         walletless server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        return self.network.synchronous_get(('blockchain.scripthash.get_history', [sh]))
+        return self.network.get_history_for_scripthash(sh)
 
     @command('w')
     def listunspent(self):
@@ -190,7 +199,7 @@ class Commands:
         is a walletless server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        return self.network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
+        return self.network.listunspent_for_scripthash(sh)
 
     @command('')
     def serialize(self, jsontx):
@@ -210,7 +219,7 @@ class Commands:
             sec = txin.get('privkey')
             if sec:
                 txin_type, privkey, compressed = bitcoin.deserialize_privkey(sec)
-                pubkey = bitcoin.public_key_from_private_key(privkey, compressed)
+                pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
                 keypairs[pubkey] = privkey, compressed
                 txin['type'] = txin_type
                 txin['x_pubkeys'] = [pubkey]
@@ -228,8 +237,8 @@ class Commands:
         tx = Transaction(tx)
         if privkey:
             txin_type, privkey2, compressed = bitcoin.deserialize_privkey(privkey)
-            pubkey = bitcoin.public_key_from_private_key(privkey2, compressed)
-            h160 = bitcoin.hash_160(bfh(pubkey))
+            pubkey_bytes = ecc.ECPrivkey(privkey2).get_public_key_bytes(compressed=compressed)
+            h160 = bitcoin.hash_160(pubkey_bytes)
             x_pubkey = 'fd' + bh2u(b'\x00' + h160)
             tx.sign({x_pubkey:(privkey2, compressed)})
         else:
@@ -243,10 +252,10 @@ class Commands:
         return tx.deserialize()
 
     @command('n')
-    def broadcast(self, tx, timeout=30):
+    def broadcast(self, tx):
         """Broadcast a transaction to the network. """
         tx = Transaction(tx)
-        return self.network.broadcast(tx, timeout)
+        return self.network.broadcast_transaction(tx)
 
     @command('')
     def createmultisig(self, num, pubkeys):
@@ -313,7 +322,7 @@ class Commands:
         server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        out = self.network.synchronous_get(('blockchain.scripthash.get_balance', [sh]))
+        out = self.network.get_balance_for_scripthash(sh)
         out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
         out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
         return out
@@ -322,7 +331,7 @@ class Commands:
     def getmerkle(self, txid, height):
         """Get Merkle branch of a transaction included in a block. Electrum
         uses this to verify transactions (Simple Payment Verification)."""
-        return self.network.synchronous_get(('blockchain.transaction.get_merkle', [txid, int(height)]))
+        return self.network.get_merkle_for_transaction(txid, int(height))
 
     @command('n')
     def getservers(self):
@@ -331,7 +340,7 @@ class Commands:
 
     @command('')
     def version(self):
-        """Return the version of electrum-grs."""
+        """Return the version of Electrum-GRS."""
         from .version import ELECTRUM_VERSION
         return ELECTRUM_VERSION
 
@@ -368,7 +377,7 @@ class Commands:
             return None
         out = self.wallet.contacts.resolve(x)
         if out.get('type') == 'openalias' and self.nocheck is False and out.get('validated') is False:
-            raise BaseException('cannot verify alias', x)
+            raise Exception('cannot verify alias', x)
         return out['address']
 
     @command('n')
@@ -396,7 +405,7 @@ class Commands:
         """Verify a signature."""
         sig = base64.b64decode(signature)
         message = util.to_bytes(message)
-        return bitcoin.verify_message(address, sig, message)
+        return ecc.verify_message_with_address(address, sig, message)
 
     def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime=None):
         self.nocheck = nocheck
@@ -412,15 +421,16 @@ class Commands:
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
         if locktime != None: 
             tx.locktime = locktime
+        if rbf is None:
+            rbf = self.config.get('use_rbf', True)
         if rbf:
             tx.set_rbf(True)
         if not unsigned:
-            run_hook('sign_tx', self.wallet, tx)
             self.wallet.sign_transaction(tx, password)
         return tx
 
     @command('wp')
-    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
+    def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
         """Create a transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
@@ -428,7 +438,7 @@ class Commands:
         return tx.as_dict()
 
     @command('wp')
-    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=False, password=None, locktime=None):
+    def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
         """Create a multi-output transaction. """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
@@ -449,7 +459,7 @@ class Commands:
             from .exchange_rate import FxThread
             fx = FxThread(self.config, None)
             kwargs['fx'] = fx
-        return self.wallet.get_full_history(**kwargs)
+        return json_encode(self.wallet.get_full_history(**kwargs))
 
     @command('w')
     def setlabel(self, key, label):
@@ -507,17 +517,19 @@ class Commands:
         if self.wallet and txid in self.wallet.transactions:
             tx = self.wallet.transactions[txid]
         else:
-            raw = self.network.synchronous_get(('blockchain.transaction.get', [txid]))
+            raw = self.network.get_transaction(txid)
             if raw:
                 tx = Transaction(raw)
             else:
-                raise BaseException("Unknown transaction")
+                raise Exception("Unknown transaction")
         return tx.as_dict()
 
     @command('')
     def encrypt(self, pubkey, message):
         """Encrypt a message with a public key. Use quotes if the message contains whitespaces."""
-        return bitcoin.encrypt_message(message, pubkey)
+        public_key = ecc.ECPubkey(bfh(pubkey))
+        encrypted = public_key.encrypt_message(message)
+        return encrypted
 
     @command('wp')
     def decrypt(self, pubkey, encrypted, password=None):
@@ -540,7 +552,7 @@ class Commands:
         """Return a payment request"""
         r = self.wallet.get_payment_request(key, self.config)
         if not r:
-            raise BaseException("Request not found")
+            raise Exception("Request not found")
         return self._format_request(r)
 
     #@command('w')
@@ -578,7 +590,7 @@ class Commands:
     @command('w')
     def addrequest(self, amount, memo='', expiration=None, force=False):
         """Create a payment request, using the first unused address of the wallet.
-        The address will be condidered as used after this operation.
+        The address will be considered as used after this operation.
         If no payment is received, the address will be considered as unused if the payment request is deleted from the wallet."""
         addr = self.wallet.get_unused_address()
         if addr is None:
@@ -607,7 +619,7 @@ class Commands:
         "Sign payment request with an OpenAlias"
         alias = self.config.get('alias')
         if not alias:
-            raise BaseException('No alias in your configuration')
+            raise Exception('No alias in your configuration')
         alias_addr = self.wallet.contacts.resolve(alias)['address']
         self.wallet.sign_payment_request(address, alias, alias_addr, password)
 
@@ -624,7 +636,7 @@ class Commands:
 
     @command('n')
     def notify(self, address, URL):
-        """Watch an address. Everytime the address changes, a http POST is sent to the URL."""
+        """Watch an address. Every time the address changes, a http POST is sent to the URL."""
         def callback(x):
             import urllib.request
             headers = {'content-type':'application/json'}
@@ -636,8 +648,7 @@ class Commands:
                 util.print_error('Got Response for %s' % address)
             except BaseException as e:
                 util.print_error(str(e))
-        h = self.network.addr_to_scripthash(address)
-        self.network.send([('blockchain.scripthash.subscribe', [h])], callback)
+        self.network.subscribe_to_addresses([address], callback)
         return True
 
     @command('wn')
@@ -646,10 +657,23 @@ class Commands:
         return self.wallet.is_up_to_date()
 
     @command('n')
-    def getfeerate(self):
-        """Return current optimal fee rate per kilobyte, according
-        to config settings (static/dynamic)"""
-        return self.config.fee_per_kb()
+    def getfeerate(self, fee_method=None, fee_level=None):
+        """Return current suggested fee rate (in sat/kvByte), according to config
+        settings or supplied parameters.
+        """
+        if fee_method is None:
+            dyn, mempool = None, None
+        elif fee_method.lower() == 'static':
+            dyn, mempool = False, False
+        elif fee_method.lower() == 'eta':
+            dyn, mempool = True, False
+        elif fee_method.lower() == 'mempool':
+            dyn, mempool = True, True
+        else:
+            raise Exception('Invalid fee estimation method: {}'.format(fee_method))
+        if fee_level is not None:
+            fee_level = Decimal(fee_level)
+        return self.config.fee_per_kb(dyn=dyn, mempool=mempool, fee_level=fee_level)
 
     @command('')
     def help(self):
@@ -708,6 +732,8 @@ command_options = {
     'show_addresses': (None, "Show input and output addresses"),
     'show_fiat':   (None, "Show fiat value of transactions"),
     'year':        (None, "Show history for a given year"),
+    'fee_method':  (None, "Fee estimation method to use"),
+    'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position")
 }
 
 
@@ -727,6 +753,8 @@ arg_types = {
     'fee': lambda x: str(Decimal(x)) if x is not None else None,
     'amount': lambda x: str(Decimal(x)) if x != '!' else '!',
     'locktime': int,
+    'fee_method': str,
+    'fee_level': json_loads,
 }
 
 config_variables = {
@@ -795,7 +823,7 @@ argparse._SubParsersAction.__call__ = subparser_call
 
 
 def add_network_options(parser):
-    parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
+    parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=None, help="connect to one server only")
     parser.add_argument("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
     parser.add_argument("-p", "--proxy", dest="proxy", default=None, help="set proxy [type:]host[:port], where type is socks4,socks5 or http")
 
@@ -806,6 +834,8 @@ def add_global_options(parser):
     group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
     group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
     group.add_argument("--testnet", action="store_true", dest="testnet", default=False, help="Use Testnet")
+    group.add_argument("--regtest", action="store_true", dest="regtest", default=False, help="Use Regtest")
+    group.add_argument("--simnet", action="store_true", dest="simnet", default=False, help="Use Simnet")
 
 def get_parser():
     # create main parser

@@ -20,8 +20,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from .util import ThreadJob
-from .bitcoin import *
+from .util import ThreadJob, bh2u
+from .bitcoin import Hash, hash_decode, hash_encode
+from .transaction import Transaction
+
+
+class InnerNodeOfSpvProofIsValidTx(Exception): pass
 
 
 class SPV(ThreadJob):
@@ -31,9 +35,8 @@ class SPV(ThreadJob):
         self.wallet = wallet
         self.network = network
         self.blockchain = network.blockchain()
-        # Keyed by tx hash.  Value is None if the merkle branch was
-        # requested, and the merkle root once it has been verified
-        self.merkle_roots = {}
+        self.merkle_roots = {}  # txid -> merkle root (once it has been verified)
+        self.requested_merkle = set()  # txid set of pending requests
 
     def run(self):
         interface = self.network.interface
@@ -53,12 +56,15 @@ class SPV(ThreadJob):
                     if index < len(blockchain.checkpoints):
                         self.network.request_chunk(interface, index)
                 else:
-                    if tx_hash not in self.merkle_roots:
-                        request = ('blockchain.transaction.get_merkle',
-                                   [tx_hash, tx_height])
-                        self.network.send([request], self.verify_merkle)
+                    if (tx_hash not in self.requested_merkle
+                            and tx_hash not in self.merkle_roots):
+
+                        self.network.get_merkle_for_transaction(
+                                tx_hash,
+                                tx_height,
+                                self.verify_merkle)
                         self.print_error('requested merkle', tx_hash)
-                        self.merkle_roots[tx_hash] = None
+                        self.requested_merkle.add(tx_hash)
 
         if self.network.blockchain() != self.blockchain:
             self.blockchain = self.network.blockchain()
@@ -77,7 +83,12 @@ class SPV(ThreadJob):
         tx_hash = params[0]
         tx_height = merkle.get('block_height')
         pos = merkle.get('pos')
-        merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, pos)
+        try:
+            merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, pos)
+        except InnerNodeOfSpvProofIsValidTx:
+            self.print_error("merkle verification failed for {} (inner node looks like tx)"
+                             .format(tx_hash))
+            return
         header = self.network.blockchain().read_header(tx_height)
         # FIXME: if verification fails below,
         # we should make a fresh connection to a server to
@@ -94,8 +105,15 @@ class SPV(ThreadJob):
             return
         # we passed all the tests
         self.merkle_roots[tx_hash] = merkle_root
+        try:
+            # note: we could pop in the beginning, but then we would request
+            # this proof again in case of verification failure from the same server
+            self.requested_merkle.remove(tx_hash)
+        except KeyError: pass
         self.print_error("verified %s" % tx_hash)
         self.wallet.add_verified_tx(tx_hash, (tx_height, header.get('timestamp'), pos))
+        if self.is_up_to_date() and self.wallet.is_up_to_date():
+            self.wallet.save_verified_tx(write=True)
 
     @classmethod
     def hash_merkle_root(cls, merkle_s, target_hash, pos):
@@ -103,11 +121,36 @@ class SPV(ThreadJob):
         for i in range(len(merkle_s)):
             item = merkle_s[i]
             h = Hash(hash_decode(item) + h) if ((pos >> i) & 1) else Hash(h + hash_decode(item))
+            cls._raise_if_valid_tx(bh2u(h))
         return hash_encode(h)
+
+    @classmethod
+    def _raise_if_valid_tx(cls, raw_tx: str):
+        # If an inner node of the merkle proof is also a valid tx, chances are, this is an attack.
+        # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-June/016105.html
+        # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/attachments/20180609/9f4f5b1f/attachment-0001.pdf
+        # https://bitcoin.stackexchange.com/questions/76121/how-is-the-leaf-node-weakness-in-merkle-trees-exploitable/76122#76122
+        tx = Transaction(raw_tx)
+        try:
+            tx.deserialize()
+        except:
+            pass
+        else:
+            raise InnerNodeOfSpvProofIsValidTx()
 
     def undo_verifications(self):
         height = self.blockchain.get_checkpoint()
         tx_hashes = self.wallet.undo_verifications(self.blockchain, height)
         for tx_hash in tx_hashes:
             self.print_error("redoing", tx_hash)
-            self.merkle_roots.pop(tx_hash, None)
+            self.remove_spv_proof_for_tx(tx_hash)
+
+    def remove_spv_proof_for_tx(self, tx_hash):
+        self.merkle_roots.pop(tx_hash, None)
+        try:
+            self.requested_merkle.remove(tx_hash)
+        except KeyError:
+            pass
+
+    def is_up_to_date(self):
+        return not self.requested_merkle

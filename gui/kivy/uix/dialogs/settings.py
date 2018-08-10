@@ -3,7 +3,7 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 
-from electrum_grs.util import base_units
+from electrum_grs.util import base_units_list
 from electrum_grs.i18n import languages
 from electrum_grs_gui.kivy.i18n import _
 from electrum_grs.plugins import run_hook
@@ -59,7 +59,7 @@ Builder.load_string('''
                     description: _("Create replaceable transactions.")
                     message:
                         _('If you check this box, your transactions will be marked as non-final,') \
-                        + ' ' + _('and you will have the possiblity, while they are unconfirmed, to replace them with transactions that pays higher fees.') \
+                        + ' ' + _('and you will have the possibility, while they are unconfirmed, to replace them with transactions that pays higher fees.') \
                         + ' ' + _('Note that some merchants do not accept non-final transactions until they are confirmed.')
                     action: partial(root.boolean_dialog, 'use_rbf', _('Replace by fee'), self.message)
                 CardSeparator
@@ -136,7 +136,8 @@ class SettingsDialog(Factory.Popup):
             def cb(text):
                 self.app._set_bu(text)
                 item.bu = self.app.base_unit
-            self._unit_dialog = ChoiceDialog(_('Denomination'), list(base_units.keys()), self.app.base_unit, cb)
+            self._unit_dialog = ChoiceDialog(_('Denomination'), base_units_list,
+                                             self.app.base_unit, cb, keep_choice_order=True)
         self._unit_dialog.open()
 
     def coinselect_status(self):

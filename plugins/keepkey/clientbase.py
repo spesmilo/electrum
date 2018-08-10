@@ -69,7 +69,13 @@ class GuiMixin(object):
         if passphrase is None:
             return self.proto.Cancel()
         passphrase = bip39_normalize_passphrase(passphrase)
-        return self.proto.PassphraseAck(passphrase=passphrase)
+
+        ack = self.proto.PassphraseAck(passphrase=passphrase)
+        length = len(ack.passphrase)
+        if length > 50:
+            self.handler.show_error(_("Too long passphrase ({} > 50 chars).").format(length))
+            return self.proto.Cancel()
+        return ack
 
     def callback_WordRequest(self, msg):
         self.step += 1
@@ -137,7 +143,7 @@ class KeepKeyClientBase(GuiMixin, PrintError):
     def expand_path(n):
         '''Convert bip32 path to list of uint32 integers with prime flags
         0/-1/1' -> [0, 0x80000001, 0x80000001]'''
-        # This code is similar to code in trezorlib where it unforunately
+        # This code is similar to code in trezorlib where it unfortunately
         # is not declared as a staticmethod.  Our n has an extra element.
         PRIME_DERIVATION_FLAG = 0x80000000
         path = []

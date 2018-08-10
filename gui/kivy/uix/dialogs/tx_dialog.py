@@ -29,6 +29,8 @@ Builder.load_string('''
     BoxLayout:
         orientation: 'vertical'
         ScrollView:
+            scroll_type: ['bars', 'content']
+            bar_width: '25dp'
             GridLayout:
                 height: self.minimum_height
                 size_hint_y: None
@@ -56,16 +58,14 @@ Builder.load_string('''
                         text: _('Transaction fee') if root.fee_str else ''
                         value: root.fee_str
                 TopLabel:
-                    text: _('Outputs') + ':'
-                OutputList:
-                    height: self.minimum_height
-                    size_hint: 1, None
-                    id: output_list
-                TopLabel:
                     text: _('Transaction ID') + ':' if root.tx_hash else ''
                 TxHashLabel:
                     data: root.tx_hash
                     name: _('Transaction ID')
+                TopLabel:
+                    text: _('Outputs') + ':'
+                OutputList:
+                    id: output_list
         Widget:
             size_hint: 1, 0.1
 
@@ -135,6 +135,9 @@ class TxDialog(Factory.Popup):
     def do_rbf(self):
         from .bump_fee_dialog import BumpFeeDialog
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(self.tx)
+        if fee is None:
+            self.app.show_error(_("Can't bump fee: unknown fee for original transaction."))
+            return
         size = self.tx.estimated_size()
         d = BumpFeeDialog(self.app, fee, size, self._do_rbf)
         d.open()

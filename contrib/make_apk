@@ -1,7 +1,17 @@
 #!/bin/bash
-pushd lib
-VERSION=$(python -c "import version; print version.ELECTRUM_VERSION")".0"
+
+pushd ./gui/kivy/
+
+if [[ -n "$1"  && "$1" == "release" ]] ; then
+    echo -n Keystore Password:
+    read -s password
+    export P4A_RELEASE_KEYSTORE=~/.keystore
+    export P4A_RELEASE_KEYSTORE_PASSWD=$password
+    export P4A_RELEASE_KEYALIAS_PASSWD=$password
+    export P4A_RELEASE_KEYALIAS=electrum
+    make release
+else
+    make apk
+fi
+
 popd
-echo $VERSION
-echo $VERSION > contrib/apk_version
-pushd ./gui/kivy/; make apk; popd

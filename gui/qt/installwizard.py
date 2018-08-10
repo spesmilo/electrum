@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import *
 
 from electrum_grs import Wallet, WalletStorage
 from electrum_grs.util import UserCancelled, InvalidPassword
-from electrum_grs.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET
+from electrum_grs.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum_grs.i18n import _
 
 from .seed_dialog import SeedLayout, KeysLayout
@@ -19,16 +19,18 @@ from .util import *
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
 
 
-class GoBack(Exception):
-    pass
-
-
 MSG_ENTER_PASSWORD = _("Choose a password to encrypt your wallet keys.") + '\n'\
                      + _("Leave this field empty if you want to disable encryption.")
 MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
                           + _("Your wallet file does not contain secrets, mostly just metadata. ") \
                           + _("It also contains your master public key that allows watching your addresses.") + '\n\n'\
                           + _("Note: If you enable this setting, you will need your hardware device to open your wallet.")
+WIF_HELP_TEXT = (_('WIF keys are typed in Electrum-GRS, based on script type.') + '\n\n' +
+                 _('A few examples') + ':\n' +
+                 'p2pkh:KxZcY47uGp9a...       \t-> FhnUDbQmu...\n' +
+                 'p2wpkh-p2sh:KxZcY47uGp9a... \t-> 3NhNeZQXF...\n' +
+                 'p2wpkh:KxZcY47uGp9a...      \t-> grs1q3fjf...')
+# note: full key is KxZcY47uGp9aVQAb6VVvuBs8SwHKgkSR2DbZUzjDzXf2N2FhmLCv
 
 
 class CosignWidget(QWidget):
@@ -96,13 +98,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     synchronized_signal = pyqtSignal(str)
 
     def __init__(self, config, app, plugins, storage):
-        BaseWizard.__init__(self, config, storage)
+        BaseWizard.__init__(self, config, plugins, storage)
         QDialog.__init__(self, None)
         self.setWindowTitle('Electrum-GRS  -  ' + _('Install Wizard'))
         self.app = app
         self.config = config
         # Set for base base class
-        self.plugins = plugins
         self.language_for_seed = config.get('language')
         self.setMinimumSize(600, 400)
         self.accept_signal.connect(self.accept)
@@ -231,10 +232,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.name_e.setText(n)
 
         while True:
-            if self.storage.file_exists() and not self.storage.is_encrypted():
-                break
             if self.loop.exec_() != 2:  # 2 = next
                 return
+            if self.storage.file_exists() and not self.storage.is_encrypted():
+                break
             if not self.storage.file_exists():
                 break
             wallet_from_memory = get_wallet_from_daemon(self.storage.path)
@@ -288,13 +289,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 self.show_warning(_('The file was removed'))
             return
 
-        if self.storage.requires_upgrade():
-            self.storage.upgrade()
-            self.wallet = Wallet(self.storage)
-            return self.wallet
-
         action = self.storage.get_action()
-        if action and action != 'new':
+        if action and action not in ('new', 'upgrade_storage'):
             self.hide()
             msg = _("The file '{}' contains an incompletely created wallet.\n"
                     "Do you want to complete its creation now?").format(path)
@@ -323,7 +319,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     def set_icon(self, filename):
         prior_filename, self.icon_filename = self.icon_filename, filename
-        self.logo.setPixmap(QPixmap(filename).scaledToWidth(60))
+        self.logo.setPixmap(QPixmap(filename).scaledToWidth(60, mode=Qt.SmoothTransformation))
         return prior_filename
 
     def set_layout(self, layout, title=None, next_enabled=True):
@@ -348,7 +344,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         if not result and raise_on_cancel:
             raise UserCancelled
         if result == 1:
-            raise GoBack
+            raise GoBack from None
         self.title.setVisible(False)
         self.back_button.setEnabled(False)
         self.next_button.setEnabled(False)
@@ -366,7 +362,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.config.remove_from_recently_open(filename)
 
     def text_input(self, title, message, is_valid, allow_multi=False):
-        slayout = KeysLayout(parent=self, title=message, is_valid=is_valid,
+        slayout = KeysLayout(parent=self, header_layout=message, is_valid=is_valid,
                              allow_multi=allow_multi)
         self.exec_layout(slayout, title, next_enabled=False)
         return slayout.get_text()
@@ -377,8 +373,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return slayout.get_seed(), slayout.is_bip39, slayout.is_ext
 
     @wizard_dialog
-    def add_xpub_dialog(self, title, message, is_valid, run_next, allow_multi=False):
-        return self.text_input(title, message, is_valid, allow_multi)
+    def add_xpub_dialog(self, title, message, is_valid, run_next, allow_multi=False, show_wif_help=False):
+        header_layout = QHBoxLayout()
+        label = WWLabel(message)
+        label.setMinimumWidth(400)
+        header_layout.addWidget(label)
+        if show_wif_help:
+            header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
+        return self.text_input(title, header_layout, is_valid, allow_multi)
 
     @wizard_dialog
     def add_cosigner_dialog(self, run_next, index, is_valid):
@@ -441,7 +443,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     def show_restore(self, wallet, network):
         # FIXME: these messages are shown after the install wizard is
-        # finished and the window closed.  On MacOSX they appear parented
+        # finished and the window closed.  On macOS they appear parented
         # with a re-appeared ghost install wizard window...
         if network:
             def task():
@@ -477,12 +479,26 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def terminate(self):
         self.accept_signal.emit()
 
-    def waiting_dialog(self, task, msg):
-        self.please_wait.setText(msg)
-        self.refresh_gui()
-        t = threading.Thread(target = task)
+    def waiting_dialog(self, task, msg, on_finished=None):
+        label = WWLabel(msg)
+        vbox = QVBoxLayout()
+        vbox.addSpacing(100)
+        label.setMinimumWidth(300)
+        label.setAlignment(Qt.AlignCenter)
+        vbox.addWidget(label)
+        self.set_layout(vbox, next_enabled=False)
+        self.back_button.setEnabled(False)
+
+        t = threading.Thread(target=task)
         t.start()
-        t.join()
+        while True:
+            t.join(1.0/60)
+            if t.is_alive():
+                self.refresh_gui()
+            else:
+                break
+        if on_finished:
+            on_finished()
 
     @wizard_dialog
     def choice_dialog(self, title, message, choices, run_next):
@@ -504,6 +520,34 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return clayout.selected_index()
 
     @wizard_dialog
+    def choice_and_line_dialog(self, title, message1, choices, message2,
+                               test_text, run_next) -> (str, str):
+        vbox = QVBoxLayout()
+
+        c_values = [x[0] for x in choices]
+        c_titles = [x[1] for x in choices]
+        c_default_text = [x[2] for x in choices]
+        def on_choice_click(clayout):
+            idx = clayout.selected_index()
+            line.setText(c_default_text[idx])
+        clayout = ChoicesLayout(message1, c_titles, on_choice_click)
+        vbox.addLayout(clayout.layout())
+
+        vbox.addSpacing(50)
+        vbox.addWidget(WWLabel(message2))
+
+        line = QLineEdit()
+        def on_text_change(text):
+            self.next_button.setEnabled(test_text(text))
+        line.textEdited.connect(on_text_change)
+        on_choice_click(clayout)  # set default text for "line"
+        vbox.addWidget(line)
+
+        self.exec_layout(vbox, title)
+        choice = c_values[clayout.selected_index()]
+        return str(line.text()), choice
+
+    @wizard_dialog
     def line_dialog(self, run_next, title, message, default, test, warning='',
                     presets=()):
         vbox = QVBoxLayout()
@@ -519,9 +563,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         for preset in presets:
             button = QPushButton(preset[0])
             button.clicked.connect(lambda __, text=preset[1]: line.setText(text))
-            button.setMaximumWidth(150)
+            button.setMinimumWidth(150)
             hbox = QHBoxLayout()
-            hbox.addWidget(button, Qt.AlignCenter)
+            hbox.addWidget(button, alignment=Qt.AlignCenter)
             vbox.addLayout(hbox)
 
         self.exec_layout(vbox, title, next_enabled=test(default))
@@ -534,7 +578,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _("Please share it with your cosigners.")
         ])
         vbox = QVBoxLayout()
-        layout = SeedLayout(xpub, title=msg, icon=False)
+        layout = SeedLayout(xpub, title=msg, icon=False, for_seed_words=False)
         vbox.addLayout(layout.layout())
         self.exec_layout(vbox, _('Master Public Key'))
         return None

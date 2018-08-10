@@ -128,6 +128,19 @@ class HelpButton(QPushButton):
     def onclick(self):
         QMessageBox.information(self, 'Help', self.help_text)
 
+
+class InfoButton(QPushButton):
+    def __init__(self, text):
+        QPushButton.__init__(self, 'Info')
+        self.help_text = text
+        self.setFocusPolicy(Qt.NoFocus)
+        self.setFixedWidth(60)
+        self.clicked.connect(self.onclick)
+
+    def onclick(self):
+        QMessageBox.information(self, 'Info', self.help_text)
+
+
 class Buttons(QHBoxLayout):
     def __init__(self, *buttons):
         QHBoxLayout.__init__(self)
@@ -165,17 +178,21 @@ class CancelButton(QPushButton):
         self.clicked.connect(dialog.reject)
 
 class MessageBoxMixin(object):
-    def top_level_window_recurse(self, window=None):
+    def top_level_window_recurse(self, window=None, test_func=None):
         window = window or self
         classes = (WindowModalDialog, QMessageBox)
+        if test_func is None:
+            test_func = lambda x: True
         for n, child in enumerate(window.children()):
-            # Test for visibility as old closed dialogs may not be GC-ed
-            if isinstance(child, classes) and child.isVisible():
-                return self.top_level_window_recurse(child)
+            # Test for visibility as old closed dialogs may not be GC-ed.
+            # Only accept children that confirm to test_func.
+            if isinstance(child, classes) and child.isVisible() \
+                    and test_func(child):
+                return self.top_level_window_recurse(child, test_func=test_func)
         return window
 
-    def top_level_window(self):
-        return self.top_level_window_recurse()
+    def top_level_window(self, test_func=None):
+        return self.top_level_window_recurse(test_func)
 
     def question(self, msg, parent=None, title=None, icon=None):
         Yes, No = QMessageBox.Yes, QMessageBox.No
@@ -259,13 +276,16 @@ def line_dialog(parent, title, label, ok_label, default=None):
     if dialog.exec_():
         return txt.text()
 
-def text_dialog(parent, title, label, ok_label, default=None, allow_multi=False):
+def text_dialog(parent, title, header_layout, ok_label, default=None, allow_multi=False):
     from .qrtextedit import ScanQRTextEdit
     dialog = WindowModalDialog(parent, title)
     dialog.setMinimumWidth(600)
     l = QVBoxLayout()
     dialog.setLayout(l)
-    l.addWidget(QLabel(label))
+    if isinstance(header_layout, str):
+        l.addWidget(QLabel(header_layout))
+    else:
+        l.addLayout(header_layout)
     txt = ScanQRTextEdit(allow_multi=allow_multi)
     if default:
         txt.setText(default)
@@ -392,6 +412,8 @@ class MyTreeWidget(QTreeWidget):
         # extend the syntax for consistency
         self.addChild = self.addTopLevelItem
         self.insertChild = self.insertTopLevelItem
+
+        self.icon_cache = IconCache()
 
         # Control which columns are editable
         self.editor = None
@@ -673,7 +695,7 @@ class ColorScheme:
     dark_scheme = False
 
     GREEN = ColorSchemeItem("#117c11", "#8af296")
-    YELLOW = ColorSchemeItem("#ffff00", "#ffff00")
+    YELLOW = ColorSchemeItem("#897b2a", "#ffff00")
     RED = ColorSchemeItem("#7c1111", "#f18c8c")
     BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
     DEFAULT = ColorSchemeItem("black", "white")
@@ -684,8 +706,8 @@ class ColorScheme:
         return brightness < (255*3/2)
 
     @staticmethod
-    def update_from_widget(widget):
-        if ColorScheme.has_dark_background(widget):
+    def update_from_widget(widget, force_dark=False):
+        if force_dark or ColorScheme.has_dark_background(widget):
             ColorScheme.dark_scheme = True
 
 
@@ -777,6 +799,17 @@ class SortableTreeWidgetItem(QTreeWidgetItem):
         except ValueError:
             # If not, we will just do string comparison
             return self.text(column) < other.text(column)
+
+
+class IconCache:
+
+    def __init__(self):
+        self.__cache = {}
+
+    def get(self, file_name):
+        if file_name not in self.__cache:
+            self.__cache[file_name] = QIcon(file_name)
+        return self.__cache[file_name]
 
 
 if __name__ == "__main__":

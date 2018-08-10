@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 from functools import partial
+import threading
 from threading import Thread
 import re
 from decimal import Decimal
@@ -37,6 +38,7 @@ from electrum_grs_gui.qt.amountedit import AmountEdit
 from electrum_grs_gui.qt.main_window import StatusBarButton
 from electrum_grs.i18n import _
 from electrum_grs.plugins import hook
+from electrum_grs.util import PrintError, is_valid_email
 from .trustedcoin import TrustedCoinPlugin, server
 
 
@@ -44,6 +46,30 @@ class TOS(QTextEdit):
     tos_signal = pyqtSignal()
     error_signal = pyqtSignal(object)
 
+
+class HandlerTwoFactor(QObject, PrintError):
+
+    def __init__(self, plugin, window):
+        super().__init__()
+        self.plugin = plugin
+        self.window = window
+
+    def prompt_user_for_otp(self, wallet, tx, on_success, on_failure):
+        if not isinstance(wallet, self.plugin.wallet_class):
+            return
+        if wallet.can_sign_without_server():
+            return
+        if not wallet.keystores['x3/'].get_tx_derivations(tx):
+            self.print_error("twofactor: xpub3 not needed")
+            return
+        window = self.window.top_level_window()
+        auth_code = self.plugin.auth_dialog(window)
+        try:
+            wallet.on_otp(tx, auth_code)
+        except:
+            on_failure(sys.exc_info())
+            return
+        on_success(tx)
 
 class Plugin(TrustedCoinPlugin):
 
@@ -55,6 +81,7 @@ class Plugin(TrustedCoinPlugin):
         wallet = window.wallet
         if not isinstance(wallet, self.wallet_class):
             return
+        wallet.handler_2fa = HandlerTwoFactor(self, window)
         if wallet.can_sign_without_server():
             msg = ' '.join([
                 _('This wallet was restored from seed, and it contains two master private keys.'),
@@ -88,19 +115,8 @@ class Plugin(TrustedCoinPlugin):
             return
         return pw.get_amount()
 
-    @hook
-    def sign_tx(self, window, tx):
-        wallet = window.wallet
-        if not isinstance(wallet, self.wallet_class):
-            return
-        if not wallet.can_sign_without_server():
-            self.print_error("twofactor:sign_tx")
-            auth_code = None
-            if wallet.keystores['x3/'].get_tx_derivations(tx):
-                auth_code = self.auth_dialog(window)
-            else:
-                self.print_error("twofactor: xpub3 not needed")
-            window.wallet.auth_code = auth_code
+    def prompt_user_for_otp(self, wallet, tx, on_success, on_failure):
+        wallet.handler_2fa.prompt_user_for_otp(wallet, tx, on_success, on_failure)
 
     def waiting_dialog(self, window, on_finished=None):
         task = partial(self.request_billing_info, window.wallet)
@@ -115,9 +131,11 @@ class Plugin(TrustedCoinPlugin):
         if wallet.can_sign_without_server():
             return
         if wallet.billing_info is None:
+            self.start_request_thread(wallet)
+            window.show_error(_('Requesting account info from TrustedCoin server...') + '\n' +
+                                _('Please try again.'))
             return True
         return False
-
 
     def settings_dialog(self, window):
         self.waiting_dialog(window, partial(self.show_settings_dialog, window))
@@ -149,7 +167,7 @@ class Plugin(TrustedCoinPlugin):
         vbox.addLayout(hbox)
         vbox.addStretch(10)
 
-        msg = _('TrustedCoin charges a small fee to co-sign transactions. The fee depends on how many prepaid transactions you buy. An extra output is added to your transaction everytime you run out of prepaid transactions.') + '<br/>'
+        msg = _('TrustedCoin charges a small fee to co-sign transactions. The fee depends on how many prepaid transactions you buy. An extra output is added to your transaction every time you run out of prepaid transactions.') + '<br/>'
         label = QLabel(msg)
         label.setWordWrap(1)
         vbox.addWidget(label)
@@ -188,6 +206,20 @@ class Plugin(TrustedCoinPlugin):
         window.payto_e.setFrozen(True)
         window.message_e.setFrozen(True)
         window.amount_e.setFrozen(True)
+
+    def go_online_dialog(self, wizard):
+        msg = [
+            _("Your wallet file is: {}.").format(os.path.abspath(wizard.storage.path)),
+            _("You need to be online in order to complete the creation of "
+              "your wallet.  If you generated your seed on an offline "
+              'computer, click on "{}" to close this window, move your '
+              "wallet file to an online computer, and reopen it with "
+              "Electrum.").format(_('Cancel')),
+            _('If you are online, click on "{}" to continue.').format(_('Next'))
+        ]
+        msg = '\n\n'.join(msg)
+        wizard.stack = []
+        wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('accept_terms_of_use'))
 
     def accept_terms_of_use(self, window):
         vbox = QVBoxLayout()
@@ -229,24 +261,21 @@ class Plugin(TrustedCoinPlugin):
             window.terminate()
 
         def set_enabled():
-            valid_email = re.match(regexp, email_e.text()) is not None
-            next_button.setEnabled(tos_received and valid_email)
+            next_button.setEnabled(tos_received and is_valid_email(email_e.text()))
 
         tos_e.tos_signal.connect(on_result)
         tos_e.error_signal.connect(on_error)
         t = Thread(target=request_TOS)
         t.setDaemon(True)
         t.start()
-
-        regexp = r"[^@]+@[^@]+\.[^@]+"
         email_e.textChanged.connect(set_enabled)
         email_e.setFocus(True)
-
         window.exec_layout(vbox, next_enabled=False)
         next_button.setText(prior_button_text)
-        return str(email_e.text())
+        email = str(email_e.text())
+        self.create_remote_key(email, window)
 
-    def request_otp_dialog(self, window, _id, otp_secret):
+    def request_otp_dialog(self, window, short_id, otp_secret, xpub3):
         vbox = QVBoxLayout()
         if otp_secret is not None:
             uri = "otpauth://totp/%s?secret=%s"%('trustedcoin.com', otp_secret)
@@ -258,13 +287,12 @@ class Plugin(TrustedCoinPlugin):
             msg = _('Then, enter your Google Authenticator code:')
         else:
             label = QLabel(
-                "This wallet is already registered with Trustedcoin. "
+                "This wallet is already registered with TrustedCoin. "
                 "To finalize wallet creation, please enter your Google Authenticator Code. "
             )
             label.setWordWrap(1)
             vbox.addWidget(label)
             msg = _('Google Authenticator code:')
-
         hbox = QHBoxLayout()
         hbox.addWidget(WWLabel(msg))
         pw = AmountEdit(None, is_int = True)
@@ -272,21 +300,14 @@ class Plugin(TrustedCoinPlugin):
         pw.setMaximumWidth(50)
         hbox.addWidget(pw)
         vbox.addLayout(hbox)
-
         cb_lost = QCheckBox(_("I have lost my Google Authenticator account"))
         cb_lost.setToolTip(_("Check this box to request a new secret. You will need to retype your seed."))
         vbox.addWidget(cb_lost)
         cb_lost.setVisible(otp_secret is None)
-
         def set_enabled():
             b = True if cb_lost.isChecked() else len(pw.text()) == 6
             window.next_button.setEnabled(b)
-
         pw.textChanged.connect(set_enabled)
         cb_lost.toggled.connect(set_enabled)
-
-        window.exec_layout(vbox, next_enabled=False,
-                               raise_on_cancel=False)
-        return pw.get_amount(), cb_lost.isChecked()
-
-
+        window.exec_layout(vbox, next_enabled=False, raise_on_cancel=False)
+        self.check_otp(window, short_id, otp_secret, xpub3, pw.get_amount(), cb_lost.isChecked())
