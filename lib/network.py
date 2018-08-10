@@ -189,7 +189,7 @@ class Network(util.DaemonThread):
                 self.print_error('Warning: failed to parse server-string; falling back to random.')
                 self.default_server = None
         if not self.default_server:
-            self.default_server = pick_random_server(protocol='t')
+            self.default_server = pick_random_server()
 
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self.interface_lock = threading.RLock()            # <- re-entrant
