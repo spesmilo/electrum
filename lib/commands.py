@@ -69,6 +69,15 @@ class Command:
             self.options = []
             self.defaults = []
 
+    def __repr__(self):
+        return "<Command {}>".format(self)
+
+    def __str__(self):
+        return "{}({})".format(
+            self.name,
+            ", ".join(self.params + ["{}={!r}".format(name, self.defaults[i])
+                                     for i, name in enumerate(self.options)]))
+
 
 def command(s):
     def decorator(func):
@@ -97,7 +106,7 @@ class Commands:
         self.network = network
         self._callback = callback
 
-    def _run(self, method, args, password_getter):
+    def _run(self, method, *args, password_getter=None, **kwargs):
         # this wrapper is called from the python console
         cmd = known_commands[method]
         if cmd.requires_password and self.wallet.has_password():
@@ -109,9 +118,8 @@ class Commands:
 
         f = getattr(self, method)
         if cmd.requires_password:
-            result = f(*args, **{'password':password})
-        else:
-            result = f(*args)
+            kwargs.update(password=password)
+        result = f(*args, **kwargs)
 
         if self._callback:
             self._callback()
