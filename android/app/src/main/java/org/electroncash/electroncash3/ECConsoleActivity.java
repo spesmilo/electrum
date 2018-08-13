@@ -1,6 +1,7 @@
 package org.electroncash.electroncash3;
 
 import android.app.*;
+import android.content.pm.*;
 import android.os.*;
 import android.text.*;
 import android.widget.*;
@@ -10,6 +11,11 @@ public class ECConsoleActivity extends PythonConsoleActivity {
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        try {
+            String version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            setTitle(getTitle() + " " + version);
+        } catch (PackageManager.NameNotFoundException ignored) {}
+
         // VISIBLE_PASSWORD is necessary to prevent some versions of the Google keyboard from
         // displaying the suggestion bar.
         ((TextView) findViewById(resId("id", "etInput"))).setInputType(

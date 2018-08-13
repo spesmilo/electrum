@@ -3,20 +3,37 @@ apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-android-extensions'
 apply plugin: 'com.chaquo.python'
 
+def REPO_ROOT = "../.."
+
 android {
     compileSdkVersion 26
     defaultConfig {
         applicationId "org.electroncash.electroncash3"
         minSdkVersion 15
         targetSdkVersion 26
-        versionCode 1
-        versionName "1.0"
+
+        def ecVersion = null
+        file("$REPO_ROOT/lib/version.py").eachLine {
+            def matcher = it =~ /PACKAGE_VERSION = '(.+)'.*/
+            if (matcher.matches()) {
+                ecVersion = matcher.group(1)
+            }
+        }
+        if (ecVersion == null) {
+            throw new GradleException("Couldn't find version number")
+        }
+        def BUILD_NUM = 0
+        versionName "$ecVersion-$BUILD_NUM"
+        def verParsed = ecVersion.split(/\./).collect { Integer.parseInt(it) }
+        versionCode ((verParsed[0] * 1000000) + (verParsed[1] * 10000) + (verParsed[2] * 100) +
+                     BUILD_NUM)
+
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
 
         python {
             version "3.6.5"
             pip {
-                install "-r", "../../contrib/deterministic-build/requirements.txt"
+                install "-r", "$REPO_ROOT/contrib/deterministic-build/requirements.txt"
             }
             extractPackages "electroncash"
         }
@@ -28,9 +45,10 @@ android {
     sourceSets {
         main {
             python {
-                srcDir "../.."
-                include "lib/**"                                // In ../..
-                include "chaquopy/**", "electroncash_gui/**"    // In src/main/python
+                srcDir REPO_ROOT
+                include "lib/**"                                // In ../.. (renamed below)
+                include ("chaquopy/**", "electroncash_gui/**",  // In src/main/python
+                         "electroncash_plugins/**")             //
             }
         }
     }
@@ -43,15 +61,30 @@ android {
     }
 }
 
-// Rename package directory, like package_dir in setup.py.
+// Rearrange source code slightly.
 afterEvaluate {
     for (variant in android.applicationVariants) {
         def task = project.tasks.getByName("merge${variant.name.capitalize()}PythonSources")
+        def dstDir = task.destinationDir
+
+        // Rename directory to match package name, like package_dir does in setup.py.
         task.doLast {
-            def src = "$task.destinationDir/lib"
-            def dst = "$task.destinationDir/electroncash"
+            def src = "$dstDir/lib"
+            def dst = "$dstDir/electroncash"
             if (! file(src).renameTo(dst)) {
                 throw new GradleException("Failed to rename $src to $dst")
+            }
+        }
+
+        // Include command line script.
+        def mainFile = file("$REPO_ROOT/electron-cash")
+        task.inputs.file(mainFile)
+        task.doLast {
+            copy {
+                from mainFile.parent
+                include mainFile.name
+                into "$dstDir/electroncash"
+                rename { "main.py" }
             }
         }
     }
