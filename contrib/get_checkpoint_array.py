@@ -65,4 +65,4 @@ while True:
         break
 
 with open('checkpoints_output.json', 'w+') as f:
-    f.write(dumps(checkpoints, indent=4))
+    f.write(dumps(checkpoints, indent=4, separators=(',', ':')))
