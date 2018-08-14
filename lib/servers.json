@@ -67,8 +67,8 @@
     "electron-cash.dragon.zone": {
         "pruning": "-",
         "version": "1.1",
-        "t":"51001",
-        "s":"51002"
+        "t":"50001",
+        "s":"50002"
     },
     "electroncash.cascharia.com": {
         "pruning": "-",
