@@ -308,7 +308,7 @@ class Blockchain(util.PrintError):
         elif height == 0:
             return constants.net.GENESIS
         elif height < len(self.checkpoints) * 2016:
-            assert (height+1) % 2016 == 0, height
+            assert (height+1) % 2016 == 0, (height, len(self.checkpoints), (height+1) % 2016)
             index = height // 2016
             h, t = self.checkpoints[index]
             return h

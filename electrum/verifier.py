@@ -70,8 +70,7 @@ class SPV(ThreadJob):
             if header is None:
                 index = tx_height // 2016
                 if index < len(blockchain.checkpoints):
-                    # FIXME disabled until async block header download has been merged
-                    pass #await self.network.request_chunk(tx_height, None)
+                    await self.network.request_chunk(tx_height, None)
             elif (tx_hash not in self.requested_merkle
                     and tx_hash not in self.merkle_roots):
                 self.print_error('requested merkle', tx_hash)

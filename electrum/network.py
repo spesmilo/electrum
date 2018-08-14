@@ -37,7 +37,7 @@ import dns
 import dns.resolver
 
 from . import util
-from .util import PrintError, print_error, bfh
+from .util import PrintError, print_error, aiosafe, bfh
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
@@ -533,7 +533,12 @@ class Network(PrintError):
         if self.server_is_lagging() and self.auto_connect:
             # switch to one that has the correct header (not height)
             header = self.blockchain().read_header(self.get_local_height())
-            filtered = list(map(lambda x: x[0], filter(lambda x: x[1].tip_header == header, self.interfaces.items())))
+            def filt(x):
+                a = x[1].tip_header
+                b = header
+                assert type(a) is type(b)
+                return a == b
+            filtered = list(map(lambda x: x[0], filter(filt, self.interfaces.items())))
             if filtered:
                 choice = random.choice(filtered)
                 self.switch_to_interface(choice)
@@ -668,7 +673,7 @@ class Network(PrintError):
                 if b.catch_up == server:
                     b.catch_up = None
 
-    @util.aiosafe
+    @aiosafe
     async def new_interface(self, server):
         # todo: get tip first, then decide which checkpoint to use.
         self.add_recent_server(server)
@@ -677,8 +682,8 @@ class Network(PrintError):
         try:
             await asyncio.wait_for(interface.ready, 5)
         except BaseException as e:
-            import traceback
-            traceback.print_exc()
+            #import traceback
+            #traceback.print_exc()
             self.print_error(interface.server, "couldn't launch because", str(e), str(type(e)))
             self.connection_down(interface.server)
             return
@@ -712,6 +717,29 @@ class Network(PrintError):
             self.asyncio_loop.run_until_complete(self.gat)
         except concurrent.futures.CancelledError:
             pass
+
+    async def get_merkle_for_transaction(self, tx_hash, tx_height):
+        print("getting merkle for transaction", tx_hash, tx_height)
+        return await self.interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
+
+    def broadcast_transaction(self, tx):
+        fut = asyncio.run_coroutine_threadsafe(self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)]), self.asyncio_loop)
+        return True, fut.result(1)
+
+    async def request_chunk(self, height, tip, session=None):
+        if session is None: session = self.interface.session
+        index = height // 2016
+        size = 2016
+        if tip is not None and height + 2016 >= tip:
+            size = tip - height
+        #if index * 2016 < height:
+        #    size = height - index * 2016
+        res = await session.send_request('blockchain.block.headers', [index * 2016, size])
+        conn = self.blockchain().connect_chunk(index, res['hex'])
+        if not conn:
+            return conn, 0
+        self.blockchain().save_chunk(index, bfh(res['hex']))
+        return conn, res['count']
 
     @with_interface_lock
     def blockchain(self):
