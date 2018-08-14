@@ -263,20 +263,21 @@ class Plugin(BasePlugin):
         painter.begin(bitmap)
         QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'SourceSansPro-Bold.otf') )
         if len(txt) < 102 :
-            fontsize = 12
+            fontsize = 15
             linespace = 15
             max_letters = 17
             max_lines = 6
             max_words = 3
         else:
-            fontsize = 9
+            fontsize = 12
             linespace = 10
-            max_letters = 24
+            max_letters = 23
             max_lines = 9
             max_words = int(max_letters/4)
 
         font = QFont('Source Sans Pro', fontsize, QFont.Bold)
         font.setLetterSpacing(QFont.PercentageSpacing, 100)
+        font.setPixelSize(fontsize)
         painter.setFont(font)
         seed_array = txt.split(' ')
 
@@ -339,8 +340,9 @@ class Plugin(BasePlugin):
         revealer = self.pixelcode_2x2(self.rawnoise)
         revealer.invertPixels()
         revealer = QBitmap.fromImage(revealer)
+        revealer = revealer.scaled(self.f_size, Qt.KeepAspectRatio)
         revealer = self.overlay_marks(revealer)
-        revealer = revealer.scaled(1014, 642)
+
         self.filename = 'Revealer - '
         revealer.save(self.base_dir + self.filename + self.version+'_'+self.code_id + '.png')
         self.toPdf(QImage(revealer))
@@ -519,6 +521,7 @@ class Plugin(BasePlugin):
         f_size = 37
         QFontDatabase.addApplicationFont(os.path.join(os.path.dirname(__file__), 'DejaVuSansMono-Bold.ttf'))
         font = QFont("DejaVu Sans Mono", f_size-11, QFont.Bold)
+        font.setPixelSize(35)
         painter.setFont(font)
 
         if not calibration_sheet:
