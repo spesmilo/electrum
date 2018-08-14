@@ -1,34 +1,34 @@
 from __future__ import absolute_import, division, print_function
 
 from code import InteractiveConsole
+import os
+from os.path import join
 
-from electroncash import commands, version
-from electroncash.commands import known_commands
+from electroncash import commands, daemon, util, version
+from electroncash import main  # electron-cash script, renamed by build.gradle.
+from electroncash.simple_config import SimpleConfig
+
+
+# Too noisy: "servers", "interfaces"
+# Unused: "on_quotes", "on_history"
+CALLBACKS = ["updated", "new_transaction", "status", "banner", "verified", "fee"]
 
 
 class ECConsole(InteractiveConsole):
     """`interact` must be run on a background thread, because it blocks waiting for input.
     """
     def __init__(self, context):
-        variables = {
-            "config": "FIXME",
-            "context": context.getApplicationContext(),
-            "network": "FIXME",
-            "wallet": "FIXME",
-        }
-        cmds = commands.Commands(variables["config"], variables["wallet"],
-                                 variables["network"])
-        namespace = dict(variables)
-        namespace.update({name: CommandWrapper(cmds, name) for name in known_commands})
-        namespace.update(help=Help(variables))
+        self.cmds = AllCommands()
+        namespace = dict(c=self.cmds, context=context.getApplicationContext())
+        namespace.update({name: CommandWrapper(self.cmds, name) for name in all_commands})
+        namespace.update(help=Help())
         InteractiveConsole.__init__(self, locals=namespace)
 
-    def interact(self, banner=None):
-        if banner is None:
-            banner = (f"Electron Cash {version.PACKAGE_VERSION}\n"
-                      f"Type 'help' for available commands and variables.")
+    def interact(self):
         try:
-            InteractiveConsole.interact(self, banner)
+            InteractiveConsole.interact(
+                self, banner=(f"Electron Cash {version.PACKAGE_VERSION}\n"
+                              f"Type 'help' for available commands and variables."))
         except SystemExit:
             pass
 
@@ -39,13 +39,10 @@ class CommandWrapper:
         self.name = name
 
     def __call__(self, *args, **kwargs):
-        return self.cmds._run(self.name, *args, **kwargs)
+        return getattr(self.cmds, self.name)(*args, **kwargs)
 
 
 class Help:
-    def __init__(self, variables):
-        self.variables = variables
-
     def __repr__(self):
         return self.help()
 
@@ -55,13 +52,97 @@ class Help:
     def help(self, name_or_wrapper=None):
         if name_or_wrapper is None:
             return("Commands:\n" +
-                   "\n".join(f"  {cmd}" for name, cmd in sorted(known_commands.items())) +
-                   "\nType help(<command>) for more details.\n" +
-                   "The following variables are also available: " +
-                   ", ".join(sorted(self.variables)))
+                   "\n".join(f"  {cmd}" for name, cmd in sorted(all_commands.items())) +
+                   "\nType help(<command>) for more details.\n"
+                   "The following variables are also available: "
+                   "c.config, c.daemon, c.network, c.wallet, context")
         else:
             if isinstance(name_or_wrapper, CommandWrapper):
-                cmd = known_commands[name_or_wrapper.name]
+                cmd = all_commands[name_or_wrapper.name]
             else:
-                cmd = known_commands[name_or_wrapper]
+                cmd = all_commands[name_or_wrapper]
             return f"{cmd}\n{cmd.description}"
+
+
+# Adds additional commands which aren't available over JSON RPC, only on the command line.
+class AllCommands(commands.Commands):
+    def __init__(self):
+        super().__init__(SimpleConfig({"verbose": True}), wallet=None, network=None)
+        self.daemon = None
+
+    def start(self):
+        """Start the daemon"""
+        fd, server = daemon.get_fd_or_server(self.config)
+        if not fd:
+            raise Exception("Daemon already running")  # Same wording as in daemon.py.
+        self.daemon = daemon.Daemon(self.config, fd, False)
+        self.network = self.daemon.network
+        self.network.register_callback(self._on_callback, CALLBACKS)
+        self.daemon.start()
+
+    def status(self):
+        """Get daemon status"""
+        self._assert_daemon_running()
+        return self.daemon.run_daemon({"subcommand": "status"})
+
+    def stop(self):
+        """Stop the daemon"""
+        self._assert_daemon_running()
+        self.daemon.stop()
+        self.daemon.join()
+        self.network.unregister_callback(self._on_callback)
+        self.daemon = self.network = None
+
+    def load_wallet(self, name, password=None):
+        """Load a wallet"""
+        self._assert_daemon_running()
+        self.wallet = self.daemon.load_wallet(self._wallet_path(name), password)
+        if not self.wallet:
+            raise Exception("load_wallet failed")  # It doesn't raise any exceptions.
+        return self.wallet
+
+    def close_wallet(self, name=None):
+        """Close a wallet"""
+        self._assert_daemon_running()
+        if not name:
+            if not self.wallet:
+                raise Exception("Wallet not loaded")  # Same wording as in commands.py.
+            path = self.wallet.storage.path
+        else:
+            path = self._wallet_path(name)
+        self.daemon.stop_wallet(path)
+
+    def create(self, name):
+        """Create a new wallet interactively"""
+        self._run_non_RPC({"cmd": "create", "wallet_path": self._wallet_path(name)})
+
+    def restore(self, name, text):
+        """Restore a wallet from text. Text can be a seed phrase, a master
+        public key, a master private key, a list of bitcoin cash addresses
+        or bitcoin cash private keys."""
+        self._run_non_RPC({"cmd": "restore", "wallet_path": self._wallet_path(name),
+                           "text": text, "offline": True})
+
+    def _run_non_RPC(self, config_options):
+        try:
+            # 'cwd' is required by SimpleConfig.get_wallet_path.
+            main.run_non_RPC(SimpleConfig(dict(config_options, cwd=os.getcwd())))
+        except SystemExit as e:
+            if e.code:
+                raise Exception(f"{config_options['cmd']} failed: {e.code}")
+
+    def _assert_daemon_running(self):
+        if not self.daemon:
+            raise Exception("Daemon not running")  # Same wording as in electron-cash script.
+
+    def _on_callback(self, *args):
+        util.print_stderr("[Callback] " + ", ".join(repr(x) for x in args))
+
+    def _wallet_path(self, name):
+        return join(util.user_dir(), "wallets", name)
+
+
+all_commands = commands.known_commands.copy()
+for name, func in vars(AllCommands).items():
+    if not name.startswith("_"):
+        all_commands[name] = commands.Command(func, "")

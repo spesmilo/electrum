@@ -88,9 +88,12 @@ def command(s):
         def func_wrapper(*args, **kwargs):
             c = known_commands[func.__name__]
             wallet = args[0].wallet
+            network = args[0].network
             password = kwargs.get('password')
+            if c.requires_network and network is None:
+                raise BaseException("Daemon offline")  # Same wording as in daemon.py.
             if c.requires_wallet and wallet is None:
-                raise BaseException("wallet not loaded. Use 'electron-cash daemon load_wallet'")
+                raise BaseException("Wallet not loaded. Use 'electron-cash daemon load_wallet'")
             if c.requires_password and password is None and wallet.storage.get('use_encryption'):
                 return {'error': 'Password required' }
             return func(*args, **kwargs)
