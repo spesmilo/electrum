@@ -272,8 +272,6 @@ class Abstract_Wallet(AddressSynchronizer):
             return
 
     def is_mine(self, address):
-        if not super().is_mine(address):
-            return False
         try:
             self.get_address_index(address)
         except KeyError:
