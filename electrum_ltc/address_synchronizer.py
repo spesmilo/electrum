@@ -102,6 +102,7 @@ class AddressSynchronizer(PrintError):
         return h
 
     def get_address_history_len(self, addr: str) -> int:
+        """Return number of transactions where address is involved."""
         return len(self._history_local.get(addr, ()))
 
     def get_txin_address(self, txi):
@@ -318,6 +319,14 @@ class AddressSynchronizer(PrintError):
             self._remove_tx_from_local_history(tx_hash)
             self.txi.pop(tx_hash, None)
             self.txo.pop(tx_hash, None)
+
+    def get_depending_transactions(self, tx_hash):
+        """Returns all (grand-)children of tx_hash in this wallet."""
+        children = set()
+        for other_hash in self.spent_outpoints[tx_hash].values():
+            children.add(other_hash)
+            children |= self.get_depending_transactions(other_hash)
+        return children
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_unverified_tx(tx_hash, tx_height)
@@ -608,10 +617,6 @@ class AddressSynchronizer(PrintError):
 
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
-
-    def get_num_tx(self, address):
-        """ return number of transactions where address is involved """
-        return len(self.history.get(address, []))
 
     def get_tx_delta(self, tx_hash, address):
         "effect of tx on address"

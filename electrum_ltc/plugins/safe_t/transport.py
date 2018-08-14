@@ -24,11 +24,11 @@ class SafeTTransport(PrintError):
                 transports.append(HidTransport)
             except BaseException:
                 pass
-            try:
-                from safetlib.transport_udp import UdpTransport
-                transports.append(UdpTransport)
-            except BaseException:
-                pass
+            #try:
+            #    from safetlib.transport_udp import UdpTransport
+            #    transports.append(UdpTransport)
+            #except BaseException:
+            #    pass
             try:
                 from safetlib.transport_webusb import WebUsbTransport
                 transports.append(WebUsbTransport)
@@ -47,11 +47,11 @@ class SafeTTransport(PrintError):
                 transports.append(HidTransport)
             except BaseException:
                 pass
-            try:
-                from safetlib.transport.udp import UdpTransport
-                transports.append(UdpTransport)
-            except BaseException:
-                pass
+            #try:
+            #    from safetlib.transport.udp import UdpTransport
+            #    transports.append(UdpTransport)
+            #except BaseException:
+            #    pass
             try:
                 from safetlib.transport.webusb import WebUsbTransport
                 transports.append(WebUsbTransport)

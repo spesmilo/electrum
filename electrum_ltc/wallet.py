@@ -51,7 +51,7 @@ from .keystore import load_keystore, Hardware_KeyStore
 from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW
 
 from . import transaction, bitcoin, coinchooser, paymentrequest, contacts
-from .transaction import Transaction, TxOutput
+from .transaction import Transaction, TxOutput, TxOutputHwInfo
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED)
@@ -272,8 +272,6 @@ class Abstract_Wallet(AddressSynchronizer):
             return
 
     def is_mine(self, address):
-        if not super().is_mine(address):
-            return False
         try:
             self.get_address_index(address)
         except KeyError:
@@ -565,7 +563,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 # confirmations.  Select the unused addresses within the
                 # gap limit; if none take one at random
                 change_addrs = [addr for addr in addrs if
-                                self.get_num_tx(addr) == 0]
+                                self.get_address_history_len(addr) == 0]
                 if not change_addrs:
                     change_addrs = [random.choice(addrs)]
             else:
@@ -788,7 +786,8 @@ class Abstract_Wallet(AddressSynchronizer):
                 pubkeys = self.get_public_keys(addr)
                 # sort xpubs using the order of pubkeys
                 sorted_pubkeys, sorted_xpubs = zip(*sorted(zip(pubkeys, xpubs)))
-                info[addr] = index, sorted_xpubs, self.m if isinstance(self, Multisig_Wallet) else None
+                num_sig = self.m if isinstance(self, Multisig_Wallet) else None
+                info[addr] = TxOutputHwInfo(index, sorted_xpubs, num_sig, self.txin_type)
         tx.output_info = info
 
     def sign_transaction(self, tx, password):
@@ -1068,17 +1067,6 @@ class Abstract_Wallet(AddressSynchronizer):
         addr = self.pubkeys_to_address(pubkey)
         index = self.get_address_index(addr)
         return self.keystore.decrypt_message(index, message, password)
-
-    def get_depending_transactions(self, tx_hash):
-        """Returns all (grand-)children of tx_hash in this wallet."""
-        children = set()
-        # TODO rewrite this to use self.spent_outpoints
-        for other_hash, tx in self.transactions.items():
-            for input in (tx.inputs()):
-                if input["prevout_hash"] == tx_hash:
-                    children.add(other_hash)
-                    children |= self.get_depending_transactions(other_hash)
-        return children
 
     def txin_value(self, txin):
         txid = txin['prevout_hash']

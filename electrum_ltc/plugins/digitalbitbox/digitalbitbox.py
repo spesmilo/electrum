@@ -538,7 +538,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                 assert o.type == TYPE_ADDRESS
                 info = tx.output_info.get(o.address)
                 if info is not None:
-                    index, xpubs, m = info
+                    index = info.address_index
                     changePath = self.get_derivation() + "/%d/%d" % index
                     changePubkey = self.derive_pubkey(index[0], index[1])
                     pubkeyarray_i = {'pubkey': changePubkey, 'keypath': changePath}
