@@ -102,6 +102,7 @@ class AddressSynchronizer(PrintError):
         return h
 
     def get_address_history_len(self, addr: str) -> int:
+        """Return number of transactions where address is involved."""
         return len(self._history_local.get(addr, ()))
 
     def get_txin_address(self, txi):
@@ -616,10 +617,6 @@ class AddressSynchronizer(PrintError):
 
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
-
-    def get_num_tx(self, address):
-        """ return number of transactions where address is involved """
-        return len(self.history.get(address, []))
 
     def get_tx_delta(self, tx_hash, address):
         "effect of tx on address"

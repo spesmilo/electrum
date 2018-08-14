@@ -563,7 +563,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 # confirmations.  Select the unused addresses within the
                 # gap limit; if none take one at random
                 change_addrs = [addr for addr in addrs if
-                                self.get_num_tx(addr) == 0]
+                                self.get_address_history_len(addr) == 0]
                 if not change_addrs:
                     change_addrs = [random.choice(addrs)]
             else:
