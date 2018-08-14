@@ -346,6 +346,7 @@ class BaseWizard(object):
         except ScriptTypeNotSupported:
             raise  # this is handled in derivation_dialog
         except BaseException as e:
+            traceback.print_exc(file=sys.stderr)
             self.show_error(e)
             return
         d = {
