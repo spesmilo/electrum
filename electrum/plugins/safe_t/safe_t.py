@@ -9,7 +9,7 @@ from electrum import constants
 from electrum.i18n import _
 from electrum.plugin import BasePlugin, Device
 from electrum.transaction import deserialize, Transaction
-from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey, xtype_from_derivation
+from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
 from electrum.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
@@ -19,9 +19,6 @@ from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validat
 # Safe-T mini initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 
-# script "generation"
-SCRIPT_GEN_LEGACY, SCRIPT_GEN_P2SH_SEGWIT, SCRIPT_GEN_NATIVE_SEGWIT = range(0, 3)
-
 
 class SafeTKeyStore(Hardware_KeyStore):
     hw_type = 'safe_t'
@@ -29,15 +26,6 @@ class SafeTKeyStore(Hardware_KeyStore):
 
     def get_derivation(self):
         return self.derivation
-
-    def get_script_gen(self):
-        xtype = xtype_from_derivation(self.derivation)
-        if xtype in ('p2wpkh', 'p2wsh'):
-            return SCRIPT_GEN_NATIVE_SEGWIT
-        elif xtype in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
-            return SCRIPT_GEN_P2SH_SEGWIT
-        else:
-            return SCRIPT_GEN_LEGACY
 
     def get_client(self, force_pair=True):
         return self.plugin.get_client(self, force_pair)
@@ -294,23 +282,34 @@ class SafeTPlugin(HW_PluginBase):
         client.used()
         return xpub
 
-    def get_safet_input_script_type(self, script_gen, is_multisig):
-        if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
+    def get_safet_input_script_type(self, electrum_txin_type: str):
+        if electrum_txin_type in ('p2wpkh', 'p2wsh'):
             return self.types.InputScriptType.SPENDWITNESS
-        elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
+        if electrum_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
             return self.types.InputScriptType.SPENDP2SHWITNESS
-        else:
-            if is_multisig:
-                return self.types.InputScriptType.SPENDMULTISIG
-            else:
-                return self.types.InputScriptType.SPENDADDRESS
+        if electrum_txin_type in ('p2pkh', ):
+            return self.types.InputScriptType.SPENDADDRESS
+        if electrum_txin_type in ('p2sh', ):
+            return self.types.InputScriptType.SPENDMULTISIG
+        raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
+
+    def get_safet_output_script_type(self, electrum_txin_type: str):
+        if electrum_txin_type in ('p2wpkh', 'p2wsh'):
+            return self.types.OutputScriptType.PAYTOWITNESS
+        if electrum_txin_type in ('p2wpkh-p2sh', 'p2wsh-p2sh'):
+            return self.types.OutputScriptType.PAYTOP2SHWITNESS
+        if electrum_txin_type in ('p2pkh', ):
+            return self.types.OutputScriptType.PAYTOADDRESS
+        if electrum_txin_type in ('p2sh', ):
+            return self.types.OutputScriptType.PAYTOMULTISIG
+        raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
     def sign_transaction(self, keystore, tx, prev_tx, xpub_path):
         self.prev_tx = prev_tx
         self.xpub_path = xpub_path
         client = self.get_client(keystore)
-        inputs = self.tx_inputs(tx, True, keystore.get_script_gen())
-        outputs = self.tx_outputs(keystore.get_derivation(), tx, keystore.get_script_gen())
+        inputs = self.tx_inputs(tx, True)
+        outputs = self.tx_outputs(keystore.get_derivation(), tx)
         signatures = client.sign_tx(self.get_coin_name(), inputs, outputs, lock_time=tx.locktime)[0]
         signatures = [(bh2u(x) + '01') for x in signatures]
         tx.update_signatures(signatures)
@@ -330,8 +329,7 @@ class SafeTPlugin(HW_PluginBase):
         address_n = client.expand_path(address_path)
         xpubs = wallet.get_master_public_keys()
         if len(xpubs) == 1:
-            script_gen = keystore.get_script_gen()
-            script_type = self.get_safet_input_script_type(script_gen, is_multisig=False)
+            script_type = self.get_safet_input_script_type(wallet.txin_type)
             client.get_address(self.get_coin_name(), address_n, True, script_type=script_type)
         else:
             def f(xpub):
@@ -345,11 +343,10 @@ class SafeTPlugin(HW_PluginBase):
                signatures=[b''] * wallet.n,
                m=wallet.m,
             )
-            script_gen = keystore.get_script_gen()
-            script_type = self.get_safet_input_script_type(script_gen, is_multisig=True)
+            script_type = self.get_safet_input_script_type(wallet.txin_type)
             client.get_address(self.get_coin_name(), address_n, True, multisig=multisig, script_type=script_type)
 
-    def tx_inputs(self, tx, for_sig=False, script_gen=SCRIPT_GEN_LEGACY):
+    def tx_inputs(self, tx, for_sig=False):
         inputs = []
         for txin in tx.inputs():
             txinputtype = self.types.TxInputType()
@@ -364,7 +361,7 @@ class SafeTPlugin(HW_PluginBase):
                         xpub, s = parse_xpubkey(x_pubkey)
                         xpub_n = self.client_class.expand_path(self.xpub_path[xpub])
                         txinputtype._extend_address_n(xpub_n + s)
-                        txinputtype.script_type = self.get_safet_input_script_type(script_gen, is_multisig=False)
+                        txinputtype.script_type = self.get_safet_input_script_type(txin['type'])
                     else:
                         def f(x_pubkey):
                             if is_xpubkey(x_pubkey):
@@ -379,7 +376,7 @@ class SafeTPlugin(HW_PluginBase):
                             signatures=list(map(lambda x: bfh(x)[:-1] if x else b'', txin.get('signatures'))),
                             m=txin.get('num_sig'),
                         )
-                        script_type = self.get_safet_input_script_type(script_gen, is_multisig=True)
+                        script_type = self.get_safet_input_script_type(txin['type'])
                         txinputtype = self.types.TxInputType(
                             script_type=script_type,
                             multisig=multisig
@@ -411,16 +408,11 @@ class SafeTPlugin(HW_PluginBase):
 
         return inputs
 
-    def tx_outputs(self, derivation, tx, script_gen=SCRIPT_GEN_LEGACY):
+    def tx_outputs(self, derivation, tx):
 
         def create_output_by_derivation():
+            script_type = self.get_trezor_output_script_type(info.script_type)
             if len(xpubs) == 1:
-                if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
-                    script_type = self.types.OutputScriptType.PAYTOWITNESS
-                elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
-                    script_type = self.types.OutputScriptType.PAYTOP2SHWITNESS
-                else:
-                    script_type = self.types.OutputScriptType.PAYTOADDRESS
                 address_n = self.client_class.expand_path(derivation + "/%d/%d" % index)
                 txoutputtype = self.types.TxOutputType(
                     amount=amount,
@@ -428,12 +420,6 @@ class SafeTPlugin(HW_PluginBase):
                     address_n=address_n,
                 )
             else:
-                if script_gen == SCRIPT_GEN_NATIVE_SEGWIT:
-                    script_type = self.types.OutputScriptType.PAYTOWITNESS
-                elif script_gen == SCRIPT_GEN_P2SH_SEGWIT:
-                    script_type = self.types.OutputScriptType.PAYTOP2SHWITNESS
-                else:
-                    script_type = self.types.OutputScriptType.PAYTOMULTISIG
                 address_n = self.client_class.expand_path("/%d/%d" % index)
                 pubkeys = [self._make_node_path(xpub, address_n) for xpub in xpubs]
                 multisig = self.types.MultisigRedeemScriptType(

@@ -787,7 +787,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 # sort xpubs using the order of pubkeys
                 sorted_pubkeys, sorted_xpubs = zip(*sorted(zip(pubkeys, xpubs)))
                 num_sig = self.m if isinstance(self, Multisig_Wallet) else None
-                info[addr] = TxOutputHwInfo(index, sorted_xpubs, num_sig)
+                info[addr] = TxOutputHwInfo(index, sorted_xpubs, num_sig, self.txin_type)
         tx.output_info = info
 
     def sign_transaction(self, tx, password):

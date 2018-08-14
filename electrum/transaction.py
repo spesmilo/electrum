@@ -65,7 +65,8 @@ TxOutput = NamedTuple("TxOutput", [('type', int), ('address', str), ('value', Un
 
 TxOutputHwInfo = NamedTuple("TxOutputHwInfo", [('address_index', Tuple),
                                                ('sorted_xpubs', Iterable[str]),
-                                               ('num_sig', Optional[int])])
+                                               ('num_sig', Optional[int]),
+                                               ('script_type', str)])
 
 
 class BCDataStream(object):
