@@ -117,7 +117,7 @@ class CoinChooserBase(PrintError):
 
     def change_amounts(self, tx, count, fee_estimator, dust_threshold):
         # Break change up if bigger than max_change
-        output_amounts = [o[2] for o in tx.outputs()]
+        output_amounts = [o.value for o in tx.outputs()]
         # Don't split change of less than 0.02 BTC
         max_change = max(max(output_amounts) * 1.25, 0.02 * COIN)
 
@@ -354,9 +354,9 @@ class CoinChooserPrivacy(CoinChooserRandom):
         return [coin['address'] for coin in coins]
 
     def penalty_func(self, tx):
-        min_change = min(o[2] for o in tx.outputs()) * 0.75
-        max_change = max(o[2] for o in tx.outputs()) * 1.33
-        spent_amount = sum(o[2] for o in tx.outputs())
+        min_change = min(o.value for o in tx.outputs()) * 0.75
+        max_change = max(o.value for o in tx.outputs()) * 1.33
+        spent_amount = sum(o.value for o in tx.outputs())
 
         def penalty(buckets):
             badness = len(buckets) - 1
