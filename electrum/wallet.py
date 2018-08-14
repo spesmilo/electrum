@@ -51,7 +51,7 @@ from .keystore import load_keystore, Hardware_KeyStore
 from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW
 
 from . import transaction, bitcoin, coinchooser, paymentrequest, contacts
-from .transaction import Transaction, TxOutput
+from .transaction import Transaction, TxOutput, TxOutputHwInfo
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED)
@@ -786,7 +786,8 @@ class Abstract_Wallet(AddressSynchronizer):
                 pubkeys = self.get_public_keys(addr)
                 # sort xpubs using the order of pubkeys
                 sorted_pubkeys, sorted_xpubs = zip(*sorted(zip(pubkeys, xpubs)))
-                info[addr] = index, sorted_xpubs, self.m if isinstance(self, Multisig_Wallet) else None
+                num_sig = self.m if isinstance(self, Multisig_Wallet) else None
+                info[addr] = TxOutputHwInfo(index, sorted_xpubs, num_sig)
         tx.output_info = info
 
     def sign_transaction(self, tx, password):

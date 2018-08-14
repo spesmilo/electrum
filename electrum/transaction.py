@@ -27,7 +27,7 @@
 
 # Note: The deserialization code originally comes from ABE.
 
-from typing import Sequence, Union, NamedTuple
+from typing import Sequence, Union, NamedTuple, Tuple, Optional, Iterable
 
 from .util import print_error, profiler
 
@@ -61,6 +61,11 @@ class NotRecognizedRedeemScript(Exception):
 
 TxOutput = NamedTuple("TxOutput", [('type', int), ('address', str), ('value', Union[int, str])])
 # ^ value is str when the output is set to max: '!'
+
+
+TxOutputHwInfo = NamedTuple("TxOutputHwInfo", [('address_index', Tuple),
+                                               ('sorted_xpubs', Iterable[str]),
+                                               ('num_sig', Optional[int])])
 
 
 class BCDataStream(object):
