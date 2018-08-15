@@ -128,8 +128,8 @@ class Daemon(DaemonThread):
             self.network = Network(config)
             self.network.start()
         self.fx = FxThread(config, self.network)
-        if self.network:
-            self.network.add_jobs([self.fx])
+        #if self.network:
+        #    self.network.add_jobs([self.fx])
         self.gui = None
         self.wallets = {}
         # Setup JSONRPC server
