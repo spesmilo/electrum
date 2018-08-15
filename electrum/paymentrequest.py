@@ -92,7 +92,8 @@ def get_payment_request(url):
             data = None
             error = "payment URL not pointing to a valid file"
     else:
-        raise Exception("unknown scheme", url)
+        data = None
+        error = "Unknown scheme for payment request. URL: {}".format(url)
     pr = PaymentRequest(data, error)
     return pr
 
