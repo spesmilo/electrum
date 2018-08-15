@@ -107,7 +107,7 @@ class LNWorker(PrintError):
         """
         assert chan.get_state() in ["OPEN", "OPENING"]
         peer = self.peers[chan.node_id]
-        conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
+        conf = self.wallet.get_tx_height(chan.funding_outpoint.txid).conf
         if conf >= chan.constraints.funding_txn_minimum_depth:
             block_height, tx_pos = self.wallet.get_txpos(chan.funding_outpoint.txid)
             if tx_pos == -1:
@@ -154,7 +154,7 @@ class LNWorker(PrintError):
                         return
                     if event == 'fee':
                         peer.on_bitcoin_fee_update(chan)
-                    conf = self.wallet.get_tx_height(chan.funding_outpoint.txid)[1]
+                    conf = self.wallet.get_tx_height(chan.funding_outpoint.txid).conf
                     peer.on_network_update(chan, conf)
         asyncio.run_coroutine_threadsafe(network_jobs(), self.network.asyncio_loop).result()
 
