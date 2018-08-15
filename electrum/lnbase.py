@@ -30,7 +30,7 @@ from .crypto import sha256
 from . import constants
 from . import transaction
 from .util import PrintError, bh2u, print_error, bfh
-from .transaction import opcodes, Transaction
+from .transaction import opcodes, Transaction, TxOutput
 from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error, ONION_FAILURE_CODE_MAP
 from .lnaddr import lndecode
 from .lnhtlc import UpdateAddHtlc, HTLCStateMachine, RevokeAndAck, SettleHtlc
@@ -561,7 +561,7 @@ class Peer(PrintError):
         # create funding tx
         redeem_script = funding_output_script(local_config, remote_config)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
-        funding_output = (bitcoin.TYPE_ADDRESS, funding_address, funding_sat)
+        funding_output = TxOutput(bitcoin.TYPE_ADDRESS, funding_address, funding_sat)
         funding_tx = wallet.mktx([funding_output], password, config, 1000)
         funding_txid = funding_tx.txid()
         funding_index = funding_tx.outputs().index(funding_output)

@@ -5,7 +5,7 @@ from collections import namedtuple
 from .transaction import Transaction
 from .ecc import CURVE_ORDER, sig_string_from_der_sig, ECPubkey, string_to_number
 from . import ecc, bitcoin, crypto, transaction
-from .transaction import opcodes
+from .transaction import opcodes, TxOutput
 from .bitcoin import push_script
 from . import segwit_addr
 
@@ -157,7 +157,7 @@ def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_dela
     fee = fee // 1000 * 1000
     final_amount_sat = (amount_msat - fee) // 1000
     assert final_amount_sat > 0, final_amount_sat
-    output = (bitcoin.TYPE_ADDRESS, p2wsh, final_amount_sat)
+    output = TxOutput(bitcoin.TYPE_ADDRESS, p2wsh, final_amount_sat)
     return output
 
 def make_htlc_tx_witness(remotehtlcsig, localhtlcsig, payment_preimage, witness_script):
@@ -300,12 +300,14 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
     fee = fee // 1000 * 1000
     we_pay_fee = for_us == we_are_initiator
     to_local_amt = local_amount - (fee if we_pay_fee else 0)
-    to_local = (bitcoin.TYPE_ADDRESS, local_address, to_local_amt // 1000)
+    to_local = TxOutput(bitcoin.TYPE_ADDRESS, local_address, to_local_amt // 1000)
     to_remote_amt = remote_amount - (fee if not we_pay_fee else 0)
-    to_remote = (bitcoin.TYPE_ADDRESS, remote_address, to_remote_amt // 1000)
+    to_remote = TxOutput(bitcoin.TYPE_ADDRESS, remote_address, to_remote_amt // 1000)
     c_outputs = [to_local, to_remote]
     for script, msat_amount in htlcs:
-        c_outputs += [(bitcoin.TYPE_ADDRESS, bitcoin.redeem_script_to_address('p2wsh', bh2u(script)), msat_amount // 1000)]
+        c_outputs += [TxOutput(bitcoin.TYPE_ADDRESS,
+                               bitcoin.redeem_script_to_address('p2wsh', bh2u(script)),
+                               msat_amount // 1000)]
 
     # trim outputs
     c_outputs_filtered = list(filter(lambda x:x[2]>= dust_limit_sat, c_outputs))
