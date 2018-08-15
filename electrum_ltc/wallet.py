@@ -179,6 +179,8 @@ class Abstract_Wallet(AddressSynchronizer):
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
 
+        self.calc_unused_change_addresses()
+
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
             self.storage.put('wallet_type', self.wallet_type)
@@ -224,6 +226,16 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def synchronize(self):
         pass
+
+    def calc_unused_change_addresses(self):
+        with self.lock:
+            if hasattr(self, '_unused_change_addresses'):
+                addrs = self._unused_change_addresses
+            else:
+                addrs = self.get_change_addresses()
+            self._unused_change_addresses = [addr for addr in addrs if
+                                            self.get_address_history_len(addr) == 0]
+            return list(self._unused_change_addresses)
 
     def is_deterministic(self):
         return self.keystore.is_deterministic()
@@ -554,21 +566,22 @@ class Abstract_Wallet(AddressSynchronizer):
             self.add_input_info(item)
 
         # change address
+        # if we leave it empty, coin_chooser will set it
+        change_addrs = []
         if change_addr:
             change_addrs = [change_addr]
-        else:
-            addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
-            if self.use_change and addrs:
-                # New change addresses are created only after a few
-                # confirmations.  Select the unused addresses within the
-                # gap limit; if none take one at random
-                change_addrs = [addr for addr in addrs if
-                                self.get_address_history_len(addr) == 0]
-                if not change_addrs:
-                    change_addrs = [random.choice(addrs)]
+        elif self.use_change:
+            # Recalc and get unused change addresses
+            addrs = self.calc_unused_change_addresses()
+            # New change addresses are created only after a few
+            # confirmations.
+            if addrs:
+                # if there are any unused, select all
+                change_addrs = addrs
             else:
-                # coin_chooser will set change address
-                change_addrs = []
+                # if there are none, take one randomly from the last few
+                addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
+                change_addrs = [random.choice(addrs)] if addrs else []
 
         # Fee estimator
         if fixed_fee is None:
@@ -1420,6 +1433,9 @@ class Deterministic_Wallet(Abstract_Wallet):
             self._addr_to_addr_index[address] = (for_change, n)
             self.save_addresses()
             self.add_address(address)
+            if for_change:
+                # note: if it's actually used, it will get filtered later
+                self._unused_change_addresses.append(address)
             return address
 
     def synchronize_sequence(self, for_change):
