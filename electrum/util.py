@@ -925,6 +925,19 @@ def make_dir(path, allow_symlink=True):
         os.mkdir(path)
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
+def aiosafe(f):
+    # save exception in object.
+    # f must be a method of a PrintError instance.
+    # aiosafe calls should not be nested
+    async def f2(*args, **kwargs):
+        self = args[0]
+        try:
+            return await f(*args, **kwargs)
+        except BaseException as e:
+            self.print_error("Exception in", f.__name__, ":", e.__class__.__name__, str(e))
+            traceback.print_exc(file=sys.stderr)
+            self.exception = e
+    return f2
 
 TxMinedStatus = NamedTuple("TxMinedStatus", [("height", int),
                                              ("conf", int),

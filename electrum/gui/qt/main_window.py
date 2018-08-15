@@ -712,7 +712,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not self.wallet:
             return
 
-        if self.network is None or not self.network.is_running():
+        if self.network is None:
             text = _("Offline")
             icon = QIcon(":icons/status_disconnected.png")
 
