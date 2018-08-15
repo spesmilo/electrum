@@ -184,7 +184,7 @@ class AddressList(MyTreeWidget):
                 menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state([addr], False))
 
         coins = self.wallet.get_utxos(addrs)
-        if coins:
+        if coins and not any(map(self.wallet.is_frozen, addrs)):
             menu.addAction(_("Spend from"), lambda: self.parent.spend_coins(coins))
 
         run_hook('receive_menu', menu, addrs, self.wallet)
