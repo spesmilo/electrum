@@ -891,7 +891,6 @@ class Peer(PrintError):
             self.revoke(chan)
             sig_64, htlc_sigs = chan.sign_next_commitment()
             res = failure_coro.result()
-            payment_succeeded = True
         else:
             failure_coro.cancel()
             update_fulfill_htlc_msg = fulfill_coro.result()
@@ -903,6 +902,7 @@ class Peer(PrintError):
                 msat_remote, msat_local)
             sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
             res = bh2u(preimage)
+            payment_succeeded = True
 
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=0))
         await self.receive_revoke(chan)
