@@ -8,7 +8,7 @@ from .lnutil import (extract_ctn_from_tx, derive_privkey,
 from . import lnutil
 from .bitcoin import redeem_script_to_address, TYPE_ADDRESS
 from . import transaction
-from .transaction import Transaction
+from .transaction import Transaction, TxOutput
 from . import ecc
 from . import wallet
 
@@ -101,7 +101,7 @@ class LNChanCloseHandler(PrintError):
         else:
             raise Exception('{} is supposed to be spent by {}, but none of the inputs spend it'
                             .format(funding_outpoint, ctx_candidate_txid))
-        height, conf, timestamp = self.wallet.get_tx_height(ctx_candidate_txid)
+        conf = self.wallet.get_tx_height(ctx_candidate_txid).conf
         if conf == 0:
             return
         keep_watching_this = self.inspect_ctx_candidate(ctx_candidate, i)
@@ -150,7 +150,8 @@ class LNChanCloseHandler(PrintError):
     def get_tx_mined_status(self, txid):
         if not txid:
             return TX_MINED_STATUS_FREE
-        height, conf, timestamp = self.wallet.get_tx_height(txid)
+        tx_mined_status = self.wallet.get_tx_height(txid)
+        height, conf = tx_mined_status.height, tx_mined_status.conf
         if conf > 100:
             return TX_MINED_STATUS_DEEP
         elif conf > 0:
@@ -173,8 +174,8 @@ class LNChanCloseHandler(PrintError):
         our_payment_privkey = ecc.ECPrivkey.from_secret_scalar(our_payment_privkey)
         our_payment_pubkey = our_payment_privkey.get_public_key_bytes(compressed=True)
         to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
-        for output_idx, (type_, addr, val) in enumerate(ctx.outputs()):
-            if type_ == TYPE_ADDRESS and addr == to_remote_address:
+        for output_idx, o in enumerate(ctx.outputs()):
+            if o.type == TYPE_ADDRESS and o.address == to_remote_address:
                 self.print_error("found to_remote output paying to us: ctx {}:{}".
                                  format(ctx.txid(), output_idx))
                 #self.print_error("ctx {} is normal unilateral close by them".format(ctx.txid()))
@@ -210,8 +211,8 @@ class LNChanCloseHandler(PrintError):
         witness_script = bh2u(lnutil.make_commitment_output_to_local_witness_script(
             revocation_pubkey, to_self_delay, delayed_pubkey))
         to_local_address = redeem_script_to_address('p2wsh', witness_script)
-        for output_idx, (type_, addr, val) in enumerate(ctx.outputs()):
-            if type_ == TYPE_ADDRESS and addr == to_local_address:
+        for output_idx, o in enumerate(ctx.outputs()):
+            if o.type == TYPE_ADDRESS and o.address == to_local_address:
                 self.print_error("found to_local output paying to them: ctx {}:{}".
                                  format(ctx.txid(), output_idx))
                 break
@@ -246,8 +247,8 @@ class LNChanCloseHandler(PrintError):
         witness_script = bh2u(lnutil.make_commitment_output_to_local_witness_script(
             revocation_pubkey, to_self_delay, our_localdelayed_pubkey))
         to_local_address = redeem_script_to_address('p2wsh', witness_script)
-        for output_idx, (type_, addr, val) in enumerate(ctx.outputs()):
-            if type_ == TYPE_ADDRESS and addr == to_local_address:
+        for output_idx, o in enumerate(ctx.outputs()):
+            if o.type == TYPE_ADDRESS and o.address == to_local_address:
                 self.print_error("found to_local output paying to us (CSV-locked): ctx {}:{}".
                                  format(ctx.txid(), output_idx))
                 break
@@ -264,7 +265,7 @@ class LNChanCloseHandler(PrintError):
         elif stx_mined_status in (TX_MINED_STATUS_SHALLOW, TX_MINED_STATUS_MEMPOOL):
             return True
         # check timelock
-        ctx_num_conf = self.wallet.get_tx_height(ctx.txid())[1]
+        ctx_num_conf = self.wallet.get_tx_height(ctx.txid()).conf
         if to_self_delay > ctx_num_conf:
             self.print_error('waiting for CSV ({} < {}) for ctx {}'.format(ctx_num_conf, to_self_delay, ctx.txid()))
             return True
@@ -302,7 +303,7 @@ def create_sweeptx_their_ctx_to_remote(network, address, ctx, output_idx: int, o
     except NoDynamicFeeEstimates:
         fee_per_kb = network.config.fee_per_kb(dyn=False)
         fee = network.config.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
-    sweep_outputs = [(TYPE_ADDRESS, address, val-fee)]
+    sweep_outputs = [TxOutput(TYPE_ADDRESS, address, val-fee)]
     locktime = network.get_local_height()
     sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, locktime=locktime)
     sweep_tx.set_rbf(True)
@@ -340,7 +341,7 @@ def create_sweeptx_ctx_to_local(network, address, ctx, output_idx: int, witness_
     except NoDynamicFeeEstimates:
         fee_per_kb = network.config.fee_per_kb(dyn=False)
         fee = network.config.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
-    sweep_outputs = [(TYPE_ADDRESS, address, val - fee)]
+    sweep_outputs = [TxOutput(TYPE_ADDRESS, address, val - fee)]
     locktime = network.get_local_height()
     sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, locktime=locktime, version=2)
     sig = sweep_tx.sign_txin(0, privkey)
