@@ -748,6 +748,7 @@ class Peer(PrintError):
     def mark_open(self, chan):
         if chan.get_state() == "OPEN":
             return
+        # NOTE: even closed channels will be temporarily marked "OPEN"
         assert chan.local_state.funding_locked_received
         chan.set_state("OPEN")
         self.network.trigger_callback('channel', chan)
@@ -833,7 +834,8 @@ class Peer(PrintError):
 
     @aiosafe
     async def pay(self, path, chan, amount_msat, payment_hash, pubkey_in_invoice, min_final_cltv_expiry):
-        assert chan.get_state() == "OPEN"
+        # FIXME aiosafe is breaking "raise PaymentFailure"
+        assert chan.get_state() == "OPEN", chan.get_state()
         assert amount_msat > 0, "amount_msat is not greater zero"
 
         height = self.network.get_local_height()
@@ -856,10 +858,15 @@ class Peer(PrintError):
         msat_remote = chan.remote_state.amount_msat + amount_msat
         htlc = UpdateAddHtlc(amount_msat, payment_hash, final_cltv_expiry_with_deltas)
 
+        # FIXME if we raise here, this channel will not get blacklisted, and the payment can never succeed,
+        # as we will just keep retrying this same path. using the current blacklisting is not a solution as
+        # then no other payment can use this channel either.
+        # we need finer blacklisting -- e.g. a blacklist for just this "payment session"?
+        # or blacklist entries could store an msat value and also expire
         if len(chan.htlcs_in_local) + 1 > chan.remote_config.max_accepted_htlcs:
             raise PaymentFailure('too many HTLCs already in channel')
         if chan.htlcsum(chan.htlcs_in_local) + amount_msat > chan.remote_config.max_htlc_value_in_flight_msat:
-            raise PaymentFailure('HTLC value sum would exceed max allowed')
+            raise PaymentFailure('HTLC value sum would exceed max allowed: {} msat'.format(chan.remote_config.max_htlc_value_in_flight_msat))
         if msat_local < 0:
             # FIXME what about channel_reserve_satoshis? will the remote fail the channel if we go below? test.
             raise PaymentFailure('not enough local balance')

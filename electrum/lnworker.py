@@ -124,6 +124,7 @@ class LNWorker(PrintError):
         if chan.funding_outpoint not in outpoints:
             chan.set_funding_txo_spentness(True)
             chan.set_state("CLOSED")
+            self.channel_db.remove_channel(chan.short_channel_id)
             # FIXME is this properly GC-ed? (or too soon?)
             LNChanCloseHandler(self.network, self.wallet, chan)
         else:
