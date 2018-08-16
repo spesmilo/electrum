@@ -58,9 +58,13 @@ class Interface(PrintError):
     @util.aiosafe
     async def run(self):
         self.host, self.port, self.protocol = self.server.split(':')
-        async with aiorpcx.ClientSession(self.host, self.port) as session:
+        sslc = ssl.SSLContext(ssl.PROTOCOL_TLS) if self.protocol == 's' else None
+        async with aiorpcx.ClientSession(self.host, self.port, ssl=sslc) as session:
             ver = await session.send_request('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])
             print(ver)
+            while True:
+                print("sleeping")
+                await asyncio.sleep(1)
 
     def __init__(self, server):
         self.exception = None
