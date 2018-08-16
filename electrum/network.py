@@ -47,38 +47,14 @@ from . import blockchain
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from .i18n import _
 from .blockchain import InvalidHeader
+from .interface import Interface
 
-import aiorpcx, asyncio, ssl
+import asyncio
 import concurrent.futures
 
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
 
-class Interface(PrintError):
-    @util.aiosafe
-    async def run(self):
-        self.host, self.port, self.protocol = self.server.split(':')
-        sslc = ssl.SSLContext(ssl.PROTOCOL_TLS) if self.protocol == 's' else None
-        async with aiorpcx.ClientSession(self.host, self.port, ssl=sslc) as session:
-            ver = await session.send_request('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])
-            print(ver)
-            while True:
-                print("sleeping")
-                await asyncio.sleep(1)
-
-    def __init__(self, server):
-        self.exception = None
-        self.server = server
-        self.fut = asyncio.get_event_loop().create_task(self.run())
-
-    def has_timed_out(self):
-        return self.fut.done()
-
-    def queue_request(self, method, params, msg_id):
-        pass
-
-    def close(self):
-        self.fut.cancel()
 
 def parse_servers(result):
     """ parse servers list into dict format"""
@@ -539,7 +515,7 @@ class Network(PrintError):
             self.close_interface(self.interface)
         assert self.interface is None
         assert not self.interfaces
-        self.connecting = set()
+        self.connecting.clear()
         # Get a new queue - no old pending connections thanks!
         self.socket_queue = queue.Queue()
 
@@ -810,7 +786,7 @@ class Network(PrintError):
     def new_interface(self, server):
         # todo: get tip first, then decide which checkpoint to use.
         self.add_recent_server(server)
-        interface = Interface(server)
+        interface = Interface(server, self.config.path, self.connecting)
         interface.blockchain = None
         interface.tip_header = None
         interface.tip = 0
@@ -1368,9 +1344,12 @@ class Network(PrintError):
             for k, i in self.interfaces.items():
                 if i.has_timed_out():
                     remove.append(k)
+            changed = False
             for k in remove:
                 self.connection_down(k)
+                changed = True
             for i in range(self.num_server - len(self.interfaces)):
                 self.start_random_interface()
-            self.notify('updated')
+                changed = True
+            if changed: self.notify('updated')
             await asyncio.sleep(1)
