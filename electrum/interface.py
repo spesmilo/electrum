@@ -123,7 +123,8 @@ class Interface(PrintError):
                         os.fsync(f.fileno())
                     break
                 await asyncio.sleep(1)
-            assert False, "could not get certificate"
+            else:
+                assert False, "could not get certificate"
 
     async def get_certificate(self):
         sslc = ssl.SSLContext()
