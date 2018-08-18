@@ -184,7 +184,9 @@ def _prepare_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
 
 def do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
     if not _libsecp256k1:
-        print_error('[ecc] warning: libsecp256k1 library not available, falling back to python-ecdsa')
+        # FIXME print_error will always print as 'verbosity' is not yet initialised
+        print_error('[ecc] info: libsecp256k1 library not available, falling back to python-ecdsa. '
+                    'This means signing operations will be slower.')
         return
     if not _patched_functions.prepared_to_patch:
         raise Exception("can't patch python-ecdsa without preparations")
