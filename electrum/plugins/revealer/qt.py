@@ -157,6 +157,9 @@ class Plugin(BasePlugin):
                 else:
                     return False
         else:
+
+            if (len(txt)>0 and txt[0]=='0'):
+                self.d.show_message(''.join(["<b>",_("Warning: "), "</b>", _("Revealers starting with 0 had a vulnerability and are not supported.")]))
             self.user_input = False
             return False
 
