@@ -2,12 +2,15 @@
 
 # python setup.py sdist --format=zip,gztar
 
-from setuptools import setup, find_packages
 import os
 import sys
 import platform
 import imp
 import argparse
+import subprocess
+
+from setuptools import setup, find_packages
+from setuptools.command.install import install
 
 with open('contrib/requirements/requirements.txt') as f:
     requirements = f.read().splitlines()
@@ -43,8 +46,26 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
 extras_require = {
     'hardware': requirements_hw,
     'fast': ['pycryptodomex'],
+    'gui': ['pyqt5'],
 }
-extras_require['full'] = extras_require['hardware'] + extras_require['fast']
+extras_require['full'] = [pkg for sublist in list(extras_require.values()) for pkg in sublist]
+
+
+class CustomInstallCommand(install):
+    def run(self):
+        install.run(self)
+        # potentially build Qt icons file
+        try:
+            import PyQt5
+        except ImportError:
+            pass
+        else:
+            try:
+                path = os.path.join(self.install_lib, "electrum/gui/qt/icons_rc.py")
+                if not os.path.exists(path):
+                    subprocess.call(["pyrcc5", "icons.qrc", "-o", path])
+            except Exception as e:
+                print('Warning: building icons file failed with {}'.format(e))
 
 
 setup(
@@ -75,5 +96,8 @@ setup(
     author_email="thomasv@electrum.org",
     license="MIT Licence",
     url="https://electrum.org",
-    long_description="""Lightweight Bitcoin Wallet"""
+    long_description="""Lightweight Bitcoin Wallet""",
+    cmdclass={
+        'install': CustomInstallCommand,
+    },
 )
