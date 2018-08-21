@@ -23,7 +23,7 @@ import traceback
 from hashlib import sha256
 from decimal import Decimal
 import binascii
-from .hmac_drbg import DRBG
+from .drbg.hmac_drbg import DRBG
 
 from PyQt5.QtPrintSupport import QPrinter
 
@@ -49,7 +49,7 @@ class Plugin(BasePlugin):
         self.calibration_h = self.config.get('calibration_h')
         self.calibration_v = self.config.get('calibration_v')
 
-        self.version = '0'
+        self.version = '1'
         self.size = (159, 97)
         self.f_size = QSize(1014*2, 642*2)
         self.abstand_h = 21
@@ -218,7 +218,7 @@ class Plugin(BasePlugin):
         self.vbox.addWidget(cprint)
         self.vbox.addSpacing(14)
 
-        self.vbox.addWidget(WWLabel(_("and/or type any secret below:")))
+        self.vbox.addWidget(WWLabel(_("OR type any secret below:")))
         self.text = ScanQRTextEdit()
         self.text.setTabChangesFocus(True)
         self.text.setMaximumHeight(70)
@@ -238,6 +238,13 @@ class Plugin(BasePlugin):
 
         self.vbox.addWidget(self.ctext)
         self.ctext.setEnabled(False)
+
+        self.vbox.addSpacing(11)
+        self.vbox.addWidget(
+                            QLabel(''.join(["<b>" + _("WARNING") + "</b>:" + _("Each Revealer should be used only once. In possession"), '<br/>',
+                            _("of multiple secrets encrypted for the same Revealer it can be attacked."), '<br/>',
+                            ])))
+        self.vbox.addSpacing(11)
 
         self.vbox.addSpacing(21)
         self.vbox.addLayout(Buttons(CloseButton(d)))
