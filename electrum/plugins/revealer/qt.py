@@ -22,6 +22,8 @@ import qrcode
 import traceback
 from hashlib import sha256
 from decimal import Decimal
+import binascii
+from .hmac_drbg import DRBG
 
 from PyQt5.QtPrintSupport import QPrinter
 
@@ -312,14 +314,19 @@ class Plugin(BasePlugin):
             self.noise_seed = int(self.noise_seed, 16)
             self.hex_noise = self.version + str(format(self.noise_seed, '02x'))
 
-
         self.code_id = self.code_hashid(self.hex_noise)
         self.hex_noise = ' '.join(self.hex_noise[i:i+4] for i in range(0,len(self.hex_noise),4))
-        random.seed(self.noise_seed)
+        entropy = binascii.unhexlify(str(format(self.noise_seed, '02x')))
+        code_id = binascii.unhexlify(self.version + self.code_id)
 
+        drbg = DRBG(entropy + code_id)
+        noise_array=bin(int.from_bytes(drbg.generate(1929), 'big'))[2:]
+
+        i=0
         for x in range(w):
             for y in range(h):
-                rawnoise.setPixel(x,y,random.randint(0, 1))
+                rawnoise.setPixel(x,y,int(noise_array[i]))
+                i+=1
 
         self.rawnoise = rawnoise
         if create_revealer==True:
