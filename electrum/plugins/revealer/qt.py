@@ -32,8 +32,7 @@ from electrum.util import to_bytes, make_dir
 from electrum.gui.qt.util import *
 from electrum.gui.qt.qrtextedit import ScanQRTextEdit
 
-from .drbg.hmac_drbg import DRBG
-
+from .hmac_drbg import DRBG
 
 class Plugin(BasePlugin):
 
