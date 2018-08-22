@@ -132,7 +132,7 @@ class Plugin(BasePlugin):
         s = self.get_noise()
         b = self.is_noise(s)
         if b:
-            self.noise_seed = s[:-3]
+            self.noise_seed = s[1:-3]
             self.user_input = True
         self.next_button.setEnabled(b)
 
@@ -317,16 +317,17 @@ class Plugin(BasePlugin):
 
         if(self.noise_seed == False):
             self.noise_seed = random.SystemRandom().getrandbits(128)
-            self.hex_noise = format(self.noise_seed, '02x')
+            self.hex_noise = format(self.noise_seed, '032x')
             self.hex_noise = self.version + str(self.hex_noise)
 
         if (self.user_input == True):
             self.noise_seed = int(self.noise_seed, 16)
-            self.hex_noise = self.version + str(format(self.noise_seed, '02x'))
+            self.hex_noise = self.version + str(format(self.noise_seed, '032x'))
 
         self.code_id = self.code_hashid(self.hex_noise)
         self.hex_noise = ' '.join(self.hex_noise[i:i+4] for i in range(0,len(self.hex_noise),4))
-        entropy = binascii.unhexlify(str(format(self.noise_seed, '02x')))
+
+        entropy = binascii.unhexlify(str(format(self.noise_seed, '032x')))
         code_id = binascii.unhexlify(self.version + self.code_id)
 
         drbg = DRBG(entropy + code_id)
