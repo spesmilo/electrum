@@ -1030,12 +1030,12 @@ class Transaction:
         else:
             return network_ser
 
-    def serialize_to_network(self, estimate_size=False, witness=True, blank_scripts=False):
+    def serialize_to_network(self, estimate_size=False, witness=True):
         nVersion = int_to_hex(self.version, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
         outputs = self.outputs()
-        txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size) if not blank_scripts else '') for txin in inputs)
+        txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.input_script(txin, estimate_size)) for txin in inputs)
         txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
         use_segwit_ser_for_estimate_size = estimate_size and self.is_segwit(guess_for_address=True)
         use_segwit_ser_for_actual_use = not estimate_size and \

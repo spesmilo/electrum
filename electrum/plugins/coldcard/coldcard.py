@@ -8,10 +8,12 @@ import os, sys, time, io
 import traceback
 
 from electrum import bitcoin
+from electrum.bitcoin import serialize_xpub, deserialize_xpub, InvalidMasterKeyVersionBytes
+from electrum import constants
 from electrum.bitcoin import TYPE_ADDRESS, int_to_hex
 from electrum.i18n import _
 from electrum.plugin import BasePlugin, Device
-from electrum.keystore import Hardware_KeyStore, xpubkey_to_pubkey
+from electrum.keystore import Hardware_KeyStore, xpubkey_to_pubkey, Xpub
 from electrum.transaction import Transaction
 from electrum.wallet import Standard_Wallet
 from electrum.crypto import hash_160
@@ -85,7 +87,8 @@ class CKCCClient:
     # Challenge: I haven't found anywhere that defines a base class for this 'client',
     # nor an API (interface) to be met. Winging it. Gets called from lib/plugins.py mostly?
 
-    def __init__(self, handler, dev_path, is_simulator=False):
+    def __init__(self, plugin, handler, dev_path, is_simulator=False):
+        self.device = plugin.device
         self.handler = handler
 
         # if we know what the (xfp, xpub) "should be" then track it here
@@ -183,9 +186,19 @@ class CKCCClient:
             return False
 
     def get_xpub(self, bip32_path, xtype):
-        # TODO: xtype? .. might not be able to support anything but classic p2pkh?
+        assert xtype in ColdcardPlugin.SUPPORTED_XTYPES
         print_error('[coldcard]', 'Derive xtype = %r' % xtype)
-        return self.dev.send_recv(CCProtocolPacker.get_xpub(bip32_path), timeout=5000)
+        xpub = self.dev.send_recv(CCProtocolPacker.get_xpub(bip32_path), timeout=5000)
+        # TODO handle timeout?
+        # change type of xpub to the requested type
+        try:
+            __, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub)
+        except InvalidMasterKeyVersionBytes:
+            raise Exception(_('Invalid xpub magic. Make sure your {} device is set to the correct chain.')
+                            .format(self.device)) from None
+        if xtype != 'standard':
+            xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
+        return xpub
 
     def ping_check(self):
         # check connection is working
@@ -435,7 +448,11 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
 
         # global section: just the unsigned txn
-        unsigned = bfh(tx.serialize_to_network(blank_scripts=True))
+        class CustomTXSerialization(Transaction):
+            @classmethod
+            def input_script(cls, txin, estimate_size=False):
+                return ''
+        unsigned = bfh(CustomTXSerialization(tx.serialize()).serialize_to_network(witness=False))
         write_kv(PSBT_GLOBAL_UNSIGNED_TX, unsigned)
 
         # end globals section
@@ -457,13 +474,13 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             out_fd.write(b'\x00')
 
         # outputs section
-        for _type, address, amount in tx.outputs():
+        for o in tx.outputs():
             # can be empty, but must be present, and helpful to show change inputs
             # wallet.add_hw_info() adds some data about change outputs into tx.output_info
-            if address in tx.output_info:
+            if o.address in tx.output_info:
                 # this address "is_mine" but might not be change (I like to sent to myself)
-                #
-                index, xpubs, _multisig = tx.output_info.get(address)
+                output_info = tx.output_info.get(o.address)
+                index, xpubs = output_info.address_index, output_info.sorted_xpubs
 
                 if index[0] == 1 and len(index) == 2:
                     # it is a change output (based on our standard derivation path)
@@ -581,7 +598,6 @@ class ColdcardPlugin(HW_PluginBase):
     SUPPORTED_XTYPES = ('standard', 'p2wpkh')
 
     def __init__(self, parent, config, name):
-        self.segwit = config.get("segwit")
         HW_PluginBase.__init__(self, parent, config, name)
 
         if self.libraries_available:
@@ -608,11 +624,11 @@ class ColdcardPlugin(HW_PluginBase):
         # Not sure why not we aren't just given a HID library handle, but
         # the 'path' is unabiguous, so we'll use that.
         try:
-            rv = CKCCClient(handler, device.path, 
+            rv = CKCCClient(self, handler, device.path,
                     is_simulator=(device.product_key[1] == CKCC_SIMULATED_PID))
             return rv
         except:
-            print_error('[coldcard]', 'late failure connecting to device?')
+            self.print_error('late failure connecting to device?')
             return None
 
     def setup_device(self, device_info, wizard, purpose):
