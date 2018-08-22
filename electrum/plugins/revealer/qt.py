@@ -22,16 +22,17 @@ import qrcode
 import traceback
 from hashlib import sha256
 from decimal import Decimal
+import binascii
 
 from PyQt5.QtPrintSupport import QPrinter
 
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
 from electrum.util import to_bytes, make_dir
-
 from electrum.gui.qt.util import *
 from electrum.gui.qt.qrtextedit import ScanQRTextEdit
 
+from .hmac_drbg import DRBG
 
 class Plugin(BasePlugin):
 
@@ -47,7 +48,7 @@ class Plugin(BasePlugin):
         self.calibration_h = self.config.get('calibration_h')
         self.calibration_v = self.config.get('calibration_v')
 
-        self.version = '0'
+        self.version = '1'
         self.size = (159, 97)
         self.f_size = QSize(1014*2, 642*2)
         self.abstand_h = 21
@@ -130,7 +131,7 @@ class Plugin(BasePlugin):
         s = self.get_noise()
         b = self.is_noise(s)
         if b:
-            self.noise_seed = s[:-3]
+            self.noise_seed = s[1:-3]
             self.user_input = True
         self.next_button.setEnabled(b)
 
@@ -155,6 +156,9 @@ class Plugin(BasePlugin):
                 else:
                     return False
         else:
+
+            if (len(txt)>0 and txt[0]=='0'):
+                self.d.show_message(''.join(["<b>",_("Warning: "), "</b>", _("Revealers starting with 0 had a vulnerability and are not supported.")]))
             self.user_input = False
             return False
 
@@ -211,12 +215,12 @@ class Plugin(BasePlugin):
         grid = QGridLayout()
         self.vbox.addLayout(grid)
 
-        cprint = QPushButton(_("Generate encrypted seed PDF"))
+        cprint = QPushButton(_("Generate encrypted seed backup"))
         cprint.clicked.connect(partial(self.seed_img, True))
         self.vbox.addWidget(cprint)
         self.vbox.addSpacing(14)
 
-        self.vbox.addWidget(WWLabel(_("and/or type any secret below:")))
+        self.vbox.addWidget(WWLabel(_("OR type any secret below:")))
         self.text = ScanQRTextEdit()
         self.text.setTabChangesFocus(True)
         self.text.setMaximumHeight(70)
@@ -231,11 +235,18 @@ class Plugin(BasePlugin):
         self.vbox.addWidget(self.max_chars)
         self.max_chars.setVisible(False)
 
-        self.ctext = QPushButton(_("Generate custom secret encrypted PDF"))
+        self.ctext = QPushButton(_("Generate custom secret encrypted backup"))
         self.ctext.clicked.connect(self.t)
 
         self.vbox.addWidget(self.ctext)
         self.ctext.setEnabled(False)
+
+        self.vbox.addSpacing(11)
+        self.vbox.addWidget(
+                            QLabel(''.join(["<b>" + _("WARNING") + "</b>: " + _("Revealer is a one-time-pad and should be used only once."), '<br/>',
+                            _("Multiple secrets encrypted for the same Revealer can be attacked."), '<br/>',
+                            ])))
+        self.vbox.addSpacing(11)
 
         self.vbox.addSpacing(21)
         self.vbox.addLayout(Buttons(CloseButton(d)))
@@ -305,21 +316,27 @@ class Plugin(BasePlugin):
 
         if(self.noise_seed == False):
             self.noise_seed = random.SystemRandom().getrandbits(128)
-            self.hex_noise = format(self.noise_seed, '02x')
+            self.hex_noise = format(self.noise_seed, '032x')
             self.hex_noise = self.version + str(self.hex_noise)
 
         if (self.user_input == True):
             self.noise_seed = int(self.noise_seed, 16)
-            self.hex_noise = self.version + str(format(self.noise_seed, '02x'))
-
+            self.hex_noise = self.version + str(format(self.noise_seed, '032x'))
 
         self.code_id = self.code_hashid(self.hex_noise)
         self.hex_noise = ' '.join(self.hex_noise[i:i+4] for i in range(0,len(self.hex_noise),4))
-        random.seed(self.noise_seed)
 
+        entropy = binascii.unhexlify(str(format(self.noise_seed, '032x')))
+        code_id = binascii.unhexlify(self.version + self.code_id)
+
+        drbg = DRBG(entropy + code_id)
+        noise_array=bin(int.from_bytes(drbg.generate(1929), 'big'))[2:]
+
+        i=0
         for x in range(w):
             for y in range(h):
-                rawnoise.setPixel(x,y,random.randint(0, 1))
+                rawnoise.setPixel(x,y,int(noise_array[i]))
+                i+=1
 
         self.rawnoise = rawnoise
         if create_revealer==True:
