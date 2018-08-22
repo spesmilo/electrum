@@ -23,16 +23,16 @@ import traceback
 from hashlib import sha256
 from decimal import Decimal
 import binascii
-from .drbg.hmac_drbg import DRBG
 
 from PyQt5.QtPrintSupport import QPrinter
 
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
 from electrum.util import to_bytes, make_dir
-
 from electrum.gui.qt.util import *
 from electrum.gui.qt.qrtextedit import ScanQRTextEdit
+
+from .drbg.hmac_drbg import DRBG
 
 
 class Plugin(BasePlugin):
