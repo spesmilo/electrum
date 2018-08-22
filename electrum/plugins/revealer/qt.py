@@ -216,7 +216,7 @@ class Plugin(BasePlugin):
         grid = QGridLayout()
         self.vbox.addLayout(grid)
 
-        cprint = QPushButton(_("Generate encrypted seed PDF"))
+        cprint = QPushButton(_("Generate encrypted seed backup"))
         cprint.clicked.connect(partial(self.seed_img, True))
         self.vbox.addWidget(cprint)
         self.vbox.addSpacing(14)
@@ -236,7 +236,7 @@ class Plugin(BasePlugin):
         self.vbox.addWidget(self.max_chars)
         self.max_chars.setVisible(False)
 
-        self.ctext = QPushButton(_("Generate custom secret encrypted PDF"))
+        self.ctext = QPushButton(_("Generate custom secret encrypted backup"))
         self.ctext.clicked.connect(self.t)
 
         self.vbox.addWidget(self.ctext)
@@ -244,8 +244,8 @@ class Plugin(BasePlugin):
 
         self.vbox.addSpacing(11)
         self.vbox.addWidget(
-                            QLabel(''.join(["<b>" + _("WARNING") + "</b>:" + _("Each Revealer should be used only once. In possession"), '<br/>',
-                            _("of multiple secrets encrypted for the same Revealer it can be attacked."), '<br/>',
+                            QLabel(''.join(["<b>" + _("WARNING") + "</b>: " + _("Revealer is a one-time-pad and should be used only once."), '<br/>',
+                            _("Multiple secrets encrypted for the same Revealer can be attacked."), '<br/>',
                             ])))
         self.vbox.addSpacing(11)
 
