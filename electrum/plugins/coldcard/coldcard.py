@@ -585,8 +585,8 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
 
 class ColdcardPlugin(HW_PluginBase):
-    libraries_available = requirements_ok
     keystore_class = Coldcard_KeyStore
+    minimum_library = (0, 7, 2)
     client = None
 
     DEVICE_IDS = [
@@ -600,10 +600,19 @@ class ColdcardPlugin(HW_PluginBase):
     def __init__(self, parent, config, name):
         HW_PluginBase.__init__(self, parent, config, name)
 
-        if self.libraries_available:
-            self.device_manager().register_devices(self.DEVICE_IDS)
+        self.libraries_available = self.check_libraries_available() and requirements_ok
+        if not self.libraries_available:
+            return
 
-            self.device_manager().register_enumerate_func(self.detect_simulator)
+        self.device_manager().register_devices(self.DEVICE_IDS)
+        self.device_manager().register_enumerate_func(self.detect_simulator)
+
+    def get_library_version(self):
+        import ckcc
+        try:
+            return ckcc.__version__
+        except AttributeError:
+            return 'unknown'
 
     def detect_simulator(self):
         # if there is a simulator running on this machine,

@@ -27,7 +27,7 @@
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
 from electrum.bitcoin import is_address, TYPE_SCRIPT
-from electrum.util import bfh
+from electrum.util import bfh, versiontuple
 from electrum.transaction import opcodes, TxOutput
 
 
@@ -37,6 +37,8 @@ class HW_PluginBase(BasePlugin):
     #  class-static variables: client_class, firmware_URL, handler_class,
     #     libraries_available, libraries_URL, minimum_firmware,
     #     wallet_class, ckd_public, types, HidTransport
+
+    minimum_library = (0, )
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
@@ -77,6 +79,38 @@ class HW_PluginBase(BasePlugin):
         if type(keystore) != self.keystore_class:
             return False
         return True
+
+    def get_library_version(self) -> str:
+        """Returns the version of the 3rd party python library
+        for the hw wallet. For example '0.9.0'
+
+        Returns 'unknown' if library is found but cannot determine version.
+        Raises 'ImportError' if library is not found.
+        """
+        raise NotImplementedError()
+
+    def check_libraries_available(self) -> bool:
+        try:
+            library_version = self.get_library_version()
+        except ImportError:
+            return False
+        if library_version == 'unknown' or \
+                versiontuple(library_version) < self.minimum_library:
+            self.libraries_available_message = (
+                    _("Library version for '{}' is too old.").format(self.name)
+                    + '\nInstalled: {}, Needed: {}'
+                    .format(library_version, self.minimum_library))
+            self.print_stderr(self.libraries_available_message)
+            return False
+        return True
+
+    def get_library_not_available_message(self) -> str:
+        if hasattr(self, 'libraries_available_message'):
+            message = self.libraries_available_message
+        else:
+            message = _("Missing libraries for {}.").format(self.name)
+        message += '\n' + _("Make sure you install it with python3")
+        return message
 
 
 def is_any_tx_output_on_change_branch(tx):

@@ -83,25 +83,8 @@ class TrezorPlugin(HW_PluginBase):
     def __init__(self, parent, config, name):
         HW_PluginBase.__init__(self, parent, config, name)
 
-        try:
-            # Minimal test if python-trezor is installed
-            import trezorlib
-            try:
-                library_version = trezorlib.__version__
-            except AttributeError:
-                # python-trezor only introduced __version__ in 0.9.0
-                library_version = 'unknown'
-            if library_version == 'unknown' or \
-                    versiontuple(library_version) < self.minimum_library:
-                self.libraries_available_message = (
-                        _("Library version for '{}' is too old.").format(name)
-                        + '\nInstalled: {}, Needed: {}'
-                        .format(library_version, self.minimum_library))
-                self.print_stderr(self.libraries_available_message)
-                raise ImportError()
-            self.libraries_available = True
-        except ImportError:
-            self.libraries_available = False
+        self.libraries_available = self.check_libraries_available()
+        if not self.libraries_available:
             return
 
         from . import client
@@ -113,6 +96,13 @@ class TrezorPlugin(HW_PluginBase):
 
         self.transport_handler = transport.TrezorTransport()
         self.device_manager().register_enumerate_func(self.enumerate)
+
+    def get_library_version(self):
+        import trezorlib
+        try:
+            return trezorlib.__version__
+        except AttributeError:
+            return 'unknown'
 
     def enumerate(self):
         devices = self.transport_handler.enumerate_devices()

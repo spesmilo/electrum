@@ -189,11 +189,7 @@ class QtPluginBase(object):
             if not isinstance(keystore, self.keystore_class):
                 continue
             if not self.libraries_available:
-                if hasattr(self, 'libraries_available_message'):
-                    message = self.libraries_available_message + '\n'
-                else:
-                    message = _("Cannot find python library for") + " '%s'.\n" % self.name
-                message += _("Make sure you install it with python3")
+                message = keystore.plugin.get_library_not_available_message()
                 window.show_error(message)
                 return
             tooltip = self.device + '\n' + (keystore.label or 'unnamed')
