@@ -27,6 +27,7 @@ hiddenimports += collect_submodules('safetlib')
 hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
+hiddenimports += collect_submodules('ckcc')
 
 datas = [
     (electrum+'electrum/*.json', PYPKG),
@@ -37,6 +38,7 @@ datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
+datas += collect_data_files('ckcc')
 
 # Add libusb so Trezor and Safe-T mini will work
 binaries = [(electrum + "contrib/build-osx/libusb-1.0.dylib", ".")]
@@ -63,6 +65,7 @@ a = Analysis([electrum+ MAIN_SCRIPT,
               electrum+'electrum/plugins/safe_t/qt.py',
               electrum+'electrum/plugins/keepkey/qt.py',
               electrum+'electrum/plugins/ledger/qt.py',
+              electrum+'electrum/plugins/coldcard/qt.py',
               ],
              binaries=binaries,
              datas=datas,
