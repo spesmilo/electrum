@@ -626,6 +626,9 @@ def serialize_xpub(xtype, c, cK, depth=0, fingerprint=b'\x00'*4,
     return EncodeBase58Check(xpub)
 
 
+class InvalidMasterKeyVersionBytes(BitcoinException): pass
+
+
 def deserialize_xkey(xkey, prv, *, net=None):
     if net is None:
         net = constants.net
@@ -640,8 +643,8 @@ def deserialize_xkey(xkey, prv, *, net=None):
     header = int('0x' + bh2u(xkey[0:4]), 16)
     headers = net.XPRV_HEADERS if prv else net.XPUB_HEADERS
     if header not in headers.values():
-        raise BitcoinException('Invalid extended key format: {}'
-                               .format(hex(header)))
+        raise InvalidMasterKeyVersionBytes('Invalid extended key format: {}'
+                                           .format(hex(header)))
     xtype = list(headers.keys())[list(headers.values()).index(header)]
     n = 33 if prv else 32
     K_or_k = xkey[13+n:]
