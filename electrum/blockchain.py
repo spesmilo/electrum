@@ -37,29 +37,72 @@ class MissingHeader(Exception):
 class InvalidHeader(Exception):
     pass
 
-def serialize_header(res):
+def serialize_header(res, get_hash = False):
     s = int_to_hex(res.get('version'), 4) \
         + rev_hex(res.get('prev_block_hash')) \
         + rev_hex(res.get('merkle_root')) \
-        + int_to_hex(int(res.get('timestamp')), 4) \
-        + int_to_hex(int(res.get('bits')), 4) \
-        + int_to_hex(int(res.get('nonce')), 4)
+        + rev_hex(res.get('contract_hash'))
+
+    # special exception for current testnet
+    if not constants.net.TESTNET:
+        s += rev_hex(res.get('attestation_hash'))
+
+    s += int_to_hex(int(res.get('timestamp')), 4) +\
+         int_to_hex(int(res.get('block_height')), 4)
+
+    challenge = res.get('challenge')
+    s += int_to_hex(int(len(challenge)/2), 1) + rev_hex(challenge)
+
+    if not get_hash:
+        proof = res.get('proof')
+        s += int_to_hex(int(len(proof)/2), 1) + rev_hex(proof)
+
     return s
+    
+def deserialize_headers(s, height):
+    headers = []
+    # s is bytes format
+    # use deserialize_header to pick up the next header
+    # use serialize_header to find the header length
+    while s:
+        next_header = deserialize_header(s, height)
+        headers.append(next_header)
+        s = s[int(len(serialize_header(next_header))/2):]
+        height += 1
+
+    return headers
 
 def deserialize_header(s, height):
     if not s:
         raise InvalidHeader('Invalid header: {}'.format(s))
-    if len(s) != 80:
+    if len(s) < constants.net.MIN_HEADER_SIZE:
         raise InvalidHeader('Invalid header length: {}'.format(len(s)))
     hex_to_int = lambda s: int('0x' + bh2u(s[::-1]), 16)
     h = {}
     h['version'] = hex_to_int(s[0:4])
     h['prev_block_hash'] = hash_encode(s[4:36])
     h['merkle_root'] = hash_encode(s[36:68])
-    h['timestamp'] = hex_to_int(s[68:72])
-    h['bits'] = hex_to_int(s[72:76])
-    h['nonce'] = hex_to_int(s[76:80])
+    h['contract_hash'] = hash_encode(s[68:100])
+
+    if not constants.net.TESTNET:
+        h['attestation_hash'] = hash_encode(s[100:132])
+
+    h['timestamp'] = hex_to_int(s[constants.net.BASIC_HEADER_SIZE-8:constants.net.BASIC_HEADER_SIZE-4])
     h['block_height'] = height
+
+    challenge = ''
+    proof = ''
+    challenge_size = s[constants.net.BASIC_HEADER_SIZE]
+    if challenge_size > 0:
+        challenge = hash_encode(s[constants.net.BASIC_HEADER_SIZE+1:
+                        constants.net.BASIC_HEADER_SIZE+1+challenge_size])
+        proof_size = s[constants.net.BASIC_HEADER_SIZE+1+challenge_size]
+        if proof_size > 0:
+            proof = hash_encode(s[constants.net.BASIC_HEADER_SIZE+1+challenge_size+1:
+                                        constants.net.BASIC_HEADER_SIZE+1+challenge_size+1+proof_size])
+    h['challenge'] = challenge
+    h['proof'] = proof
+
     return h
 
 def hash_header(header):
@@ -67,7 +110,7 @@ def hash_header(header):
         return '0' * 64
     if header.get('prev_block_hash') is None:
         header['prev_block_hash'] = '00'*32
-    return hash_encode(Hash(bfh(serialize_header(header))))
+    return hash_encode(Hash(bfh(serialize_header(header, True))))
 
 
 blockchains = {}
@@ -82,6 +125,7 @@ def read_blockchains(config):
         forkpoint = int(filename.split('_')[2])
         parent_id = int(filename.split('_')[1])
         b = Blockchain(config, forkpoint, parent_id)
+        self.print_error("forkpoint:{0}\nparent_id:{1}".format(forkpoint, parent_id))
         h = b.read_header(b.forkpoint)
         if b.parent().can_connect(h, check_height=False):
             blockchains[b.forkpoint] = b
@@ -163,34 +207,31 @@ class Blockchain(util.PrintError):
             return self._size
 
     def update_size(self):
-        p = self.path()
-        self._size = os.path.getsize(p)//80 if os.path.exists(p) else 0
+        p = self.offset_path()
+        self._size = (os.path.getsize(p)//8) - 1 if os.path.exists(p) else 0
 
     def verify_header(self, header, prev_hash, target):
         _hash = hash_header(header)
         if prev_hash != header.get('prev_block_hash'):
             raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
-        if constants.net.TESTNET:
-            return
-        bits = self.target_to_bits(target)
-        if bits != header.get('bits'):
-            raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
-        if int('0x' + _hash, 16) > target:
-            raise Exception("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
 
-    def verify_chunk(self, index, data):
-        num = len(data) // 80
+    def verify_chunk(self, index, headers):
+        num = len(headers)
         prev_hash = self.get_hash(index * 2016 - 1)
         target = self.get_target(index-1)
         for i in range(num):
-            raw_header = data[i*80:(i+1) * 80]
-            header = deserialize_header(raw_header, index*2016 + i)
+            header = headers[i]
             self.verify_header(header, prev_hash, target)
             prev_hash = hash_header(header)
 
     def path(self):
         d = util.get_headers_dir(self.config)
         filename = 'blockchain_headers' if self.parent_id is None else os.path.join('forks', 'fork_%d_%d'%(self.parent_id, self.forkpoint))
+        return os.path.join(d, filename)
+
+    def offset_path(self):
+        d = util.get_headers_dir(self.config)
+        filename = 'headers_offset'
         return os.path.join(d, filename)
 
     @with_lock
@@ -203,14 +244,29 @@ class Blockchain(util.PrintError):
             return
 
         delta_height = (index * 2016 - self.forkpoint)
-        delta_bytes = delta_height * 80
+        delta_bytes = 0
+        header_data = b''
+        offset_data = b''
+        initial_offset = self.dynamic_header_offset(delta_height)
+        offset = initial_offset
+        for idx, header in enumerate(chunk):
+            header_bytes = bfh(serialize_header(header))
+            if idx + delta_height < 0:
+                delta_bytes += len(header_bytes) 
+            header_data += header_bytes
+            offset += len(header_bytes)
+            offset_data += bfh(int_to_hex(offset, 8))
+
         # if this chunk contains our forkpoint, only save the part after forkpoint
         # (the part before is the responsibility of the parent)
-        if delta_bytes < 0:
-            chunk = chunk[-delta_bytes:]
+        if delta_bytes > 0:
+            header_data = header_data[delta_bytes:]
+            offset_data = offset_data[delta_height*8:]
             delta_bytes = 0
         truncate = not chunk_within_checkpoint_region
-        self.write(chunk, delta_bytes, truncate)
+
+        self.write(header_data, initial_offset, truncate)
+        self.write_offset(offset_data, (delta_height + 1)*8)
         self.swap_with_parent()
 
     @with_lock
@@ -225,14 +281,29 @@ class Blockchain(util.PrintError):
         forkpoint = self.forkpoint
         parent = self.parent()
         self.assert_headers_file_available(self.path())
+
+        # headers
         with open(self.path(), 'rb') as f:
             my_data = f.read()
         self.assert_headers_file_available(parent.path())
         with open(parent.path(), 'rb') as f:
-            f.seek((forkpoint - parent.forkpoint)*80)
-            parent_data = f.read(parent_branch_size*80)
+            f.seek(self.dynamic_header_offset(forkpoint - parent.forkpoint))
+            parent_data = f.read(self.dynamic_header_offset(parent_branch_size))
+
+        # header offsets
+        self.assert_headers_file_available(self.offset_path())
+        with open(self.offset_path(), 'rb') as f:
+            my_offset_data = f.read()
+        self.assert_headers_file_available(parent.offset_path())
+        with open(parent.offset_path(), 'rb') as f:
+            f.seek((forkpoint - parent.forkpoint + 1) * 8)
+            parent_offset_data = f.read(parent_branch_size * 8)
+
         self.write(parent_data, 0)
-        parent.write(my_data, (forkpoint - parent.forkpoint)*80)
+        self.write_offset(parent_offset_data, 0)
+        parent.write(my_data, self.dynamic_header_offset(forkpoint - parent.forkpoint))
+        parent.write_offset(my_offset_data, (forkpoint - parent.forkpoint + 1) * 8)
+
         # store file path
         for b in blockchains.values():
             b.old_path = b.path()
@@ -272,15 +343,46 @@ class Blockchain(util.PrintError):
                 os.fsync(f.fileno())
             self.update_size()
 
+    def write_offset(self, data, offset):
+        filename = self.offset_path()
+        with self.lock:
+            self.assert_headers_file_available(filename)
+            with open(filename, 'rb+') as f:
+                f.seek(offset)
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+            self.update_size()
+
     @with_lock
     def save_header(self, header):
         delta = header.get('block_height') - self.forkpoint
         data = bfh(serialize_header(header))
-        # headers are only _appended_ to the end:
         assert delta == self.size()
-        assert len(data) == 80
-        self.write(data, delta*80)
+
+        offset = self.dynamic_header_offset(delta)
+        self.write(data, offset)
+
+        offset += len(data)
+        pos = (delta + 1) * 8
+        self.write_offset(bfh(int_to_hex(offset, 8)), pos)
         self.swap_with_parent()
+
+    def dynamic_header_offset(self, height):
+        name = self.offset_path()
+        self.assert_headers_file_available(name)
+        with open(name, 'rb') as f:
+            f.seek(height * 8)
+            h = f.read(8)
+
+        hex_to_int = lambda s: int('0x' + bh2u(s[::-1]), 16) if len(s)!=0 else 0
+        offset = hex_to_int(h)
+        #self.print_error("height{0}-offset{1}".format(height, offset))
+        return offset
+
+    def dynamic_header_len(self, height):
+        return self.dynamic_header_offset(height + 1)\
+               - self.dynamic_header_offset(height)
 
     def read_header(self, height):
         assert self.parent_id != self.forkpoint
@@ -291,14 +393,15 @@ class Blockchain(util.PrintError):
         if height > self.height():
             return
         delta = height - self.forkpoint
+        
         name = self.path()
         self.assert_headers_file_available(name)
         with open(name, 'rb') as f:
-            f.seek(delta * 80)
-            h = f.read(80)
-            if len(h) < 80:
+            f.seek(self.dynamic_header_offset(delta))
+            h = f.read(self.dynamic_header_len(delta))
+            if len(h) < constants.net.MIN_HEADER_SIZE:
                 raise Exception('Expected to read a full header. This was only {} bytes'.format(len(h)))
-        if h == bytes([0])*80:
+        if h == bytes([0])*(constants.net.MIN_HEADER_SIZE):
             return None
         return deserialize_header(h, height)
 
@@ -315,6 +418,7 @@ class Blockchain(util.PrintError):
         else:
             return hash_header(self.read_header(height))
 
+    # DEPRECATED ON OCEAN-ELEMENTS
     def get_target(self, index):
         # compute target from chunk x, used in chunk x+1
         if constants.net.TESTNET:
@@ -338,6 +442,7 @@ class Blockchain(util.PrintError):
         new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
         return new_target
 
+    # DEPRECATED ON OCEAN-ELEMENTS
     def bits_to_target(self, bits):
         bitsN = (bits >> 24) & 0xff
         if not (bitsN >= 0x03 and bitsN <= 0x1d):
@@ -347,6 +452,7 @@ class Blockchain(util.PrintError):
             raise Exception("Second part of bits should be in [0x8000, 0x7fffff]")
         return bitsBase << (8 * (bitsN-3))
 
+    # DEPRECATED ON OCEAN-ELEMENTS
     def target_to_bits(self, target):
         c = ("%064x" % target)[2:]
         while c[:2] == '00' and len(c) > 6:
@@ -385,9 +491,9 @@ class Blockchain(util.PrintError):
     def connect_chunk(self, idx, hexdata):
         try:
             data = bfh(hexdata)
-            self.verify_chunk(idx, data)
-            #self.print_error("validated chunk %d" % idx)
-            self.save_chunk(idx, data)
+            headers = deserialize_headers(data, idx*2016)
+            self.verify_chunk(idx, headers)
+            self.save_chunk(idx, headers)
             return True
         except BaseException as e:
             self.print_error('verify_chunk %d failed'%idx, str(e))

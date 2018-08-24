@@ -36,18 +36,19 @@ def read_json(filename, default):
         r = default
     return r
 
-
-class BitcoinMainnet:
+class OceanMainnet:
 
     TESTNET = False
+    BASIC_HEADER_SIZE = 140
+    MIN_HEADER_SIZE = 144
     WIF_PREFIX = 0x80
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
     SEGWIT_HRP = "bc"
-    GENESIS = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+    GENESIS = "085bd64c8503b174830687e77ef54e0bef1e26b34d8eb2c55f6485f72d34f7f2"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
-    CHECKPOINTS = read_json('checkpoints.json', [])
+    CHECKPOINTS = []    # no handling for checkpoins
 
     XPRV_HEADERS = {
         'standard':    0x0488ade4,  # xprv
@@ -55,6 +56,7 @@ class BitcoinMainnet:
         'p2wsh-p2sh':  0x0295b005,  # Yprv
         'p2wpkh':      0x04b2430c,  # zprv
         'p2wsh':       0x02aa7a99,  # Zprv
+
     }
     XPUB_HEADERS = {
         'standard':    0x0488b21e,  # xpub
@@ -62,21 +64,31 @@ class BitcoinMainnet:
         'p2wsh-p2sh':  0x0295b43f,  # Ypub
         'p2wpkh':      0x04b24746,  # zpub
         'p2wsh':       0x02aa7ed3,  # Zpub
+
     }
     BIP44_COIN_TYPE = 0
 
+# Current Testnet purposes
+class OceanTestnet(OceanMainnet):
 
-class BitcoinTestnet:
+    TESTNET = True
+    BASIC_HEADER_SIZE = 108
+    MIN_HEADER_SIZE = 112
+    GENESIS = "357abd41543a09f9290ff4b4ae008e317f252b80c96492bd9f346cced0943a7f"
+    DEFAULT_SERVERS = read_json('servers_testnet.json', {})
+    CHECKPOINTS = []
+
+class OceanRegtest(OceanMainnet):
 
     TESTNET = True
     WIF_PREFIX = 0xef
-    ADDRTYPE_P2PKH = 111
-    ADDRTYPE_P2SH = 196
+    ADDRTYPE_P2PKH = 235
+    ADDRTYPE_P2SH = 75
     SEGWIT_HRP = "tb"
-    GENESIS = "000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"
+    GENESIS = ""
     DEFAULT_PORTS = {'t': '51001', 's': '51002'}
-    DEFAULT_SERVERS = read_json('servers_testnet.json', {})
-    CHECKPOINTS = read_json('checkpoints_testnet.json', [])
+    DEFAULT_SERVERS = read_json('servers_regtest.json', {})
+    CHECKPOINTS = []
 
     XPRV_HEADERS = {
         'standard':    0x04358394,  # tprv
@@ -92,42 +104,24 @@ class BitcoinTestnet:
         'p2wpkh':      0x045f1cf6,  # vpub
         'p2wsh':       0x02575483,  # Vpub
     }
+
     BIP44_COIN_TYPE = 1
 
-
-class BitcoinRegtest(BitcoinTestnet):
-
-    SEGWIT_HRP = "bcrt"
-    GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
-    DEFAULT_SERVERS = read_json('servers_regtest.json', {})
-    CHECKPOINTS = []
-
-
-class BitcoinSimnet(BitcoinTestnet):
-
-    SEGWIT_HRP = "sb"
-    GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
-    DEFAULT_SERVERS = read_json('servers_regtest.json', {})
-    CHECKPOINTS = []
-
-
 # don't import net directly, import the module instead (so that net is singleton)
-net = BitcoinMainnet
+net = OceanMainnet
 
 def set_simnet():
-    global net
-    net = BitcoinSimnet
+    return
 
 def set_mainnet():
     global net
-    net = BitcoinMainnet
+    net = OceanMainnet
 
 
 def set_testnet():
     global net
-    net = BitcoinTestnet
-
+    net = OceanTestnet
 
 def set_regtest():
     global net
-    net = BitcoinRegtest
+    net = OceanRegtest
