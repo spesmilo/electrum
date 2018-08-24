@@ -26,6 +26,7 @@ from . import util
 from .util import profiler, bh2u
 import ecdsa
 import hashlib
+import time
 
 # algo OIDs
 ALGO_RSA_SHA1 = '1.2.840.113549.1.1.5'
@@ -178,6 +179,14 @@ class ASN1_Node(bytes):
                 p[oid] = value
         return p
 
+    def decode_time(self, ii):
+        GENERALIZED_TIMESTAMP_FMT = '%Y%m%d%H%M%SZ'
+        UTCTIME_TIMESTAMP_FMT = '%y%m%d%H%M%SZ'
+
+        try:
+            return time.strptime(self.get_value_of_type(ii, 'UTCTime').decode('ascii'), UTCTIME_TIMESTAMP_FMT)
+        except TypeError:
+            return time.strptime(self.get_value_of_type(ii, 'GeneralizedTime').decode('ascii'), GENERALIZED_TIMESTAMP_FMT)
 
 class X509(object):
     def __init__(self, b):
@@ -210,15 +219,9 @@ class X509(object):
         # validity
         validity = der.next_node(issuer)
         ii = der.first_child(validity)
-        try:
-            self.notBefore = der.get_value_of_type(ii, 'UTCTime')
-        except TypeError:
-            self.notBefore = der.get_value_of_type(ii, 'GeneralizedTime')[2:]  # strip year
+        self.notBefore = der.decode_time(ii)
         ii = der.next_node(ii)
-        try:
-            self.notAfter = der.get_value_of_type(ii, 'UTCTime')
-        except TypeError:
-            self.notAfter = der.get_value_of_type(ii, 'GeneralizedTime')[2:]  # strip year
+        self.notAfter = der.decode_time(ii)
 
         # subject
         subject = der.next_node(validity)
@@ -293,14 +296,10 @@ class X509(object):
         return self.CA
 
     def check_date(self):
-        import time
-        now = time.time()
-        TIMESTAMP_FMT = '%y%m%d%H%M%SZ'
-        not_before = time.mktime(time.strptime(self.notBefore.decode('ascii'), TIMESTAMP_FMT))
-        not_after = time.mktime(time.strptime(self.notAfter.decode('ascii'), TIMESTAMP_FMT))
-        if not_before > now:
+        now = time.gmtime()
+        if self.notBefore > now:
             raise CertificateError('Certificate has not entered its valid date range. (%s)' % self.get_common_name())
-        if not_after <= now:
+        if self.notAfter <= now:
             raise CertificateError('Certificate has expired. (%s)' % self.get_common_name())
 
     def getFingerprint(self):
