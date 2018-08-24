@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/navWallets"
+        android:icon="@drawable/ic_account_balance_wallet_black_24dp"
+        android:title="@string/wallets"/>
+
+    <item
+        android:id="@+id/navAddresses"
+        android:icon="@drawable/ic_format_list_bulleted_black_24dp"
+        android:title="@string/addresses"/>
+
+    <item
+        android:id="@+id/navConsole"
+        android:icon="@drawable/ic_chevron_right_black_24dp"
+        android:title="@string/console"/>
+
+</menu>

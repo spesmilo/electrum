@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">Electron Cash</string>
+
+    <string name="wallets">Wallets</string>
+    <string name="offline">Offline</string>
+    <string name="offline_subtitle">Cannot send/receive new transactions</string>
+    <string name="online">Online</string>
+    <string name="online_subtitle">Block height %s</string>
+
+    <string name="addresses">Addresses</string>
+
+    <string name="console">Console</string>
 </resources>
