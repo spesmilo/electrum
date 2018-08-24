@@ -39,6 +39,8 @@ def read_json(filename, default):
 class OceanMainnet:
 
     TESTNET = False
+    BASIC_HEADER_SIZE = 140
+    MIN_HEADER_SIZE = 144
     WIF_PREFIX = 0x80
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
@@ -46,24 +48,37 @@ class OceanMainnet:
     GENESIS = "085bd64c8503b174830687e77ef54e0bef1e26b34d8eb2c55f6485f72d34f7f2"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
-    CHECKPOINTS = read_json('checkpoints.json', [])
+    CHECKPOINTS = []    # no handling for checkpoins
 
     XPRV_HEADERS = {
         'standard':    0x0488ade4,  # xprv
+        'p2wpkh-p2sh': 0x049d7878,  # yprv
+        'p2wsh-p2sh':  0x0295b005,  # Yprv
+        'p2wpkh':      0x04b2430c,  # zprv
+        'p2wsh':       0x02aa7a99,  # Zprv
+
     }
     XPUB_HEADERS = {
         'standard':    0x0488b21e,  # xpub
+        'p2wpkh-p2sh': 0x049d7cb2,  # ypub
+        'p2wsh-p2sh':  0x0295b43f,  # Ypub
+        'p2wpkh':      0x04b24746,  # zpub
+        'p2wsh':       0x02aa7ed3,  # Zpub
+
     }
     BIP44_COIN_TYPE = 0
 
+# Current Testnet purposes
 class OceanTestnet(OceanMainnet):
 
     TESTNET = True
+    BASIC_HEADER_SIZE = 108
+    MIN_HEADER_SIZE = 112
     GENESIS = "357abd41543a09f9290ff4b4ae008e317f252b80c96492bd9f346cced0943a7f"
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
-    CHECKPOINTS = read_json('checkpoints_testnet.json', [])
+    CHECKPOINTS = []
 
-class OceanRegtest:
+class OceanRegtest(OceanMainnet):
 
     TESTNET = True
     WIF_PREFIX = 0xef
@@ -77,10 +92,19 @@ class OceanRegtest:
 
     XPRV_HEADERS = {
         'standard':    0x04358394,  # tprv
+        'p2wpkh-p2sh': 0x044a4e28,  # uprv
+        'p2wsh-p2sh':  0x024285b5,  # Uprv
+        'p2wpkh':      0x045f18bc,  # vprv
+        'p2wsh':       0x02575048,  # Vprv
     }
     XPUB_HEADERS = {
         'standard':    0x043587cf,  # tpub
+        'p2wpkh-p2sh': 0x044a5262,  # upub
+        'p2wsh-p2sh':  0x024289ef,  # Upub
+        'p2wpkh':      0x045f1cf6,  # vpub
+        'p2wsh':       0x02575483,  # Vpub
     }
+
     BIP44_COIN_TYPE = 1
 
 # don't import net directly, import the module instead (so that net is singleton)

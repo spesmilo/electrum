@@ -903,7 +903,7 @@ class Network(util.DaemonThread):
             self.connection_down(interface.server)
             return
         height = header.get('block_height')
-        #interface.print_error('got header', height, blockchain.hash_header(header))
+        interface.print_error('got header', height, blockchain.hash_header(header))
         if interface.request != height:
             interface.print_error("unsolicited header",interface.request, height)
             self.connection_down(interface.server)
@@ -966,6 +966,7 @@ class Network(util.DaemonThread):
                     else:
                         interface.print_error('forkpoint conflicts with existing fork', branch.path())
                         branch.write(b'', 0)
+                        branch.write_offset(bytes(8), 0)
                         branch.save_header(interface.bad_header)
                         interface.mode = 'catch_up'
                         interface.blockchain = branch
@@ -1020,7 +1021,7 @@ class Network(util.DaemonThread):
             raise Exception(interface.mode)
         # If not finished, get the next header
         if next_height is not None:
-            if interface.mode == 'catch_up' and interface.tip > next_height + 50:
+            if interface.mode == 'catch_up' and interface.tip > next_height + 5:
                 self.request_chunk(interface, next_height // 2016)
             else:
                 self.request_header(interface, next_height)
@@ -1072,6 +1073,12 @@ class Network(util.DaemonThread):
                 if length>0:
                     f.seek(length-1)
                     f.write(b'\x00')
+
+        filename_offset = b.offset_path()
+        if not os.path.exists(filename_offset):
+            with open(filename_offset, 'wb') as f:
+                f.write(bytes(8))
+
         with b.lock:
             b.update_size()
 
@@ -1098,7 +1105,7 @@ class Network(util.DaemonThread):
         except InvalidHeader:
             self.connection_down(interface.server)
             return
-        #interface.print_error('notified of header', height, blockchain.hash_header(header))
+        interface.print_error('notified of header', height, blockchain.hash_header(header))
         if height < self.max_checkpoint():
             self.connection_down(interface.server)
             return
