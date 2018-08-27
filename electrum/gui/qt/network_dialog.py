@@ -239,7 +239,7 @@ class NetworkChoiceLayout(object):
         self.proxy_cb.clicked.connect(self.set_proxy)
 
         self.proxy_mode = QComboBox()
-        self.proxy_mode.addItems(['SOCKS4', 'SOCKS5', 'HTTP'])
+        self.proxy_mode.addItems(['SOCKS4', 'SOCKS5'])
         self.proxy_host = QLineEdit()
         self.proxy_host.setFixedWidth(200)
         self.proxy_port = QLineEdit()

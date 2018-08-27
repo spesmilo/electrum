@@ -36,7 +36,6 @@ import ipaddress
 
 import dns
 import dns.resolver
-import socks
 
 from . import util
 from .util import print_error, PrintError
@@ -434,6 +433,7 @@ class Network(PrintError):
         server = pick_random_server(self.get_servers(), self.protocol, exclude_set)
         if server:
             self.start_interface(server)
+        return server
 
     def start_interfaces(self):
         self.start_interface(self.default_server)
@@ -444,22 +444,13 @@ class Network(PrintError):
         self.proxy = proxy
         # Store these somewhere so we can un-monkey-patch
         if not hasattr(socket, "_socketobject"):
-            socket._socketobject = socket.socket
             socket._getaddrinfo = socket.getaddrinfo
         if proxy:
             self.print_error('setting proxy', proxy)
             proxy_mode = proxy_modes.index(proxy["mode"]) + 1
-            socks.setdefaultproxy(proxy_mode,
-                                  proxy["host"],
-                                  int(proxy["port"]),
-                                  # socks.py seems to want either None or a non-empty string
-                                  username=(proxy.get("user", "") or None),
-                                  password=(proxy.get("password", "") or None))
-            socket.socket = socks.socksocket
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
             socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
         else:
-            socket.socket = socket._socketobject
             if sys.platform == 'win32':
                 # On Windows, socket.getaddrinfo takes a mutex, and might hold it for up to 10 seconds
                 # when dns-resolving. To speed it up drastically, we resolve dns ourselves, outside that lock.
@@ -783,10 +774,10 @@ class Network(PrintError):
                 if b.catch_up == server:
                     b.catch_up = None
 
-    def new_interface(self, server):
+    async def new_interface(self, server):
         # todo: get tip first, then decide which checkpoint to use.
         self.add_recent_server(server)
-        interface = Interface(server, self.config.path, self.connecting)
+        interface = Interface(server, self.config.path, self.connecting, self.proxy)
         interface.blockchain = None
         interface.tip_header = None
         interface.tip = 0
@@ -1082,9 +1073,7 @@ class Network(PrintError):
 
     def _run(self):
         self.init_headers_file()
-        these = [self.maintain_sessions()]
-        these = [self.asyncio_loop.create_task(x) for x in these]
-        self.gat = asyncio.gather(*these)
+        self.gat = self.asyncio_loop.create_task(self.maintain_sessions())
         try:
             self.asyncio_loop.run_until_complete(self.gat)
         except concurrent.futures.CancelledError:
@@ -1339,17 +1328,25 @@ class Network(PrintError):
         while True:
             while self.socket_queue.qsize() > 0:
                 server = self.socket_queue.get()
-                self.new_interface(server)
+                asyncio.get_event_loop().create_task(self.new_interface(server))
             remove = []
             for k, i in self.interfaces.items():
-                if i.has_timed_out():
+                if i.fut.done():
+                    if i.exception:
+                        try:
+                            raise i.exception
+                        except BaseException as e:
+                            self.print_error(i.server, "errored because", str(e), str(type(e)))
+                    else:
+                        assert False, "interface future should not finish without exception"
                     remove.append(k)
             changed = False
             for k in remove:
                 self.connection_down(k)
                 changed = True
-            for i in range(self.num_server - len(self.interfaces)):
-                self.start_random_interface()
-                changed = True
-            if changed: self.notify('updated')
+            for i in range(self.num_server - len(self.interfaces) - len(self.connecting)):
+                if self.start_random_interface():
+                    changed = True
+            if changed:
+                self.notify('updated')
             await asyncio.sleep(1)

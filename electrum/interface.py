@@ -34,7 +34,7 @@ import asyncio
 
 import requests
 
-from .util import PrintError
+from .util import PrintError, aiosafe, bfh
 
 ca_path = requests.certs.where()
 
@@ -42,16 +42,38 @@ from . import util
 from . import x509
 from . import pem
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
+from .util import NotificationSession
 
 class Interface(PrintError):
 
-    def __init__(self, server, config_path, connecting):
+    def __init__(self, server, config_path, connecting, proxy):
+        self.exception = None
         self.connecting = connecting
         self.server = server
         self.host, self.port, self.protocol = self.server.split(':')
+        self.port = int(self.port)
         self.config_path = config_path
         self.cert_path = os.path.join(self.config_path, 'certs', self.host)
         self.fut = asyncio.get_event_loop().create_task(self.run())
+        if proxy:
+            proxy['user'] = proxy.get('user', '')
+            if proxy['user'] == '':
+                proxy['user'] = 'sampleuser' # aiorpcx doesn't allow empty user
+            proxy['password'] = proxy.get('password', '')
+            if proxy['password'] == '':
+                proxy['password'] = 'samplepassword'
+            try:
+                auth = aiorpcx.socks.SOCKSUserAuth(proxy['user'], proxy['password'])
+            except KeyError:
+                auth = None
+            if proxy['mode'] == "socks4":
+                self.proxy = aiorpcx.socks.SOCKSProxy((proxy['host'], int(proxy['port'])), aiorpcx.socks.SOCKS4a, auth)
+            elif proxy['mode'] == "socks5":
+                self.proxy = aiorpcx.socks.SOCKSProxy((proxy['host'], int(proxy['port'])), aiorpcx.socks.SOCKS5, auth)
+            else:
+                raise NotImplementedError
+        else:
+            self.proxy = None
 
     def diagnostic_name(self):
         return self.host
@@ -67,8 +89,8 @@ class Interface(PrintError):
     @util.aiosafe
     async def run(self):
         if self.protocol != 's':
-            await self.open_session(None, execute_after_connect=lambda: self.connecting.remove(self.server))
-            return
+            await self.open_session(None, execute_after_connect=self.mark_ready)
+            assert False
 
         ca_sslc = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
         exists = os.path.exists(self.cert_path)
@@ -84,8 +106,8 @@ class Interface(PrintError):
                         x = x509.X509(b)
                         try:
                             x.check_date()
-                        except x509.CertificateError:
-                            self.print_error("certificate has expired:", self.cert_path)
+                        except x509.CertificateError as e:
+                            self.print_error("certificate problem", e)
                             os.unlink(self.cert_path)
                             exists = False
         if not exists:
@@ -102,7 +124,11 @@ class Interface(PrintError):
         else:
             sslc = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=self.cert_path)
             sslc.check_hostname = 0
-        await self.open_session(sslc, execute_after_connect=lambda: self.connecting.remove(self.server))
+        await self.open_session(sslc, execute_after_connect=self.mark_ready)
+        assert False
+
+    def mark_ready(self):
+        self.connecting.remove(self.server)
 
     async def save_certificate(self):
         if not os.path.exists(self.cert_path):
@@ -129,13 +155,13 @@ class Interface(PrintError):
     async def get_certificate(self):
         sslc = ssl.SSLContext()
         try:
-            async with aiorpcx.ClientSession(self.host, self.port, ssl=sslc) as session:
+            async with aiorpcx.ClientSession(self.host, self.port, ssl=sslc, proxy=self.proxy) as session:
                 return session.transport._ssl_protocol._sslpipe._sslobj.getpeercert(True)
         except ValueError:
             return None
 
     async def open_session(self, sslc, do_sleep=True, execute_after_connect=lambda: None):
-        async with aiorpcx.ClientSession(self.host, self.port, ssl=sslc) as session:
+        async with NotificationSession(None, None, self.host, self.port, ssl=sslc, proxy=self.proxy) as session:
             ver = await session.send_request('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])
             print(ver)
             connect_hook_executed = False
@@ -145,9 +171,6 @@ class Interface(PrintError):
                     execute_after_connect()
                 await asyncio.wait_for(session.send_request('server.ping'), 5)
                 await asyncio.sleep(300)
-
-    def has_timed_out(self):
-        return self.fut.done()
 
     def queue_request(self, method, params, msg_id):
         pass
