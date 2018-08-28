@@ -590,7 +590,7 @@ def _ShowOptionsForWalletAtIndex(index : int, vc : UIViewController, ipadAnchor 
                 if txt == 'delete':
                     try:
                         os.remove(info.full_path)
-                        parent.set_wallet_use_touchid(info.name, None) # clear cached password if any
+                        parent.set_wallet_use_touchid(info.name, None, clear_asked = True) # clear cached password if any
                         parent.refresh_components('wallets')
                         utils.show_notification(message = _("Wallet deleted successfully"))
                     except:

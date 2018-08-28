@@ -1509,6 +1509,7 @@ class SecureKeyEnclave:
     def __init__(self, keyDomain : str):
         self._keyInterface = KeyInterface.keyInterfaceWithPublicKeyName_privateKeyName_(keyDomain + ".pubkey", keyDomain + ".privkey").retain()
         SecureKeyEnclave.instances += 1
+        self.lastErrorCode = 0
         #NSLog("SecureKeyEnclave: instance created (%d total extant instances)",SecureKeyEnclave.instances)
 
     def __del__(self):
@@ -1526,9 +1527,11 @@ class SecureKeyEnclave:
 
     def biometrics_are_not_available_reason(self) -> str: # returns failure reason if unavailable, or '' if available
         err = objc_id(0)
+        self.lastErrorCode = 0
         if not self._keyInterface.biometricsAreAvailableWithError_(byref(err)):
             if err and err.value:
                 err = ObjCInstance(err)
+                self.lastErrorCode = err.code
                 return str(err.description)
             else:
                 return 'Unknown Reason'
@@ -1543,24 +1546,34 @@ class SecureKeyEnclave:
     # Asynchronously generate the private/public keypair.  Note that touchID doesn't seem to come up when this is called
     # but it may.  Completion is called on success or error. If error, first arge is false and second arg may be an iOS error string.
     def generate_keys(self, completion : Callable[[bool,str],None] = None) -> None:
+        self.lastErrorCode = 0
         if self._keyInterface.publicKeyExists:
             if callable(completion):
                 completion(True,'')
             return
         def Compl(b : bool, e : objc_id) -> None:
-            e = ObjCInstance(e) if e and e.value else None
-            if callable(completion): completion(bool(b),str(e.description) if e else '')
+            errStr = ''
+            if e and e.value:
+                e = ObjCInstance(e)
+                self.lastErrorCode = e.code
+                errStr = str(e.description)
+            if callable(completion): completion(bool(b), errStr)
         self._keyInterface.generateTouchIDKeyPairWithCompletion_(Compl)
      
     def encrypt_data(self, data : bytes) -> bytes:
         if isinstance(data, str): data = data.encode('utf-8')
         if not isinstance(data, bytes): raise ValueError('SecureKeyEnclave.encrypt_data requires a bytes argument!')
         plainText = NSData.dataWithBytes_length_(data,len(data))
+        self.lastErrorCode = 0
         err = objc_id(0)
         cypherText = self._keyInterface.encryptData_error_(plainText, byref(err))
         if not cypherText:
-            e = str(ObjCInstance(err).description) if err and err.value else ''
-            NSLog("SecureKeyEnclave encrypt data failed with error: %s",e)
+            e = ''
+            if err and err.value:
+                err = ObjCInstance(err)
+                e = str(err.description)
+                self.lastErrorCode = err.code
+            NSLog("SecureKeyEnclave encrypt data failed with (Code=%d) error: %s", self.lastErrorCode, e)
             return None
         return bytes((c_ubyte * cypherText.length).from_address(cypherText.bytes))
     
@@ -1579,7 +1592,7 @@ class SecureKeyEnclave:
         import binascii
         cypherBytes = binascii.unhexlify(hexdata)
         def MyCompl(pt : bytes, error : str) -> None:
-            plainText = pt.decode('utf-8') if pt is not None else None
+            plainText = pt.decode('utf-8', errors='ignore') if pt is not None else None
             completion(plainText, error)
         self.decrypt_data(cypherBytes, MyCompl, prompt = prompt) 
     
@@ -1587,6 +1600,7 @@ class SecureKeyEnclave:
     # with None,errstr as args (errStr comes from iOS and is pretty arcane).
     # Otherwise completion is called with the plainText bytes as first argument on success.
     def decrypt_data(self, data : bytes, completion : Callable[[bytes,str],None], prompt : str = None) -> None:
+        self.lastErrorCode = 0
         if not callable(completion):
             raise ValueError('A completion function is required as the second argument to this function!')
         if not prompt: prompt = _("Authenticate, please")
@@ -1595,7 +1609,11 @@ class SecureKeyEnclave:
         cypherText = NSData.dataWithBytes_length_(data, len(data))
         def Compl(dptr : objc_id, eptr : objc_id) -> None:
             plainText = ObjCInstance(dptr) if dptr and dptr.value else None
-            error = ObjCInstance(eptr).description if eptr and eptr.value else None
+            error = None
+            if eptr and eptr.value:
+                e = ObjCInstance(eptr)
+                error = e.description
+                self.lastErrorCode = e.code
             if plainText:
                 plainText = bytes((c_ubyte * plainText.length).from_address(plainText.bytes))
             completion(plainText, error)
@@ -1646,6 +1664,10 @@ class boilerplate:
     # iOS weirdness. Buttons don't always flash to highlighted state on tap.. so we have to force it using this hack.
     @staticmethod
     def vc_highlight_button_then_do(vc : UIViewController,  but : UIButton, func : Callable[[],None]) -> None:
+        if not but or not vc:
+            # Defensive programming...
+            func()
+            return
         #if not isinstance(vc, UIViewController) or not isinstance(but, UIButton) or not callable(func):
         #    raise ValueError('One of the arguments passed to vc_highlight_button_then_do is invalid!')
         but.retain()

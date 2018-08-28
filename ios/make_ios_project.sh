@@ -226,6 +226,16 @@ if [ -n "$so_crap" ]; then
 	done
 fi
 
+echo ""
+echo "Modifying main.m to include PYTHONIOENCODING=UTF-8..."
+echo ""
+main_m="iOS/ElectronCash/main.m"
+if cat $main_m | sed -e '1 s/putenv/putenv("PYTHONIOENCODING=UTF-8"); putenv/; t' -e '1,// s//putenv("PYTHONIOENCODING=UTF-8"); putenv/' > ${main_m}.new; then
+	mv -fv ${main_m}.new $main_m
+else
+	echo "** WARNING: Failed to modify main.m to include PYTHONIOENCODING=UTF-8"
+fi
+
 echo ''
 echo '**************************************************************************'
 echo '*                                                                        *'

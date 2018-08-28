@@ -332,8 +332,9 @@ class ReceiveVC(ReceiveBase):
         amountFiat = None
         if amount is not None:
             amount = Decimal(pow(10, -8)) * amount
-            rate = Decimal(parent().daemon.fx.exchange_rate())
-            amountFiat = rate * amount * Decimal(100.0)
+            rate = parent().daemon.fx.exchange_rate()
+            if rate:
+                amountFiat = rate * amount * Decimal(100.0)
         amountFiatOld = self.amtFiat.getAmount()
         if amountFiat != amountFiatOld:
             self.amtFiat.setAmount_(amountFiat)
@@ -346,6 +347,8 @@ class ReceiveVC(ReceiveBase):
         if amountFiat is not None:
             amountFiat = Decimal(amountFiat) / Decimal(100.0)
             rate = parent().daemon.fx.exchange_rate()
+            if not rate:
+                return
             amount = amountFiat/Decimal(rate) * Decimal(pow(10, 8))
         amountOld = self.amt.getAmount()
         if amount != amountOld:

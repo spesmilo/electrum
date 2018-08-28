@@ -1576,10 +1576,11 @@ class ElectrumGui(PrintError):
         if vc is None: vc = self.get_presented_viewcontroller()
         touchIdTry = 0
         wallet_name = None
+        keyWasLost = False
         def GotAPasswordCallback(password : str) -> None:
             def CallUserCallback(wallet_name, password) -> None:
                 callBack(password)
-            if not touchIdTry:
+            if not touchIdTry or keyWasLost:
                 self.prompt_user_maybe_wants_touchid(wallet_name = wallet_name, password = password, completion = CallUserCallback, vc = vc)
             else:
                 CallUserCallback(wallet_name, password)
@@ -1588,9 +1589,24 @@ class ElectrumGui(PrintError):
             encpw = self.encPasswords.get(wallet_name)
             if not touchIdTry and encpw:
                 touchIdTry += 1
-                def MyTouchID_CB(pw : str) -> None:
-                    if pw: my_callback(pw)
-                    else: DoPromptPW(my_callback)
+                def MyTouchID_CB(pw : str, lostKey : bool) -> None:
+                    nonlocal keyWasLost
+                    if pw:
+                        # decrypted a password using touchid -- pass it along to calling code
+                        my_callback(pw)
+                    else:
+                        if lostKey:
+                            keyWasLost = True
+                            self.encPasswords.pop(wallet_name)
+                            self.touchIdAsked.pop(wallet_name)
+                            # Full stop.. will proceed with DoPromptPW (calling self recursively) after msg box is dismissed
+                            self.show_error(title=_('Secure Enclave Key Reset'),
+                                            message=_('Your biometrics-based key for this wallet was reset. This means you will need to enter your password for this wallet again.\n\n(Then, you can optionally re-enable Touch/Face ID as before.)'),
+                                            onOk = lambda: DoPromptPW(my_callback))
+                        else:
+                            # Some other error occurred with touch id besides a lost key (perhaps they hit "cancel" on
+                            # the touchid prompt), so call self recursively to try again!
+                            DoPromptPW(my_callback)
                 self.get_wallet_password_using_touchid(wallet_name, MyTouchID_CB, prompt = prompt)
                 return None
             else:
@@ -2043,10 +2059,13 @@ class ElectrumGui(PrintError):
             completion(wallet_name, password)
         
     
-    def set_wallet_use_touchid(self, wallet_name : str, wallet_pass_or_none : str, completion : Callable[[bool],None] = None) -> None:
+    def set_wallet_use_touchid(self, wallet_name : str, wallet_pass_or_none : str, completion : Callable[[bool],None] = None,
+                               clear_asked : bool = False) -> None:
         if not callable(completion): completion = lambda x: None
         if wallet_pass_or_none is None:
             self.encPasswords.pop(wallet_name)
+            if clear_asked:
+                self.touchIdAsked.pop(wallet_name)
             completion(True)
             return
         wallet_pass = wallet_pass_or_none
@@ -2061,14 +2080,18 @@ class ElectrumGui(PrintError):
         else:
             DoEnc(True, None)
 
-    def get_wallet_password_using_touchid(self, wallet_name : str, completion : Callable[[str],None], prompt : str = None) -> None:
+    def get_wallet_password_using_touchid(self, wallet_name : str, completion : Callable[[str, bool],None], prompt : str = None) -> None:
         hexpass = self.encPasswords.get(wallet_name)
         if not hexpass:
             completion(None)
             return
         def MyCallback(pw : str, err : str) -> None:
-            if err: utils.NSLog("Got error from enclave attempting to get password for %s: %s",wallet_name, err)
-            completion(pw)
+            lostKey = False
+            if err:
+                if self.keyEnclave.lastErrorCode == -50:
+                    lostKey = True
+                utils.NSLog("Got error (Code=%d) from enclave attempting to get password for %s: %s", self.keyEnclave.lastErrorCode, wallet_name, err)
+            completion(pw, lostKey)
         self.keyEnclave.decrypt_hex2str(hexpass, MyCallback, prompt = prompt)
 
     def setup_key_enclave(self, completion : Callable[[],None]) -> None:
