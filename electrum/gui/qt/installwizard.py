@@ -102,7 +102,6 @@ def wizard_dialog(func):
 class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     accept_signal = pyqtSignal()
-    synchronized_signal = pyqtSignal(str)
 
     def __init__(self, config, app, plugins, storage):
         BaseWizard.__init__(self, config, plugins, storage)
@@ -447,27 +446,6 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         playout.encrypt_cb.setChecked(True)
         self.exec_layout(playout.layout())
         return playout.encrypt_cb.isChecked()
-
-    def show_restore(self, wallet, network):
-        # FIXME: these messages are shown after the install wizard is
-        # finished and the window closed.  On macOS they appear parented
-        # with a re-appeared ghost install wizard window...
-        if network:
-            def task():
-                wallet.wait_until_synchronized()
-                if wallet.is_found():
-                    msg = _("Recovery successful")
-                else:
-                    msg = _("No transactions found for this seed")
-                self.synchronized_signal.emit(msg)
-            self.synchronized_signal.connect(self.show_message)
-            t = threading.Thread(target = task)
-            t.daemon = True
-            t.start()
-        else:
-            msg = _("This wallet was restored offline. It may "
-                    "contain more addresses than displayed.")
-            self.show_message(msg)
 
     @wizard_dialog
     def confirm_dialog(self, title, message, run_next):
