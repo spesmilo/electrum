@@ -730,15 +730,13 @@ class Network(PrintError):
         if session is None: session = self.interface.session
         index = height // 2016
         size = 2016
-        if tip is not None and height + 2016 >= tip:
-            size = tip - height
-        #if index * 2016 < height:
-        #    size = height - index * 2016
+        if tip is not None:
+            size = min(size, tip - index * 2016)
+            size = max(size, 0)
         res = await session.send_request('blockchain.block.headers', [index * 2016, size])
         conn = self.blockchain().connect_chunk(index, res['hex'])
         if not conn:
             return conn, 0
-        self.blockchain().save_chunk(index, bfh(res['hex']))
         return conn, res['count']
 
     @with_interface_lock
