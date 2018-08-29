@@ -103,19 +103,19 @@ class Interface(PrintError):
         if exists:
             with open(self.cert_path, 'r') as f:
                 contents = f.read()
-                if contents != '': # if not CA signed
+            if contents != '': # if not CA signed
+                try:
+                    b = pem.dePem(contents, 'CERTIFICATE')
+                except SyntaxError:
+                    exists = False
+                else:
+                    x = x509.X509(b)
                     try:
-                        b = pem.dePem(contents, 'CERTIFICATE')
-                    except SyntaxError:
+                        x.check_date()
+                    except x509.CertificateError as e:
+                        self.print_error("certificate problem", e)
+                        os.unlink(self.cert_path)
                         exists = False
-                    else:
-                        x = x509.X509(b)
-                        try:
-                            x.check_date()
-                        except x509.CertificateError as e:
-                            self.print_error("certificate problem", e)
-                            os.unlink(self.cert_path)
-                            exists = False
         if not exists:
             ca_signed = await self.is_server_ca_signed(ca_sslc)
             if ca_signed:
