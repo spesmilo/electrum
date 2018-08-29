@@ -15,6 +15,7 @@ from electrum.util import profiler, InvalidPassword
 from electrum.plugin import run_hook
 from electrum.util import format_satoshis, format_satoshis_plain
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum import blockchain
 from .i18n import _
 
 from kivy.app import App
@@ -113,10 +114,10 @@ class ElectrumWindow(App):
         from .uix.dialogs.choice_dialog import ChoiceDialog
         chains = self.network.get_blockchains()
         def cb(name):
-            for index, b in self.network.blockchains.items():
+            for index, b in blockchain.blockchains.items():
                 if name == b.get_name():
                     self.network.follow_chain(index)
-        names = [self.network.blockchains[b].get_name() for b in chains]
+        names = [blockchain.blockchains[b].get_name() for b in chains]
         if len(names) > 1:
             cur_chain = self.network.blockchain().get_name()
             ChoiceDialog(_('Choose your chain'), names, cur_chain, cb).open()
