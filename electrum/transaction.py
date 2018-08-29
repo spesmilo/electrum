@@ -46,6 +46,9 @@ from .keystore import xpubkey_to_address, xpubkey_to_pubkey
 NO_SIGNATURE = 'ff'
 PARTIAL_TXN_HEADER_MAGIC = b'EPTF\xff'
 
+OUTPOINT_ISSUANCE_FLAG = (1 << 31)
+OUTPOINT_INDEX_MASK = 0x3fffffff
+WITNESS_SCALE_FACTOR = 4
 
 class SerializationError(Exception):
     """ Thrown when there's a problem deserializing or serializing """
@@ -59,8 +62,17 @@ class NotRecognizedRedeemScript(Exception):
     pass
 
 
-TxOutput = NamedTuple("TxOutput", [('type', int), ('address', str), ('value', Union[int, str])])
-# ^ value is str when the output is set to max: '!'
+class TxOutput(NamedTuple):
+    type: int
+    address: str
+    value: Union[int, str]
+    vvalue: int = 1
+    asset: str = None
+    vasset: int = 0
+    nonce: str = None
+    vnonce: int = 0
+    surjection_proof: str = None
+    range_proof: str = None
 
 
 class BCDataStream(object):
@@ -169,6 +181,31 @@ class BCDataStream(object):
         s = struct.pack(format, num)
         self.write(s)
 
+    def read_confidential_value(self):
+        version = self.read_bytes(1)[0]
+        value = None
+        if version == 1 or version == 0xff:
+            value, = struct.unpack_from('<Q', self.read_bytes(8)[::-1])
+        elif version == 8 or version == 9:
+            value = hash_encode(self.read_bytes(32))
+
+        return version, value
+
+    def read_confidential_asset(self):
+        version = self.read_bytes(1)[0]
+        asset = None
+        if version == 1 or version == 0xff or version == 10 or version == 11:
+            asset = hash_encode(self.read_bytes(32))
+
+        return version, asset
+
+    def read_confidential_nonce(self):
+        version = self.read_bytes(1)[0]
+        nonce = None
+        if version == 1 or version == 0xff or version == 2 or version == 3:
+            d['nonce'] = hash_encode(self.read_bytes(32))
+
+        return version, nonce
 
 # enum-like type
 # From the Python Cookbook, downloaded from http://code.activestate.com/recipes/67107/
@@ -461,6 +498,12 @@ def parse_input(vds, full_parse: bool):
     d = {}
     prevout_hash = hash_encode(vds.read_bytes(32))
     prevout_n = vds.read_uint32()
+    has_issuance = False
+    if prevout_n != (2**32 - 1):
+        if prevout_n & OUTPOINT_ISSUANCE_FLAG:
+            has_issuance = True
+        prevout_n &= OUTPOINT_INDEX_MASK
+
     scriptSig = vds.read_bytes(vds.read_compact_size())
     sequence = vds.read_uint32()
     d['prevout_hash'] = prevout_hash
@@ -470,6 +513,17 @@ def parse_input(vds, full_parse: bool):
     d['type'] = 'unknown' if prevout_hash != '00'*32 else 'coinbase'
     d['address'] = None
     d['num_sig'] = 0
+
+    if has_issuance:
+        i = {}
+        i['issuance_nonce'] = vds.read_bytes(32)
+        i['issuance_entropy'] = vds.read_bytes(32)
+        i['amount_version'], i['amount'] = vds.read_confidential_value()
+        i['inflation_version'], i['inflation'] = vds.read_confidential_value()
+        d['issuance'] = i
+    else:
+        d['issuance'] = None
+
     if not full_parse:
         return d
     d['x_pubkeys'] = []
@@ -481,6 +535,7 @@ def parse_input(vds, full_parse: bool):
         except BaseException:
             traceback.print_exc(file=sys.stderr)
             print_error('failed to parse scriptSig', bh2u(scriptSig))
+
     return d
 
 
@@ -495,72 +550,41 @@ def construct_witness(items: Sequence[Union[str, int, bytes]]) -> str:
         witness += bitcoin.witness_push(item)
     return witness
 
+def parse_witness_out(vds, txout, full_parse: bool):
+    txout['surjection_proof'] = bh2u(vds.read_bytes(vds.read_compact_size()))
+    txout['range_proof'] = bh2u(vds.read_bytes(vds.read_compact_size()))
 
-def parse_witness(vds, txin, full_parse: bool):
+def parse_witness_in(vds, txin, full_parse: bool):
+    txin['issuance_range_proof'] = bh2u(vds.read_bytes(vds.read_compact_size()))
+    txin['inflation_range_proof'] = bh2u(vds.read_bytes(vds.read_compact_size()))
     n = vds.read_compact_size()
-    if n == 0:
-        txin['witness'] = '00'
-        return
-    if n == 0xffffffff:
-        txin['value'] = vds.read_uint64()
-        txin['witness_version'] = vds.read_uint16()
-        n = vds.read_compact_size()
-    # now 'n' is the number of items in the witness
     w = list(bh2u(vds.read_bytes(vds.read_compact_size())) for i in range(n))
     txin['witness'] = construct_witness(w)
-    if not full_parse:
-        return
 
-    try:
-        if txin.get('witness_version', 0) != 0:
-            raise UnknownTxinType()
-        if txin['type'] == 'coinbase':
-            pass
-        elif txin['type'] == 'address':
-            pass
-        elif txin['type'] == 'p2wsh-p2sh' or n > 2:
-            witness_script_unsanitized = w[-1]  # for partial multisig txn, this has x_pubkeys
-            try:
-                m, n, x_pubkeys, pubkeys, witness_script = parse_redeemScript_multisig(bfh(witness_script_unsanitized))
-            except NotRecognizedRedeemScript:
-                raise UnknownTxinType()
-            txin['signatures'] = parse_sig(w[1:-1])
-            txin['num_sig'] = m
-            txin['x_pubkeys'] = x_pubkeys
-            txin['pubkeys'] = pubkeys
-            txin['witness_script'] = witness_script
-            if not txin.get('scriptSig'):  # native segwit script
-                txin['type'] = 'p2wsh'
-                txin['address'] = bitcoin.script_to_p2wsh(witness_script)
-        elif txin['type'] == 'p2wpkh-p2sh' or n == 2:
-            txin['num_sig'] = 1
-            txin['x_pubkeys'] = [w[1]]
-            txin['pubkeys'] = [safe_parse_pubkey(w[1])]
-            txin['signatures'] = parse_sig([w[0]])
-            if not txin.get('scriptSig'):  # native segwit script
-                txin['type'] = 'p2wpkh'
-                txin['address'] = bitcoin.public_key_to_p2wpkh(bfh(txin['pubkeys'][0]))
-        else:
-            raise UnknownTxinType()
-    except UnknownTxinType:
-        txin['type'] = 'unknown'
-    except BaseException:
-        txin['type'] = 'unknown'
-        traceback.print_exc(file=sys.stderr)
-        print_error('failed to parse witness', txin.get('witness'))
-
+    m = vds.read_compact_size()
+    x = list(bh2u(vds.read_bytes(vds.read_compact_size())) for i in range(m))
+    txin['witness_pegin'] = construct_witness(x)
 
 def parse_output(vds, i):
     d = {}
-    d['value'] = vds.read_int64()
-    if d['value'] > TOTAL_COIN_SUPPLY_LIMIT_IN_BTC * COIN:
-        raise SerializationError('invalid output amount (too large)')
+
+    # parsing confidential asset
+    d['asset_version'], d['asset'] = vds.read_confidential_asset()
+
+    # parsing confidential value
+    d['value_version'], d['value'] = vds.read_confidential_value()
     if d['value'] < 0:
         raise SerializationError('invalid output amount (negative)')
+
+    # parsing confidential nonce
+    d['nonce_version'], d['nonce'] = vds.read_confidential_nonce()
+
     scriptPubKey = vds.read_bytes(vds.read_compact_size())
     d['type'], d['address'] = get_address_from_output_script(scriptPubKey)
     d['scriptPubKey'] = bh2u(scriptPubKey)
     d['prevout_n'] = i
+    d['surjection_proof'] = None
+    d['range_proof'] = None
     return d
 
 
@@ -579,23 +603,29 @@ def deserialize(raw: str, force_full_parse=False) -> dict:
     full_parse = force_full_parse or is_partial
     vds = BCDataStream()
     vds.write(raw_bytes)
+
     d['version'] = vds.read_int32()
-    n_vin = vds.read_compact_size()
-    is_segwit = (n_vin == 0)
-    if is_segwit:
-        marker = vds.read_bytes(1)
-        if marker != b'\x01':
-            raise ValueError('invalid txn marker byte: {}'.format(marker))
-        n_vin = vds.read_compact_size()
+    flag = vds.read_bytes(1)[0]
+    is_segwit = flag & 1
     d['segwit_ser'] = is_segwit
+
+    n_vin = vds.read_compact_size()
     d['inputs'] = [parse_input(vds, full_parse=full_parse) for i in range(n_vin)]
+
     n_vout = vds.read_compact_size()
     d['outputs'] = [parse_output(vds, i) for i in range(n_vout)]
+
+    d['lockTime'] = vds.read_uint32()
+
     if is_segwit:
         for i in range(n_vin):
             txin = d['inputs'][i]
-            parse_witness(vds, txin, full_parse=full_parse)
-    d['lockTime'] = vds.read_uint32()
+            parse_witness_in(vds, txin, full_parse=full_parse)
+
+        for i in range(n_vout):
+            txout = d['outputs'][i]
+            parse_witness_out(vds, txout, full_parse=full_parse)
+
     if vds.can_read_more():
         raise SerializationError('extra junk at the end')
     return d
@@ -725,7 +755,7 @@ class Transaction:
             return
         d = deserialize(self.raw, force_full_parse)
         self._inputs = d['inputs']
-        self._outputs = [TxOutput(x['type'], x['address'], x['value']) for x in d['outputs']]
+        self._outputs = [TxOutput(x['type'], x['address'], x['value'], x['value_version'], x['asset'], x['asset_version'], x['nonce'], x['nonce_version'], x['surjection_proof'], x['range_proof']) for x in d['outputs']]
         self.locktime = d['lockTime']
         self.version = d['version']
         self.is_partial_originally = d['partial']
@@ -803,33 +833,27 @@ class Transaction:
         return pk_list, sig_list
 
     @classmethod
-    def serialize_witness(self, txin, estimate_size=False):
-        _type = txin['type']
-        if not self.is_segwit_input(txin) and not self.is_input_value_needed(txin):
-            return '00'
-        if _type == 'coinbase':
-            return txin['witness']
+    def serialize_witness_in(self, txin, estimate_size=False):
+        s = var_int(len(txin['issuance_range_proof']))
+        s += bh2u(bfh(txin['issuance_range_proof']))
 
-        witness = txin.get('witness', None)
-        if witness is None or estimate_size:
-            if _type == 'address' and estimate_size:
-                _type = self.guess_txintype_from_address(txin['address'])
-            pubkeys, sig_list = self.get_siglist(txin, estimate_size)
-            if _type in ['p2wpkh', 'p2wpkh-p2sh']:
-                witness = construct_witness([sig_list[0], pubkeys[0]])
-            elif _type in ['p2wsh', 'p2wsh-p2sh']:
-                witness_script = multisig_script(pubkeys, txin['num_sig'])
-                witness = construct_witness([0] + sig_list + [witness_script])
-            else:
-                witness = txin.get('witness', '00')
+        s += var_int(len(txin['issuance_range_proof']))
+        s += bh2u(bfh(txin['issuance_range_proof']))
 
-        if self.is_txin_complete(txin) or estimate_size:
-            partial_format_witness_prefix = ''
-        else:
-            input_value = int_to_hex(txin['value'], 8)
-            witness_version = int_to_hex(txin.get('witness_version', 0), 2)
-            partial_format_witness_prefix = var_int(0xffffffff) + input_value + witness_version
-        return partial_format_witness_prefix + witness
+        s += bh2u(bfh(txin['witness']))
+        s += bh2u(bfh(txin['witness_pegin']))
+
+        return s
+
+    @classmethod
+    def serialize_witness_out(self, txout, estimate_size=False):
+        s = var_int(len(txout.surjection_proof))
+        s += bh2u(bfh(txout.surjection_proof))
+
+        s += var_int(len(txout.range_proof))
+        s += bh2u(bfh(txout.range_proof))
+
+        return s
 
     @classmethod
     def is_segwit_input(cls, txin, guess_for_address=False):
@@ -947,7 +971,13 @@ class Transaction:
 
     @classmethod
     def serialize_outpoint(self, txin):
-        return bh2u(bfh(txin['prevout_hash'])[::-1]) + int_to_hex(txin['prevout_n'], 4)
+        if txin['prevout_n'] == (2**32 - 1):
+            return bh2u(bfh(txin['prevout_hash'])[::-1]) + int_to_hex(txin['prevout_n'], 4)
+        else:
+            prevout = txin['prevout_n'] & OUTPOINT_INDEX_MASK
+            if txin['issuance'] is not None:
+                prevout |= OUTPOINT_ISSUANCE_FLAG
+            return bh2u(bfh(txin['prevout_hash'])[::-1]) + int_to_hex(prevout, 4)
 
     @classmethod
     def get_outpoint_from_txin(cls, txin):
@@ -965,6 +995,20 @@ class Transaction:
         s += var_int(len(script)//2)
         s += script
         s += int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
+
+        # Might never be the case in electrum
+        if txin['issuance'] is not None:
+            s += bh2u(txin['issuance']['issuance_nonce'])
+            s += bh2u(txin['issuance']['issuance_entropy'])
+
+            s += int_to_hex(txin['issuance']['amount_version'], 1)
+            if txin['issuance']['amount'] is not None:
+                s += bh2u(struct.pack('<Q', txin['issuance']['amount'])[::-1])
+
+            s += int_to_hex(txin['issuance']['inflation_version'], 1)
+            if txin['issuance']['inflation'] is not None:
+                s += bh2u(struct.pack('<Q', txin['issuance']['inflation'])[::-1])
+
         return s
 
     def set_rbf(self, rbf):
@@ -978,9 +1022,19 @@ class Transaction:
         self._outputs.sort(key = lambda o: (o[2], self.pay_script(o[0], o[1])))
 
     def serialize_output(self, output):
-        output_type, addr, amount = output
-        s = int_to_hex(amount, 8)
-        script = self.pay_script(output_type, addr)
+        s = int_to_hex(output.vasset, 1)
+        if output.asset is not None:
+            s += bh2u(bfh(output.asset)[::-1])
+
+        s += int_to_hex(output.vvalue, 1)
+        if output.value is not None:
+            s += bh2u(struct.pack('<Q', output.value)[::-1])
+
+        s += int_to_hex(output.vnonce, 1)
+        if output.nonce is not None:
+            s += bh2u(bfh(output.nonce)[::-1])
+
+        script = self.pay_script(output.type, output.address)
         s += var_int(len(script)//2)
         s += script
         return s
@@ -993,6 +1047,7 @@ class Transaction:
         outputs = self.outputs()
         txin = inputs[i]
         # TODO: py3 hex
+        # NEED TO REVISIT THIS - CURRENTLY CAN'T CREATE WITNESS TXs
         if self.is_segwit_input(txin):
             hashPrevouts = bh2u(Hash(bfh(''.join(self.serialize_outpoint(txin) for txin in inputs))))
             hashSequence = bh2u(Hash(bfh(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs))))
@@ -1006,7 +1061,7 @@ class Transaction:
         else:
             txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.get_preimage_script(txin) if i==k else '') for k, txin in enumerate(inputs))
             txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
-            preimage = nVersion + txins + txouts + nLocktime + nHashType
+            preimage = nVersion + '00' + txins + txouts + nLocktime + nHashType
         return preimage
 
     def is_segwit(self, guess_for_address=False):
@@ -1036,12 +1091,12 @@ class Transaction:
                                         (self.is_segwit() or any(txin['type'] == 'address' for txin in inputs))
         use_segwit_ser = use_segwit_ser_for_estimate_size or use_segwit_ser_for_actual_use
         if witness and use_segwit_ser:
-            marker = '00'
             flag = '01'
-            witness = ''.join(self.serialize_witness(x, estimate_size) for x in inputs)
-            return nVersion + marker + flag + txins + txouts + witness + nLocktime
+            witness_in = ''.join(self.serialize_witness_in(x, estimate_size) for x in inputs)
+            witness_out = ''.join(self.serialize_witness_out(x, estimate_size) for x in outputs)
+            return nVersion + flag + txins + txouts + nLocktime + witness_in + witness_out
         else:
-            return nVersion + txins + txouts + nLocktime
+            return nVersion + '00' + txins + txouts + nLocktime
 
     def txid(self):
         self.deserialize()
@@ -1096,7 +1151,7 @@ class Transaction:
         input_size = len(cls.serialize_input(txin, script)) // 2
 
         if cls.is_segwit_input(txin, guess_for_address=True):
-            witness_size = len(cls.serialize_witness(txin, True)) // 2
+            witness_size = len(cls.serialize_witness_in(txin, True)) // 2
         else:
             witness_size = 1 if is_segwit_tx else 0
 
@@ -1123,9 +1178,14 @@ class Transaction:
         if not self.is_segwit(guess_for_address=estimate):
             return 0
         inputs = self.inputs()
-        witness = ''.join(self.serialize_witness(x, estimate) for x in inputs)
-        witness_size = len(witness) // 2 + 2  # include marker and flag
-        return witness_size
+        outputs = self.outputs()
+        witness_in = ''.join(self.serialize_witness_in(x, estimate) for x in inputs)
+        witness_size_in = len(witness_in) // 2
+
+        witness_out = ''.join(self.serialize_witness_out(x, estimate) for x in outputs)
+        witness_size_out = len(witness_out) // 2
+
+        return witness_size_in + witness_size_out
 
     def estimated_base_size(self):
         """Return an estimated base transaction size in bytes."""
@@ -1135,7 +1195,7 @@ class Transaction:
         """Return an estimate of transaction weight."""
         total_tx_size = self.estimated_total_size()
         base_tx_size = self.estimated_base_size()
-        return 3 * base_tx_size + total_tx_size
+        return (WITNESS_SCALE_FACTOR - 1) * base_tx_size + total_tx_size
 
     def signature_count(self):
         r = 0
