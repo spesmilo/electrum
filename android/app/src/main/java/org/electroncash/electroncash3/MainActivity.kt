@@ -1,5 +1,8 @@
 package org.electroncash.electroncash3
 
+import android.arch.lifecycle.MutableLiveData
+import android.arch.lifecycle.Observer
+import android.content.Intent
 import android.os.Bundle
 import android.support.v4.app.Fragment
 import android.support.v7.app.AppCompatActivity
@@ -7,40 +10,63 @@ import kotlinx.android.synthetic.main.activity_main.*
 
 class MainActivity : AppCompatActivity() {
 
-    val fragWallets = WalletsFragment()
-    val fragAddresses = AddressesFragment()
-    val fragConsole = ConsoleFragment()
-    var currentFrag: Fragment? = null
+    val FRAGMENTS = mapOf(
+        R.id.navWallets to WalletsFragment::class,
+        R.id.navAddresses to AddressesFragment::class
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
-        val ft = supportFragmentManager.beginTransaction()
-        for (frag in listOf(fragWallets, fragAddresses, fragConsole)) {
-            ft.add(flContent.id, frag, null)
-            ft.detach(frag)
-        }
-        ft.commit()
-        setFragment(fragWallets)
-
         navigation.setOnNavigationItemSelectedListener {
-            setFragment(when (it.itemId) {
-                R.id.navWallets -> fragWallets
-                R.id.navAddresses -> fragAddresses
-                R.id.navConsole-> fragConsole
-                else -> throw IllegalArgumentException(it.toString())
-            })
-            true
+            when (it.itemId) {
+                R.id.navConsole -> {
+                    startActivity(Intent(this, ECConsoleActivity::class.java))
+                    false
+                }
+                else -> {
+                    showFragment(it.itemId)
+                    true
+                }
+            }
         }
     }
 
-    private fun setFragment(newFrag: Fragment) {
-        val ft = supportFragmentManager.beginTransaction()
-        if (currentFrag != null) {
-            ft.detach(currentFrag)
-        }
-        ft.attach(newFrag).commit()
-        currentFrag = newFrag
+    override fun onResume() {
+        super.onResume()
+        showFragment(navigation.selectedItemId)
     }
+
+    private fun showFragment(id: Int) {
+        val ft = supportFragmentManager.beginTransaction()
+        for (frag in supportFragmentManager.fragments) {
+            if (frag is MainFragment) {
+                ft.detach(frag)
+                frag.title.removeObservers(this)
+                frag.subtitle.removeObservers(this)
+            }
+        }
+        val newFrag = getFragment(id)
+        ft.attach(newFrag)
+        newFrag.title.observe(this, Observer { setTitle(it ?: "") })
+        newFrag.subtitle.observe(this, Observer { supportActionBar!!.setSubtitle(it) })
+        ft.commit()
+    }
+
+    private fun getFragment(id: Int): MainFragment {
+        val tag = "MainFragment:$id"
+        var frag = supportFragmentManager.findFragmentByTag(tag)
+        if (frag == null) {
+            frag = FRAGMENTS[id]!!.java.newInstance()
+            supportFragmentManager.beginTransaction()
+                .add(flContent.id, frag, tag).commit()
+        }
+        return frag as MainFragment
+    }
+}
+
+
+open class MainFragment : Fragment() {
+    val title = MutableLiveData<String>().apply { value = "" }
+    val subtitle = MutableLiveData<String>().apply { value = null }
 }
