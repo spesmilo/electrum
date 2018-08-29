@@ -62,16 +62,11 @@ class Interface(PrintError):
         self.blockchain = None
         self.network = network
         if proxy:
-            proxy['user'] = proxy.get('user', '')
-            if proxy['user'] == '':
-                proxy['user'] = 'sampleuser' # aiorpcx doesn't allow empty user
-            proxy['password'] = proxy.get('password', '')
-            if proxy['password'] == '':
-                proxy['password'] = 'samplepassword'
-            try:
-                auth = aiorpcx.socks.SOCKSUserAuth(proxy['user'], proxy['password'])
-            except KeyError:
+            username, pw = proxy.get('user'), proxy.get('password')
+            if not username or not pw:
                 auth = None
+            else:
+                auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
             if proxy['mode'] == "socks4":
                 self.proxy = aiorpcx.socks.SOCKSProxy((proxy['host'], int(proxy['port'])), aiorpcx.socks.SOCKS4a, auth)
             elif proxy['mode'] == "socks5":
