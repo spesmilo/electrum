@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import *
 import PyQt5.QtCore as QtCore
 
 from electrum.i18n import _
-from electrum import constants
+from electrum import constants, blockchain
 from electrum.util import print_error
 from electrum.network import serialize_server, deserialize_server
 
@@ -103,7 +103,7 @@ class NodesListWidget(QTreeWidget):
         chains = network.get_blockchains()
         n_chains = len(chains)
         for k, items in chains.items():
-            b = network.blockchains[k]
+            b = blockchain.blockchains[k]
             name = b.get_name()
             if n_chains >1:
                 x = QTreeWidgetItem([name + '@%d'%b.get_forkpoint(), '%d'%b.height()])

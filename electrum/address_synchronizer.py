@@ -135,15 +135,25 @@ class AddressSynchronizer(PrintError):
                 # add it in case it was previously unconfirmed
                 self.add_unverified_tx(tx_hash, tx_height)
 
+    def on_default_server_changed(self, evt):
+        for i in self.network.futures:
+            if i.done() and i.exception():
+                raise i.exception()
+            if not i.done():
+                i.cancel()
+        self.network.futures.clear()
+        self.network.futures.append(asyncio.get_event_loop().create_task(self.verifier.main()))
+        self.network.futures.append(asyncio.get_event_loop().create_task(self.synchronizer.send_subscriptions()))
+        self.network.futures.append(asyncio.get_event_loop().create_task(self.synchronizer.handle_status()))
+        assert self.network.interface.session is not None
+        self.network.futures.append(asyncio.get_event_loop().create_task(self.synchronizer.main()))
+
     def start_threads(self, network):
         self.network = network
         if self.network is not None:
             self.verifier = SPV(self.network, self)
             self.synchronizer = Synchronizer(self)
-            #network.add_jobs([self.verifier])
-            self.network.futures.append(asyncio.run_coroutine_threadsafe(self.synchronizer.send_subscriptions(), self.network.asyncio_loop))
-            self.network.futures.append(asyncio.run_coroutine_threadsafe(self.synchronizer.handle_status(), self.network.asyncio_loop))
-            self.network.futures.append(asyncio.run_coroutine_threadsafe(self.synchronizer.main(), self.network.asyncio_loop))
+            self.network.register_callback(self.on_default_server_changed, ['default_server_changed'])
         else:
             self.verifier = None
             self.synchronizer = None
