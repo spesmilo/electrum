@@ -307,6 +307,12 @@ class TestTransaction(SequentialTestCase):
         txid = '9b9f39e314662a7433aadaa5c94a2f1e24c7e7bf55fc9e1f83abd72be933eb95'
         self._run_naive_tests_on_tx(raw_tx, txid)
 
+    # see https://bitcoin.stackexchange.com/questions/38006/txout-script-criteria-scriptpubkey-critieria
+    def test_txid_invalid_op_return(self):
+        raw_tx = '01000000019ac03d5ae6a875d970128ef9086cef276a1919684a6988023cc7254691d97e6d010000006b4830450221009d41dc793ba24e65f571473d40b299b6459087cea1509f0d381740b1ac863cb6022039c425906fcaf51b2b84d8092569fb3213de43abaff2180e2a799d4fcb4dd0aa012102d5ede09a8ae667d0f855ef90325e27f6ce35bbe60a1e6e87af7f5b3c652140fdffffffff080100000000000000010101000000000000000202010100000000000000014c0100000000000000034c02010100000000000000014d0100000000000000044dffff010100000000000000014e0100000000000000064effffffff0100000000'
+        txid = 'ebc9fa1196a59e192352d76c0f6e73167046b9d37b8302b6bb6968dfd279b767'
+        self._run_naive_tests_on_tx(raw_tx, txid)
+
 
 # these transactions are from Bitcoin Core unit tests --->
 # https://github.com/bitcoin/bitcoin/blob/11376b5583a283772c82f6d32d0007cdbf5b8ef0/src/test/data/tx_valid.json

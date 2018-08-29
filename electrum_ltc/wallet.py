@@ -643,22 +643,24 @@ class Abstract_Wallet(AddressSynchronizer):
             self.set_up_to_date(False)
             while not self.is_up_to_date():
                 if callback:
-                    msg = "%s\n%s %d"%(
+                    msg = "{}\n{} {}".format(
                         _("Please wait..."),
                         _("Addresses generated:"),
-                        len(self.addresses(True)))
+                        len(self.get_addresses()))
                     callback(msg)
                 time.sleep(0.1)
         def wait_for_network():
             while not self.network.is_connected():
                 if callback:
-                    msg = "%s \n" % (_("Connecting..."))
+                    msg = "{} \n".format(_("Connecting..."))
                     callback(msg)
                 time.sleep(0.1)
         # wait until we are connected, because the user
         # might have selected another server
         if self.network:
+            self.print_error("waiting for network...")
             wait_for_network()
+            self.print_error("waiting while wallet is syncing...")
             wait_for_wallet()
         else:
             self.synchronize()
