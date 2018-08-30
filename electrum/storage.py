@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import os
+import shutil
 import ast
 import threading
 import json
@@ -347,6 +348,10 @@ class WalletStorage(JsonDB):
     @profiler
     def upgrade(self):
         self.print_error('upgrading wallet format')
+
+        # make a copy of the file, just in case
+        if self.file_exists():
+            shutil.copy(self.path, self.path + '.old')
 
         self.convert_imported()
         self.convert_wallet_type()
