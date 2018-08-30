@@ -31,6 +31,7 @@ import threading
 import traceback
 import aiorpcx
 import asyncio
+import concurrent.futures
 
 import requests
 
@@ -43,18 +44,23 @@ from . import x509
 from . import pem
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from .util import NotificationSession
+from . import blockchain
 
 class Interface(PrintError):
 
-    def __init__(self, server, config_path, connecting, proxy):
+    def __init__(self, network, server, config_path, proxy):
         self.exception = None
-        self.connecting = connecting
+        self.ready = asyncio.Future()
         self.server = server
         self.host, self.port, self.protocol = self.server.split(':')
         self.port = int(self.port)
         self.config_path = config_path
         self.cert_path = os.path.join(self.config_path, 'certs', self.host)
         self.fut = asyncio.get_event_loop().create_task(self.run())
+        self.tip_header = None
+        self.tip = 0
+        self.blockchain = None
+        self.network = network
         if proxy:
             proxy['user'] = proxy.get('user', '')
             if proxy['user'] == '':
@@ -71,7 +77,7 @@ class Interface(PrintError):
             elif proxy['mode'] == "socks5":
                 self.proxy = aiorpcx.socks.SOCKSProxy((proxy['host'], int(proxy['port'])), aiorpcx.socks.SOCKS5, auth)
             else:
-                raise NotImplementedError
+                raise NotImplementedError # http proxy not available with aiorpcx
         else:
             self.proxy = None
 
@@ -128,7 +134,17 @@ class Interface(PrintError):
         assert False
 
     def mark_ready(self):
-        self.connecting.remove(self.server)
+        assert self.tip_header
+        chain = blockchain.check_header(self.tip_header)
+        if not chain:
+            self.blockchain = blockchain.blockchains[0]
+        else:
+            self.blockchain = chain
+
+        self.print_error("set blockchain with height", self.blockchain.height())
+
+        if not self.ready.done():
+            self.ready.set_result(1)
 
     async def save_certificate(self):
         if not os.path.exists(self.cert_path):
@@ -161,16 +177,25 @@ class Interface(PrintError):
             return None
 
     async def open_session(self, sslc, do_sleep=True, execute_after_connect=lambda: None):
-        async with NotificationSession(None, None, self.host, self.port, ssl=sslc, proxy=self.proxy) as session:
+        q = asyncio.Queue()
+        async with NotificationSession(None, q, self.host, self.port, ssl=sslc, proxy=self.proxy) as session:
             ver = await session.send_request('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])
-            print(ver)
+            self.print_error(ver, do_sleep, self.host)
             connect_hook_executed = False
             while do_sleep:
                 if not connect_hook_executed:
                     connect_hook_executed = True
+                    res = await session.send_request('blockchain.headers.subscribe')
+                    self.tip_header = blockchain.deserialize_header(bfh(res['hex']), res['height'])
+                    self.tip = res['height']
                     execute_after_connect()
-                await asyncio.wait_for(session.send_request('server.ping'), 5)
-                await asyncio.sleep(300)
+                    self.session = session
+                try:
+                    new_header = await asyncio.wait_for(q.get(), 300)
+                    self.tip_header = new_header
+                    self.tip = new_header['block_height']
+                except concurrent.futures.TimeoutError:
+                    await asyncio.wait_for(session.send_request('server.ping'), 5)
 
     def queue_request(self, method, params, msg_id):
         pass
