@@ -8,4 +8,18 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <style name="Amount">
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="Amount.Small">
+        <item name="android:textSize">18sp</item>
+    </style>
+    <style name="Amount.Large">
+        <item name="android:textSize">28sp</item>
+    </style>
+    <style name="Timestamp">
+        <item name="android:textSize">16sp</item>
+    </style>
+
+
 </resources>

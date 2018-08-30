@@ -17,10 +17,9 @@ CALLBACKS = ["updated", "new_transaction", "status", "banner", "verified", "fee"
 class ECConsole(InteractiveConsole):
     """`interact` must be run on a background thread, because it blocks waiting for input.
     """
-    def __init__(self, context):
-        self.cmds = AllCommands()
-        namespace = dict(c=self.cmds, context=context.getApplicationContext())
-        namespace.update({name: CommandWrapper(self.cmds, name) for name in all_commands})
+    def __init__(self, context, cmds):
+        namespace = dict(c=cmds, context=context.getApplicationContext())
+        namespace.update({name: CommandWrapper(cmds, name) for name in all_commands})
         namespace.update(help=Help())
         InteractiveConsole.__init__(self, locals=namespace)
 
@@ -64,21 +63,27 @@ class Help:
             return f"{cmd}\n{cmd.description}"
 
 
-# Adds additional commands which aren't available over JSON RPC, only on the command line.
+# Adds additional commands which aren't available over JSON RPC.
 class AllCommands(commands.Commands):
     def __init__(self):
         super().__init__(SimpleConfig({"verbose": True}), wallet=None, network=None)
-        self.daemon = None
-
-    def start(self):
-        """Start the daemon"""
         fd, server = daemon.get_fd_or_server(self.config)
         if not fd:
             raise Exception("Daemon already running")  # Same wording as in daemon.py.
+
+        # Initialize here rather than in start() so the DaemonModel has a chance to register
+        # its callback before the daemon threads start.
         self.daemon = daemon.Daemon(self.config, fd, False)
         self.network = self.daemon.network
         self.network.register_callback(self._on_callback, CALLBACKS)
+        self.daemon_running = False
+
+    # BEGIN commands from the argparse interface.
+
+    def start(self):
+        """Start the daemon"""
         self.daemon.start()
+        self.daemon_running = True
 
     def status(self):
         """Get daemon status"""
@@ -90,8 +95,7 @@ class AllCommands(commands.Commands):
         self._assert_daemon_running()
         self.daemon.stop()
         self.daemon.join()
-        self.network.unregister_callback(self._on_callback)
-        self.daemon = self.network = None
+        self.daemon_running = False
 
     def load_wallet(self, name, password=None):
         """Load a wallet"""
@@ -111,6 +115,9 @@ class AllCommands(commands.Commands):
         else:
             path = self._wallet_path(name)
         self.daemon.stop_wallet(path)
+        self.wallet = None
+        # Unlike loading a wallet, closing a wallet doesn't automatically cause a callback.
+        self.network.notify("updated")
 
     def create(self, name):
         """Create a new wallet interactively"""
@@ -131,15 +138,31 @@ class AllCommands(commands.Commands):
             if e.code:
                 raise Exception(f"{config_options['cmd']} failed: {e.code}")
 
+    # END commands from the argparse interface.
+
+    # BEGIN commands which only exist here.
+
+    def list_wallets(self):
+        """List available wallets"""
+        return sorted(os.listdir(self._wallet_path()))
+
+    def delete_wallet(self, name):
+        """Delete a wallet"""
+        raise NotImplementedError("TODO")
+
+    # END commands which only exist here.
+
     def _assert_daemon_running(self):
-        if not self.daemon:
+        if not self.daemon_running:
             raise Exception("Daemon not running")  # Same wording as in electron-cash script.
 
     def _on_callback(self, *args):
         util.print_stderr("[Callback] " + ", ".join(repr(x) for x in args))
 
-    def _wallet_path(self, name):
-        return join(util.user_dir(), "wallets", name)
+    def _wallet_path(self, name=""):
+        wallets_dir = join(util.user_dir(), "wallets")
+        util.make_dir(wallets_dir)
+        return join(wallets_dir, name)
 
 
 all_commands = commands.known_commands.copy()

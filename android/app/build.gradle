@@ -1,6 +1,7 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-android-extensions'
+apply plugin: 'kotlin-kapt'
 apply plugin: 'com.chaquo.python'
 
 def REPO_ROOT = "../.."
@@ -42,6 +43,8 @@ android {
         }
         vectorDrawables.useSupportLibrary = true
     }
+
+    dataBinding.enabled = true
 
     sourceSets {
         main {
@@ -100,6 +103,7 @@ dependencies {
     implementation 'com.android.support:design:26.1.0'
     implementation 'com.android.support:support-vector-drawable:26.1.0'
     implementation 'com.android.support:support-v4:26.1.0'
+    kapt "com.android.databinding:compiler:$android_plugin_version"
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'

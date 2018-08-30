@@ -2,6 +2,7 @@ package org.electroncash.electroncash3
 
 import android.arch.lifecycle.MutableLiveData
 import android.arch.lifecycle.Observer
+import android.arch.lifecycle.ViewModelProviders
 import android.content.Intent
 import android.os.Bundle
 import android.support.v4.app.Fragment
@@ -10,12 +11,20 @@ import kotlinx.android.synthetic.main.activity_main.*
 
 class MainActivity : AppCompatActivity() {
 
+    // TODO: integrate console into MainActivity and remove this.
+    companion object {
+        var instance: MainActivity? = null
+    }
+
     val FRAGMENTS = mapOf(
         R.id.navWallets to WalletsFragment::class,
         R.id.navAddresses to AddressesFragment::class
     )
 
+    val daemonModel by lazy { ViewModelProviders.of(this).get(DaemonModel::class.java) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        instance = this
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         navigation.setOnNavigationItemSelectedListener {
@@ -37,7 +46,12 @@ class MainActivity : AppCompatActivity() {
         showFragment(navigation.selectedItemId)
     }
 
-    private fun showFragment(id: Int) {
+    override fun onDestroy() {
+        instance = null
+        super.onDestroy()
+    }
+
+    fun showFragment(id: Int) {
         val ft = supportFragmentManager.beginTransaction()
         for (frag in supportFragmentManager.fragments) {
             if (frag is MainFragment) {
@@ -64,7 +78,6 @@ class MainActivity : AppCompatActivity() {
         return frag as MainFragment
     }
 }
-
 
 open class MainFragment : Fragment() {
     val title = MutableLiveData<String>().apply { value = "" }
