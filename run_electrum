@@ -335,6 +335,14 @@ if __name__ == '__main__':
         sys.argv.remove('help')
         sys.argv.append('-h')
 
+    # old '-v' syntax
+    try:
+        i = sys.argv.index('-v')
+    except ValueError:
+        pass
+    else:
+        sys.argv[i] = '-v*'
+
     # read arguments from stdin pipe and prompt
     for i, arg in enumerate(sys.argv):
         if arg == '-':

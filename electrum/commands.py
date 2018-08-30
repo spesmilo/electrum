@@ -832,7 +832,7 @@ def add_global_options(parser):
     group = parser.add_argument_group('global options')
     # const is for when no argument is given to verbosity
     # default is for when the flag is missing
-    group.add_argument("-v", "--verbosity", dest="verbosity", help="Set verbosity filter", default='', const='*', nargs='?')
+    group.add_argument("-v", dest="verbosity", help="Set verbosity filter", default='', const='*', nargs='?')
     group.add_argument("-D", "--dir", dest="electrum_path", help="electrum directory")
     group.add_argument("-P", "--portable", action="store_true", dest="portable", default=False, help="Use local 'electrum_data' directory")
     group.add_argument("-w", "--wallet", dest="wallet_path", help="wallet path")
