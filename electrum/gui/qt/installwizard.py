@@ -33,12 +33,15 @@ MSG_HW_STORAGE_ENCRYPTION = _("Set wallet file encryption.") + '\n'\
                           + _("Your wallet file does not contain secrets, mostly just metadata. ") \
                           + _("It also contains your master public key that allows watching your addresses.") + '\n\n'\
                           + _("Note: If you enable this setting, you will need your hardware device to open your wallet.")
-WIF_HELP_TEXT = (_('WIF keys are typed in Electrum, based on script type.') + '\n\n' +
+WIF_HELP_TEXT = (_('WIF keys are typed in Electrum-FTC, based on script type.') + '\n\n' +
                  _('A few examples') + ':\n' +
-                 'p2pkh:KxZcY47uGp9a...       \t-> 1DckmggQM...\n' +
-                 'p2wpkh-p2sh:KxZcY47uGp9a... \t-> 3NhNeZQXF...\n' +
-                 'p2wpkh:KxZcY47uGp9a...      \t-> bc1q3fjfk...')
-# note: full key is KxZcY47uGp9aVQAb6VVvuBs8SwHKgkSR2DbZUzjDzXf2N2GPhG9n
+                 'p2pkh:N2gSYKAVixyW...       \t-> 6rMCZCrSH...\n' +
+                 'p2wpkh-p2sh:N2gSYKAVixyW... \t-> 3NhNeZQXF...\n' +
+                 'p2wpkh:N2gSYKAVixyW...      \t-> fc1q3fjfk...\n' + '\n' +
+                 'IMPORTANT: WIF keys that have been exported with \n' +
+                 'Electrum-FTC 3.1.3.1 or older must be imported without\n' +
+                 'specifying the script type')
+# note: full key is N2gSYKAVixyW8eMLqZ2S3dBww26TNcEbJQKPKMaYsECzJf2tR8xt
 MSG_PASSPHRASE_WARN_ISSUE4566 = _("Warning") + ": "\
                               + _("You have multiple consecutive whitespaces or leading/trailing "
                                   "whitespaces in your passphrase.") + " " \
