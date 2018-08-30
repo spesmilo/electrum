@@ -312,7 +312,12 @@ class TxHistoryHelper(TxHistoryHelperBase):
             return        
         tx = parent.wallet.transactions.get(entry.tx_hash, None)
         if tx is None:
-            raise Exception("Wallets: Could not find Transaction for tx '%s'"%str(entry.tx_hash))
+            # I'm not sure why this would happen but we did get issue #810 where it happened to 1 user.
+            # Perhaps a chain split led to an "old" history view on-screen.  That's my theory, at least. -Calin
+            parent.show_error(_("The requested transaction has dropped out of the wallet history.\n\nIf this problem persists, please contact us at electroncash.org."),
+                              title = _("Transaction Not Found"),
+                              onOk = lambda: parent.refresh_components('history'))
+            return
         txd = txdetail.CreateTxDetailWithEntry(entry,tx=tx)        
         self.vc.navigationController.pushViewController_animated_(txd, True)
 
