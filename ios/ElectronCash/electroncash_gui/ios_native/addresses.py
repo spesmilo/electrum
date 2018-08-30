@@ -103,7 +103,7 @@ class AddressDetail(AddressDetailBase):
         
             text = str(text).strip()
             new_label = text
-            print ("new label for address %s = %s"%(entry.address.to_storage_string(), new_label))
+            utils.NSLog("new label for address %s = %s", entry.address.to_storage_string(), new_label)
             gui.ElectrumGui.gui.on_label_edited(entry.address, new_label)
             # Note that above should implicitly refresh us due to sigAddresses signal
             self.doRefreshIfNeeded() # just in case we had a blocked refresh and electrumgui didn't signal.
@@ -884,6 +884,15 @@ def _ShowAddressContextMenu(entry, parentvc, ipadAnchor, toggleFreezeCallback = 
         actions.insert(2, [ _('Share/Save QR...'), lambda: parentvc.onQRImgTap() ])
 
     if not watch_only:
+        
+        try:
+            pubkey = parent.wallet.get_public_key(entry.address)
+            pubkey = pubkey.to_ui_string() if pubkey and not isinstance(pubkey, str) else pubkey
+            if pubkey:
+                actions.insert(2, [ _('Copy Public key'), lambda: parent.copy_to_clipboard(pubkey, _('Public key')) ] )
+        except:
+            pass
+
         def onToggleFreeze() -> None:
             _ToggleFreeze(entry)
             if callable(toggleFreezeCallback):

@@ -166,27 +166,24 @@ def short_hex(bytes):
 
 def script_GetOp(_bytes):
     i = 0
-    while i < len(_bytes):
+    blen = len(_bytes)
+    while i < blen:
         vch = None
         opcode = _bytes[i]
         i += 1
-        if opcode >= opcodes.OP_SINGLEBYTE_END:
-            opcode <<= 8
-            opcode |= _bytes[i]
-            i += 1
 
         if opcode <= opcodes.OP_PUSHDATA4:
             nSize = opcode
             if opcode == opcodes.OP_PUSHDATA1:
-                nSize = _bytes[i]
+                nSize = _bytes[i] if i < blen else 0
                 i += 1
             elif opcode == opcodes.OP_PUSHDATA2:
-                (nSize,) = struct.unpack_from('<H', _bytes, i)
+                (nSize,) = struct.unpack_from('<H', _bytes, i) if i+2 <= blen else (0,) # tolerate truncated script
                 i += 2
             elif opcode == opcodes.OP_PUSHDATA4:
-                (nSize,) = struct.unpack_from('<I', _bytes, i)
+                (nSize,) = struct.unpack_from('<I', _bytes, i) if i+4 <= blen else (0,)
                 i += 4
-            vch = _bytes[i:i + nSize]
+            vch = _bytes[i:i + nSize] # array slicing here never throws exception even if truncated script
             i += nSize
 
         yield opcode, vch, i

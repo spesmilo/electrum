@@ -883,11 +883,12 @@ class Import1(Import1Base):
     
     @objc_method
     def prepareForSegue_sender_(self, segue, sender) -> None:
+        words = py_from_ns(self.words())
         if self.masterKeyMode:
-            k = keystore.from_master_key(self.tvDel.text)
+            k = keystore.from_master_key(words[0])
             _SetParam(self, 'keystore', k)
         else:
-            _SetParam(self, 'words', py_from_ns(self.words()))
+            _SetParam(self, 'words', words)
         
 class Import2(Import2Base):
     @objc_method

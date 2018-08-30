@@ -117,6 +117,28 @@ class Commands:
             self._callback()
         return result
 
+    @staticmethod
+    def _EnsureDictNamedTuplesAreJSONSafe(d):
+        """ Address, ScriptOutput and other objects contain bytes.  They cannot be serialized
+            using JSON. This makes sure they get serialized properly by calling .to_ui_string() on them.
+            See issue #638 """
+        def DoChk(v):
+            def ChkList(l):
+                for i in range(0,len(l)): l[i] = DoChk(l[i]) # recurse
+                return l
+            def EncodeNamedTupleObject(nt):
+                if hasattr(nt, 'to_ui_string'): return nt.to_ui_string()
+                return nt
+
+            if isinstance(v, tuple): v = EncodeNamedTupleObject(v)
+            elif isinstance(v, list): v = ChkList(v) # may recurse
+            elif isinstance(v, dict): v = Commands._EnsureDictNamedTuplesAreJSONSafe(v) # recurse
+            return v
+
+        for k in d.keys():
+            d[k] = DoChk(d[k])
+        return d
+
     @command('')
     def commands(self):
         """List of commands"""
@@ -231,7 +253,7 @@ class Commands:
                 txin['signatures'] = [None]
                 txin['num_sig'] = 1
 
-        outputs = [(TYPE_ADDRESS, x['address'], int(x['value'])) for x in outputs]
+        outputs = [(TYPE_ADDRESS, Address.from_string(x['address']), int(x['value'])) for x in outputs]
         tx = Transaction.from_io(inputs, outputs, locktime=locktime)
         tx.sign(keypairs)
         return tx.as_dict()
@@ -254,7 +276,7 @@ class Commands:
     def deserialize(self, tx):
         """Deserialize a serialized transaction"""
         tx = Transaction(tx)
-        return tx.deserialize()
+        return self._EnsureDictNamedTuplesAreJSONSafe(tx.deserialize().copy())
 
     @command('n')
     def broadcast(self, tx):

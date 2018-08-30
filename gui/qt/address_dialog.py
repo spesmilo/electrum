@@ -62,9 +62,16 @@ class AddressDialog(WindowModalDialog):
         self.update_addr()
 
         try:
+            # the below line only works for deterministic wallets, other wallets lack this method
             pubkeys = self.wallet.get_public_keys(address)
         except BaseException as e:
-            pubkeys = None
+            try:
+                # ok, now try the usual method for imported wallets, etc
+                pubkey = self.wallet.get_public_key(address)
+                pubkeys = [pubkey.to_ui_string()]
+            except:
+                # watching only wallets (totally lacks a private/public key pair for this address)
+                pubkeys = None
         if pubkeys:
             vbox.addWidget(QLabel(_("Public keys") + ':'))
             for pubkey in pubkeys:
