@@ -8,16 +8,20 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
-    <style name="Amount">
+    <style name="Value">
+        <item name="android:textColor">@android:color/black</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:ellipsize">end</item>
     </style>
-    <style name="Amount.Small">
+    <style name="Value.Small">
         <item name="android:textSize">18sp</item>
     </style>
-    <style name="Amount.Large">
+    <style name="Value.Large">
         <item name="android:textSize">28sp</item>
     </style>
     <style name="Timestamp">
+        <item name="android:textColor">@android:color/black</item>
         <item name="android:textSize">16sp</item>
     </style>
 

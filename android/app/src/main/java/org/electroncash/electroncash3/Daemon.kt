@@ -8,10 +8,11 @@ import com.chaquo.python.PyObject
 import com.chaquo.python.Python
 
 val WATCHDOG_INTERVAL = 1000L
+val py = Python.getInstance()
+val daemonMod =  py.getModule("electroncash_gui.android.daemon")
 
 class DaemonModel(val app: Application) : AndroidViewModel(app) {
 
-    val py = Python.getInstance()
     val handler = Handler()
 
     val commands: PyObject
@@ -22,6 +23,7 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     val height = MutableLiveData<Int>()
     val walletName = MutableLiveData<String>()
     val walletBalance = MutableLiveData<String>()
+    val walletTransactions = MutableLiveData<PyObject>()
 
     init {
         val consoleMod = py.getModule("electroncash_gui.android.ec_console")
@@ -29,7 +31,6 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
         daemon = commands.get("daemon")!!
         network = commands.get("network")!!
 
-        val daemonMod =  py.getModule("electroncash_gui.android.daemon")
         network.callAttr("register_callback", daemonMod.callAttr("make_callback", this),
                          consoleMod.get("CALLBACKS"))
         commands.callAttr("start")
@@ -53,13 +54,13 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
         val wallet = commands.get("wallet")
         if (wallet != null) {
             walletName.postValue(wallet.callAttr("basename").toString())
-            val balance = wallet.callAttr("get_balance")
-                .callAttr("__getitem__", 0)  // Confirmed balance only
-                .toJava(Double::class.java)
-            walletBalance.postValue(String.format("%.8f", balance))
+            walletBalance.postValue(commands.callAttr("getbalance")  // TODO make unit configurable
+                                    .callAttr("__getitem__", "confirmed").toString())
+            walletTransactions.postValue(wallet.callAttr("export_history"))
         } else {
             walletName.postValue(app.getString(R.string.no_wallet))
             walletBalance.postValue("---")
+            walletTransactions.postValue(null)
         }
     }
 
