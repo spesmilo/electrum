@@ -48,10 +48,10 @@ def needs_test_with_all_ecc_implementations(func):
             # first test without libsecp
             func(*args, **kwargs)
         finally:
-            # if libsecp is not available, we are done
-            if not ecc_fast._libsecp256k1:
-                return
             ecc_fast.do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
+        # if libsecp is not available, we are done
+        if not ecc_fast._libsecp256k1:
+            return
         # if libsecp is available, test again now
         func(*args, **kwargs)
     return run_test
@@ -74,10 +74,10 @@ def needs_test_with_all_aes_implementations(func):
             # first test without pycryptodomex
             func(*args, **kwargs)
         finally:
-            # if pycryptodomex is not available, we are done
-            if not _aes:
-                return
             crypto.AES = _aes
+        # if pycryptodomex is not available, we are done
+        if not _aes:
+            return
         # if pycryptodomex is available, test again now
         func(*args, **kwargs)
     return run_test
