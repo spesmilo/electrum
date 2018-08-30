@@ -1020,11 +1020,14 @@ class Network(util.DaemonThread):
             raise Exception(interface.mode)
         # If not finished, get the next header
         if next_height is not None:
-            if interface.mode == 'catch_up' and interface.tip > next_height + 50:
+            if next_height < 0:
+                self.connection_down(interface.server)
+                next_height = None
+            elif interface.mode == 'catch_up' and interface.tip > next_height + 50:
                 self.request_chunk(interface, next_height // 2016)
             else:
                 self.request_header(interface, next_height)
-        else:
+        if next_height is None:
             interface.mode = 'default'
             interface.request = None
             self.notify('updated')

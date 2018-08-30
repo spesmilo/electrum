@@ -260,7 +260,8 @@ class ElectrumGui:
         return w
 
     def close_window(self, window):
-        self.windows.remove(window)
+        if window in self.windows:
+           self.windows.remove(window)
         self.build_tray_menu()
         # save wallet path of last open window
         if not self.windows:
