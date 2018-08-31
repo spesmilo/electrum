@@ -240,6 +240,9 @@ class Network(PrintError):
                            deserialize_proxy(self.config.get('proxy')))
         self.asyncio_loop = asyncio.get_event_loop()
         self.futures = []
+        self.server_info_job = asyncio.Future()
+        # just to not trigger a warning from switch_to_interface the first time we change default_server
+        self.server_info_job.set_result(1)
 
     def with_interface_lock(func):
         def func_wrapper(self, *args, **kwargs):
@@ -312,10 +315,39 @@ class Network(PrintError):
         self.notify('status')
 
     def is_connected(self):
-        return self.interface is not None
+        return self.interface is not None and self.interface.ready.done()
 
     def is_connecting(self):
         return self.connection_status == 'connecting'
+
+    @util.aiosafe
+    async def request_server_info(self, interface):
+        await interface.ready
+        session = interface.session
+        self.banner = await session.send_request('server.banner')
+        self.notify('banner')
+        self.donation_address = await session.send_request('server.donation_address')
+        self.irc_servers = parse_servers(await session.send_request('server.peers.subscribe'))
+        self.notify('servers')
+        await self.request_fee_estimates(interface)
+        relayfee = await session.send_request('blockchain.relayfee')
+        self.relay_fee = int(relayfee * COIN) if relayfee is not None else None
+
+    async def request_fee_estimates(self, interface):
+        session = interface.session
+        from .simple_config import FEE_ETA_TARGETS
+        self.config.requested_fee_estimates()
+        histogram = await session.send_request('mempool.get_fee_histogram')
+        fees = []
+        for i in FEE_ETA_TARGETS:
+            fees.append((i, await session.send_request('blockchain.estimatefee', [i])))
+        self.config.mempool_fees = histogram
+        self.notify('fee_histogram')
+        for i, result in fees:
+            fee = int(result * COIN)
+            self.config.update_fee_estimates(i, fee)
+            self.print_error("fee_estimates[%d]" % i, fee)
+        self.notify('fee')
 
     def get_status_value(self, key):
         if key == 'status':
@@ -512,6 +544,7 @@ class Network(PrintError):
         being opened, start a thread to connect.  The actual switch will
         happen on receipt of the connection notification.  Do nothing
         if server already is our interface.'''
+        old_default_server = self.default_server
         self.default_server = server
         if server not in self.interfaces:
             self.interface = None
@@ -525,6 +558,10 @@ class Network(PrintError):
             # fixme: we don't want to close headers sub
             #self.close_interface(self.interface)
             self.interface = i
+            if not self.server_info_job.done():
+                self.print_error('cancelled previous request_server_info job, was it too slow? server was:', old_default_server)
+                self.server_info_job.cancel()
+            self.server_info_job = asyncio.get_event_loop().create_task(self.request_server_info(i))
             self.trigger_callback('default_server_changed')
             self.set_status('connected')
             self.notify('updated')
@@ -785,10 +822,14 @@ class Network(PrintError):
                     else:
                         self.switch_to_interface(self.default_server)
                         changed = True
-
-            # TODO: request fee_estimates if needed (now in synchronizer)
+            else:
+                if self.config.is_fee_estimates_update_required():
+                    asyncio.get_event_loop().create_task(self.attempt_fee_estimate_update())
 
             if changed:
                 self.notify('updated')
             await asyncio.sleep(1)
 
+    @util.aiosafe
+    async def attempt_fee_estimate_update(self):
+        await asyncio.wait_for(self.request_fee_estimates(self.interface), 5)
