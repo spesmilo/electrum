@@ -146,7 +146,10 @@ class Blockchain(util.PrintError):
     def check_header(self, header):
         header_hash = hash_header(header)
         height = header.get('block_height')
-        return header_hash == self.get_hash(height)
+        try:
+            return header_hash == self.get_hash(height)
+        except MissingHeader:
+            return False
 
     def fork(parent, header):
         forkpoint = header.get('block_height')
@@ -166,8 +169,10 @@ class Blockchain(util.PrintError):
         p = self.path()
         self._size = os.path.getsize(p)//80 if os.path.exists(p) else 0
 
-    def verify_header(self, header, prev_hash, target):
+    def verify_header(self, header, prev_hash, target, expected_header_hash=None):
         _hash = hash_header(header)
+        if expected_header_hash and expected_header_hash != _hash:
+            raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
         if prev_hash != header.get('prev_block_hash'):
             raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         if constants.net.TESTNET:
@@ -180,12 +185,18 @@ class Blockchain(util.PrintError):
 
     def verify_chunk(self, index, data):
         num = len(data) // 80
-        prev_hash = self.get_hash(index * 2016 - 1)
+        start_height = index * 2016
+        prev_hash = self.get_hash(start_height - 1)
         target = self.get_target(index-1)
         for i in range(num):
+            height = start_height + i
+            try:
+                expected_header_hash = self.get_hash(height)
+            except MissingHeader:
+                expected_header_hash = None
             raw_header = data[i*80:(i+1) * 80]
             header = deserialize_header(raw_header, index*2016 + i)
-            self.verify_header(header, prev_hash, target)
+            self.verify_header(header, prev_hash, target, expected_header_hash)
             prev_hash = hash_header(header)
 
     def path(self):
@@ -303,17 +314,24 @@ class Blockchain(util.PrintError):
         return deserialize_header(h, height)
 
     def get_hash(self, height):
+        def is_height_checkpoint():
+            within_cp_range = height < len(self.checkpoints) * 2016
+            at_chunk_boundary = (height+1) % 2016 == 0
+            return within_cp_range and at_chunk_boundary
+
         if height == -1:
             return '0000000000000000000000000000000000000000000000000000000000000000'
         elif height == 0:
             return constants.net.GENESIS
-        elif height < len(self.checkpoints) * 2016:
-            assert (height+1) % 2016 == 0, (height, len(self.checkpoints), (height+1) % 2016)
+        elif is_height_checkpoint():
             index = height // 2016
             h, t = self.checkpoints[index]
             return h
         else:
-            return hash_header(self.read_header(height))
+            header = self.read_header(height)
+            if header is None:
+                raise MissingHeader(height)
+            return hash_header(header)
 
     def get_target(self, index):
         # compute target from chunk x, used in chunk x+1
