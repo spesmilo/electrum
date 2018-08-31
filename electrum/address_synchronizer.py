@@ -142,10 +142,12 @@ class AddressSynchronizer(PrintError):
             if not i.done():
                 i.cancel()
         self.network.futures.clear()
+        if self.network.interface is None:
+            return
+        # FIXME there are races here.. network.interface can become None
         self.network.futures.append(asyncio.get_event_loop().create_task(self.verifier.main()))
         self.network.futures.append(asyncio.get_event_loop().create_task(self.synchronizer.send_subscriptions()))
         self.network.futures.append(asyncio.get_event_loop().create_task(self.synchronizer.handle_status()))
-        assert self.network.interface.session is not None
         self.network.futures.append(asyncio.get_event_loop().create_task(self.synchronizer.main()))
 
     def start_threads(self, network):
