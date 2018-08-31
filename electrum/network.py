@@ -759,9 +759,35 @@ class Network(PrintError):
             for k in remove:
                 self.connection_down(k)
                 changed = True
+
+            # nodes
+            now = time.time()
             for i in range(self.num_server - len(self.interfaces) - len(self.connecting)):
                 if self.start_random_interface():
                     changed = True
+                    if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
+                        self.print_error('network: retrying connections')
+                        self.disconnected_servers = set([])
+                        self.nodes_retry_time = now
+
+            # main interface
+            if not self.is_connected():
+                if self.auto_connect:
+                    if not self.is_connecting():
+                        self.switch_to_random_interface()
+                        changed = True
+                else:
+                    if self.default_server in self.disconnected_servers:
+                        if now - self.server_retry_time > SERVER_RETRY_INTERVAL:
+                            self.disconnected_servers.remove(self.default_server)
+                            self.server_retry_time = now
+                            changed = True
+                    else:
+                        self.switch_to_interface(self.default_server)
+                        changed = True
+
+            # TODO: request fee_estimates if needed (now in synchronizer)
+
             if changed:
                 self.notify('updated')
             await asyncio.sleep(1)
