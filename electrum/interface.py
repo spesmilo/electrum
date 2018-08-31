@@ -244,6 +244,8 @@ class BlockHeaderInterface(PrintError):
                 could_connect, num_headers = await self.conn.request_chunk(self.height, next_height)
                 self.tip = max(self.height + num_headers, self.tip)
                 if not could_connect:
+                    if self.height <= self.iface.network.max_checkpoint():
+                        raise Exception('server chain conflicts with checkpoints or genesis')
                     last = await self.step()
                     self.tip = max(self.height, self.tip)
                     continue

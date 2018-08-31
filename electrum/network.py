@@ -809,14 +809,16 @@ class Network(PrintError):
                 asyncio.get_event_loop().create_task(self.new_interface(server))
             remove = []
             for k, i in self.interfaces.items():
-                if i.fut.done():
-                    if i.exception:
-                        try:
-                            raise i.exception
-                        except BaseException as e:
-                            self.print_error(i.server, "errored because", str(e), str(type(e)))
-                    else:
-                        assert False, "interface future should not finish without exception"
+                if i.fut.done() and not i.exception:
+                    assert False, "interface future should not finish without exception"
+                if i.exception:
+                    if not i.fut.done():
+                        try: i.fut.cancel()
+                        except Exception as e: self.print_error('exception while cancelling fut', e)
+                    try:
+                        raise i.exception
+                    except BaseException as e:
+                        self.print_error(i.server, "errored because", str(e), str(type(e)))
                     remove.append(k)
             changed = False
             for k in remove:
