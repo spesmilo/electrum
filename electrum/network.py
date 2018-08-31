@@ -442,6 +442,7 @@ class Network(PrintError):
         self.disconnected_servers = set([])  # note: needs self.interface_lock
         self.protocol = protocol
         self.set_proxy(proxy)
+        self.start_interface(self.default_server)
 
     @with_interface_lock
     def stop_network(self):
