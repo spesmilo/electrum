@@ -154,6 +154,7 @@ class AddressSynchronizer(PrintError):
             self.verifier = SPV(self.network, self)
             self.synchronizer = Synchronizer(self)
             self.network.register_callback(self.on_default_server_changed, ['default_server_changed'])
+            self.network.trigger_callback('default_server_changed')
         else:
             self.verifier = None
             self.synchronizer = None
