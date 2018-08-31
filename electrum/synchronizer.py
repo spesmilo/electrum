@@ -35,8 +35,6 @@ from .transaction import Transaction
 from .util import ThreadJob, bh2u, PrintError, aiosafe, bfh, NotificationSession
 from .bitcoin import address_to_scripthash
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
-from .network import parse_servers
-from .bitcoin import COIN
 
 def history_status(h):
     if not h:
@@ -161,32 +159,8 @@ class Synchronizer(PrintError):
         await self.status_queue.put((h, status))
         self.requested_addrs.remove(addr)
 
-    async def request_fee_estimates(self):
-        from .simple_config import FEE_ETA_TARGETS
-        self.wallet.network.config.requested_fee_estimates()
-        histogram = await self.session.send_request('mempool.get_fee_histogram')
-        fees = []
-        for i in FEE_ETA_TARGETS:
-            fees.append((i, await self.session.send_request('blockchain.estimatefee', [i])))
-        return histogram, fees
-
     @aiosafe
     async def send_subscriptions(self):
-        self.wallet.network.banner = await self.session.send_request('server.banner')
-        self.wallet.network.notify('banner')
-        self.wallet.network.donation_address = await self.session.send_request('server.donation_address')
-        self.wallet.network.irc_servers = parse_servers(await self.session.send_request('server.peers.subscribe'))
-        self.wallet.network.notify('servers')
-        histogram, fees = await self.request_fee_estimates()
-        self.wallet.network.config.mempool_fees = histogram
-        self.wallet.network.notify('fee_histogram')
-        for i, result in fees:
-            fee = int(result * COIN)
-            self.wallet.network.config.update_fee_estimates(i, fee)
-            self.print_error("fee_estimates[%d]" % i, fee)
-        self.wallet.network.notify('fee')
-        relayfee = await self.session.send_request('blockchain.relayfee')
-        self.wallet.network.relay_fee = int(relayfee * COIN) if relayfee is not None else None
         async with TaskGroup() as group:
             while True:
                 addr = await self.add_queue.get()
