@@ -719,7 +719,6 @@ class Network(PrintError):
             pass
 
     async def get_merkle_for_transaction(self, tx_hash, tx_height):
-        print("getting merkle for transaction", tx_hash, tx_height)
         return await self.interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
 
     def broadcast_transaction(self, tx):
