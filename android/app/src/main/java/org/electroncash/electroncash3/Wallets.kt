@@ -9,6 +9,7 @@ import android.support.v7.widget.DividerItemDecoration
 import android.support.v7.widget.LinearLayoutManager
 import android.view.*
 import android.widget.Toast
+import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.main.*
 import kotlinx.android.synthetic.main.wallets.*
@@ -43,8 +44,9 @@ class WalletsFragment : MainFragment() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            R.id.menuDelete ->  showDialog(activity, DeleteWalletDialog())
-            R.id.menuClose ->  daemonModel.commands.callAttr("close_wallet")
+            R.id.menuShowSeed-> showDialog(activity, ShowSeedPasswordDialog())
+            R.id.menuDelete -> showDialog(activity, DeleteWalletDialog())
+            R.id.menuClose -> daemonModel.commands.callAttr("close_wallet")
             else -> return false
         }
         return true
@@ -106,15 +108,19 @@ class SelectWalletDialog : MainDialogFragment(), DialogInterface.OnClickListener
             .create()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (items.size == 1) {
+            onClick(dialog, 0)
+        }
+    }
+
     override fun onClick(dialog: DialogInterface, which: Int) {
-        dialog.dismiss()
+        dismiss()
         if (which < items.size - 1) {
-            val walletName = items[which]
-            if (!daemonModel.loadWallet(walletName)) {
-                showDialog(activity, PasswordDialog().apply { arguments = Bundle().apply {
-                    putString("walletName", walletName)
-                }})
-            }
+            showDialog(activity, OpenWalletDialog().apply { arguments = Bundle().apply {
+                putString("walletName", items[which])
+            }})
         } else {
             // TODO showDialog(activity, NewWalletDialog())
         }
@@ -135,27 +141,93 @@ class DeleteWalletDialog : AlertDialogFragment() {
 }
 
 
-class PasswordDialog : MainDialogFragment() {
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val dialog = AlertDialog.Builder(context)
-            .setTitle(R.string.password_required)
+// TODO: keyboard should open automatically
+abstract class PasswordDialog : AlertDialogFragment() {
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        builder.setTitle(R.string.password_required)
             .setView(R.layout.password)
             .setPositiveButton(android.R.string.ok, null)
             .setNegativeButton(android.R.string.cancel, null)
-            .create()
+    }
 
+    override fun onPrepareDialog(dialog: AlertDialog) {
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                if (!daemonModel.loadWallet(arguments.getString("walletName"),
-                                            dialog.etPassword.text.toString())) {
+                if (!tryPassword(dialog.etPassword.text.toString())) {
                     toast(R.string.password_incorrect, Toast.LENGTH_SHORT)
                 } else {
-                    dialog.dismiss()
+                    dismiss()
                 }
             }
         }
-        return dialog
     }
+
+    override fun onResume() {
+        super.onResume()
+        if (tryPassword(null)) {
+            dismiss()
+        }
+    }
+
+    fun tryPassword(password: String?): Boolean {
+        try {
+            onPassword(password)
+            return true
+        } catch (e: PyException) {
+            if (e.message!!.startsWith("InvalidPassword")) {
+                return false
+            }
+            throw e
+        }
+    }
+
+    /** Attempt to perform the operation with the given password. `null` means to try with no
+     * password, which will automatically be attempted when the dialog first opens. If the
+     * password is wrong, overrides should throw PyException with the type InvalidPassword.
+     * Most back-end functions that take passwords will do this automatically. */
+    abstract fun onPassword(password: String?)
+}
+
+
+class OpenWalletDialog: PasswordDialog() {
+    override fun onPassword(password: String?) {
+        val name = arguments.getString("walletName")
+        val prevName = daemonModel.walletName.value
+        daemonModel.commands.callAttr("load_wallet", name, password)
+        if (prevName != null && prevName != name) {
+            daemonModel.commands.callAttr("close_wallet", prevName)
+        }
+    }
+}
+
+
+class ShowSeedPasswordDialog : PasswordDialog() {
+    override fun onPassword(password: String?) {
+        val seed = daemonModel.wallet!!.callAttr("get_seed", password).toString()
+        if (! seed.contains(" ")) {
+            // get_seed(None) doesn't throw an exception, but returns the encrypted base64 seed.
+            throw PyException("InvalidPassword")
+        }
+        showDialog(activity, ShowSeedDialog().apply { arguments = Bundle().apply {
+            putString("seed", seed)
+        }})
+    }
+}
+
+class ShowSeedDialog : AlertDialogFragment() {
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        val seed = arguments.getString("seed")
+        builder.setTitle(R.string.wallet_seed)
+            .setMessage(seedAdvice(seed) + "\n\n" + seed)
+            .setPositiveButton(android.R.string.ok, null)
+    }
+}
+
+
+fun seedAdvice(seed: String): String {
+    return App.context.getString(R.string.please_save, seed.split(" ").size) + " " +
+           App.context.getString(R.string.this_seed) + " " +
+           App.context.getString(R.string.never_disclose)
 }
 
 

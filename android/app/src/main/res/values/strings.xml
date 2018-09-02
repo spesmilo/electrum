@@ -6,13 +6,20 @@
     <string name="online">Online</string>
     <string name="height">Height</string>
     <string name="close_wallet">Close wallet</string>
-    <string name="delete_wallet">Delete wallet</string>
     <string name="no_wallet">No wallet is open</string>
     <string name="amount">Amount</string>
     <string name="balance">Balance</string>
     <string name="send">Send</string>
     <string name="receive">Receive</string>
+    
+    <string name="show_seed">Show seed</string>
+    <string name="wallet_seed">Wallet seed</string>
+    <string name="please_save">Please save these %d words on paper (order is important).</string>
+    <string name="this_seed">This seed will allow you to recover your wallet in case of computer
+        failure.</string>
+    <string name="never_disclose">Never disclose your seed.</string>
 
+    <string name="delete_wallet">Delete wallet</string>
     <string name="you_are">You are about to delete the wallet \'%s\'. Unless you have other
         copies of this wallet or you wrote its seed down, you may lose funds!</string>
 

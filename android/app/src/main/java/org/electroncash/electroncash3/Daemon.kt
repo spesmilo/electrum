@@ -19,7 +19,12 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
 
     val commands: PyObject
     val daemon: PyObject
+        get() = commands.get("daemon")!!
     val network: PyObject
+        get() = commands.get("network")!!
+    val wallet: PyObject?
+        get() = commands.get("wallet")
+
     lateinit var watchdog: Runnable
 
     val height = MutableLiveData<Int>()
@@ -30,9 +35,6 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     init {
         val consoleMod = py.getModule("electroncash_gui.android.ec_console")
         commands = consoleMod.callAttr("AllCommands")
-        daemon = commands.get("daemon")!!
-        network = commands.get("network")!!
-
         network.callAttr("register_callback", daemonMod.callAttr("make_callback", this),
                          consoleMod.get("CALLBACKS"))
         commands.callAttr("start")
@@ -54,7 +56,7 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
             height.postValue(null)
         }
 
-        val wallet = commands.get("wallet")
+        val wallet = this.wallet
         if (wallet != null) {
             walletName.postValue(wallet.callAttr("basename").toString())
             walletBalance.postValue(commands.callAttr("getbalance")  // TODO make unit configurable
@@ -70,22 +72,5 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         handler.removeCallbacks(watchdog)
         commands.callAttr("stop")
-    }
-
-    fun loadWallet(name: String, password: String? = null): Boolean {
-        val prevWalletName = walletName.value
-        try {
-            commands.callAttr("load_wallet", name, password)
-        } catch (e: PyException) {
-            if (e.message!!.startsWith("InvalidPassword:")) {
-                return false
-            } else {
-                throw e
-            }
-        }
-        if (prevWalletName != null && prevWalletName != name) {
-            commands.callAttr("close_wallet", prevWalletName)
-        }
-        return true
     }
 }
