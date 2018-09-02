@@ -2,9 +2,29 @@ package org.electroncash.electroncash3
 
 import android.databinding.DataBindingUtil
 import android.databinding.ViewDataBinding
+import android.support.v4.app.DialogFragment
+import android.support.v4.app.FragmentActivity
 import android.support.v7.widget.RecyclerView
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import android.widget.Toast
+
+
+fun showDialog(activity: FragmentActivity, frag: DialogFragment) {
+    val fm = activity.supportFragmentManager
+    val tag = frag.javaClass.name
+    if (fm.findFragmentByTag(tag) == null) {
+        frag.show(fm, tag)
+    }
+}
+
+fun toast(text: CharSequence, duration: Int) {
+    Toast.makeText(App.context, text, duration).show()
+}
+fun toast(resId: Int, duration: Int) {
+    toast(App.context.getString(resId), duration)
+}
+
 
 // Based on https://medium.com/google-developers/android-data-binding-recyclerview-db7c40d9f0e4
 abstract class BoundAdapter(val layoutId: Int)

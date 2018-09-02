@@ -5,12 +5,13 @@ import android.arch.lifecycle.Observer
 import android.arch.lifecycle.ViewModelProviders
 import android.content.Intent
 import android.os.Bundle
+import android.support.v4.app.DialogFragment
 import android.support.v4.app.Fragment
 import android.support.v7.app.AppCompatActivity
-import kotlinx.android.synthetic.main.activity_main.*
+import kotlinx.android.synthetic.main.main.*
+
 
 class MainActivity : AppCompatActivity() {
-
     // TODO: integrate console into MainActivity and remove this.
     companion object {
         var instance: MainActivity? = null
@@ -26,7 +27,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         instance = this
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(R.layout.main)
         navigation.setOnNavigationItemSelectedListener {
             when (it.itemId) {
                 R.id.navConsole -> {
@@ -79,7 +80,17 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
+
 open class MainFragment : Fragment() {
+    val mainActivity by lazy { activity as MainActivity }
+    val daemonModel by lazy { mainActivity.daemonModel }
+
     val title = MutableLiveData<String>().apply { value = "" }
     val subtitle = MutableLiveData<String>().apply { value = null }
+}
+
+// TODO remove duplication
+open class MainDialogFragment : DialogFragment() {
+    val mainActivity by lazy { activity as MainActivity }
+    val daemonModel by lazy { mainActivity.daemonModel }
 }

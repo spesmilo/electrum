@@ -1,0 +1,5 @@
+<!-- The following strings are specific to Android and will not be found in the gettext files. -->
+<resources>
+    <string name="touch_to_load">Touch here to load or create one.</string>
+    <string name="touch_to_copy">Touch a receiving address to copy it to the clipboard.</string>
+</resources>

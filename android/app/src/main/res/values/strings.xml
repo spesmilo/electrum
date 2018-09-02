@@ -1,6 +1,5 @@
+<!-- TODO: generate these from the gettext files -->
 <resources>
-    <string name="app_name">Electron Cash</string>
-
     <string name="wallets">Wallets</string>
     <string name="offline">Offline</string>
     <string name="cannot_send">Cannot send/receive new transactions</string>
@@ -11,6 +10,12 @@
     <string name="balance">Balance</string>
     <string name="send">Send</string>
     <string name="receive">Receive</string>
+
+    <string name="password_required">Password required</string>
+    <string name="password">Password</string>
+    <string name="password_incorrect">Password incorrect</string>
+
+    <string name="new_restore">New/Restore</string>
 
     <string name="addresses">Addresses</string>
 

@@ -7,6 +7,8 @@ from os.path import join
 from electroncash import commands, daemon, util, version
 from electroncash import main  # electron-cash script, renamed by build.gradle.
 from electroncash.simple_config import SimpleConfig
+from electroncash.storage import WalletStorage
+from electroncash.wallet import Wallet
 
 
 # Too noisy: "servers", "interfaces"
@@ -100,29 +102,46 @@ class AllCommands(commands.Commands):
     def load_wallet(self, name, password=None):
         """Load a wallet"""
         self._assert_daemon_running()
-        self.wallet = self.daemon.load_wallet(self._wallet_path(name), password)
-        if not self.wallet:
-            raise Exception("load_wallet failed")  # It doesn't raise any exceptions.
-        return self.wallet
+        path = self._wallet_path(name)
+        wallet = self.daemon.get_wallet(path)
+        if not wallet:
+            storage = WalletStorage(path)
+            if not storage.file_exists():
+                raise FileNotFoundError(path)
+            if storage.is_encrypted():
+                if not password:
+                    raise util.InvalidPassword()
+                storage.decrypt(password)
+
+            wallet = Wallet(storage)
+            wallet.start_threads(self.network)
+            self.daemon.add_wallet(wallet)
+
+        self.wallet = wallet
+        self.network.notify("updated")
+        return wallet
 
     def close_wallet(self, name=None):
         """Close a wallet"""
         self._assert_daemon_running()
         if not name:
             if not self.wallet:
-                raise Exception("Wallet not loaded")  # Same wording as in commands.py.
+                print("Wallet not loaded")  # Same wording as in commands.py.
+                return
             path = self.wallet.storage.path
         else:
             path = self._wallet_path(name)
         self.daemon.stop_wallet(path)
-        self.wallet = None
-        # Unlike loading a wallet, closing a wallet doesn't automatically cause a callback.
-        self.network.notify("updated")
+        if self.wallet and (path == self.wallet.storage.path):
+            self.wallet = None
+            self.network.notify("updated")
 
     def create(self, name):
         """Create a new wallet interactively"""
         self._run_non_RPC({"cmd": "create", "wallet_path": self._wallet_path(name)})
 
+    # TODO results in a file where storage.is_encrypted() is False, but
+    # storage.get("use_encryption") is True, and password is not required.
     def restore(self, name, text):
         """Restore a wallet from text. Text can be a seed phrase, a master
         public key, a master private key, a list of bitcoin cash addresses

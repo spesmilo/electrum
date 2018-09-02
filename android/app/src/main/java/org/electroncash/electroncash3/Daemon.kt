@@ -4,15 +4,17 @@ import android.app.Application
 import android.arch.lifecycle.AndroidViewModel
 import android.arch.lifecycle.MutableLiveData
 import android.os.Handler
+import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import com.chaquo.python.Python
+
 
 val WATCHDOG_INTERVAL = 1000L
 val py = Python.getInstance()
 val daemonMod =  py.getModule("electroncash_gui.android.daemon")
 
-class DaemonModel(val app: Application) : AndroidViewModel(app) {
 
+class DaemonModel(val app: Application) : AndroidViewModel(app) {
     val handler = Handler()
 
     val commands: PyObject
@@ -51,6 +53,7 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
         } else {
             height.postValue(null)
         }
+
         val wallet = commands.get("wallet")
         if (wallet != null) {
             walletName.postValue(wallet.callAttr("basename").toString())
@@ -58,14 +61,31 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
                                     .callAttr("__getitem__", "confirmed").toString())
             walletTransactions.postValue(wallet.callAttr("export_history"))
         } else {
-            walletName.postValue(app.getString(R.string.no_wallet))
-            walletBalance.postValue("---")
-            walletTransactions.postValue(null)
+            for (ld in listOf(walletName, walletBalance, walletTransactions)) {
+                ld.postValue(null)
+            }
         }
     }
 
     override fun onCleared() {
         handler.removeCallbacks(watchdog)
         commands.callAttr("stop")
+    }
+
+    fun loadWallet(name: String, password: String? = null): Boolean {
+        val prevWalletName = walletName.value
+        try {
+            commands.callAttr("load_wallet", name, password)
+        } catch (e: PyException) {
+            if (e.message!!.startsWith("InvalidPassword:")) {
+                return false
+            } else {
+                throw e
+            }
+        }
+        if (prevWalletName != null && prevWalletName != name) {
+            commands.callAttr("close_wallet", prevWalletName)
+        }
+        return true
     }
 }
