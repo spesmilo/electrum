@@ -20,4 +20,5 @@
     <string name="addresses">Addresses</string>
 
     <string name="console">Console</string>
+    <string name="close_wallet">Close wallet</string>
 </resources>

@@ -7,9 +7,7 @@ import android.os.Bundle
 import android.support.v7.app.AlertDialog
 import android.support.v7.widget.DividerItemDecoration
 import android.support.v7.widget.LinearLayoutManager
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import android.widget.Toast
 import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.main.*
@@ -21,6 +19,7 @@ import org.electroncash.electroncash3.databinding.WalletsBinding
 class WalletsFragment : MainFragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setHasOptionsMenu(true)
         daemonModel.height.observe(this, Observer { height ->
             if (height != null) {
                 title.value = getString(R.string.online)
@@ -30,6 +29,26 @@ class WalletsFragment : MainFragment() {
                 subtitle.value = getString(R.string.cannot_send)
             }
         })
+        daemonModel.walletName.observe(this, Observer {
+            activity.invalidateOptionsMenu()
+        })
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu) {
+        menu.clear()
+        if (daemonModel.walletName.value != null) {
+            activity.menuInflater.inflate(R.menu.wallets, menu)
+        }
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.menuClose -> {
+                daemonModel.commands.callAttr("close_wallet")
+            }
+            else -> return false
+        }
+        return true
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
