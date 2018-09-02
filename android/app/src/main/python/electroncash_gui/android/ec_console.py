@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 from code import InteractiveConsole
 import os
-from os.path import join
+from os.path import exists, join
 
 from electroncash import commands, daemon, util, version
 from electroncash import main  # electron-cash script, renamed by build.gradle.
@@ -138,6 +138,9 @@ class AllCommands(commands.Commands):
 
     def create(self, name):
         """Create a new wallet interactively"""
+        path = self._wallet_path(name)
+        if exists(path):
+            raise FileExistsError(path)
         self._run_non_RPC({"cmd": "create", "wallet_path": self._wallet_path(name)})
 
     # TODO results in a file where storage.is_encrypted() is False, but
@@ -167,7 +170,10 @@ class AllCommands(commands.Commands):
 
     def delete_wallet(self, name):
         """Delete a wallet"""
-        raise NotImplementedError("TODO")
+        path = self._wallet_path(name)
+        if self.wallet and (path == self.wallet.storage.path):
+            self.close_wallet()
+        os.remove(path)
 
     # END commands which only exist here.
 

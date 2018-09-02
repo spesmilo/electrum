@@ -5,11 +5,16 @@
     <string name="cannot_send">Cannot send/receive new transactions</string>
     <string name="online">Online</string>
     <string name="height">Height</string>
+    <string name="close_wallet">Close wallet</string>
+    <string name="delete_wallet">Delete wallet</string>
     <string name="no_wallet">No wallet is open</string>
     <string name="amount">Amount</string>
     <string name="balance">Balance</string>
     <string name="send">Send</string>
     <string name="receive">Receive</string>
+
+    <string name="you_are">You are about to delete the wallet \'%s\'. Unless you have other
+        copies of this wallet or you wrote its seed down, you may lose funds!</string>
 
     <string name="password_required">Password required</string>
     <string name="password">Password</string>
@@ -20,5 +25,4 @@
     <string name="addresses">Addresses</string>
 
     <string name="console">Console</string>
-    <string name="close_wallet">Close wallet</string>
 </resources>

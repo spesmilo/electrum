@@ -1,5 +1,6 @@
 package org.electroncash.electroncash3
 
+import android.app.Dialog
 import android.arch.lifecycle.MutableLiveData
 import android.arch.lifecycle.Observer
 import android.arch.lifecycle.ViewModelProviders
@@ -7,6 +8,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.support.v4.app.DialogFragment
 import android.support.v4.app.Fragment
+import android.support.v7.app.AlertDialog
 import android.support.v7.app.AppCompatActivity
 import kotlinx.android.synthetic.main.main.*
 
@@ -93,4 +95,17 @@ open class MainFragment : Fragment() {
 open class MainDialogFragment : DialogFragment() {
     val mainActivity by lazy { activity as MainActivity }
     val daemonModel by lazy { mainActivity.daemonModel }
+}
+
+open class AlertDialogFragment : MainDialogFragment() {
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        val builder = AlertDialog.Builder(context)
+        onBuildDialog(builder)
+        val dialog = builder.create()
+        onPrepareDialog(dialog)
+        return dialog
+    }
+
+    open fun onBuildDialog(builder: AlertDialog.Builder) {}
+    open fun onPrepareDialog(dialog: AlertDialog) {}
 }

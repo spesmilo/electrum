@@ -43,9 +43,8 @@ class WalletsFragment : MainFragment() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            R.id.menuClose -> {
-                daemonModel.commands.callAttr("close_wallet")
-            }
+            R.id.menuDelete ->  showDialog(activity, DeleteWalletDialog())
+            R.id.menuClose ->  daemonModel.commands.callAttr("close_wallet")
             else -> return false
         }
         return true
@@ -61,7 +60,7 @@ class WalletsFragment : MainFragment() {
 
     override fun onViewCreated(view: View?, savedInstanceState: Bundle?) {
         walletPanel.setOnClickListener {
-            showDialog(mainActivity, SelectWalletDialog())
+            showDialog(activity, SelectWalletDialog())
         }
 
         with (rvTransactions) {
@@ -119,6 +118,19 @@ class SelectWalletDialog : MainDialogFragment(), DialogInterface.OnClickListener
         } else {
             // TODO showDialog(activity, NewWalletDialog())
         }
+    }
+}
+
+
+class DeleteWalletDialog : AlertDialogFragment() {
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        val walletName = daemonModel.walletName.value
+        builder.setTitle(R.string.delete_wallet)
+            .setMessage(getString(R.string.you_are, walletName))
+            .setPositiveButton(android.R.string.ok) { dialog, which ->
+                daemonModel.commands.callAttr("delete_wallet", walletName)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
     }
 }
 
