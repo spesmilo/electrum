@@ -521,7 +521,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("https://github.com/z-classic/electrum-zcl/")).setShortcut(QKeySequence.HelpContents)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
         help_menu.addSeparator()
-        help_menu.addAction(_("&Donate to server"), self.donate_to_server)
+        help_menu.addAction(_("Donate to &Zclassic"), self.donate_to_zcl)
+        help_menu.addAction(_("Donate to &server"), self.donate_to_server)
 
         self.setMenuBar(menubar)
 
@@ -532,6 +533,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.pay_to_URI('bitcoin:%s?message=donation for %s'%(d, host))
         else:
             self.show_error(_('No donation address for this server'))
+
+    def donate_to_zcl(self):
+        d = "t3eYEnoMmfUV65CZvPvV2mfAUnfFGoFbkJu"
+        host = ""
+        self.pay_to_URI('bitcoin:%s?message=support for Zclassic infrastructure and development %s'%(d, host))
 
     def show_about(self):
         QMessageBox.about(self, "Zclassic Electrum",
