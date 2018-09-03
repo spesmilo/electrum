@@ -1,3 +1,21 @@
+# Release 3.2.3 - (September 3, 2018)
+
+ * hardware wallet: the Safe-T mini from Archos is now supported.
+ * hardware wallet: the Coldcard from Coinkite is now supported.
+ * BIP39 seeds: if a seed extension (aka passphrase) contained
+   multiple consecutive whitespaces or leading/trailing whitespaces
+   then the derived addresses were not following spec. This has been
+   fixed, and affected should move their coins. The wizard will show a
+   warning in this case. (#4566)
+ * Revealer: the PRNG used has been changed (#4649)
+ * fix Linux distributables: 'typing' was not bundled, needed for python 3.4
+ * fix #4626: fix spending from segwit multisig wallets involving a Trezor
+   cosigner when using a custom derivation path
+ * fix #4491: on Android, if user had set "uBTC" as base unit, app crashed
+ * fix #4497: on Android, paying bip70 invoices from cold start did not work
+ * Several other minor bugfixes and usability improvements.
+
+
 # Release 3.2.2 - (July 2nd, 2018)
 
  * Fix DNS resolution on Windows
