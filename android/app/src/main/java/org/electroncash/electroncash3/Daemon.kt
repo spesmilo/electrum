@@ -4,7 +4,6 @@ import android.app.Application
 import android.arch.lifecycle.AndroidViewModel
 import android.arch.lifecycle.MutableLiveData
 import android.os.Handler
-import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import com.chaquo.python.Python
 
@@ -72,5 +71,25 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         handler.removeCallbacks(watchdog)
         commands.callAttr("stop")
+    }
+
+    // TODO remove once Chaquopy provides better syntax.
+    fun listWallets(): MutableList<String> {
+        val pyNames = commands.callAttr("list_wallets")
+        val names = ArrayList<String>()
+        for (i in 0 until pyNames.callAttr("__len__").toJava(Int::class.java)) {
+            val name = pyNames.callAttr("__getitem__", i).toString()
+            names.add(name)
+        }
+        return names
+    }
+
+    /** If the password is wrong, throws PyException with the type InvalidPassword. */
+    fun loadWallet(name: String, password: String?) {
+        val prevName = walletName.value
+        commands.callAttr("load_wallet", name, password)
+        if (prevName != null && prevName != name) {
+            commands.callAttr("close_wallet", prevName)
+        }
     }
 }

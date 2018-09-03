@@ -91,21 +91,24 @@ open class MainFragment : Fragment() {
     val subtitle = MutableLiveData<String>().apply { value = null }
 }
 
-// TODO remove duplication
-open class MainDialogFragment : DialogFragment() {
-    val mainActivity by lazy { activity as MainActivity }
+open class AlertDialogFragment : DialogFragment() {
+    // TODO remove duplication
+    val mainActivity by lazy {
+        activity as MainActivity
+    }
     val daemonModel by lazy { mainActivity.daemonModel }
-}
 
-open class AlertDialogFragment : MainDialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val builder = AlertDialog.Builder(context)
         onBuildDialog(builder)
         val dialog = builder.create()
-        onPrepareDialog(dialog)
+        dialog.setOnShowListener { onShowDialog(dialog) }
         return dialog
     }
 
     open fun onBuildDialog(builder: AlertDialog.Builder) {}
-    open fun onPrepareDialog(dialog: AlertDialog) {}
+
+    /** Can be used to do things like configure custom views, or attach listeners to buttons so
+     *  they don't always close the dialog. */
+    open fun onShowDialog(dialog: AlertDialog) {}
 }

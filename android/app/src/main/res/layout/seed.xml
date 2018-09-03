@@ -6,8 +6,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <EditText
-        android:id="@+id/etPassword"
+    <TextView
+        android:id="@+id/tvSeedLabel"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="24dp"
@@ -15,9 +15,18 @@
         android:layout_marginRight="24dp"
         android:layout_marginStart="24dp"
         android:layout_marginTop="8dp"
-        android:ems="10"
-        android:inputType="textPassword"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"/>
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="@string/please_enter"/>
+
+    <EditText
+        android:id="@+id/etSeed"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:inputType="textMultiLine"
+        app:layout_constraintEnd_toEndOf="@+id/tvSeedLabel"
+        app:layout_constraintStart_toStartOf="@+id/tvSeedLabel"
+        app:layout_constraintTop_toBottomOf="@+id/tvSeedLabel"
+        tools:text="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor"/>
 </android.support.constraint.ConstraintLayout>

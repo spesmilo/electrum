@@ -4,7 +4,7 @@ from code import InteractiveConsole
 import os
 from os.path import exists, join
 
-from electroncash import commands, daemon, util, version
+from electroncash import commands, daemon, keystore, util, version
 from electroncash import main  # electron-cash script, renamed by build.gradle.
 from electroncash.simple_config import SimpleConfig
 from electroncash.storage import WalletStorage
@@ -136,29 +136,25 @@ class AllCommands(commands.Commands):
             self.wallet = None
             self.network.notify("updated")
 
-    def create(self, name):
-        """Create a new wallet interactively"""
+    def create(self, name, password=None, seed=None):
+        """Create or restore a new wallet"""
         path = self._wallet_path(name)
         if exists(path):
             raise FileExistsError(path)
-        self._run_non_RPC({"cmd": "create", "wallet_path": self._wallet_path(name)})
+        storage = WalletStorage(path)
 
-    # TODO results in a file where storage.is_encrypted() is False, but
-    # storage.get("use_encryption") is True, and password is not required.
-    def restore(self, name, text):
-        """Restore a wallet from text. Text can be a seed phrase, a master
-        public key, a master private key, a list of bitcoin cash addresses
-        or bitcoin cash private keys."""
-        self._run_non_RPC({"cmd": "restore", "wallet_path": self._wallet_path(name),
-                           "text": text, "offline": True})
+        if seed is None:
+            seed = self.make_seed()
+            print("Your wallet generation seed is:\n\"%s\"" % seed)
+        storage.put('keystore', keystore.from_seed(seed, "", False).dump())
+        storage.put('wallet_type', 'standard')
+        wallet = Wallet(storage)
 
-    def _run_non_RPC(self, config_options):
-        try:
-            # 'cwd' is required by SimpleConfig.get_wallet_path.
-            main.run_non_RPC(SimpleConfig(dict(config_options, cwd=os.getcwd())))
-        except SystemExit as e:
-            if e.code:
-                raise Exception(f"{config_options['cmd']} failed: {e.code}")
+        if password is None:
+            password = main.prompt_password(
+                "Password (hit return if you do not wish to encrypt your wallet):")
+        wallet.update_password(None, password, True)
+        storage.write()
 
     # END commands from the argparse interface.
 

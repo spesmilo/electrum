@@ -1,6 +1,5 @@
 package org.electroncash.electroncash3
 
-import android.app.Dialog
 import android.arch.lifecycle.Observer
 import android.content.DialogInterface
 import android.os.Bundle
@@ -12,8 +11,9 @@ import android.widget.Toast
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import kotlinx.android.synthetic.main.main.*
+import kotlinx.android.synthetic.main.new_wallet.*
+import kotlinx.android.synthetic.main.seed.*
 import kotlinx.android.synthetic.main.wallets.*
-import kotlinx.android.synthetic.main.password.*
 import org.electroncash.electroncash3.databinding.WalletsBinding
 
 
@@ -87,25 +87,15 @@ class WalletsFragment : MainFragment() {
 
 
 // TODO integrate into Wallets screen like in the iOS app.
-class SelectWalletDialog : MainDialogFragment(), DialogInterface.OnClickListener {
-    val items = ArrayList<String>()
+class SelectWalletDialog : AlertDialogFragment(), DialogInterface.OnClickListener {
+    lateinit var items: MutableList<String>
 
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        var checkedItem = -1
-        val walletNames = daemonModel.commands.callAttr("list_wallets")
-        for (i in 0 until walletNames.callAttr("__len__").toJava(Int::class.java)) {
-            val name = walletNames.callAttr("__getitem__", i).toString()
-            items.add(name)
-            if (name == daemonModel.walletName.value) {
-                checkedItem = i
-            }
-        }
-        items.add(getString(R.string.new_restore))
-
-        return AlertDialog.Builder(context)
-            .setTitle(R.string.wallets)
-            .setSingleChoiceItems(items.toTypedArray(), checkedItem, this)
-            .create()
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        items = daemonModel.listWallets()
+        items.add(getString(R.string.new_wallet))
+        builder.setTitle(R.string.wallets)
+            .setSingleChoiceItems(items.toTypedArray(),
+                                  items.indexOf(daemonModel.walletName.value), this)
     }
 
     override fun onResume() {
@@ -122,10 +112,82 @@ class SelectWalletDialog : MainDialogFragment(), DialogInterface.OnClickListener
                 putString("walletName", items[which])
             }})
         } else {
-            // TODO showDialog(activity, NewWalletDialog())
+            showDialog(activity, NewWalletDialog())
         }
     }
 }
+
+
+class NewWalletDialog : AlertDialogFragment(), DialogInterface.OnClickListener {
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        builder.setTitle(R.string.new_wallet)
+            .setView(R.layout.new_wallet)
+            .setNegativeButton(R.string.create, null)
+            .setPositiveButton(R.string.restore, null)
+    }
+    override fun onShowDialog(dialog: AlertDialog) {
+        for (which in listOf(AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_POSITIVE)) {
+            dialog.getButton(which).setOnClickListener { onClick(dialog, which) }
+        }
+    }
+
+    override fun onClick(di: DialogInterface, which: Int) {
+        try {
+            val name = dialog.etName.text.toString()
+            if (name.isEmpty()) throw ToastException(R.string.name_is)
+            if (name.contains("/")) throw ToastException(R.string.invalid_name)
+            if (daemonModel.listWallets().contains(name)) throw ToastException(R.string.a_wallet)
+
+            val password = dialog.etPassword.text.toString()
+            if (password.isEmpty()) throw ToastException(R.string.password_required)
+            if (password != dialog.etConfirmPassword.text.toString()) {
+                throw ToastException(R.string.wallet_passwords)
+            }
+
+            // Can't put this within the lambda or daemonModel will be found in NewSeedDialog
+            // and return null.
+            // TODO: select seed language.
+            val seed = if (which == AlertDialog.BUTTON_NEGATIVE)
+                       daemonModel.commands.callAttr("make_seed").toString()
+                       else null
+            showDialog(activity, NewSeedDialog().apply { arguments = Bundle().apply {
+                putString("name", name)
+                putString("password", password)
+                putString("seed", seed)
+            }})
+            dismiss()
+        } catch (e: ToastException) {
+            toast(e.message!!, Toast.LENGTH_LONG)
+        }
+    }
+}
+
+class NewSeedDialog : SeedDialog() {
+    override fun onShowDialog(dialog: AlertDialog) {
+        super.onShowDialog(dialog)
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            try {
+                val name = arguments.getString("name")
+                val password = arguments.getString("password")
+                val seed = dialog.etSeed.text.toString()
+                try {
+                    daemonModel.commands.callAttr("create", name, password, seed)
+                } catch (e: PyException) {
+                    if (e.message!!.startsWith("BaseException")) {  // See keystore.from_seed
+                        throw ToastException(R.string.the_seed)
+                    }
+                    throw e
+                }
+                dismiss()
+                daemonModel.loadWallet(name, password)
+            } catch (e: ToastException) {
+                toast(e.message!!, Toast.LENGTH_LONG)
+            }
+        }
+    }
+}
+
+class ToastException(resId: Int) : Exception(App.context.getString(resId))
 
 
 class DeleteWalletDialog : AlertDialogFragment() {
@@ -141,7 +203,6 @@ class DeleteWalletDialog : AlertDialogFragment() {
 }
 
 
-// TODO: keyboard should open automatically
 abstract class PasswordDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.password_required)
@@ -149,15 +210,12 @@ abstract class PasswordDialog : AlertDialogFragment() {
             .setPositiveButton(android.R.string.ok, null)
             .setNegativeButton(android.R.string.cancel, null)
     }
-
-    override fun onPrepareDialog(dialog: AlertDialog) {
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                if (!tryPassword(dialog.etPassword.text.toString())) {
-                    toast(R.string.password_incorrect, Toast.LENGTH_SHORT)
-                } else {
-                    dismiss()
-                }
+    override fun onShowDialog(dialog: AlertDialog) {
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            if (!tryPassword(dialog.etPassword.text.toString())) {
+                toast(R.string.password_incorrect, Toast.LENGTH_SHORT)
+            } else {
+                dismiss()
             }
         }
     }
@@ -191,12 +249,7 @@ abstract class PasswordDialog : AlertDialogFragment() {
 
 class OpenWalletDialog: PasswordDialog() {
     override fun onPassword(password: String?) {
-        val name = arguments.getString("walletName")
-        val prevName = daemonModel.walletName.value
-        daemonModel.commands.callAttr("load_wallet", name, password)
-        if (prevName != null && prevName != name) {
-            daemonModel.commands.callAttr("close_wallet", prevName)
-        }
+        daemonModel.loadWallet(arguments.getString("walletName"), password)
     }
 }
 
@@ -208,18 +261,28 @@ class ShowSeedPasswordDialog : PasswordDialog() {
             // get_seed(None) doesn't throw an exception, but returns the encrypted base64 seed.
             throw PyException("InvalidPassword")
         }
-        showDialog(activity, ShowSeedDialog().apply { arguments = Bundle().apply {
+        showDialog(activity, SeedDialog().apply { arguments = Bundle().apply {
             putString("seed", seed)
         }})
     }
 }
 
-class ShowSeedDialog : AlertDialogFragment() {
+open class SeedDialog : AlertDialogFragment() {
     override fun onBuildDialog(builder: AlertDialog.Builder) {
-        val seed = arguments.getString("seed")
         builder.setTitle(R.string.wallet_seed)
-            .setMessage(seedAdvice(seed) + "\n\n" + seed)
+            .setView(R.layout.seed)
             .setPositiveButton(android.R.string.ok, null)
+    }
+
+    override fun onShowDialog(dialog: AlertDialog) {
+        val seed = arguments.getString("seed")
+        if (seed == null) {
+            dialog.tvSeedLabel.setText(R.string.please_enter)
+        } else {
+            dialog.tvSeedLabel.setText(seedAdvice(seed))
+            dialog.etSeed.setText(seed)
+            dialog.etSeed.setFocusable(false)
+        }
     }
 }
 

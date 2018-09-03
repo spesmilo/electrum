@@ -1,4 +1,5 @@
-<!-- TODO: generate these from the gettext files -->
+<!-- TODO: generate these from the gettext files and add translations. Call to make_seed should
+    also be localized. -->
 <resources>
     <string name="wallets">Wallets</string>
     <string name="offline">Offline</string>
@@ -11,13 +12,28 @@
     <string name="balance">Balance</string>
     <string name="send">Send</string>
     <string name="receive">Receive</string>
-    
+
+    <string name="new_wallet">New wallet</string>
+    <string name="wallet_name">Wallet name</string>
+    <string name="do_you">Do you want to create a new seed, or to restore a wallet using an
+        existing seed?</string>
+    <string name="create">Create</string>
+    <string name="restore">Restore</string>
+    <string name="name_is">Name is empty</string>
+    <string name="invalid_name">Invalid name, please try again.</string>
+    <string name="a_wallet">A wallet with that name already exists, please try again.</string>
+    <string name="wallet_passwords">Wallet passwords do not match. Please confirm the password
+        you wish to set for your wallet by entering the same password twice.</string>
+
     <string name="show_seed">Show seed</string>
     <string name="wallet_seed">Wallet seed</string>
     <string name="please_save">Please save these %d words on paper (order is important).</string>
     <string name="this_seed">This seed will allow you to recover your wallet in case of computer
         failure.</string>
     <string name="never_disclose">Never disclose your seed.</string>
+    <string name="please_enter">Please enter your seed phrase in order to restore your
+        wallet.</string>
+    <string name="the_seed">The seed you entered does not appear to be a valid wallet seed.</string>
 
     <string name="delete_wallet">Delete wallet</string>
     <string name="you_are">You are about to delete the wallet \'%s\'. Unless you have other
@@ -25,9 +41,8 @@
 
     <string name="password_required">Password required</string>
     <string name="password">Password</string>
+    <string name="confirm_password">Confirm password</string>
     <string name="password_incorrect">Password incorrect</string>
-
-    <string name="new_restore">New/Restore</string>
 
     <string name="addresses">Addresses</string>
 
