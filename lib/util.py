@@ -432,7 +432,7 @@ def time_difference(distance_in_time, include_seconds):
 
 # For raw json, append /insight-api-zcash
 mainnet_block_explorers = {
-    'zclele.duckdns.org:3001': ('http://zclele.duckdns.org:3001',
+    'zclbex.duckdns.org:3001': ('http://zclbex.duckdns.org:3001',
                         {'tx': 'tx', 'addr': 'address'}),
     'zclassic-ce.io': ('http://zclassic-ce.io',
                         {'tx': 'tx', 'addr': 'address'}),
