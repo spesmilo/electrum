@@ -204,30 +204,26 @@ class Interface(PrintError):
     @aiosafe
     async def run_fetch_blocks(self, sub_reply, replies, conniface):
         async with self.network.bhi_lock:
-            bhi = BlockHeaderInterface(conniface, sub_reply['height'], self.blockchain.height()+1, self)
+            bhi = BlockHeaderInterface(conniface, self.blockchain.height()+1, self)
             await replies.put(blockchain.deserialize_header(bfh(sub_reply['hex']), sub_reply['height']))
-            self.print_error("checking if catched up {}-1 > {}, tip {}".format(sub_reply['height'], self.blockchain.height(), bhi.tip))
-            if sub_reply['height']-1 > self.blockchain.height():
-                last_status = await bhi.sync_until()
-                assert last_status == 'catchup', last_status
-                assert self.blockchain.height()+1 == bhi.height, (self.blockchain.height(), bhi.height)
 
         while True:
             self.network.notify('updated')
             item = await replies.get()
             async with self.network.bhi_lock:
+                if self.blockchain.height()-1 < item['block_height']:
+                    await bhi.sync_until()
                 if self.blockchain.height() >= bhi.height and self.blockchain.check_header(item):
                     # another interface amended the blockchain
                     self.print_error("SKIPPING HEADER", bhi.height)
                     continue
-                if bhi.tip < bhi.height:
-                    bhi.height = bhi.tip
+                if self.tip < bhi.height:
+                    bhi.height = self.tip
                 await bhi.step(item)
-                bhi.tip = max(bhi.height, bhi.tip)
+                self.tip = max(bhi.height, self.tip)
 
 class BlockHeaderInterface(PrintError):
-    def __init__(self, conn, tip, height, iface):
-        self.tip = tip
+    def __init__(self, conn, height, iface):
         self.height = height
         self.conn = conn
         self.iface = iface
@@ -237,31 +233,33 @@ class BlockHeaderInterface(PrintError):
 
     async def sync_until(self, next_height=None):
         if next_height is None:
-            next_height = self.tip
+            next_height = self.iface.tip
         last = None
         while last is None or self.height < next_height:
             if next_height > self.height + 10:
                 could_connect, num_headers = await self.conn.request_chunk(self.height, next_height)
-                self.tip = max(self.height + num_headers, self.tip)
+                self.iface.tip = max(self.height + num_headers, self.iface.tip)
                 if not could_connect:
                     if self.height <= self.iface.network.max_checkpoint():
                         raise Exception('server chain conflicts with checkpoints or genesis')
                     last = await self.step()
-                    self.tip = max(self.height, self.tip)
+                    self.iface.tip = max(self.height, self.iface.tip)
                     continue
                 self.height = (self.height // 2016 * 2016) + num_headers
                 if self.height > next_height:
-                    assert False, (self.height, self.tip)
+                    assert False, (self.height, self.iface.tip)
                 last = 'catchup'
             else:
                 last = await self.step()
-                self.tip = max(self.height, self.tip)
+                self.iface.tip = max(self.height, self.iface.tip)
         return last
 
     async def step(self, header=None):
         assert self.height != 0
         if header is None:
             header = await self.conn.get_block_header(self.height, 'catchup')
+        chain = self.iface.blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+        if chain: return 'catchup'
         can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](self)
 
         bad_header = None
@@ -284,8 +282,8 @@ class BlockHeaderInterface(PrintError):
             while not chain and not can_connect:
                 bad = self.height
                 bad_header = header
-                delta = self.tip - self.height
-                next_height = self.tip - 2 * delta
+                delta = self.iface.tip - self.height
+                next_height = self.iface.tip - 2 * delta
                 checkp = False
                 if next_height <= self.iface.network.max_checkpoint():
                     next_height = self.iface.network.max_checkpoint() + 1
@@ -305,7 +303,7 @@ class BlockHeaderInterface(PrintError):
             if type(can_connect) is bool:
                 # mock
                 self.height += 1
-                if self.height > self.tip:
+                if self.height > self.iface.tip:
                     assert False
                 return 'catchup'
             self.iface.blockchain = can_connect
@@ -360,7 +358,7 @@ class BlockHeaderInterface(PrintError):
                     return 'join'
                 else:
                     if ismocking and branch['parent']['check'](header) or not ismocking and branch.parent().check_header(header):
-                        self.print_error('reorg', bad, self.tip)
+                        self.print_error('reorg', bad, self.iface.tip)
                         self.iface.blockchain = branch.parent() if not ismocking else branch['parent']
                         self.height = bad
                         header = await self.conn.get_block_header(self.height, 'binary')
@@ -394,7 +392,7 @@ class BlockHeaderInterface(PrintError):
                     return 'fork'
                 else:
                     assert bh == good
-                    if bh < self.tip:
+                    if bh < self.iface.tip:
                         self.print_error("catching up from %d"% (bh + 1))
                         self.height = bh + 1
                     return 'no_fork'

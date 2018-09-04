@@ -30,6 +30,7 @@ class TestNetwork(unittest.TestCase):
         class FakeIface:
             blockchain = b
             network = FakeNetwork
+            tip = 12
         return FakeIface
 
     def test_new_fork(self):
@@ -43,7 +44,7 @@ class TestNetwork(unittest.TestCase):
         conn.q.put_nowait({'block_height': 4, 'mock': {'binary':1,'check':lambda x: True, 'connect': lambda x: True}})
         conn.q.put_nowait({'block_height': 5, 'mock': {'binary':1,'check':lambda x: True, 'connect': lambda x: True}})
         conn.q.put_nowait({'block_height': 6, 'mock': {'binary':1,'check':lambda x: True, 'connect': lambda x: True}})
-        ifa = BlockHeaderInterface(conn, 12, 8, self.blockchain_iface_pair())
+        ifa = BlockHeaderInterface(conn, 8, self.blockchain_iface_pair())
         self.assertEqual('fork', asyncio.get_event_loop().run_until_complete(ifa.sync_until(next_height=8)))
         self.assertEqual(conn.q.qsize(), 0)
 
@@ -57,7 +58,7 @@ class TestNetwork(unittest.TestCase):
         conn.q.put_nowait({'block_height': 2, 'mock': {'backward':1, 'check': lambda x: False, 'connect': mock_connect, 'fork': self.mock_fork}})
         conn.q.put_nowait({'block_height': 3, 'mock': {'catchup':1, 'check': lambda x: False, 'connect': lambda x: True}})
         conn.q.put_nowait({'block_height': 4, 'mock': {'catchup':1, 'check': lambda x: False, 'connect': lambda x: True}})
-        ifa = BlockHeaderInterface(conn, 12, 8, self.blockchain_iface_pair())
+        ifa = BlockHeaderInterface(conn, 8, self.blockchain_iface_pair())
         self.assertEqual('catchup', asyncio.get_event_loop().run_until_complete(ifa.sync_until(next_height=5)))
         self.assertEqual(conn.q.qsize(), 0)
 
@@ -73,9 +74,9 @@ class TestNetwork(unittest.TestCase):
         conn.q.put_nowait({'block_height': 2, 'mock': {'backward':1, 'check': lambda x: True,  'connect': mock_connect}})
         conn.q.put_nowait({'block_height': 4, 'mock': {'binary':1, 'check': lambda x: False, 'fork': self.mock_fork, 'connect': mock_connect}})
         conn.q.put_nowait({'block_height': 3, 'mock': {'binary':1, 'check': lambda x: True, 'connect': lambda x: True}})
-        conn.q.put_nowait({'block_height': 5, 'mock': {'catchup':1, 'check': lambda x: True, 'connect': lambda x: True}})
-        conn.q.put_nowait({'block_height': 6, 'mock': {'catchup':1, 'check': lambda x: True, 'connect': lambda x: True}})
-        ifa = BlockHeaderInterface(conn, 12, 8, self.blockchain_iface_pair(1000))
+        conn.q.put_nowait({'block_height': 5, 'mock': {'catchup':1, 'check': lambda x: False, 'connect': lambda x: True}})
+        conn.q.put_nowait({'block_height': 6, 'mock': {'catchup':1, 'check': lambda x: False, 'connect': lambda x: True}})
+        ifa = BlockHeaderInterface(conn, 8, self.blockchain_iface_pair(1000))
         self.assertEqual('catchup', asyncio.get_event_loop().run_until_complete(ifa.sync_until(next_height=7)))
         self.assertEqual(conn.q.qsize(), 0)
 
@@ -88,7 +89,7 @@ class TestNetwork(unittest.TestCase):
         conn.q.put_nowait({'block_height': 4, 'mock': {'binary':1, 'check': lambda x: True, 'connect': lambda x: False}})
         conn.q.put_nowait({'block_height': 5, 'mock': {'binary':1, 'check': lambda x: True, 'connect': lambda x: False}})
         conn.q.put_nowait({'block_height': 6, 'mock': {'binary':1, 'check': lambda x: True, 'connect': lambda x: True}})
-        ifa = BlockHeaderInterface(conn, 12, 8, self.blockchain_iface_pair())
+        ifa = BlockHeaderInterface(conn, 8, self.blockchain_iface_pair())
         self.assertEqual('join', asyncio.get_event_loop().run_until_complete(ifa.sync_until(next_height=7)))
         self.assertEqual(conn.q.qsize(), 0)
 
@@ -108,7 +109,7 @@ class TestNetwork(unittest.TestCase):
         conn.q.put_nowait({'block_height': 5, 'mock': {'binary':1, 'check': lambda x: 1, 'connect': lambda x: False}})
         conn.q.put_nowait({'block_height': 6, 'mock': {'binary':1, 'check': lambda x: 1, 'connect': lambda x: True}})
         conn.q.put_nowait({'block_height': 7, 'mock': {'binary':1, 'check': lambda x: False, 'connect': lambda x: True}})
-        ifa = BlockHeaderInterface(conn, 12, 8, self.blockchain_iface_pair())
+        ifa = BlockHeaderInterface(conn, 8, self.blockchain_iface_pair())
         self.assertEqual('join', asyncio.get_event_loop().run_until_complete(ifa.sync_until(next_height=8)))
         self.assertEqual(conn.q.qsize(), 0)
         self.assertEqual(times, 2)
