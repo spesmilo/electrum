@@ -82,8 +82,15 @@ class OceanRegtest(OceanMainnet):
 
     TESTNET = True
     WIF_PREFIX = 0xef
-    ADDRTYPE_P2PKH = 235
-    ADDRTYPE_P2SH = 75
+
+    # From Ocean but never used
+    #ADDRTYPE_P2PKH = 235
+    #ADDRTYPE_P2SH = 75
+
+    # Prefixes that were used for test_wallet_vertical.py case generation
+    ADDRTYPE_P2PKH = 111
+    ADDRTYPE_P2SH = 196
+
     SEGWIT_HRP = "tb"
     GENESIS = ""
     DEFAULT_PORTS = {'t': '51001', 's': '51002'}
