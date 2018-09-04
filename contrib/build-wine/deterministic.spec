@@ -36,7 +36,8 @@ datas = [
     (home+'electrum/*.json', 'electrum'),
     (home+'electrum/wordlist/english.txt', 'electrum/wordlist'),
     (home+'electrum/locale', 'electrum/locale'),
-    ('C:\\Program Files (x86)\\ZBar\\bin\\', '.')
+    (home+'electrum/plugins', 'electrum/plugins'),
+    ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')
