@@ -74,10 +74,11 @@ def _find_system_cameras():
     devices = {} # Name -> device
     if os.path.exists(device_root):
         for device in os.listdir(device_root):
+            path = os.path.join(device_root, device, 'name')
             try:
-                with open(os.path.join(device_root, device, 'name')) as f:
+                with open(path, encoding='utf-8') as f:
                     name = f.read()
-            except IOError:
+            except Exception:
                 continue
             name = name.strip('\n')
             devices[name] = os.path.join("/dev", device)

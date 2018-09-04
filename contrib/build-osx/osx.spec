@@ -30,9 +30,10 @@ hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
 
 datas = [
-    (electrum+'electrum_ltc/*.json', PYPKG),
-    (electrum+'electrum_ltc/wordlist/english.txt', PYPKG + '/wordlist'),
-    (electrum+'electrum_ltc/locale', PYPKG + '/locale')
+    (electrum + PYPKG + '/*.json', PYPKG),
+    (electrum + PYPKG + '/wordlist/english.txt', PYPKG + '/wordlist'),
+    (electrum + PYPKG + '/locale', PYPKG + '/locale'),
+    (electrum + PYPKG + '/plugins', PYPKG + '/plugins'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')
