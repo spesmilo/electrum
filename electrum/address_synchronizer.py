@@ -112,7 +112,7 @@ class AddressSynchronizer(PrintError):
         prevout_n = txi.get('prevout_n')
         dd = self.txo.get(prevout_hash, {})
         for addr, l in dd.items():
-            for n, v, is_cb in l:
+            for n, v, a, is_cb in l:
                 if n == prevout_n:
                     return addr
         return None
@@ -245,12 +245,12 @@ class AddressSynchronizer(PrintError):
                 # note: this nested loop takes linear time in num is_mine outputs of prev_tx
                 for addr, outputs in dd.items():
                     # note: instead of [(n, v, is_cb), ...]; we could store: {n -> (v, is_cb)}
-                    for n, v, is_cb in outputs:
+                    for n, v, a, is_cb in outputs:
                         if n == prevout_n:
                             if addr and self.is_mine(addr):
                                 if d.get(addr) is None:
                                     d[addr] = set()
-                                d[addr].add((ser, v))
+                                d[addr].add((ser, v, a))
                             return
             self.txi[tx_hash] = d = {}
             for txi in tx.inputs():
@@ -265,20 +265,21 @@ class AddressSynchronizer(PrintError):
             self.txo[tx_hash] = d = {}
             for n, txo in enumerate(tx.outputs()):
                 v = txo[2]
+                a = txo[4]
                 ser = tx_hash + ':%d'%n
                 addr = self.get_txout_address(txo)
                 if addr and self.is_mine(addr):
                     if d.get(addr) is None:
                         d[addr] = []
-                    d[addr].append((n, v, is_coinbase))
+                    d[addr].append((n, v, a, is_coinbase))
                     # give v to txi that spends me
                     next_tx = self.spent_outpoints[tx_hash].get(n)
                     if next_tx is not None:
                         dd = self.txi.get(next_tx, {})
                         if dd.get(addr) is None:
                             dd[addr] = set()
-                        if (ser, v) not in dd[addr]:
-                            dd[addr].add((ser, v))
+                        if (ser, v, a) not in dd[addr]:
+                            dd[addr].add((ser, v, a))
                         self._add_tx_to_local_history(next_tx)
             # add to local history
             self._add_tx_to_local_history(tx_hash)
@@ -618,11 +619,11 @@ class AddressSynchronizer(PrintError):
         delta = 0
         # substract the value of coins sent from address
         d = self.txi.get(tx_hash, {}).get(address, [])
-        for n, v in d:
+        for n, v, a in d:
             delta -= v
         # add the value of the coins received at address
         d = self.txo.get(tx_hash, {}).get(address, [])
-        for n, v, cb in d:
+        for n, v, a, cb in d:
             delta += v
         return delta
 
@@ -630,10 +631,10 @@ class AddressSynchronizer(PrintError):
         " effect of tx on the entire domain"
         delta = 0
         for addr, d in self.txi.get(txid, {}).items():
-            for n, v in d:
+            for n, v, a in d:
                 delta -= v
         for addr, d in self.txo.get(txid, {}).items():
-            for n, v, cb in d:
+            for n, v, a, cb in d:
                 delta += v
         return delta
 
@@ -650,7 +651,7 @@ class AddressSynchronizer(PrintError):
                 is_mine = True
                 is_relevant = True
                 d = self.txo.get(txin['prevout_hash'], {}).get(addr, [])
-                for n, v, cb in d:
+                for n, v, a, cb in d:
                     if n == txin['prevout_n']:
                         value = v
                         break
@@ -695,11 +696,11 @@ class AddressSynchronizer(PrintError):
         sent = {}
         for tx_hash, height in h:
             l = self.txo.get(tx_hash, {}).get(address, [])
-            for n, v, is_cb in l:
-                received[tx_hash + ':%d'%n] = (height, v, is_cb)
+            for n, v, a, is_cb in l:
+                received[tx_hash + ':%d'%n] = (height, v, a, is_cb)
         for tx_hash, height in h:
             l = self.txi.get(tx_hash, {}).get(address, [])
-            for txi, v in l:
+            for txi, v, a in l:
                 sent[txi] = height
         return received, sent
 
@@ -709,15 +710,17 @@ class AddressSynchronizer(PrintError):
             coins.pop(txi)
         out = {}
         for txo, v in coins.items():
-            tx_height, value, is_cb = v
+            tx_height, value, asset, is_cb = v
             prevout_hash, prevout_n = txo.split(':')
             x = {
                 'address':address,
                 'value':value,
+                'asset': asset,
                 'prevout_n':int(prevout_n),
                 'prevout_hash':prevout_hash,
                 'height':tx_height,
-                'coinbase':is_cb
+                'coinbase':is_cb,
+                'issuance': None
             }
             out[txo] = x
         return out
@@ -725,7 +728,7 @@ class AddressSynchronizer(PrintError):
     # return the total amount ever received by an address
     def get_addr_received(self, address):
         received, sent = self.get_addr_io(address)
-        return sum([v for height, v, is_cb in received.values()])
+        return sum([v for height, v, a, is_cb in received.values()])
 
     @with_local_height_cached
     def get_addr_balance(self, address):
@@ -735,7 +738,7 @@ class AddressSynchronizer(PrintError):
         received, sent = self.get_addr_io(address)
         c = u = x = 0
         local_height = self.get_local_height()
-        for txo, (tx_height, v, is_cb) in received.items():
+        for txo, (tx_height, v, a, is_cb) in received.items():
             if is_cb and tx_height + COINBASE_MATURITY > local_height:
                 x += v
             elif tx_height > 0:

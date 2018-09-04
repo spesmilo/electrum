@@ -26,7 +26,7 @@ from collections import defaultdict, namedtuple
 from math import floor, log10
 
 from .bitcoin import sha256, COIN, TYPE_ADDRESS, is_address
-from .transaction import Transaction, TxOutput
+from .transaction import Transaction, TxOutput, TYPE_SCRIPT
 from .util import NotEnoughFunds, PrintError
 
 
@@ -237,7 +237,16 @@ class CoinChooserBase(PrintError):
         buckets = self.choose_buckets(buckets, sufficient_funds,
                                       self.penalty_func(tx))
 
-        tx.add_inputs([coin for b in buckets for coin in b.coins])
+        # hacky and temporary
+        # assumes that we are only transacting in the chain pegged asset
+        # thus assigning the same asset id to all outputs and sends the
+        # fee on the same asset id as the pegged asset
+        inputs = [coin for b in buckets for coin in b.coins]
+        asset = inputs[0]['asset']
+
+        outputs_with_assetid = [TxOutput(o.type, o.address, o.value, o.vvalue, asset, 1) for o in outputs]
+
+        tx = Transaction.from_io(inputs[:], outputs_with_assetid[:])
         tx_weight = get_tx_weight(buckets)
 
         # change is sent back to sending address unless specified
@@ -251,7 +260,11 @@ class CoinChooserBase(PrintError):
         output_weight = 4 * Transaction.estimated_output_size(change_addrs[0])
         fee = lambda count: fee_estimator_w(tx_weight + count * output_weight)
         change = self.change_outputs(tx, change_addrs, fee, dust_threshold)
-        tx.add_outputs(change)
+
+        tx.add_outputs([TxOutput(o.type, o.address, o.value, o.vvalue, asset, 1) for o in change])
+
+        # Add an output for fees as it is currently required in the Ocean client
+        tx.add_outputs([TxOutput(TYPE_SCRIPT, '', tx.get_fee(), 1, asset, 1)])
 
         self.print_error("using %d inputs" % len(tx.inputs()))
         self.print_error("using buckets:", [bucket.desc for bucket in buckets])

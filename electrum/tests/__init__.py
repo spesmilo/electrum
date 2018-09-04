@@ -30,7 +30,7 @@ class TestCaseForTestnet(SequentialTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        constants.set_testnet()
+        constants.set_regtest()
 
     @classmethod
     def tearDownClass(cls):

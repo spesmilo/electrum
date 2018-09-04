@@ -371,7 +371,9 @@ class Test_bitcoin(SequentialTestCase):
         self.assertEqual(address_to_script('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), 'a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487')
         self.assertEqual(address_to_script('3PyjzJ3im7f7bcV724GR57edKDqoZvH7Ji'), 'a914f47c8954e421031ad04ecd8e7752c9479206b9d387')
 
-
+'''
+# Disabled since Ocean testnet/regtest different to Bitcoin
+# and is not really required testing these here since mainnet passes
 class Test_bitcoin_testnet(TestCaseForTestnet):
 
     def test_address_to_script(self):
@@ -387,7 +389,7 @@ class Test_bitcoin_testnet(TestCaseForTestnet):
         # base58 P2SH
         self.assertEqual(address_to_script('2N3LSvr3hv5EVdfcrxg2Yzecf3SRvqyBE4p'), 'a9146eae23d8c4a941316017946fc761a7a6c85561fb87')
         self.assertEqual(address_to_script('2NE4ZdmxFmUgwu5wtfoN2gVniyMgRDYq1kk'), 'a914e4567743d378957cd2ee7072da74b1203c1a7a0b87')
-
+'''
 
 class Test_xprv_xpub(SequentialTestCase):
 
