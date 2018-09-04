@@ -597,8 +597,15 @@ class Abstract_Wallet(AddressSynchronizer):
             amount = sendable - tx.output_value() - fee
             if amount < 0:
                 raise NotEnoughFunds()
+
+            # add asset information to output
+            asset = inputs[0]['asset']
             outputs[i_max] = outputs[i_max]._replace(value=amount)
-            tx = Transaction.from_io(inputs, outputs[:])
+            outputs_with_assetid = [TxOutput(o.type, o.address, o.value, o.vvalue, asset, 1) for o in outputs]
+
+            # add fee output
+            tx = Transaction.from_io(inputs, outputs_with_assetid[:])
+            tx.add_outputs([TxOutput(TYPE_SCRIPT, '', tx.get_fee(), 1, asset, 1)])
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
@@ -737,7 +744,7 @@ class Abstract_Wallet(AddressSynchronizer):
             if txin.get('value') is None and Transaction.is_input_value_needed(txin):
                 received, spent = self.get_addr_io(address)
                 item = received.get(txin['prevout_hash']+':%d'%txin['prevout_n'])
-                tx_height, value, is_cb = item
+                tx_height, value, asset, is_cb = item
                 txin['value'] = value
             self.add_input_sig_info(txin, address)
 
@@ -837,14 +844,14 @@ class Abstract_Wallet(AddressSynchronizer):
         received, sent = self.get_addr_io(address)
         l = []
         for txo, x in received.items():
-            h, v, is_cb = x
+            h, v, a, is_cb = x
             txid, n = txo.split(':')
             info = self.verified_tx.get(txid)
             if info:
                 conf = local_height - info.height
             else:
                 conf = 0
-            l.append((conf, v))
+            l.append((conf, v, a))
         vsum = 0
         for conf, v in reversed(sorted(l)):
             vsum += v

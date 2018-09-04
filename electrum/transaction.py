@@ -607,7 +607,7 @@ def deserialize(raw: str, force_full_parse=False) -> dict:
     d['version'] = vds.read_int32()
     flag = vds.read_bytes(1)[0]
     is_segwit = flag & 1
-    d['segwit_ser'] = is_segwit
+    d['segwit_ser'] = (is_segwit == 1)
 
     n_vin = vds.read_compact_size()
     d['inputs'] = [parse_input(vds, full_parse=full_parse) for i in range(n_vin)]
@@ -975,7 +975,7 @@ class Transaction:
             return bh2u(bfh(txin['prevout_hash'])[::-1]) + int_to_hex(txin['prevout_n'], 4)
         else:
             prevout = txin['prevout_n'] & OUTPOINT_INDEX_MASK
-            if txin['issuance'] is not None:
+            if 'issuance' in txin and txin['issuance'] is not None:
                 prevout |= OUTPOINT_ISSUANCE_FLAG
             return bh2u(bfh(txin['prevout_hash'])[::-1]) + int_to_hex(prevout, 4)
 
@@ -997,7 +997,7 @@ class Transaction:
         s += int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
 
         # Might never be the case in electrum
-        if txin['issuance'] is not None:
+        if 'issuance' in txin and txin['issuance'] is not None:
             s += bh2u(txin['issuance']['issuance_nonce'])
             s += bh2u(txin['issuance']['issuance_entropy'])
 
@@ -1019,7 +1019,8 @@ class Transaction:
     def BIP_LI01_sort(self):
         # See https://github.com/kristovatlas/rfc/blob/master/bips/bip-li01.mediawiki
         self._inputs.sort(key = lambda i: (i['prevout_hash'], i['prevout_n']))
-        self._outputs.sort(key = lambda o: (o[2], self.pay_script(o[0], o[1])))
+        # leave the fee output last always
+        self._outputs[::-1].sort(key = lambda o: (o[2], self.pay_script(o[0], o[1])))
 
     def serialize_output(self, output):
         s = int_to_hex(output.vasset, 1)
@@ -1047,7 +1048,6 @@ class Transaction:
         outputs = self.outputs()
         txin = inputs[i]
         # TODO: py3 hex
-        # NEED TO REVISIT THIS - CURRENTLY CAN'T CREATE WITNESS TXs
         if self.is_segwit_input(txin):
             hashPrevouts = bh2u(Hash(bfh(''.join(self.serialize_outpoint(txin) for txin in inputs))))
             hashSequence = bh2u(Hash(bfh(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs))))
@@ -1061,7 +1061,7 @@ class Transaction:
         else:
             txins = var_int(len(inputs)) + ''.join(self.serialize_input(txin, self.get_preimage_script(txin) if i==k else '') for k, txin in enumerate(inputs))
             txouts = var_int(len(outputs)) + ''.join(self.serialize_output(o) for o in outputs)
-            preimage = nVersion + '00' + txins + txouts + nLocktime + nHashType
+            preimage = nVersion + txins + txouts + nLocktime + nHashType
         return preimage
 
     def is_segwit(self, guess_for_address=False):
@@ -1125,13 +1125,20 @@ class Transaction:
         return sum(x['value'] for x in self.inputs())
 
     def output_value(self):
-        return sum(val for tp, addr, val in self.outputs())
+        return sum(output.value for output in self.outputs())
 
     def get_fee(self):
+        # Ocean fee is an empty script vout
+        # TO FIX: Future fees will be payed to the federation
+        for o in self.outputs():
+            if o.type == TYPE_SCRIPT and o.address == '':
+                return o.value
+        # if fee output has not been added it will return
+        # the original fee sum of input - sum of output value
         return self.input_value() - self.output_value()
 
     def is_final(self):
-        return not any([x.get('sequence', 0xffffffff - 1) < 0xffffffff - 1 for x in self.inputs()])
+        return not any([x.get('sequence', 0xffffffff - 1) < 0xffffffff - 2 for x in self.inputs()])
 
     @profiler
     def estimated_size(self):
