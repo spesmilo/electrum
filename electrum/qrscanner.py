@@ -75,7 +75,7 @@ def _find_system_cameras():
     if os.path.exists(device_root):
         for device in os.listdir(device_root):
             try:
-                with open(os.path.join(device_root, device, 'name')) as f:
+                with open(os.path.join(device_root, device, 'name'), encoding='utf-8') as f:
                     name = f.read()
             except IOError:
                 continue
