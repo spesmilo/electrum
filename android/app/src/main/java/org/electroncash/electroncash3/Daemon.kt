@@ -4,23 +4,25 @@ import android.app.Application
 import android.arch.lifecycle.AndroidViewModel
 import android.arch.lifecycle.MutableLiveData
 import android.os.Handler
+import com.chaquo.python.Kwarg
+import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import com.chaquo.python.Python
 
 
 val WATCHDOG_INTERVAL = 1000L
 val py = Python.getInstance()
-val daemonMod =  py.getModule("electroncash_gui.android.daemon")
+val libMod = py.getModule("electroncash")!!
 
 
 class DaemonModel(val app: Application) : AndroidViewModel(app) {
     val handler = Handler()
+    val consoleMod = py.getModule("electroncash_gui.android.ec_console")
 
-    val commands: PyObject
-    val daemon: PyObject
-        get() = commands.get("daemon")!!
-    val network: PyObject
-        get() = commands.get("network")!!
+    val commands = consoleMod.callAttr("AllCommands")!!
+    val config = commands.get("config")!!
+    val daemon = commands.get("daemon")!!
+    val network = commands.get("network")!!
     val wallet: PyObject?
         get() = commands.get("wallet")
 
@@ -32,9 +34,9 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     val walletTransactions = MutableLiveData<PyObject>()
 
     init {
-        val consoleMod = py.getModule("electroncash_gui.android.ec_console")
-        commands = consoleMod.callAttr("AllCommands")
-        network.callAttr("register_callback", daemonMod.callAttr("make_callback", this),
+        network.callAttr("register_callback",
+                         py.getModule("electroncash_gui.android.daemon")
+                             .callAttr("make_callback", this),
                          consoleMod.get("CALLBACKS"))
         commands.callAttr("start")
         watchdog = Runnable {
@@ -90,6 +92,29 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
         commands.callAttr("load_wallet", name, password)
         if (prevName != null && prevName != name) {
             commands.callAttr("close_wallet", prevName)
+        }
+    }
+
+    fun makeTx(address: String, amount: Long, password: String? = null,
+               unsigned: Boolean = false): PyObject {
+        if (address.isEmpty()) {
+            throw ToastException(R.string.enter_or)
+        }
+        try {
+            libMod["address"]!!["Address"]!!.callAttr("from_string", address)
+        } catch (e: PyException) {
+            throw if (e.message!!.startsWith("AddressError"))
+                ToastException(R.string.invalid_address) else e
+        }
+        if (amount <= 0) throw ToastException(R.string.invalid_amount)
+
+        val outputs = arrayOf(arrayOf(address, formatSatoshis(amount, UNIT_BCH)))
+        try {
+            return commands.callAttr("_mktx", outputs, Kwarg("password", password),
+                                     Kwarg("unsigned", unsigned))
+        } catch (e: PyException) {
+            throw if (e.message!!.startsWith("NotEnoughFunds"))
+                ToastException(R.string.insufficient_funds) else e
         }
     }
 }

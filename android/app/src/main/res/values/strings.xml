@@ -1,6 +1,9 @@
 <!-- TODO: generate these from the gettext files and add translations. Call to make_seed should
     also be localized. -->
 <resources>
+    <string name="addresses">Addresses</string>
+    <string name="console">Console</string>
+
     <string name="wallets">Wallets</string>
     <string name="offline">Offline</string>
     <string name="cannot_send">Cannot send/receive new transactions</string>
@@ -10,7 +13,6 @@
     <string name="no_wallet">No wallet is open</string>
     <string name="amount">Amount</string>
     <string name="balance">Balance</string>
-    <string name="send">Send</string>
     <string name="receive">Receive</string>
 
     <string name="new_wallet">New wallet</string>
@@ -44,7 +46,13 @@
     <string name="confirm_password">Confirm password</string>
     <string name="password_incorrect">Password incorrect</string>
 
-    <string name="addresses">Addresses</string>
-
-    <string name="console">Console</string>
+    <string name="send">Send</string>
+    <string name="pay_to">Pay to</string>
+    <string name="mining_fee">Mining fee</string>
+    <string name="enter_or">Enter or pick address</string>
+    <string name="invalid_address">Invalid address</string>
+    <string name="enter_amount">Enter amount</string>
+    <string name="invalid_amount">Invalid amount</string>
+    <string name="insufficient_funds">Insufficient funds</string>
+    <string name="error">Error</string>
 </resources>

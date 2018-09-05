@@ -10,18 +10,52 @@ import android.view.ViewGroup
 import android.widget.Toast
 
 
+val UNIT_BCH = 100000000L
+val UNIT_MBCH = 100000L
+var unitSize = UNIT_BCH  // TODO: make unit configurable
+var unitName = "BCH"     //
+
+fun toSatoshis(s: String, unit: Long = unitSize) : Long? {
+    try {
+        return Math.round(s.toDouble() * unit)
+    } catch (e: NumberFormatException) { return null }
+}
+
+fun formatSatoshis(amount: Long, unit: Long = unitSize): String {
+    val places = Math.log10(unit.toDouble()).toInt()
+    return "%.${places}f".format(amount.toDouble() / unit)
+}
+
+
 fun showDialog(activity: FragmentActivity, frag: DialogFragment) {
     val fm = activity.supportFragmentManager
-    val tag = frag.javaClass.name
+    val tag = frag.javaClass.simpleName
     if (fm.findFragmentByTag(tag) == null) {
         frag.show(fm, tag)
     }
 }
 
-fun toast(text: CharSequence, duration: Int) {
+fun dismissDialog(activity: FragmentActivity, simpleName: String) {
+    val frag = activity.supportFragmentManager.findFragmentByTag(simpleName)
+    (frag as DialogFragment?)?.dismiss()
+}
+
+
+val DEFAULT_TOAST_DURATION = Toast.LENGTH_LONG
+
+class ToastException(message: String, val duration: Int = DEFAULT_TOAST_DURATION)
+    : Exception(message) {
+
+    constructor(resId: Int, duration: Int = DEFAULT_TOAST_DURATION)
+        : this(App.context.getString(resId), duration)
+
+    fun show() { toast(message!!, duration) }
+}
+
+fun toast(text: CharSequence, duration: Int = DEFAULT_TOAST_DURATION) {
     Toast.makeText(App.context, text, duration).show()
 }
-fun toast(resId: Int, duration: Int) {
+fun toast(resId: Int, duration: Int = DEFAULT_TOAST_DURATION) {
     toast(App.context.getString(resId), duration)
 }
 

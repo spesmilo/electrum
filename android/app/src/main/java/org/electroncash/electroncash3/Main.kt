@@ -112,3 +112,17 @@ open class AlertDialogFragment : DialogFragment() {
      *  they don't always close the dialog. */
     open fun onShowDialog(dialog: AlertDialog) {}
 }
+
+open class MessageDialog() : AlertDialogFragment() {
+    constructor(title: String, message: String) : this() {
+        arguments = Bundle().apply {
+            putString("title", title)
+            putString("message", message)
+        }
+    }
+    override fun onBuildDialog(builder: AlertDialog.Builder) {
+        builder.setTitle(arguments.getString("title"))
+            .setMessage(arguments.getString("message"))
+            .setPositiveButton(android.R.string.ok, null)
+    }
+}

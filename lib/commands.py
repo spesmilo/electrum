@@ -94,7 +94,8 @@ def command(s):
                 raise BaseException("Daemon offline")  # Same wording as in daemon.py.
             if c.requires_wallet and wallet is None:
                 raise BaseException("Wallet not loaded. Use 'electron-cash daemon load_wallet'")
-            if c.requires_password and password is None and wallet.storage.get('use_encryption'):
+            if c.requires_password and password is None and wallet.storage.get('use_encryption') \
+               and not kwargs.get("unsigned"):
                 return {'error': 'Password required' }
             return func(*args, **kwargs)
         return func_wrapper
@@ -431,7 +432,8 @@ class Commands:
         message = util.to_bytes(message)
         return bitcoin.verify_message(address, sig, message)
 
-    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, password, locktime=None):
+    def _mktx(self, outputs, fee=None, change_addr=None, domain=None, nocheck=False,
+              unsigned=False, password=None, locktime=None):
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr)
         domain = None if domain is None else map(self._resolver, domain)

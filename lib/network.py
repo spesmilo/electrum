@@ -39,6 +39,7 @@ from . import util
 from . import bitcoin
 from .bitcoin import *
 from .networks import NetworkConstants
+from .i18n import _
 from .interface import Connection, Interface
 from . import blockchain
 from .version import PACKAGE_VERSION, PROTOCOL_VERSION
@@ -1299,7 +1300,7 @@ class Network(util.DaemonThread):
         try:
             result = q.get(block=True, timeout=30)
         except queue.Empty:
-            raise util.TimeoutException(_('Server did not answer'))
+            raise Exception(_('Server did not answer'))
 
         if result.get('error'):
             raise Exception(result.get('error'))

@@ -73,10 +73,7 @@ class WalletsFragment : MainFragment() {
             rvTransactions.adapter = if (it == null) null else TransactionsAdapter(it)
         })
 
-        btnSend.setOnClickListener {
-            // TODO
-        }
-
+        btnSend.setOnClickListener { showDialog(activity, SendDialog()) }
         btnReceive.setOnClickListener {
             // TODO
             toast(R.string.touch_to_copy, Toast.LENGTH_LONG)
@@ -156,9 +153,7 @@ class NewWalletDialog : AlertDialogFragment(), DialogInterface.OnClickListener {
                 putString("seed", seed)
             }})
             dismiss()
-        } catch (e: ToastException) {
-            toast(e.message!!, Toast.LENGTH_LONG)
-        }
+        } catch (e: ToastException) { e.show() }
     }
 }
 
@@ -180,14 +175,10 @@ class NewSeedDialog : SeedDialog() {
                 }
                 dismiss()
                 daemonModel.loadWallet(name, password)
-            } catch (e: ToastException) {
-                toast(e.message!!, Toast.LENGTH_LONG)
-            }
+            } catch (e: ToastException) { e.show() }
         }
     }
 }
-
-class ToastException(resId: Int) : Exception(App.context.getString(resId))
 
 
 class DeleteWalletDialog : AlertDialogFragment() {
@@ -212,37 +203,35 @@ abstract class PasswordDialog : AlertDialogFragment() {
     }
     override fun onShowDialog(dialog: AlertDialog) {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            if (!tryPassword(dialog.etPassword.text.toString())) {
-                toast(R.string.password_incorrect, Toast.LENGTH_SHORT)
-            } else {
-                dismiss()
+            try {
+                tryPassword(dialog.etPassword.text.toString())
+            } catch (e: ToastException) {
+                e.show()
             }
         }
     }
 
     override fun onResume() {
         super.onResume()
-        if (tryPassword(null)) {
-            dismiss()
-        }
+        try {
+            tryPassword(null)
+        } catch (e: ToastException) {}
     }
 
-    fun tryPassword(password: String?): Boolean {
+    fun tryPassword(password: String?) {
         try {
             onPassword(password)
-            return true
+            dismiss()
         } catch (e: PyException) {
-            if (e.message!!.startsWith("InvalidPassword")) {
-                return false
-            }
-            throw e
+            throw if (e.message!!.startsWith("InvalidPassword"))
+                ToastException(R.string.password_incorrect, Toast.LENGTH_SHORT) else e
         }
     }
 
     /** Attempt to perform the operation with the given password. `null` means to try with no
      * password, which will automatically be attempted when the dialog first opens. If the
-     * password is wrong, overrides should throw PyException with the type InvalidPassword.
-     * Most back-end functions that take passwords will do this automatically. */
+     * operation fails, this method should throw either a ToastException, or an InvalidPassword
+     * PyException (most lib functions that take passwords will do this automatically). */
     abstract fun onPassword(password: String?)
 }
 
