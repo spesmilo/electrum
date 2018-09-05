@@ -380,6 +380,8 @@ class AddressSynchronizer(PrintError):
         for prevout_hash, d in _spent_outpoints.items():
             for prevout_n_str, spending_txid in d.items():
                 prevout_n = int(prevout_n_str)
+                if spending_txid not in self.transactions:
+                    continue  # only care about txns we have
                 self.spent_outpoints[prevout_hash][prevout_n] = spending_txid
 
     @profiler
