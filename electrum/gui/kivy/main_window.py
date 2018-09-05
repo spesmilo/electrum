@@ -69,7 +69,8 @@ Label.register('Roboto',
 
 
 from electrum.util import (base_units, NoDynamicFeeEstimates, decimal_point_to_base_unit_name,
-                           base_unit_name_to_decimal_point, NotEnoughFunds)
+                           base_unit_name_to_decimal_point, NotEnoughFunds, UnknownBaseUnit,
+                           DECIMAL_POINT_DEFAULT)
 
 
 class ElectrumWindow(App):
@@ -163,8 +164,11 @@ class ElectrumWindow(App):
         self._trigger_update_history()
 
     def _get_bu(self):
-        decimal_point = self.electrum_config.get('decimal_point', 5)
-        return decimal_point_to_base_unit_name(decimal_point)
+        decimal_point = self.electrum_config.get('decimal_point', DECIMAL_POINT_DEFAULT)
+        try:
+            return decimal_point_to_base_unit_name(decimal_point)
+        except UnknownBaseUnit:
+            return decimal_point_to_base_unit_name(DECIMAL_POINT_DEFAULT)
 
     def _set_bu(self, value):
         assert value in base_units.keys()
