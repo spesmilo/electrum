@@ -24,9 +24,12 @@
         android:id="@+id/etSeed"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
         android:inputType="textMultiLine"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@+id/tvSeedLabel"
         app:layout_constraintStart_toStartOf="@+id/tvSeedLabel"
         app:layout_constraintTop_toBottomOf="@+id/tvSeedLabel"
+        app:layout_constraintVertical_bias="0.0"
         tools:text="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor"/>
 </android.support.constraint.ConstraintLayout>
