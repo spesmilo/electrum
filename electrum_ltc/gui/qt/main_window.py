@@ -49,7 +49,8 @@ from electrum_ltc.util import (format_time, format_satoshis, format_fee_satoshis
                                UserCancelled, NoDynamicFeeEstimates, profiler,
                                export_meta, import_meta, bh2u, bfh, InvalidPassword,
                                base_units, base_units_list, base_unit_name_to_decimal_point,
-                               decimal_point_to_base_unit_name, quantize_feerate)
+                               decimal_point_to_base_unit_name, quantize_feerate,
+                               UnknownBaseUnit, DECIMAL_POINT_DEFAULT)
 from electrum_ltc.transaction import Transaction, TxOutput
 from electrum_ltc.address_synchronizer import AddTransactionException
 from electrum_ltc.wallet import Multisig_Wallet, CannotBumpFee
@@ -126,8 +127,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.create_status_bar()
         self.need_update = threading.Event()
 
-        self.decimal_point = config.get('decimal_point', 8)
-        self.num_zeros     = int(config.get('num_zeros',0))
+        self.decimal_point = config.get('decimal_point', DECIMAL_POINT_DEFAULT)
+        try:
+            decimal_point_to_base_unit_name(self.decimal_point)
+        except UnknownBaseUnit:
+            self.decimal_point = DECIMAL_POINT_DEFAULT
+        self.num_zeros = int(config.get('num_zeros', 0))
 
         self.completions = QStringListModel()
 

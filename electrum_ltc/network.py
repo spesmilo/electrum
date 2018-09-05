@@ -83,7 +83,7 @@ def parse_servers(result):
 def filter_version(servers):
     def is_recent(version):
         try:
-            return util.normalize_version(version) >= util.normalize_version(PROTOCOL_VERSION)
+            return util.versiontuple(version) >= util.versiontuple(PROTOCOL_VERSION)
         except Exception as e:
             return False
     return {k: v for k, v in servers.items() if is_recent(v.get('version'))}
