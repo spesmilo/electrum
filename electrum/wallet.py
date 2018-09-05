@@ -1129,7 +1129,8 @@ class Abstract_Wallet(AddressSynchronizer):
             return result
         if self.txi.get(txid, {}) != {}:
             result = self.average_price(txid, price_func, ccy) * txin_value/Decimal(COIN)
-            self.coin_price_cache[cache_key] = result
+            if not result.is_nan():
+                self.coin_price_cache[cache_key] = result
             return result
         else:
             fiat_value = self.get_fiat_value(txid, ccy)
