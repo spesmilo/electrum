@@ -39,6 +39,7 @@ from . import util
 from . import bitcoin
 from .bitcoin import *
 from .networks import NetworkConstants
+from .i18n import _
 from .interface import Connection, Interface
 from . import blockchain
 from .version import PACKAGE_VERSION, PROTOCOL_VERSION
