@@ -110,7 +110,7 @@ def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
 
 from .simple_config import SimpleConfig
 
-proxy_modes = ['socks4', 'socks5', 'http']
+proxy_modes = ['socks4', 'socks5']
 
 
 def serialize_proxy(p):
@@ -437,6 +437,7 @@ class Network(PrintError):
                 socket.getaddrinfo = self._fast_getaddrinfo
             else:
                 socket.getaddrinfo = socket._getaddrinfo
+        self.trigger_callback('proxy_set', self.proxy)
 
     @staticmethod
     def _fast_getaddrinfo(host, *args, **kwargs):
@@ -710,9 +711,13 @@ class Network(PrintError):
         with b.lock:
             b.update_size()
 
-    def _run(self):
+    def _run(self, fx):
         self.init_headers_file()
-        self.gat = self.asyncio_loop.create_task(self.maintain_sessions())
+        jobs = [self.maintain_sessions()]
+        if fx:
+            jobs.append(fx)
+        jobs = [self.asyncio_loop.create_task(x) for x in jobs]
+        self.gat = asyncio.gather(*jobs)
         try:
             self.asyncio_loop.run_until_complete(self.gat)
         except concurrent.futures.CancelledError:
@@ -789,8 +794,8 @@ class Network(PrintError):
     def max_checkpoint(cls):
         return max(0, len(constants.net.CHECKPOINTS) * 2016 - 1)
 
-    def start(self):
-        self.fut = threading.Thread(target=self._run)
+    def start(self, fx=None):
+        self.fut = threading.Thread(target=self._run, args=(fx,))
         self.fut.start()
 
     def stop(self):

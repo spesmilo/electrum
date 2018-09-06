@@ -22,6 +22,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import asyncio
 import ast
 import os
 import time
@@ -126,10 +127,9 @@ class Daemon(DaemonThread):
             self.network = None
         else:
             self.network = Network(config)
-            self.network.start()
         self.fx = FxThread(config, self.network)
-        #if self.network:
-        #    self.network.add_jobs([self.fx])
+        if self.network:
+            self.network.start(self.fx.run())
         self.gui = None
         self.wallets = {}
         # Setup JSONRPC server
