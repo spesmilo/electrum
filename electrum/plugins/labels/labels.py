@@ -54,7 +54,7 @@ class LabelsPlugin(BasePlugin):
                   "walletNonce": nonce,
                   "externalId": self.encode(wallet, item),
                   "encryptedLabel": self.encode(wallet, label)}
-        asyncio.get_event_loop().create_task(self.do_post_safe("/label", False, bundle))
+        asyncio.get_event_loop().create_task(self.do_post_safe("/label", bundle))
         # Caller will write the wallet
         self.set_nonce(wallet, nonce + 1)
 
@@ -71,7 +71,7 @@ class LabelsPlugin(BasePlugin):
     async def do_post(self, url = "/labels", data=None):
         url = 'https://' + self.target_host + url
         async with make_aiohttp_session(self.proxy) as session:
-            async with session.post(url, data=data) as result:
+            async with session.post(url, json=data) as result:
                 return await result.json()
 
     async def push_thread(self, wallet):
