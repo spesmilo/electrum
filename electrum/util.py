@@ -38,7 +38,6 @@ from locale import localeconv
 from .i18n import _
 
 
-from aiorpcx import ClientSession, Notification
 import urllib.request, urllib.parse, urllib.error
 import queue
 
@@ -948,24 +947,3 @@ VerifiedTxInfo = NamedTuple("VerifiedTxInfo", [("height", int),
                                                ("timestamp", int),
                                                ("txpos", int),
                                                ("header_hash", str)])
-
-from .blockchain import deserialize_header
-
-class NotificationSession(ClientSession):
-
-    def __init__(self, scripthash, header, *args, **kwargs):
-        super(NotificationSession, self).__init__(*args, **kwargs)
-        self.scripthash = scripthash
-        self.header = header
-
-    @aiosafe
-    async def handle_request(self, request):
-        if isinstance(request, Notification):
-            if request.method == 'blockchain.scripthash.subscribe' and self.scripthash is not None:
-                args = request.args
-                await self.scripthash.put((args[0], args[1]))
-            elif request.method == 'blockchain.headers.subscribe' and self.header is not None:
-                deser = deserialize_header(bfh(request.args[0]['hex']), request.args[0]['height'])
-                await self.header.put(deser)
-            else:
-                assert False, request.method

@@ -32,7 +32,7 @@ import concurrent.futures
 
 # from .bitcoin import Hash, hash_encode
 from .transaction import Transaction
-from .util import ThreadJob, bh2u, PrintError, aiosafe, bfh, NotificationSession
+from .util import ThreadJob, bh2u, PrintError, aiosafe, bfh
 from .bitcoin import address_to_scripthash
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 
