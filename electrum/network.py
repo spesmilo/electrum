@@ -817,7 +817,7 @@ class Network(PrintError):
                     try:
                         raise i.exception
                     except BaseException as e:
-                        self.print_error(i.server, "errored because", str(e), str(type(e)))
+                        self.print_error(i.server, "errored because:", str(e), str(type(e)))
                     remove.append(k)
             changed = False
             for k in remove:

@@ -36,7 +36,7 @@ from aiorpcx import ClientSession, Notification
 
 import requests
 
-from .util import PrintError, aiosafe, bfh
+from .util import PrintError, aiosafe, bfh, AIOSafeSilentException
 
 ca_path = requests.certs.where()
 
@@ -66,6 +66,10 @@ class NotificationSession(ClientSession):
                 await self.header.put(deser)
             else:
                 assert False, request.method
+
+
+
+class GracefulDisconnect(AIOSafeSilentException): pass
 
 
 class Interface(PrintError):
@@ -134,7 +138,12 @@ class Interface(PrintError):
                         os.unlink(self.cert_path)
                         exists = False
         if not exists:
-            ca_signed = await self.is_server_ca_signed(ca_sslc)
+            try:
+                ca_signed = await self.is_server_ca_signed(ca_sslc)
+            except (ConnectionRefusedError, socket.gaierror) as e:
+                self.print_error('disconnecting due to: {}'.format(e))
+                self.exception = e
+                return
             if ca_signed:
                 with open(self.cert_path, 'w') as f:
                     # empty file means this is CA signed, not self-signed
@@ -147,7 +156,13 @@ class Interface(PrintError):
         else:
             sslc = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=self.cert_path)
             sslc.check_hostname = 0
-        await self.open_session(sslc, exit_early=False)
+        try:
+            await self.open_session(sslc, exit_early=False)
+        except (asyncio.CancelledError, ConnectionRefusedError, socket.gaierror, ssl.SSLError, TimeoutError) as e:
+            self.print_error('disconnecting due to: {}'.format(e))
+            self.exception = e
+            return
+        # should never get here (can only exit via exception)
         assert False
 
     def mark_ready(self):
@@ -204,7 +219,10 @@ class Interface(PrintError):
         header_queue = asyncio.Queue()
         self.session = NotificationSession(None, header_queue, self.host, self.port, ssl=sslc, proxy=self.proxy)
         async with self.session as session:
-            ver = await session.send_request('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])
+            try:
+                ver = await session.send_request('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])
+            except aiorpcx.jsonrpc.RPCError as e:
+                raise GracefulDisconnect(e)  # probably 'unsupported protocol version'
             if exit_early:
                 return
             self.print_error(ver, self.host)
@@ -228,6 +246,9 @@ class Interface(PrintError):
 
     @aiosafe
     async def run_fetch_blocks(self, sub_reply, replies):
+        if self.tip < self.network.max_checkpoint():
+            raise GracefulDisconnect('server tip below max checkpoint')
+
         async with self.network.bhi_lock:
             height = self.blockchain.height()+1
             await replies.put(blockchain.deserialize_header(bfh(sub_reply['hex']), sub_reply['height']))

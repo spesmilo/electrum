@@ -34,6 +34,7 @@ import hmac
 import stat
 import inspect
 from locale import localeconv
+import asyncio
 
 from .i18n import _
 
@@ -925,6 +926,10 @@ def make_dir(path, allow_symlink=True):
         os.mkdir(path)
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
+
+class AIOSafeSilentException(Exception): pass
+
+
 def aiosafe(f):
     # save exception in object.
     # f must be a method of a PrintError instance.
@@ -933,6 +938,10 @@ def aiosafe(f):
         self = args[0]
         try:
             return await f(*args, **kwargs)
+        except AIOSafeSilentException as e:
+            self.exception = e
+        except asyncio.CancelledError as e:
+            self.exception = e
         except BaseException as e:
             self.print_error("Exception in", f.__name__, ":", e.__class__.__name__, str(e))
             traceback.print_exc(file=sys.stderr)
