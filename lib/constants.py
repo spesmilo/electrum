@@ -97,16 +97,16 @@ class BitcoinTestnet:
 
 class BitcoinRegtest(BitcoinTestnet):
 
-    SEGWIT_HRP = "bcrt"
-    GENESIS = "0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"
+    SEGWIT_HRP = "grsrt"
+    GENESIS = "000000ffbb50fc9898cdd36ec163e6ba23230164c0052a28876255b7dcf2cd36"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
 
 
 class BitcoinSimnet(BitcoinTestnet):
 
-    SEGWIT_HRP = "sb"
-    GENESIS = "683e86bd5c6d110d91b94b97137ba6bfe02dbbdb8e3dff722a669b5d69d77af6"
+    SEGWIT_HRP = "sg"
+    GENESIS = "000000ffbb50fc9898cdd36ec163e6ba23230164c0052a28876255b7dcf2cd36"
     DEFAULT_SERVERS = read_json('servers_regtest.json', {})
     CHECKPOINTS = []
 
