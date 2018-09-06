@@ -11,6 +11,7 @@ import csv
 import decimal
 from decimal import Decimal
 import concurrent.futures
+import traceback
 
 from .bitcoin import COIN
 from .i18n import _
@@ -97,8 +98,7 @@ class ExchangeBase(PrintError):
             self.print_error("received fx history for", ccy)
         except BaseException as e:
             self.print_error("failed fx history:", e)
-            import traceback
-            traceback.print_exc()
+            #traceback.print_exc()
             return
         filename = os.path.join(cache_dir, self.name() + '_' + ccy)
         with open(filename, 'w', encoding='utf-8') as f:
