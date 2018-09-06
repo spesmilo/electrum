@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- TODO: add icon, probably something that looks like "q/1". -->
+    <item
+        android:id="@+id/menuFormat"
+        android:title="@string/toggle_format"
+        android:checkable="true"/>
+
+</menu>

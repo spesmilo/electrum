@@ -35,10 +35,13 @@ class WalletsFragment : MainFragment() {
         })
     }
 
+    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
+        inflater.inflate(R.menu.wallets, menu)
+    }
+
     override fun onPrepareOptionsMenu(menu: Menu) {
-        menu.clear()
-        if (daemonModel.walletName.value != null) {
-            activity.menuInflater.inflate(R.menu.wallets, menu)
+        if (daemonModel.walletName.value == null) {
+            menu.clear()
         }
     }
 
@@ -47,7 +50,7 @@ class WalletsFragment : MainFragment() {
             R.id.menuShowSeed-> showDialog(activity, ShowSeedPasswordDialog())
             R.id.menuDelete -> showDialog(activity, DeleteWalletDialog())
             R.id.menuClose -> daemonModel.commands.callAttr("close_wallet")
-            else -> return false
+            else -> throw Exception("Unknown item $item")
         }
         return true
     }
@@ -75,8 +78,6 @@ class WalletsFragment : MainFragment() {
 
         btnSend.setOnClickListener { showDialog(activity, SendDialog()) }
         btnReceive.setOnClickListener {
-            // TODO
-            toast(R.string.touch_to_copy, Toast.LENGTH_LONG)
             mainActivity.navigation.selectedItemId = R.id.navAddresses
         }
     }
@@ -284,9 +285,9 @@ fun seedAdvice(seed: String): String {
 
 
 class TransactionsAdapter(val transactions: PyObject)
-    : BoundAdapter(R.layout.transaction) {
+    : BoundAdapter<TransactionModel>(R.layout.transaction) {
 
-    override fun getItem(position: Int): Any {
+    override fun getItem(position: Int): TransactionModel {
         val t = transactions.callAttr("__getitem__", itemCount - position - 1)
         return TransactionModel(
             t.callAttr("__getitem__", "value").toString(),

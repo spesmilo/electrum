@@ -1,7 +1,6 @@
 <!-- TODO: generate these from the gettext files and add translations. Call to make_seed should
     also be localized. -->
 <resources>
-    <string name="addresses">Addresses</string>
     <string name="console">Console</string>
 
     <string name="wallets">Wallets</string>
@@ -56,4 +55,16 @@
     <string name="insufficient_funds">Insufficient funds</string>
     <string name="error">Error</string>
     <string name="payment_sent">Payment sent</string>
+
+    <string name="addresses">Addresses</string>
+    <string name="toggle_format">Toggle format</string>
+    <string name="default_">Default</string>
+    <string name="receiving">Receiving</string>
+    <string name="change">Change</string>
+    <string-array name="address_type">  <!-- See addresses.py -->
+        <item>@string/default_</item>
+        <item>@string/receiving</item>
+        <item>@string/change</item>
+    </string-array>
+    <string name="address_copied">Address copied to clipboard</string>
 </resources>

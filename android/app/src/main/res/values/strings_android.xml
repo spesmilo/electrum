@@ -1,7 +1,7 @@
 <!-- TODO: add these strings to the gettext files so the existing translation process can be used. -->
 <resources>
     <string name="touch_to_load">Touch here to open or create one.</string>
-    <string name="touch_to_copy">Touch a receiving address to copy it to the clipboard.</string>
+    <string name="touch_to_copy">Touch an address to copy it.</string>
     <string name="the_app">The app cannot tell whether this payment was successful or not.
         Please check before trying to send it again.</string>
 </resources>

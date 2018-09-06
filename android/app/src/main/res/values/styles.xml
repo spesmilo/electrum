@@ -8,6 +8,10 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <style name="Address">
+        <item name="android:textColor">@android:color/black</item>
+        <item name="android:ellipsize">middle</item>
+    </style>
     <style name="Value">
         <item name="android:textColor">@android:color/black</item>
         <item name="android:textStyle">bold</item>

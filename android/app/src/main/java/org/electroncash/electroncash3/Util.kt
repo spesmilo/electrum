@@ -60,28 +60,31 @@ fun toast(resId: Int, duration: Int = Toast.LENGTH_SHORT) {
 
 
 // Based on https://medium.com/google-developers/android-data-binding-recyclerview-db7c40d9f0e4
-abstract class BoundAdapter(val layoutId: Int)
-    : RecyclerView.Adapter<BoundViewHolder>() {
+abstract class BoundAdapter<Model: Any>(val layoutId: Int)
+    : RecyclerView.Adapter<BoundViewHolder<Model>>() {
 
     override fun getItemViewType(position: Int): Int {
         return layoutId
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BoundViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BoundViewHolder<Model> {
         val layoutInflater = LayoutInflater.from(parent.context)
         val binding = DataBindingUtil.inflate<ViewDataBinding>(
             layoutInflater, viewType, parent, false)
         return BoundViewHolder(binding)
     }
 
-    override fun onBindViewHolder(holder: BoundViewHolder, position: Int) {
-        holder.binding.setVariable(BR.model, getItem(position))
+    override fun onBindViewHolder(holder: BoundViewHolder<Model>, position: Int) {
+        holder.item = getItem(position)
+        holder.binding.setVariable(BR.model, holder.item)
         holder.binding.executePendingBindings()
     }
 
-    protected abstract fun getItem(position: Int): Any
+    protected abstract fun getItem(position: Int): Model
 }
 
-class BoundViewHolder(val binding: ViewDataBinding)
-    : RecyclerView.ViewHolder(binding.root)
+class BoundViewHolder<Model: Any>(val binding: ViewDataBinding)
+    : RecyclerView.ViewHolder(binding.root) {
 
+    lateinit var item: Model
+}
