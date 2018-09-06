@@ -68,7 +68,7 @@ class BaseCrashReporter:
         report.update(self.get_additional_info())
         report = json.dumps(report)
         coro = self.do_post(proxy, BaseCrashReporter.report_server + endpoint, data=report)
-        response = asyncio.run_coroutine_threadsafe(coro, asyncio_loop).result(1)
+        response = asyncio.run_coroutine_threadsafe(coro, asyncio_loop).result(5)
         return response
 
     async def do_post(self, proxy, url, data):
