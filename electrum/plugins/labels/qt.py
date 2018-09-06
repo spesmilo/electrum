@@ -38,11 +38,11 @@ class Plugin(LabelsPlugin):
         hbox = QHBoxLayout()
         hbox.addWidget(QLabel("Label sync options:"))
         upload = ThreadedButton("Force upload",
-                                partial(self.push_thread, wallet),
+                                partial(self.push, wallet),
                                 partial(self.done_processing_success, d),
                                 partial(self.done_processing_error, d))
         download = ThreadedButton("Force download",
-                                  partial(self.pull_thread, wallet, True),
+                                  partial(self.pull, wallet, True),
                                   partial(self.done_processing_success, d),
                                   partial(self.done_processing_error, d))
         vbox = QVBoxLayout()

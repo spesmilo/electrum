@@ -19,6 +19,7 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import asyncio
 import json
 import locale
 import traceback
@@ -26,14 +27,13 @@ import subprocess
 import sys
 import os
 
-import requests
-
 from .version import ELECTRUM_VERSION
 from .import constants
 from .i18n import _
 
+from .util import make_aiohttp_session
 
-class BaseCrashReporter(object):
+class BaseCrashReporter:
     report_server = "https://crashhub.electrum.org"
     config_key = "show_crash_reporter"
     issue_template = """<h2>Traceback</h2>
@@ -60,15 +60,21 @@ class BaseCrashReporter(object):
     def __init__(self, exctype, value, tb):
         self.exc_args = (exctype, value, tb)
 
-    def send_report(self, endpoint="/crash"):
+    def send_report(self, asyncio_loop, proxy, endpoint="/crash"):
         if constants.net.GENESIS[-4:] not in ["4943", "e26f"] and ".electrum.org" in BaseCrashReporter.report_server:
             # Gah! Some kind of altcoin wants to send us crash reports.
             raise Exception(_("Missing report URL."))
         report = self.get_traceback_info()
         report.update(self.get_additional_info())
         report = json.dumps(report)
-        response = requests.post(BaseCrashReporter.report_server + endpoint, data=report)
+        coro = self.do_post(proxy, BaseCrashReporter.report_server + endpoint, data=report)
+        response = asyncio.run_coroutine_threadsafe(coro, asyncio_loop).result(1)
         return response
+
+    async def do_post(self, proxy, url, data):
+        async with make_aiohttp_session(proxy) as session:
+            async with session.post(url, data=data) as resp:
+                return await resp.text()
 
     def get_traceback_info(self):
         exc_string = str(self.exc_args[1])
@@ -125,4 +131,4 @@ class BaseCrashReporter(object):
         raise NotImplementedError
 
     def get_os_version(self):
-        raise NotImplementedError 
+        raise NotImplementedError
