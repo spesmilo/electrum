@@ -180,7 +180,8 @@ class Interface(PrintError):
 
     async def open_session(self, sslc, exit_early):
         header_queue = asyncio.Queue()
-        async with NotificationSession(None, header_queue, self.host, self.port, ssl=sslc, proxy=self.proxy) as session:
+        self.session = NotificationSession(None, header_queue, self.host, self.port, ssl=sslc, proxy=self.proxy)
+        async with self.session as session:
             ver = await session.send_request('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])
             if exit_early:
                 return
@@ -189,7 +190,6 @@ class Interface(PrintError):
             self.tip_header = blockchain.deserialize_header(bfh(subscription_res['hex']), subscription_res['height'])
             self.tip = subscription_res['height']
             self.mark_ready()
-            self.session = session
             copy_header_queue = asyncio.Queue()
             block_retriever = asyncio.get_event_loop().create_task(self.run_fetch_blocks(subscription_res, copy_header_queue))
             while True:
