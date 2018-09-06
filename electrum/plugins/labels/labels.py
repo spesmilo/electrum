@@ -1,6 +1,5 @@
 import asyncio
 import hashlib
-import requests
 import json
 import sys
 import traceback
