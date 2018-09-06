@@ -101,7 +101,7 @@ class Coldcard_Handler(QtHandlerBase):
         return 
         
     def setup_dialog(self):
-        self.show_error(_('Please initialization your Coldcard while disconnected.'))
+        self.show_error(_('Please initialize your Coldcard while disconnected.'))
         return
 
 class CKCCSettingsDialog(WindowModalDialog):
@@ -239,4 +239,3 @@ class CKCCSettingsDialog(WindowModalDialog):
 
         self.thread.add(doit)
         self.close()
-# EOF
