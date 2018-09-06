@@ -342,7 +342,10 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
     def check_password(self, password):
         xprv = pw_decode(self.xprv, password)
-        if DecodeBase58Check(xprv) is None:  # Password was None but key was encrypted.
+        try:
+            assert DecodeBase58Check(xprv) is not None
+        except Exception:
+            # Password was None but key was encrypted.
             raise InvalidPassword()
         if deserialize_xprv(xprv)[4] != deserialize_xpub(self.xpub)[4]:
             raise InvalidPassword()

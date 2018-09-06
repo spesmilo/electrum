@@ -41,21 +41,20 @@ fun dismissDialog(activity: FragmentActivity, simpleName: String) {
 }
 
 
-val DEFAULT_TOAST_DURATION = Toast.LENGTH_LONG
-
-class ToastException(message: String, val duration: Int = DEFAULT_TOAST_DURATION)
+// Since error messages are likely to be surprising, set the default duration to long.
+class ToastException(message: String, val duration: Int = Toast.LENGTH_LONG)
     : Exception(message) {
 
-    constructor(resId: Int, duration: Int = DEFAULT_TOAST_DURATION)
+    constructor(resId: Int, duration: Int = Toast.LENGTH_LONG)
         : this(App.context.getString(resId), duration)
 
     fun show() { toast(message!!, duration) }
 }
 
-fun toast(text: CharSequence, duration: Int = DEFAULT_TOAST_DURATION) {
+fun toast(text: CharSequence, duration: Int = Toast.LENGTH_SHORT) {
     Toast.makeText(App.context, text, duration).show()
 }
-fun toast(resId: Int, duration: Int = DEFAULT_TOAST_DURATION) {
+fun toast(resId: Int, duration: Int = Toast.LENGTH_SHORT) {
     toast(App.context.getString(resId), duration)
 }
 

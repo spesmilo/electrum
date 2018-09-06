@@ -95,7 +95,9 @@ class SendPasswordDialog : PasswordDialog() {
                                  getString(R.string.cannot_send))
         }
         val result = daemonModel.network.callAttr("broadcast_transaction", tx)
-        if (! result.callAttr("__getitem__", 0).toJava(Boolean::class.java)) {
+        if (result.callAttr("__getitem__", 0).toJava(Boolean::class.java)) {
+            toast(R.string.payment_sent)
+        } else {
             val err = ServerError(result.callAttr("__getitem__", 1).toString())
             if (err.isClean) {
                 throw ToastException(err.message)
