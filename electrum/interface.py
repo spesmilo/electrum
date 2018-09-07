@@ -254,7 +254,6 @@ class Interface(PrintError):
         self.fut.cancel()
         asyncio.get_event_loop().create_task(self.group.cancel_remaining())
 
-    @aiosafe
     async def run_fetch_blocks(self, sub_reply, replies):
         if self.tip < self.network.max_checkpoint():
             raise GracefulDisconnect('server tip below max checkpoint')
