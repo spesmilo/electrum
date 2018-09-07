@@ -13,6 +13,10 @@ LIBUSB_FILENAME=libusb-1.0.22.7z
 LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-1.0.22/$LIBUSB_FILENAME?download
 LIBUSB_SHA256=671f1a420757b4480e7fadc8313d6fb3cbb75ca00934c417c1efa6e77fb8779b
 
+GPG_FILENAME=gnupg-w32-2.2.7_20180502.exe
+GPG_URL=https://www.gnupg.org/ftp/gcrypt/binary/$GPG_FILENAME
+GPG_SHA256=2d7ffedb1737e4dbed7f89377c3273b5cc27ee0fd9c70a417bd602203fc419ee
+
 PYTHON_VERSION=3.6.6
 
 ## These settings probably don't need change
@@ -126,6 +130,11 @@ $PYTHON -m pip install https://github.com/ecdsa/pyinstaller/archive/fix_2952.zip
 download_if_not_exist $ZBAR_FILENAME "$ZBAR_URL"
 verify_hash $ZBAR_FILENAME "$ZBAR_SHA256"
 wine "$PWD/$ZBAR_FILENAME" /S
+
+# Install GPG
+download_if_not_exist $GPG_FILENAME "$GPG_URL"
+verify_hash $GPG_FILENAME "$GPG_SHA256"
+wine "$PWD/$GPG_FILENAME" /S
 
 # Upgrade setuptools (so Electrum can be installed later)
 $PYTHON -m pip install setuptools --upgrade
