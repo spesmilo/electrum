@@ -222,7 +222,7 @@ class ECPubkey(object):
         if self.is_at_infinity(): raise Exception('point is at infinity')
         return point_to_ser(self.point(), compressed)
 
-    def get_public_key_hex(self, compressed=True):
+    def get_public_key_hex(self, compressed=True) -> str:
         return bh2u(self.get_public_key_bytes(compressed))
 
     def point(self) -> Tuple[int, int]:

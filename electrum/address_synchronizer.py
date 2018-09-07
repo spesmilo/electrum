@@ -26,6 +26,7 @@ import asyncio
 import itertools
 from collections import defaultdict
 from typing import TYPE_CHECKING, Dict, Optional
+from typing import List, Dict, Tuple
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
@@ -82,6 +83,9 @@ class AddressSynchronizer(PrintError):
         # thread local storage for caching stuff
         self.threadlocal_cache = threading.local()
 
+        self._addr_to_addr_index = {}
+        self._addr_to_addr_path = {}
+
         self.load_and_cleanup()
 
     def with_transaction_lock(func):
@@ -100,7 +104,7 @@ class AddressSynchronizer(PrintError):
     def is_mine(self, address):
         return address in self.history
 
-    def get_addresses(self):
+    def get_addresses(self) -> List[str]:
         return sorted(self.history.keys())
 
     def get_address_history(self, addr):
@@ -507,7 +511,7 @@ class AddressSynchronizer(PrintError):
             delta = tx_deltas[tx_hash]
             tx_mined_status = self.get_tx_height(tx_hash)
             history.append((tx_hash, tx_mined_status, delta))
-        history.sort(key = lambda x: self.get_txpos(x[0]), reverse=True)
+        history.sort(key=lambda x: self.get_txpos(x[0]), reverse=True)
         # 3. add balance
         c, u, x = self.get_balance(domain)
         balance = c + u + x
@@ -735,7 +739,7 @@ class AddressSynchronizer(PrintError):
             for tx_hash, height in h:
                 l = self.txo.get(tx_hash, {}).get(address, [])
                 for n, v, is_cb in l:
-                    received[tx_hash + ':%d'%n] = (height, v, is_cb)
+                    received[tx_hash + ':%d' % n] = (height, v, is_cb)
             for tx_hash, height in h:
                 l = self.txi.get(tx_hash, {}).get(address, [])
                 for txi, v in l:
@@ -751,12 +755,12 @@ class AddressSynchronizer(PrintError):
             tx_height, value, is_cb = v
             prevout_hash, prevout_n = txo.split(':')
             x = {
-                'address':address,
-                'value':value,
-                'prevout_n':int(prevout_n),
-                'prevout_hash':prevout_hash,
-                'height':tx_height,
-                'coinbase':is_cb
+                'address': address,
+                'value': value,
+                'prevout_n': int(prevout_n),
+                'prevout_hash': prevout_hash,
+                'height': tx_height,
+                'coinbase': is_cb
             }
             out[txo] = x
         return out

@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 import hashlib
+import io
 from typing import List, Tuple, TYPE_CHECKING, Optional, Union
 
 from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict
@@ -95,14 +96,57 @@ def script_num_to_hex(i: int) -> str:
 
 def var_int(i: int) -> str:
     # https://en.bitcoin.it/wiki/Protocol_specification#Variable_length_integer
-    if i<0xfd:
-        return int_to_hex(i)
-    elif i<=0xffff:
-        return "fd"+int_to_hex(i,2)
-    elif i<=0xffffffff:
-        return "fe"+int_to_hex(i,4)
+    if i < 0xfd:  # 253
+        out = int_to_hex(i)
+    elif i <= 0xffff:
+        out = "fd" + int_to_hex(i, 2)  # 253
+    elif i <= 0xffffffff:
+        out = "fe" + int_to_hex(i, 4)  # 254
     else:
-        return "ff"+int_to_hex(i,8)
+        out = "ff" + int_to_hex(i, 8)  # 255
+
+    return out
+
+
+def varint_to_int(data):
+    """
+    parses input stream until complete varint found
+    returns int and rest of stream
+    :param data: Union[str, bytes, io.BytesIO]
+    :return: Tuple[Union[None, int], Union[str, bytes, io.BytesIO]]
+    """
+    if isinstance(data, str):
+        stream = io.BytesIO(bfh(data))
+        builder = lambda stream, read: bh2u(stream.getvalue()[read:])
+    elif isinstance(data, bytes):
+        stream = io.BytesIO(data)
+        builder = lambda stream, read: stream.getvalue()[read:]
+    elif isinstance(data, io.BytesIO):
+        stream = data
+        builder = lambda stream, read: stream
+    else:
+        raise Exception('Invalid data')
+
+    read = 0
+    _len = stream.read(1)
+    if _len == b'':
+        return None, builder(stream, read)
+
+    _len = _len[0]
+    read += 1
+    if _len < 253:
+        return _len, builder(stream, read)
+
+    if _len == 253:
+        raw = stream.read(2)
+        read += 2
+    elif _len == 254:
+        raw = stream.read(4)
+        read += 4
+    elif _len == 255:
+        raw = stream.read(8)
+        read += 8
+    return int.from_bytes(raw, 'little'), builder(stream, read)
 
 
 def witness_push(item: str) -> str:
@@ -131,7 +175,7 @@ def push_script(data: str) -> str:
     ported from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptbuilder.go#L128
     """
     data = bfh(data)
-    from .transaction import opcodes
+    from .transaction_utils import opcodes
 
     data_len = len(data)
 
@@ -169,6 +213,9 @@ def hash_encode(x: bytes) -> str:
 def hash_decode(x: str) -> bytes:
     return bfh(x)[::-1]
 
+
+def fingerprint160(key):
+    return hash_160(key)[0:4]
 
 ################################## electrum seeds
 
@@ -284,7 +331,7 @@ def redeem_script_to_address(txin_type: str, redeem_script: str) -> str:
 
 
 def script_to_address(script: str, *, net=None) -> str:
-    from .transaction import get_address_from_output_script
+    from .transaction_utils import get_address_from_output_script
     t, addr = get_address_from_output_script(bfh(script), net=net)
     assert t == TYPE_ADDRESS
     return addr

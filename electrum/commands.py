@@ -39,7 +39,8 @@ from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_enc
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
-from .transaction import Transaction, multisig_script, TxOutput
+from .transaction import Transaction
+from .transaction_utils import multisig_script, TxOutput
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
 from .storage import WalletStorage
@@ -303,7 +304,7 @@ class Commands:
         outputs = [TxOutput(TYPE_ADDRESS, x['address'], int(x['value'])) for x in outputs]
         tx = Transaction.from_io(inputs, outputs, locktime=locktime)
         tx.sign(keypairs)
-        return tx.as_dict()
+        return tx._as_dict()
 
     @command('wp')
     def signtransaction(self, tx, privkey=None, password=None):
@@ -465,7 +466,7 @@ class Commands:
         self.nocheck = nocheck
         #dest = self._resolver(destination)
         tx = sweep(privkeys, self.network, self.config, destination, tx_fee, imax)
-        return tx.as_dict() if tx else None
+        return tx._as_dict() if tx else None
 
     @command('wp')
     def signmessage(self, address, message, password=None):
@@ -509,7 +510,7 @@ class Commands:
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
-        return tx.as_dict()
+        return tx._as_dict()
 
     @command('wp')
     def paytomany(self, outputs, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):
@@ -517,7 +518,7 @@ class Commands:
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
         tx = self._mktx(outputs, tx_fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime)
-        return tx.as_dict()
+        return tx._as_dict()
 
     @command('w')
     def history(self, year=None, show_addresses=False, show_fiat=False, show_fees=False):

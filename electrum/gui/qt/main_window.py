@@ -36,6 +36,7 @@ from decimal import Decimal
 import base64
 from functools import partial
 import queue
+from typing import Union
 import asyncio
 
 from PyQt5.QtGui import *
@@ -45,7 +46,7 @@ from PyQt5.QtWidgets import *
 
 import electrum
 from electrum import (keystore, simple_config, ecc, constants, util, bitcoin, commands,
-                      coinchooser, paymentrequest)
+                      coinchooser, paymentrequest, PSBT)
 from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
 from electrum.plugin import run_hook
 from electrum.i18n import _
@@ -817,7 +818,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d = address_dialog.AddressDialog(self, addr)
         d.exec_()
 
-    def show_transaction(self, tx, tx_desc = None):
+    def show_transaction(self, tx, tx_desc=None):
         '''tx_desc is set only for txs created in the Send tab'''
         show_transaction(tx, self, tx_desc)
 
@@ -1344,11 +1345,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if not outputs:
                 _type, addr = self.get_payto_or_dummy()
                 outputs = [TxOutput(_type, addr, amount)]
-            is_sweep = bool(self.tx_external_keypairs)
+            # is_sweep = bool(self.tx_external_keypairs)
             make_tx = lambda fee_est: \
                 self.wallet.make_unsigned_transaction(
                     self.get_coins(), outputs, self.config,
-                    fixed_fee=fee_est, is_sweep=is_sweep)
+                    fixed_fee=fee_est)
             try:
                 tx = make_tx(fee_estimator)
                 self.not_enough_funds = False
@@ -1540,7 +1541,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_preview(self):
         self.do_send(preview = True)
 
-    def do_send(self, preview = False):
+    def do_send(self, preview=False):
         if run_hook('abort_send', self):
             return
         r = self.read_send_tab()
@@ -1548,10 +1549,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         outputs, fee_estimator, tx_desc, coins = r
         try:
-            is_sweep = bool(self.tx_external_keypairs)
-            tx = self.wallet.make_unsigned_transaction(
-                coins, outputs, self.config, fixed_fee=fee_estimator,
-                is_sweep=is_sweep)
+            psbt = self.wallet.make_psbt(
+                coins, outputs, self.config, fixed_fee=fee_estimator)
         except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
             self.show_message(str(e))
             return
@@ -1560,7 +1559,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(str(e))
             return
 
-        amount = tx.output_value() if self.is_max else sum(map(lambda x:x[2], outputs))
+        tx = psbt.glob.unsigned_tx
+        amount = tx.output_value() if self.is_max else sum(map(lambda x: x[2], outputs))
         fee = tx.get_fee()
 
         use_rbf = self.config.get('use_rbf', True)
@@ -1575,7 +1575,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
 
         if preview:
-            self.show_transaction(tx, tx_desc)
+            self.show_transaction(psbt, tx_desc)
             return
 
         if not self.network:
@@ -1591,7 +1591,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         x_fee = run_hook('get_tx_extra_fee', self.wallet, tx)
         if x_fee:
             x_fee_address, x_fee_amount = x_fee
-            msg.append( _("Additional fees") + ": " + self.format_amount_and_units(x_fee_amount) )
+            msg.append(_("Additional fees") + ": " + self.format_amount_and_units(x_fee_amount))
 
         confirm_rate = simple_config.FEERATE_WARNING_HIGH_FEE
         if fee > confirm_rate * tx.estimated_size() / 1000:
@@ -1616,13 +1616,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.do_clear()
                 else:
                     self.broadcast_transaction(tx, tx_desc)
-        self.sign_tx_with_password(tx, sign_done, password)
+
+        self.sign_tx_with_password(psbt, sign_done, password)
 
     @protected
-    def sign_tx(self, tx, callback, password):
+    def sign_tx(self, tx: Union[PSBT, Transaction], callback, password):
         self.sign_tx_with_password(tx, callback, password)
 
-    def sign_tx_with_password(self, tx, callback, password):
+    def sign_tx_with_password(self, tx: Union[PSBT, Transaction], callback, password):
         '''Sign the transaction in a separate thread.  When done, calls
         the callback with a success code of True or False.
         '''
@@ -1634,9 +1635,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
         if self.tx_external_keypairs:
             # can sign directly
+            print('direct sign')
             task = partial(Transaction.sign, tx, self.tx_external_keypairs)
         else:
-            task = partial(self.wallet.sign_transaction, tx, password)
+            print('wallet sign')
+            task = partial(self.wallet.process_psbt, tx, password)
         msg = _('Signing transaction...')
         WaitingDialog(self, msg, task, on_success, on_failure)
 
@@ -2370,8 +2373,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def tx_from_text(self, txt):
         from electrum.transaction import tx_from_str
         try:
-            tx = tx_from_str(txt)
-            return Transaction(tx)
+            raw_tx = tx_from_str(txt)
+            try:
+                return PSBT.from_raw(txt)
+            except:
+                pass
+            return Transaction(raw_tx)
         except BaseException as e:
             self.show_critical(_("Electrum was unable to parse your transaction") + ":\n" + str(e))
             return
@@ -2401,7 +2408,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.show_transaction(tx)
 
     def read_tx_from_file(self):
-        fileName = self.getOpenFileName(_("Select your transaction file"), "*.txn")
+        fileName = self.getOpenFileName(_("Select your transaction file"), "*.txn, *.psbt")
         if not fileName:
             return
         try:

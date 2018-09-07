@@ -24,10 +24,11 @@
 # SOFTWARE.
 from collections import defaultdict
 from math import floor, log10
-from typing import NamedTuple, List
+from typing import NamedTuple, List, Callable
 
 from .bitcoin import sha256, COIN, TYPE_ADDRESS, is_address
-from .transaction import Transaction, TxOutput
+from .transaction import Transaction
+from .transaction_utils import virtual_size_from_weight, is_segwit_input, estimated_output_size, TxOutput
 from .util import NotEnoughFunds, PrintError
 
 
@@ -75,10 +76,11 @@ class Bucket(NamedTuple):
     value: int          # in satoshis
     coins: List[dict]   # UTXOs
     min_height: int     # min block height where a coin was confirmed
-    witness: bool       # whether any coin uses segwit
+    is_witness: bool    # whether any coin uses segwit
 
 
-def strip_unneeded(bkts, sufficient_funds):
+
+def strip_unneeded(bkts: List[Bucket], sufficient_funds: Callable) -> List[Bucket]:
     '''Remove buckets that are unnecessary in achieving the spend amount'''
     bkts = sorted(bkts, key = lambda bkt: bkt.value)
     for i in range(len(bkts)):
@@ -87,28 +89,28 @@ def strip_unneeded(bkts, sufficient_funds):
     # none of the buckets are needed
     return []
 
+
 class CoinChooserBase(PrintError):
 
     enable_output_value_rounding = False
 
-    def keys(self, coins):
-        raise NotImplementedError
+    def keys(self, coins) -> List[str]:
+        return [coin['address'] for coin in coins]
 
-    def bucketize_coins(self, coins):
+    def bucketize_coins(self, tx, coins):
         keys = self.keys(coins)
         buckets = defaultdict(list)
         for key, coin in zip(keys, coins):
             buckets[key].append(coin)
 
         def make_Bucket(desc, coins):
-            witness = any(Transaction.is_segwit_input(coin, guess_for_address=True) for coin in coins)
+            is_witness = any(is_segwit_input(coin, guess_for_address=True) for coin in coins)
             # note that we're guessing whether the tx uses segwit based
             # on this single bucket
-            weight = sum(Transaction.estimated_input_weight(coin, witness)
-                         for coin in coins)
+            weight = sum(Transaction.estimated_input_weight(coin, is_witness) for i, coin in enumerate(coins))
             value = sum(coin['value'] for coin in coins)
             min_height = min(coin['height'] for coin in coins)
-            return Bucket(desc, weight, value, coins, min_height, witness)
+            return Bucket(desc, weight, value, coins, min_height, is_witness)
 
         return list(map(make_Bucket, buckets.keys(), buckets.values()))
 
@@ -187,8 +189,7 @@ class CoinChooserBase(PrintError):
             self.print_error('not keeping dust', dust)
         return change
 
-    def make_tx(self, coins, inputs, outputs, change_addrs, fee_estimator,
-                dust_threshold):
+    def make_tx(self, coins, inputs, outputs, change_addrs, fee_estimator, dust_threshold):
         """Select unspent coins to spend to pay outputs.  If the change is
         greater than dust_threshold (after adding the change output to
         the transaction) it is kept, otherwise none is sent and it is
@@ -214,18 +215,17 @@ class CoinChooserBase(PrintError):
         spent_amount = tx.output_value()
 
         def fee_estimator_w(weight):
-            return fee_estimator(Transaction.virtual_size_from_weight(weight))
+            return fee_estimator(virtual_size_from_weight(weight))
 
         def get_tx_weight(buckets):
             total_weight = base_weight + sum(bucket.weight for bucket in buckets)
-            is_segwit_tx = any(bucket.witness for bucket in buckets)
+            is_segwit_tx = any(bucket.is_witness for bucket in buckets)
             if is_segwit_tx:
                 total_weight += 2  # marker and flag
                 # non-segwit inputs were previously assumed to have
                 # a witness of '' instead of '00' (hex)
                 # note that mixed legacy/segwit buckets are already ok
-                num_legacy_inputs = sum((not bucket.witness) * len(bucket.coins)
-                                        for bucket in buckets)
+                num_legacy_inputs = sum((not bucket.is_witness) * len(bucket.coins) for bucket in buckets)
                 total_weight += num_legacy_inputs
 
             return total_weight
@@ -238,9 +238,8 @@ class CoinChooserBase(PrintError):
             return total_input >= spent_amount + fee_estimator_w(total_weight)
 
         # Collect the coins into buckets, choose a subset of the buckets
-        buckets = self.bucketize_coins(coins)
-        buckets = self.choose_buckets(buckets, sufficient_funds,
-                                      self.penalty_func(tx))
+        buckets = self.bucketize_coins(tx, coins)
+        buckets = self.choose_buckets(buckets, sufficient_funds, self.penalty_func(tx))
 
         tx.add_inputs([coin for b in buckets for coin in b.coins])
         tx_weight = get_tx_weight(buckets)
@@ -253,7 +252,7 @@ class CoinChooserBase(PrintError):
             assert is_address(change_addrs[0])
 
         # This takes a count of change outputs and returns a tx fee
-        output_weight = 4 * Transaction.estimated_output_size(change_addrs[0])
+        output_weight = 4 * estimated_output_size(change_addrs[0])
         fee = lambda count: fee_estimator_w(tx_weight + count * output_weight)
         change = self.change_outputs(tx, change_addrs, fee, dust_threshold)
         tx.add_outputs(change)
@@ -302,7 +301,7 @@ class CoinChooserRandom(CoinChooserBase):
         candidates = [[buckets[n] for n in c] for c in candidates]
         return [strip_unneeded(c, sufficient_funds) for c in candidates]
 
-    def bucket_candidates_prefer_confirmed(self, buckets, sufficient_funds):
+    def bucket_candidates_prefer_confirmed(self, buckets: List[Bucket], sufficient_funds: Callable) -> List[List[Bucket]]:
         """Returns a list of bucket sets preferring confirmed coins.
 
         Any bucket can be:
@@ -336,13 +335,14 @@ class CoinChooserRandom(CoinChooserBase):
         candidates = [(already_selected_buckets + c) for c in candidates]
         return [strip_unneeded(c, sufficient_funds) for c in candidates]
 
-    def choose_buckets(self, buckets, sufficient_funds, penalty_func):
+    def choose_buckets(self, buckets: List[Bucket], sufficient_funds: Callable, penalty_func: Callable) -> List[Bucket]:
         candidates = self.bucket_candidates_prefer_confirmed(buckets, sufficient_funds)
         penalties = [penalty_func(cand) for cand in candidates]
         winner = candidates[penalties.index(min(penalties))]
         self.print_error("Bucket sets:", len(buckets))
         self.print_error("Winning penalty:", min(penalties))
         return winner
+
 
 class CoinChooserPrivacy(CoinChooserRandom):
     """Attempts to better preserve user privacy.
@@ -354,9 +354,6 @@ class CoinChooserPrivacy(CoinChooserRandom):
     Second, it penalizes change that is quite different to the sent amount.
     Third, it penalizes change that is too big.
     """
-
-    def keys(self, coins):
-        return [coin['address'] for coin in coins]
 
     def penalty_func(self, tx):
         min_change = min(o.value for o in tx.outputs()) * 0.75

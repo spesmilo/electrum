@@ -74,7 +74,7 @@ class Plugin(BasePlugin):
         b.setIcon(QIcon(":icons/speaker.png"))
 
         def handler():
-            blob = json.dumps(dialog.tx.as_dict())
+            blob = json.dumps(dialog.tx._as_dict())
             self._send(parent=dialog, blob=blob)
         b.clicked.connect(handler)
         dialog.sharing_buttons.insert(-1, b)

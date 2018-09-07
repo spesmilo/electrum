@@ -1,9 +1,11 @@
-from electrum import transaction
-from electrum.transaction import TxOutputForUI
-from electrum.bitcoin import TYPE_ADDRESS
-from electrum.keystore import xpubkey_to_address
-from electrum.util import bh2u, bfh
+import io
 
+from electrum import transaction_utils
+from electrum.bip32 import xpubkey_to_address
+from electrum.bitcoin import TYPE_ADDRESS, var_int, varint_to_int, TYPE_PUBKEY, TYPE_SCRIPT
+from electrum.transaction import Transaction, TxOutputForUI
+from electrum.transaction_utils import get_address_from_output_script
+from electrum.util import bh2u, bfh, BCDataStream, SerializationError
 from . import SequentialTestCase, TestCaseForTestnet
 from .test_bitcoin import needs_test_with_all_ecc_implementations
 
@@ -14,28 +16,28 @@ signed_segwit_blob = "01000000000101b66d722484f2db63e827ebf41d02684fed0c6550e850
 
 signed_blob_signatures = ['3046022100a82bbc57a0136751e5433f41cf000b3f1a99c6744775e76ec764fb78c54ee100022100f9e80b7de89de861dc6fb0c1429d5da72c2b6b2ee2406bc9bfb1beedd729d98501', ]
 
+
 class TestBCDataStream(SequentialTestCase):
 
     def test_compact_size(self):
-        s = transaction.BCDataStream()
+        s = BCDataStream()
         values = [0, 1, 252, 253, 2**16-1, 2**16, 2**32-1, 2**32, 2**64-1]
         for v in values:
             s.write_compact_size(v)
 
-        with self.assertRaises(transaction.SerializationError):
+        with self.assertRaises(SerializationError):
             s.write_compact_size(-1)
 
-        self.assertEqual(bh2u(s.input),
-                          '0001fcfdfd00fdfffffe00000100feffffffffff0000000001000000ffffffffffffffffff')
+        self.assertEqual(bh2u(s.input), '0001fcfdfd00fdfffffe00000100feffffffffff0000000001000000ffffffffffffffffff')
         for v in values:
             self.assertEqual(s.read_compact_size(), v)
 
-        with self.assertRaises(transaction.SerializationError):
+        with self.assertRaises(SerializationError):
             s.read_compact_size()
 
     def test_string(self):
-        s = transaction.BCDataStream()
-        with self.assertRaises(transaction.SerializationError):
+        s = BCDataStream()
+        with self.assertRaises(SerializationError):
             s.read_string()
 
         msgs = ['Hello', ' ', 'World', '', '!']
@@ -44,16 +46,17 @@ class TestBCDataStream(SequentialTestCase):
         for msg in msgs:
             self.assertEqual(s.read_string(), msg)
 
-        with self.assertRaises(transaction.SerializationError):
+        with self.assertRaises(SerializationError):
             s.read_string()
 
     def test_bytes(self):
-        s = transaction.BCDataStream()
+        s = BCDataStream()
         s.write(b'foobar')
         self.assertEqual(s.read_bytes(3), b'foo')
         self.assertEqual(s.read_bytes(2), b'ba')
         self.assertEqual(s.read_bytes(4), b'r')
         self.assertEqual(s.read_bytes(1), b'')
+
 
 class TestTransaction(SequentialTestCase):
 
@@ -82,7 +85,7 @@ class TestTransaction(SequentialTestCase):
             'segwit_ser': False,
             'version': 1,
         }
-        tx = transaction.Transaction(unsigned_blob)
+        tx = Transaction(unsigned_blob)
         self.assertEqual(tx.deserialize(), expected)
         self.assertEqual(tx.deserialize(), None)
 
@@ -101,7 +104,7 @@ class TestTransaction(SequentialTestCase):
         tx.update(unsigned_blob)
         tx.raw = None
         blob = str(tx)
-        self.assertEqual(transaction.deserialize(blob), expected)
+        self.assertEqual(transaction_utils.deserialize(blob), expected)
 
     @needs_test_with_all_ecc_implementations
     def test_tx_signed(self):
@@ -124,7 +127,7 @@ class TestTransaction(SequentialTestCase):
             'segwit_ser': False,
             'version': 1
         }
-        tx = transaction.Transaction(signed_blob)
+        tx = Transaction(signed_blob)
         self.assertEqual(tx.deserialize(), expected)
         self.assertEqual(tx.deserialize(), None)
         self.assertEqual(tx.as_dict(), {'hex': signed_blob, 'complete': True, 'final': True})
@@ -140,7 +143,7 @@ class TestTransaction(SequentialTestCase):
         self.assertEqual(tx.estimated_size(), 193)
 
     def test_estimated_output_size(self):
-        estimated_output_size = transaction.Transaction.estimated_output_size
+        estimated_output_size = transaction_utils.estimated_output_size
         self.assertEqual(estimated_output_size('14gcRovpkCoGkCNBivQBvw7eso7eiNAbxG'), 34)
         self.assertEqual(estimated_output_size('35ZqQJcBQMZ1rsv8aSuJ2wkC7ohUCQMJbT'), 32)
         self.assertEqual(estimated_output_size('bc1q3g5tmkmlvxryhh843v4dz026avatc0zzr6h3af'), 31)
@@ -148,7 +151,7 @@ class TestTransaction(SequentialTestCase):
 
     # TODO other tests for segwit tx
     def test_tx_signed_segwit(self):
-        tx = transaction.Transaction(signed_segwit_blob)
+        tx = Transaction(signed_segwit_blob)
 
         self.assertEqual(tx.estimated_total_size(), 222)
         self.assertEqual(tx.estimated_base_size(), 113)
@@ -158,7 +161,7 @@ class TestTransaction(SequentialTestCase):
 
     def test_errors(self):
         with self.assertRaises(TypeError):
-            transaction.Transaction.pay_script(output_type=None, addr='')
+            transaction_utils.pay_script(output_type=None, addr='')
 
         with self.assertRaises(BaseException):
             xpubkey_to_address('')
@@ -168,15 +171,15 @@ class TestTransaction(SequentialTestCase):
         self.assertEqual(res, ('04ee98d63800824486a1cf5b4376f2f574d86e0a3009a6448105703453f3368e8e1d8d090aaecdd626a45cc49876709a3bbb6dc96a4311b3cac03e225df5f63dfc', '19h943e4diLc68GXW7G75QNe2KWuMu7BaJ'))
 
     def test_version_field(self):
-        tx = transaction.Transaction(v2_blob)
+        tx = Transaction(v2_blob)
         self.assertEqual(tx.txid(), "b97f9180173ab141b61b9f944d841e60feec691d6daab4d4d932b24dd36606fe")
 
     def test_get_address_from_output_script(self):
         # the inverse of this test is in test_bitcoin: test_address_to_script
-        addr_from_script = lambda script: transaction.get_address_from_output_script(bfh(script))
-        ADDR = transaction.TYPE_ADDRESS
-        PUBKEY = transaction.TYPE_PUBKEY
-        SCRIPT = transaction.TYPE_SCRIPT
+        addr_from_script = lambda script: get_address_from_output_script(bfh(script))
+        ADDR = TYPE_ADDRESS
+        PUBKEY = TYPE_PUBKEY
+        SCRIPT = TYPE_SCRIPT
 
         # bech32 native segwit
         # test vectors from BIP-0173
@@ -210,7 +213,7 @@ class TestTransaction(SequentialTestCase):
 #####
 
     def _run_naive_tests_on_tx(self, raw_tx, txid):
-        tx = transaction.Transaction(raw_tx)
+        tx = Transaction(raw_tx)
         self.assertEqual(txid, tx.txid())
         self.assertEqual(raw_tx, tx.serialize())
         self.assertTrue(tx.estimated_size() >= 0)
@@ -797,7 +800,7 @@ class TestTransaction(SequentialTestCase):
 class TestTransactionTestnet(TestCaseForTestnet):
 
     def _run_naive_tests_on_tx(self, raw_tx, txid):
-        tx = transaction.Transaction(raw_tx)
+        tx = Transaction(raw_tx)
         self.assertEqual(txid, tx.txid())
         self.assertEqual(raw_tx, tx.serialize())
         self.assertTrue(tx.estimated_size() >= 0)
@@ -822,6 +825,29 @@ class TestTransactionTestnet(TestCaseForTestnet):
         self._run_naive_tests_on_tx(raw_tx, txid)
 
 # end partial txns <---
+
+
+class TestVarintParser(SequentialTestCase):
+    def test_utils_varint_to_int_with_str_input(self):
+        for value in (0, 1, 250, 252, 253, 254, 255, 256, 0xffff, 0xffff + 1, 0xffffffff, 0xffffffff + 1, 0xffffffff * 4):
+            raw = var_int(value)
+            decoded, rest = varint_to_int(raw)
+            assert value == decoded
+            assert rest == ''
+
+    def test_utils_varint_to_int_with_bytes_input(self):
+        for value in (0, 1, 250, 252, 253, 254, 255, 256, 0xffff, 0xffff + 1, 0xffffffff, 0xffffffff + 1, 0xffffffff * 4):
+            raw = bfh(var_int(value))
+            decoded, rest = varint_to_int(raw)
+            assert value == decoded
+            assert rest == b''
+
+    def test_utils_varint_to_int_with_bytesio_input(self):
+        for value in (0, 1, 250, 252, 253, 254, 255, 256, 0xffff, 0xffff + 1, 0xffffffff, 0xffffffff + 1, 0xffffffff * 4):
+            raw = io.BytesIO(bfh(var_int(value)))
+            decoded, rest = varint_to_int(raw)
+            assert value == decoded
+            assert rest.read(1) == b''
 
 
 class NetworkMock(object):

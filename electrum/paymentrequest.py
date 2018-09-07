@@ -32,6 +32,7 @@ import requests
 import urllib.parse
 import aiohttp
 
+import requests
 
 try:
     from . import paymentrequest_pb2 as pb2
@@ -39,6 +40,9 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=electrum/ --python_out=electrum/ electrum/paymentrequest.proto'")
 
 from . import bitcoin, ecc, util, transaction, x509, rsakey
+from .util import print_error, bh2u, bfh, export_meta, import_meta
+
+from .transaction_utils import get_address_from_output_script, TxOutput
 from .util import print_error, bh2u, bfh, export_meta, import_meta, make_aiohttp_session
 from .crypto import sha256
 from .bitcoin import TYPE_ADDRESS
@@ -47,7 +51,11 @@ from .network import Network
 
 
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
-ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
+ACK_HEADERS = {
+    'Content-Type': 'application/bitcoin-payment',
+    'Accept': 'application/bitcoin-paymentack',
+    'User-Agent': 'Electrum'
+}
 
 ca_path = requests.certs.where()  # FIXME do we need to depend on requests here?
 ca_list = None
@@ -57,7 +65,6 @@ def load_ca_list():
     global ca_list, ca_keyID
     if ca_list is None:
         ca_list, ca_keyID = x509.load_certificates(ca_path)
-
 
 
 # status of payment requests

@@ -30,6 +30,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import QPushButton
 
+import electrum.crypto
 from electrum import util, keystore, ecc, bip32, crypto
 from electrum import transaction
 from electrum.plugin import BasePlugin, hook

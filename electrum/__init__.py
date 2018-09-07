@@ -10,6 +10,7 @@ from . import bitcoin
 from . import transaction
 from . import daemon
 from .transaction import Transaction
+from .bip174 import PSBT
 from .plugin import BasePlugin
 from .commands import Commands, known_commands
 

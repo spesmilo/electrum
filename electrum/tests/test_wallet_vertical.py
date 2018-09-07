@@ -1,21 +1,22 @@
-from unittest import mock
+import asyncio
+import base64
 import shutil
 import tempfile
+from base64 import b64decode
 from typing import Sequence
-import asyncio
+from unittest import mock
 
-from electrum import storage, bitcoin, keystore
-from electrum import Transaction
 from electrum import SimpleConfig
-from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
-from electrum.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet
-from electrum.util import bfh, bh2u
-from electrum.transaction import TxOutput
-
+from electrum import Transaction
+from electrum import storage, bitcoin, keystore, PSBT
+from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.plugins.trustedcoin import trustedcoin
+from electrum.transaction import TxOutput, ImmutableTransaction
+from electrum.util import bfh, bh2u
+from electrum.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet
 
-from . import TestCaseForTestnet
 from . import SequentialTestCase
+from . import TestCaseForTestnet
 from .test_bitcoin import needs_test_with_all_ecc_implementations
 
 
@@ -502,8 +503,7 @@ class TestWalletKeystoreAddressIntegrityForTestnet(TestCaseForTestnet):
         self.assertEqual(w.get_change_addresses()[0], 'tb1q0fj5mra96hhnum80kllklc52zqn6kppt3hyzr49yhr3ecr42z3ts5777jl')
 
 
-class TestWalletSending(TestCaseForTestnet):
-
+class TestCaseForTestnetWithDisposableStore(TestCaseForTestnet):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -515,6 +515,8 @@ class TestWalletSending(TestCaseForTestnet):
         super().tearDownClass()
         shutil.rmtree(cls.electrum_path)
 
+
+class TestWalletSending(TestCaseForTestnetWithDisposableStore):
     def create_standard_wallet_from_seed(self, seed_words):
         ks = keystore.from_seed(seed_words, '', False)
         return WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=2)

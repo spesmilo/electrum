@@ -27,45 +27,39 @@
 #   - Multisig_Wallet: several keystores, P2SH
 
 
-import os
-import sys
-import random
-import time
-import json
 import copy
 import errno
-import traceback
-from functools import partial
-from numbers import Number
+import json
+import os
+import random
+import time
 from decimal import Decimal
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from numbers import Number
+from typing import TYPE_CHECKING, Optional, List, Union, Tuple
 
-from .i18n import _
-from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
-                   format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
-                   WalletFileException, BitcoinException,
-                   InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
-                   Fiat, bfh, bh2u)
-from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
-                      is_minikey, relayfee, dust_threshold)
-from .version import *
-from .crypto import sha256d
-from .keystore import load_keystore, Hardware_KeyStore
-from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW, WalletStorage
-from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
-from .transaction import Transaction, TxOutput, TxOutputHwInfo
-from .plugin import run_hook
-from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
-                                   TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED)
-from .paymentrequest import (PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED,
-                             InvoiceStore)
+from . import bitcoin, coinchooser, paymentrequest, ecc, bip32
+from . import transaction_utils
+from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED
+from .bip174 import PSBT
+from .bip32 import xpub_to_bip32_psbt
+from .bitcoin import COIN, TYPE_ADDRESS, is_address, address_to_script, is_minikey, relayfee, dust_threshold
 from .contacts import Contacts
+from .crypto import sha256d
+from .i18n import _
 from .interface import RequestTimedOut
+from .keystore import load_keystore, Hardware_KeyStore
+from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED, InvoiceStore
+from .plugin import run_hook
+from .storage import WalletStorage, multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW
+from .transaction import Transaction, tx_to_immutable, ImmutableTransaction
+from .transaction_utils import TxOutputHwInfo, is_input_value_needed, TxOutput, is_segwit_input
+from .util import (NotEnoughFunds, UserCancelled, profiler, format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
+                   WalletFileException, InvalidPassword, format_time, BitcoinException, bh2u, timestamp_to_datetime,
+                   Satoshis, Fiat)
 
 if TYPE_CHECKING:
     from .network import Network
     from .simple_config import SimpleConfig
-
 
 TX_STATUS = [
     _('Unconfirmed'),
@@ -207,7 +201,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def load_addresses(self):
         d = self.storage.get('addresses', {})
-        if type(d) != dict: d={}
+        if type(d) != dict: d = {}
         self.receiving_addresses = d.get('receiving', [])
         self.change_addresses = d.get('change', [])
 
@@ -286,10 +280,13 @@ class Abstract_Wallet(AddressSynchronizer):
         except:
             return
 
-    def is_mine(self, address):
+    def is_mine(self, address, bip32_fingerprints=None):
         try:
             self.get_address_index(address)
         except KeyError:
+            if bip32_fingerprints:
+                if self.keystore.master_fingerprint in bip32_fingerprints:
+                    return True
             return False
         return True
 
@@ -308,7 +305,7 @@ class Abstract_Wallet(AddressSynchronizer):
         if self.is_watching_only():
             return []
         index = self.get_address_index(address)
-        pk, compressed = self.keystore.get_private_key(index, password)
+        pk, compressed = self.keystore.get_private_key(None, index, password)
         txin_type = self.get_txin_type(address)
         redeem_script = self.get_redeem_script(address)
         serialized_privkey = bitcoin.serialize_privkey(pk, compressed, txin_type)
@@ -320,7 +317,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def is_found(self):
         return self.history.values() != [[]] * len(self.history)
 
-    def get_tx_info(self, tx):
+    def get_tx_info(self, tx: Transaction):
         is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
         exp_n = None
         can_broadcast = False
@@ -356,6 +353,57 @@ class Abstract_Wallet(AddressSynchronizer):
         else:
             s, r = tx.signature_count()
             status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)'%(s,r)
+
+        if is_relevant:
+            if is_mine:
+                if fee is not None:
+                    amount = v + fee
+                else:
+                    amount = v
+            else:
+                amount = v
+        else:
+            amount = None
+
+        return tx_hash, status, label, can_broadcast, can_bump, amount, fee, height, conf, timestamp, exp_n
+
+    def get_psbt_info(self, psbt: PSBT):
+        tx = psbt.glob.unsigned_tx
+        is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
+        exp_n = None
+        can_broadcast = False
+        can_bump = False
+        label = ''
+        height = conf = timestamp = None
+        tx_hash = tx.txid()
+        if psbt.is_complete():
+            if tx_hash in self.transactions.keys():
+                label = self.get_label(tx_hash)
+                tx_mined_status = self.get_tx_height(tx_hash)
+                height, conf = tx_mined_status.height, tx_mined_status.conf
+                if height > 0:
+                    if conf:
+                        status = _("{} confirmations").format(conf)
+                    else:
+                        status = _('Not verified')
+                elif height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED):
+                    status = _('Unconfirmed')
+                    if fee is None:
+                        fee = self.tx_fees.get(tx_hash)
+                    if fee and self.network and self.network.config.has_fee_mempool():
+                        size = tx.estimated_size()
+                        fee_per_byte = fee / size
+                        exp_n = self.network.config.fee_to_depth(fee_per_byte)
+                    can_bump = is_mine and not tx.is_final()
+                else:
+                    status = _('Local')
+                    can_broadcast = self.network is not None
+            else:
+                status = _("Signed")
+                can_broadcast = self.network is not None
+        else:
+            s, r = psbt.signature_count()
+            status = _("Unsigned") if s == 0 else _('Partially signed') + ' (%d/%d)' % (s, r)
 
         if is_relevant:
             if is_mine:
@@ -595,8 +643,7 @@ class Abstract_Wallet(AddressSynchronizer):
             return tx
         return candidate
 
-    def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None,
-                                  change_addr=None, is_sweep=False):
+    def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None):
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):
@@ -685,6 +732,108 @@ class Abstract_Wallet(AddressSynchronizer):
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
+    def make_psbt(self,
+                  inputs: List[dict],
+                  outputs: List[TxOutput],
+                  config,
+                  fixed_fee=None,
+                  change_addr=None,
+                  ) -> PSBT:
+        # check outputs
+        i_max = None
+        for i, o in enumerate(outputs):
+            if o.type == TYPE_ADDRESS:
+                if not is_address(o.address):
+                    raise Exception("Invalid bitcoin address: {}".format(o.address))
+            if o.value == '!':
+                if i_max is not None:
+                    raise Exception("More than one output set to spend max")
+                i_max = i
+
+        if fixed_fee is None and config.fee_per_kb() is None:
+            raise NoDynamicFeeEstimates()
+
+        sig_info = self.get_input_info_psbt(inputs)
+
+        # change address
+        # if we leave it empty, coin_chooser will set it
+        change_addrs = []
+        if change_addr:
+            change_addrs = [change_addr]
+        elif self.use_change:
+            # Recalc and get unused change addresses
+            addrs = self.calc_unused_change_addresses()
+            # New change addresses are created only after a few
+            # confirmations.
+            if addrs:
+                # if there are any unused, select all
+                change_addrs = addrs
+            else:
+                # if there are none, take one randomly from the last few
+                addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
+                change_addrs = [random.choice(addrs)] if addrs else []
+
+        # Fee estimator
+        if fixed_fee is None:
+            fee_estimator = config.estimate_fee
+        elif isinstance(fixed_fee, Number):
+            fee_estimator = lambda size: fixed_fee
+        elif callable(fixed_fee):
+            fee_estimator = fixed_fee
+        else:
+            raise Exception('Invalid argument fixed_fee: %s' % fixed_fee)
+
+        if i_max is None:
+            # Let the coin chooser select the coins to spend
+            max_change = self.max_change_outputs if self.multiple_change else 1
+            coin_chooser = coinchooser.get_coin_chooser(config)
+            # If there is an unconfirmed RBF tx, merge with it
+            base_tx = self.get_unconfirmed_base_tx_for_batching()
+            if config.get('batch_rbf', False) and base_tx:
+                is_local = self.get_tx_height(base_tx.txid()).height == TX_HEIGHT_LOCAL
+                base_tx = Transaction(base_tx.serialize())
+                base_tx.deserialize(force_full_parse=True)
+                base_tx.remove_signatures()
+                base_tx.add_inputs_info(self)
+                base_tx_fee = base_tx.get_fee()
+                relayfeerate = self.relayfee() / 1000
+                original_fee_estimator = fee_estimator
+
+                def fee_estimator(size: int) -> int:
+                    lower_bound = base_tx_fee + round(size * relayfeerate)
+                    lower_bound = lower_bound if not is_local else 0
+                    return max(lower_bound, original_fee_estimator(size))
+
+                txi = base_tx.inputs()
+                txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs()))
+            else:
+                txi = []
+                txo = []
+            tx = coin_chooser.make_tx(inputs, txi, outputs[:] + txo, change_addrs[:max_change],
+                                      fee_estimator, self.dust_threshold())
+        else:
+            # FIXME?? this might spend inputs with negative effective value...
+            sendable = sum(map(lambda x: x['value'], inputs))
+            outputs[i_max] = outputs[i_max]._replace(value=0)
+            tx = Transaction.from_io(inputs, outputs[:])
+            fee = fee_estimator(tx.estimated_size())
+            amount = sendable - tx.output_value() - fee
+            if amount < 0:
+                raise NotEnoughFunds()
+            outputs[i_max] = outputs[i_max]._replace(value=amount)
+
+        # Timelock tx to current height.
+        tx.locktime = self.get_local_height()
+        self.add_input_info_to_all_inputs(tx)
+
+        psbt = PSBT.from_raw_tx(tx)
+        psbt.BIP69_sort()
+        self.add_info_to_psbt(psbt)
+
+        run_hook('make_unsigned_transaction', self, psbt)  # TODO
+        run_hook('make_psbt', self, psbt)
+        return psbt
+
     def mktx(self, outputs, password, config, fee=None, change_addr=None,
              domain=None, rbf=False, nonlocal_only=False):
         coins = self.get_spendable_coins(domain, config, nonlocal_only=nonlocal_only)
@@ -692,6 +841,16 @@ class Abstract_Wallet(AddressSynchronizer):
         tx.set_rbf(rbf)
         self.sign_transaction(tx, password)
         return tx
+
+    def create_psbt(self, outputs: List[TxOutput], password: Optional[str], config, fee=None, change_addr=None, domain=None):
+        """
+        create minimal psbt, call wallet.process_psbt to populate it
+        """
+        coins = self.get_spendable_coins(domain, config)
+        psbt = self.make_psbt(coins, outputs, config, fee, change_addr)
+        # separated this step
+        # self.process_psbt(psbt, password)
+        return psbt
 
     def is_frozen(self, addr):
         return addr in self.frozen_addresses
@@ -809,6 +968,42 @@ class Abstract_Wallet(AddressSynchronizer):
     def add_input_sig_info(self, txin, address):
         raise NotImplementedError()  # implemented by subclasses
 
+    def get_input_sig_info(self, txin: dict) -> Optional[dict]:
+        """
+        Must return dict with following structure
+        # Hack: if we aren't using bip32 wallet, return None instead of derivation dict,
+        so we can know that we can sign this just by pubkey without using derivation data
+        {
+            'bip32_derivation': {
+                '<pubkey1>': {
+                    'bip32_path': "/0/0'",
+                    'master_fingerprint': '272469db'
+                 },
+                 '<pubkey2>': None,
+            }
+        }
+        if no data available, must return None
+        """
+        # Should be implemented in all BIP32 compatible wallets
+        return None
+
+    def get_output_info(self, address):
+        """
+        Must return dict with following structure
+        {
+            'bip32_derivation': {
+                '<pubkey1>': {
+                    'bip32_path': "/0/0'",
+                    'master_fingerprint': '272469db'
+                 },
+                 '<pubkey2>': ...
+            }
+        }
+        if no data available, must return None
+        """
+        # Should be implemented in all BIP32 compatible wallets
+        return None
+
     def add_input_info(self, txin):
         address = self.get_txin_address(txin)
         if self.is_mine(address):
@@ -817,16 +1012,116 @@ class Abstract_Wallet(AddressSynchronizer):
             # segwit needs value to sign
             if txin.get('value') is None:
                 received, spent = self.get_addr_io(address)
-                item = received.get(txin['prevout_hash']+':%d'%txin['prevout_n'])
+                item = received.get(txin['prevout_hash'] + ':%d' % txin['prevout_n'])
                 if item:
-                    txin['value'] = item[1]
+                    tx_height, value, is_cb = item
+                    txin['value'] = value
             self.add_input_sig_info(txin, address)
+
+    def get_input_info_psbt(self, inputs=None, psbt=None) -> List[dict]:
+        # TODO: make psbt required, too messy logic when it optional
+        if not inputs and not psbt:
+            raise Exception('missing arguments')
+        if not inputs and psbt:
+            inputs = psbt.glob.unsigned_tx.inputs()
+
+        out = []
+
+        for i, txin in enumerate(inputs):
+            address = txin['address']
+            if address is None:
+                address = txin['address'] = self.get_txin_address(txin)
+            fingerprints = []
+            if psbt:
+                inp = psbt.input_sections[i]
+                fingerprints = [info['master_fingerprint'] for info in filter(None, inp.bip32_derivation.values())]
+            sig_info = {}
+            if self.is_mine(address, fingerprints):
+                txin['type'] = self.get_txin_type(address)
+                if psbt:
+                    sig_info.update(psbt.input_sections[i]._as_dict())
+                sig_info.update(self.get_input_sig_info(txin) or {})
+                # segwit needs value to sign
+                if txin.get('value') is None and is_input_value_needed(txin):
+                    received, spent = self.get_addr_io(address)
+                    item = received.get(txin['prevout_hash'] + ':%d' % txin['prevout_n'])
+                    tx_height, value, is_cb = item
+                    txin['value'] = value
+            out.append(sig_info)
+        return out
+
+    def add_info_to_psbt(self, psbt: PSBT):
+        """
+        Must add if possible:
+        - non_witness_utxo/witness_utxo
+        - redeem_script
+        - bip32_derivation
+        """
+        # if tx.is_complete():
+        #     return
+        # for txin in tx.inputs():
+        #     self.add_input_info(txin)
+        tx = psbt.glob.unsigned_tx
+        full_utxos = [self.transactions.get(utxo['prevout_hash']) for utxo in tx.inputs()]
+        full_utxos = [tx_to_immutable(tx) if tx else None for tx in full_utxos]  # type: List[ImmutableTransaction]
+
+        # adding bip32_derivation, non_witness_utxo to inputs
+        sig_info = self.get_input_info_psbt(psbt=psbt)
+        for i, utxo in enumerate(full_utxos):
+            inp = psbt.input_sections[i]
+            txin = tx.inputs()[i]  # corresponding global txin
+            if is_segwit_input(txin):
+                witness = utxo.get_witness(txin['prevout_n'])
+                if witness != '00':
+                    sig_info[i]['witness_utxo'] = witness
+            else:
+                sig_info[i]['non_witness_utxo'] = utxo
+            sig_info[i]['sighash_type'] = '01000000'
+        psbt.update_inputs(sig_info)
+
+        # adding bip32_derivation to outputs
+        outputs_meta = []
+        for i, txo in enumerate(psbt.glob.unsigned_tx.outputs()):
+            info = self.get_output_info(txo.address)
+            outputs_meta.append(info)
+        psbt.update_outputs(outputs_meta)
+
+        # adding redeem_script to inputs
+        psbt.generate_redeem_scripts()
+
+    def add_input_info_to_all_inputs(self, tx):
+        if tx.is_complete():
+            return
+        for txin in tx.inputs():
+            self.add_input_info(txin)
+
+    def _can_sign(self, psbt: PSBT):
+        for i, inp in enumerate(psbt.input_sections):
+            txin = psbt.glob.unsigned_tx.inputs()[i]
+            address = txin['address']
+            if self.is_mine(address):
+                return True
+                # TODO:
+                txin['type'] = self.get_txin_type(address)
+                # segwit needs value to sign
+                if txin.get('value') is None and is_input_value_needed(txin):
+                    received, spent = self.get_addr_io(address)
+                    item = received.get(txin['prevout_hash'] + ':%d' % txin['prevout_n'])
+                    tx_height, value, is_cb = item
+                    txin['value'] = value
+                self.add_input_sig_info(txin, address)
 
     def can_sign(self, tx):
         if tx.is_complete():
             return False
         # add info to inputs if we can; otherwise we might return a false negative:
-        tx.add_inputs_info(self)
+        if isinstance(tx, Transaction):
+            self.add_input_info_to_all_inputs(tx)  # though note that this is a side-effect
+        else:
+            self.add_info_to_psbt(tx)
+            if self._can_sign(tx):
+                return True
+
         for k in self.get_keystores():
             if k.can_sign(tx):
                 return True
@@ -870,10 +1165,14 @@ class Abstract_Wallet(AddressSynchronizer):
                 info[addr] = TxOutputHwInfo(index, sorted_xpubs, num_sig, self.txin_type)
         tx.output_info = info
 
-    def sign_transaction(self, tx, password):
+    def sign_transaction(self, tx: Union[PSBT, Transaction], password):
+
         if self.is_watching_only():
             return
-        tx.add_inputs_info(self)
+        if isinstance(tx, Transaction):
+            self.add_input_info_to_all_inputs(tx)
+        else:
+            self.add_info_to_psbt(tx)
         # hardware wallets require extra info
         if any([(isinstance(k, Hardware_KeyStore) and k.can_sign(tx)) for k in self.get_keystores()]):
             self.add_hw_info(tx)
@@ -885,6 +1184,31 @@ class Abstract_Wallet(AddressSynchronizer):
             except UserCancelled:
                 continue
         return tx
+
+    def process_psbt(self, psbt: PSBT, password: Optional[str], sign=True) -> PSBT:
+        """
+        populate with data and sign if possible
+        """
+        if self.is_watching_only():
+            return psbt
+
+        self.add_info_to_psbt(psbt)
+        # hardware wallets require extra info
+        # TODO: fix hw
+        if any([(isinstance(k, Hardware_KeyStore) and k.can_sign(psbt)) for k in self.get_keystores()]):
+            self.add_hw_info(psbt)
+
+        if not sign:
+            return psbt
+        # sign. start with ready keystores.
+        for k in sorted(self.get_keystores(), key=lambda ks: ks.ready_to_sign(), reverse=True):
+            try:
+                if k.can_sign(psbt):
+                    k.sign_transaction(psbt, password)
+                # psbt.sign(k, password)
+            except UserCancelled:
+                continue
+        return psbt
 
     def get_unused_addresses(self):
         # fixme: use slots from expired requests
@@ -1211,7 +1535,10 @@ class Abstract_Wallet(AddressSynchronizer):
         # overloaded for TrustedCoin wallets
         return False
 
-    def is_watching_only(self) -> bool:
+    def get_txin_type(self, address):
+        raise NotImplementedError()
+
+    def is_watching_only(self):
         raise NotImplementedError()
 
 
@@ -1438,6 +1765,19 @@ class Imported_Wallet(Simple_Wallet):
             if v.get('pubkey') == pubkey:
                 return addr
 
+    def get_input_sig_info(self, txin):
+        out = {'bip32_derivation': {}}
+
+        addr = txin.get('address')
+        if not addr:
+            return out
+        pubkey = self.addresses.get(addr, {}).get('pubkey')
+        if not pubkey:
+            return out
+        out['bip32_derivation'][pubkey] = None
+        return out
+
+
 class Deterministic_Wallet(Abstract_Wallet):
 
     def __init__(self, storage):
@@ -1509,10 +1849,13 @@ class Deterministic_Wallet(Abstract_Wallet):
     def load_addresses(self):
         super().load_addresses()
         self._addr_to_addr_index = {}  # key: address, value: (is_change, index)
+        self._addr_to_addr_path = {}   # key: address, value: /0/0'/2
         for i, addr in enumerate(self.receiving_addresses):
             self._addr_to_addr_index[addr] = (False, i)
+            self._addr_to_addr_path[addr] = "/0/" + str(i)
         for i, addr in enumerate(self.change_addresses):
             self._addr_to_addr_index[addr] = (True, i)
+            self._addr_to_addr_path[addr] = "/1/" + str(i)
 
     def create_new_address(self, for_change=False):
         assert type(for_change) is bool
@@ -1523,11 +1866,23 @@ class Deterministic_Wallet(Abstract_Wallet):
             address = self.pubkeys_to_address(x)
             addr_list.append(address)
             self._addr_to_addr_index[address] = (for_change, n)
+            self._addr_to_addr_path[address] = "/{:d}/{:d}".format(for_change, n)
             self.save_addresses()
             self.add_address(address)
             if for_change:
                 # note: if it's actually used, it will get filtered later
                 self._unused_change_addresses.append(address)
+            return address
+
+    def create_new_address_by_path(self, derivation_path: str, password):
+        with self.lock:
+            assert derivation_path.startswith('/')
+            x = self.keystore.derive_any_pubkey_bip32(derivation_path, password)
+            address = self.pubkeys_to_address(x)
+            self.receiving_addresses.append(address)
+            self._addr_to_addr_index[address] = (False, derivation_path)
+            self.save_addresses()
+            self.add_address(address)
             return address
 
     def synchronize_sequence(self, for_change):
@@ -1562,6 +1917,9 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_address_index(self, address):
         return self._addr_to_addr_index[address]
 
+    def get_address_path(self, address: str) -> str:
+        return self._addr_to_addr_path.get(address)
+
     def get_master_public_keys(self):
         return [self.get_master_public_key()]
 
@@ -1570,6 +1928,31 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def get_txin_type(self, address):
         return self.txin_type
+
+    def get_keystores(self):
+        return [self.keystore]
+
+    def _get_addr_sig_info(self, addr):
+        out = {'bip32_derivation': {}}
+        derivation_path = self.get_address_path(addr)
+        if not derivation_path:
+            return out
+
+        try:
+            xpubs = [k.xpub for k in self.get_keystores()]
+        except:
+            xpubs = []
+        for xpub in xpubs:
+            k, v = xpub_to_bip32_psbt(xpub, derivation_path)
+            out['bip32_derivation'][k] = v
+        return out
+
+    def get_input_sig_info(self, txin):
+        out = self._get_addr_sig_info(txin['address'])
+        return out
+
+    def get_output_info(self, address):
+        return self._get_addr_sig_info(address)
 
 
 class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
@@ -1609,10 +1992,6 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
         return self.keystore.derive_pubkey(c, i)
 
 
-
-
-
-
 class Standard_Wallet(Simple_Deterministic_Wallet):
     wallet_type = 'standard'
 
@@ -1641,7 +2020,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         return bitcoin.redeem_script_to_address(self.txin_type, redeem_script)
 
     def pubkeys_to_redeem_script(self, pubkeys):
-        return transaction.multisig_script(sorted(pubkeys), self.m)
+        return transaction_utils.multisig_script(sorted(pubkeys), self.m)
 
     def get_redeem_script(self, address):
         pubkeys = self.get_public_keys(address)
@@ -1721,11 +2100,20 @@ class Multisig_Wallet(Deterministic_Wallet):
         txin['signatures'] = [None] * self.n
         txin['num_sig'] = self.m
 
+    def get_input_sig_info(self, txin):
+        out = super().get_input_sig_info(txin)
+        txin['num_sig'] = self.m
+        txin['_m'] = self.m
+        txin['_n'] = self.n
+        return out
+
 
 wallet_types = ['standard', 'multisig', 'imported']
 
+
 def register_wallet_type(category):
     wallet_types.append(category)
+
 
 wallet_constructors = {
     'standard': Standard_Wallet,
@@ -1734,8 +2122,10 @@ wallet_constructors = {
     'imported': Imported_Wallet
 }
 
+
 def register_constructor(wallet_type, constructor):
     wallet_constructors[wallet_type] = constructor
+
 
 # former WalletFactory
 class Wallet(object):

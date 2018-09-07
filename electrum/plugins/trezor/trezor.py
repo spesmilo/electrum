@@ -1,20 +1,19 @@
-from binascii import hexlify, unhexlify
-import traceback
 import sys
+import traceback
+from binascii import unhexlify
 
-from electrum.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
-from electrum.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
-from electrum.bip32 import deserialize_xpub
 from electrum import constants
-from electrum.i18n import _
-from electrum.plugin import Device
-from electrum.transaction import deserialize, Transaction
-from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
 from electrum.base_wizard import ScriptTypeNotSupported
-
+from electrum.bip32 import deserialize_xpub
+from electrum.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
+from electrum.i18n import _
+from electrum.keystore import Hardware_KeyStore, parse_xpubkey
+from electrum.plugin import Device
+from electrum.transaction import deserialize
+from electrum.transaction_utils import is_segwit_input
+from electrum.util import bfh, bh2u, UserCancelled, UserFacingException
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data
-
 
 # TREZOR initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
@@ -51,7 +50,7 @@ class TrezorKeyStore(Hardware_KeyStore):
         for txin in tx.inputs():
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
             tx_hash = txin['prevout_hash']
-            if txin.get('prev_tx') is None and not Transaction.is_segwit_input(txin):
+            if txin.get('prev_tx') is None and not is_segwit_input(txin):
                 raise UserFacingException(_('Offline signing with {} is not supported for legacy inputs.').format(self.device))
             prev_tx[tx_hash] = txin['prev_tx']
             for x_pubkey in x_pubkeys:
