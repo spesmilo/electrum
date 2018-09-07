@@ -151,13 +151,13 @@ class Synchronizer(PrintError):
     async def send_subscriptions(self, interface):
         while True:
             addr = await self.add_queue.get()
-            await interface.group.spawn(self.subscribe_to_address(addr))
+            await interface.group.spawn(self.subscribe_to_address, addr)
 
     async def handle_status(self, interface):
         while True:
             h, status = await self.status_queue.get()
             addr = self.scripthash_to_address[h]
-            await interface.group.spawn(self.on_address_status(addr, status))
+            await interface.group.spawn(self.on_address_status, addr, status)
 
     @property
     def session(self):

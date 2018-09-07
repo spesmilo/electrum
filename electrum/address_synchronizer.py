@@ -143,6 +143,8 @@ class AddressSynchronizer(PrintError):
             interface = self.network.interface
             if interface is None:
                 return  # we should get called again soon
+            self.verifier = SPV(self.network, self)
+            self.synchronizer = Synchronizer(self)
             await interface.group.spawn(self.verifier.main(interface))
             await interface.group.spawn(self.synchronizer.send_subscriptions(interface))
             await interface.group.spawn(self.synchronizer.handle_status(interface))
@@ -151,8 +153,6 @@ class AddressSynchronizer(PrintError):
     def start_threads(self, network):
         self.network = network
         if self.network is not None:
-            self.verifier = SPV(self.network, self)
-            self.synchronizer = Synchronizer(self)
             self.network.register_callback(self.on_default_server_changed, ['default_server_changed'])
             self.network.trigger_callback('default_server_changed')
         else:

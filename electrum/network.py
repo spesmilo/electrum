@@ -242,9 +242,6 @@ class Network(PrintError):
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
         self.asyncio_loop = asyncio.get_event_loop()
-        self.server_info_job = asyncio.Future()
-        # just to not trigger a warning from switch_to_interface the first time we change default_server
-        self.server_info_job.set_result(1)
 
     @staticmethod
     def get_instance():
@@ -330,7 +327,6 @@ class Network(PrintError):
     def is_connecting(self):
         return self.connection_status == 'connecting'
 
-    @util.aiosafe
     async def request_server_info(self, interface):
         await interface.ready
         session = interface.session
@@ -560,7 +556,6 @@ class Network(PrintError):
         being opened, start a thread to connect.  The actual switch will
         happen on receipt of the connection notification.  Do nothing
         if server already is our interface.'''
-        old_default_server = self.default_server
         self.default_server = server
         if server not in self.interfaces:
             self.interface = None
@@ -570,14 +565,18 @@ class Network(PrintError):
         i = self.interfaces[server]
         if self.interface != i:
             self.print_error("switching to", server)
-            # stop any current interface in order to terminate subscriptions
-            # fixme: we don't want to close headers sub
-            #self.close_interface(self.interface)
+            if self.interface is not None:
+                # Stop any current interface in order to terminate subscriptions,
+                # and to cancel tasks in interface.group.
+                # However, for headers sub, give preference to this interface
+                # over unknown ones, i.e. start it again right away.
+                self.close_interface(self.interface)
+                if len(self.interfaces) <= self.num_server:
+                    self.start_interface(self.interface.server)
+
             self.interface = i
-            if not self.server_info_job.done():
-                self.print_error('cancelled previous request_server_info job, was it too slow? server was:', old_default_server)
-                self.server_info_job.cancel()
-            self.server_info_job = asyncio.get_event_loop().create_task(self.request_server_info(i))
+            asyncio.get_event_loop().create_task(
+                i.group.spawn(self.request_server_info(i)))
             self.trigger_callback('default_server_changed')
             self.set_status('connected')
             self.notify('updated')
@@ -876,12 +875,11 @@ class Network(PrintError):
                         changed = True
             else:
                 if self.config.is_fee_estimates_update_required():
-                    asyncio.get_event_loop().create_task(self.attempt_fee_estimate_update())
+                    await self.interface.group.spawn(self.attempt_fee_estimate_update())
 
             if changed:
                 self.notify('updated')
             await asyncio.sleep(1)
 
-    @util.aiosafe
     async def attempt_fee_estimate_update(self):
         await asyncio.wait_for(self.request_fee_estimates(self.interface), 5)

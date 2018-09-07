@@ -72,6 +72,14 @@ class NotificationSession(ClientSession):
 class GracefulDisconnect(AIOSafeSilentException): pass
 
 
+class CustomTaskGroup(TaskGroup):
+
+    def spawn(self, *args, **kwargs):
+        if self._closed:
+            raise asyncio.CancelledError()
+        return super().spawn(*args, **kwargs)
+
+
 class Interface(PrintError):
 
     def __init__(self, network, server, config_path, proxy):
@@ -89,7 +97,7 @@ class Interface(PrintError):
 
         # TODO combine?
         self.fut = asyncio.get_event_loop().create_task(self.run())
-        self.group = TaskGroup()
+        self.group = CustomTaskGroup()
 
         if proxy:
             username, pw = proxy.get('user'), proxy.get('password')
@@ -255,7 +263,7 @@ class Interface(PrintError):
                 self.tip = new_header['block_height']
                 await copy_header_queue.put(new_header)
             except concurrent.futures.TimeoutError:
-                await asyncio.wait_for(self.session.send_request('server.ping'), 5)
+                await asyncio.wait_for(self.session.send_request('server.ping'), 10)
 
     def close(self):
         self.fut.cancel()
