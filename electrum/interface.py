@@ -213,7 +213,7 @@ class Interface(PrintError):
             return None
 
     async def get_block_header(self, height, assert_mode):
-        res = await asyncio.wait_for(self.session.send_request('blockchain.block.header', [height]), 1)
+        res = await asyncio.wait_for(self.session.send_request('blockchain.block.header', [height]), 5)
         return blockchain.deserialize_header(bytes.fromhex(res), height)
 
     async def request_chunk(self, idx, tip):

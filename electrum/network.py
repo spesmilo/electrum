@@ -32,6 +32,8 @@ import socket
 import json
 import sys
 import ipaddress
+import asyncio
+import concurrent.futures
 
 import dns
 import dns.resolver
@@ -42,9 +44,6 @@ from .bitcoin import COIN
 from . import constants
 from . import blockchain
 from .interface import Interface
-
-import asyncio
-import concurrent.futures
 from .version import PROTOCOL_VERSION
 
 NODES_RETRY_INTERVAL = 60
@@ -700,7 +699,8 @@ class Network(PrintError):
             self.connection_down(interface.server)
             return
         finally:
-            self.connecting.remove(server)
+            try: self.connecting.remove(server)
+            except KeyError: pass
 
         with self.interface_lock:
             self.interfaces[server] = interface
@@ -757,7 +757,7 @@ class Network(PrintError):
         if tip is not None:
             size = min(size, tip - index * 2016)
             size = max(size, 0)
-        res = await session.send_request('blockchain.block.headers', [index * 2016, size])
+        res = await asyncio.wait_for(session.send_request('blockchain.block.headers', [index * 2016, size]), 20)
         conn = self.blockchain().connect_chunk(index, res['hex'])
         if not conn:
             return conn, 0
