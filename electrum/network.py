@@ -158,6 +158,8 @@ def deserialize_server(server_str):
 def serialize_server(host, port, protocol):
     return str(':'.join([host, port, protocol]))
 
+INSTANCE = None
+
 class Network(PrintError):
     """The Network class manages a set of connections to remote electrum
     servers, each connected socket is handled by an Interface() object.
@@ -173,6 +175,8 @@ class Network(PrintError):
     verbosity_filter = 'n'
 
     def __init__(self, config=None):
+        global INSTANCE
+        INSTANCE = self
         if config is None:
             config = {}  # Do not use mutables as default values!
         self.config = SimpleConfig(config) if isinstance(config, dict) else config
@@ -243,6 +247,10 @@ class Network(PrintError):
         self.server_info_job = asyncio.Future()
         # just to not trigger a warning from switch_to_interface the first time we change default_server
         self.server_info_job.set_result(1)
+
+    @staticmethod
+    def get_instance():
+        return INSTANCE
 
     def with_interface_lock(func):
         def func_wrapper(self, *args, **kwargs):

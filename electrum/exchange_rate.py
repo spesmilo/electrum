@@ -17,7 +17,7 @@ from .bitcoin import COIN
 from .i18n import _
 from .util import PrintError, ThreadJob, make_dir, aiosafe
 from .util import make_aiohttp_session
-
+from .network import Network
 
 # See https://en.wikipedia.org/wiki/ISO_4217
 CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
@@ -26,8 +26,6 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'LYD': 3, 'MGA': 1, 'MRO': 1, 'OMR': 3, 'PYG': 0,
                   'RWF': 0, 'TND': 3, 'UGX': 0, 'UYI': 0, 'VND': 0,
                   'VUV': 0, 'XAF': 0, 'XAU': 4, 'XOF': 0, 'XPF': 0}
-
-PROXY = None
 
 class ExchangeBase(PrintError):
 
@@ -40,14 +38,14 @@ class ExchangeBase(PrintError):
     async def get_raw(self, site, get_string):
         # APIs must have https
         url = ''.join(['https://', site, get_string])
-        async with make_aiohttp_session(PROXY) as session:
+        async with make_aiohttp_session(Network.get_instance().proxy) as session:
             async with session.get(url) as response:
                 return await response.text()
 
     async def get_json(self, site, get_string):
         # APIs must have https
         url = ''.join(['https://', site, get_string])
-        async with make_aiohttp_session(PROXY) as session:
+        async with make_aiohttp_session(Network.get_instance().proxy) as session:
             async with session.get(url) as response:
                 return await response.json()
 
@@ -448,11 +446,8 @@ class FxThread(ThreadJob):
         self.trigger.set()
         self.set_exchange(self.config_exchange())
         make_dir(self.cache_dir)
-        self.set_proxy('bogus', self.network.proxy)
 
     def set_proxy(self, trigger_name, *args):
-        global PROXY
-        PROXY = args[0]
         self.trigger.set()
 
     def get_currencies(self, h):

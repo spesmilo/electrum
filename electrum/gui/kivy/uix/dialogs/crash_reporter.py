@@ -103,11 +103,6 @@ class CrashReporter(BaseCrashReporter, Factory.Popup):
         self.ids.crash_message.text = BaseCrashReporter.CRASH_MESSAGE
         self.ids.request_help_message.text = BaseCrashReporter.REQUEST_HELP_MESSAGE
         self.ids.describe_error_message.text = BaseCrashReporter.DESCRIBE_ERROR_MESSAGE
-        self.proxy = self.main_window.network.proxy
-        self.main_window.network.register_callback(self.set_proxy, ['proxy_set'])
-
-    def set_proxy(self, evt, proxy):
-        self.proxy = proxy
 
     def show_contents(self):
         details = CrashReportDetails(self.get_report_string())
@@ -121,7 +116,9 @@ class CrashReporter(BaseCrashReporter, Factory.Popup):
 
     def send_report(self):
         try:
-            response = json.loads(BaseCrashReporter.send_report(self, self.main_window.network.asyncio_loop, self.proxy, "/crash.json"))
+            loop = self.main_window.network.asyncio_loop
+            proxy = self.main_window.network.proxy
+            response = json.loads(BaseCrashReporter.send_report(self, loop, proxy, "/crash.json"))
         except (ValueError, ClientError):
             self.show_popup(_('Unable to send report'), _("Please check your network connection."))
         else:
