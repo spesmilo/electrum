@@ -854,10 +854,10 @@ class Network(PrintError):
             for i in range(self.num_server - len(self.interfaces) - len(self.connecting)):
                 if self.start_random_interface():
                     changed = True
-                    if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
-                        self.print_error('network: retrying connections')
-                        self.disconnected_servers = set([])
-                        self.nodes_retry_time = now
+            if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
+                self.print_error('network: retrying connections')
+                self.disconnected_servers = set([])
+                self.nodes_retry_time = now
 
             # main interface
             if not self.is_connected():
