@@ -26,6 +26,8 @@ import asyncio
 import itertools
 from collections import defaultdict
 
+from aiorpcx import TaskGroup
+
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
 from .util import PrintError, profiler, bfh, VerifiedTxInfo, TxMinedStatus
@@ -59,6 +61,7 @@ class AddressSynchronizer(PrintError):
         # verifier (SPV) and synchronizer are started in start_threads
         self.synchronizer = None
         self.verifier = None
+        self.sync_restart_lock = asyncio.Lock()
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
@@ -135,20 +138,15 @@ class AddressSynchronizer(PrintError):
                 # add it in case it was previously unconfirmed
                 self.add_unverified_tx(tx_hash, tx_height)
 
-    def on_default_server_changed(self, evt):
-        for i in self.network.futures:
-            if i.done() and i.exception():
-                raise i.exception()
-            if not i.done():
-                i.cancel()
-        self.network.futures.clear()
-        if self.network.interface is None:
-            return
-        # FIXME there are races here.. network.interface can become None
-        self.network.futures.append(asyncio.get_event_loop().create_task(self.verifier.main()))
-        self.network.futures.append(asyncio.get_event_loop().create_task(self.synchronizer.send_subscriptions()))
-        self.network.futures.append(asyncio.get_event_loop().create_task(self.synchronizer.handle_status()))
-        self.network.futures.append(asyncio.get_event_loop().create_task(self.synchronizer.main()))
+    async def on_default_server_changed(self, evt):
+        async with self.sync_restart_lock:
+            interface = self.network.interface
+            if interface is None:
+                return  # we should get called again soon
+            await interface.group.spawn(self.verifier.main(interface))
+            await interface.group.spawn(self.synchronizer.send_subscriptions(interface))
+            await interface.group.spawn(self.synchronizer.handle_status(interface))
+            await interface.group.spawn(self.synchronizer.main())
 
     def start_threads(self, network):
         self.network = network

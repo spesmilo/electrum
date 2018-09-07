@@ -32,7 +32,7 @@ import traceback
 import aiorpcx
 import asyncio
 import concurrent.futures
-from aiorpcx import ClientSession, Notification
+from aiorpcx import ClientSession, Notification, TaskGroup
 
 import requests
 
@@ -82,11 +82,15 @@ class Interface(PrintError):
         self.port = int(self.port)
         self.config_path = config_path
         self.cert_path = os.path.join(self.config_path, 'certs', self.host)
-        self.fut = asyncio.get_event_loop().create_task(self.run())
         self.tip_header = None
         self.tip = 0
         self.blockchain = None
         self.network = network
+
+        # TODO combine?
+        self.fut = asyncio.get_event_loop().create_task(self.run())
+        self.group = TaskGroup()
+
         if proxy:
             username, pw = proxy.get('user'), proxy.get('password')
             if not username or not pw:
@@ -231,18 +235,24 @@ class Interface(PrintError):
             self.tip = subscription_res['height']
             self.mark_ready()
             copy_header_queue = asyncio.Queue()
-            block_retriever = asyncio.get_event_loop().create_task(self.run_fetch_blocks(subscription_res, copy_header_queue))
-            while True:
-                try:
-                    new_header = await asyncio.wait_for(header_queue.get(), 300)
-                    self.tip_header = new_header
-                    self.tip = new_header['block_height']
-                    await copy_header_queue.put(new_header)
-                except concurrent.futures.TimeoutError:
-                    await asyncio.wait_for(session.send_request('server.ping'), 5)
+            async with self.group as group:
+                await group.spawn(self.run_fetch_blocks(subscription_res, copy_header_queue))
+                await group.spawn(self.subscribe_to_headers(header_queue, copy_header_queue))
+                # NOTE: group.__aexit__ will be called here; this is needed to notice exceptions in the group!
+
+    async def subscribe_to_headers(self, header_queue, copy_header_queue):
+        while True:
+            try:
+                new_header = await asyncio.wait_for(header_queue.get(), 300)
+                self.tip_header = new_header
+                self.tip = new_header['block_height']
+                await copy_header_queue.put(new_header)
+            except concurrent.futures.TimeoutError:
+                await asyncio.wait_for(self.session.send_request('server.ping'), 5)
 
     def close(self):
         self.fut.cancel()
+        asyncio.get_event_loop().create_task(self.group.cancel_remaining())
 
     @aiosafe
     async def run_fetch_blocks(self, sub_reply, replies):

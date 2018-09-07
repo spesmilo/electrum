@@ -159,20 +159,16 @@ class Synchronizer(PrintError):
         await self.status_queue.put((h, status))
         self.requested_addrs.remove(addr)
 
-    @aiosafe
-    async def send_subscriptions(self):
-        async with TaskGroup() as group:
-            while True:
-                addr = await self.add_queue.get()
-                await group.spawn(self.subscribe_to_address(addr))
+    async def send_subscriptions(self, interface):
+        while True:
+            addr = await self.add_queue.get()
+            await interface.group.spawn(self.subscribe_to_address(addr))
 
-    @aiosafe
-    async def handle_status(self):
-        async with TaskGroup() as group:
-            while True:
-                h, status = await self.status_queue.get()
-                addr = self.scripthash_to_address[h]
-                await group.spawn(self.on_address_status(addr, status))
+    async def handle_status(self, interface):
+        while True:
+            h, status = await self.status_queue.get()
+            addr = self.scripthash_to_address[h]
+            await interface.group.spawn(self.on_address_status(addr, status))
 
     @property
     def session(self):
@@ -180,11 +176,10 @@ class Synchronizer(PrintError):
         assert s is not None
         return s
 
-    @aiosafe
     async def main(self):
         for addr in self.wallet.get_addresses(): self.add(addr)
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.1)
             self.wallet.synchronize()
             up_to_date = self.is_up_to_date()
             if up_to_date != self.wallet.is_up_to_date():

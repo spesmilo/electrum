@@ -243,7 +243,6 @@ class Network(PrintError):
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
         self.asyncio_loop = asyncio.get_event_loop()
-        self.futures = []
         self.server_info_job = asyncio.Future()
         # just to not trigger a warning from switch_to_interface the first time we change default_server
         self.server_info_job.set_result(1)
@@ -278,7 +277,11 @@ class Network(PrintError):
     def trigger_callback(self, event, *args):
         with self.callback_lock:
             callbacks = self.callbacks[event][:]
-        [callback(event, *args) for callback in callbacks]
+        for callback in callbacks:
+            if asyncio.iscoroutinefunction(callback):
+                asyncio.run_coroutine_threadsafe(callback(event, *args), self.asyncio_loop)
+            else:
+                callback(event, *args)
 
     def read_recent_servers(self):
         if not self.config.path:

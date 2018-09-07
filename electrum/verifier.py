@@ -48,13 +48,12 @@ class SPV(ThreadJob):
         self.merkle_roots = {}  # txid -> merkle root (once it has been verified)
         self.requested_merkle = set()  # txid set of pending requests
 
-    @aiosafe
-    async def main(self):
+    async def main(self, interface):
         while True:
-            await self._request_proofs()
-            await asyncio.sleep(1)
+            await self._request_proofs(interface)
+            await asyncio.sleep(0.1)
 
-    async def _request_proofs(self):
+    async def _request_proofs(self, interface):
         blockchain = self.network.blockchain()
         if not blockchain:
             self.print_error("no blockchain")
@@ -63,22 +62,21 @@ class SPV(ThreadJob):
         local_height = self.network.get_local_height()
         unverified = self.wallet.get_unverified_txs()
 
-        async with TaskGroup() as group:
-            for tx_hash, tx_height in unverified.items():
-                # do not request merkle branch before headers are available
-                if tx_height <= 0 or tx_height > local_height:
-                    continue
+        for tx_hash, tx_height in unverified.items():
+            # do not request merkle branch before headers are available
+            if tx_height <= 0 or tx_height > local_height:
+                continue
 
-                header = blockchain.read_header(tx_height)
-                if header is None:
-                    index = tx_height // 2016
-                    if index < len(blockchain.checkpoints):
-                        await group.spawn(self.network.request_chunk, tx_height, None)
-                elif (tx_hash not in self.requested_merkle
-                        and tx_hash not in self.merkle_roots):
-                    self.print_error('requested merkle', tx_hash)
-                    self.requested_merkle.add(tx_hash)
-                    await group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
+            header = blockchain.read_header(tx_height)
+            if header is None:
+                index = tx_height // 2016
+                if index < len(blockchain.checkpoints):
+                    await interface.group.spawn(self.network.request_chunk, tx_height, None)
+            elif (tx_hash not in self.requested_merkle
+                    and tx_hash not in self.merkle_roots):
+                self.print_error('requested merkle', tx_hash)
+                self.requested_merkle.add(tx_hash)
+                await interface.group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
 
         if self.network.blockchain() != self.blockchain:
             self.blockchain = self.network.blockchain()
