@@ -68,7 +68,7 @@ class NotificationSession(ClientSession):
                 assert False, request.method
 
 
-
+# FIXME this is often raised inside a TaskGroup, but then it's not silent :(
 class GracefulDisconnect(AIOSafeSilentException): pass
 
 
@@ -238,7 +238,14 @@ class Interface(PrintError):
             async with self.group as group:
                 await group.spawn(self.run_fetch_blocks(subscription_res, copy_header_queue))
                 await group.spawn(self.subscribe_to_headers(header_queue, copy_header_queue))
+                await group.spawn(self.monitor_connection())
                 # NOTE: group.__aexit__ will be called here; this is needed to notice exceptions in the group!
+
+    async def monitor_connection(self):
+        while True:
+            await asyncio.sleep(1)
+            if not self.session or self.session.is_closing():
+                raise GracefulDisconnect('server closed session')
 
     async def subscribe_to_headers(self, header_queue, copy_header_queue):
         while True:
