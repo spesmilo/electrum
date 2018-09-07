@@ -100,18 +100,7 @@ class Synchronizer(PrintError):
             # Store received history
             self.wallet.receive_history_callback(addr, hist, tx_fees)
             # Request transactions we don't have
-            # "hist" is a list of [tx_hash, tx_height] lists
-            transaction_hashes = []
-            for tx_hash, tx_height in hist:
-                if tx_hash in self.requested_tx:
-                    continue
-                if tx_hash in self.wallet.transactions:
-                    continue
-                transaction_hashes.append(tx_hash)
-                self.requested_tx[tx_hash] = tx_height
-
-            for tx_hash in transaction_hashes:
-                await self.get_transaction(tx_hash)
+            await self.request_missing_txs(hist)
 
         # Remove request; this allows up_to_date to be True
         self.requested_histories.pop(addr)
