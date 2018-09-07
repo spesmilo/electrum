@@ -734,9 +734,18 @@ class Network(PrintError):
     async def get_merkle_for_transaction(self, tx_hash, tx_height):
         return await self.interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
 
-    def broadcast_transaction(self, tx):
+    def broadcast_transaction(self, tx, timeout=5):
         fut = asyncio.run_coroutine_threadsafe(self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)]), self.asyncio_loop)
-        return True, fut.result(1)
+        try:
+            out = fut.result(timeout)
+        except asyncio.TimeoutError as e:
+            return False, "error: operation timed out"
+        except Exception as e:
+            return False, "error: " + str(e)
+
+        if out != tx.txid():
+            return False, "error: " + out
+        return True, out
 
     async def request_chunk(self, height, tip, session=None):
         if session is None: session = self.interface.session
