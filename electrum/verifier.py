@@ -24,12 +24,11 @@
 import asyncio
 from typing import Sequence, Optional
 
-from aiorpcx import TaskGroup
-
-from .util import ThreadJob, bh2u, VerifiedTxInfo, aiosafe
+from .util import ThreadJob, bh2u, VerifiedTxInfo
 from .bitcoin import Hash, hash_decode, hash_encode
 from .transaction import Transaction
 from .blockchain import hash_header
+from .interface import GracefulDisconnect
 
 
 class MerkleVerificationFailure(Exception): pass
@@ -94,14 +93,10 @@ class SPV(ThreadJob):
             verify_tx_is_in_block(tx_hash, merkle_branch, pos, header, tx_height)
         except MerkleVerificationFailure as e:
             self.print_error(str(e))
-            # FIXME: we should make a fresh connection to a server
-            # to recover from this, as this TX will now never verify
-            return
+            raise GracefulDisconnect(e)
         # we passed all the tests
         self.merkle_roots[tx_hash] = header.get('merkle_root')
         try:
-            # note: we could pop in the beginning, but then we would request
-            # this proof again in case of verification failure from the same server
             self.requested_merkle.remove(tx_hash)
         except KeyError: pass
         self.print_error("verified %s" % tx_hash)
