@@ -27,19 +27,14 @@ import re
 import socket
 import ssl
 import sys
-import threading
 import traceback
-import aiorpcx
 import asyncio
 import concurrent.futures
+
+import aiorpcx
 from aiorpcx import ClientSession, Notification, TaskGroup
 
-import requests
-
 from .util import PrintError, aiosafe, bfh, AIOSafeSilentException
-
-ca_path = requests.certs.where()
-
 from . import util
 from . import x509
 from . import pem
@@ -52,6 +47,7 @@ class NotificationSession(ClientSession):
 
     def __init__(self, scripthash, header, *args, **kwargs):
         super(NotificationSession, self).__init__(*args, **kwargs)
+        # queues:
         self.scripthash = scripthash
         self.header = header
 
@@ -59,8 +55,8 @@ class NotificationSession(ClientSession):
     async def handle_request(self, request):
         if isinstance(request, Notification):
             if request.method == 'blockchain.scripthash.subscribe' and self.scripthash is not None:
-                args = request.args
-                await self.scripthash.put((args[0], args[1]))
+                scripthash, status = request.args
+                await self.scripthash.put((scripthash, status))
             elif request.method == 'blockchain.headers.subscribe' and self.header is not None:
                 deser = deserialize_header(bfh(request.args[0]['hex']), request.args[0]['height'])
                 await self.header.put(deser)
@@ -211,7 +207,7 @@ class Interface(PrintError):
                     break
                 await asyncio.sleep(1)
             else:
-                assert False, "could not get certificate"
+                raise Exception("could not get certificate")
 
     async def get_certificate(self):
         sslc = ssl.SSLContext()
@@ -339,8 +335,8 @@ class Interface(PrintError):
             header = await self.get_block_header(height, 'backward')
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
-            if checkp:
-                assert can_connect or chain, (can_connect, chain)
+            if checkp and not (can_connect or chain):
+                raise Exception("server chain conflicts with checkpoints. {} {}".format(can_connect, chain))
             while not chain and not can_connect:
                 bad = height
                 bad_header = header
@@ -355,8 +351,8 @@ class Interface(PrintError):
                 header = await self.get_block_header(height, 'backward')
                 chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
                 can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
-                if checkp:
-                    assert can_connect or chain, (can_connect, chain)
+                if checkp and not (can_connect or chain):
+                    raise Exception("server chain conflicts with checkpoints. {} {}".format(can_connect, chain))
             self.print_error("exiting backward mode at", height)
         if can_connect:
             self.print_error("could connect", height)
@@ -414,12 +410,14 @@ class Interface(PrintError):
                 # joining on regtest with a server that has a fork of height
                 # one. the problem is observed only if forking is not during
                 # electrum runtime
-                if ismocking and branch['check'](bad_header) or not ismocking and branch.check_header(bad_header):
+                if not ismocking and branch.check_header(bad_header) \
+                        or ismocking and branch['check'](bad_header):
                     self.print_error('joining chain', bad)
                     height += 1
                     return 'join', height
                 else:
-                    if ismocking and branch['parent']['check'](header) or not ismocking and branch.parent().check_header(header):
+                    if not ismocking and branch.parent().check_header(header) \
+                            or ismocking and branch['parent']['check'](header):
                         self.print_error('reorg', bad, self.tip)
                         self.blockchain = branch.parent() if not ismocking else branch['parent']
                         height = bad
