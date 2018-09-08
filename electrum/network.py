@@ -751,14 +751,21 @@ class Network(PrintError):
             return False, "error: " + out
         return True, out
 
-    async def request_chunk(self, height, tip, session=None):
+    async def request_chunk(self, height, tip, session=None, can_return_early=False):
         if session is None: session = self.interface.session
         index = height // 2016
+        if can_return_early and index in self.requested_chunks:
+            return
         size = 2016
         if tip is not None:
             size = min(size, tip - index * 2016)
             size = max(size, 0)
-        res = await asyncio.wait_for(session.send_request('blockchain.block.headers', [index * 2016, size]), 20)
+        try:
+            self.requested_chunks.add(index)
+            res = await asyncio.wait_for(session.send_request('blockchain.block.headers', [index * 2016, size]), 20)
+        finally:
+            try: self.requested_chunks.remove(index)
+            except KeyError: pass
         conn = self.blockchain().connect_chunk(index, res['hex'])
         if not conn:
             return conn, 0

@@ -70,7 +70,7 @@ class SPV(ThreadJob):
             if header is None:
                 index = tx_height // 2016
                 if index < len(blockchain.checkpoints):
-                    await interface.group.spawn(self.network.request_chunk, tx_height, None)
+                    await interface.group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
             elif (tx_hash not in self.requested_merkle
                     and tx_hash not in self.merkle_roots):
                 self.print_error('requested merkle', tx_hash)
