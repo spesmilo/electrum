@@ -152,7 +152,7 @@ class Interface(PrintError):
         if not exists:
             try:
                 ca_signed = await self.is_server_ca_signed(ca_sslc)
-            except (ConnectionRefusedError, socket.gaierror) as e:
+            except (ConnectionRefusedError, socket.gaierror, aiorpcx.socks.SOCKSFailure) as e:
                 self.print_error('disconnecting due to: {}'.format(e))
                 self.exception = e
                 return
