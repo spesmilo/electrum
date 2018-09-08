@@ -1,4 +1,3 @@
-import unittest
 from electrum import keystore
 from electrum import mnemonic
 from electrum import old_mnemonic

@@ -1,5 +1,3 @@
-import unittest
-
 from electrum import transaction
 from electrum.bitcoin import TYPE_ADDRESS
 from electrum.keystore import xpubkey_to_address
