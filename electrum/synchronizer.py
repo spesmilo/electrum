@@ -22,19 +22,15 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import traceback
-import ssl
 import asyncio
-from aiorpcx import ClientSession, Request, Notification, TaskGroup
-from threading import Lock
 import hashlib
-import concurrent.futures
 
-# from .bitcoin import Hash, hash_encode
+from aiorpcx import TaskGroup
+
 from .transaction import Transaction
-from .util import ThreadJob, bh2u, PrintError, aiosafe, bfh
+from .util import bh2u, PrintError
 from .bitcoin import address_to_scripthash
-from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
+
 
 def history_status(h):
     if not h:
@@ -43,7 +39,6 @@ def history_status(h):
     for tx_hash, height in h:
         status += tx_hash + ':%d:' % height
     return bh2u(hashlib.sha256(status.encode('ascii')).digest())
-
 
 
 class Synchronizer(PrintError):
@@ -65,7 +60,9 @@ class Synchronizer(PrintError):
         self.status_queue = asyncio.Queue()
 
     def is_up_to_date(self):
-        return (not self.requested_addrs and not self.requested_histories)
+        return (not self.requested_addrs
+                and not self.requested_histories
+                and not self.requested_tx)
 
     def add(self, addr):
         self.requested_addrs.add(addr)
@@ -167,7 +164,17 @@ class Synchronizer(PrintError):
         return s
 
     async def main(self):
-        for addr in self.wallet.get_addresses(): self.add(addr)
+        # request missing txns, if any
+        async with TaskGroup() as group:
+            for history in self.wallet.history.values():
+                # Old electrum servers returned ['*'] when all history for the address
+                # was pruned. This no longer happens but may remain in old wallets.
+                if history == ['*']: continue
+                await group.spawn(self.request_missing_txs, history)
+        # add addresses to bootstrap
+        for addr in self.wallet.get_addresses():
+            self.add(addr)
+        # main loop
         while True:
             await asyncio.sleep(0.1)
             self.wallet.synchronize()
