@@ -118,11 +118,12 @@ class Synchronizer(PrintError):
             transaction_hashes.append(tx_hash)
             self.requested_tx[tx_hash] = tx_height
 
-        for tx_hash in transaction_hashes:
-            await self.get_transaction(tx_hash)
+        async with TaskGroup() as group:
+            for tx_hash in transaction_hashes:
+                await group.spawn(self.get_transaction, tx_hash)
 
     async def get_transaction(self, tx_hash):
-        result = await self.session.send_request('blockchain.transaction.get', [tx_hash])
+        result = await asyncio.wait_for(self.session.send_request('blockchain.transaction.get', [tx_hash]), 20)
         tx = Transaction(result)
         try:
             tx.deserialize()
