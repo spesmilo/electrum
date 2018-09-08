@@ -1,4 +1,3 @@
-import unittest
 from electrum.util import format_satoshis, parse_URI
 
 from . import SequentialTestCase

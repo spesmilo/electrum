@@ -6,8 +6,6 @@ from electrum.wallet import Wallet
 
 from .test_wallet import WalletTestCase
 
-from . import SequentialTestCase
-
 
 # TODO add other wallet types: 2fa, xpub-only
 # TODO hw wallet with client version 2.6.x (single-, and multiacc)
