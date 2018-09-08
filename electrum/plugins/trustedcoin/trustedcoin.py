@@ -104,8 +104,11 @@ class TrustedCoinCosignerClient(object):
         self.user_agent = user_agent
 
     def send_request(self, method, relative_url, data=None):
-        print("send_req")
-        return asyncio.run_coroutine_threadsafe(self._send_request(method, relative_url, data), Network.get_instance().asyncio_loop).result()
+        network = Network.get_instance()
+        if network:
+            return asyncio.run_coroutine_threadsafe(self._send_request(method, relative_url, data), network.asyncio_loop).result()
+        else:
+            raise ErrorConnectingServer('You are offline.')
 
     async def handle_response(self, resp):
         if resp.status != 200:

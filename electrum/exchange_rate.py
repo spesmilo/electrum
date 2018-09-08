@@ -436,7 +436,8 @@ class FxThread(ThreadJob):
     def __init__(self, config, network):
         self.config = config
         self.network = network
-        self.network.register_callback(self.set_proxy, ['proxy_set'])
+        if self.network:
+            self.network.register_callback(self.set_proxy, ['proxy_set'])
         self.ccy = self.get_currency()
         self.history_used_spot = False
         self.ccy_combo = None
