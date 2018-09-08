@@ -37,6 +37,7 @@ import concurrent.futures
 
 import dns
 import dns.resolver
+from aiorpcx import TaskGroup
 
 from . import util
 from .util import PrintError, print_error, aiosafe, bfh
@@ -343,14 +344,15 @@ class Network(PrintError):
         session = interface.session
         from .simple_config import FEE_ETA_TARGETS
         self.config.requested_fee_estimates()
-        histogram = await session.send_request('mempool.get_fee_histogram')
-        fees = []
-        for i in FEE_ETA_TARGETS:
-            fees.append((i, await session.send_request('blockchain.estimatefee', [i])))
-        self.config.mempool_fees = histogram
+        async with TaskGroup() as group:
+            histogram_task = await group.spawn(session.send_request('mempool.get_fee_histogram'))
+            fee_tasks = []
+            for i in FEE_ETA_TARGETS:
+                fee_tasks.append((i, await group.spawn(session.send_request('blockchain.estimatefee', [i]))))
+        self.config.mempool_fees = histogram_task.result()
         self.notify('fee_histogram')
-        for i, result in fees:
-            fee = int(result * COIN)
+        for i, task in fee_tasks:
+            fee = int(task.result() * COIN)
             self.config.update_fee_estimates(i, fee)
             self.print_error("fee_estimates[%d]" % i, fee)
         self.notify('fee')

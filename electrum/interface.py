@@ -170,7 +170,8 @@ class Interface(PrintError):
             sslc.check_hostname = 0
         try:
             await self.open_session(sslc, exit_early=False)
-        except (asyncio.CancelledError, ConnectionRefusedError, socket.gaierror, ssl.SSLError, TimeoutError) as e:
+        except (asyncio.CancelledError, ConnectionRefusedError, socket.gaierror,
+                ssl.SSLError, TimeoutError, aiorpcx.socks.SOCKSFailure) as e:
             self.print_error('disconnecting due to: {}'.format(e))
             self.exception = e
             return
