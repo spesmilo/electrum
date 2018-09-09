@@ -599,59 +599,6 @@ class Network(PrintError):
         self.recent_servers = self.recent_servers[0:20]
         self.save_recent_servers()
 
-    def process_response(self, interface, response, callbacks):
-        if self.debug:
-            self.print_error(interface.host, "<--", response)
-        error = response.get('error')
-        result = response.get('result')
-        method = response.get('method')
-        params = response.get('params')
-
-        # We handle some responses; return the rest to the client.
-        if method == 'server.version':
-            interface.server_version = result
-        elif method == 'blockchain.headers.subscribe':
-            if error is None:
-                self.on_notify_header(interface, result)
-            else:
-                # no point in keeping this connection without headers sub
-                self.connection_down(interface.server)
-                return
-        elif method == 'server.peers.subscribe':
-            if error is None:
-                self.irc_servers = parse_servers(result)
-                self.notify('servers')
-        elif method == 'server.banner':
-            if error is None:
-                self.banner = result
-                self.notify('banner')
-        elif method == 'server.donation_address':
-            if error is None:
-                self.donation_address = result
-        elif method == 'mempool.get_fee_histogram':
-            if error is None:
-                self.print_error('fee_histogram', result)
-                self.config.mempool_fees = result
-                self.notify('fee_histogram')
-        elif method == 'blockchain.estimatefee':
-            if error is None and result > 0:
-                i = params[0]
-                fee = int(result*COIN)
-                self.config.update_fee_estimates(i, fee)
-                self.print_error("fee_estimates[%d]" % i, fee)
-                self.notify('fee')
-        elif method == 'blockchain.relayfee':
-            if error is None:
-                self.relay_fee = int(result * COIN) if result is not None else None
-                self.print_error("relayfee", self.relay_fee)
-        elif method == 'blockchain.block.headers':
-            self.on_block_headers(interface, response)
-        elif method == 'blockchain.block.get_header':
-            self.on_get_header(interface, response)
-
-        for callback in callbacks:
-            callback(response)
-
     @classmethod
     def get_index(cls, method, params):
         """ hashable index for subscriptions and cache"""
