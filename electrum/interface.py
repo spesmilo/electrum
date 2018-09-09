@@ -69,6 +69,12 @@ class NotificationSession(ClientSession):
 class GracefulDisconnect(AIOSafeSilentException): pass
 
 
+class ErrorParsingSSLCert(Exception): pass
+
+
+class ErrorGettingSSLCertFromServer(Exception): pass
+
+
 class CustomTaskGroup(TaskGroup):
 
     def spawn(self, *args, **kwargs):
@@ -126,16 +132,13 @@ class Interface(PrintError):
         try:
             ca_signed = await self.is_server_ca_signed(ca_ssl_context)
         except (ConnectionRefusedError, socket.gaierror, aiorpcx.socks.SOCKSFailure) as e:
-            self.print_error('disconnecting due to: {}'.format(e))
-            self.exception = e
-            return False
+            raise ErrorGettingSSLCertFromServer(e) from e
         if ca_signed:
             with open(self.cert_path, 'w') as f:
                 # empty file means this is CA signed, not self-signed
                 f.write('')
         else:
             await self.save_certificate()
-        return True
 
     def _is_saved_ssl_cert_available(self):
         if not os.path.exists(self.cert_path):
@@ -147,33 +150,32 @@ class Interface(PrintError):
         # pinned self-signed cert
         try:
             b = pem.dePem(contents, 'CERTIFICATE')
-        except SyntaxError:
+        except SyntaxError as e:
             self.print_error("error parsing already saved cert:", e)
-            return False
+            raise ErrorParsingSSLCert(e) from e
         try:
             x = x509.X509(b)
         except Exception as e:
             self.print_error("error parsing already saved cert:", e)
-            return False
+            raise ErrorParsingSSLCert(e) from e
         try:
             x.check_date()
             return True
         except x509.CertificateError as e:
             self.print_error("certificate has expired:", e)
-            os.unlink(self.cert_path)
+            os.unlink(self.cert_path)  # delete pinned cert only in this case
             return False
 
-    @aiosafe
-    async def run(self):
+    async def _get_ssl_context(self):
         if self.protocol != 's':
-            await self.open_session(None, exit_early=False)
-            assert False
+            # using plaintext TCP
+            return None
 
+        # see if we already have cert for this server; or get it for the first time
         ca_sslc = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
         if not self._is_saved_ssl_cert_available():
-            done_saving_cert = await self._try_saving_ssl_cert_for_first_time(ca_sslc)
-            if not done_saving_cert:
-                return
+            await self._try_saving_ssl_cert_for_first_time(ca_sslc)
+        # now we have a file saved in our certificate store
         siz = os.stat(self.cert_path).st_size
         if siz == 0:
             # CA signed cert
@@ -182,9 +184,17 @@ class Interface(PrintError):
             # pinned self-signed cert
             sslc = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=self.cert_path)
             sslc.check_hostname = 0
-        # start main connection
+        return sslc
+
+    @aiosafe
+    async def run(self):
         try:
-            await self.open_session(sslc, exit_early=False)
+            ssl_context = await self._get_ssl_context()
+        except (ErrorParsingSSLCert, ErrorGettingSSLCertFromServer) as e:
+            self.exception = e
+            return
+        try:
+            await self.open_session(ssl_context, exit_early=False)
         except (asyncio.CancelledError, ConnectionRefusedError, socket.gaierror,
                 ssl.SSLError, TimeoutError, aiorpcx.socks.SOCKSFailure) as e:
             self.print_error('disconnecting due to: {}'.format(e))
