@@ -1,5 +1,3 @@
-import unittest
-
 from electrum_ltc import interface
 
 from . import SequentialTestCase

@@ -1,4 +1,3 @@
-import unittest
 from electrum_ltc import keystore
 from electrum_ltc import mnemonic
 from electrum_ltc import old_mnemonic

@@ -426,7 +426,7 @@ class Abstract_Wallet(AddressSynchronizer):
             else:
                 income += value
             # fiat computations
-            if fx and fx.is_enabled():
+            if fx and fx.is_enabled() and fx.get_history_config():
                 fiat_value = self.get_fiat_value(tx_hash, fx.ccy)
                 fiat_default = fiat_value is None
                 fiat_value = fiat_value if fiat_value is not None else value / Decimal(COIN) * self.price_at_timestamp(tx_hash, fx.timestamp_rate)  #
@@ -462,7 +462,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 'income': Satoshis(income),
                 'expenditures': Satoshis(expenditures)
             }
-            if fx and fx.is_enabled():
+            if fx and fx.is_enabled() and fx.get_history_config():
                 unrealized = self.unrealized_gains(domain, fx.timestamp_rate, fx.ccy)
                 summary['capital_gains'] = Fiat(capital_gains, fx.ccy)
                 summary['fiat_income'] = Fiat(fiat_income, fx.ccy)
