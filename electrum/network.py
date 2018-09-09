@@ -426,7 +426,7 @@ class Network(PrintError):
     def set_proxy(self, proxy: Optional[dict]):
         self.proxy = proxy
         # Store these somewhere so we can un-monkey-patch
-        if not hasattr(socket, "_socketobject"):
+        if not hasattr(socket, "_getaddrinfo"):
             socket._getaddrinfo = socket.getaddrinfo
         if proxy:
             self.print_error('setting proxy', proxy)
