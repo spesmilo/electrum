@@ -122,6 +122,47 @@ class Interface(PrintError):
             return False
         return True
 
+    async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context):
+        try:
+            ca_signed = await self.is_server_ca_signed(ca_ssl_context)
+        except (ConnectionRefusedError, socket.gaierror, aiorpcx.socks.SOCKSFailure) as e:
+            self.print_error('disconnecting due to: {}'.format(e))
+            self.exception = e
+            return False
+        if ca_signed:
+            with open(self.cert_path, 'w') as f:
+                # empty file means this is CA signed, not self-signed
+                f.write('')
+        else:
+            await self.save_certificate()
+        return True
+
+    def _is_saved_ssl_cert_available(self):
+        if not os.path.exists(self.cert_path):
+            return False
+        with open(self.cert_path, 'r') as f:
+            contents = f.read()
+        if contents == '':  # CA signed
+            return True
+        # pinned self-signed cert
+        try:
+            b = pem.dePem(contents, 'CERTIFICATE')
+        except SyntaxError:
+            self.print_error("error parsing already saved cert:", e)
+            return False
+        try:
+            x = x509.X509(b)
+        except Exception as e:
+            self.print_error("error parsing already saved cert:", e)
+            return False
+        try:
+            x.check_date()
+            return True
+        except x509.CertificateError as e:
+            self.print_error("certificate has expired:", e)
+            os.unlink(self.cert_path)
+            return False
+
     @aiosafe
     async def run(self):
         if self.protocol != 's':
@@ -129,42 +170,19 @@ class Interface(PrintError):
             assert False
 
         ca_sslc = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-        exists = os.path.exists(self.cert_path)
-        if exists:
-            with open(self.cert_path, 'r') as f:
-                contents = f.read()
-            if contents != '': # if not CA signed
-                try:
-                    b = pem.dePem(contents, 'CERTIFICATE')
-                except SyntaxError:
-                    exists = False
-                else:
-                    x = x509.X509(b)
-                    try:
-                        x.check_date()
-                    except x509.CertificateError as e:
-                        self.print_error("certificate problem", e)
-                        os.unlink(self.cert_path)
-                        exists = False
-        if not exists:
-            try:
-                ca_signed = await self.is_server_ca_signed(ca_sslc)
-            except (ConnectionRefusedError, socket.gaierror, aiorpcx.socks.SOCKSFailure) as e:
-                self.print_error('disconnecting due to: {}'.format(e))
-                self.exception = e
+        if not self._is_saved_ssl_cert_available():
+            done_saving_cert = await self._try_saving_ssl_cert_for_first_time(ca_sslc)
+            if not done_saving_cert:
                 return
-            if ca_signed:
-                with open(self.cert_path, 'w') as f:
-                    # empty file means this is CA signed, not self-signed
-                    f.write('')
-            else:
-                await self.save_certificate()
         siz = os.stat(self.cert_path).st_size
-        if siz == 0: # if CA signed
+        if siz == 0:
+            # CA signed cert
             sslc = ca_sslc
         else:
+            # pinned self-signed cert
             sslc = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=self.cert_path)
             sslc.check_hostname = 0
+        # start main connection
         try:
             await self.open_session(sslc, exit_early=False)
         except (asyncio.CancelledError, ConnectionRefusedError, socket.gaierror,
