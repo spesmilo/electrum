@@ -840,16 +840,13 @@ class Network(PrintError):
                     except BaseException as e:
                         self.print_error(i.server, "errored because:", str(e), str(type(e)))
                     remove.append(k)
-            changed = False
             for k in remove:
                 self.connection_down(k)
-                changed = True
 
             # nodes
             now = time.time()
             for i in range(self.num_server - len(self.interfaces) - len(self.connecting)):
-                if self.start_random_interface():
-                    changed = True
+                self.start_random_interface()
             if now - self.nodes_retry_time > NODES_RETRY_INTERVAL:
                 self.print_error('network: retrying connections')
                 self.disconnected_servers = set([])
@@ -860,23 +857,18 @@ class Network(PrintError):
                 if self.auto_connect:
                     if not self.is_connecting():
                         self.switch_to_random_interface()
-                        changed = True
                 else:
                     if self.default_server in self.disconnected_servers:
                         if now - self.server_retry_time > SERVER_RETRY_INTERVAL:
                             self.disconnected_servers.remove(self.default_server)
                             self.server_retry_time = now
-                            changed = True
                     else:
                         self.switch_to_interface(self.default_server)
-                        changed = True
             else:
                 if self.config.is_fee_estimates_update_required():
                     await self.interface.group.spawn(self.attempt_fee_estimate_update())
 
-            if changed:
-                self.notify('updated')
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.1)
 
     async def attempt_fee_estimate_update(self):
         await asyncio.wait_for(self.request_fee_estimates(self.interface), 5)
