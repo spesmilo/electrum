@@ -147,7 +147,7 @@ class Interface(PrintError):
     async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context):
         try:
             ca_signed = await self.is_server_ca_signed(ca_ssl_context)
-        except (ConnectionRefusedError, socket.gaierror, aiorpcx.socks.SOCKSFailure) as e:
+        except (OSError, aiorpcx.socks.SOCKSFailure) as e:
             raise ErrorGettingSSLCertFromServer(e) from e
         if ca_signed:
             with open(self.cert_path, 'w') as f:
@@ -211,8 +211,7 @@ class Interface(PrintError):
             return
         try:
             await self.open_session(ssl_context, exit_early=False)
-        except (asyncio.CancelledError, ConnectionRefusedError, socket.gaierror,
-                ssl.SSLError, TimeoutError, aiorpcx.socks.SOCKSFailure) as e:
+        except (asyncio.CancelledError, OSError, aiorpcx.socks.SOCKSFailure) as e:
             self.print_error('disconnecting due to: {}'.format(e))
             self.exception = e
             return
