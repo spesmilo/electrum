@@ -2,7 +2,7 @@ import asyncio
 import tempfile
 import unittest
 
-from electrum.constants import set_regtest
+from electrum import constants
 from electrum.simple_config import SimpleConfig
 from electrum import blockchain
 from electrum.interface import Interface
@@ -11,9 +11,6 @@ class MockInterface(Interface):
     def __init__(self, config):
         self.config = config
         super().__init__(None, 'mock-server:50000:t', self.config.electrum_path(), None)
-        class FakeNetwork:
-            max_checkpoint = lambda: 0
-        self.network = FakeNetwork
         self.q = asyncio.Queue()
         self.blockchain = blockchain.Blockchain(self.config, 2002, None)
         self.tip = 12
@@ -26,6 +23,17 @@ class MockInterface(Interface):
         return item
 
 class TestNetwork(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        constants.set_regtest()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        constants.set_mainnet()
+
     def setUp(self):
         self.config = SimpleConfig({'electrum_path': tempfile.mkdtemp(prefix="test_network")})
         self.interface = MockInterface(self.config)
@@ -107,5 +115,5 @@ class TestNetwork(unittest.TestCase):
         self.assertEqual(times, 2)
 
 if __name__=="__main__":
-    set_regtest()
+    constants.set_regtest()
     unittest.main()

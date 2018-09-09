@@ -818,10 +818,6 @@ class Network(PrintError):
         with open(path, 'w', encoding='utf-8') as f:
             f.write(json.dumps(cp, indent=4))
 
-    @classmethod
-    def max_checkpoint(cls):
-        return max(0, len(constants.net.CHECKPOINTS) * 2016 - 1)
-
     def start(self, fx=None):
         self.fut = threading.Thread(target=self._run, args=(fx,))
         self.fut.start()

@@ -28,6 +28,7 @@ from .bitcoin import Hash, hash_encode, int_to_hex, rev_hex
 from . import constants
 from .util import bfh, bh2u
 
+
 MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
 
 
@@ -315,7 +316,7 @@ class Blockchain(util.PrintError):
 
     def get_hash(self, height):
         def is_height_checkpoint():
-            within_cp_range = height < len(self.checkpoints) * 2016
+            within_cp_range = height <= constants.net.max_checkpoint()
             at_chunk_boundary = (height+1) % 2016 == 0
             return within_cp_range and at_chunk_boundary
 

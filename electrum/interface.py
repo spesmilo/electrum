@@ -41,6 +41,7 @@ from . import pem
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from . import blockchain
 from .blockchain import deserialize_header
+from . import constants
 
 
 class NotificationSession(ClientSession):
@@ -267,7 +268,7 @@ class Interface(PrintError):
         asyncio.get_event_loop().create_task(self.group.cancel_remaining())
 
     async def run_fetch_blocks(self, sub_reply, replies):
-        if self.tip < self.network.max_checkpoint():
+        if self.tip < constants.net.max_checkpoint():
             raise GracefulDisconnect('server tip below max checkpoint')
 
         async with self.network.bhi_lock:
@@ -298,7 +299,7 @@ class Interface(PrintError):
                 could_connect, num_headers = await self.request_chunk(height, next_height)
                 self.tip = max(height + num_headers, self.tip)
                 if not could_connect:
-                    if height <= self.network.max_checkpoint():
+                    if height <= constants.net.max_checkpoint():
                         raise Exception('server chain conflicts with checkpoints or genesis')
                     last, height = await self.step(height)
                     self.tip = max(height, self.tip)
@@ -328,8 +329,8 @@ class Interface(PrintError):
             bad_header = header
             height -= 1
             checkp = False
-            if height <= self.network.max_checkpoint():
-                height = self.network.max_checkpoint() + 1
+            if height <= constants.net.max_checkpoint():
+                height = constants.net.max_checkpoint() + 1
                 checkp = True
 
             header = await self.get_block_header(height, 'backward')
@@ -343,8 +344,8 @@ class Interface(PrintError):
                 delta = self.tip - height
                 next_height = self.tip - 2 * delta
                 checkp = False
-                if next_height <= self.network.max_checkpoint():
-                    next_height = self.network.max_checkpoint() + 1
+                if next_height <= constants.net.max_checkpoint():
+                    next_height = constants.net.max_checkpoint() + 1
                     checkp = True
                 height = next_height
 
