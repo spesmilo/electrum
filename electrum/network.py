@@ -32,6 +32,7 @@ import json
 import sys
 import ipaddress
 import asyncio
+from typing import NamedTuple, Optional
 
 import dns
 import dns.resolver
@@ -44,6 +45,7 @@ from . import constants
 from . import blockchain
 from .interface import Interface, serialize_server, deserialize_server
 from .version import PROTOCOL_VERSION
+from .simple_config import SimpleConfig
 
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
@@ -106,7 +108,12 @@ def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
     return random.choice(eligible) if eligible else None
 
 
-from .simple_config import SimpleConfig
+NetworkParameters = NamedTuple("NetworkParameters", [("host", str),
+                                                     ("port", str),
+                                                     ("protocol", str),
+                                                     ("proxy", Optional[dict]),
+                                                     ("auto_connect", bool)])
+
 
 proxy_modes = ['socks4', 'socks5']
 
@@ -118,7 +125,7 @@ def serialize_proxy(p):
                      p.get('user', ''), p.get('password', '')])
 
 
-def deserialize_proxy(s):
+def deserialize_proxy(s: str) -> Optional[dict]:
     if not isinstance(s, str):
         return None
     if s.lower() == 'none':
@@ -369,9 +376,9 @@ class Network(PrintError):
         else:
             self.trigger_callback(key, self.get_status_value(key))
 
-    def get_parameters(self):
+    def get_parameters(self) -> NetworkParameters:
         host, port, protocol = deserialize_server(self.default_server)
-        return host, port, protocol, self.proxy, self.auto_connect
+        return NetworkParameters(host, port, protocol, self.proxy, self.auto_connect)
 
     def get_donation_address(self):
         if self.is_connected():
@@ -416,14 +423,13 @@ class Network(PrintError):
             self.start_interface(server)
         return server
 
-    def set_proxy(self, proxy):
+    def set_proxy(self, proxy: Optional[dict]):
         self.proxy = proxy
         # Store these somewhere so we can un-monkey-patch
         if not hasattr(socket, "_socketobject"):
             socket._getaddrinfo = socket.getaddrinfo
         if proxy:
             self.print_error('setting proxy', proxy)
-            proxy_mode = proxy_modes.index(proxy["mode"]) + 1
             # prevent dns leaks, see http://stackoverflow.com/questions/13184205/dns-over-proxy
             socket.getaddrinfo = lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
         else:
@@ -465,7 +471,7 @@ class Network(PrintError):
         return socket._getaddrinfo(addr, *args, **kwargs)
 
     @with_interface_lock
-    def start_network(self, protocol, proxy):
+    def start_network(self, protocol: str, proxy: Optional[dict]):
         assert not self.interface and not self.interfaces
         assert not self.connecting and self.socket_queue.empty()
         self.print_error('starting network')
@@ -487,9 +493,11 @@ class Network(PrintError):
         # Get a new queue - no old pending connections thanks!
         self.socket_queue = queue.Queue()
 
-    def set_parameters(self, host, port, protocol, proxy, auto_connect):
+    def set_parameters(self, net_params: NetworkParameters):
+        proxy = net_params.proxy
         proxy_str = serialize_proxy(proxy)
-        server = serialize_server(host, port, protocol)
+        host, port, protocol = net_params.host, net_params.port, net_params.protocol
+        server_str = serialize_server(host, port, protocol)
         # sanitize parameters
         try:
             deserialize_server(serialize_server(host, port, protocol))
@@ -498,21 +506,21 @@ class Network(PrintError):
                 int(proxy['port'])
         except:
             return
-        self.config.set_key('auto_connect', auto_connect, False)
+        self.config.set_key('auto_connect', net_params.auto_connect, False)
         self.config.set_key("proxy", proxy_str, False)
-        self.config.set_key("server", server, True)
+        self.config.set_key("server", server_str, True)
         # abort if changes were not allowed by config
-        if self.config.get('server') != server or self.config.get('proxy') != proxy_str:
+        if self.config.get('server') != server_str or self.config.get('proxy') != proxy_str:
             return
-        self.auto_connect = auto_connect
+        self.auto_connect = net_params.auto_connect
         if self.proxy != proxy or self.protocol != protocol:
             # Restart the network defaulting to the given server
             with self.interface_lock:
                 self.stop_network()
-                self.default_server = server
+                self.default_server = server_str
                 self.start_network(protocol, proxy)
-        elif self.default_server != server:
-            self.switch_to_interface(server)
+        elif self.default_server != server_str:
+            self.switch_to_interface(server_str)
         else:
             self.switch_lagging_interface()
             self.notify('updated')
@@ -781,10 +789,10 @@ class Network(PrintError):
 
         with self.interface_lock:
             if self.interface:
-                server = self.interface.server
-                host, port, protocol, proxy, auto_connect = self.get_parameters()
-                host, port, protocol = deserialize_server(server)
-                self.set_parameters(host, port, protocol, proxy, auto_connect)
+                net_params = self.get_parameters()
+                host, port, protocol = deserialize_server(self.interface.server)
+                net_params = net_params._replace(host=host, port=port, protocol=protocol)
+                self.set_parameters(net_params)
 
     def get_local_height(self):
         return self.blockchain().height()

@@ -94,8 +94,9 @@ class ElectrumWindow(App):
 
     auto_connect = BooleanProperty(False)
     def on_auto_connect(self, instance, x):
-        host, port, protocol, proxy, auto_connect = self.network.get_parameters()
-        self.network.set_parameters(host, port, protocol, proxy, self.auto_connect)
+        net_params = self.network.get_parameters()
+        net_params = net_params._replace(auto_connect=self.auto_connect)
+        self.network.set_parameters(net_params)
     def toggle_auto_connect(self, x):
         self.auto_connect = not self.auto_connect
 
@@ -267,11 +268,11 @@ class ElectrumWindow(App):
         if self.network:
             self.num_blocks = self.network.get_local_height()
             self.num_nodes = len(self.network.get_interfaces())
-            host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
-            self.server_host = host
-            self.server_port = port
-            self.auto_connect = auto_connect
-            self.proxy_config = proxy_config if proxy_config else {}
+            net_params = self.network.get_parameters()
+            self.server_host = net_params.host
+            self.server_port = net_params.port
+            self.auto_connect = net_params.auto_connect
+            self.proxy_config = net_params.proxy_config if net_params.proxy_config else {}
 
         self.plugins = kwargs.get('plugins', [])
         self.gui_object = kwargs.get('gui_object', None)

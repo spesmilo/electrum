@@ -562,7 +562,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def donate_to_server(self):
         d = self.network.get_donation_address()
         if d:
-            host = self.network.get_parameters()[0]
+            host = self.network.get_parameters().host
             self.pay_to_URI('bitcoin:%s?message=donation for %s'%(d, host))
         else:
             self.show_error(_('No donation address for this server'))
