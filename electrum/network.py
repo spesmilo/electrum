@@ -20,7 +20,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import concurrent.futures
 import time
 import queue
 import os
@@ -33,7 +32,6 @@ import json
 import sys
 import ipaddress
 import asyncio
-import concurrent.futures
 
 import dns
 import dns.resolver
@@ -44,7 +42,7 @@ from .util import PrintError, print_error, aiosafe, bfh
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
-from .interface import Interface
+from .interface import Interface, serialize_server, deserialize_server
 from .version import PROTOCOL_VERSION
 
 NODES_RETRY_INTERVAL = 60
@@ -126,6 +124,7 @@ def deserialize_proxy(s):
     if s.lower() == 'none':
         return None
     proxy = { "mode":"socks5", "host":"localhost" }
+    # FIXME raw IPv6 address fails here
     args = s.split(':')
     n = 0
     if proxy_modes.count(args[n]) == 1:
@@ -147,18 +146,8 @@ def deserialize_proxy(s):
     return proxy
 
 
-def deserialize_server(server_str):
-    host, port, protocol = str(server_str).rsplit(':', 2)
-    if protocol not in 'st':
-        raise ValueError('invalid network protocol: {}'.format(protocol))
-    int(port)    # Throw if cannot be converted to int
-    return host, port, protocol
-
-
-def serialize_server(host, port, protocol):
-    return str(':'.join([host, port, protocol]))
-
 INSTANCE = None
+
 
 class Network(PrintError):
     """The Network class manages a set of connections to remote electrum
@@ -794,7 +783,7 @@ class Network(PrintError):
             if self.interface:
                 server = self.interface.server
                 host, port, protocol, proxy, auto_connect = self.get_parameters()
-                host, port, protocol = server.split(':')
+                host, port, protocol = deserialize_server(server)
                 self.set_parameters(host, port, protocol, proxy, auto_connect)
 
     def get_local_height(self):

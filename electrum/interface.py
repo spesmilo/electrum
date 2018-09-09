@@ -30,6 +30,7 @@ import sys
 import traceback
 import asyncio
 import concurrent.futures
+from typing import Tuple, Union
 
 import aiorpcx
 from aiorpcx import ClientSession, Notification, TaskGroup
@@ -83,14 +84,28 @@ class CustomTaskGroup(TaskGroup):
         return super().spawn(*args, **kwargs)
 
 
+def deserialize_server(server_str: str) -> Tuple[str, int, str]:
+    # host might be IPv6 address, hence do rsplit:
+    host, port, protocol = str(server_str).rsplit(':', 2)
+    if protocol not in ('s', 't'):
+        raise ValueError('invalid network protocol: {}'.format(protocol))
+    port = int(port)  # Throw if cannot be converted to int
+    if not (0 < port < 2**16):
+        raise ValueError('port {} is out of valid range'.format(port))
+    return host, port, protocol
+
+
+def serialize_server(host: str, port: Union[str, int], protocol: str) -> str:
+    return str(':'.join([host, str(port), protocol]))
+
+
 class Interface(PrintError):
 
     def __init__(self, network, server, config_path, proxy):
         self.exception = None
         self.ready = asyncio.Future()
         self.server = server
-        self.host, self.port, self.protocol = self.server.split(':')
-        self.port = int(self.port)
+        self.host, self.port, self.protocol = deserialize_server(self.server)
         self.config_path = config_path
         self.cert_path = os.path.join(self.config_path, 'certs', self.host)
         self.tip_header = None

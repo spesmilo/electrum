@@ -33,7 +33,7 @@ import PyQt5.QtCore as QtCore
 from electrum.i18n import _
 from electrum import constants, blockchain
 from electrum.util import print_error
-from electrum.network import serialize_server, deserialize_server
+from electrum.interface import serialize_server, deserialize_server
 
 from .util import *
 
@@ -337,7 +337,7 @@ class NetworkChoiceLayout(object):
     def update(self):
         host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
         self.server_host.setText(host)
-        self.server_port.setText(port)
+        self.server_port.setText(str(port))
         self.autoconnect_cb.setChecked(auto_connect)
 
         interface = self.network.interface
