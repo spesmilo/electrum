@@ -723,18 +723,6 @@ class Network(PrintError):
         with b.lock:
             b.update_size()
 
-    def _run(self, fx):
-        self.init_headers_file()
-        jobs = [self.maintain_sessions()]
-        if fx:
-            jobs.append(fx)
-        jobs = [self.asyncio_loop.create_task(x) for x in jobs]
-        self.gat = asyncio.gather(*jobs)
-        try:
-            self.asyncio_loop.run_until_complete(self.gat)
-        except concurrent.futures.CancelledError:
-            pass
-
     async def get_merkle_for_transaction(self, tx_hash, tx_height):
         return await self.interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
 
@@ -819,16 +807,20 @@ class Network(PrintError):
             f.write(json.dumps(cp, indent=4))
 
     def start(self, fx=None):
-        self.fut = threading.Thread(target=self._run, args=(fx,))
-        self.fut.start()
+        self.main_taskgroup = TaskGroup()
+        async def main():
+            self.init_headers_file()
+            async with self.main_taskgroup as group:
+                await group.spawn(self.maintain_sessions())
+                if fx: await group.spawn(fx)
+        self._wrapper_thread = threading.Thread(target=self.asyncio_loop.run_until_complete, args=(main(),))
+        self._wrapper_thread.start()
 
     def stop(self):
-        async def stop():
-            self.gat.cancel()
-        asyncio.run_coroutine_threadsafe(stop(), self.asyncio_loop)
+        asyncio.run_coroutine_threadsafe(self.main_taskgroup.cancel_remaining(), self.asyncio_loop)
 
     def join(self):
-        return self.fut.join(1)
+        self._wrapper_thread.join(1)
 
     async def maintain_sessions(self):
         while True:
