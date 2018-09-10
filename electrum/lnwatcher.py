@@ -1,12 +1,13 @@
 import threading
+import asyncio
 
-from .util import PrintError, bh2u, bfh, NoDynamicFeeEstimates
+from .util import PrintError, bh2u, bfh, NoDynamicFeeEstimates, aiosafe
 from .lnutil import (extract_ctn_from_tx, derive_privkey,
                      get_per_commitment_secret_from_seed, derive_pubkey,
                      make_commitment_output_to_remote_address,
                      RevocationStore, UnableToDeriveSecret)
 from . import lnutil
-from .bitcoin import redeem_script_to_address, TYPE_ADDRESS
+from .bitcoin import redeem_script_to_address, TYPE_ADDRESS, address_to_scripthash
 from . import transaction
 from .transaction import Transaction, TxOutput
 from . import ecc
@@ -22,33 +23,27 @@ class LNWatcher(PrintError):
         self.watched_channels = {}
         self.address_status = {}  # addr -> status
 
-    def parse_response(self, response):
-        if response.get('error'):
-            self.print_error("response error:", response)
-            return None, None
-        return response['params'], response['result']
+    @aiosafe
+    async def handle_addresses(self, funding_address):
+        queue = asyncio.Queue()
+        params = [address_to_scripthash(funding_address)]
+        await self.network.interface.session.subscribe('blockchain.scripthash.subscribe', params, queue)
+        await queue.get()
+        while True:
+            result = await queue.get()
+            await self.on_address_status(funding_address, result)
 
     def watch_channel(self, chan, callback):
         funding_address = chan.get_funding_address()
         self.watched_channels[funding_address] = chan, callback
-        self.network.subscribe_to_addresses([funding_address], self.on_address_status)
+        asyncio.get_event_loop().create_task(self.handle_addresses(funding_address))
 
-    def on_address_status(self, response):
-        params, result = self.parse_response(response)
-        if not params:
-            return
-        addr = params[0]
+    async def on_address_status(self, addr, result):
         if self.address_status.get(addr) != result:
             self.address_status[addr] = result
-            self.network.request_address_utxos(addr, self.on_utxos)
-
-    def on_utxos(self, response):
-        params, result = self.parse_response(response)
-        if not params:
-            return
-        addr = params[0]
-        chan, callback = self.watched_channels[addr]
-        callback(chan, result)
+            result = await self.network.interface.session.send_request('blockchain.scripthash.listunspent', [address_to_scripthash(addr)])
+            chan, callback = self.watched_channels[addr]
+            await callback(chan, result)
 
 
 
@@ -69,9 +64,9 @@ class LNChanCloseHandler(PrintError):
         network.register_callback(self.on_network_update, ['updated'])
         self.watch_address(self.funding_address)
 
-    def on_network_update(self, event, *args):
+    async def on_network_update(self, event, *args):
         if self.wallet.synchronizer.is_up_to_date():
-            self.check_onchain_situation()
+            await self.check_onchain_situation()
 
     def stop_and_delete(self):
         self.network.unregister_callback(self.on_network_update)
@@ -82,7 +77,7 @@ class LNChanCloseHandler(PrintError):
             self.watched_addresses.add(addr)
             self.wallet.synchronizer.add(addr)
 
-    def check_onchain_situation(self):
+    async def check_onchain_situation(self):
         funding_outpoint = self.chan.funding_outpoint
         ctx_candidate_txid = self.wallet.spent_outpoints[funding_outpoint.txid].get(funding_outpoint.output_index)
         if ctx_candidate_txid is None:
@@ -104,13 +99,13 @@ class LNChanCloseHandler(PrintError):
         conf = self.wallet.get_tx_height(ctx_candidate_txid).conf
         if conf == 0:
             return
-        keep_watching_this = self.inspect_ctx_candidate(ctx_candidate, i)
+        keep_watching_this = await self.inspect_ctx_candidate(ctx_candidate, i)
         if not keep_watching_this:
             self.stop_and_delete()
 
     # TODO batch sweeps
     # TODO sweep HTLC outputs
-    def inspect_ctx_candidate(self, ctx, txin_idx: int):
+    async def inspect_ctx_candidate(self, ctx, txin_idx: int):
         """Returns True iff found any not-deeply-spent outputs that we could
         potentially sweep at some point."""
         keep_watching_this = False
@@ -127,7 +122,7 @@ class LNChanCloseHandler(PrintError):
             # note that we might also get here if this is our ctx and the ctn just happens to match
             their_cur_pcp = chan.remote_state.current_per_commitment_point
             if their_cur_pcp is not None:
-                keep_watching_this |= self.find_and_sweep_their_ctx_to_remote(ctx, their_cur_pcp)
+                keep_watching_this |= await self.find_and_sweep_their_ctx_to_remote(ctx, their_cur_pcp)
         # see if we have a revoked secret for this ctn ("breach")
         try:
             per_commitment_secret = chan.remote_state.revocation_store.retrieve_secret(
@@ -138,13 +133,13 @@ class LNChanCloseHandler(PrintError):
             # note that we might also get here if this is our ctx and we just happen to have
             # the secret for the symmetric ctn
             their_pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
-            keep_watching_this |= self.find_and_sweep_their_ctx_to_remote(ctx, their_pcp)
-            keep_watching_this |= self.find_and_sweep_their_ctx_to_local(ctx, per_commitment_secret)
+            keep_watching_this |= await self.find_and_sweep_their_ctx_to_remote(ctx, their_pcp)
+            keep_watching_this |= await self.find_and_sweep_their_ctx_to_local(ctx, per_commitment_secret)
         # see if it's our ctx
         our_per_commitment_secret = get_per_commitment_secret_from_seed(
             chan.local_state.per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
         our_per_commitment_point = ecc.ECPrivkey(our_per_commitment_secret).get_public_key_bytes(compressed=True)
-        keep_watching_this |= self.find_and_sweep_our_ctx_to_local(ctx, our_per_commitment_point)
+        keep_watching_this |= await self.find_and_sweep_our_ctx_to_local(ctx, our_per_commitment_point)
         return keep_watching_this
 
     def get_tx_mined_status(self, txid):
@@ -166,7 +161,7 @@ class LNChanCloseHandler(PrintError):
         else:
             raise NotImplementedError()
 
-    def find_and_sweep_their_ctx_to_remote(self, ctx, their_pcp: bytes):
+    async def find_and_sweep_their_ctx_to_remote(self, ctx, their_pcp: bytes):
         """Returns True iff found a not-deeply-spent output that we could
         potentially sweep at some point."""
         payment_bp_privkey = ecc.ECPrivkey(self.chan.local_config.payment_basepoint.privkey)
@@ -193,12 +188,12 @@ class LNChanCloseHandler(PrintError):
             return True
         sweep_tx = create_sweeptx_their_ctx_to_remote(self.network, self.sweep_address, ctx,
                                                       output_idx, our_payment_privkey)
-        self.network.broadcast_transaction(sweep_tx,
-                                           lambda res: self.print_tx_broadcast_result('sweep_their_ctx_to_remote', res))
+        res = await self.network.broadcast_transaction(sweep_tx)
+        self.print_tx_broadcast_result('sweep_their_ctx_to_remote', res)
         return True
 
 
-    def find_and_sweep_their_ctx_to_local(self, ctx, per_commitment_secret: bytes):
+    async def find_and_sweep_their_ctx_to_local(self, ctx, per_commitment_secret: bytes):
         """Returns True iff found a not-deeply-spent output that we could
         potentially sweep at some point."""
         per_commitment_point = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
@@ -230,11 +225,11 @@ class LNChanCloseHandler(PrintError):
             return True
         sweep_tx = create_sweeptx_ctx_to_local(self.network, self.sweep_address, ctx, output_idx,
                                                witness_script, revocation_privkey, True)
-        self.network.broadcast_transaction(sweep_tx,
-                                           lambda res: self.print_tx_broadcast_result('sweep_their_ctx_to_local', res))
+        res = await self.network.broadcast_transaction(sweep_tx)
+        self.print_tx_broadcast_result('sweep_their_ctx_to_local', res)
         return True
 
-    def find_and_sweep_our_ctx_to_local(self, ctx, our_pcp: bytes):
+    async def find_and_sweep_our_ctx_to_local(self, ctx, our_pcp: bytes):
         """Returns True iff found a not-deeply-spent output that we could
         potentially sweep at some point."""
         delayed_bp_privkey = ecc.ECPrivkey(self.chan.local_config.delayed_basepoint.privkey)
@@ -272,14 +267,14 @@ class LNChanCloseHandler(PrintError):
         sweep_tx = create_sweeptx_ctx_to_local(self.network, self.sweep_address, ctx, output_idx,
                                                witness_script, our_localdelayed_privkey.get_secret_bytes(),
                                                False, to_self_delay)
-        self.network.broadcast_transaction(sweep_tx,
-                                           lambda res: self.print_tx_broadcast_result('sweep_our_ctx_to_local', res))
+        res = await self.network.broadcast_transaction(sweep_tx)
+        self.print_tx_broadcast_result('sweep_our_ctx_to_local', res)
         return True
 
     def print_tx_broadcast_result(self, name, res):
-        error = res.get('error')
+        error, msg = res
         if error:
-            self.print_error('{} broadcast failed: {}'.format(name, error))
+            self.print_error('{} broadcast failed: {}'.format(name, msg))
         else:
             self.print_error('{} broadcast succeeded'.format(name))
 
