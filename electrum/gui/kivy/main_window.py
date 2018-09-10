@@ -272,7 +272,7 @@ class ElectrumWindow(App):
             self.server_host = net_params.host
             self.server_port = net_params.port
             self.auto_connect = net_params.auto_connect
-            self.proxy_config = net_params.proxy_config if net_params.proxy_config else {}
+            self.proxy_config = net_params.proxy if net_params.proxy else {}
 
         self.plugins = kwargs.get('plugins', [])
         self.gui_object = kwargs.get('gui_object', None)

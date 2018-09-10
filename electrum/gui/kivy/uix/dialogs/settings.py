@@ -8,7 +8,6 @@ from electrum.i18n import languages
 from electrum.gui.kivy.i18n import _
 from electrum.plugin import run_hook
 from electrum import coinchooser
-from electrum.network import NetworkProxy
 
 from .choice_dialog import ChoiceDialog
 
