@@ -11,8 +11,8 @@ import dns.exception
 
 from . import constants
 from .bitcoin import sha256, COIN
-from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv
-from .lnbase import Peer, privkey_to_pubkey, aiosafe
+from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, aiosafe
+from .lnbase import Peer, privkey_to_pubkey
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .lnhtlc import HTLCStateMachine
@@ -55,8 +55,7 @@ class LNWorker(PrintError):
         self._add_peers_from_config()
         # wait until we see confirmations
         self.network.register_callback(self.on_network_update, ['updated', 'verified', 'fee']) # thread safe
-        self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
-        self.network.futures.append(asyncio.run_coroutine_threadsafe(self.main_loop(), asyncio.get_event_loop()))
+        asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
 
     def _add_peers_from_config(self):
         peer_list = self.config.get('lightning_peers', [])
@@ -84,7 +83,7 @@ class LNWorker(PrintError):
         self._last_tried_peer[peer_addr] = time.time()
         self.print_error("adding peer", peer_addr)
         peer = Peer(self, host, port, node_id, request_initial_sync=self.config.get("request_initial_sync", True))
-        self.network.futures.append(asyncio.run_coroutine_threadsafe(peer.main_loop(), asyncio.get_event_loop()))
+        asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(peer.main_loop()), self.network.asyncio_loop)
         self.peers[node_id] = peer
         self.network.trigger_callback('ln_status')
 
@@ -119,7 +118,7 @@ class LNWorker(PrintError):
             return True
         return False
 
-    def on_channel_utxos(self, chan, utxos):
+    async def on_channel_utxos(self, chan, utxos):
         outpoints = [Outpoint(x["tx_hash"], x["tx_pos"]) for x in utxos]
         if chan.funding_outpoint not in outpoints:
             chan.set_funding_txo_spentness(True)
@@ -131,33 +130,32 @@ class LNWorker(PrintError):
             chan.set_funding_txo_spentness(False)
         self.network.trigger_callback('channel', chan)
 
-    def on_network_update(self, event, *args):
-        """ called from network thread """
+    @aiosafe
+    async def on_network_update(self, event, *args):
+        # TODO
         # Race discovered in save_channel (assertion failing):
         # since short_channel_id could be changed while saving.
-        # Mitigated by posting to loop:
-        async def network_jobs():
-            with self.lock:
-                channels = list(self.channels.values())
-            for chan in channels:
-                if chan.get_state() == "OPENING":
-                    res = self.save_short_chan_id(chan)
-                    if not res:
-                        self.print_error("network update but funding tx is still not at sufficient depth")
-                        continue
-                    # this results in the channel being marked OPEN
-                    peer = self.peers[chan.node_id]
-                    peer.funding_locked(chan)
-                elif chan.get_state() == "OPEN":
-                    peer = self.peers.get(chan.node_id)
-                    if peer is None:
-                        self.print_error("peer not found for {}".format(bh2u(chan.node_id)))
-                        return
-                    if event == 'fee':
-                        peer.on_bitcoin_fee_update(chan)
-                    conf = self.wallet.get_tx_height(chan.funding_outpoint.txid).conf
-                    peer.on_network_update(chan, conf)
-        asyncio.run_coroutine_threadsafe(network_jobs(), self.network.asyncio_loop).result()
+        with self.lock:
+            channels = list(self.channels.values())
+        for chan in channels:
+            print("update", chan.get_state())
+            if chan.get_state() == "OPENING":
+                res = self.save_short_chan_id(chan)
+                if not res:
+                    self.print_error("network update but funding tx is still not at sufficient depth")
+                    continue
+                # this results in the channel being marked OPEN
+                peer = self.peers[chan.node_id]
+                peer.funding_locked(chan)
+            elif chan.get_state() == "OPEN":
+                peer = self.peers.get(chan.node_id)
+                if peer is None:
+                    self.print_error("peer not found for {}".format(bh2u(chan.node_id)))
+                    return
+                if event == 'fee':
+                    peer.on_bitcoin_fee_update(chan)
+                conf = self.wallet.get_tx_height(chan.funding_outpoint.txid).conf
+                peer.on_network_update(chan, conf)
 
     async def _open_channel_coroutine(self, node_id, local_amount_sat, push_sat, password):
         peer = self.peers[node_id]
@@ -345,8 +343,8 @@ class LNWorker(PrintError):
                 coro = peer.reestablish_channel(chan)
                 asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
-    @aiosafe
     async def main_loop(self):
+        await self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
         while True:
             await asyncio.sleep(1)
             now = time.time()

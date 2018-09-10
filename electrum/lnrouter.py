@@ -31,6 +31,7 @@ from collections import namedtuple, defaultdict
 from typing import Sequence, Union, Tuple, Optional
 import binascii
 import base64
+import asyncio
 
 from . import constants
 from .util import PrintError, bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits
@@ -277,7 +278,8 @@ class ChannelDB(JsonDB):
         self._last_good_address = {}  # node_id -> LNPeerAddr
 
         self.ca_verifier = LNChanAnnVerifier(network, self)
-        self.network.add_jobs([self.ca_verifier])
+        # FIXME if the channel verifier raises, it kills network.main_taskgroup
+        asyncio.run_coroutine_threadsafe(self.network.add_job(self.ca_verifier.main()), network.asyncio_loop)
 
         self.load_data()
 

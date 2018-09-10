@@ -29,7 +29,7 @@ from . import crypto
 from .crypto import sha256
 from . import constants
 from . import transaction
-from .util import PrintError, bh2u, print_error, bfh
+from .util import PrintError, bh2u, print_error, bfh, aiosafe
 from .transaction import opcodes, Transaction, TxOutput
 from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error, ONION_FAILURE_CODE_MAP
 from .lnaddr import lndecode
@@ -264,21 +264,6 @@ def privkey_to_pubkey(priv: bytes) -> bytes:
 def create_ephemeral_key() -> (bytes, bytes):
     privkey = ecc.ECPrivkey.generate_random_key()
     return privkey.get_secret_bytes(), privkey.get_public_key_bytes()
-
-
-def aiosafe(f):
-    # save exception in object.
-    # f must be a method of a PrintError instance.
-    # aiosafe calls should not be nested
-    async def f2(*args, **kwargs):
-        self = args[0]
-        try:
-            return await f(*args, **kwargs)
-        except BaseException as e:
-            self.print_error("Exception in", f.__name__, ":", e.__class__.__name__, str(e))
-            self.exception = e
-    return f2
-
 
 
 class Peer(PrintError):
@@ -612,7 +597,7 @@ class Peer(PrintError):
         remote_sig = payload['signature']
         m.receive_new_commitment(remote_sig, [])
         # broadcast funding tx
-        success, _txid = self.network.broadcast_transaction(funding_tx)
+        success, _txid = await self.network.broadcast_transaction(funding_tx)
         assert success, success
         m.remote_state = m.remote_state._replace(ctn=0)
         m.local_state = m.local_state._replace(ctn=0, current_commitment_signature=remote_sig)
