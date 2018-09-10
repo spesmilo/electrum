@@ -277,7 +277,6 @@ class ChannelDB(JsonDB):
         self._last_good_address = {}  # node_id -> LNPeerAddr
 
         self.ca_verifier = LNChanAnnVerifier(network, self)
-        self.network.add_jobs([self.ca_verifier])
 
         self.load_data()
 

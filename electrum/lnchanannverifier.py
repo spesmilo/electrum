@@ -23,7 +23,9 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import asyncio
 import threading
+from aiorpcx import TaskGroup
 
 from . import lnbase
 from . import bitcoin
@@ -60,7 +62,13 @@ class LNChanAnnVerifier(ThreadJob):
     def get_pending_channel_info(self, short_channel_id):
         return self.unverified_channel_info.get(short_channel_id, None)
 
-    def run(self):
+    async def main(self):
+        while True:
+            async with TaskGroup() as tg:
+                await self.iteration(tg)
+            await asyncio.sleep(0.1)
+
+    async def iteration(self, tg):
         interface = self.network.interface
         if not interface:
             return
@@ -81,40 +89,24 @@ class LNChanAnnVerifier(ThreadJob):
             if header is None:
                 index = block_height // 2016
                 if index < len(blockchain.checkpoints):
-                    self.network.request_chunk(interface, index)
+                    await tg.spawn(self.network.request_chunk(interface, index))
                 continue
-            callback = lambda resp, short_channel_id=short_channel_id: self.on_txid_and_merkle(resp, short_channel_id)
-            self.network.get_txid_from_txpos(block_height, tx_pos, True,
-                                             callback=callback)
+            await tg.spawn(self.verify_channel(block_height, tx_pos, short_channel_id))
             #self.print_error('requested short_channel_id', bh2u(short_channel_id))
-            with self.lock:
-                self.started_verifying_channel.add(short_channel_id)
 
-    def on_txid_and_merkle(self, response, short_channel_id):
-        if response.get('error'):
-            self.print_error('received an error:', response)
-            return
-        result = response['result']
+    async def verify_channel(self, block_height, tx_pos, short_channel_id):
+        with self.lock:
+            self.started_verifying_channel.add(short_channel_id)
+        result = await self.network.get_txid_from_txpos(block_height, tx_pos, True)
         tx_hash = result['tx_hash']
         merkle_branch = result['merkle']
-        block_height, tx_pos, output_idx = invert_short_channel_id(short_channel_id)
         header = self.network.blockchain().read_header(block_height)
         try:
             verify_tx_is_in_block(tx_hash, merkle_branch, tx_pos, header, block_height)
         except MerkleVerificationFailure as e:
             self.print_error(str(e))
             return
-        callback = lambda resp, short_channel_id=short_channel_id: self.on_tx_response(resp, short_channel_id)
-        self.network.get_transaction(tx_hash, callback=callback)
-
-    def on_tx_response(self, response, short_channel_id):
-        if response.get('error'):
-            self.print_error('received an error:', response)
-            return
-        params = response['params']
-        result = response['result']
-        tx_hash = params[0]
-        tx = Transaction(result)
+        tx = Transaction(await self.network.get_transaction(tx_hash))
         try:
             tx.deserialize()
         except Exception:

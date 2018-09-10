@@ -689,6 +689,9 @@ class Network(PrintError):
         with b.lock:
             b.update_size()
 
+    async def get_transaction(self, tx_hash):
+        return await self.interface.session.send_request('blockchain.transaction.get', [tx_hash])
+
     async def get_merkle_for_transaction(self, tx_hash, tx_height):
         return await self.interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
 
@@ -777,6 +780,7 @@ class Network(PrintError):
             async with self.main_taskgroup as group:
                 await group.spawn(self.maintain_sessions())
                 if fx: await group.spawn(fx)
+                await group.spawn(self.channel_db.ca_verifier.main())
         self._wrapper_thread = threading.Thread(target=self.asyncio_loop.run_until_complete, args=(main(),))
         self._wrapper_thread.start()
 

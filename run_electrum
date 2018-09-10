@@ -140,6 +140,7 @@ def run_non_RPC(config):
             wallet.synchronize()
             wallet.wait_until_synchronized()
             wallet.stop_threads()
+            network.stop()
             # note: we don't wait for SPV
             msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
         else:
