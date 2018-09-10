@@ -486,7 +486,8 @@ class FxThread(ThreadJob):
         return bool(self.config.get('use_exchange_rate'))
 
     def set_enabled(self, b):
-        return self.config.set_key('use_exchange_rate', bool(b))
+        self.config.set_key('use_exchange_rate', bool(b))
+        self.trigger.set()
 
     def get_history_config(self):
         return bool(self.config.get('history_rates'))
@@ -519,7 +520,7 @@ class FxThread(ThreadJob):
     def set_currency(self, ccy):
         self.ccy = ccy
         self.config.set_key('currency', ccy, True)
-        self.trigger.set() # Because self.ccy changes
+        self.trigger.set()  # Because self.ccy changes
         self.on_quotes()
 
     def set_exchange(self, name):
@@ -541,8 +542,8 @@ class FxThread(ThreadJob):
         if self.network:
             self.network.trigger_callback('on_history')
 
-    def exchange_rate(self):
-        '''Returns None, or the exchange rate as a Decimal'''
+    def exchange_rate(self) -> Decimal:
+        """Returns the exchange rate as a Decimal"""
         rate = self.exchange.quotes.get(self.ccy)
         if rate is None:
             return Decimal('NaN')

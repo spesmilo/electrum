@@ -156,6 +156,7 @@ class ElectrumWindow(App):
 
     def on_quotes(self, d):
         Logger.info("on_quotes")
+        self._trigger_update_status()
         self._trigger_update_history()
 
     def on_history(self, d):
