@@ -200,7 +200,7 @@ class ElectrumGui:
             self.wallet.labels[tx.txid()] = self.str_description
 
         print(_("Please wait..."))
-        status, msg = self.network.broadcast_transaction(tx)
+        status, msg = self.network.broadcast_transaction_from_non_network_thread(tx)
 
         if status:
             print(_('Payment sent.'))
