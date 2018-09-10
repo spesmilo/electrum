@@ -636,8 +636,9 @@ class Network(PrintError):
         self.add_recent_server(server)
 
         interface = Interface(self, server, self.config.path, self.proxy)
+        timeout = 10 if not self.proxy else 20
         try:
-            await asyncio.wait_for(interface.ready, 5)
+            await asyncio.wait_for(interface.ready, timeout)
         except BaseException as e:
             #import traceback
             #traceback.print_exc()
@@ -654,7 +655,7 @@ class Network(PrintError):
         if server == self.default_server:
             self.switch_to_interface(server)
 
-        #self.notify('interfaces')
+        self.notify('interfaces')
 
     def init_headers_file(self):
         b = blockchain.blockchains[0]
