@@ -569,9 +569,10 @@ class Network(PrintError):
                 # and to cancel tasks in interface.group.
                 # However, for headers sub, give preference to this interface
                 # over unknown ones, i.e. start it again right away.
+                old_server = self.interface.server
                 self.close_interface(self.interface)
                 if len(self.interfaces) <= self.num_server:
-                    self.start_interface(self.interface.server)
+                    self.start_interface(old_server)
 
             self.interface = i
             asyncio.get_event_loop().create_task(

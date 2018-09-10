@@ -212,7 +212,7 @@ class Interface(PrintError):
         try:
             await self.open_session(ssl_context, exit_early=False)
         except (asyncio.CancelledError, OSError, aiorpcx.socks.SOCKSFailure) as e:
-            self.print_error('disconnecting due to: {}'.format(e))
+            self.print_error('disconnecting due to: {} {}'.format(e, type(e)))
             self.exception = e
             return
         # should never get here (can only exit via exception)
