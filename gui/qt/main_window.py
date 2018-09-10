@@ -216,12 +216,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.connect_slots(gui_object.timer)
         self.fetch_alias()
 
-    last_update_time = time.time()
-
     def on_history(self, b):
-        if time.time() - self.last_update_time > 1.0:
-            self.last_update_time = time.time()
-            self.new_fx_history_signal.emit()
+        self.new_fx_history_signal.emit()
 
     def setup_exception_hook(self):
         Exception_Hook(self)
@@ -596,17 +592,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
          ])
         self.show_message(msg, title="Electron Cash - " + _("Reporting Bugs"))
 
-    last_notify_transactions_time = time.time()
+    last_notify_transactions_time = 0
 
     def notify_transactions(self):
         if not self.network or not self.network.is_connected():
             return
-        if self.last_notify_transactions_time < 45.0:
+        if time.time() - self.last_notify_transactions_time < 5.0:
             return
-        self.last_notify_transactions_time = time.time()
 
         self.print_error("Notifying GUI")
         if len(self.tx_notifications) > 0:
+            self.last_notify_transactions_time = time.time()
             # Combine the transactions if there are at least three
             num_txns = len(self.tx_notifications)
             if num_txns >= 3:
@@ -660,9 +656,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.need_update.is_set():
             self.need_update.clear()
             self.update_wallet()
-        elif time.time() - self.last_update_time > 1.0:
-            self.last_update_time = time.time()
-            self.on_fx_history()
 
         # resolve aliases
         # FIXME this is a blocking network call that has a timeout of 5 sec
