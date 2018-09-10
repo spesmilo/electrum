@@ -339,7 +339,6 @@ class Interface(PrintError):
                 if self.tip < height:
                     height = self.tip
                 _, height = await self.step(height, item)
-                self.tip = max(height, self.tip)
 
     async def sync_until(self, height, next_height=None):
         if next_height is None:
@@ -348,12 +347,10 @@ class Interface(PrintError):
         while last is None or height < next_height:
             if next_height > height + 10:
                 could_connect, num_headers = await self.request_chunk(height, next_height)
-                self.tip = max(height + num_headers, self.tip)
                 if not could_connect:
                     if height <= constants.net.max_checkpoint():
                         raise Exception('server chain conflicts with checkpoints or genesis')
                     last, height = await self.step(height)
-                    self.tip = max(height, self.tip)
                     continue
                 height = (height // 2016 * 2016) + num_headers
                 if height > next_height:
@@ -361,7 +358,6 @@ class Interface(PrintError):
                 last = 'catchup'
             else:
                 last, height = await self.step(height)
-                self.tip = max(height, self.tip)
         return last, height
 
     async def step(self, height, header=None):
@@ -508,6 +504,7 @@ class Interface(PrintError):
                         self.print_error("catching up from %d"% (bh + 1))
                         height = bh + 1
                     return 'no_fork', height
+
 
 def check_cert(host, cert):
     try:
