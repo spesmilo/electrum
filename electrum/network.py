@@ -695,7 +695,7 @@ class Network(PrintError):
             size = max(size, 0)
         try:
             self.requested_chunks.add(index)
-            res = await asyncio.wait_for(session.send_request('blockchain.block.headers', [index * 2016, size]), 20)
+            res = await session.send_request('blockchain.block.headers', [index * 2016, size])
         finally:
             try: self.requested_chunks.remove(index)
             except KeyError: pass
@@ -816,4 +816,4 @@ class Network(PrintError):
             await asyncio.sleep(0.1)
 
     async def attempt_fee_estimate_update(self):
-        await asyncio.wait_for(self.request_fee_estimates(self.interface), 5)
+        await self.request_fee_estimates(self.interface)

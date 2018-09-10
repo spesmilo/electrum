@@ -120,7 +120,7 @@ class Synchronizer(PrintError):
                 await group.spawn(self.get_transaction, tx_hash)
 
     async def get_transaction(self, tx_hash):
-        result = await asyncio.wait_for(self.session.send_request('blockchain.transaction.get', [tx_hash]), 20)
+        result = await self.session.send_request('blockchain.transaction.get', [tx_hash])
         tx = Transaction(result)
         try:
             tx.deserialize()

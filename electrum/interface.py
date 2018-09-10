@@ -53,8 +53,9 @@ class NotificationSession(ClientSession):
         self.scripthash = scripthash
         self.header = header
 
-    @aiosafe
     async def handle_request(self, request):
+        # note: if server sends malformed request and we raise, the superclass
+        # will catch the exception, count errors, and at some point disconnect
         if isinstance(request, Notification):
             if request.method == 'blockchain.scripthash.subscribe' and self.scripthash is not None:
                 scripthash, status = request.args
@@ -64,6 +65,13 @@ class NotificationSession(ClientSession):
                 await self.header.put(deser)
             else:
                 assert False, request.method
+
+    async def send_request(self, *args, timeout=-1, **kwargs):
+        if timeout == -1:
+            timeout = 20 if not self.proxy else 30
+        return await asyncio.wait_for(
+            super().send_request(*args, **kwargs),
+            timeout)
 
 
 # FIXME this is often raised inside a TaskGroup, but then it's not silent :(
@@ -262,7 +270,7 @@ class Interface(PrintError):
             return None
 
     async def get_block_header(self, height, assert_mode):
-        res = await asyncio.wait_for(self.session.send_request('blockchain.block.header', [height]), 5)
+        res = await self.session.send_request('blockchain.block.header', [height], timeout=5)
         return blockchain.deserialize_header(bytes.fromhex(res), height)
 
     async def request_chunk(self, idx, tip):
@@ -304,7 +312,7 @@ class Interface(PrintError):
                 self.tip = new_header['block_height']
                 await copy_header_queue.put(new_header)
             except concurrent.futures.TimeoutError:
-                await asyncio.wait_for(self.session.send_request('server.ping'), 10)
+                await self.session.send_request('server.ping', timeout=10)
 
     def close(self):
         self.fut.cancel()
