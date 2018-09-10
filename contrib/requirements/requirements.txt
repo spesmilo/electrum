@@ -1,5 +1,6 @@
 pyaes>=0.1a1
 ecdsa>=0.9
+requests
 qrcode
 protobuf
 dnspython
