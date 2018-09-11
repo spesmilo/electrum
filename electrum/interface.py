@@ -54,7 +54,7 @@ class NotificationSession(ClientSession):
         # will catch the exception, count errors, and at some point disconnect
         if isinstance(request, Notification):
             params, result = request.args[:-1], request.args[-1]
-            key = request.method + repr(params)
+            key = self.get_index(request.method, params)
             if key in self.subscriptions:
                 self.cache[key] = result
                 for queue in self.subscriptions[key]:
@@ -70,7 +70,7 @@ class NotificationSession(ClientSession):
             timeout)
 
     async def subscribe(self, method, params, queue):
-        key = method + repr(params)
+        key = self.get_index(method, params)
         if key in self.subscriptions:
             self.subscriptions[key].append(queue)
             result = self.cache[key]
@@ -87,6 +87,11 @@ class NotificationSession(ClientSession):
         for v in self.subscriptions.values():
             if queue in v:
                 v.remove(queue)
+
+    @classmethod
+    def get_index(cls, method, params):
+        """Hashable index for subscriptions and cache"""
+        return str(method) + repr(params)
 
 
 # FIXME this is often raised inside a TaskGroup, but then it's not silent :(

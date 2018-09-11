@@ -598,11 +598,6 @@ class Network(PrintError):
         self.recent_servers = self.recent_servers[0:20]
         self.save_recent_servers()
 
-    @classmethod
-    def get_index(cls, method, params):
-        """ hashable index for subscriptions and cache"""
-        return str(method) + (':' + str(params[0]) if params else '')
-
     @with_interface_lock
     def connection_down(self, server):
         '''A connection to server either went down, or was never made.
