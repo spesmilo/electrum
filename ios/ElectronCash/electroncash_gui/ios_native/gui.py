@@ -824,12 +824,15 @@ class ElectrumGui(PrintError):
             if not languages.get(l):
                 # iOS sometimes returns a mixed language_REGION code, so try and match it to what we have 
                 pre1 = l.split('_')[0]
-                for k in languages.keys():
-                    pre2 = k.split('_')[0]
-                    if pre1 == pre2:
-                        print("OS language is '%s', but we are guessing this matches our language code '%s'"%(l, k))
-                        l = k
-                        break
+                if pre1 == 'es':
+                    l = 'es_AR' # hack to force all Spanish to be South American Spanish as that's a more complete translation
+                else:
+                    for k in languages.keys():
+                        pre2 = k.split('_')[0]
+                        if pre1 == pre2:
+                            print("OS language is '%s', but we are guessing this matches our language code '%s'"%(l, k))
+                            l = k
+                            break
             print ("Setting language to {}".format(l))
             self.language = l
             set_language(l)
