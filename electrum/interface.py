@@ -289,8 +289,9 @@ class Interface(PrintError):
         res = await self.session.send_request('blockchain.block.header', [height], timeout=timeout)
         return blockchain.deserialize_header(bytes.fromhex(res), height)
 
-    async def request_chunk(self, idx, tip):
-        return await self.network.request_chunk(idx, tip, self.session)
+    async def request_chunk(self, start_height, tip):
+        self.print_error("requesting chunk from height {}".format(start_height))
+        return await self.network.request_chunk(start_height, tip, self.session)
 
     async def open_session(self, sslc, exit_early):
         header_queue = asyncio.Queue()
@@ -302,8 +303,9 @@ class Interface(PrintError):
                 raise GracefulDisconnect(e)  # probably 'unsupported protocol version'
             if exit_early:
                 return
-            self.print_error(ver, self.host)
+            self.print_error("connection established. version: {}".format(ver))
             await session.subscribe('blockchain.headers.subscribe', [], header_queue)
+
             async with self.group as group:
                 await group.spawn(self.ping())
                 await group.spawn(self.run_fetch_blocks(header_queue))
@@ -329,25 +331,25 @@ class Interface(PrintError):
         while True:
             self.network.notify('updated')
             item = await header_queue.get()
-            item = item[0]
-            height = item['height']
-            item = blockchain.deserialize_header(bfh(item['hex']), item['height'])
-            self.tip_header = item
+            raw_header = item[0]
+            height = raw_header['height']
+            header = blockchain.deserialize_header(bfh(raw_header['hex']), height)
+            self.tip_header = header
             self.tip = height
             if self.tip < constants.net.max_checkpoint():
                 raise GracefulDisconnect('server tip below max checkpoint')
             if not self.ready.done():
                 self.mark_ready()
             async with self.network.bhi_lock:
-                if self.blockchain.height() < item['block_height']-1:
+                if self.blockchain.height() < header['block_height']-1:
                     _, height = await self.sync_until(height, None)
-                if self.blockchain.height() >= height and self.blockchain.check_header(item):
+                if self.blockchain.height() >= height and self.blockchain.check_header(header):
                     # another interface amended the blockchain
                     self.print_error("skipping header", height)
                     continue
                 if self.tip < height:
                     height = self.tip
-                _, height = await self.step(height, item)
+                _, height = await self.step(height, header)
 
     async def sync_until(self, height, next_height=None):
         if next_height is None:
@@ -355,7 +357,6 @@ class Interface(PrintError):
         last = None
         while last is None or height < next_height:
             if next_height > height + 10:
-                self.print_error("requesting chunk from height {}".format(height))
                 could_connect, num_headers = await self.request_chunk(height, next_height)
                 if not could_connect:
                     if height <= constants.net.max_checkpoint():
