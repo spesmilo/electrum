@@ -20,8 +20,8 @@ with open('contrib/requirements/requirements-hw.txt') as f:
 
 version = imp.load_source('version', 'electrum/version.py')
 
-if sys.version_info[:3] < (3, 4, 0):
-    sys.exit("Error: Electrum requires Python version >= 3.4.0...")
+if sys.version_info[:3] < (3, 6, 0):
+    sys.exit("Error: Electrum requires Python version >= 3.6.0...")
 
 data_files = []
 
@@ -71,6 +71,7 @@ class CustomInstallCommand(install):
 setup(
     name="Electrum",
     version=version.ELECTRUM_VERSION,
+    python_requires='>=3.6',
     install_requires=requirements,
     extras_require=extras_require,
     packages=[
