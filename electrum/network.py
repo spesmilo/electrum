@@ -211,9 +211,6 @@ class Network(PrintError):
         self.banner = ''
         self.donation_address = ''
         self.relay_fee = None
-        # callbacks passed with subscriptions
-        self.subscriptions = defaultdict(list)  # note: needs self.callback_lock
-        self.sub_cache = {}                     # note: needs self.interface_lock
         # callbacks set by the GUI
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
 
@@ -272,6 +269,7 @@ class Network(PrintError):
             callbacks = self.callbacks[event][:]
         for callback in callbacks:
             if asyncio.iscoroutinefunction(callback):
+                # FIXME: if callback throws, we will lose the traceback
                 asyncio.run_coroutine_threadsafe(callback(event, *args), self.asyncio_loop)
             else:
                 callback(event, *args)
@@ -604,16 +602,6 @@ class Network(PrintError):
     def get_index(cls, method, params):
         """ hashable index for subscriptions and cache"""
         return str(method) + (':' + str(params[0]) if params else '')
-
-    def unsubscribe(self, callback):
-        '''Unsubscribe a callback to free object references to enable GC.'''
-        # Note: we can't unsubscribe from the server, so if we receive
-        # subsequent notifications process_response() will emit a harmless
-        # "received unexpected notification" warning
-        with self.callback_lock:
-            for v in self.subscriptions.values():
-                if callback in v:
-                    v.remove(callback)
 
     @with_interface_lock
     def connection_down(self, server):

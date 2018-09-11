@@ -30,7 +30,7 @@ class ElectrumGui:
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
         self.wallet = Wallet(storage)
-        self.wallet.start_threads(self.network)
+        self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
         locale.setlocale(locale.LC_ALL, '')

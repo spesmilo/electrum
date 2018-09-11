@@ -24,24 +24,21 @@
 # SOFTWARE.
 import os
 import re
-import socket
 import ssl
 import sys
 import traceback
 import asyncio
-import concurrent.futures
 from typing import Tuple, Union
 
 import aiorpcx
-from aiorpcx import ClientSession, Notification, TaskGroup
+from aiorpcx import ClientSession, Notification
 
-from .util import PrintError, aiosafe, bfh, AIOSafeSilentException
+from .util import PrintError, aiosafe, bfh, AIOSafeSilentException, CustomTaskGroup
 from . import util
 from . import x509
 from . import pem
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from . import blockchain
-from .blockchain import deserialize_header
 from . import constants
 
 
@@ -83,6 +80,14 @@ class NotificationSession(ClientSession):
             self.cache[key] = result
         await queue.put(params + [result])
 
+    def unsubscribe(self, queue):
+        """Unsubscribe a callback to free object references to enable GC."""
+        # note: we can't unsubscribe from the server, so we keep receiving
+        # subsequent notifications
+        for v in self.subscriptions.values():
+            if queue in v:
+                v.remove(queue)
+
 
 # FIXME this is often raised inside a TaskGroup, but then it's not silent :(
 class GracefulDisconnect(AIOSafeSilentException): pass
@@ -93,13 +98,6 @@ class ErrorParsingSSLCert(Exception): pass
 
 class ErrorGettingSSLCertFromServer(Exception): pass
 
-
-class CustomTaskGroup(TaskGroup):
-
-    def spawn(self, *args, **kwargs):
-        if self._closed:
-            raise asyncio.CancelledError()
-        return super().spawn(*args, **kwargs)
 
 
 def deserialize_server(server_str: str) -> Tuple[str, str, str]:

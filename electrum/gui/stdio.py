@@ -34,7 +34,7 @@ class ElectrumGui:
         self.str_fee = ""
 
         self.wallet = Wallet(storage)
-        self.wallet.start_threads(self.network)
+        self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
         self.network.register_callback(self.on_network, ['updated', 'banner'])

@@ -144,16 +144,16 @@ class Synchronizer(PrintError):
         await self.session.subscribe('blockchain.scripthash.subscribe', [h], self.status_queue)
         self.requested_addrs.remove(addr)
 
-    async def send_subscriptions(self, interface):
+    async def send_subscriptions(self, group: TaskGroup):
         while True:
             addr = await self.add_queue.get()
-            await interface.group.spawn(self.subscribe_to_address, addr)
+            await group.spawn(self.subscribe_to_address, addr)
 
-    async def handle_status(self, interface):
+    async def handle_status(self, group: TaskGroup):
         while True:
             h, status = await self.status_queue.get()
             addr = self.scripthash_to_address[h]
-            await interface.group.spawn(self.on_address_status, addr, status)
+            await group.spawn(self.on_address_status, addr, status)
 
     @property
     def session(self):

@@ -24,6 +24,8 @@
 import asyncio
 from typing import Sequence, Optional
 
+from aiorpcx import TaskGroup
+
 from .util import ThreadJob, bh2u, VerifiedTxInfo
 from .bitcoin import Hash, hash_decode, hash_encode
 from .transaction import Transaction
@@ -47,12 +49,12 @@ class SPV(ThreadJob):
         self.merkle_roots = {}  # txid -> merkle root (once it has been verified)
         self.requested_merkle = set()  # txid set of pending requests
 
-    async def main(self, interface):
+    async def main(self, group: TaskGroup):
         while True:
-            await self._request_proofs(interface)
+            await self._request_proofs(group)
             await asyncio.sleep(0.1)
 
-    async def _request_proofs(self, interface):
+    async def _request_proofs(self, group: TaskGroup):
         blockchain = self.network.blockchain()
         if not blockchain:
             self.print_error("no blockchain")
@@ -70,12 +72,12 @@ class SPV(ThreadJob):
             if header is None:
                 index = tx_height // 2016
                 if index < len(blockchain.checkpoints):
-                    await interface.group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
+                    await group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
             elif (tx_hash not in self.requested_merkle
                     and tx_hash not in self.merkle_roots):
                 self.print_error('requested merkle', tx_hash)
                 self.requested_merkle.add(tx_hash)
-                await interface.group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
+                await group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
 
         if self.network.blockchain() != self.blockchain:
             self.blockchain = self.network.blockchain()

@@ -35,14 +35,15 @@ import stat
 import inspect
 from locale import localeconv
 import asyncio
-
-from .i18n import _
+import urllib.request, urllib.parse, urllib.error
+import queue
 
 import aiohttp
 from aiohttp_socks import SocksConnector, SocksVer
+from aiorpcx import TaskGroup
 
-import urllib.request, urllib.parse, urllib.error
-import queue
+from .i18n import _
+
 
 def inv_dict(d):
     return {v: k for k, v in d.items()}
@@ -972,3 +973,12 @@ def make_aiohttp_session(proxy):
         return aiohttp.ClientSession(headers={'User-Agent' : 'Electrum'}, timeout=aiohttp.ClientTimeout(total=10), connector=connector)
     else:
         return aiohttp.ClientSession(headers={'User-Agent' : 'Electrum'}, timeout=aiohttp.ClientTimeout(total=10))
+
+
+class CustomTaskGroup(TaskGroup):
+
+    def spawn(self, *args, **kwargs):
+        # don't complain if group is already closed.
+        if self._closed:
+            raise asyncio.CancelledError()
+        return super().spawn(*args, **kwargs)
