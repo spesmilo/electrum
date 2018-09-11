@@ -125,7 +125,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.tx_notification_queue = queue.Queue()
         self.tx_notification_last_time = 0
-        self.tx_notification_event = threading.Event()
 
         self.create_status_bar()
         self.need_update = threading.Event()
@@ -304,7 +303,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # FIXME maybe this event should also include which wallet
             # the tx is for. now all wallets get this.
             self.tx_notification_queue.put(args[0])
-            self.tx_notification_event.set()
         elif event in ['status', 'banner', 'verified', 'fee']:
             # Handle in GUI thread
             self.network_signal.emit(event, args)
@@ -593,12 +591,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # note: during initial history sync for a wallet, many txns will be
         # received multiple times. hence the "total amount received" will be
         # a lot higher than should be. this is expected though not intended
-        if not self.tx_notification_event.is_set():
+        if self.tx_notification_queue.qsize() == 0:
             return
         now = time.time()
         if self.tx_notification_last_time + 5 > now:
             return
-        self.tx_notification_event.clear()
         self.tx_notification_last_time = now
         self.print_error("Notifying GUI about new transactions")
         txns = []
