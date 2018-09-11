@@ -141,9 +141,7 @@ class Synchronizer(PrintError):
     async def subscribe_to_address(self, addr):
         h = address_to_scripthash(addr)
         self.scripthash_to_address[h] = addr
-        self.session.scripthash = self.status_queue
-        status = await self.session.send_request('blockchain.scripthash.subscribe', [h])
-        await self.status_queue.put((h, status))
+        await self.session.subscribe('blockchain.scripthash.subscribe', [h], self.status_queue)
         self.requested_addrs.remove(addr)
 
     async def send_subscriptions(self, interface):
