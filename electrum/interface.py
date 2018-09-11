@@ -355,12 +355,14 @@ class Interface(PrintError):
         last = None
         while last is None or height < next_height:
             if next_height > height + 10:
+                self.print_error("requesting chunk from height {}".format(height))
                 could_connect, num_headers = await self.request_chunk(height, next_height)
                 if not could_connect:
                     if height <= constants.net.max_checkpoint():
                         raise Exception('server chain conflicts with checkpoints or genesis')
                     last, height = await self.step(height)
                     continue
+                self.network.notify('updated')
                 height = (height // 2016 * 2016) + num_headers
                 if height > next_height:
                     assert False, (height, self.tip)
