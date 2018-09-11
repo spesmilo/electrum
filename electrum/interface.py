@@ -381,7 +381,7 @@ class Interface(PrintError):
             height -= 1
             checkp = False
             if height <= constants.net.max_checkpoint():
-                height = constants.net.max_checkpoint() + 1
+                height = constants.net.max_checkpoint()
                 checkp = True
 
             header = await self.get_block_header(height, 'backward')
@@ -396,7 +396,7 @@ class Interface(PrintError):
                 next_height = self.tip - 2 * delta
                 checkp = False
                 if next_height <= constants.net.max_checkpoint():
-                    next_height = constants.net.max_checkpoint() + 1
+                    next_height = constants.net.max_checkpoint()
                     checkp = True
                 height = next_height
 
