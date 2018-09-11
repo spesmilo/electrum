@@ -518,6 +518,9 @@ def parse_json(message):
 class timeout(Exception):
     pass
 
+class TimeoutException(timeout): # Future compat. with Electrum codebase/cherrypicking
+    pass
+
 import socket
 import json
 import ssl

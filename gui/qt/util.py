@@ -466,8 +466,13 @@ class MyTreeWidget(QTreeWidget):
             self.pending_update = True
         else:
             self.setUpdatesEnabled(False)
+            scroll_pos_val = self.verticalScrollBar().value() # save previous scroll bar position
             self.on_update()
-            self.setUpdatesEnabled(True)
+            def restoreScrollBar():
+                self.updateGeometry()
+                self.verticalScrollBar().setValue(scroll_pos_val) # restore scroll bar to previous
+                self.setUpdatesEnabled(True)
+            QTimer.singleShot(1.0, restoreScrollBar) # need to do this from a timer some time later due to Qt quirks
         if self.current_filter:
             self.filter(self.current_filter)
 

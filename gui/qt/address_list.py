@@ -54,9 +54,32 @@ class AddressList(MyTreeWidget):
         self.update_headers(headers)
 
     def on_update(self):
+        def remember_expanded_items():
+            # save the set of expanded items... so that address list updates don't annoyingly collapse
+            # our tree list widget due to the update.
+            expanded_item_names = set()
+            for i in range(0, self.topLevelItemCount()):
+                it = self.topLevelItem(i)
+                if it and it.childCount():
+                    if it.isExpanded():
+                        expanded_item_names.add(it.text(0))
+                    for j in range(0, it.childCount()):
+                        it2 = it.child(j)
+                        if it2 and it2.childCount() and it2.isExpanded():
+                            expanded_item_names.add(it.text(0) + "/" + it2.text(0))
+            return expanded_item_names
+        def restore_expanded_items(seq_item, used_item, expanded_item_names):
+            # restore expanded items.
+            if isinstance(seq_item, QTreeWidgetItem) and not seq_item.isExpanded() and seq_item.text(0) in expanded_item_names:
+                seq_item.setExpanded(True)
+            used_item_name = used_item.text(0) if not used_item.parent() else used_item.parent().text(0) + "/" + used_item.text(0)
+            if not used_item.isExpanded() and used_item_name in expanded_item_names:
+                used_item.setExpanded(True)       
         self.wallet = self.parent.wallet
+        had_item_count = self.topLevelItemCount()
         item = self.currentItem()
         current_address = item.data(0, Qt.UserRole) if item else None
+        expanded_item_names = remember_expanded_items()
         self.clear()
         receiving_addresses = self.wallet.get_receiving_addresses()
         change_addresses = self.wallet.get_change_addresses()
@@ -72,7 +95,7 @@ class AddressList(MyTreeWidget):
                 name = _("Receiving") if not is_change else _("Change")
                 seq_item = QTreeWidgetItem( [ name, '', '', '', '', ''] )
                 account_item.addChild(seq_item)
-                if not is_change:
+                if not is_change and not had_item_count: # first time we create this widget, auto-expand the default address list
                     seq_item.setExpanded(True)
             else:
                 seq_item = account_item
@@ -114,6 +137,7 @@ class AddressList(MyTreeWidget):
                     seq_item.addChild(address_item)
                 if address == current_address:
                     self.setCurrentItem(address_item)
+            restore_expanded_items(seq_item, used_item, expanded_item_names)
 
     def create_menu(self, position):
         from electroncash.wallet import Multisig_Wallet
