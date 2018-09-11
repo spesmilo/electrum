@@ -332,7 +332,7 @@ class Interface(PrintError):
         while True:
             self.network.notify('updated')
             item = await replies.get()
-            async with self.network.bhi_lock and self.tip_lock:
+            async with self.network.bhi_lock, self.tip_lock:
                 if self.blockchain.height() < item['block_height']-1:
                     _, height = await self.sync_until(height, None)
                 if self.blockchain.height() >= height and self.blockchain.check_header(item):
