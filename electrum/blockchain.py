@@ -99,7 +99,6 @@ class Blockchain(util.PrintError):
 
     def __init__(self, config, forkpoint, parent_id):
         self.config = config
-        self.catch_up = None  # interface catching up
         self.forkpoint = forkpoint
         self.checkpoints = constants.net.CHECKPOINTS
         self.parent_id = parent_id

@@ -198,13 +198,9 @@ class Network(PrintError):
         self.bhi_lock = asyncio.Lock()
         self.interface_lock = threading.RLock()            # <- re-entrant
         self.callback_lock = threading.Lock()
-        self.pending_sends_lock = threading.Lock()
         self.recent_servers_lock = threading.RLock()       # <- re-entrant
         self.blockchains_lock = threading.Lock()
 
-        self.pending_sends = []
-        self.message_id = 0
-        self.debug = False
         self.irc_servers = {}  # returned by interface (list from irc)
         self.recent_servers = self.read_recent_servers()  # note: needs self.recent_servers_lock
 
@@ -217,10 +213,6 @@ class Network(PrintError):
         dir_path = os.path.join(self.config.path, 'certs')
         util.make_dir(dir_path)
 
-        # subscriptions and requests
-        self.h2addr = {}
-        # Requests from client we've not seen a response to
-        self.unanswered_requests = {}
         # retry times
         self.server_retry_time = time.time()
         self.nodes_retry_time = time.time()
@@ -608,10 +600,6 @@ class Network(PrintError):
         if server in self.interfaces:
             self.close_interface(self.interfaces[server])
             self.notify('interfaces')
-        with self.blockchains_lock:
-            for b in blockchain.blockchains.values():
-                if b.catch_up == server:
-                    b.catch_up = None
 
     @aiosafe
     async def new_interface(self, server):
@@ -799,9 +787,6 @@ class Network(PrintError):
                         self.switch_to_interface(self.default_server)
             else:
                 if self.config.is_fee_estimates_update_required():
-                    await self.interface.group.spawn(self.attempt_fee_estimate_update())
+                    await self.interface.group.spawn(self.request_fee_estimates(self.interface))
 
             await asyncio.sleep(0.1)
-
-    async def attempt_fee_estimate_update(self):
-        await self.request_fee_estimates(self.interface)
