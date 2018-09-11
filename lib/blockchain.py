@@ -129,7 +129,7 @@ def can_connect(header):
         if b.can_connect(header):
             return b
     return False
-    
+
 def verify_proven_chunk(chunk_base_height, chunk_data):
     chunk = HeaderChunk(chunk_base_height, chunk_data)
 
@@ -163,14 +163,14 @@ class HeaderChunk:
     def __init__(self, base_height, data):
         self.base_height = base_height
         self.data = data
-        
+
     def __repr__(self):
         return "HeaderChunk(base_height={}, data_count={})".format(self.base_height, len(self.data))
-        
+
     def contains_height(self, height):
         header_count = len(self.data) // 80
         return height >= self.base_height and height < self.base_height + header_count
-        
+
     def get_header_at_height(self, height):
         return self.get_header_at_index(height - self.base_height)
 
@@ -232,13 +232,13 @@ class Blockchain(util.PrintError):
     def update_size(self):
         p = self.path()
         self._size = os.path.getsize(p)//80 if os.path.exists(p) else 0
-            
+
     def verify_header(self, header, prev_header, bits=None):
         prev_header_hash = hash_header(prev_header)
         this_header_hash = hash_header(header)
         if prev_header_hash != header.get('prev_block_hash'):
             raise VerifyError("prev hash mismatch: %s vs %s" % (prev_header_hash, header.get('prev_block_hash')))
-            
+
         # We do not need to check the block difficulty if the chain of linked header hashes was proven correct against our checkpoint.
         if bits is not None:
             # checkpoint BitcoinCash fork block
@@ -250,14 +250,14 @@ class Blockchain(util.PrintError):
             target = bits_to_target(bits)
             if int('0x' + this_header_hash, 16) > target:
                 raise VerifyError("insufficient proof of work: %s vs target %s" % (int('0x' + this_header_hash, 16), target))
-            
+
     def verify_chunk(self, chunk_base_height, chunk_data):
         chunk = HeaderChunk(chunk_base_height, chunk_data)
 
         prev_header = None
         if chunk_base_height != 0:
             prev_header = self.read_header(chunk_base_height - 1)
-            
+
         header_count = len(chunk_data) // 80
         for i in range(header_count):
             raw_header = chunk.get_header_at_index(i)
@@ -517,7 +517,24 @@ class Blockchain(util.PrintError):
             return False
         return True
 
+    def chunk_exists(self, base_height, hexdata):
+        """
+        We truncate on writing any chunks after the verification block height, which
+        means that if a slow server gives us an old chunk, we then lose data that
+        other consecutive chunks will try and build on and error.
+        """
+        if base_height > NetworkConstants.VERIFICATION_BLOCK_HEIGHT:
+            header_count = len(hexdata) // 80
+            top_height = base_height + header_count - 1
+            if top_height <= self.height():
+                self.print_error("chunk already appended {} -> {} (current height {})".format(base_height, top_height, self.height()))
+                return True
+        return False
+
     def connect_chunk(self, base_height, hexdata, proof_was_provided=False):
+        if self.chunk_exists(base_height, hexdata):
+            return False
+
         try:
             data = bfh(hexdata)
             if not proof_was_provided:
