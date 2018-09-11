@@ -297,6 +297,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         else:
             tx_hash = item.data(0, Qt.UserRole)
             tx = self.wallet.transactions.get(tx_hash)
+            if not tx:
+                return
             self.parent.show_transaction(tx)
 
     def update_labels(self):
@@ -330,6 +332,9 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         tx_hash = item.data(0, Qt.UserRole)
         if not tx_hash:
             return
+        tx = self.wallet.transactions.get(tx_hash)
+        if not tx:
+            return
         if column is 0:
             column_title = "ID"
             column_data = tx_hash
@@ -338,7 +343,6 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             column_data = item.text(column)
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
         height = self.wallet.get_tx_height(tx_hash).height
-        tx = self.wallet.transactions.get(tx_hash)
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
         is_unconfirmed = height <= 0
         pr_key = self.wallet.invoices.paid.get(tx_hash)
