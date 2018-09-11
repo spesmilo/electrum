@@ -297,6 +297,8 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         else:
             tx_hash = item.data(0, Qt.UserRole)
             tx = self.wallet.transactions.get(tx_hash)
+            if not tx:
+                return
             self.parent.show_transaction(tx)
 
     def update_labels(self):
