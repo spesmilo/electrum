@@ -21,12 +21,16 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import asyncio
 from typing import Sequence, Optional
+
+from aiorpcx import TaskGroup
 
 from .util import ThreadJob, bh2u, VerifiedTxInfo
 from .bitcoin import Hash, hash_decode, hash_encode
 from .transaction import Transaction
 from .blockchain import hash_header
+from .interface import GracefulDisconnect
 
 
 class MerkleVerificationFailure(Exception): pass
@@ -45,17 +49,20 @@ class SPV(ThreadJob):
         self.merkle_roots = {}  # txid -> merkle root (once it has been verified)
         self.requested_merkle = set()  # txid set of pending requests
 
-    def run(self):
-        interface = self.network.interface
-        if not interface:
-            return
+    async def main(self, group: TaskGroup):
+        while True:
+            await self._request_proofs(group)
+            await asyncio.sleep(0.1)
 
-        blockchain = interface.blockchain
+    async def _request_proofs(self, group: TaskGroup):
+        blockchain = self.network.blockchain()
         if not blockchain:
+            self.print_error("no blockchain")
             return
 
         local_height = self.network.get_local_height()
         unverified = self.wallet.get_unverified_txs()
+
         for tx_hash, tx_height in unverified.items():
             # do not request merkle branch before headers are available
             if tx_height <= 0 or tx_height > local_height:
@@ -65,31 +72,21 @@ class SPV(ThreadJob):
             if header is None:
                 index = tx_height // 2016
                 if index < len(blockchain.checkpoints):
-                    self.network.request_chunk(interface, index)
+                    await group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
             elif (tx_hash not in self.requested_merkle
                     and tx_hash not in self.merkle_roots):
-                self.network.get_merkle_for_transaction(
-                        tx_hash,
-                        tx_height,
-                        self.verify_merkle)
                 self.print_error('requested merkle', tx_hash)
                 self.requested_merkle.add(tx_hash)
+                await group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
 
         if self.network.blockchain() != self.blockchain:
             self.blockchain = self.network.blockchain()
-            self.undo_verifications()
+            self._undo_verifications()
 
-    def verify_merkle(self, response):
-        if self.wallet.verifier is None:
-            return  # we have been killed, this was just an orphan callback
-        if response.get('error'):
-            self.print_error('received an error:', response)
-            return
-        params = response['params']
-        merkle = response['result']
+    async def _request_and_verify_single_proof(self, tx_hash, tx_height):
+        merkle = await self.network.get_merkle_for_transaction(tx_hash, tx_height)
         # Verify the hash of the server-provided merkle branch to a
         # transaction matches the merkle root of its block
-        tx_hash = params[0]
         tx_height = merkle.get('block_height')
         pos = merkle.get('pos')
         merkle_branch = merkle.get('merkle')
@@ -98,14 +95,10 @@ class SPV(ThreadJob):
             verify_tx_is_in_block(tx_hash, merkle_branch, pos, header, tx_height)
         except MerkleVerificationFailure as e:
             self.print_error(str(e))
-            # FIXME: we should make a fresh connection to a server
-            # to recover from this, as this TX will now never verify
-            return
+            raise GracefulDisconnect(e)
         # we passed all the tests
         self.merkle_roots[tx_hash] = header.get('merkle_root')
         try:
-            # note: we could pop in the beginning, but then we would request
-            # this proof again in case of verification failure from the same server
             self.requested_merkle.remove(tx_hash)
         except KeyError: pass
         self.print_error("verified %s" % tx_hash)
@@ -144,7 +137,7 @@ class SPV(ThreadJob):
         else:
             raise InnerNodeOfSpvProofIsValidTx()
 
-    def undo_verifications(self):
+    def _undo_verifications(self):
         height = self.blockchain.get_forkpoint()
         tx_hashes = self.wallet.undo_verifications(self.blockchain, height)
         for tx_hash in tx_hashes:

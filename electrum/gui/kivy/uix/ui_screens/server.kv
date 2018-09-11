@@ -56,8 +56,7 @@ Popup:
                 height: '48dp'
                 text: _('OK')
                 on_release:
-                    host, port, protocol, proxy, auto_connect = app.network.get_parameters()
-                    host = str(root.ids.host.text)
-                    port = str(root.ids.port.text)
-                    app.network.set_parameters(host, port, protocol, proxy, auto_connect)
+                    net_params = app.network.get_parameters()
+                    net_params = net_params._replace(host=str(root.ids.host.text), port=str(root.ids.port.text))
+                    app.network.set_parameters(net_params)
                     nd.dismiss()

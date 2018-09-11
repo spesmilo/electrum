@@ -154,13 +154,16 @@ class SettingsDialog(Factory.Popup):
         self._coinselect_dialog.open()
 
     def proxy_status(self):
-        server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
+        net_params = self.app.network.get_parameters()
+        proxy = net_params.proxy
         return proxy.get('host') +':' + proxy.get('port') if proxy else _('None')
 
     def proxy_dialog(self, item, dt):
         if self._proxy_dialog is None:
-            server, port, protocol, proxy, auto_connect = self.app.network.get_parameters()
+            net_params = self.app.network.get_parameters()
+            proxy = net_params.proxy
             def callback(popup):
+                nonlocal net_params
                 if popup.ids.mode.text != 'None':
                     proxy = {
                         'mode':popup.ids.mode.text,
@@ -171,7 +174,8 @@ class SettingsDialog(Factory.Popup):
                     }
                 else:
                     proxy = None
-                self.app.network.set_parameters(server, port, protocol, proxy, auto_connect)
+                net_params = net_params._replace(proxy=proxy)
+                self.app.network.set_parameters(net_params)
                 item.status = self.proxy_status()
             popup = Builder.load_file('electrum/gui/kivy/uix/ui_screens/proxy.kv')
             popup.ids.mode.text = proxy.get('mode') if proxy else 'None'

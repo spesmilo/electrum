@@ -563,7 +563,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def donate_to_server(self):
         d = self.network.get_donation_address()
         if d:
-            host = self.network.get_parameters()[0]
+            host = self.network.get_parameters().host
             self.pay_to_URI('bitcoin:%s?message=donation for %s'%(d, host))
         else:
             self.show_error(_('No donation address for this server'))
@@ -723,7 +723,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not self.wallet:
             return
 
-        if self.network is None or not self.network.is_running():
+        if self.network is None:
             text = _("Offline")
             icon = QIcon(":icons/status_disconnected.png")
 
@@ -1627,7 +1627,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if pr and pr.has_expired():
                 self.payment_request = None
                 return False, _("Payment request has expired")
-            status, msg = self.network.broadcast_transaction(tx)
+            status, msg = self.network.broadcast_transaction_from_non_network_thread(tx)
             if pr and status is True:
                 self.invoices.set_paid(pr, tx.txid())
                 self.invoices.save()

@@ -236,7 +236,7 @@ class ElectrumGui:
 
             if not self.daemon.get_wallet(wallet.storage.path):
                 # wallet was not in memory
-                wallet.start_threads(self.daemon.network)
+                wallet.start_network(self.daemon.network)
                 self.daemon.add_wallet(wallet)
         try:
             for w in self.windows:

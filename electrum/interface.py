@@ -24,346 +24,493 @@
 # SOFTWARE.
 import os
 import re
-import socket
 import ssl
 import sys
-import threading
-import time
 import traceback
+import asyncio
+from typing import Tuple, Union
 
-import requests
+import aiorpcx
+from aiorpcx import ClientSession, Notification
 
-from .util import print_error
-
-ca_path = requests.certs.where()
-
+from .util import PrintError, aiosafe, bfh, AIOSafeSilentException, CustomTaskGroup
 from . import util
 from . import x509
 from . import pem
+from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
+from . import blockchain
+from . import constants
 
 
-def Connection(server, queue, config_path):
-    """Makes asynchronous connections to a remote Electrum server.
-    Returns the running thread that is making the connection.
+class NotificationSession(ClientSession):
 
-    Once the thread has connected, it finishes, placing a tuple on the
-    queue of the form (server, socket), where socket is None if
-    connection failed.
-    """
-    host, port, protocol = server.rsplit(':', 2)
-    if not protocol in 'st':
-        raise Exception('Unknown protocol: %s' % protocol)
-    c = TcpConnection(server, queue, config_path)
-    c.start()
-    return c
+    def __init__(self, *args, **kwargs):
+        super(NotificationSession, self).__init__(*args, **kwargs)
+        self.subscriptions = {}
+        self.cache = {}
 
-
-class TcpConnection(threading.Thread, util.PrintError):
-    verbosity_filter = 'i'
-
-    def __init__(self, server, queue, config_path):
-        threading.Thread.__init__(self)
-        self.config_path = config_path
-        self.queue = queue
-        self.server = server
-        self.host, self.port, self.protocol = self.server.rsplit(':', 2)
-        self.host = str(self.host)
-        self.port = int(self.port)
-        self.use_ssl = (self.protocol == 's')
-        self.daemon = True
-
-    def diagnostic_name(self):
-        return self.host
-
-    def check_host_name(self, peercert, name):
-        """Simple certificate/host name checker.  Returns True if the
-        certificate matches, False otherwise.  Does not support
-        wildcards."""
-        # Check that the peer has supplied a certificate.
-        # None/{} is not acceptable.
-        if not peercert:
-            return False
-        if 'subjectAltName' in peercert:
-            for typ, val in peercert["subjectAltName"]:
-                if typ == "DNS" and val == name:
-                    return True
-        else:
-            # Only check the subject DN if there is no subject alternative
-            # name.
-            cn = None
-            for attr, val in peercert["subject"]:
-                # Use most-specific (last) commonName attribute.
-                if attr == "commonName":
-                    cn = val
-            if cn is not None:
-                return cn == name
-        return False
-
-    def get_simple_socket(self):
-        try:
-            l = socket.getaddrinfo(self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM)
-        except socket.gaierror:
-            self.print_error("cannot resolve hostname")
-            return
-        e = None
-        for res in l:
-            try:
-                s = socket.socket(res[0], socket.SOCK_STREAM)
-                s.settimeout(10)
-                s.connect(res[4])
-                s.settimeout(2)
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-                return s
-            except BaseException as _e:
-                e = _e
-                continue
-        else:
-            self.print_error("failed to connect", str(e))
-
-    @staticmethod
-    def get_ssl_context(cert_reqs, ca_certs):
-        context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_certs)
-        context.check_hostname = False
-        context.verify_mode = cert_reqs
-
-        context.options |= ssl.OP_NO_SSLv2
-        context.options |= ssl.OP_NO_SSLv3
-        context.options |= ssl.OP_NO_TLSv1
-
-        return context
-
-    def get_socket(self):
-        if self.use_ssl:
-            cert_path = os.path.join(self.config_path, 'certs', self.host)
-            if not os.path.exists(cert_path):
-                is_new = True
-                s = self.get_simple_socket()
-                if s is None:
-                    return
-                # try with CA first
-                try:
-                    context = self.get_ssl_context(cert_reqs=ssl.CERT_REQUIRED, ca_certs=ca_path)
-                    s = context.wrap_socket(s, do_handshake_on_connect=True)
-                except ssl.SSLError as e:
-                    self.print_error(e)
-                except:
-                    return
-                else:
-                    try:
-                        peer_cert = s.getpeercert()
-                    except OSError:
-                        return
-                    if self.check_host_name(peer_cert, self.host):
-                        self.print_error("SSL certificate signed by CA")
-                        return s
-                # get server certificate.
-                # Do not use ssl.get_server_certificate because it does not work with proxy
-                s = self.get_simple_socket()
-                if s is None:
-                    return
-                try:
-                    context = self.get_ssl_context(cert_reqs=ssl.CERT_NONE, ca_certs=None)
-                    s = context.wrap_socket(s)
-                except ssl.SSLError as e:
-                    self.print_error("SSL error retrieving SSL certificate:", e)
-                    return
-                except:
-                    return
-
-                try:
-                    dercert = s.getpeercert(True)
-                except OSError:
-                    return
-                s.close()
-                cert = ssl.DER_cert_to_PEM_cert(dercert)
-                # workaround android bug
-                cert = re.sub("([^\n])-----END CERTIFICATE-----","\\1\n-----END CERTIFICATE-----",cert)
-                temporary_path = cert_path + '.temp'
-                util.assert_datadir_available(self.config_path)
-                with open(temporary_path, "w", encoding='utf-8') as f:
-                    f.write(cert)
-                    f.flush()
-                    os.fsync(f.fileno())
+    async def handle_request(self, request):
+        # note: if server sends malformed request and we raise, the superclass
+        # will catch the exception, count errors, and at some point disconnect
+        if isinstance(request, Notification):
+            params, result = request.args[:-1], request.args[-1]
+            key = self.get_index(request.method, params)
+            if key in self.subscriptions:
+                self.cache[key] = result
+                for queue in self.subscriptions[key]:
+                    await queue.put(request.args)
             else:
-                is_new = False
+                assert False, request.method
 
-        s = self.get_simple_socket()
-        if s is None:
-            return
+    async def send_request(self, *args, timeout=-1, **kwargs):
+        if timeout == -1:
+            timeout = 20 if not self.proxy else 30
+        return await asyncio.wait_for(
+            super().send_request(*args, **kwargs),
+            timeout)
 
-        if self.use_ssl:
-            try:
-                context = self.get_ssl_context(cert_reqs=ssl.CERT_REQUIRED,
-                                               ca_certs=(temporary_path if is_new else cert_path))
-                s = context.wrap_socket(s, do_handshake_on_connect=True)
-            except socket.timeout:
-                self.print_error('timeout')
-                return
-            except ssl.SSLError as e:
-                self.print_error("SSL error:", e)
-                if e.errno != 1:
-                    return
-                if is_new:
-                    rej = cert_path + '.rej'
-                    if os.path.exists(rej):
-                        os.unlink(rej)
-                    os.rename(temporary_path, rej)
-                else:
-                    util.assert_datadir_available(self.config_path)
-                    with open(cert_path, encoding='utf-8') as f:
-                        cert = f.read()
-                    try:
-                        b = pem.dePem(cert, 'CERTIFICATE')
-                        x = x509.X509(b)
-                    except:
-                        traceback.print_exc(file=sys.stderr)
-                        self.print_error("wrong certificate")
-                        return
-                    try:
-                        x.check_date()
-                    except:
-                        self.print_error("certificate has expired:", cert_path)
-                        os.unlink(cert_path)
-                        return
-                    self.print_error("wrong certificate")
-                if e.errno == 104:
-                    return
-                return
-            except BaseException as e:
-                self.print_error(e)
-                traceback.print_exc(file=sys.stderr)
-                return
+    async def subscribe(self, method, params, queue):
+        key = self.get_index(method, params)
+        if key in self.subscriptions:
+            self.subscriptions[key].append(queue)
+            result = self.cache[key]
+        else:
+            self.subscriptions[key] = [queue]
+            result = await self.send_request(method, params)
+            self.cache[key] = result
+        await queue.put(params + [result])
 
-            if is_new:
-                self.print_error("saving certificate")
-                os.rename(temporary_path, cert_path)
+    def unsubscribe(self, queue):
+        """Unsubscribe a callback to free object references to enable GC."""
+        # note: we can't unsubscribe from the server, so we keep receiving
+        # subsequent notifications
+        for v in self.subscriptions.values():
+            if queue in v:
+                v.remove(queue)
 
-        return s
-
-    def run(self):
-        socket = self.get_socket()
-        if socket:
-            self.print_error("connected")
-        self.queue.put((self.server, socket))
+    @classmethod
+    def get_index(cls, method, params):
+        """Hashable index for subscriptions and cache"""
+        return str(method) + repr(params)
 
 
-class Interface(util.PrintError):
-    """The Interface class handles a socket connected to a single remote
-    Electrum server.  Its exposed API is:
+# FIXME this is often raised inside a TaskGroup, but then it's not silent :(
+class GracefulDisconnect(AIOSafeSilentException): pass
 
-    - Member functions close(), fileno(), get_responses(), has_timed_out(),
-      ping_required(), queue_request(), send_requests()
-    - Member variable server.
-    """
 
-    def __init__(self, server, socket):
+class ErrorParsingSSLCert(Exception): pass
+
+
+class ErrorGettingSSLCertFromServer(Exception): pass
+
+
+
+def deserialize_server(server_str: str) -> Tuple[str, str, str]:
+    # host might be IPv6 address, hence do rsplit:
+    host, port, protocol = str(server_str).rsplit(':', 2)
+    if protocol not in ('s', 't'):
+        raise ValueError('invalid network protocol: {}'.format(protocol))
+    int(port)  # Throw if cannot be converted to int
+    if not (0 < int(port) < 2**16):
+        raise ValueError('port {} is out of valid range'.format(port))
+    return host, port, protocol
+
+
+def serialize_server(host: str, port: Union[str, int], protocol: str) -> str:
+    return str(':'.join([host, str(port), protocol]))
+
+
+class Interface(PrintError):
+
+    def __init__(self, network, server, config_path, proxy):
+        self.exception = None
+        self.ready = asyncio.Future()
         self.server = server
-        self.host, _, _ = server.rsplit(':', 2)
-        self.socket = socket
+        self.host, self.port, self.protocol = deserialize_server(self.server)
+        self.port = int(self.port)
+        self.config_path = config_path
+        self.cert_path = os.path.join(self.config_path, 'certs', self.host)
+        self.blockchain = None
+        self.network = network
 
-        self.pipe = util.SocketPipe(socket)
-        self.pipe.set_timeout(0.0)  # Don't wait for data
-        # Dump network messages.  Set at runtime from the console.
-        self.debug = False
-        self.unsent_requests = []
-        self.unanswered_requests = {}
-        self.last_send = time.time()
-        self.closed_remotely = False
+        self.tip_header = None
+        self.tip = 0
+
+        # TODO combine?
+        self.fut = asyncio.get_event_loop().create_task(self.run())
+        self.group = CustomTaskGroup()
+
+        if proxy:
+            username, pw = proxy.get('user'), proxy.get('password')
+            if not username or not pw:
+                auth = None
+            else:
+                auth = aiorpcx.socks.SOCKSUserAuth(username, pw)
+            if proxy['mode'] == "socks4":
+                self.proxy = aiorpcx.socks.SOCKSProxy((proxy['host'], int(proxy['port'])), aiorpcx.socks.SOCKS4a, auth)
+            elif proxy['mode'] == "socks5":
+                self.proxy = aiorpcx.socks.SOCKSProxy((proxy['host'], int(proxy['port'])), aiorpcx.socks.SOCKS5, auth)
+            else:
+                raise NotImplementedError # http proxy not available with aiorpcx
+        else:
+            self.proxy = None
 
     def diagnostic_name(self):
         return self.host
 
-    def fileno(self):
-        # Needed for select
-        return self.socket.fileno()
-
-    def close(self):
-        if not self.closed_remotely:
-            try:
-                self.socket.shutdown(socket.SHUT_RDWR)
-            except socket.error:
-                pass
-        self.socket.close()
-
-    def queue_request(self, *args):  # method, params, _id
-        '''Queue a request, later to be send with send_requests when the
-        socket is available for writing.
-        '''
-        self.request_time = time.time()
-        self.unsent_requests.append(args)
-
-    def num_requests(self):
-        '''Keep unanswered requests below 100'''
-        n = 100 - len(self.unanswered_requests)
-        return min(n, len(self.unsent_requests))
-
-    def send_requests(self):
-        '''Sends queued requests.  Returns False on failure.'''
-        self.last_send = time.time()
-        make_dict = lambda m, p, i: {'method': m, 'params': p, 'id': i}
-        n = self.num_requests()
-        wire_requests = self.unsent_requests[0:n]
+    async def is_server_ca_signed(self, sslc):
         try:
-            self.pipe.send_all([make_dict(*r) for r in wire_requests])
-        except BaseException as e:
-            self.print_error("pipe send error:", e)
+            await self.open_session(sslc, exit_early=True)
+        except ssl.SSLError as e:
+            assert e.reason == 'CERTIFICATE_VERIFY_FAILED'
             return False
-        self.unsent_requests = self.unsent_requests[n:]
-        for request in wire_requests:
-            if self.debug:
-                self.print_error("-->", request)
-            self.unanswered_requests[request[2]] = request
         return True
 
-    def ping_required(self):
-        '''Returns True if a ping should be sent.'''
-        return time.time() - self.last_send > 300
+    async def _try_saving_ssl_cert_for_first_time(self, ca_ssl_context):
+        try:
+            ca_signed = await self.is_server_ca_signed(ca_ssl_context)
+        except (OSError, aiorpcx.socks.SOCKSFailure) as e:
+            raise ErrorGettingSSLCertFromServer(e) from e
+        if ca_signed:
+            with open(self.cert_path, 'w') as f:
+                # empty file means this is CA signed, not self-signed
+                f.write('')
+        else:
+            await self.save_certificate()
 
-    def has_timed_out(self):
-        '''Returns True if the interface has timed out.'''
-        if (self.unanswered_requests and time.time() - self.request_time > 10
-            and self.pipe.idle_time() > 10):
-            self.print_error("timeout", len(self.unanswered_requests))
+    def _is_saved_ssl_cert_available(self):
+        if not os.path.exists(self.cert_path):
+            return False
+        with open(self.cert_path, 'r') as f:
+            contents = f.read()
+        if contents == '':  # CA signed
             return True
+        # pinned self-signed cert
+        try:
+            b = pem.dePem(contents, 'CERTIFICATE')
+        except SyntaxError as e:
+            self.print_error("error parsing already saved cert:", e)
+            raise ErrorParsingSSLCert(e) from e
+        try:
+            x = x509.X509(b)
+        except Exception as e:
+            self.print_error("error parsing already saved cert:", e)
+            raise ErrorParsingSSLCert(e) from e
+        try:
+            x.check_date()
+            return True
+        except x509.CertificateError as e:
+            self.print_error("certificate has expired:", e)
+            os.unlink(self.cert_path)  # delete pinned cert only in this case
+            return False
 
-        return False
+    async def _get_ssl_context(self):
+        if self.protocol != 's':
+            # using plaintext TCP
+            return None
 
-    def get_responses(self):
-        '''Call if there is data available on the socket.  Returns a list of
-        (request, response) pairs.  Notifications are singleton
-        unsolicited responses presumably as a result of prior
-        subscriptions, so request is None and there is no 'id' member.
-        Otherwise it is a response, which has an 'id' member and a
-        corresponding request.  If the connection was closed remotely
-        or the remote server is misbehaving, a (None, None) will appear.
-        '''
-        responses = []
-        while True:
-            try:
-                response = self.pipe.get()
-            except util.timeout:
-                break
-            if not type(response) is dict:
-                responses.append((None, None))
-                if response is None:
-                    self.closed_remotely = True
-                    self.print_error("connection closed remotely")
-                break
-            if self.debug:
-                self.print_error("<--", response)
-            wire_id = response.get('id', None)
-            if wire_id is None:  # Notification
-                responses.append((None, response))
-            else:
-                request = self.unanswered_requests.pop(wire_id, None)
-                if request:
-                    responses.append((request, response))
-                else:
-                    self.print_error("unknown wire ID", wire_id)
-                    responses.append((None, None)) # Signal
+        # see if we already have cert for this server; or get it for the first time
+        ca_sslc = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+        if not self._is_saved_ssl_cert_available():
+            await self._try_saving_ssl_cert_for_first_time(ca_sslc)
+        # now we have a file saved in our certificate store
+        siz = os.stat(self.cert_path).st_size
+        if siz == 0:
+            # CA signed cert
+            sslc = ca_sslc
+        else:
+            # pinned self-signed cert
+            sslc = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=self.cert_path)
+            sslc.check_hostname = 0
+        return sslc
+
+    @aiosafe
+    async def run(self):
+        try:
+            ssl_context = await self._get_ssl_context()
+        except (ErrorParsingSSLCert, ErrorGettingSSLCertFromServer) as e:
+            self.exception = e
+            return
+        try:
+            await self.open_session(ssl_context, exit_early=False)
+        except (asyncio.CancelledError, OSError, aiorpcx.socks.SOCKSFailure) as e:
+            self.print_error('disconnecting due to: {} {}'.format(e, type(e)))
+            self.exception = e
+            return
+        # should never get here (can only exit via exception)
+        assert False
+
+    def mark_ready(self):
+        assert self.tip_header
+        chain = blockchain.check_header(self.tip_header)
+        if not chain:
+            self.blockchain = blockchain.blockchains[0]
+        else:
+            self.blockchain = chain
+
+        self.print_error("set blockchain with height", self.blockchain.height())
+
+        if not self.ready.done():
+            self.ready.set_result(1)
+
+    async def save_certificate(self):
+        if not os.path.exists(self.cert_path):
+            # we may need to retry this a few times, in case the handshake hasn't completed
+            for _ in range(10):
+                dercert = await self.get_certificate()
+                if dercert:
+                    self.print_error("succeeded in getting cert")
+                    with open(self.cert_path, 'w') as f:
+                        cert = ssl.DER_cert_to_PEM_cert(dercert)
+                        # workaround android bug
+                        cert = re.sub("([^\n])-----END CERTIFICATE-----","\\1\n-----END CERTIFICATE-----",cert)
+                        f.write(cert)
+                        # even though close flushes we can't fsync when closed.
+                        # and we must flush before fsyncing, cause flush flushes to OS buffer
+                        # fsync writes to OS buffer to disk
+                        f.flush()
+                        os.fsync(f.fileno())
                     break
+                await asyncio.sleep(1)
+            else:
+                raise Exception("could not get certificate")
 
-        return responses
+    async def get_certificate(self):
+        sslc = ssl.SSLContext()
+        try:
+            async with aiorpcx.ClientSession(self.host, self.port, ssl=sslc, proxy=self.proxy) as session:
+                return session.transport._ssl_protocol._sslpipe._sslobj.getpeercert(True)
+        except ValueError:
+            return None
+
+    async def get_block_header(self, height, assert_mode):
+        res = await self.session.send_request('blockchain.block.header', [height], timeout=5)
+        return blockchain.deserialize_header(bytes.fromhex(res), height)
+
+    async def request_chunk(self, idx, tip):
+        return await self.network.request_chunk(idx, tip, self.session)
+
+    async def open_session(self, sslc, exit_early):
+        header_queue = asyncio.Queue()
+        self.session = NotificationSession(self.host, self.port, ssl=sslc, proxy=self.proxy)
+        async with self.session as session:
+            try:
+                ver = await session.send_request('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])
+            except aiorpcx.jsonrpc.RPCError as e:
+                raise GracefulDisconnect(e)  # probably 'unsupported protocol version'
+            if exit_early:
+                return
+            self.print_error(ver, self.host)
+            await session.subscribe('blockchain.headers.subscribe', [], header_queue)
+            async with self.group as group:
+                await group.spawn(self.ping())
+                await group.spawn(self.run_fetch_blocks(header_queue))
+                await group.spawn(self.monitor_connection())
+                # NOTE: group.__aexit__ will be called here; this is needed to notice exceptions in the group!
+
+    async def monitor_connection(self):
+        while True:
+            await asyncio.sleep(1)
+            if not self.session or self.session.is_closing():
+                raise GracefulDisconnect('server closed session')
+
+    async def ping(self):
+        while True:
+            await asyncio.sleep(300)
+            await self.session.send_request('server.ping', timeout=10)
+
+    def close(self):
+        self.fut.cancel()
+        asyncio.get_event_loop().create_task(self.group.cancel_remaining())
+
+    async def run_fetch_blocks(self, header_queue):
+        while True:
+            self.network.notify('updated')
+            item = await header_queue.get()
+            item = item[0]
+            height = item['height']
+            item = blockchain.deserialize_header(bfh(item['hex']), item['height'])
+            self.tip_header = item
+            self.tip = height
+            if self.tip < constants.net.max_checkpoint():
+                raise GracefulDisconnect('server tip below max checkpoint')
+            if not self.ready.done():
+                self.mark_ready()
+            async with self.network.bhi_lock:
+                if self.blockchain.height() < item['block_height']-1:
+                    _, height = await self.sync_until(height, None)
+                if self.blockchain.height() >= height and self.blockchain.check_header(item):
+                    # another interface amended the blockchain
+                    self.print_error("skipping header", height)
+                    continue
+                if self.tip < height:
+                    height = self.tip
+                _, height = await self.step(height, item)
+
+    async def sync_until(self, height, next_height=None):
+        if next_height is None:
+            next_height = self.tip
+        last = None
+        while last is None or height < next_height:
+            if next_height > height + 10:
+                could_connect, num_headers = await self.request_chunk(height, next_height)
+                if not could_connect:
+                    if height <= constants.net.max_checkpoint():
+                        raise Exception('server chain conflicts with checkpoints or genesis')
+                    last, height = await self.step(height)
+                    continue
+                height = (height // 2016 * 2016) + num_headers
+                if height > next_height:
+                    assert False, (height, self.tip)
+                last = 'catchup'
+            else:
+                last, height = await self.step(height)
+        return last, height
+
+    async def step(self, height, header=None):
+        assert height != 0
+        if header is None:
+            header = await self.get_block_header(height, 'catchup')
+        chain = self.blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+        if chain: return 'catchup', height
+        can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
+
+        bad_header = None
+        if not can_connect:
+            self.print_error("can't connect", height)
+            #backward
+            bad = height
+            bad_header = header
+            height -= 1
+            checkp = False
+            if height <= constants.net.max_checkpoint():
+                height = constants.net.max_checkpoint()
+                checkp = True
+
+            header = await self.get_block_header(height, 'backward')
+            chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+            can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
+            if checkp and not (can_connect or chain):
+                raise Exception("server chain conflicts with checkpoints. {} {}".format(can_connect, chain))
+            while not chain and not can_connect:
+                bad = height
+                bad_header = header
+                delta = self.tip - height
+                next_height = self.tip - 2 * delta
+                checkp = False
+                if next_height <= constants.net.max_checkpoint():
+                    next_height = constants.net.max_checkpoint()
+                    checkp = True
+                height = next_height
+
+                header = await self.get_block_header(height, 'backward')
+                chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+                can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
+                if checkp and not (can_connect or chain):
+                    raise Exception("server chain conflicts with checkpoints. {} {}".format(can_connect, chain))
+            self.print_error("exiting backward mode at", height)
+        if can_connect:
+            self.print_error("could connect", height)
+            chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+
+            if type(can_connect) is bool:
+                # mock
+                height += 1
+                if height > self.tip:
+                    assert False
+                return 'catchup', height
+            self.blockchain = can_connect
+            height += 1
+            self.blockchain.save_header(header)
+            return 'catchup', height
+
+        if not chain:
+            raise Exception("not chain") # line 931 in 8e69174374aee87d73cd2f8005fbbe87c93eee9c's network.py
+
+        # binary
+        if type(chain) in [int, bool]:
+            pass # mock
+        else:
+            self.blockchain = chain
+        good = height
+        height = (bad + good) // 2
+        header = await self.get_block_header(height, 'binary')
+        while True:
+            self.print_error("binary step")
+            chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+            if chain:
+                assert bad != height, (bad, height)
+                good = height
+                self.blockchain = self.blockchain if type(chain) in [bool, int] else chain
+            else:
+                bad = height
+                assert good != height
+                bad_header = header
+            if bad != good + 1:
+                height = (bad + good) // 2
+                header = await self.get_block_header(height, 'binary')
+                continue
+            mock = bad_header and 'mock' in bad_header and bad_header['mock']['connect'](height)
+            real = not mock and self.blockchain.can_connect(bad_header, check_height=False)
+            if not real and not mock:
+                raise Exception('unexpected bad header during binary' + str(bad_header)) # line 948 in 8e69174374aee87d73cd2f8005fbbe87c93eee9c's network.py
+            branch = blockchain.blockchains.get(bad)
+            if branch is not None:
+                ismocking = False
+                if type(branch) is dict:
+                    ismocking = True
+                # FIXME: it does not seem sufficient to check that the branch
+                # contains the bad_header. what if self.blockchain doesn't?
+                # the chains shouldn't be joined then. observe the incorrect
+                # joining on regtest with a server that has a fork of height
+                # one. the problem is observed only if forking is not during
+                # electrum runtime
+                if not ismocking and branch.check_header(bad_header) \
+                        or ismocking and branch['check'](bad_header):
+                    self.print_error('joining chain', bad)
+                    height += 1
+                    return 'join', height
+                else:
+                    if not ismocking and branch.parent().check_header(header) \
+                            or ismocking and branch['parent']['check'](header):
+                        self.print_error('reorg', bad, self.tip)
+                        self.blockchain = branch.parent() if not ismocking else branch['parent']
+                        height = bad
+                        header = await self.get_block_header(height, 'binary')
+                    else:
+                        if ismocking:
+                            height = bad + 1
+                            self.print_error("TODO replace blockchain")
+                            return 'conflict', height
+                        self.print_error('forkpoint conflicts with existing fork', branch.path())
+                        branch.write(b'', 0)
+                        branch.save_header(bad_header)
+                        self.blockchain = branch
+                        height = bad + 1
+                        return 'conflict', height
+            else:
+                bh = self.blockchain.height()
+                if bh > good:
+                    forkfun = self.blockchain.fork
+                    if 'mock' in bad_header:
+                        chain = bad_header['mock']['check'](bad_header)
+                        forkfun = bad_header['mock']['fork'] if 'fork' in bad_header['mock'] else forkfun
+                    else:
+                        chain = self.blockchain.check_header(bad_header)
+                    if not chain:
+                        b = forkfun(bad_header)
+                        assert bad not in blockchain.blockchains, (bad, list(blockchain.blockchains.keys()))
+                        blockchain.blockchains[bad] = b
+                        self.blockchain = b
+                        height = b.forkpoint + 1
+                        assert b.forkpoint == bad
+                    return 'fork', height
+                else:
+                    assert bh == good
+                    if bh < self.tip:
+                        self.print_error("catching up from %d"% (bh + 1))
+                        height = bh + 1
+                    return 'no_fork', height
 
 
 def check_cert(host, cert):

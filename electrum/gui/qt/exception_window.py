@@ -41,6 +41,7 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin):
     def __init__(self, main_window, exctype, value, tb):
         BaseCrashReporter.__init__(self, exctype, value, tb)
         self.main_window = main_window
+
         QWidget.__init__(self)
         self.setWindowTitle('Electrum - ' + _('An Error Occurred'))
         self.setMinimumSize(600, 300)
@@ -90,14 +91,15 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin):
 
     def send_report(self):
         try:
-            response = BaseCrashReporter.send_report(self)
+            proxy = self.main_window.network.proxy
+            response = BaseCrashReporter.send_report(self, self.main_window.network.asyncio_loop, proxy)
         except BaseException as e:
             traceback.print_exc(file=sys.stderr)
             self.main_window.show_critical(_('There was a problem with the automatic reporting:') + '\n' +
                                            str(e) + '\n' +
                                            _("Please report this issue manually."))
             return
-        QMessageBox.about(self, _("Crash report"), response.text)
+        QMessageBox.about(self, _("Crash report"), response)
         self.close()
 
     def on_close(self):

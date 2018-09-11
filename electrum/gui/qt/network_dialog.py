@@ -31,9 +31,9 @@ from PyQt5.QtWidgets import *
 import PyQt5.QtCore as QtCore
 
 from electrum.i18n import _
-from electrum import constants
+from electrum import constants, blockchain
 from electrum.util import print_error
-from electrum.network import serialize_server, deserialize_server
+from electrum.interface import serialize_server, deserialize_server
 
 from .util import *
 
@@ -103,7 +103,7 @@ class NodesListWidget(QTreeWidget):
         chains = network.get_blockchains()
         n_chains = len(chains)
         for k, items in chains.items():
-            b = network.blockchains[k]
+            b = blockchain.blockchains[k]
             name = b.get_name()
             if n_chains >1:
                 x = QTreeWidgetItem([name + '@%d'%b.get_forkpoint(), '%d'%b.height()])
@@ -239,7 +239,7 @@ class NetworkChoiceLayout(object):
         self.proxy_cb.clicked.connect(self.set_proxy)
 
         self.proxy_mode = QComboBox()
-        self.proxy_mode.addItems(['SOCKS4', 'SOCKS5', 'HTTP'])
+        self.proxy_mode.addItems(['SOCKS4', 'SOCKS5'])
         self.proxy_host = QLineEdit()
         self.proxy_host.setFixedWidth(200)
         self.proxy_port = QLineEdit()
@@ -335,9 +335,11 @@ class NetworkChoiceLayout(object):
                 w.setEnabled(False)
 
     def update(self):
-        host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
+        net_params = self.network.get_parameters()
+        host, port, protocol = net_params.host, net_params.port, net_params.protocol
+        proxy_config, auto_connect = net_params.proxy, net_params.auto_connect
         self.server_host.setText(host)
-        self.server_port.setText(port)
+        self.server_port.setText(str(port))
         self.autoconnect_cb.setChecked(auto_connect)
 
         interface = self.network.interface
@@ -368,7 +370,7 @@ class NetworkChoiceLayout(object):
         self.nodes_list_widget.update(self.network)
 
     def fill_in_proxy_settings(self):
-        host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
+        proxy_config = self.network.get_parameters().proxy
         if not proxy_config:
             proxy_config = {"mode": "none", "host": "localhost", "port": "9050"}
 
@@ -409,9 +411,10 @@ class NetworkChoiceLayout(object):
 
     def follow_server(self, server):
         self.network.switch_to_interface(server)
-        host, port, protocol, proxy, auto_connect = self.network.get_parameters()
+        net_params = self.network.get_parameters()
         host, port, protocol = deserialize_server(server)
-        self.network.set_parameters(host, port, protocol, proxy, auto_connect)
+        net_params = net_params._replace(host=host, port=port, protocol=protocol)
+        self.network.set_parameters(net_params)
         self.update()
 
     def server_changed(self, x):
@@ -440,14 +443,14 @@ class NetworkChoiceLayout(object):
         pass
 
     def set_server(self):
-        host, port, protocol, proxy, auto_connect = self.network.get_parameters()
-        host = str(self.server_host.text())
-        port = str(self.server_port.text())
-        auto_connect = self.autoconnect_cb.isChecked()
-        self.network.set_parameters(host, port, protocol, proxy, auto_connect)
+        net_params = self.network.get_parameters()
+        net_params = net_params._replace(host=str(self.server_host.text()),
+                                         port=str(self.server_port.text()),
+                                         auto_connect=self.autoconnect_cb.isChecked())
+        self.network.set_parameters(net_params)
 
     def set_proxy(self):
-        host, port, protocol, proxy, auto_connect = self.network.get_parameters()
+        net_params = self.network.get_parameters()
         if self.proxy_cb.isChecked():
             proxy = { 'mode':str(self.proxy_mode.currentText()).lower(),
                       'host':str(self.proxy_host.text()),
@@ -457,7 +460,8 @@ class NetworkChoiceLayout(object):
         else:
             proxy = None
             self.tor_cb.setChecked(False)
-        self.network.set_parameters(host, port, protocol, proxy, auto_connect)
+        net_params = net_params._replace(proxy=proxy)
+        self.network.set_parameters(net_params)
 
     def suggest_proxy(self, found_proxy):
         self.tor_proxy = found_proxy

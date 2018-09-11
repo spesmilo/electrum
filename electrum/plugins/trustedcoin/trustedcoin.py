@@ -22,10 +22,9 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+import asyncio
 import socket
 import os
-import requests
 import json
 import base64
 from urllib.parse import urljoin
@@ -38,8 +37,9 @@ from electrum.mnemonic import Mnemonic
 from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum.i18n import _
 from electrum.plugin import BasePlugin, hook
-from electrum.util import NotEnoughFunds
+from electrum.util import NotEnoughFunds, make_aiohttp_session
 from electrum.storage import STO_EV_USER_PW
+from electrum.network import Network
 
 # signing_xpub is hardcoded so that the wallet can be restored from seed, without TrustedCoin's server
 def get_signing_xpub():
@@ -104,34 +104,47 @@ class TrustedCoinCosignerClient(object):
         self.user_agent = user_agent
 
     def send_request(self, method, relative_url, data=None):
-        kwargs = {'headers': {}}
-        if self.user_agent:
-            kwargs['headers']['user-agent'] = self.user_agent
-        if method == 'get' and data:
-            kwargs['params'] = data
-        elif method == 'post' and data:
-            kwargs['data'] = json.dumps(data)
-            kwargs['headers']['content-type'] = 'application/json'
+        network = Network.get_instance()
+        if network:
+            return asyncio.run_coroutine_threadsafe(self._send_request(method, relative_url, data), network.asyncio_loop).result()
+        else:
+            raise ErrorConnectingServer('You are offline.')
+
+    async def handle_response(self, resp):
+        if resp.status != 200:
+            try:
+                r = await resp.json()
+                message = r['message']
+            except:
+                message = await resp.text()
+            raise TrustedCoinException(message, resp.status)
+        try:
+            return await resp.json()
+        except:
+            return await resp.text()
+
+    async def _send_request(self, method, relative_url, data):
         url = urljoin(self.base_url, relative_url)
         if self.debug:
             print('%s %s %s' % (method, url, data))
+        headers = {}
+        if self.user_agent:
+            headers['user-agent'] = self.user_agent
         try:
-            response = requests.request(method, url, **kwargs)
+            proxy = Network.get_instance().proxy
+            async with make_aiohttp_session(proxy) as session:
+                if method == 'get':
+                    async with session.get(url, params=data, headers=headers) as resp:
+                        return await self.handle_response(resp)
+                elif method == 'post':
+                    async with session.post(url, json=data, headers=headers) as resp:
+                        return await self.handle_response(resp)
+                else:
+                    assert False
+        except TrustedCoinException:
+            raise
         except Exception as e:
             raise ErrorConnectingServer(e)
-        if self.debug:
-            print(response.text)
-        if response.status_code != 200:
-            message = str(response.text)
-            if response.headers.get('content-type') == 'application/json':
-                r = response.json()
-                if 'message' in r:
-                    message = r['message']
-            raise TrustedCoinException(message, response.status_code)
-        if response.headers.get('content-type') == 'application/json':
-            return response.json()
-        else:
-            return response.text
 
     def get_terms_of_service(self, billing_plan='electrum-per-tx-otp'):
         """
