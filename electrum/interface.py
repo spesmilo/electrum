@@ -284,7 +284,9 @@ class Interface(PrintError):
             return None
 
     async def get_block_header(self, height, assert_mode):
-        res = await self.session.send_request('blockchain.block.header', [height], timeout=5)
+        # use lower timeout as we usually have network.bhi_lock here
+        timeout = 5 if not self.proxy else 10
+        res = await self.session.send_request('blockchain.block.header', [height], timeout=timeout)
         return blockchain.deserialize_header(bytes.fromhex(res), height)
 
     async def request_chunk(self, idx, tip):
@@ -317,7 +319,7 @@ class Interface(PrintError):
     async def ping(self):
         while True:
             await asyncio.sleep(300)
-            await self.session.send_request('server.ping', timeout=10)
+            await self.session.send_request('server.ping')
 
     def close(self):
         self.fut.cancel()
