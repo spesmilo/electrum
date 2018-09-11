@@ -75,8 +75,8 @@ class NotificationSession(ClientSession):
             self.subscriptions[key].append(queue)
             result = self.cache[key]
         else:
-            result = await self.send_request(method, params)
             self.subscriptions[key] = [queue]
+            result = await self.send_request(method, params)
             self.cache[key] = result
         await queue.put(params + [result])
 
