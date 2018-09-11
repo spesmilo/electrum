@@ -117,10 +117,12 @@ class Interface(PrintError):
         self.port = int(self.port)
         self.config_path = config_path
         self.cert_path = os.path.join(self.config_path, 'certs', self.host)
-        self.tip_header = None
-        self.tip = 0
         self.blockchain = None
         self.network = network
+
+        self.tip_header = None
+        self.tip = 0
+        self.tip_lock = asyncio.Lock()
 
         # TODO combine?
         self.fut = asyncio.get_event_loop().create_task(self.run())
@@ -308,8 +310,9 @@ class Interface(PrintError):
         while True:
             try:
                 new_header = await asyncio.wait_for(header_queue.get(), 300)
-                self.tip_header = new_header
-                self.tip = new_header['block_height']
+                async with self.tip_lock:
+                    self.tip_header = new_header
+                    self.tip = new_header['block_height']
                 await copy_header_queue.put(new_header)
             except concurrent.futures.TimeoutError:
                 await self.session.send_request('server.ping', timeout=10)
@@ -329,12 +332,12 @@ class Interface(PrintError):
         while True:
             self.network.notify('updated')
             item = await replies.get()
-            async with self.network.bhi_lock:
+            async with self.network.bhi_lock and self.tip_lock:
                 if self.blockchain.height() < item['block_height']-1:
                     _, height = await self.sync_until(height, None)
                 if self.blockchain.height() >= height and self.blockchain.check_header(item):
                     # another interface amended the blockchain
-                    self.print_error("SKIPPING HEADER", height)
+                    self.print_error("skipping header", height)
                     continue
                 if self.tip < height:
                     height = self.tip
