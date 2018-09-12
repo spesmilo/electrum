@@ -102,6 +102,9 @@ class AddressSynchronizer(PrintError):
         self.load_unverified_transactions()
         self.remove_local_transactions_we_dont_have()
 
+    def synchronize(self):
+        pass
+
     def is_mine(self, address):
         return address in self.history
 
@@ -179,11 +182,13 @@ class AddressSynchronizer(PrintError):
         if self.synchronizer:
             self.synchronizer.add(address)
 
-    def get_conflicting_transactions(self, tx_hash, tx):
+    def get_conflicting_transactions(self, tx_hash, tx, include_self=False):
         """Returns a set of transaction hashes from the wallet history that are
         directly conflicting with tx, i.e. they have common outpoints being
-        spent with tx. If the tx is already in wallet history, that will not be
-        reported as a conflict.
+        spent with tx.
+
+        include_self specifies whether the tx itself should be reported as a
+        conflict (if already in wallet history)
         """
         conflicting_txns = set()
         with self.transaction_lock:
@@ -202,7 +207,8 @@ class AddressSynchronizer(PrintError):
                 # this tx is already in history, so it conflicts with itself
                 if len(conflicting_txns) > 1:
                     raise Exception('Found conflicting transactions already in wallet history.')
-                conflicting_txns -= {tx_hash}
+                if not include_self:
+                    conflicting_txns -= {tx_hash}
             return conflicting_txns
 
     def add_transaction(self, tx_hash, tx, allow_unrelated=False):

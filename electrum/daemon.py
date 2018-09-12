@@ -44,7 +44,7 @@ from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
 from .exchange_rate import FxThread
 from .plugin import run_hook
-
+from .lnworker import LNWorker
 
 def get_lockfile(config: SimpleConfig):
     return os.path.join(config.path, 'daemon')
@@ -252,6 +252,7 @@ class Daemon(DaemonThread):
             return
         wallet = Wallet(storage)
         wallet.start_network(self.network)
+        wallet.lnworker = LNWorker(wallet, self.network)
         self.wallets[path] = wallet
         return wallet
 

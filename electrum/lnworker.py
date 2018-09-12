@@ -5,20 +5,20 @@ import random
 import time
 from typing import Optional, Sequence
 import threading
+from functools import partial
 
 import dns.resolver
 import dns.exception
 
 from . import constants
 from .bitcoin import sha256, COIN
-from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, aiosafe
-from .lnbase import Peer, privkey_to_pubkey
+from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv
+from .lnbase import Peer, privkey_to_pubkey, aiosafe
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .lnhtlc import HTLCStateMachine
 from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr, get_compressed_pubkey_from_bech32,
                      PaymentFailure)
-from .lnwatcher import LNChanCloseHandler
 from .i18n import _
 
 
@@ -35,6 +35,7 @@ class LNWorker(PrintError):
 
     def __init__(self, wallet, network):
         self.wallet = wallet
+        self.sweep_address = wallet.get_receiving_address()
         self.network = network
         self.channel_db = self.network.channel_db
         self.lock = threading.RLock()
@@ -48,9 +49,11 @@ class LNWorker(PrintError):
         self.config = network.config
         self.peers = {}  # pubkey -> Peer
         self.channels = {x.channel_id: x for x in map(HTLCStateMachine, wallet.storage.get("channels", []))}
+        for c in self.channels.values():
+            c.lnwatcher = network.lnwatcher
         self.invoices = wallet.storage.get('lightning_invoices', {})
         for chan_id, chan in self.channels.items():
-            self.network.lnwatcher.watch_channel(chan, self.on_channel_utxos)
+            self.network.lnwatcher.watch_channel(chan, self.sweep_address, partial(self.on_channel_utxos, chan))
         self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
         # wait until we see confirmations
@@ -118,16 +121,11 @@ class LNWorker(PrintError):
             return True
         return False
 
-    async def on_channel_utxos(self, chan, utxos):
-        outpoints = [Outpoint(x["tx_hash"], x["tx_pos"]) for x in utxos]
-        if chan.funding_outpoint not in outpoints:
-            chan.set_funding_txo_spentness(True)
+    def on_channel_utxos(self, chan, is_funding_txo_spent: bool):
+        chan.set_funding_txo_spentness(is_funding_txo_spent)
+        if is_funding_txo_spent:
             chan.set_state("CLOSED")
             self.channel_db.remove_channel(chan.short_channel_id)
-            # FIXME is this properly GC-ed? (or too soon?)
-            LNChanCloseHandler(self.network, self.wallet, chan)
-        else:
-            chan.set_funding_txo_spentness(False)
         self.network.trigger_callback('channel', chan)
 
     @aiosafe
@@ -138,7 +136,6 @@ class LNWorker(PrintError):
         with self.lock:
             channels = list(self.channels.values())
         for chan in channels:
-            print("update", chan.get_state())
             if chan.get_state() == "OPENING":
                 res = self.save_short_chan_id(chan)
                 if not res:
@@ -159,12 +156,16 @@ class LNWorker(PrintError):
 
     async def _open_channel_coroutine(self, node_id, local_amount_sat, push_sat, password):
         peer = self.peers[node_id]
-        openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password, local_amount_sat + push_sat, push_sat * 1000, temp_channel_id=os.urandom(32))
+        openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password,
+                                                               funding_sat=local_amount_sat + push_sat,
+                                                               push_msat=push_sat * 1000,
+                                                               temp_channel_id=os.urandom(32),
+                                                               sweep_address=self.sweep_address)
         if not openingchannel:
             self.print_error("Channel_establishment_flow returned None")
             return
         self.save_channel(openingchannel)
-        self.network.lnwatcher.watch_channel(openingchannel, self.on_channel_utxos)
+        self.network.lnwatcher.watch_channel(openingchannel, self.sweep_address, partial(self.on_channel_utxos, openingchannel))
         self.on_channels_updated()
 
     def on_channels_updated(self):
