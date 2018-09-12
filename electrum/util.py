@@ -870,9 +870,8 @@ def make_aiohttp_session(proxy):
 
 class SilentTaskGroup(TaskGroup):
 
-    def spawn(self, *args, report_crash=None, **kwargs):
+    def spawn(self, *args, **kwargs):
         # don't complain if group is already closed.
         if self._closed:
             raise asyncio.CancelledError()
-        # ignore value of report_crash, and force it to False
-        return super().spawn(*args, **kwargs, report_crash=False)
+        return super().spawn(*args, **kwargs)
