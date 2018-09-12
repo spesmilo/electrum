@@ -189,7 +189,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.network:
             self.network_signal.connect(self.on_network_qt)
             interests = ['updated', 'new_transaction', 'status',
-                         'banner', 'verified', 'fee']
+                         'banner', 'verified', 'fee', 'fee_histogram']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -303,7 +303,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # FIXME maybe this event should also include which wallet
             # the tx is for. now all wallets get this.
             self.tx_notification_queue.put(args[0])
-        elif event in ['status', 'banner', 'verified', 'fee']:
+        elif event in ['status', 'banner', 'verified', 'fee', 'fee_histogram']:
             # Handle in GUI thread
             self.network_signal.emit(event, args)
         else:
