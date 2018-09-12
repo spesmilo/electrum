@@ -29,6 +29,7 @@ import sys
 import traceback
 import asyncio
 from typing import Tuple, Union
+from collections import defaultdict
 
 import aiorpcx
 from aiorpcx import ClientSession, Notification
@@ -46,7 +47,7 @@ class NotificationSession(ClientSession):
 
     def __init__(self, *args, **kwargs):
         super(NotificationSession, self).__init__(*args, **kwargs)
-        self.subscriptions = {}
+        self.subscriptions = defaultdict(list)
         self.cache = {}
 
     async def handle_request(self, request):
@@ -70,12 +71,13 @@ class NotificationSession(ClientSession):
             timeout)
 
     async def subscribe(self, method, params, queue):
+        # note: until the cache is written for the first time,
+        # each 'subscribe' call might make a request on the network.
         key = self.get_index(method, params)
-        if key in self.subscriptions:
-            self.subscriptions[key].append(queue)
+        self.subscriptions[key].append(queue)
+        if key in self.cache:
             result = self.cache[key]
         else:
-            self.subscriptions[key] = [queue]
             result = await self.send_request(method, params)
             self.cache[key] = result
         await queue.put(params + [result])
