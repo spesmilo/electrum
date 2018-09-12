@@ -334,7 +334,6 @@ class Network(PrintError):
                 relayfee = int(relayfee * COIN)
                 self.relay_fee = max(0, relayfee)
 
-        # note: we could use interface.group if we wanted exceptions to kill the interface
         async with TaskGroup() as group:
             await group.spawn(get_banner)
             await group.spawn(get_donation_address)
