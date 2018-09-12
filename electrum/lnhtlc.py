@@ -439,6 +439,7 @@ class HTLCStateMachine(PrintError):
         self.local_commitment = self.pending_local_commitment
         self.remote_commitment = self.pending_remote_commitment
         self.remote_commitment_to_be_revoked = prev_remote_commitment
+        return received_this_batch, sent_this_batch
 
     @staticmethod
     def htlcsum(htlcs):
