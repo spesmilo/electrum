@@ -28,7 +28,7 @@ from collections import defaultdict
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
-from .util import PrintError, profiler, bfh, VerifiedTxInfo, TxMinedStatus, aiosafe, CustomTaskGroup
+from .util import PrintError, profiler, bfh, VerifiedTxInfo, TxMinedStatus, aiosafe, SilentTaskGroup
 from .transaction import Transaction, TxOutput
 from .synchronizer import Synchronizer
 from .verifier import SPV
@@ -157,7 +157,7 @@ class AddressSynchronizer(PrintError):
         self.verifier = SPV(self.network, self)
         self.synchronizer = synchronizer = Synchronizer(self)
         assert self.group is None, 'group already exists'
-        self.group = CustomTaskGroup()
+        self.group = SilentTaskGroup()
 
         async def job():
             async with self.group as group:

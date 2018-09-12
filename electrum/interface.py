@@ -34,7 +34,7 @@ from collections import defaultdict
 import aiorpcx
 from aiorpcx import ClientSession, Notification
 
-from .util import PrintError, aiosafe, bfh, AIOSafeSilentException, CustomTaskGroup
+from .util import PrintError, aiosafe, bfh, AIOSafeSilentException, SilentTaskGroup
 from . import util
 from . import x509
 from . import pem
@@ -139,7 +139,7 @@ class Interface(PrintError):
 
         # TODO combine?
         self.fut = asyncio.get_event_loop().create_task(self.run())
-        self.group = CustomTaskGroup()
+        self.group = SilentTaskGroup()
 
         if proxy:
             username, pw = proxy.get('user'), proxy.get('password')

@@ -868,10 +868,11 @@ def make_aiohttp_session(proxy):
         return aiohttp.ClientSession(headers={'User-Agent' : 'Electrum'}, timeout=aiohttp.ClientTimeout(total=10))
 
 
-class CustomTaskGroup(TaskGroup):
+class SilentTaskGroup(TaskGroup):
 
-    def spawn(self, *args, **kwargs):
+    def spawn(self, *args, report_crash=None, **kwargs):
         # don't complain if group is already closed.
         if self._closed:
             raise asyncio.CancelledError()
-        return super().spawn(*args, **kwargs)
+        # ignore value of report_crash, and force it to False
+        return super().spawn(*args, **kwargs, report_crash=False)
