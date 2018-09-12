@@ -3184,9 +3184,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tx_size = tx.estimated_size()
         d = WindowModalDialog(self, _('Bump Fee'))
         vbox = QVBoxLayout(d)
+        vbox.addWidget(WWLabel(_("Increase your transaction's fee to improve its position in mempool.")))
         vbox.addWidget(QLabel(_('Current fee') + ': %s'% self.format_amount(fee) + ' ' + self.base_unit()))
         vbox.addWidget(QLabel(_('New fee' + ':')))
-
         fee_e = BTCAmountEdit(self.get_decimal_point)
         fee_e.setAmount(fee * 1.5)
         vbox.addWidget(fee_e)
