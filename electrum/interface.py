@@ -49,6 +49,7 @@ class NotificationSession(ClientSession):
         super(NotificationSession, self).__init__(*args, **kwargs)
         self.subscriptions = defaultdict(list)
         self.cache = {}
+        self.in_flight_requests_semaphore = asyncio.Semaphore(100)
 
     async def handle_request(self, request):
         # note: if server sends malformed request and we raise, the superclass
@@ -64,11 +65,14 @@ class NotificationSession(ClientSession):
                 assert False, request.method
 
     async def send_request(self, *args, timeout=-1, **kwargs):
+        # note: the timeout starts after the request touches the wire!
         if timeout == -1:
             timeout = 20 if not self.proxy else 30
-        return await asyncio.wait_for(
-            super().send_request(*args, **kwargs),
-            timeout)
+        # note: the semaphore implementation guarantees no starvation
+        async with self.in_flight_requests_semaphore:
+            return await asyncio.wait_for(
+                super().send_request(*args, **kwargs),
+                timeout)
 
     async def subscribe(self, method, params, queue):
         # note: until the cache is written for the first time,
