@@ -29,11 +29,12 @@ import sys
 import traceback
 import asyncio
 from typing import Tuple, Union
+from collections import defaultdict
 
 import aiorpcx
 from aiorpcx import ClientSession, Notification
 
-from .util import PrintError, aiosafe, bfh, AIOSafeSilentException, CustomTaskGroup
+from .util import PrintError, aiosafe, bfh, AIOSafeSilentException, SilentTaskGroup
 from . import util
 from . import x509
 from . import pem
@@ -46,8 +47,9 @@ class NotificationSession(ClientSession):
 
     def __init__(self, *args, **kwargs):
         super(NotificationSession, self).__init__(*args, **kwargs)
-        self.subscriptions = {}
+        self.subscriptions = defaultdict(list)
         self.cache = {}
+        self.in_flight_requests_semaphore = asyncio.Semaphore(100)
 
     async def handle_request(self, request):
         # note: if server sends malformed request and we raise, the superclass
@@ -63,19 +65,23 @@ class NotificationSession(ClientSession):
                 assert False, request.method
 
     async def send_request(self, *args, timeout=-1, **kwargs):
+        # note: the timeout starts after the request touches the wire!
         if timeout == -1:
             timeout = 20 if not self.proxy else 30
-        return await asyncio.wait_for(
-            super().send_request(*args, **kwargs),
-            timeout)
+        # note: the semaphore implementation guarantees no starvation
+        async with self.in_flight_requests_semaphore:
+            return await asyncio.wait_for(
+                super().send_request(*args, **kwargs),
+                timeout)
 
     async def subscribe(self, method, params, queue):
+        # note: until the cache is written for the first time,
+        # each 'subscribe' call might make a request on the network.
         key = self.get_index(method, params)
-        if key in self.subscriptions:
-            self.subscriptions[key].append(queue)
+        self.subscriptions[key].append(queue)
+        if key in self.cache:
             result = self.cache[key]
         else:
-            self.subscriptions[key] = [queue]
             result = await self.send_request(method, params)
             self.cache[key] = result
         await queue.put(params + [result])
@@ -94,8 +100,7 @@ class NotificationSession(ClientSession):
         return str(method) + repr(params)
 
 
-# FIXME this is often raised inside a TaskGroup, but then it's not silent :(
-class GracefulDisconnect(AIOSafeSilentException): pass
+class GracefulDisconnect(Exception): pass
 
 
 class ErrorParsingSSLCert(Exception): pass
@@ -138,7 +143,7 @@ class Interface(PrintError):
 
         # TODO combine?
         self.fut = asyncio.get_event_loop().create_task(self.run())
-        self.group = CustomTaskGroup()
+        self.group = SilentTaskGroup()
 
         if proxy:
             username, pw = proxy.get('user'), proxy.get('password')
@@ -224,7 +229,17 @@ class Interface(PrintError):
             sslc.check_hostname = 0
         return sslc
 
+    def handle_graceful_disconnect(func):
+        async def wrapper_func(self, *args, **kwargs):
+            try:
+                return await func(self, *args, **kwargs)
+            except GracefulDisconnect as e:
+                self.print_error("disconnecting gracefully. {}".format(e))
+                self.exception = e
+        return wrapper_func
+
     @aiosafe
+    @handle_graceful_disconnect
     async def run(self):
         try:
             ssl_context = await self._get_ssl_context()
@@ -241,17 +256,23 @@ class Interface(PrintError):
         assert False
 
     def mark_ready(self):
+        if self.ready.cancelled():
+            self.close()
+            raise asyncio.CancelledError()
+        if self.ready.done():
+            return
+
         assert self.tip_header
         chain = blockchain.check_header(self.tip_header)
         if not chain:
             self.blockchain = blockchain.blockchains[0]
         else:
             self.blockchain = chain
+        assert self.blockchain is not None
 
         self.print_error("set blockchain with height", self.blockchain.height())
 
-        if not self.ready.done():
-            self.ready.set_result(1)
+        self.ready.set_result(1)
 
     async def save_certificate(self):
         if not os.path.exists(self.cert_path):
@@ -338,8 +359,7 @@ class Interface(PrintError):
             self.tip = height
             if self.tip < constants.net.max_checkpoint():
                 raise GracefulDisconnect('server tip below max checkpoint')
-            if not self.ready.done():
-                self.mark_ready()
+            self.mark_ready()
             async with self.network.bhi_lock:
                 if self.blockchain.height() < header['block_height']-1:
                     _, height = await self.sync_until(height, None)

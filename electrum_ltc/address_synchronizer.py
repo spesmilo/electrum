@@ -28,7 +28,7 @@ from collections import defaultdict
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
-from .util import PrintError, profiler, bfh, VerifiedTxInfo, TxMinedStatus, aiosafe, CustomTaskGroup
+from .util import PrintError, profiler, bfh, VerifiedTxInfo, TxMinedStatus, aiosafe, SilentTaskGroup
 from .transaction import Transaction, TxOutput
 from .synchronizer import Synchronizer
 from .verifier import SPV
@@ -140,7 +140,7 @@ class AddressSynchronizer(PrintError):
     @aiosafe
     async def on_default_server_changed(self, event):
         async with self.sync_restart_lock:
-            self.stop_threads()
+            self.stop_threads(write_to_disk=False)
             await self._start_threads()
 
     def start_network(self, network):
@@ -157,7 +157,7 @@ class AddressSynchronizer(PrintError):
         self.verifier = SPV(self.network, self)
         self.synchronizer = synchronizer = Synchronizer(self)
         assert self.group is None, 'group already exists'
-        self.group = CustomTaskGroup()
+        self.group = SilentTaskGroup()
 
         async def job():
             async with self.group as group:
@@ -169,7 +169,7 @@ class AddressSynchronizer(PrintError):
             interface.session.unsubscribe(synchronizer.status_queue)
         await interface.group.spawn(job)
 
-    def stop_threads(self):
+    def stop_threads(self, write_to_disk=True):
         if self.network:
             self.synchronizer = None
             self.verifier = None
@@ -177,9 +177,10 @@ class AddressSynchronizer(PrintError):
                 asyncio.run_coroutine_threadsafe(self.group.cancel_remaining(), self.network.asyncio_loop)
                 self.group = None
             self.storage.put('stored_height', self.get_local_height())
-        self.save_transactions()
-        self.save_verified_tx()
-        self.storage.write()
+        if write_to_disk:
+            self.save_transactions()
+            self.save_verified_tx()
+            self.storage.write()
 
     def add_address(self, address):
         if address not in self.history:

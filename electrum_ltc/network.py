@@ -317,14 +317,29 @@ class Network(PrintError):
     async def request_server_info(self, interface):
         await interface.ready
         session = interface.session
-        self.banner = await session.send_request('server.banner')
-        self.notify('banner')
-        self.donation_address = await session.send_request('server.donation_address')
-        self.irc_servers = parse_servers(await session.send_request('server.peers.subscribe'))
-        self.notify('servers')
-        await self.request_fee_estimates(interface)
-        relayfee = await session.send_request('blockchain.relayfee')
-        self.relay_fee = int(relayfee * COIN) if relayfee is not None else None
+
+        async def get_banner():
+            self.banner = await session.send_request('server.banner')
+            self.notify('banner')
+        async def get_donation_address():
+            self.donation_address = await session.send_request('server.donation_address')
+        async def get_server_peers():
+            self.irc_servers = parse_servers(await session.send_request('server.peers.subscribe'))
+            self.notify('servers')
+        async def get_relay_fee():
+            relayfee = await session.send_request('blockchain.relayfee')
+            if relayfee is None:
+                self.relay_fee = None
+            else:
+                relayfee = int(relayfee * COIN)
+                self.relay_fee = max(0, relayfee)
+
+        async with TaskGroup() as group:
+            await group.spawn(get_banner)
+            await group.spawn(get_donation_address)
+            await group.spawn(get_server_peers)
+            await group.spawn(get_relay_fee)
+            await group.spawn(self.request_fee_estimates(interface))
 
     async def request_fee_estimates(self, interface):
         session = interface.session
@@ -335,7 +350,8 @@ class Network(PrintError):
             fee_tasks = []
             for i in FEE_ETA_TARGETS:
                 fee_tasks.append((i, await group.spawn(session.send_request('blockchain.estimatefee', [i]))))
-        self.config.mempool_fees = histogram_task.result()
+        self.config.mempool_fees = histogram = histogram_task.result()
+        self.print_error('fee_histogram', histogram)
         self.notify('fee_histogram')
         for i, task in fee_tasks:
             fee = int(task.result() * COIN)
