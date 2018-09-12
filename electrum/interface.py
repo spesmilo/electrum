@@ -96,8 +96,7 @@ class NotificationSession(ClientSession):
         return str(method) + repr(params)
 
 
-# FIXME this is often raised inside a TaskGroup, but then it's not silent :(
-class GracefulDisconnect(AIOSafeSilentException): pass
+class GracefulDisconnect(Exception): pass
 
 
 class ErrorParsingSSLCert(Exception): pass
@@ -226,7 +225,17 @@ class Interface(PrintError):
             sslc.check_hostname = 0
         return sslc
 
+    def handle_graceful_disconnect(func):
+        async def wrapper_func(self, *args, **kwargs):
+            try:
+                return await func(self, *args, **kwargs)
+            except GracefulDisconnect as e:
+                self.print_error("disconnecting gracefully. {}".format(e))
+                self.exception = e
+        return wrapper_func
+
     @aiosafe
+    @handle_graceful_disconnect
     async def run(self):
         try:
             ssl_context = await self._get_ssl_context()
