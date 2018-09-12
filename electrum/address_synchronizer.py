@@ -140,7 +140,7 @@ class AddressSynchronizer(PrintError):
     @aiosafe
     async def on_default_server_changed(self, event):
         async with self.sync_restart_lock:
-            self.stop_threads()
+            self.stop_threads(write_to_disk=False)
             await self._start_threads()
 
     def start_network(self, network):
@@ -169,7 +169,7 @@ class AddressSynchronizer(PrintError):
             interface.session.unsubscribe(synchronizer.status_queue)
         await interface.group.spawn(job)
 
-    def stop_threads(self):
+    def stop_threads(self, write_to_disk=True):
         if self.network:
             self.synchronizer = None
             self.verifier = None
@@ -177,9 +177,10 @@ class AddressSynchronizer(PrintError):
                 asyncio.run_coroutine_threadsafe(self.group.cancel_remaining(), self.network.asyncio_loop)
                 self.group = None
             self.storage.put('stored_height', self.get_local_height())
-        self.save_transactions()
-        self.save_verified_tx()
-        self.storage.write()
+        if write_to_disk:
+            self.save_transactions()
+            self.save_verified_tx()
+            self.storage.write()
 
     def add_address(self, address):
         if address not in self.history:
