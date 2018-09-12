@@ -252,17 +252,23 @@ class Interface(PrintError):
         assert False
 
     def mark_ready(self):
+        if self.ready.cancelled():
+            self.close()
+            raise asyncio.CancelledError()
+        if self.ready.done():
+            return
+
         assert self.tip_header
         chain = blockchain.check_header(self.tip_header)
         if not chain:
             self.blockchain = blockchain.blockchains[0]
         else:
             self.blockchain = chain
+        assert self.blockchain is not None
 
         self.print_error("set blockchain with height", self.blockchain.height())
 
-        if not self.ready.done():
-            self.ready.set_result(1)
+        self.ready.set_result(1)
 
     async def save_certificate(self):
         if not os.path.exists(self.cert_path):
@@ -349,8 +355,7 @@ class Interface(PrintError):
             self.tip = height
             if self.tip < constants.net.max_checkpoint():
                 raise GracefulDisconnect('server tip below max checkpoint')
-            if not self.ready.done():
-                self.mark_ready()
+            self.mark_ready()
             async with self.network.bhi_lock:
                 if self.blockchain.height() < header['block_height']-1:
                     _, height = await self.sync_until(height, None)
