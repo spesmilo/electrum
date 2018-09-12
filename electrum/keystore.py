@@ -253,12 +253,17 @@ class Xpub:
 
     @classmethod
     def parse_xpubkey(self, pubkey):
+        # type + xpub + derivation
         assert pubkey[0:2] == 'ff'
         pk = bfh(pubkey)
+        # xpub:
         pk = pk[1:]
         xkey = bitcoin.EncodeBase58Check(pk[0:78])
+        # derivation:
         dd = pk[78:]
         s = []
+        # FIXME: due to an oversight, levels in the derivation are only
+        # allocated 2 bytes, instead of 4 (in bip32)
         while dd:
             n = int(bitcoin.rev_hex(bh2u(dd[0:2])), 16)
             dd = dd[2:]
