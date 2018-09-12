@@ -1,6 +1,7 @@
 import sys
+import json
 
-import requests
+from aiohttp.client_exceptions import ClientError
 from kivy import base, utils
 from kivy.clock import Clock
 from kivy.core.window import Window
@@ -115,8 +116,10 @@ class CrashReporter(BaseCrashReporter, Factory.Popup):
 
     def send_report(self):
         try:
-            response = BaseCrashReporter.send_report(self, "/crash.json").json()
-        except requests.exceptions.RequestException:
+            loop = self.main_window.network.asyncio_loop
+            proxy = self.main_window.network.proxy
+            response = json.loads(BaseCrashReporter.send_report(self, loop, proxy, "/crash.json"))
+        except (ValueError, ClientError):
             self.show_popup(_('Unable to send report'), _("Please check your network connection."))
         else:
             self.show_popup(_('Report sent'), response["text"])

@@ -7,7 +7,10 @@ import electrum_ltc as electrum
 from electrum_ltc.util import format_satoshis, set_verbosity
 from electrum_ltc.bitcoin import is_address, COIN, TYPE_ADDRESS
 from electrum_ltc.transaction import TxOutput
-from .. import Wallet, WalletStorage
+from electrum_ltc.wallet import Wallet
+from electrum_ltc.storage import WalletStorage
+from electrum_ltc.network import NetworkParameters
+from electrum_ltc.interface import deserialize_server
 
 _ = lambda x:x
 
@@ -27,7 +30,7 @@ class ElectrumGui:
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
         self.wallet = Wallet(storage)
-        self.wallet.start_threads(self.network)
+        self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
         locale.setlocale(locale.LC_ALL, '')
@@ -351,7 +354,7 @@ class ElectrumGui:
             self.wallet.labels[tx.txid()] = self.str_description
 
         self.show_message(_("Please wait..."), getchar=False)
-        status, msg = self.network.broadcast_transaction(tx)
+        status, msg = self.network.broadcast_transaction_from_non_network_thread(tx)
 
         if status:
             self.show_message(_('Payment sent.'))
@@ -376,8 +379,9 @@ class ElectrumGui:
     def network_dialog(self):
         if not self.network:
             return
-        params = self.network.get_parameters()
-        host, port, protocol, proxy_config, auto_connect = params
+        net_params = self.network.get_parameters()
+        host, port, protocol = net_params.host, net_params.port, net_params.protocol
+        proxy_config, auto_connect = net_params.proxy, net_params.auto_connect
         srv = 'auto-connect' if auto_connect else self.network.default_server
         out = self.run_dialog('Network', [
             {'label':'server', 'type':'str', 'value':srv},
@@ -389,13 +393,13 @@ class ElectrumGui:
                 auto_connect = server == 'auto-connect'
                 if not auto_connect:
                     try:
-                        host, port, protocol = server.split(':')
+                        host, port, protocol = deserialize_server(server)
                     except Exception:
                         self.show_message("Error:" + server + "\nIn doubt, type \"auto-connect\"")
                         return False
             if out.get('server') or out.get('proxy'):
                 proxy = electrum.network.deserialize_proxy(out.get('proxy')) if out.get('proxy') else proxy_config
-                self.network.set_parameters(host, port, protocol, proxy, auto_connect)
+                self.network.set_parameters(NetworkParameters(host, port, protocol, proxy, auto_connect))
 
     def settings_dialog(self):
         fee = str(Decimal(self.config.fee_per_kb()) / COIN)
