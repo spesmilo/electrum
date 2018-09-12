@@ -64,7 +64,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 feerate=local_feerate
             ),
             "constraints":lnbase.ChannelConstraints(capacity=funding_sat, is_initiator=is_initiator, funding_txn_minimum_depth=3),
-            "node_id":other_node_id
+            "node_id":other_node_id,
+            "remote_commitment_to_be_revoked": None,
     }
 
 def bip32(sequence):

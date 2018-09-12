@@ -2,6 +2,7 @@
 from collections import namedtuple
 import binascii
 import json
+
 from .util import bfh, PrintError, bh2u
 from .bitcoin import Hash
 from .bitcoin import redeem_script_to_address
@@ -13,7 +14,9 @@ from .lnutil import secret_to_pubkey, derive_privkey, derive_pubkey, derive_blin
 from .lnutil import sign_and_get_sig_string
 from .lnutil import make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc
 from .lnutil import HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT
-from .lnutil import funding_output_script
+from .lnutil import funding_output_script, extract_ctn_from_tx_and_chan
+from .transaction import Transaction
+
 
 SettleHtlc = namedtuple("SettleHtlc", ["htlc_id"])
 RevokeAndAck = namedtuple("RevokeAndAck", ["per_commitment_secret", "next_per_commitment_point"])
@@ -126,6 +129,11 @@ class HTLCStateMachine(PrintError):
         self.node_id = maybeDecode("node_id", state["node_id"]) if type(state["node_id"]) is not bytes else state["node_id"]
         self.short_channel_id = maybeDecode("short_channel_id", state["short_channel_id"]) if type(state["short_channel_id"]) is not bytes else state["short_channel_id"]
 
+        # FIXME this is a tx serialised in the custom electrum partial tx format.
+        # we should not persist txns in this format. we should persist htlcs, and be able to derive
+        # any past commitment transaction and use that instead; until then...
+        self.remote_commitment_to_be_revoked = Transaction(state["remote_commitment_to_be_revoked"])
+
         self.local_update_log = []
         self.remote_update_log = []
 
@@ -140,6 +148,8 @@ class HTLCStateMachine(PrintError):
 
         self._is_funding_txo_spent = None  # "don't know"
         self.set_state('DISCONNECTED')
+
+        self.lnwatcher = None
 
     def set_state(self, state: str):
         self._state = state
@@ -203,7 +213,8 @@ class HTLCStateMachine(PrintError):
             if htlc.l_locked_in is None: htlc.l_locked_in = self.local_state.ctn
         self.print_error("sign_next_commitment")
 
-        sig_64 = sign_and_get_sig_string(self.pending_remote_commitment, self.local_config, self.remote_config)
+        pending_remote_commitment = self.pending_remote_commitment
+        sig_64 = sign_and_get_sig_string(pending_remote_commitment, self.local_config, self.remote_config)
 
         their_remote_htlc_privkey_number = derive_privkey(
             int.from_bytes(self.local_config.htlc_basepoint.privkey, 'big'),
@@ -224,7 +235,7 @@ class HTLCStateMachine(PrintError):
                     print("value too small, skipping. htlc amt: {}, weight: {}, remote feerate {}, remote dust limit {}".format( htlc.amount_msat, weight, feerate, self.remote_config.dust_limit_sat))
                     continue
                 original_htlc_output_index = 0
-                args = [self.remote_state.next_per_commitment_point, for_us, we_receive, htlc.amount_msat, htlc.cltv_expiry, htlc.payment_hash, self.pending_remote_commitment, original_htlc_output_index]
+                args = [self.remote_state.next_per_commitment_point, for_us, we_receive, htlc.amount_msat, htlc.cltv_expiry, htlc.payment_hash, pending_remote_commitment, original_htlc_output_index]
                 htlc_tx = make_htlc_tx_with_open_channel(self, *args)
                 sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
                 htlc_sig = ecc.sig_string_from_der_sig(sig[:-1])
@@ -235,6 +246,9 @@ class HTLCStateMachine(PrintError):
                 self.pending_fee.progress |= FUNDEE_SIGNED
             if self.constraints.is_initiator and (self.pending_fee.progress & FUNDEE_ACKED):
                 self.pending_fee.progress |= FUNDER_SIGNED
+
+        if self.lnwatcher:
+            self.lnwatcher.process_new_offchain_ctx(self, pending_remote_commitment, ours=False)
 
         return sig_64, htlcsigs
 
@@ -256,20 +270,21 @@ class HTLCStateMachine(PrintError):
             if htlc.r_locked_in is None: htlc.r_locked_in = self.remote_state.ctn
         assert len(htlc_sigs) == 0 or type(htlc_sigs[0]) is bytes
 
-        preimage_hex = self.pending_local_commitment.serialize_preimage(0)
+        pending_local_commitment = self.pending_local_commitment
+        preimage_hex = pending_local_commitment.serialize_preimage(0)
         pre_hash = Hash(bfh(preimage_hex))
         if not ecc.verify_signature(self.remote_config.multisig_key.pubkey, sig, pre_hash):
             raise Exception('failed verifying signature of our updated commitment transaction: ' + bh2u(sig) + ' preimage is ' + preimage_hex)
 
         _, this_point, _ = self.points
 
-        if len(self.htlcs_in_remote) > 0 and len(self.pending_local_commitment.outputs()) == 3:
+        if len(self.htlcs_in_remote) > 0 and len(pending_local_commitment.outputs()) == 3:
             print("CHECKING HTLC SIGS")
             we_receive = True
             payment_hash = self.htlcs_in_remote[0].payment_hash
             amount_msat = self.htlcs_in_remote[0].amount_msat
             cltv_expiry = self.htlcs_in_remote[0].cltv_expiry
-            htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, amount_msat, cltv_expiry, payment_hash, self.pending_local_commitment, 0)
+            htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, amount_msat, cltv_expiry, payment_hash, pending_local_commitment, 0)
             pre_hash = Hash(bfh(htlc_tx.serialize_preimage(0)))
             remote_htlc_pubkey = derive_pubkey(self.remote_config.htlc_basepoint.pubkey, this_point)
             if not ecc.verify_signature(remote_htlc_pubkey, htlc_sigs[0], pre_hash):
@@ -282,6 +297,9 @@ class HTLCStateMachine(PrintError):
                 self.pending_fee.progress |= FUNDEE_SIGNED
             if self.constraints.is_initiator and (self.pending_fee.progress & FUNDEE_ACKED):
                 self.pending_fee.progress |= FUNDER_SIGNED
+
+        if self.lnwatcher:
+            self.lnwatcher.process_new_offchain_ctx(self, pending_local_commitment, ours=True)
 
 
     def revoke_current_commitment(self):
@@ -350,6 +368,20 @@ class HTLCStateMachine(PrintError):
         """
         self.print_error("receive_revocation")
 
+        cur_point = self.remote_state.current_per_commitment_point
+        derived_point = ecc.ECPrivkey(revocation.per_commitment_secret).get_public_key_bytes(compressed=True)
+        if cur_point != derived_point:
+            raise Exception('revoked secret not for current point')
+
+        # FIXME not sure this is correct... but it seems to work
+        # if there are update_add_htlc msgs between commitment_signed and rev_ack,
+        # this might break
+        prev_remote_commitment = self.pending_remote_commitment
+
+        self.remote_state.revocation_store.add_next_entry(revocation.per_commitment_secret)
+        if self.lnwatcher:
+            self.lnwatcher.process_new_revocation_secret(self, revocation.per_commitment_secret)
+
         settle_fails2 = []
         for x in self.remote_update_log:
             if type(x) is not SettleHtlc:
@@ -386,8 +418,6 @@ class HTLCStateMachine(PrintError):
 
         self.total_msat_received += received_this_batch
 
-        self.remote_state.revocation_store.add_next_entry(revocation.per_commitment_secret)
-
         next_point = self.remote_state.next_per_commitment_point
 
         print("RECEIVED", received_this_batch)
@@ -408,6 +438,7 @@ class HTLCStateMachine(PrintError):
 
         self.local_commitment = self.pending_local_commitment
         self.remote_commitment = self.pending_remote_commitment
+        self.remote_commitment_to_be_revoked = prev_remote_commitment
 
     @staticmethod
     def htlcsum(htlcs):
@@ -574,6 +605,7 @@ class HTLCStateMachine(PrintError):
                 "constraints": self.constraints,
                 "funding_outpoint": self.funding_outpoint,
                 "node_id": self.node_id,
+                "remote_commitment_to_be_revoked": str(self.remote_commitment_to_be_revoked),
         }
 
     def serialize(self):
