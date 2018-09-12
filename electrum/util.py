@@ -167,6 +167,7 @@ class Fiat(object):
 
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
+        # note: this does not get called for namedtuples :(  https://bugs.python.org/issue30343
         from .transaction import Transaction
         if isinstance(obj, Transaction):
             return obj.as_dict()

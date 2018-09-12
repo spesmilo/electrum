@@ -1,7 +1,9 @@
-from .util import bfh, bh2u, inv_dict
-from .crypto import sha256
 import json
 from collections import namedtuple
+from typing import NamedTuple
+
+from .util import bfh, bh2u, inv_dict
+from .crypto import sha256
 from .transaction import Transaction
 from .ecc import CURVE_ORDER, sig_string_from_der_sig, ECPubkey, string_to_number
 from . import ecc, bitcoin, crypto, transaction
@@ -13,7 +15,6 @@ HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
 
 Keypair = namedtuple("Keypair", ["pubkey", "privkey"])
-Outpoint = namedtuple("Outpoint", ["txid", "output_index"])
 ChannelConfig = namedtuple("ChannelConfig", [
     "payment_basepoint", "multisig_key", "htlc_basepoint", "delayed_basepoint", "revocation_basepoint",
     "to_self_delay", "dust_limit_sat", "max_htlc_value_in_flight_msat", "max_accepted_htlcs"])
@@ -22,6 +23,10 @@ RemoteState = namedtuple("RemoteState", ["ctn", "next_per_commitment_point", "am
 LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amount_msat", "next_htlc_id", "funding_locked_received", "was_announced", "current_commitment_signature", "current_htlc_signatures", "feerate"])
 ChannelConstraints = namedtuple("ChannelConstraints", ["capacity", "is_initiator", "funding_txn_minimum_depth"])
 #OpenChannel = namedtuple("OpenChannel", ["channel_id", "short_channel_id", "funding_outpoint", "local_config", "remote_config", "remote_state", "local_state", "constraints", "node_id"])
+
+class Outpoint(NamedTuple("Outpoint", [('txid', str), ('output_index', int)])):
+    def to_str(self):
+        return "{}:{}".format(self.txid, self.output_index)
 
 
 class UnableToDeriveSecret(Exception): pass
@@ -366,16 +371,24 @@ def invert_short_channel_id(short_channel_id: bytes) -> (int, int, int):
     oi = int.from_bytes(short_channel_id[6:8], byteorder='big')
     return bh, tpos, oi
 
-def get_obscured_ctn(ctn, local, remote):
+def get_obscured_ctn(ctn: int, local: bytes, remote: bytes) -> int:
     mask = int.from_bytes(sha256(local + remote)[-6:], 'big')
     return ctn ^ mask
 
-def extract_ctn_from_tx(tx, txin_index, local_payment_basepoint, remote_payment_basepoint):
+def extract_ctn_from_tx(tx, txin_index: int, local_payment_basepoint: bytes,
+                        remote_payment_basepoint: bytes) -> int:
     tx.deserialize()
     locktime = tx.locktime
     sequence = tx.inputs()[txin_index]['sequence']
     obs = ((sequence & 0xffffff) << 24) + (locktime & 0xffffff)
     return get_obscured_ctn(obs, local_payment_basepoint, remote_payment_basepoint)
+
+def extract_ctn_from_tx_and_chan(tx, chan) -> int:
+    local_pubkey = chan.local_config.payment_basepoint.pubkey
+    remote_pubkey = chan.remote_config.payment_basepoint.pubkey
+    return extract_ctn_from_tx(tx, txin_index=0,
+                               local_payment_basepoint=local_pubkey,
+                               remote_payment_basepoint=remote_pubkey)
 
 def overall_weight(num_htlc):
     return 500 + 172 * num_htlc + 224
