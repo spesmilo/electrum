@@ -223,7 +223,8 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         aliceSig2, aliceHtlcSigs2 = alice_channel.sign_next_commitment()
         self.assertEqual(aliceHtlcSigs2, [], "alice should generate no htlc signatures")
 
-        bob_channel.receive_revocation(aliceRevocation2)
+        received, sent = bob_channel.receive_revocation(aliceRevocation2)
+        self.assertEqual(received, one_bitcoin_in_msat)
 
         bob_channel.receive_new_commitment(aliceSig2, aliceHtlcSigs2)
 
