@@ -36,7 +36,9 @@ import inspect
 from locale import localeconv
 import asyncio
 import urllib.request, urllib.parse, urllib.error
-import queue
+import builtins
+import json
+import time
 
 import aiohttp
 from aiohttp_socks import SocksConnector, SocksVer
@@ -743,7 +745,6 @@ def raw_input(prompt=None):
         sys.stdout.write(prompt)
     return builtin_raw_input()
 
-import builtins
 builtin_raw_input = builtins.input
 builtins.input = raw_input
 
@@ -758,114 +759,6 @@ def parse_json(message):
     except:
         j = None
     return j, message[n+1:]
-
-
-class timeout(Exception):
-    pass
-
-import socket
-import json
-import ssl
-import time
-
-
-class SocketPipe:
-    def __init__(self, socket):
-        self.socket = socket
-        self.message = b''
-        self.set_timeout(0.1)
-        self.recv_time = time.time()
-
-    def set_timeout(self, t):
-        self.socket.settimeout(t)
-
-    def idle_time(self):
-        return time.time() - self.recv_time
-
-    def get(self):
-        while True:
-            response, self.message = parse_json(self.message)
-            if response is not None:
-                return response
-            try:
-                data = self.socket.recv(1024)
-            except socket.timeout:
-                raise timeout
-            except ssl.SSLError:
-                raise timeout
-            except socket.error as err:
-                if err.errno == 60:
-                    raise timeout
-                elif err.errno in [11, 35, 10035]:
-                    print_error("socket errno %d (resource temporarily unavailable)"% err.errno)
-                    time.sleep(0.2)
-                    raise timeout
-                else:
-                    print_error("pipe: socket error", err)
-                    data = b''
-            except:
-                traceback.print_exc(file=sys.stderr)
-                data = b''
-
-            if not data:  # Connection closed remotely
-                return None
-            self.message += data
-            self.recv_time = time.time()
-
-    def send(self, request):
-        out = json.dumps(request) + '\n'
-        out = out.encode('utf8')
-        self._send(out)
-
-    def send_all(self, requests):
-        out = b''.join(map(lambda x: (json.dumps(x) + '\n').encode('utf8'), requests))
-        self._send(out)
-
-    def _send(self, out):
-        while out:
-            try:
-                sent = self.socket.send(out)
-                out = out[sent:]
-            except ssl.SSLError as e:
-                print_error("SSLError:", e)
-                time.sleep(0.1)
-                continue
-
-
-class QueuePipe:
-
-    def __init__(self, send_queue=None, get_queue=None):
-        self.send_queue = send_queue if send_queue else queue.Queue()
-        self.get_queue = get_queue if get_queue else queue.Queue()
-        self.set_timeout(0.1)
-
-    def get(self):
-        try:
-            return self.get_queue.get(timeout=self.timeout)
-        except queue.Empty:
-            raise timeout
-
-    def get_all(self):
-        responses = []
-        while True:
-            try:
-                r = self.get_queue.get_nowait()
-                responses.append(r)
-            except queue.Empty:
-                break
-        return responses
-
-    def set_timeout(self, t):
-        self.timeout = t
-
-    def send(self, request):
-        self.send_queue.put(request)
-
-    def send_all(self, requests):
-        for request in requests:
-            self.send(request)
-
-
 
 
 def setup_thread_excepthook():
