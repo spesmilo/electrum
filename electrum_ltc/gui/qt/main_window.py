@@ -189,7 +189,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.network:
             self.network_signal.connect(self.on_network_qt)
             interests = ['updated', 'new_transaction', 'status',
-                         'banner', 'verified', 'fee']
+                         'banner', 'verified', 'fee', 'fee_histogram']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -303,7 +303,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # FIXME maybe this event should also include which wallet
             # the tx is for. now all wallets get this.
             self.tx_notification_queue.put(args[0])
-        elif event in ['status', 'banner', 'verified', 'fee']:
+        elif event in ['status', 'banner', 'verified', 'fee', 'fee_histogram']:
             # Handle in GUI thread
             self.network_signal.emit(event, args)
         else:
@@ -3184,9 +3184,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tx_size = tx.estimated_size()
         d = WindowModalDialog(self, _('Bump Fee'))
         vbox = QVBoxLayout(d)
+        vbox.addWidget(WWLabel(_("Increase your transaction's fee to improve its position in mempool.")))
         vbox.addWidget(QLabel(_('Current fee') + ': %s'% self.format_amount(fee) + ' ' + self.base_unit()))
         vbox.addWidget(QLabel(_('New fee' + ':')))
-
         fee_e = BTCAmountEdit(self.get_decimal_point)
         fee_e.setAmount(fee * 1.5)
         vbox.addWidget(fee_e)
