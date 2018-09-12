@@ -50,6 +50,8 @@ class NotificationSession(ClientSession):
         self.subscriptions = defaultdict(list)
         self.cache = {}
         self.in_flight_requests_semaphore = asyncio.Semaphore(100)
+        # disable bandwidth limiting (used by superclass):
+        self.bw_limit = 0
 
     async def handle_request(self, request):
         # note: if server sends malformed request and we raise, the superclass
