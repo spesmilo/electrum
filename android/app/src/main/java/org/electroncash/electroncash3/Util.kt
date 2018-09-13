@@ -46,7 +46,7 @@ class ToastException(message: String, val duration: Int = Toast.LENGTH_LONG)
     : Exception(message) {
 
     constructor(resId: Int, duration: Int = Toast.LENGTH_LONG)
-        : this(App.context.getString(resId), duration)
+        : this(app.getString(resId), duration)
 
     fun show() { toast(message!!, duration) }
 }
@@ -56,21 +56,21 @@ class ToastException(message: String, val duration: Int = Toast.LENGTH_LONG)
 // message has variable text, use the `key` argument to replace any existing toast with the
 // same key.
 //
-// This cache is never cleared, but since it only contains references to App.context, this
-// should be fine as long as the `key` argument is used where necessary.
+// This cache is never cleared, but since it only contains references to the application context,
+// this should be fine as long as the `key` argument is used where necessary.
 val toastCache = HashMap<String, Toast>()
 
 fun toast(text: CharSequence, duration: Int = Toast.LENGTH_SHORT, key: String? = null) {
     val cacheKey = key ?: text.toString()
     toastCache.get(cacheKey)?.cancel()
     // Creating a new Toast each time is more robust than attempting to reuse the existing one.
-    val toast = Toast.makeText(App.context, text, duration)
+    val toast = Toast.makeText(app, text, duration)
     toastCache.put(cacheKey, toast)
     toast.show()
 }
 
 fun toast(resId: Int, duration: Int = Toast.LENGTH_SHORT, key: String? = null) {
-    toast(App.context.getString(resId), duration, key)
+    toast(app.getString(resId), duration, key)
 }
 
 

@@ -187,7 +187,7 @@ class DeleteWalletDialog : AlertDialogFragment() {
         val walletName = daemonModel.walletName.value
         builder.setTitle(R.string.delete_wallet)
             .setMessage(getString(R.string.you_are, walletName))
-            .setPositiveButton(android.R.string.ok) { dialog, which ->
+            .setPositiveButton(android.R.string.ok) { _, _ ->
                 daemonModel.commands.callAttr("delete_wallet", walletName)
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -278,9 +278,9 @@ open class SeedDialog : AlertDialogFragment() {
 
 
 fun seedAdvice(seed: String): String {
-    return App.context.getString(R.string.please_save, seed.split(" ").size) + " " +
-           App.context.getString(R.string.this_seed) + " " +
-           App.context.getString(R.string.never_disclose)
+    return app.getString(R.string.please_save, seed.split(" ").size) + " " +
+           app.getString(R.string.this_seed) + " " +
+           app.getString(R.string.never_disclose)
 }
 
 
