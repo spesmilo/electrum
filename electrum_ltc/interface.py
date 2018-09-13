@@ -50,6 +50,8 @@ class NotificationSession(ClientSession):
         self.subscriptions = defaultdict(list)
         self.cache = {}
         self.in_flight_requests_semaphore = asyncio.Semaphore(100)
+        # disable bandwidth limiting (used by superclass):
+        self.bw_limit = 0
 
     async def handle_request(self, request):
         # note: if server sends malformed request and we raise, the superclass
@@ -137,6 +139,7 @@ class Interface(PrintError):
         self.cert_path = os.path.join(self.config_path, 'certs', self.host)
         self.blockchain = None
         self.network = network
+        self._set_proxy(proxy)
 
         self.tip_header = None
         self.tip = 0
@@ -145,6 +148,10 @@ class Interface(PrintError):
         self.fut = asyncio.get_event_loop().create_task(self.run())
         self.group = SilentTaskGroup()
 
+    def diagnostic_name(self):
+        return self.host
+
+    def _set_proxy(self, proxy: dict):
         if proxy:
             username, pw = proxy.get('user'), proxy.get('password')
             if not username or not pw:
@@ -156,12 +163,9 @@ class Interface(PrintError):
             elif proxy['mode'] == "socks5":
                 self.proxy = aiorpcx.socks.SOCKSProxy((proxy['host'], int(proxy['port'])), aiorpcx.socks.SOCKS5, auth)
             else:
-                raise NotImplementedError # http proxy not available with aiorpcx
+                raise NotImplementedError  # http proxy not available with aiorpcx
         else:
             self.proxy = None
-
-    def diagnostic_name(self):
-        return self.host
 
     async def is_server_ca_signed(self, sslc):
         try:
