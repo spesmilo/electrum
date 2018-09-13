@@ -415,7 +415,7 @@ if __name__ == '__main__':
         fd, server = daemon.get_fd_or_server(config)
         if fd is not None:
             plugins = init_plugins(config, config.get('gui', 'qt'))
-            d = daemon.Daemon(config, fd, True)
+            d = daemon.Daemon(config, fd)
             d.start()
             d.init_gui(config, plugins)
             sys.exit(0)
@@ -436,7 +436,7 @@ if __name__ == '__main__':
                         print_stderr("starting daemon (PID %d)" % pid)
                         sys.exit(0)
                 init_plugins(config, 'cmdline')
-                d = daemon.Daemon(config, fd, False)
+                d = daemon.Daemon(config, fd)
                 d.start()
                 if config.get('websocket_server'):
                     from electrum import websockets

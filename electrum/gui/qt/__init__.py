@@ -45,7 +45,7 @@ from electrum.base_wizard import GoBack
 # from electrum.synchronizer import Synchronizer
 # from electrum.verifier import SPV
 # from electrum.util import DebugMem
-from electrum.util import (UserCancelled, print_error,
+from electrum.util import (UserCancelled, PrintError,
                            WalletFileException, BitcoinException)
 # from electrum.wallet import Abstract_Wallet
 
@@ -86,7 +86,7 @@ class QNetworkUpdatedSignalObject(QObject):
     network_updated_signal = pyqtSignal(str, object)
 
 
-class ElectrumGui:
+class ElectrumGui(PrintError):
 
     def __init__(self, config, daemon, plugins):
         set_language(config.get('language'))
@@ -128,7 +128,7 @@ class ElectrumGui:
                 self.app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
             except BaseException as e:
                 use_dark_theme = False
-                print_error('Error setting dark theme: {}'.format(e))
+                self.print_error('Error setting dark theme: {}'.format(e))
         # Even if we ourselves don't set the dark theme,
         # the OS/window manager/etc might set *a dark theme*.
         # Hence, try to choose colors accordingly:
@@ -222,7 +222,7 @@ class ElectrumGui:
             except UserCancelled:
                 pass
             except GoBack as e:
-                print_error('[start_new_window] Exception caught (GoBack)', e)
+                self.print_error('[start_new_window] Exception caught (GoBack)', e)
             except (WalletFileException, BitcoinException) as e:
                 traceback.print_exc(file=sys.stderr)
                 d = QMessageBox(QMessageBox.Warning, _('Error'),
@@ -267,6 +267,7 @@ class ElectrumGui:
         if not self.windows:
             self.config.save_last_wallet(window.wallet)
         run_hook('on_close_window', window)
+        self.daemon.stop_wallet(window.wallet.storage.path)
 
     def init_network(self):
         # Show network dialog if config does not exist
@@ -309,6 +310,14 @@ class ElectrumGui:
             self.tray.hide()
         self.app.aboutToQuit.connect(clean_up)
 
+        # keep daemon running after close
+        if self.config.get('daemon'):
+            self.app.setQuitOnLastWindowClosed(False)
+
         # main loop
         self.app.exec_()
         # on some platforms the exec_ call may not return, so use clean_up()
+
+    def stop(self):
+        self.print_error('closing GUI')
+        self.app.quit()
