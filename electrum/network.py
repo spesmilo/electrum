@@ -630,6 +630,12 @@ class Network(PrintError):
             #import traceback
             #traceback.print_exc()
             self.print_error(interface.server, "couldn't launch because", str(e), str(type(e)))
+            # note: connection_down will not call interface.close() as
+            # interface is not yet in self.interfaces. OTOH, calling
+            # interface.close() here will sometimes raise deep inside the
+            # asyncio internal select.select... instead, interface will close
+            # itself when it detects the cancellation of interface.ready;
+            # however this might take several seconds...
             self.connection_down(interface.server)
             return
         finally:

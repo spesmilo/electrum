@@ -264,8 +264,7 @@ class Interface(PrintError):
 
     def mark_ready(self):
         if self.ready.cancelled():
-            self.close()
-            raise asyncio.CancelledError()
+            raise GracefulDisconnect('conn establishment was too slow; *ready* future was cancelled')
         if self.ready.done():
             return
 
