@@ -55,7 +55,7 @@ class AddressesFragment : MainFragment() {
         return inflater.inflate(R.layout.addresses, container, false)
     }
 
-    override fun onViewCreated(view: View?, savedInstanceState: Bundle?) {
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         rvAddresses.layoutManager = LinearLayoutManager(activity)
         rvAddresses.addItemDecoration(DividerItemDecoration(context, DividerItemDecoration.VERTICAL))
         daemonModel.walletName.observe(this, Observer {

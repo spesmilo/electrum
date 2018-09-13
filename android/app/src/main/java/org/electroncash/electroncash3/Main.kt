@@ -99,7 +99,7 @@ open class AlertDialogFragment : DialogFragment() {
     val daemonModel by lazy { mainActivity.daemonModel }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val builder = AlertDialog.Builder(context)
+        val builder = AlertDialog.Builder(context!!)
         onBuildDialog(builder)
         val dialog = builder.create()
         dialog.setOnShowListener { onShowDialog(dialog) }
@@ -121,8 +121,8 @@ open class MessageDialog() : AlertDialogFragment() {
         }
     }
     override fun onBuildDialog(builder: AlertDialog.Builder) {
-        builder.setTitle(arguments.getString("title"))
-            .setMessage(arguments.getString("message"))
+        builder.setTitle(arguments!!.getString("title"))
+            .setMessage(arguments!!.getString("message"))
             .setPositiveButton(android.R.string.ok, null)
     }
 }

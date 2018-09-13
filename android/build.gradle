@@ -1,16 +1,16 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-    ext.android_plugin_version = '3.1.4'
-    ext.kotlin_version = '1.2.61'
+    ext.androidPluginVersion = '3.1.4'
+    ext.kotlinVersion = '1.2.61'
     repositories {
         google()
         jcenter()
         maven { url "https://chaquo.com/maven" }
     }
     dependencies {
-        classpath "com.android.tools.build:gradle:$android_plugin_version"
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "com.android.tools.build:gradle:$androidPluginVersion"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
         classpath "com.chaquo.python:gradle:4.0.0"
 
         // NOTE: Do not place your application dependencies here; they belong

@@ -31,7 +31,7 @@ class WalletsFragment : MainFragment() {
             }
         })
         daemonModel.walletName.observe(this, Observer {
-            activity.invalidateOptionsMenu()
+            activity!!.invalidateOptionsMenu()
         })
     }
 
@@ -47,8 +47,8 @@ class WalletsFragment : MainFragment() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
-            R.id.menuShowSeed-> showDialog(activity, ShowSeedPasswordDialog())
-            R.id.menuDelete -> showDialog(activity, DeleteWalletDialog())
+            R.id.menuShowSeed-> showDialog(activity!!, ShowSeedPasswordDialog())
+            R.id.menuDelete -> showDialog(activity!!, DeleteWalletDialog())
             R.id.menuClose -> daemonModel.commands.callAttr("close_wallet")
             else -> throw Exception("Unknown item $item")
         }
@@ -63,9 +63,9 @@ class WalletsFragment : MainFragment() {
         return binding.root
     }
 
-    override fun onViewCreated(view: View?, savedInstanceState: Bundle?) {
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         walletPanel.setOnClickListener {
-            showDialog(activity, SelectWalletDialog())
+            showDialog(activity!!, SelectWalletDialog())
         }
 
         with (rvTransactions) {
@@ -76,7 +76,7 @@ class WalletsFragment : MainFragment() {
             rvTransactions.adapter = if (it == null) null else TransactionsAdapter(it)
         })
 
-        btnSend.setOnClickListener { showDialog(activity, SendDialog()) }
+        btnSend.setOnClickListener { showDialog(activity!!, SendDialog()) }
         btnReceive.setOnClickListener {
             mainActivity.navigation.selectedItemId = R.id.navAddresses
         }
@@ -106,11 +106,11 @@ class SelectWalletDialog : AlertDialogFragment(), DialogInterface.OnClickListene
     override fun onClick(dialog: DialogInterface, which: Int) {
         dismiss()
         if (which < items.size - 1) {
-            showDialog(activity, OpenWalletDialog().apply { arguments = Bundle().apply {
+            showDialog(activity!!, OpenWalletDialog().apply { arguments = Bundle().apply {
                 putString("walletName", items[which])
             }})
         } else {
-            showDialog(activity, NewWalletDialog())
+            showDialog(activity!!, NewWalletDialog())
         }
     }
 }
@@ -148,7 +148,7 @@ class NewWalletDialog : AlertDialogFragment(), DialogInterface.OnClickListener {
             val seed = if (which == AlertDialog.BUTTON_NEGATIVE)
                        daemonModel.commands.callAttr("make_seed").toString()
                        else null
-            showDialog(activity, NewSeedDialog().apply { arguments = Bundle().apply {
+            showDialog(activity!!, NewSeedDialog().apply { arguments = Bundle().apply {
                 putString("name", name)
                 putString("password", password)
                 putString("seed", seed)
@@ -163,8 +163,8 @@ class NewSeedDialog : SeedDialog() {
         super.onShowDialog(dialog)
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
-                val name = arguments.getString("name")
-                val password = arguments.getString("password")
+                val name = arguments!!.getString("name")
+                val password = arguments!!.getString("password")
                 val seed = dialog.etSeed.text.toString()
                 try {
                     daemonModel.commands.callAttr("create", name, password, seed)
@@ -239,7 +239,7 @@ abstract class PasswordDialog : AlertDialogFragment() {
 
 class OpenWalletDialog: PasswordDialog() {
     override fun onPassword(password: String?) {
-        daemonModel.loadWallet(arguments.getString("walletName"), password)
+        daemonModel.loadWallet(arguments!!.getString("walletName"), password)
     }
 }
 
@@ -251,7 +251,7 @@ class ShowSeedPasswordDialog : PasswordDialog() {
             // get_seed(None) doesn't throw an exception, but returns the encrypted base64 seed.
             throw PyException("InvalidPassword")
         }
-        showDialog(activity, SeedDialog().apply { arguments = Bundle().apply {
+        showDialog(activity!!, SeedDialog().apply { arguments = Bundle().apply {
             putString("seed", seed)
         }})
     }
@@ -265,7 +265,7 @@ open class SeedDialog : AlertDialogFragment() {
     }
 
     override fun onShowDialog(dialog: AlertDialog) {
-        val seed = arguments.getString("seed")
+        val seed = arguments!!.getString("seed")
         if (seed == null) {
             dialog.tvSeedLabel.setText(R.string.please_enter)
         } else {

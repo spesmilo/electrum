@@ -60,7 +60,7 @@ class SendDialog : AlertDialogFragment(), View.OnClickListener {
     override fun onClick(v: View) {
         try {
             makeUnsignedTx()
-            showDialog(activity, SendPasswordDialog().apply { arguments = Bundle().apply {
+            showDialog(activity!!, SendPasswordDialog().apply { arguments = Bundle().apply {
                 putString("address", address)
                 putLong("amount", amount)
             }})
@@ -88,8 +88,8 @@ class SendDialog : AlertDialogFragment(), View.OnClickListener {
 
 class SendPasswordDialog : PasswordDialog() {
     override fun onPassword(password: String?) {
-        val tx = daemonModel.makeTx(arguments.getString("address"),
-                                    arguments.getLong("amount"), password)
+        val tx = daemonModel.makeTx(arguments!!.getString("address"),
+                                    arguments!!.getLong("amount"), password)
         if (daemonModel.height.value == null) {
             throw ToastException(getString(R.string.offline) + "\n" +
                                  getString(R.string.cannot_send))
@@ -104,12 +104,12 @@ class SendPasswordDialog : PasswordDialog() {
             } else {
                 // We can't tell whether the transaction went through or not, so close all
                 // dialogs and show a warning.
-                showDialog(activity, MessageDialog(
+                showDialog(activity!!, MessageDialog(
                     getString(R.string.error),
                     err.message + "\n\n" + getString(R.string.the_app)))
             }
         }
-        dismissDialog(activity, "SendDialog")
+        dismissDialog(activity!!, "SendDialog")
     }
 }
 
