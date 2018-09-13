@@ -47,7 +47,6 @@ rm  -rf $BUILDDIR > /dev/null 2>&1
 mkdir $BUILDDIR
 
 cp -R ./contrib/deterministic-build/electrum-locale/locale/ ./electrum/locale/
-cp    ./contrib/deterministic-build/electrum-icons/icons_rc.py ./electrum/gui/qt/
 
 
 info "Downloading libusb..."

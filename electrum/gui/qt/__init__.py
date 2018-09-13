@@ -53,11 +53,13 @@ from .installwizard import InstallWizard
 
 
 try:
-    from . import icons_rc
+    from .icons import icons_rc
 except Exception as e:
     print(e)
     print("Error: Could not find icons file.")
-    print("Please run 'pyrcc5 icons.qrc -o electrum/gui/qt/icons_rc.py'")
+    print("If you're running electrum from the repo then please make sure that")
+    print("the submdules are initialized.")
+    print("git submodule update --init")
     sys.exit(1)
 
 from .util import *   # * needed for plugins

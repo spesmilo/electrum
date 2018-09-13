@@ -17,7 +17,6 @@ bin/
 .idea
 
 # icons
-electrum/gui/qt/icons_rc.py
 electrum/gui/kivy/theming/light-0.png
 electrum/gui/kivy/theming/light.atlas
 
