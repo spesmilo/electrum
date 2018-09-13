@@ -72,9 +72,12 @@ class NotificationSession(ClientSession):
             timeout = 20 if not self.proxy else 30
         # note: the semaphore implementation guarantees no starvation
         async with self.in_flight_requests_semaphore:
-            return await asyncio.wait_for(
-                super().send_request(*args, **kwargs),
-                timeout)
+            try:
+                return await asyncio.wait_for(
+                    super().send_request(*args, **kwargs),
+                    timeout)
+            except asyncio.TimeoutError as e:
+                raise GracefulDisconnect('request timed out: {}'.format(args)) from e
 
     async def subscribe(self, method, params, queue):
         # note: until the cache is written for the first time,
