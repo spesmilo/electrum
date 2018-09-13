@@ -39,13 +39,13 @@ def read_json(filename, default):
 class OceanMainnet:
 
     TESTNET = False
-    BASIC_HEADER_SIZE = 140
-    MIN_HEADER_SIZE = 144
+    BASIC_HEADER_SIZE = 172
+    MIN_HEADER_SIZE = 176
     WIF_PREFIX = 0x80
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
     SEGWIT_HRP = "bc"
-    GENESIS = "085bd64c8503b174830687e77ef54e0bef1e26b34d8eb2c55f6485f72d34f7f2"
+    GENESIS = "a46f19fe73b70ca70bfcfa4ed71994d8f10df5d017e7213adc14445669a6c3ce"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = []    # no handling for checkpoins
