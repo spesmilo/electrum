@@ -82,8 +82,10 @@ class AddressesAdapter(val wallet: PyObject, val addresses: PyObject)
     override fun onBindViewHolder(holder: BoundViewHolder<AddressModel>, position: Int) {
         super.onBindViewHolder(holder, position)
         holder.itemView.setOnClickListener { v ->
-            (v.context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                .text = holder.item .addrString
+            val addrString = holder.item.addrString
+            (v.context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).text =
+                if (clsAddress["FMT_UI"] == clsAddress["FMT_LEGACY"]) addrString
+                else "bitcoincash:" + addrString
             toast(R.string.address_copied)
         }
     }
