@@ -258,14 +258,14 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         return fee
 
     def test_UpdateFeeSenderCommits(self):
-        old_feerate = self.alice_channel.pending_local_feerate
+        old_feerate = self.alice_channel.pending_feerate(LOCAL)
         fee = self.alice_to_bob_fee_update()
 
         alice_channel, bob_channel = self.alice_channel, self.bob_channel
 
-        self.assertEqual(self.alice_channel.pending_local_feerate, old_feerate)
+        self.assertEqual(self.alice_channel.pending_feerate(LOCAL), old_feerate)
         alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
-        self.assertEqual(self.alice_channel.pending_local_feerate, old_feerate)
+        self.assertEqual(self.alice_channel.pending_feerate(LOCAL), old_feerate)
 
         bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
 

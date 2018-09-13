@@ -1,3 +1,4 @@
+from enum import IntFlag
 import json
 from collections import namedtuple
 from typing import NamedTuple
@@ -249,7 +250,7 @@ def make_htlc_tx_with_open_channel(chan, pcp, for_us, we_receive, amount_msat, c
     is_htlc_success = for_us == we_receive
     htlc_tx_output = make_htlc_tx_output(
         amount_msat = amount_msat,
-        local_feerate = chan.pending_local_feerate if for_us else chan.pending_remote_feerate,
+        local_feerate = chan.pending_feerate(LOCAL if for_us else REMOTE),
         revocationpubkey=revocation_pubkey,
         local_delayedpubkey=delayedpubkey,
         success = is_htlc_success,
@@ -432,3 +433,15 @@ def get_compressed_pubkey_from_bech32(bech32_pubkey: str) -> bytes:
 
 
 class PaymentFailure(Exception): pass
+
+class HTLCOwner(IntFlag):
+    LOCAL = 1
+    REMOTE = -LOCAL
+
+    SENT = LOCAL
+    RECEIVED = REMOTE
+
+SENT = HTLCOwner.SENT
+RECEIVED = HTLCOwner.RECEIVED
+LOCAL = HTLCOwner.LOCAL
+REMOTE = HTLCOwner.REMOTE
