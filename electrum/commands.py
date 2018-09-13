@@ -789,6 +789,12 @@ class Commands:
     def listchannels(self):
         return self.wallet.lnworker.list_channels()
 
+    @command('n')
+    def inject_fees(self, fees):
+        import ast
+        self.network.config.fee_estimates = ast.literal_eval(fees)
+        self.network.notify('fee')
+
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
     if x == 'true': return True
