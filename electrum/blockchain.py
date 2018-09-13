@@ -46,6 +46,7 @@ def serialize_header(res, get_hash = False):
     # special exception for current testnet
     if not constants.net.TESTNET:
         s += rev_hex(res.get('attestation_hash'))
+        s += rev_hex(res.get('mapping_hash'))
 
     s += int_to_hex(int(res.get('timestamp')), 4) +\
          int_to_hex(int(res.get('block_height')), 4)
@@ -58,7 +59,7 @@ def serialize_header(res, get_hash = False):
         s += int_to_hex(int(len(proof)/2), 1) + rev_hex(proof)
 
     return s
-    
+
 def deserialize_headers(s, height):
     headers = []
     # s is bytes format
@@ -86,6 +87,7 @@ def deserialize_header(s, height):
 
     if not constants.net.TESTNET:
         h['attestation_hash'] = hash_encode(s[100:132])
+        h['mapping_hash'] = hash_encode(s[132:164])
 
     h['timestamp'] = hex_to_int(s[constants.net.BASIC_HEADER_SIZE-8:constants.net.BASIC_HEADER_SIZE-4])
     h['block_height'] = height
@@ -252,7 +254,7 @@ class Blockchain(util.PrintError):
         for idx, header in enumerate(chunk):
             header_bytes = bfh(serialize_header(header))
             if idx + delta_height < 0:
-                delta_bytes += len(header_bytes) 
+                delta_bytes += len(header_bytes)
             header_data += header_bytes
             offset += len(header_bytes)
             offset_data += bfh(int_to_hex(offset, 8))
@@ -393,7 +395,7 @@ class Blockchain(util.PrintError):
         if height > self.height():
             return
         delta = height - self.forkpoint
-        
+
         name = self.path()
         self.assert_headers_file_available(name)
         with open(name, 'rb') as f:
