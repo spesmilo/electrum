@@ -704,6 +704,11 @@ class Commands:
     def listchannels(self):
         return self.wallet.lnworker.list_channels()
 
+    @command('n')
+    def inject_fees(self, fees):
+        import ast
+        self.network.config.fee_estimates = ast.literal_eval(fees)
+        self.network.notify('fee')
 
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',
