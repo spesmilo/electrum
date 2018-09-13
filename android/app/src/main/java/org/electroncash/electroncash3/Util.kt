@@ -51,11 +51,26 @@ class ToastException(message: String, val duration: Int = Toast.LENGTH_LONG)
     fun show() { toast(message!!, duration) }
 }
 
-fun toast(text: CharSequence, duration: Int = Toast.LENGTH_SHORT) {
-    Toast.makeText(App.context, text, duration).show()
+
+// Prevent toasts repeated in quick succession from staying on screen for a long time. If a
+// message has variable text, use the `key` argument to replace any existing toast with the
+// same key.
+//
+// This cache is never cleared, but since it only contains references to App.context, this
+// should be fine as long as the `key` argument is used where necessary.
+val toastCache = HashMap<String, Toast>()
+
+fun toast(text: CharSequence, duration: Int = Toast.LENGTH_SHORT, key: String? = null) {
+    val cacheKey = key ?: text.toString()
+    toastCache.get(cacheKey)?.cancel()
+    // Creating a new Toast each time is more robust than attempting to reuse the existing one.
+    val toast = Toast.makeText(App.context, text, duration)
+    toastCache.put(cacheKey, toast)
+    toast.show()
 }
-fun toast(resId: Int, duration: Int = Toast.LENGTH_SHORT) {
-    toast(App.context.getString(resId), duration)
+
+fun toast(resId: Int, duration: Int = Toast.LENGTH_SHORT, key: String? = null) {
+    toast(App.context.getString(resId), duration, key)
 }
 
 
