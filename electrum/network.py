@@ -619,9 +619,6 @@ class Network(PrintError):
 
     @aiosafe
     async def new_interface(self, server):
-        # todo: get tip first, then decide which checkpoint to use.
-        self.add_recent_server(server)
-
         interface = Interface(self, server, self.config.path, self.proxy)
         timeout = 10 if not self.proxy else 20
         try:
@@ -642,6 +639,7 @@ class Network(PrintError):
         if server == self.default_server:
             self.switch_to_interface(server)
 
+        self.add_recent_server(server)
         self.notify('interfaces')
 
     def init_headers_file(self):
