@@ -201,7 +201,7 @@ class Network(PrintError):
         self.recent_servers_lock = threading.RLock()       # <- re-entrant
         self.blockchains_lock = threading.Lock()
 
-        self.irc_servers = {}  # returned by interface (list from irc)
+        self.server_peers = {}  # returned by interface (servers that the main interface knows about)
         self.recent_servers = self.read_recent_servers()  # note: needs self.recent_servers_lock
 
         self.banner = ''
@@ -224,10 +224,11 @@ class Network(PrintError):
         self.auto_connect = self.config.get('auto_connect', True)
         self.connecting = set()
         self.requested_chunks = set()
-        self.socket_queue = queue.Queue()
+        self.server_queue = None
+        self.server_queue_group = None
+        self.asyncio_loop = asyncio.get_event_loop()
         self.start_network(deserialize_server(self.default_server)[2],
                            deserialize_proxy(self.config.get('proxy')))
-        self.asyncio_loop = asyncio.get_event_loop()
 
     @staticmethod
     def get_instance():
@@ -324,7 +325,7 @@ class Network(PrintError):
         async def get_donation_address():
             self.donation_address = await session.send_request('server.donation_address')
         async def get_server_peers():
-            self.irc_servers = parse_servers(await session.send_request('server.peers.subscribe'))
+            self.server_peers = parse_servers(await session.send_request('server.peers.subscribe'))
             self.notify('servers')
         async def get_relay_fee():
             relayfee = await session.send_request('blockchain.relayfee')
@@ -397,29 +398,32 @@ class Network(PrintError):
 
     @with_recent_servers_lock
     def get_servers(self):
+        # start with hardcoded servers
         out = constants.net.DEFAULT_SERVERS
-        if self.irc_servers:
-            out.update(filter_version(self.irc_servers.copy()))
-        else:
-            for s in self.recent_servers:
-                try:
-                    host, port, protocol = deserialize_server(s)
-                except:
-                    continue
-                if host not in out:
-                    out[host] = {protocol: port}
+        # add recent servers
+        for s in self.recent_servers:
+            try:
+                host, port, protocol = deserialize_server(s)
+            except:
+                continue
+            if host not in out:
+                out[host] = {protocol: port}
+        # add servers received from main interface
+        if self.server_peers:
+            out.update(filter_version(self.server_peers.copy()))
+        # potentially filter out some
         if self.config.get('noonion'):
             out = filter_noonion(out)
         return out
 
     @with_interface_lock
     def start_interface(self, server):
-        if (not server in self.interfaces and not server in self.connecting):
+        if server not in self.interfaces and server not in self.connecting:
             if server == self.default_server:
                 self.print_error("connecting to %s as new interface" % server)
                 self.set_status('connecting')
             self.connecting.add(server)
-            self.socket_queue.put(server)
+            self.server_queue.put(server)
 
     def start_random_interface(self):
         with self.interface_lock:
@@ -479,12 +483,23 @@ class Network(PrintError):
     @with_interface_lock
     def start_network(self, protocol: str, proxy: Optional[dict]):
         assert not self.interface and not self.interfaces
-        assert not self.connecting and self.socket_queue.empty()
+        assert not self.connecting and not self.server_queue
+        assert not self.server_queue_group
         self.print_error('starting network')
         self.disconnected_servers = set([])  # note: needs self.interface_lock
         self.protocol = protocol
+        self._init_server_queue()
         self.set_proxy(proxy)
         self.start_interface(self.default_server)
+
+    def _init_server_queue(self):
+        self.server_queue = queue.Queue()
+        self.server_queue_group = server_queue_group = TaskGroup()
+        async def job():
+            forever = asyncio.Event()
+            async with server_queue_group as group:
+                await group.spawn(forever.wait())
+        asyncio.run_coroutine_threadsafe(job(), self.asyncio_loop)
 
     @with_interface_lock
     def stop_network(self):
@@ -496,8 +511,13 @@ class Network(PrintError):
         assert self.interface is None
         assert not self.interfaces
         self.connecting.clear()
+        self._stop_server_queue()
+
+    def _stop_server_queue(self):
         # Get a new queue - no old pending connections thanks!
-        self.socket_queue = queue.Queue()
+        self.server_queue = None
+        asyncio.run_coroutine_threadsafe(self.server_queue_group.cancel_remaining(), self.asyncio_loop)
+        self.server_queue_group = None
 
     def set_parameters(self, net_params: NetworkParameters):
         proxy = net_params.proxy
@@ -577,7 +597,7 @@ class Network(PrintError):
                 # over unknown ones, i.e. start it again right away.
                 old_server = self.interface.server
                 self.close_interface(self.interface)
-                if len(self.interfaces) <= self.num_server:
+                if old_server != server and len(self.interfaces) <= self.num_server:
                     self.start_interface(old_server)
 
             self.interface = i
@@ -627,6 +647,12 @@ class Network(PrintError):
             #import traceback
             #traceback.print_exc()
             self.print_error(interface.server, "couldn't launch because", str(e), str(type(e)))
+            # note: connection_down will not call interface.close() as
+            # interface is not yet in self.interfaces. OTOH, calling
+            # interface.close() here will sometimes raise deep inside the
+            # asyncio internal select.select... instead, interface will close
+            # itself when it detects the cancellation of interface.ready;
+            # however this might take several seconds...
             self.connection_down(interface.server)
             return
         finally:
@@ -759,9 +785,9 @@ class Network(PrintError):
 
     async def maintain_sessions(self):
         while True:
-            while self.socket_queue.qsize() > 0:
-                server = self.socket_queue.get()
-                asyncio.get_event_loop().create_task(self.new_interface(server))
+            while self.server_queue.qsize() > 0:
+                server = self.server_queue.get()
+                await self.server_queue_group.spawn(self.new_interface(server))
             remove = []
             for k, i in self.interfaces.items():
                 if i.fut.done() and not i.exception:

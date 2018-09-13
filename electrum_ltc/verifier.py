@@ -90,7 +90,9 @@ class SPV(ThreadJob):
         tx_height = merkle.get('block_height')
         pos = merkle.get('pos')
         merkle_branch = merkle.get('merkle')
-        header = self.network.blockchain().read_header(tx_height)
+        # we need to wait if header sync/reorg is still ongoing, hence lock:
+        async with self.network.bhi_lock:
+            header = self.network.blockchain().read_header(tx_height)
         try:
             verify_tx_is_in_block(tx_hash, merkle_branch, pos, header, tx_height)
         except MerkleVerificationFailure as e:

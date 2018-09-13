@@ -88,7 +88,7 @@ class ElectrumGui:
         + "%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
         messages = []
 
-        for tx_hash, tx_mined_status, delta, balance in self.wallet.get_history():
+        for tx_hash, tx_mined_status, delta, balance in reversed(self.wallet.get_history()):
             if tx_mined_status.conf:
                 timestamp = tx_mined_status.timestamp
                 try:

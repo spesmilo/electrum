@@ -182,8 +182,10 @@ class ElectrumGui:
         self.maxpos = 6
 
     def print_banner(self):
-        if self.network:
-            self.print_list( self.network.banner.split('\n'))
+        if self.network and self.network.banner:
+            banner = self.network.banner
+            banner = banner.replace('\r', '')
+            self.print_list(banner.split('\n'))
 
     def print_qr(self, data):
         import qrcode
@@ -198,9 +200,15 @@ class ElectrumGui:
         self.qr.print_ascii(out=s, invert=False)
         msg = s.getvalue()
         lines = msg.split('\n')
-        for i, l in enumerate(lines):
-            l = l.encode("utf-8")
-            self.stdscr.addstr(i+5, 5, l, curses.color_pair(3))
+        try:
+            for i, l in enumerate(lines):
+                l = l.encode("utf-8")
+                self.stdscr.addstr(i+5, 5, l, curses.color_pair(3))
+        except curses.error:
+            m = 'error. screen too small?'
+            m = m.encode(self.encoding)
+            self.stdscr.addstr(5, 1, m, 0)
+
 
     def print_list(self, lst, firstline = None):
         lst = list(lst)
@@ -301,19 +309,22 @@ class ElectrumGui:
     def main(self):
 
         tty.setraw(sys.stdin)
-        while self.tab != -1:
-            self.run_tab(0, self.print_history, self.run_history_tab)
-            self.run_tab(1, self.print_send_tab, self.run_send_tab)
-            self.run_tab(2, self.print_receive, self.run_receive_tab)
-            self.run_tab(3, self.print_addresses, self.run_banner_tab)
-            self.run_tab(4, self.print_contacts, self.run_contacts_tab)
-            self.run_tab(5, self.print_banner, self.run_banner_tab)
-
-        tty.setcbreak(sys.stdin)
-        curses.nocbreak()
-        self.stdscr.keypad(0)
-        curses.echo()
-        curses.endwin()
+        try:
+            while self.tab != -1:
+                self.run_tab(0, self.print_history, self.run_history_tab)
+                self.run_tab(1, self.print_send_tab, self.run_send_tab)
+                self.run_tab(2, self.print_receive, self.run_receive_tab)
+                self.run_tab(3, self.print_addresses, self.run_banner_tab)
+                self.run_tab(4, self.print_contacts, self.run_contacts_tab)
+                self.run_tab(5, self.print_banner, self.run_banner_tab)
+        except curses.error as e:
+            raise Exception("Error with curses. Is your screen too small?") from e
+        finally:
+            tty.setcbreak(sys.stdin)
+            curses.nocbreak()
+            self.stdscr.keypad(0)
+            curses.echo()
+            curses.endwin()
 
 
     def do_clear(self):
