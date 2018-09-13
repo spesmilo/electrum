@@ -201,7 +201,7 @@ class Network(PrintError):
         self.recent_servers_lock = threading.RLock()       # <- re-entrant
         self.blockchains_lock = threading.Lock()
 
-        self.irc_servers = {}  # returned by interface (list from irc)
+        self.server_peers = {}  # returned by interface (servers that the main interface knows about)
         self.recent_servers = self.read_recent_servers()  # note: needs self.recent_servers_lock
 
         self.banner = ''
@@ -324,7 +324,7 @@ class Network(PrintError):
         async def get_donation_address():
             self.donation_address = await session.send_request('server.donation_address')
         async def get_server_peers():
-            self.irc_servers = parse_servers(await session.send_request('server.peers.subscribe'))
+            self.server_peers = parse_servers(await session.send_request('server.peers.subscribe'))
             self.notify('servers')
         async def get_relay_fee():
             relayfee = await session.send_request('blockchain.relayfee')
@@ -397,17 +397,20 @@ class Network(PrintError):
 
     @with_recent_servers_lock
     def get_servers(self):
+        # start with hardcoded servers
         out = constants.net.DEFAULT_SERVERS
-        if self.irc_servers:
-            out.update(filter_version(self.irc_servers.copy()))
-        else:
-            for s in self.recent_servers:
-                try:
-                    host, port, protocol = deserialize_server(s)
-                except:
-                    continue
-                if host not in out:
-                    out[host] = {protocol: port}
+        # add recent servers
+        for s in self.recent_servers:
+            try:
+                host, port, protocol = deserialize_server(s)
+            except:
+                continue
+            if host not in out:
+                out[host] = {protocol: port}
+        # add servers received from main interface
+        if self.server_peers:
+            out.update(filter_version(self.server_peers.copy()))
+        # potentially filter out some
         if self.config.get('noonion'):
             out = filter_noonion(out)
         return out
