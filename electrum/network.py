@@ -580,7 +580,7 @@ class Network(PrintError):
                 # over unknown ones, i.e. start it again right away.
                 old_server = self.interface.server
                 self.close_interface(self.interface)
-                if len(self.interfaces) <= self.num_server:
+                if old_server != server and len(self.interfaces) <= self.num_server:
                     self.start_interface(old_server)
 
             self.interface = i
