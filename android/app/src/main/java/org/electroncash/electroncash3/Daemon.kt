@@ -13,6 +13,7 @@ import com.chaquo.python.Python
 val WATCHDOG_INTERVAL = 1000L
 val py = Python.getInstance()
 val libMod = py.getModule("electroncash")!!
+val daemonMod = py.getModule("electroncash_gui.android.daemon")!!
 
 
 class DaemonModel(val app: Application) : AndroidViewModel(app) {
@@ -34,11 +35,14 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     val walletTransactions = MutableLiveData<PyObject>()
 
     init {
-        network.callAttr("register_callback",
-                         py.getModule("electroncash_gui.android.daemon")
-                             .callAttr("make_callback", this),
+        daemonMod.callAttr("set_excepthook", handler)
+
+        network.callAttr("register_callback", daemonMod.callAttr("make_callback", this),
                          consoleMod.get("CALLBACKS"))
         commands.callAttr("start")
+
+        // This is still necessary even with the excepthook, in case a thread exits
+        // non-exceptionally.
         watchdog = Runnable {
             for (thread in listOf(daemon, network)) {
                 if (! thread.callAttr("is_alive").toJava(Boolean::class.java)) {
@@ -48,6 +52,8 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
             handler.postDelayed(watchdog, WATCHDOG_INTERVAL)
         }
         watchdog.run()
+
+        onCallback("ui_startup")  // Set initial LiveData values.
     }
 
     fun onCallback(event: String) {
@@ -73,6 +79,7 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         handler.removeCallbacks(watchdog)
         commands.callAttr("stop")
+        daemonMod.callAttr("unset_excepthook")
     }
 
     // TODO remove once Chaquopy provides better syntax.

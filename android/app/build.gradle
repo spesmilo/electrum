@@ -7,7 +7,13 @@ apply plugin: 'com.chaquo.python'
 def REPO_ROOT = "../.."
 
 android {
+    compileOptions {
+        // Required by ACRA.
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
     compileSdkVersion 27
+
     defaultConfig {
         applicationId "org.electroncash.electroncash3"
         minSdkVersion 15
@@ -110,6 +116,11 @@ dependencies {
     implementation "com.android.support:support-v4:$supportVersion"
 
     implementation "android.arch.lifecycle:extensions:1.1.1"
+
+    def acraVersion = "5.2.0"
+    implementation "ch.acra:acra-core:$acraVersion"
+    implementation "ch.acra:acra-dialog:$acraVersion"
+    implementation "ch.acra:acra-http:$acraVersion"
 
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
