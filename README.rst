@@ -1,7 +1,7 @@
 ZCL Electrum - Zclassic Electrum (Lite) Client
 ==============================================
 
-Latest Release: https://github.com/BTCP-community/electrum-zcl/releases/
+Latest Release: https://github.com/z-classic/electrum-zcl/releases
 
 
 Viewing & Sending from Z addresses is not yet supported on this wallet.
@@ -16,14 +16,14 @@ Know about your data directory::
 
 You can also use 'Export Private Keys' and 'Show Seed' from inside the application to write down and store your funds.
 
-Please use the issue tracker for bug reports, feature requests, and other mission-critical information. It is actively monitored by the Zclassic development team. For general support, please visit our Discord: https://discord.gg/2PRZ5q
+Please use the issue tracker for bug reports, feature requests, and other mission-critical information. It is actively monitored by the Zclassic development team. For general support, please visit our Discord: https://discord.gg/45NNrMJ
 
 Development Version
 ===================
 
 First, clone from Github::
 
-    git clone https://github.com/BTCP-community/electrum-zcl
+    git clone https://github.com/z-classic/electrum-zcl.git
     cd electrum-zcl
 
 For Mac:
@@ -47,7 +47,7 @@ Using Homebrew::
     protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
 
     # Build .app, .dmg
-    ./create-dmg
+    ./create-dmg.sh
 
     # Run the .app in dist/, or
     ./electrum-zcl
@@ -151,12 +151,6 @@ Here is a good initial check to determine whether things are working (should suc
 
 The Zclassic Wiki is located at: https://github.com/z-classic/zclassic/wiki. Please use this as a reference and feel free to contribute.
 
-There is also an Electrum-ZCL wiki at: https://github.com/BTCP-community/electrum-zcl/wiki. It contains information about setting up the ElectrumX Server (https://github.com/BTCP-community/electrumx), which is the provider for block and peer data.
-
---
-
-Here is our roadmap for zk-SNARKs integration: https://github.com/BTCP-community/electrum-zcl/wiki/Shielded-Transactions
-
 
 Original Project Info
 ---------------------
@@ -181,6 +175,6 @@ Original Project Info
 
 ---
 
-The Zclassic Team
+The Zclassic CE Team
 
-ZCL: t1gsePJZ6ojJYygj3PWMGJfojPUoMd5AVfU
+ZCL: t3eYEnoMmfUV65CZvPvV2mfAUnfFGoFbkJu
