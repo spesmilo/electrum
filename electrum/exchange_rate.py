@@ -47,7 +47,8 @@ class ExchangeBase(PrintError):
         url = ''.join(['https://', site, get_string])
         async with make_aiohttp_session(Network.get_instance().proxy) as session:
             async with session.get(url) as response:
-                return await response.json()
+                # set content_type to None to disable checking MIME type
+                return await response.json(content_type=None)
 
     async def get_csv(self, site, get_string):
         raw = await self.get_raw(site, get_string)
