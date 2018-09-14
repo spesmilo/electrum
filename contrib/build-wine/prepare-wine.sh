@@ -111,16 +111,13 @@ done
 # upgrade pip
 $PYTHON -m pip install pip --upgrade
 
-# Install pywin32-ctypes (needed by pyinstaller)
-$PYTHON -m pip install pywin32-ctypes==0.1.2
-
 # install PySocks
 $PYTHON -m pip install win_inet_pton==1.0.1
 
 $PYTHON -m pip install -r $here/../deterministic-build/requirements-binaries.txt
 
 # Install PyInstaller
-$PYTHON -m pip install https://github.com/ecdsa/pyinstaller/archive/fix_2952.zip
+$PYTHON -m pip install pyinstaller==3.4
 
 # Install ZBar
 download_if_not_exist $ZBAR_FILENAME "$ZBAR_URL"
@@ -140,9 +137,6 @@ verify_hash $LIBUSB_FILENAME "$LIBUSB_SHA256"
 7z x -olibusb $LIBUSB_FILENAME -aoa
 
 cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
-
-# add dlls needed for pyinstaller:
-cp $WINEPREFIX/drive_c/python$PYTHON_VERSION/Lib/site-packages/PyQt5/Qt/bin/* $WINEPREFIX/drive_c/python$PYTHON_VERSION/
 
 mkdir -p $WINEPREFIX/drive_c/tmp
 cp secp256k1/libsecp256k1.dll $WINEPREFIX/drive_c/tmp/

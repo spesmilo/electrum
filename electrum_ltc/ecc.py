@@ -38,6 +38,7 @@ from ecdsa.util import string_to_number, number_to_string
 from .util import bfh, bh2u, assert_bytes, print_error, to_bytes, InvalidPassword, profiler
 from .crypto import (Hash, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
 from .ecc_fast import do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1
+from . import msqr
 
 
 do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
@@ -94,20 +95,19 @@ def point_to_ser(P, compressed=True) -> bytes:
     return bfh('04'+('%064x' % x)+('%064x' % y))
 
 
-def get_y_coord_from_x(x, odd=True):
+def get_y_coord_from_x(x: int, odd: bool=True) -> int:
     curve = curve_secp256k1
     _p = curve.p()
     _a = curve.a()
     _b = curve.b()
-    for offset in range(128):
-        Mx = x + offset
-        My2 = pow(Mx, 3, _p) + _a * pow(Mx, 2, _p) + _b % _p
-        My = pow(My2, (_p + 1) // 4, _p)
-        if curve.contains_point(Mx, My):
-            if odd == bool(My & 1):
-                return My
-            return _p - My
-    raise Exception('ECC_YfromX: No Y found')
+    x = x % _p
+    y2 = (pow(x, 3, _p) + _a * x + _b) % _p
+    y = msqr.modular_sqrt(y2, _p)
+    if curve.contains_point(x, y):
+        if odd == bool(y & 1):
+            return y
+        return _p - y
+    raise InvalidECPointException()
 
 
 def ser_to_point(ser: bytes) -> (int, int):
