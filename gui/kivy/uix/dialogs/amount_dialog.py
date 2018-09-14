@@ -13,21 +13,35 @@ Builder.load_string('''
         anchor_x: 'center'
         BoxLayout:
             orientation: 'vertical'
-            size_hint: 0.8, 1
+            size_hint: 0.9, 1
+            Widget:
+                size_hint: 1, 0.2
             BoxLayout:
                 size_hint: 1, None
                 height: '80dp'
-                Label:
-                    id: a
-                    btc_text: (kb.amount + ' ' + app.base_unit) if kb.amount else ''
-                    fiat_text: (kb.fiat_amount + ' ' + app.fiat_unit) if kb.fiat_amount else ''
-                    text1: ((self.fiat_text if kb.is_fiat else self.btc_text) if app.fiat_unit else self.btc_text) if self.btc_text else ''
-                    text2: ((self.btc_text if kb.is_fiat else self.fiat_text) if app.fiat_unit else '') if self.btc_text else ''
-                    text: self.text1 + "\\n" + "[color=#8888ff]" + self.text2 + "[/color]"
+                Button:
+                    background_color: 0, 0, 0, 0
+                    id: btc
+                    text: kb.amount + ' ' + app.base_unit
+                    color: (0.7, 0.7, 1, 1) if kb.is_fiat else (1, 1, 1, 1)
                     halign: 'right'
                     size_hint: 1, None
-                    font_size: '22dp'
-                    height: '80dp'
+                    font_size: '20dp'
+                    height: '48dp'
+                    on_release:
+                        kb.is_fiat = False
+                Button:
+                    background_color: 0, 0, 0, 0
+                    id: fiat
+                    text: kb.fiat_amount + ' ' + app.fiat_unit
+                    color: (1, 1, 1, 1) if kb.is_fiat else (0.7, 0.7, 1, 1)
+                    halign: 'right'
+                    size_hint: 1, None
+                    font_size: '20dp'
+                    height: '48dp'
+                    disabled: not app.fx.is_enabled()
+                    on_release:
+                        kb.is_fiat = True
             Widget:
                 size_hint: 1, 0.2
             GridLayout:
@@ -65,6 +79,9 @@ Builder.load_string('''
                     text: '0'
                 KButton:
                     text: '<'
+                Widget:
+                    size_hint: 1, None
+                    height: '48dp'
                 Button:
                     id: but_max
                     opacity: 1 if root.show_max else 0
@@ -75,13 +92,6 @@ Builder.load_string('''
                     on_release:
                         kb.is_fiat = False
                         kb.amount = app.get_max_amount()
-                Button:
-                    id: button_fiat
-                    size_hint: 1, None
-                    height: '48dp'
-                    text: (app.base_unit if not kb.is_fiat else app.fiat_unit) if app.fiat_unit else ''
-                    on_release:
-                        if app.fiat_unit: popup.toggle_fiat(kb)
                 Button:
                     size_hint: 1, None
                     height: '48dp'
@@ -102,7 +112,7 @@ Builder.load_string('''
                     height: '48dp'
                     text: _('OK')
                     on_release:
-                        root.callback(a.btc_text)
+                        root.callback(btc.text if kb.amount else '')
                         popup.dismiss()
 ''')
 
@@ -116,9 +126,6 @@ class AmountDialog(Factory.Popup):
         self.callback = cb
         if amount:
             self.ids.kb.amount = amount
-
-    def toggle_fiat(self, a):
-        a.is_fiat = not a.is_fiat
 
     def update_amount(self, c):
         kb = self.ids.kb

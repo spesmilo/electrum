@@ -19,56 +19,57 @@
 <HistoryItem@CardItem>
     icon: 'atlas://gui/kivy/theming/light/important'
     message: ''
-    value: 0
+    is_mine: True
     amount: '--'
-    amount_color: '#FF6657' if self.value < 0 else '#2EA442'
+    action: _('Sent') if self.is_mine else _('Received')
+    amount_color: '#FF6657' if self.is_mine else '#2EA442'
     confirmations: 0
     date: ''
     quote_text: ''
-    spacing: '9dp'
     Image:
         id: icon
         source: root.icon
         size_hint: None, 1
-        width: self.height *.54
+        allow_stretch: True
+        width: self.height*1.5
         mipmap: True
     BoxLayout:
         orientation: 'vertical'
         Widget
         CardLabel:
-            text: root.date
-            font_size: '14sp'
+            text:
+                u'[color={color}]{s}[/color]'.format(s='<<' if root.is_mine else '>>', color=root.amount_color)\
+                + ' ' + root.action + ' ' + (root.quote_text if app.is_fiat else root.amount)
+            font_size: '15sp'
         CardLabel:
             color: .699, .699, .699, 1
-            font_size: '13sp'
+            font_size: '14sp'
             shorten: True
-            text: root.message
+            text: root.date + '   ' + root.message
         Widget
-    CardLabel:
-        halign: 'right'
-        font_size: '15sp'
-        size_hint: None, 1
-        width: '110sp'
-        markup: True
-        font_name: font_light
-        text:
-            u'[color={amount_color}]{sign}{amount} {unit}[/color]\n'\
-            u'[color=#B2B3B3][size=13sp]{qt}[/size]'\
-            u'[/color]'.format(amount_color=root.amount_color,\
-            amount=root.amount[1:], qt=root.quote_text, sign=root.amount[0],\
-            unit=app.base_unit)
+
 
 
 HistoryScreen:
     name: 'history'
     content: content
-    ScrollView:
-        id: content
-        do_scroll_x: False
-        GridLayout
-            id: history_container
-            cols: 1
-            size_hint: 1, None
-            height: self.minimum_height
-            padding: '12dp'
-            spacing: '2dp'
+    BoxLayout:
+        orientation: 'vertical'
+        Button:
+            background_color: 0, 0, 0, 0
+            text: app.fiat_balance if app.is_fiat else app.balance
+            markup: True
+            color: .9, .9, .9, 1
+            font_size: '30dp'
+            bold: True
+            size_hint: 1, 0.25
+            on_release: app.is_fiat = not app.is_fiat if app.fx.is_enabled() else False
+        ScrollView:
+            id: content
+            do_scroll_x: False
+            size_hint: 1, 0.75
+            GridLayout
+                id: history_container
+                cols: 1
+                size_hint: 1, None
+                height: self.minimum_height

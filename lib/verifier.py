@@ -36,15 +36,22 @@ class SPV(ThreadJob):
         self.merkle_roots = {}
 
     def run(self):
+        interface = self.network.interface
+        if not interface:
+            return
+        blockchain = interface.blockchain
+        if not blockchain:
+            return
         lh = self.network.get_local_height()
         unverified = self.wallet.get_unverified_txs()
         for tx_hash, tx_height in unverified.items():
             # do not request merkle branch before headers are available
             if (tx_height > 0) and (tx_height <= lh):
-                header = self.network.blockchain().read_header(tx_height)
-                if header is None and self.network.interface:
-                    index = tx_height // NetworkConstants.CHUNK_SIZE
-                    self.network.request_chunk(self.network.interface, index)
+                header = blockchain.read_header(tx_height)
+                if header is None:
+                    index = tx_height // constants.net.CHUNK_SIZE
+                    if index < len(blockchain.checkpoints):
+                        self.network.request_chunk(interface, index)
                 else:
                     if tx_hash not in self.merkle_roots:
                         request = ('blockchain.transaction.get_merkle',
@@ -58,6 +65,8 @@ class SPV(ThreadJob):
             self.undo_verifications()
 
     def verify_merkle(self, r):
+        if self.wallet.verifier is None:
+            return  # we have been killed, this was just an orphan callback
         if r.get('error'):
             self.print_error('received an error:', r)
             return
@@ -70,17 +79,26 @@ class SPV(ThreadJob):
         pos = merkle.get('pos')
         merkle_root = self.hash_merkle_root(merkle['merkle'], tx_hash, pos)
         header = self.network.blockchain().read_header(tx_height)
-        if not header or header.get('merkle_root') != merkle_root:
-            # FIXME: we should make a fresh connection to a server to
-            # recover from this, as this TX will now never verify
-            self.print_error("merkle verification failed for", tx_hash)
+        # FIXME: if verification fails below,
+        # we should make a fresh connection to a server to
+        # recover from this, as this TX will now never verify
+        if not header:
+            self.print_error(
+                "merkle verification failed for {} (missing header {})"
+                .format(tx_hash, tx_height))
+            return
+        if header.get('merkle_root') != merkle_root:
+            self.print_error(
+                "merkle verification failed for {} (merkle root mismatch {} != {})"
+                .format(tx_hash, header.get('merkle_root'), merkle_root))
             return
         # we passed all the tests
         self.merkle_roots[tx_hash] = merkle_root
         self.print_error("verified %s" % tx_hash)
         self.wallet.add_verified_tx(tx_hash, (tx_height, header.get('timestamp'), pos))
 
-    def hash_merkle_root(self, merkle_s, target_hash, pos):
+    @classmethod
+    def hash_merkle_root(cls, merkle_s, target_hash, pos):
         h = hash_decode(target_hash)
         for i in range(len(merkle_s)):
             item = merkle_s[i]

@@ -32,7 +32,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import (
     QAbstractItemView, QFileDialog, QMenu, QTreeWidgetItem)
-from .util import MyTreeWidget
+from .util import MyTreeWidget, import_meta_gui, export_meta_gui
 
 
 class ContactList(MyTreeWidget):
@@ -53,12 +53,10 @@ class ContactList(MyTreeWidget):
         self.parent.set_contact(item.text(0), item.text(1))
 
     def import_contacts(self):
-        wallet_folder = self.parent.get_wallet_folder()
-        filename, __ = QFileDialog.getOpenFileName(self.parent, "Select your wallet file", wallet_folder)
-        if not filename:
-            return
-        self.parent.contacts.import_file(filename)
-        self.on_update()
+        import_meta_gui(self.parent, _('contacts'), self.parent.contacts.import_file, self.on_update)
+
+    def export_contacts(self):
+        export_meta_gui(self.parent, _('contacts'), self.parent.contacts.export_file)
 
     def create_menu(self, position):
         menu = QMenu()
@@ -66,16 +64,17 @@ class ContactList(MyTreeWidget):
         if not selected:
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
             menu.addAction(_("Import file"), lambda: self.import_contacts())
+            menu.addAction(_("Export file"), lambda: self.export_contacts())
         else:
             names = [item.text(0) for item in selected]
             keys = [item.text(1) for item in selected]
             column = self.currentColumn()
             column_title = self.headerItem().text(column)
             column_data = '\n'.join([item.text(column) for item in selected])
-            menu.addAction(_("Copy %s")%column_title, lambda: self.parent.app.clipboard().setText(column_data))
+            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
             if column in self.editable_columns:
                 item = self.currentItem()
-                menu.addAction(_("Edit %s")%column_title, lambda: self.editItem(item, column))
+                menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(item, column))
             menu.addAction(_("Pay to"), lambda: self.parent.payto_contacts(keys))
             menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(keys))
             URLs = [block_explorer_URL(self.config, 'addr', key) for key in filter(is_address, keys)]
