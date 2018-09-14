@@ -2962,8 +2962,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             update_exchanges()
             self.history_list.refresh_headers()
             if self.fx.is_enabled() and checked:
-                # reset timeout to get historical rates
-                self.fx.timeout = 0
+                self.fx.trigger_update()
             update_history_capgains_cb()
 
         def on_history_capgains(checked):
@@ -3025,7 +3024,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.exec_()
 
         if self.fx:
-            self.fx.timeout = 0
+            self.fx.trigger_update()
 
         self.alias_received_signal.disconnect(set_alias_color)
 
