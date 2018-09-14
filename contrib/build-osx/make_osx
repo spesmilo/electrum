@@ -30,7 +30,7 @@ fail "Unable to use Python $PYTHON_VERSION"
 
 
 info "Installing pyinstaller"
-python3 -m pip install git+https://github.com/ecdsa/pyinstaller@fix_2952 -I --user || fail "Could not install pyinstaller"
+python3 -m pip install -I --user pyinstaller==3.4 || fail "Could not install pyinstaller"
 
 info "Using these versions for building $PACKAGE:"
 sw_vers
