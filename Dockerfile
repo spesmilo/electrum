@@ -1,12 +1,12 @@
 FROM ubuntu:18.04
 
-ENV VERSION 1.0.2
+ENV VERSION 1.0.7
 
 RUN set -x \
     && apt-get update \
     && apt-get install -y curl \
     && curl -sL https://github.com/z-classic/electrum-zcl/archive/${VERSION}.tar.gz |tar xzv \
-    && mv electrum-zcl-Z-${VERSION} electrum-zcl \
+    && mv electrum-zcl-${VERSION} electrum-zcl \
     && cd electrum-zcl \
     && apt-get install -y $(grep -vE "^\s*#" packages.txt  | tr "\n" " ") \
     && pip3 install -r requirements.txt \

@@ -5,7 +5,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules, coll
 import sys
 import os
 
-PACKAGE='Electrum'
+PACKAGE='Electrum-ZCL'
 PYPKG='electrum'
 MAIN_SCRIPT='electrum'
 ICONS_FILE='electrum.icns'

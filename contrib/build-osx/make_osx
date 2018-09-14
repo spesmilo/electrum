@@ -20,8 +20,8 @@ VERSION=`git describe --tags`
 # Paramterize
 PYTHON_VERSION=3.6.4
 BUILDDIR=/tmp/electrum-build
-PACKAGE=Electrum
-GIT_REPO=https://github.com/spesmilo/electrum
+PACKAGE=Electrum-ZCL
+GIT_REPO=https://github.com/z-classic/electrum-zcl
 
 
 info "Installing Python $PYTHON_VERSION"
@@ -81,4 +81,4 @@ info "Building binary"
 pyinstaller --noconfirm --ascii --name $VERSION contrib/build-osx/osx.spec || fail "Could not build binary"
 
 info "Creating .DMG"
-hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION.dmg || fail "Could not create .DMG"
+hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/Electrum-ZCL-$VERSION.dmg || fail "Could not create .DMG"
