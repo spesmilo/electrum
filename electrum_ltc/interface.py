@@ -40,6 +40,7 @@ from . import x509
 from . import pem
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from . import blockchain
+from .blockchain import Blockchain
 from . import constants
 
 
@@ -367,14 +368,13 @@ class Interface(PrintError):
                 raise GracefulDisconnect('server tip below max checkpoint')
             self.mark_ready()
             async with self.network.bhi_lock:
-                if self.blockchain.height() < header['block_height']-1:
+                if self.blockchain.height() < height - 1:
                     _, height = await self.sync_until(height, None)
                 if self.blockchain.height() >= height and self.blockchain.check_header(header):
                     # another interface amended the blockchain
                     self.print_error("skipping header", height)
                     continue
-                if self.tip < height:
-                    height = self.tip
+                height = min(height, self.tip)
                 _, height = await self.step(height, header)
 
     async def sync_until(self, height, next_height=None):
@@ -400,68 +400,29 @@ class Interface(PrintError):
 
     async def step(self, height, header=None):
         assert height != 0
+        assert height <= self.tip, (height, self.tip)
         if header is None:
             header = await self.get_block_header(height, 'catchup')
         chain = self.blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
         if chain: return 'catchup', height
         can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
 
-        bad_header = None
         if not can_connect:
             self.print_error("can't connect", height)
-            #backward
-            bad = height
-            bad_header = header
-            height -= 1
-            checkp = False
-            if height <= constants.net.max_checkpoint():
-                height = constants.net.max_checkpoint()
-                checkp = True
-
-            header = await self.get_block_header(height, 'backward')
+            height, header, bad, bad_header = await self._search_headers_backwards(height, header)
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
-            if checkp and not (can_connect or chain):
-                raise Exception("server chain conflicts with checkpoints. {} {}".format(can_connect, chain))
-            while not chain and not can_connect:
-                bad = height
-                bad_header = header
-                delta = self.tip - height
-                next_height = self.tip - 2 * delta
-                checkp = False
-                if next_height <= constants.net.max_checkpoint():
-                    next_height = constants.net.max_checkpoint()
-                    checkp = True
-                height = next_height
-
-                header = await self.get_block_header(height, 'backward')
-                chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
-                can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
-                if checkp and not (can_connect or chain):
-                    raise Exception("server chain conflicts with checkpoints. {} {}".format(can_connect, chain))
-            self.print_error("exiting backward mode at", height)
+            assert chain or can_connect
         if can_connect:
             self.print_error("could connect", height)
-            chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
-
-            if type(can_connect) is bool:
-                # mock
-                height += 1
-                if height > self.tip:
-                    assert False
-                return 'catchup', height
-            self.blockchain = can_connect
             height += 1
-            self.blockchain.save_header(header)
+            if isinstance(can_connect, Blockchain):  # not when mocking
+                self.blockchain = can_connect
+                self.blockchain.save_header(header)
             return 'catchup', height
 
-        if not chain:
-            raise Exception("not chain") # line 931 in 8e69174374aee87d73cd2f8005fbbe87c93eee9c's network.py
-
         # binary
-        if type(chain) in [int, bool]:
-            pass # mock
-        else:
+        if isinstance(chain, Blockchain):  # not when mocking
             self.blockchain = chain
         good = height
         height = (bad + good) // 2
@@ -470,13 +431,12 @@ class Interface(PrintError):
             self.print_error("binary step")
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             if chain:
-                assert bad != height, (bad, height)
                 good = height
                 self.blockchain = self.blockchain if type(chain) in [bool, int] else chain
             else:
                 bad = height
-                assert good != height
                 bad_header = header
+            assert good < bad, (good, bad)
             if bad != good + 1:
                 height = (bad + good) // 2
                 header = await self.get_block_header(height, 'binary')
@@ -487,9 +447,7 @@ class Interface(PrintError):
                 raise Exception('unexpected bad header during binary' + str(bad_header)) # line 948 in 8e69174374aee87d73cd2f8005fbbe87c93eee9c's network.py
             branch = blockchain.blockchains.get(bad)
             if branch is not None:
-                ismocking = False
-                if type(branch) is dict:
-                    ismocking = True
+                ismocking = type(branch) is dict
                 # FIXME: it does not seem sufficient to check that the branch
                 # contains the bad_header. what if self.blockchain doesn't?
                 # the chains shouldn't be joined then. observe the incorrect
@@ -509,15 +467,14 @@ class Interface(PrintError):
                         height = bad
                         header = await self.get_block_header(height, 'binary')
                     else:
+                        height = bad + 1
                         if ismocking:
-                            height = bad + 1
                             self.print_error("TODO replace blockchain")
                             return 'conflict', height
                         self.print_error('forkpoint conflicts with existing fork', branch.path())
                         branch.write(b'', 0)
                         branch.save_header(bad_header)
                         self.blockchain = branch
-                        height = bad + 1
                         return 'conflict', height
             else:
                 bh = self.blockchain.height()
@@ -542,6 +499,31 @@ class Interface(PrintError):
                         self.print_error("catching up from %d"% (bh + 1))
                         height = bh + 1
                     return 'no_fork', height
+
+    async def _search_headers_backwards(self, height, header):
+        async def iterate():
+            nonlocal height, header
+            checkp = False
+            if height <= constants.net.max_checkpoint():
+                height = constants.net.max_checkpoint()
+                checkp = True
+            header = await self.get_block_header(height, 'backward')
+            chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+            can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
+            if chain or can_connect:
+                return False
+            if checkp:
+                raise Exception("server chain conflicts with checkpoints")
+            return True
+
+        bad, bad_header = height, header
+        height -= 1
+        while await iterate():
+            bad, bad_header = height, header
+            delta = self.tip - height
+            height = self.tip - 2 * delta
+        self.print_error("exiting backward mode at", height)
+        return height, header, bad, bad_header
 
 
 def check_cert(host, cert):

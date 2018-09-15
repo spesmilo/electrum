@@ -661,7 +661,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.do_update_fee()
             self.require_fee_update = False
         self.notify_transactions()
-        
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, self.num_zeros, self.decimal_point, is_diff=is_diff, whitespaces=whitespaces)
@@ -2273,8 +2272,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             public_key = ecc.ECPubkey(bfh(pubkey_e.text()))
         except BaseException as e:
-            traceback.print_exc(file=sys.stdout)            
-            self.show_warning(_('Invalid Public key')) 
+            traceback.print_exc(file=sys.stdout)
+            self.show_warning(_('Invalid Public key'))
             return
         encrypted = public_key.encrypt_message(message)
         encrypted_e.setText(encrypted.decode('ascii'))
@@ -2936,9 +2935,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 exchanges = self.fx.get_exchanges_by_ccy(c, h)
             else:
                 exchanges = self.fx.get_exchanges_by_ccy('USD', False)
+            ex_combo.blockSignals(True)
             ex_combo.clear()
             ex_combo.addItems(sorted(exchanges))
             ex_combo.setCurrentIndex(ex_combo.findText(self.fx.config_exchange()))
+            ex_combo.blockSignals(False)
 
         def on_currency(hh):
             if not self.fx: return
@@ -2962,8 +2963,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             update_exchanges()
             self.history_list.refresh_headers()
             if self.fx.is_enabled() and checked:
-                # reset timeout to get historical rates
-                self.fx.timeout = 0
+                self.fx.trigger_update()
             update_history_capgains_cb()
 
         def on_history_capgains(checked):
@@ -3025,7 +3025,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.exec_()
 
         if self.fx:
-            self.fx.timeout = 0
+            self.fx.trigger_update()
 
         self.alias_received_signal.disconnect(set_alias_color)
 

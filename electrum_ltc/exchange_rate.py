@@ -47,7 +47,8 @@ class ExchangeBase(PrintError):
         url = ''.join(['https://', site, get_string])
         async with make_aiohttp_session(Network.get_instance().proxy) as session:
             async with session.get(url) as response:
-                return await response.json()
+                # set content_type to None to disable checking MIME type
+                return await response.json(content_type=None)
 
     async def get_csv(self, site, get_string):
         raw = await self.get_raw(site, get_string)
@@ -346,13 +347,13 @@ class FxThread(ThreadJob):
         self.ccy_combo = None
         self.hist_checkbox = None
         self.cache_dir = os.path.join(config.path, 'cache')
-        self.trigger = asyncio.Event()
-        self.trigger.set()
+        self._trigger = asyncio.Event()
+        self._trigger.set()
         self.set_exchange(self.config_exchange())
         make_dir(self.cache_dir)
 
     def set_proxy(self, trigger_name, *args):
-        self.trigger.set()
+        self._trigger.set()
 
     def get_currencies(self, h):
         d = get_exchanges_by_ccy(h)
@@ -374,11 +375,11 @@ class FxThread(ThreadJob):
     async def run(self):
         while True:
             try:
-                await asyncio.wait_for(self.trigger.wait(), 150)
+                await asyncio.wait_for(self._trigger.wait(), 150)
             except concurrent.futures.TimeoutError:
                 pass
             else:
-                self.trigger.clear()
+                self._trigger.clear()
                 if self.is_enabled():
                     if self.show_history():
                         self.exchange.get_historical_rates(self.ccy, self.cache_dir)
@@ -390,7 +391,7 @@ class FxThread(ThreadJob):
 
     def set_enabled(self, b):
         self.config.set_key('use_exchange_rate', bool(b))
-        self.trigger.set()
+        self.trigger_update()
 
     def get_history_config(self):
         return bool(self.config.get('history_rates'))
@@ -423,8 +424,12 @@ class FxThread(ThreadJob):
     def set_currency(self, ccy):
         self.ccy = ccy
         self.config.set_key('currency', ccy, True)
-        self.trigger.set()  # Because self.ccy changes
+        self.trigger_update()
         self.on_quotes()
+
+    def trigger_update(self):
+        if self.network:
+            self.network.asyncio_loop.call_soon_threadsafe(self._trigger.set)
 
     def set_exchange(self, name):
         class_ = globals().get(name, BitcoinAverage)
@@ -434,7 +439,7 @@ class FxThread(ThreadJob):
         self.exchange = class_(self.on_quotes, self.on_history)
         # A new exchange means new fx quotes, initially empty.  Force
         # a quote refresh
-        self.trigger.set()
+        self.trigger_update()
         self.exchange.read_historical_rates(self.ccy, self.cache_dir)
 
     def on_quotes(self):
