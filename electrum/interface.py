@@ -374,8 +374,7 @@ class Interface(PrintError):
                     # another interface amended the blockchain
                     self.print_error("skipping header", height)
                     continue
-                if self.tip < height:
-                    height = self.tip
+                height = min(height, self.tip)
                 _, height = await self.step(height, header)
 
     async def sync_until(self, height, next_height=None):
@@ -417,7 +416,6 @@ class Interface(PrintError):
         if can_connect:
             self.print_error("could connect", height)
             height += 1
-            assert height <= self.tip, (height, self.tip)
             if isinstance(can_connect, Blockchain):  # not when mocking
                 self.blockchain = can_connect
                 self.blockchain.save_header(header)
@@ -469,15 +467,14 @@ class Interface(PrintError):
                         height = bad
                         header = await self.get_block_header(height, 'binary')
                     else:
+                        height = bad + 1
                         if ismocking:
-                            height = bad + 1
                             self.print_error("TODO replace blockchain")
                             return 'conflict', height
                         self.print_error('forkpoint conflicts with existing fork', branch.path())
                         branch.write(b'', 0)
                         branch.save_header(bad_header)
                         self.blockchain = branch
-                        height = bad + 1
                         return 'conflict', height
             else:
                 bh = self.blockchain.height()
