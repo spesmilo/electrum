@@ -367,7 +367,7 @@ class Interface(PrintError):
                 raise GracefulDisconnect('server tip below max checkpoint')
             self.mark_ready()
             async with self.network.bhi_lock:
-                if self.blockchain.height() < header['block_height']-1:
+                if self.blockchain.height() < height - 1:
                     _, height = await self.sync_until(height, None)
                 if self.blockchain.height() >= height and self.blockchain.check_header(header):
                     # another interface amended the blockchain
@@ -406,57 +406,22 @@ class Interface(PrintError):
         if chain: return 'catchup', height
         can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
 
-        bad_header = None
         if not can_connect:
             self.print_error("can't connect", height)
-            #backward
-            bad = height
-            bad_header = header
-            height -= 1
-            checkp = False
-            if height <= constants.net.max_checkpoint():
-                height = constants.net.max_checkpoint()
-                checkp = True
-
-            header = await self.get_block_header(height, 'backward')
+            height, header, bad, bad_header = await self._search_headers_backwards(height, header)
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
-            if checkp and not (can_connect or chain):
-                raise Exception("server chain conflicts with checkpoints. {} {}".format(can_connect, chain))
-            while not chain and not can_connect:
-                bad = height
-                bad_header = header
-                delta = self.tip - height
-                next_height = self.tip - 2 * delta
-                checkp = False
-                if next_height <= constants.net.max_checkpoint():
-                    next_height = constants.net.max_checkpoint()
-                    checkp = True
-                height = next_height
-
-                header = await self.get_block_header(height, 'backward')
-                chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
-                can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
-                if checkp and not (can_connect or chain):
-                    raise Exception("server chain conflicts with checkpoints. {} {}".format(can_connect, chain))
-            self.print_error("exiting backward mode at", height)
+            assert chain or can_connect
         if can_connect:
             self.print_error("could connect", height)
-            chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
-
+            height += 1
             if type(can_connect) is bool:
                 # mock
-                height += 1
-                if height > self.tip:
-                    assert False
+                assert height <= self.tip
                 return 'catchup', height
             self.blockchain = can_connect
-            height += 1
             self.blockchain.save_header(header)
             return 'catchup', height
-
-        if not chain:
-            raise Exception("not chain") # line 931 in 8e69174374aee87d73cd2f8005fbbe87c93eee9c's network.py
 
         # binary
         if type(chain) in [int, bool]:
@@ -542,6 +507,32 @@ class Interface(PrintError):
                         self.print_error("catching up from %d"% (bh + 1))
                         height = bh + 1
                     return 'no_fork', height
+
+    async def _search_headers_backwards(self, height, header):
+        async def iterate():
+            nonlocal height, header
+            checkp = False
+            if height <= constants.net.max_checkpoint():
+                height = constants.net.max_checkpoint()
+                checkp = True
+            header = await self.get_block_header(height, 'backward')
+            chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+            can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
+            if chain or can_connect:
+                return False
+            if checkp:
+                raise Exception("server chain conflicts with checkpoints. {} {}".format(can_connect, chain))
+            return True
+
+        bad, bad_header = height, header
+        height -= 1
+        header = None
+        while await iterate():
+            bad, bad_header = height, header
+            delta = self.tip - height
+            height = self.tip - 2 * delta
+        self.print_error("exiting backward mode at", height)
+        return height, header, bad, bad_header
 
 
 def check_cert(host, cert):
