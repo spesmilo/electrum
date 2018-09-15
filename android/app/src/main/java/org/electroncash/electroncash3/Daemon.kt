@@ -15,7 +15,11 @@ val py by lazy {
     Python.getInstance()
 }
 val libMod by lazy { py.getModule("electroncash")!! }
-val daemonMod by lazy { py.getModule("electroncash_gui.android.daemon")!! }
+val daemonMod by lazy {
+    val mod =  py.getModule("electroncash_gui.android.daemon")!!
+    mod.callAttr("set_excepthook", mainHandler)
+    mod
+}
 
 val WATCHDOG_INTERVAL = 1000L
 
@@ -38,8 +42,7 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     val walletTransactions = MutableLiveData<PyObject>()
 
     init {
-        daemonMod.callAttr("set_excepthook", mainHandler)
-
+        checkAcra()
         network.callAttr("register_callback", daemonMod.callAttr("make_callback", this),
                          consoleMod.get("CALLBACKS"))
         commands.callAttr("start")
@@ -82,7 +85,6 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         mainHandler.removeCallbacks(watchdog)
         commands.callAttr("stop")
-        daemonMod.callAttr("unset_excepthook")
     }
 
     // TODO remove once Chaquopy provides better syntax.

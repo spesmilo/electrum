@@ -5,41 +5,28 @@ import sys
 import threading
 
 
-# Patch the threading module to use sys.excepthook, which it currently doesn't
-# (https://bugs.python.org/issue1230540).
-init_original = threading.Thread.__init__
-def Thread_init(self, *args, **kwargs):
-    init_original(self, *args, **kwargs)
-    run_original = self.run
-    def run(*args2, **kwargs2):
-        try:
-            run_original(*args2, **kwargs2)
-        except:  # noqa: E722
-            sys.excepthook(*sys.exc_info())
-    self.run = run
-
-threading.Thread.__init__ = Thread_init
-
-
-excepthook_original = None
-
-# Sets sys.excepthook to reraise the exception on the thread of the given Handler.
+# Patch the threading module to reraise any unhandled exceptions on the thread of the given
+# Handler. We don't use sys.excepthook, because it isn't used by non-main threads
+# (https://bugs.python.org/issue1230540), but it *is* used for unhandled exceptions in the
+# InteractiveConsole, which we don't want.
 def set_excepthook(handler):
-    global excepthook_original
-    assert excepthook_original is None
-    excepthook_original = sys.excepthook
     def excepthook(type, value, traceback):
         class R(dynamic_proxy(Runnable)):
             def run(self):
                 six.reraise(type, value, traceback)
         handler.post(R())
-    sys.excepthook = excepthook
 
-def unset_excepthook():
-    global excepthook_original
-    if excepthook_original is not None:
-        sys.excepthook = excepthook_original
-        excepthook_original = None
+    init_original = threading.Thread.__init__
+    def Thread_init(self, *args, **kwargs):
+        init_original(self, *args, **kwargs)
+        run_original = self.run
+        def run(*args2, **kwargs2):
+            try:
+                run_original(*args2, **kwargs2)
+            except:  # noqa: E722
+                excepthook(*sys.exc_info())
+        self.run = run
+    threading.Thread.__init__ = Thread_init
 
 
 def make_callback(daemon_model):

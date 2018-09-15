@@ -1,28 +1,45 @@
 package org.electroncash.electroncash3
 
 import android.content.Context
-import android.text.Html
 import android.view.View
 import android.widget.TextView
-import com.chaquo.python.Python
+import org.acra.ACRA
 import org.acra.config.CoreConfiguration
+import org.acra.config.CoreConfigurationBuilder
 import org.acra.data.CrashReportData
 import org.acra.data.StringFormat
 import org.acra.dialog.CrashReportDialog
 import org.acra.file.CrashReportPersister
 import org.acra.interaction.DialogInteraction
+import org.acra.scheduler.SchedulerStarter
 import org.acra.sender.HttpSender
 import org.acra.sender.ReportSender
 import org.acra.sender.ReportSenderFactory
+import org.acra.util.ApplicationStartupProcessor
 import org.json.JSONObject
 import java.io.File
 
 
-val DIALOG_TEMPLATE =  """
-    <p>%s %s</p>            <!-- Message -->
-    <p>%s: %s <br> %s</p>   <!-- Exception -->
-    <p>%s</p>               <!-- App info -->
-""".trimIndent()
+lateinit var acraConfig: CoreConfiguration
+
+fun initAcra(app: App) {
+    // If the user neither approves nor dismisses a report, ACRA will by default show it again
+    // the next time the app starts. But its dialog will appear over the SplashActivity, and
+    // then be hidden a few seconds later by the MainActivity. The `false` parameter below
+    // prevents this; we will call `checkAcra` later once the UI has stabilized.
+    acraConfig = CoreConfigurationBuilder(app).build()
+    ACRA.init(app, acraConfig, false)
+}
+
+fun checkAcra() {
+    ApplicationStartupProcessor(app, acraConfig, SchedulerStarter(app, acraConfig))
+        .checkReports(true)
+}
+
+
+val DIALOG_TEMPLATE =  ("%s %s\n\n" +       // Message
+                        "%s: %s\n%s\n\n" +  // Exception
+                        "%s\n")             // App info
 
 val KEYS_IN_TEMPLATE = listOf("id", "exc_string", "stack", "description")
 
@@ -37,16 +54,11 @@ class CrashhubDialog : CrashReportDialog() {
                     appInfo.add("$key: ${json.getString(key)}")
                 }
             }
-            setText(Html.fromHtml(String.format(
+            setText(String.format(
                 DIALOG_TEMPLATE, getString (R.string.something_went), getString(R.string.to_help),
                 json.getJSONObject("id").getString("type"), json.getString("exc_string"),
-                stackToHtml(json.getString("stack")),
-                appInfo.joinToString("<br>"))))
+                json.getString("stack"), appInfo.joinToString("\n")))
         }
-    }
-
-    private fun stackToHtml(stack: String): String {
-        return stack.replace("<", "&lt;").replace(">", "&gt").replace("\n", "<br>")
     }
 }
 
@@ -110,7 +122,7 @@ fun reportToJson(report: CrashReportData): JSONObject {
         (report.get("CRASH_CONFIGURATION") as JSONObject).getString("locale")
     }
     putJson(json, "python_version") {
-        Python.getInstance().getModule("sys").get("version").toString()
+        py.getModule("sys").get("version").toString()
             .replace("\n", " ")  // https://github.com/bauerj/crashhub/issues/8
     }
 

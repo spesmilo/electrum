@@ -8,7 +8,6 @@ import android.content.SharedPreferences
 import android.os.Build
 import android.os.Handler
 import android.preference.PreferenceManager
-import org.acra.ACRA
 import org.acra.annotation.AcraCore
 import org.acra.annotation.AcraDialog
 
@@ -28,7 +27,7 @@ class App : Application() {
 
     override fun attachBaseContext(base: Context?) {
         super.attachBaseContext(base)
-        ACRA.init(this)
+        initAcra(this)
     }
 
     override fun onCreate() {
