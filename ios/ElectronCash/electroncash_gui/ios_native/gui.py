@@ -218,6 +218,8 @@ class ElectrumGui(PrintError):
         self.cash_addr_sig = utils.PySig()
 
         self.tx_notifications = list()
+        self.tx_notify_timer = None
+        self.tx_notify_last_ts = 0.0
         self.helper = None
         self.helperTimer = None
         self.lowMemoryToken = None
@@ -228,6 +230,10 @@ class ElectrumGui(PrintError):
         self.queued_refresh_components = set()
         self.queued_refresh_components_mut = threading.Lock()
         self.last_refresh = 0
+        self.refresh_rate_min = 0.300
+        self.refresh_rate_max = 5.0
+        self.refresh_rate_current = self.refresh_rate_min
+        self.refresh_cost_stats = dict()
         
         self.keyEnclave = utils.SecureKeyEnclave(self.appDomain)
         self.encPasswords = utils.FileBackedDict(os.path.join(self.config.path, 'enc_pws.json'))
@@ -394,6 +400,9 @@ class ElectrumGui(PrintError):
         self.networkVC = None
         self.prefsVC = None
         self.prefsNav = None
+        if self.tx_notify_timer is not None:
+            self.tx_notify_timer.invalidate()
+            self.tx_notify_timer = None
         if self.helperTimer is not None:
             self.helperTimer.invalidate()
             self.helperTimer = None
@@ -677,30 +686,46 @@ class ElectrumGui(PrintError):
     def notify_transactions(self):
         if not self.daemon.network or not self.daemon.network.is_connected():
             return
-        self.print_error("Notifying GUI")
+
         if len(self.tx_notifications) > 0:
-            if not self.wallet:
-                # spurious call, walled closed. kill all tx notifications since they are irrelevant at this point, and return
-                self.tx_notifications = list()
+
+            if self.tx_notify_timer:
+                # already have a timer active, return early
                 return
-            # Combine the transactions if there are at least 2
-            num_txns = len(self.tx_notifications)
-            if num_txns >= 2:
-                total_amount = 0
-                for tx in self.tx_notifications:
-                    is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                    if v > 0:
-                        total_amount += v
-                self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
-                            .format(num_txns, self.format_amount_and_units(total_amount)))
-                self.tx_notifications = []
+
+            def do_notify_cb():
+                n_ok = 0
+                if self.wallet and self.daemon.network and self.daemon.network.is_connected(): # check for spurious call or walled closed.
+                    num_txns = len(self.tx_notifications)
+                    if num_txns:
+                        # Combine the transactions if there are at least 2
+                        total_amount = 0
+                        for tx in self.tx_notifications:
+                            if tx:
+                                is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
+                                if v > 0 and is_relevant:
+                                    total_amount += v
+                                    n_ok += 1
+                        if n_ok:
+                            self.print_error("Notifying GUI %d tx"%(n_ok))
+                            if n_ok > 1:
+                                self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
+                                            .format(n_ok, self.format_amount_and_units(total_amount)))
+                            else:
+                                self.notify(_("New transaction received: {}").format(self.format_amount_and_units(total_amount)))
+                self.tx_notify_timer = None
+                self.tx_notifications = list()
+                self.tx_notify_last_ts = time.time() if n_ok else self.tx_notify_last_ts
+            # end do_notify_cb
+
+            elapsed_since_last_notify = time.time() - self.tx_notify_last_ts
+            if elapsed_since_last_notify < 15.0:
+                # we have been spammed tx notifications, so set up a timer to deliver them later
+                self.tx_notify_timer = utils.call_later(15.0-elapsed_since_last_notify, do_notify_cb)
             else:
-                for tx in self.tx_notifications:
-                    if tx:
-                        self.tx_notifications.remove(tx)
-                        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                        if v > 0:
-                            self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))
+                # no spam, do it immediately
+                do_notify_cb()
+
 
     def notify(self, message):
         lines = message.split(': ')
@@ -1112,8 +1137,8 @@ class ElectrumGui(PrintError):
         if {dummy} == components: # spurious self-call
             abortEarly = True
         else:
-            if diff < 0.300: 
-                # rate-limit to 300ms between refreshes
+            if diff < self.refresh_rate_current:
+                # rate-limit to at least 300ms between refreshes
                 doLater = True
                 self.queued_refresh_components = components.copy()
             else:
@@ -1129,7 +1154,7 @@ class ElectrumGui(PrintError):
             # enqueue a call to this function at most 1 times
             if not qsize:
                 #print("refresh_components: rate limiting.. calling later ",diff,"(",*args,")")
-                utils.call_later((0.300-diff) + 0.010, lambda: self.refresh_components(dummy))
+                utils.call_later((self.refresh_rate_current-diff) + 0.010, lambda: self.refresh_components(dummy))
             else:
                 # already had a queue -- this means another call_later() is pending, so do nothing but return and assume subsequent
                 # call_later() will execute this function in the future.
@@ -1173,6 +1198,38 @@ class ElectrumGui(PrintError):
             signalled.add(self.sigWallets)
             self.sigWallets.emit()
 
+    def refresh_cost(self, component : str, time_cost : float) -> None:
+        l = self.refresh_cost_stats.get(component, list())
+        if not len(l): self.refresh_cost_stats[component] = l
+        l.insert(0, (time_cost, time.time()))
+        self.refresh_rate_update()
+
+    def refresh_rate_update(self) -> None:
+        now = time.time()
+        the_times = list()
+        for comp in self.refresh_cost_stats.keys():
+            stats = self.refresh_cost_stats.get(comp)
+            # 1. take the last 30 seconds worth of refresh timestamps, per component
+            # 2. insert them in a list
+            # 3. order the list in descending order
+            # 4. take the worst case time, add 250ms. That's the refresh rate limit.
+            for i in range(len(stats)):
+                cost, ts = stats[i]
+                if now - ts < 30.0:
+                    the_times.append(cost)
+                else:
+                    # got to entries that are too old, purge list
+                    stats = stats[:i]
+                    break
+        the_times.sort(reverse=True)
+        rate = the_times[0] if len(the_times) else 0.0
+        rate = rate + 0.250
+        #utils.NSLog("Computed %f rate limit, len(the_times)=%d, len(refresh_cost_stats)=%d", limit, len(the_times), len(self.refresh_cost_stats) )
+        if rate < self.refresh_rate_min: rate = self.refresh_rate_min # minimum 300ms rate
+        elif rate > self.refresh_rate_max: rate = self.refresh_rate_max # maximum 5.0 sec rate
+        self.refresh_rate_current = rate
+        utils.NSLog("Component refresh rate set to: %f", self.refresh_rate_current)
+
     def empty_caches(self, doEmit = False):
         self.sigHistory.emptyCache(noEmit=not doEmit)
         self.sigRequests.emptyCache(noEmit=not doEmit)
@@ -1197,6 +1254,9 @@ class ElectrumGui(PrintError):
                 # make sure that all our tabs are on the root viewcontroller.
                 # (this is to remove stale addresses, coins, contacts, etc screens from old wallet which are irrelevant to this new wallet)
                 if isinstance(vcs[i], UINavigationController): vcs[i].popToRootViewControllerAnimated_(False)
+            self.tx_notifications = list() # make sure the tx_notifications are reset when we open a new wallet
+            self.refresh_cost_stats = dict()
+            self.refresh_rate_current = self.refresh_rate_min
             self.refresh_all()
 
             def onWalletDelayed() -> None:

@@ -682,7 +682,8 @@ class CoinsMgr(utils.DataMgr):
     def doReloadForKey(self, key : Any) -> Any:
         t0 = time.time()    
         c = get_coins(key)
-        utils.NSLog("CoinsMgr: Fetched %d utxo entries [domain=%s] in %f ms", len(c), str(key)[:16], (time.time()-t0)*1e3)
+        elapsed = time.time()-t0
+        utils.NSLog("CoinsMgr: Fetched %d utxo entries [domain=%s] in %f ms", len(c), str(key)[:16], elapsed*1e3)
         return c
 
 def get_coin_counts(domain : list, exclude_frozen : bool = False, mature : bool = False, confirmed_only : bool = False) -> int:

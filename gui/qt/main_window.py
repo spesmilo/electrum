@@ -128,6 +128,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.externalpluginsdialog = None
         self.require_fee_update = False
         self.tx_notifications = []
+        self.tx_notify_timer = None
         self.tl_windows = []
         self.tx_external_keypairs = {}
 
@@ -455,7 +456,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if filename in recent:
             recent.remove(filename)
         recent.insert(0, filename)
-        recent = recent[:5]
+        recent2 = []
+        for k in recent:
+            if os.path.exists(k):
+                recent2.append(k)
+        recent = recent2[:5]
         self.config.set_key('recently_open', recent)
         self.recently_visited_menu.clear()
         for i, k in enumerate(sorted(recent)):
@@ -592,35 +597,54 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
          ])
         self.show_message(msg, title="Electron Cash - " + _("Reporting Bugs"))
 
-    last_notify_transactions_time = 0
+    last_notify_tx_time = 0.0
+    notify_tx_rate = 30.0
 
-    def notify_transactions(self):
-        if not self.network or not self.network.is_connected():
-            return
-        if time.time() - self.last_notify_transactions_time < 5.0:
-            return
-
-        self.print_error("Notifying GUI")
-        if len(self.tx_notifications) > 0:
-            self.last_notify_transactions_time = time.time()
-            # Combine the transactions if there are at least three
+    def notify_tx_cb(self):
+        n_ok = 0
+        if self.network and self.network.is_connected() and self.wallet:
             num_txns = len(self.tx_notifications)
-            if num_txns >= 3:
+            if num_txns:
+                # Combine the transactions
                 total_amount = 0
                 for tx in self.tx_notifications:
-                    is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                    if v > 0:
-                        total_amount += v
-                self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
-                            .format(num_txns, self.format_amount_and_units(total_amount)))
-                self.tx_notifications = []
-            else:
-                for tx in self.tx_notifications:
                     if tx:
-                        self.tx_notifications.remove(tx)
                         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                        if v > 0:
-                            self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))
+                        if v > 0 and is_relevant:
+                            total_amount += v
+                            n_ok += 1
+                if n_ok:
+                    self.print_error("Notifying GUI %d tx"%(n_ok))
+                    if n_ok > 1:
+                        self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
+                                    .format(n_ok, self.format_amount_and_units(total_amount)))
+                    else:
+                        self.notify(_("New transaction received: {}").format(self.format_amount_and_units(total_amount)))
+        self.tx_notifications = list()
+        self.last_notify_tx_time = time.time() if n_ok else self.last_notify_tx_time
+        if self.tx_notify_timer:
+            self.tx_notify_timer.stop()
+            self.tx_notify_timer = None
+
+
+    def notify_transactions(self):
+        if self.tx_notify_timer:
+            # extant notify timer -- we got some tx's enqueued to notify. So bail and wait for timer to handle it.
+            return
+        elapsed = time.time() - self.last_notify_tx_time
+        if elapsed < self.notify_tx_rate:
+            # spam control. force tx notify popup to not appear more often than every 30 seconds by enqueing the request for a timer to
+            # handle it sometime later
+            self.tx_notify_timer = QTimer(self)
+            self.tx_notify_timer.setSingleShot(True)
+            self.tx_notify_timer.timeout.connect(self.notify_tx_cb)
+            when = (self.notify_tx_rate - elapsed)
+            self.print_error("Notify spam control: will notify GUI of %d new tx's in %f seconds"%(len(self.tx_notifications),when))
+            self.tx_notify_timer.start(when * 1e3) # time in ms
+        else:
+            # it's been a while since we got a tx notify -- so do it immediately (no timer necessary)
+            self.notify_tx_cb()
+
 
     def notify(self, message):
         if self.tray:
@@ -2069,6 +2093,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.gui_object.daemon.stop_wallet(wallet_path)
         self.close()
         os.unlink(wallet_path)
+        self.update_recently_visited(wallet_path) # this ensures it's deleted from the menu
         self.show_error("Wallet removed:" + basename)
 
     @protected

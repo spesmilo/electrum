@@ -134,7 +134,9 @@ class HistoryMgr(utils.DataMgr):
         if unk:
             utils.NSLog("HistoryMgr: failed to retrieve any data for unknown domain=%s, returning empty list",dstr[:80])
         else:
-            utils.NSLog("HistoryMgr: refresh %d entries for domain=%s in %f ms%s", len(hist), dstr[:80],(time.time()-t0)*1e3,duped)
+            time_taken = time.time()-t0
+            utils.NSLog("HistoryMgr: refresh %d entries for domain=%s in %f ms%s", len(hist), dstr[:80],time_taken*1e3,duped)
+            gui.ElectrumGui.gui.refresh_cost('history', time_taken)
         return hist
 
 _tx_cell_height = 76.0 # TxHistoryCell height in points
