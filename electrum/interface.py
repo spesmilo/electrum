@@ -40,6 +40,7 @@ from . import x509
 from . import pem
 from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from . import blockchain
+from .blockchain import Blockchain
 from . import constants
 
 
@@ -400,6 +401,7 @@ class Interface(PrintError):
 
     async def step(self, height, header=None):
         assert height != 0
+        assert height <= self.tip, (height, self.tip)
         if header is None:
             header = await self.get_block_header(height, 'catchup')
         chain = self.blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
@@ -415,18 +417,14 @@ class Interface(PrintError):
         if can_connect:
             self.print_error("could connect", height)
             height += 1
-            if type(can_connect) is bool:
-                # mock
-                assert height <= self.tip
-                return 'catchup', height
-            self.blockchain = can_connect
-            self.blockchain.save_header(header)
+            assert height <= self.tip, (height, self.tip)
+            if isinstance(can_connect, Blockchain):  # not when mocking
+                self.blockchain = can_connect
+                self.blockchain.save_header(header)
             return 'catchup', height
 
         # binary
-        if type(chain) in [int, bool]:
-            pass # mock
-        else:
+        if isinstance(chain, Blockchain):  # not when mocking
             self.blockchain = chain
         good = height
         height = (bad + good) // 2
@@ -435,13 +433,12 @@ class Interface(PrintError):
             self.print_error("binary step")
             chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
             if chain:
-                assert bad != height, (bad, height)
                 good = height
                 self.blockchain = self.blockchain if type(chain) in [bool, int] else chain
             else:
                 bad = height
-                assert good != height
                 bad_header = header
+            assert good < bad, (good, bad)
             if bad != good + 1:
                 height = (bad + good) // 2
                 header = await self.get_block_header(height, 'binary')
@@ -452,9 +449,7 @@ class Interface(PrintError):
                 raise Exception('unexpected bad header during binary' + str(bad_header)) # line 948 in 8e69174374aee87d73cd2f8005fbbe87c93eee9c's network.py
             branch = blockchain.blockchains.get(bad)
             if branch is not None:
-                ismocking = False
-                if type(branch) is dict:
-                    ismocking = True
+                ismocking = type(branch) is dict
                 # FIXME: it does not seem sufficient to check that the branch
                 # contains the bad_header. what if self.blockchain doesn't?
                 # the chains shouldn't be joined then. observe the incorrect
@@ -521,12 +516,11 @@ class Interface(PrintError):
             if chain or can_connect:
                 return False
             if checkp:
-                raise Exception("server chain conflicts with checkpoints. {} {}".format(can_connect, chain))
+                raise Exception("server chain conflicts with checkpoints")
             return True
 
         bad, bad_header = height, header
         height -= 1
-        header = None
         while await iterate():
             bad, bad_header = height, header
             delta = self.tip - height
