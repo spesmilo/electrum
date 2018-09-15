@@ -3,21 +3,24 @@ package org.electroncash.electroncash3
 import android.app.Application
 import android.arch.lifecycle.AndroidViewModel
 import android.arch.lifecycle.MutableLiveData
-import android.os.Handler
 import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
 import com.chaquo.python.Python
+import com.chaquo.python.android.AndroidPlatform
 
+
+val py by lazy {
+    Python.start(AndroidPlatform(app))
+    Python.getInstance()
+}
+val libMod by lazy { py.getModule("electroncash")!! }
+val daemonMod by lazy { py.getModule("electroncash_gui.android.daemon")!! }
 
 val WATCHDOG_INTERVAL = 1000L
-val py = Python.getInstance()
-val libMod = py.getModule("electroncash")!!
-val daemonMod = py.getModule("electroncash_gui.android.daemon")!!
 
 
 class DaemonModel(val app: Application) : AndroidViewModel(app) {
-    val handler = Handler()
     val consoleMod = py.getModule("electroncash_gui.android.ec_console")
 
     val commands = consoleMod.callAttr("AllCommands")!!
@@ -35,7 +38,7 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     val walletTransactions = MutableLiveData<PyObject>()
 
     init {
-        daemonMod.callAttr("set_excepthook", handler)
+        daemonMod.callAttr("set_excepthook", mainHandler)
 
         network.callAttr("register_callback", daemonMod.callAttr("make_callback", this),
                          consoleMod.get("CALLBACKS"))
@@ -49,7 +52,7 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
                     throw RuntimeException("$thread unexpectedly stopped")
                 }
             }
-            handler.postDelayed(watchdog, WATCHDOG_INTERVAL)
+            mainHandler.postDelayed(watchdog, WATCHDOG_INTERVAL)
         }
         watchdog.run()
 
@@ -77,7 +80,7 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
-        handler.removeCallbacks(watchdog)
+        mainHandler.removeCallbacks(watchdog)
         commands.callAttr("stop")
         daemonMod.callAttr("unset_excepthook")
     }

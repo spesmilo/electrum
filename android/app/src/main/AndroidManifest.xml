@@ -15,14 +15,14 @@
             android:name=".ECConsoleActivity"
             android:label="@string/console"
             android:launchMode="singleInstance"/>
-        <activity
-            android:name=".MainActivity"
-            android:label="@string/app_name">
+        <activity android:name=".SplashActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <activity
+            android:name=".MainActivity"/>
         <activity
             android:name=".CrashhubDialog"
             android:process=":acra"
