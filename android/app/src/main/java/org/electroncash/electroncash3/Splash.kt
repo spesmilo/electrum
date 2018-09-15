@@ -26,6 +26,7 @@ class SplashModel : ViewModel() {
     val thread = Thread {
         // Start Python and load electroncash module: this may take several seconds.
         libMod.id()
+        daemonMod.id()  // See android/daemon.py
         ready.postValue(Unit)
     }
 

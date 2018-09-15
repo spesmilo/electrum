@@ -72,4 +72,5 @@
     <string name="something_went">Something went wrong running Electron Cash.</string>
     <string name="to_help">To help us diagnose and fix the problem, you can send us a bug report that contains useful debug information:</string>
     <string name="please_briefly">Please briefly describe what led to the error (optional):</string>
+    <string name="synchronizing">Synchronizing</string>
 </resources>

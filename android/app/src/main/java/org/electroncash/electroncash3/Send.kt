@@ -90,7 +90,7 @@ class SendPasswordDialog : PasswordDialog() {
     override fun onPassword(password: String?) {
         val tx = daemonModel.makeTx(arguments!!.getString("address"),
                                     arguments!!.getLong("amount"), password)
-        if (daemonModel.height.value == null) {
+        if (daemonModel.netStatus.value == null) {
             throw ToastException(getString(R.string.offline) + "\n" +
                                  getString(R.string.cannot_send))
         }

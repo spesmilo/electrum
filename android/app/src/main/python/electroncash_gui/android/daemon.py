@@ -5,6 +5,20 @@ import sys
 import threading
 
 
+# Stop Java-created threads from being marked as daemon. An exception is made for the thread
+# that Python was started on, but that is now a transient background thread and not the main
+# Java thread.
+#
+# TODO remove once this is incorporated into Chaquopy. Also remove the reference to this module
+# in Splash.kt, which is there to make sure this code is executed before any DummyThreads are
+# created.
+DummyThread_init_original = threading._DummyThread.__init__
+def DummyThread_init(self):
+    DummyThread_init_original(self)
+    self._daemonic = False
+threading._DummyThread.__init__ = DummyThread_init
+
+
 # Patch the threading module to reraise any unhandled exceptions on the thread of the given
 # Handler. We don't use sys.excepthook, because it isn't used by non-main threads
 # (https://bugs.python.org/issue1230540), but it *is* used for unhandled exceptions in the

@@ -45,7 +45,6 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="4dp"
-                android:text="@{model.walletBalance}"
                 android:textAppearance="@style/Value.Large"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintStart_toStartOf="@+id/tvWalletName"
@@ -59,7 +58,6 @@
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="4dp"
                 android:layout_marginStart="4dp"
-                android:text="@{model.walletName != null ? @string/bch : @string/touch_to_load}"
                 app:layout_constraintBaseline_toBaselineOf="@+id/tvBalance"
                 app:layout_constraintStart_toEndOf="@+id/tvBalance"
                 tools:text="@string/bch"/>

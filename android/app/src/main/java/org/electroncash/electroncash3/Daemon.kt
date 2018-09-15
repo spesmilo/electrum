@@ -34,15 +34,17 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     val wallet: PyObject?
         get() = commands.get("wallet")
 
+    lateinit var callback: Runnable
     lateinit var watchdog: Runnable
 
-    val height = MutableLiveData<Int>()
+    val netStatus = MutableLiveData<NetworkStatus>()
     val walletName = MutableLiveData<String>()
-    val walletBalance = MutableLiveData<String>()
+    val walletBalance = MutableLiveData<Long>()
     val walletTransactions = MutableLiveData<PyObject>()
 
     init {
         checkAcra()
+        initCallback()
         network.callAttr("register_callback", daemonMod.callAttr("make_callback", this),
                          consoleMod.get("CALLBACKS"))
         commands.callAttr("start")
@@ -58,28 +60,41 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
             mainHandler.postDelayed(watchdog, WATCHDOG_INTERVAL)
         }
         watchdog.run()
+    }
 
+    fun initCallback() {
+        callback = Runnable {
+            if (network.callAttr("is_connected").toJava(Boolean::class.java)) {
+                netStatus.value = NetworkStatus(
+                    network.callAttr("get_local_height").toJava(Int::class.java),
+                    network.callAttr("get_server_height").toJava(Int::class.java))
+            } else {
+                netStatus.value = null
+            }
+
+            val wallet = this.wallet
+            if (wallet != null) {
+                walletName.value = wallet.callAttr("basename").toString()
+                if (wallet.callAttr("is_up_to_date").toJava(Boolean::class.java)) {
+                    val balances = wallet.callAttr("get_balance")  // Returns (confirmed, unconfirmed, unmatured)
+                    walletBalance.value = balances.callAttr("__getitem__", 0).toJava(Long::class.java)
+                } else {
+                    walletBalance.value = null
+                }
+                walletTransactions.value = wallet.callAttr("export_history")
+            } else {
+                for (ld in listOf(walletName, walletBalance, walletTransactions)) {
+                    ld.value = null
+                }
+            }
+        }
         onCallback("ui_startup")  // Set initial LiveData values.
     }
 
+    // This will sometimes be called on the main thread and sometimes on the network thread.
     fun onCallback(event: String) {
-        if (network.callAttr("is_connected").toJava(Boolean::class.java)) {
-            height.postValue (network.callAttr("get_local_height").toJava(Int::class.java))
-        } else {
-            height.postValue(null)
-        }
-
-        val wallet = this.wallet
-        if (wallet != null) {
-            walletName.postValue(wallet.callAttr("basename").toString())
-            walletBalance.postValue(commands.callAttr("getbalance")  // TODO make unit configurable
-                                    .callAttr("__getitem__", "confirmed").toString())
-            walletTransactions.postValue(wallet.callAttr("export_history"))
-        } else {
-            for (ld in listOf(walletName, walletBalance, walletTransactions)) {
-                ld.postValue(null)
-            }
-        }
+        mainHandler.removeCallbacks(callback)  // Mitigate callback floods.
+        mainHandler.post(callback)
     }
 
     override fun onCleared() {
@@ -130,3 +145,6 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
         }
     }
 }
+
+
+data class NetworkStatus(val localHeight: Int, val serverHeight: Int)

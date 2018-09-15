@@ -21,10 +21,14 @@ class WalletsFragment : MainFragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setHasOptionsMenu(true)
-        daemonModel.height.observe(this, Observer { height ->
-            if (height != null) {
+        daemonModel.netStatus.observe(this, Observer { status ->
+            if (status != null) {
                 title.value = getString(R.string.online)
-                subtitle.value = "${getString(R.string.height)} $height"
+                subtitle.value = if (status.localHeight < status.serverHeight) {
+                    "${getString(R.string.synchronizing)} ${status.localHeight}/${status.serverHeight}"
+                } else {
+                    "${getString(R.string.height)} ${status.localHeight}"
+                }
             } else {
                 title.value = getString(R.string.offline)
                 subtitle.value = getString(R.string.cannot_send)
@@ -67,6 +71,14 @@ class WalletsFragment : MainFragment() {
         walletPanel.setOnClickListener {
             showDialog(activity!!, SelectWalletDialog())
         }
+        daemonModel.walletBalance.observe(this, Observer { balance ->
+            tvBalance.text = if (balance == null) "" else formatSatoshis(balance)
+            tvBalanceUnit.text = when {
+                daemonModel.wallet == null -> getString(R.string.touch_to_load)
+                balance == null -> getString(R.string.synchronizing)
+                else -> unitName
+            }
+        })
 
         with (rvTransactions) {
             layoutManager = LinearLayoutManager(activity)
