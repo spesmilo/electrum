@@ -314,6 +314,7 @@ class Interface(PrintError):
 
     async def get_block_header(self, height, assert_mode):
         # use lower timeout as we usually have network.bhi_lock here
+        self.print_error('requesting block header {} in mode {}'.format(height, assert_mode))
         timeout = 5 if not self.proxy else 10
         res = await self.session.send_request('blockchain.block.header', [height], timeout=timeout)
         return blockchain.deserialize_header(bytes.fromhex(res), height)
@@ -385,20 +386,20 @@ class Interface(PrintError):
                 raise GracefulDisconnect('server tip below max checkpoint')
             self.mark_ready()
             async with self.network.bhi_lock:
-                if self.blockchain.height() < height - 1:
-                    _, height = await self.sync_until(height, None)
                 if self.blockchain.height() >= height and self.blockchain.check_header(header):
                     # another interface amended the blockchain
                     self.print_error("skipping header", height)
                     continue
-                height = min(height, self.tip)
                 _, height = await self.step(height, header)
+                # in the simple case, height == self.tip+1
+                if height <= self.tip:
+                    await self.sync_until(height)
 
     async def sync_until(self, height, next_height=None):
         if next_height is None:
             next_height = self.tip
         last = None
-        while last is None or height < next_height:
+        while last is None or height <= next_height:
             if next_height > height + 10:
                 could_connect, num_headers = await self.request_chunk(height, next_height)
                 if not could_connect:
@@ -463,7 +464,9 @@ class Interface(PrintError):
             if not real and not mock:
                 raise Exception('unexpected bad header during binary' + str(bad_header)) # line 948 in 8e69174374aee87d73cd2f8005fbbe87c93eee9c's network.py
             branch = blockchain.blockchains.get(bad)
+            self.print_error("binary search exited. good {}, bad {}".format(good, bad))
             if branch is not None:
+                self.print_error("existing fork found at bad height {}".format(bad))
                 ismocking = type(branch) is dict
                 # FIXME: it does not seem sufficient to check that the branch
                 # contains the bad_header. what if self.blockchain doesn't?
@@ -477,24 +480,18 @@ class Interface(PrintError):
                     height += 1
                     return 'join', height
                 else:
-                    if not ismocking and branch.parent().check_header(header) \
-                            or ismocking and branch['parent']['check'](header):
-                        self.print_error('reorg', bad, self.tip)
-                        self.blockchain = branch.parent() if not ismocking else branch['parent']
-                        height = bad
-                        header = await self.get_block_header(height, 'binary')
-                    else:
-                        height = bad + 1
-                        if ismocking:
-                            self.print_error("TODO replace blockchain")
-                            return 'conflict', height
-                        self.print_error('forkpoint conflicts with existing fork', branch.path())
-                        branch.write(b'', 0)
-                        branch.save_header(bad_header)
-                        self.blockchain = branch
+                    height = bad + 1
+                    if ismocking:
+                        self.print_error("TODO replace blockchain")
                         return 'conflict', height
+                    self.print_error('forkpoint conflicts with existing fork', branch.path())
+                    branch.write(b'', 0)
+                    branch.save_header(bad_header)
+                    self.blockchain = branch
+                    return 'conflict', height
             else:
                 bh = self.blockchain.height()
+                self.print_error("no existing fork yet at bad height {}. local chain height: {}".format(bad, bh))
                 if bh > good:
                     forkfun = self.blockchain.fork
                     if 'mock' in bad_header:

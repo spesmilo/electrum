@@ -49,7 +49,7 @@ class TestNetwork(unittest.TestCase):
         self.interface.q.put_nowait({'block_height': 5, 'mock': {'binary':1,'check':lambda x: True, 'connect': lambda x: True}})
         self.interface.q.put_nowait({'block_height': 6, 'mock': {'binary':1,'check':lambda x: True, 'connect': lambda x: True}})
         ifa = self.interface
-        self.assertEqual(('fork', 8), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=8)))
+        self.assertEqual(('fork', 8), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=7)))
         self.assertEqual(self.interface.q.qsize(), 0)
 
     def test_new_can_connect_during_backward(self):
@@ -62,7 +62,7 @@ class TestNetwork(unittest.TestCase):
         self.interface.q.put_nowait({'block_height': 3, 'mock': {'catchup':1, 'check': lambda x: False, 'connect': lambda x: True}})
         self.interface.q.put_nowait({'block_height': 4, 'mock': {'catchup':1, 'check': lambda x: False, 'connect': lambda x: True}})
         ifa = self.interface
-        self.assertEqual(('catchup', 5), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=5)))
+        self.assertEqual(('catchup', 5), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=4)))
         self.assertEqual(self.interface.q.qsize(), 0)
 
     def mock_fork(self, bad_header):
@@ -79,7 +79,7 @@ class TestNetwork(unittest.TestCase):
         self.interface.q.put_nowait({'block_height': 5, 'mock': {'catchup':1, 'check': lambda x: False, 'connect': lambda x: True}})
         self.interface.q.put_nowait({'block_height': 6, 'mock': {'catchup':1, 'check': lambda x: False, 'connect': lambda x: True}})
         ifa = self.interface
-        self.assertEqual(('catchup', 7), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=7)))
+        self.assertEqual(('catchup', 7), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=6)))
         self.assertEqual(self.interface.q.qsize(), 0)
 
     def test_new_join(self):
@@ -91,7 +91,7 @@ class TestNetwork(unittest.TestCase):
         self.interface.q.put_nowait({'block_height': 5, 'mock': {'binary':1, 'check': lambda x: True, 'connect': lambda x: False}})
         self.interface.q.put_nowait({'block_height': 6, 'mock': {'binary':1, 'check': lambda x: True, 'connect': lambda x: True}})
         ifa = self.interface
-        self.assertEqual(('join', 7), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=7)))
+        self.assertEqual(('join', 7), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=6)))
         self.assertEqual(self.interface.q.qsize(), 0)
 
     def test_new_reorg(self):
@@ -100,7 +100,7 @@ class TestNetwork(unittest.TestCase):
             nonlocal times
             self.assertEqual(header['block_height'], 7)
             times += 1
-            return times != 1
+            return False
         blockchain.blockchains = {7: {'check': check, 'parent': {'check': lambda x: True}}}
         self.interface.q.put_nowait({'block_height': 8, 'mock': {'catchup':1, 'check': lambda x: False, 'connect': lambda x: False}})
         self.interface.q.put_nowait({'block_height': 7, 'mock': {'backward':1, 'check': lambda x: False, 'connect': lambda height: height == 6}})
@@ -108,11 +108,10 @@ class TestNetwork(unittest.TestCase):
         self.interface.q.put_nowait({'block_height': 4, 'mock': {'binary':1, 'check': lambda x: 1, 'connect': lambda x: False}})
         self.interface.q.put_nowait({'block_height': 5, 'mock': {'binary':1, 'check': lambda x: 1, 'connect': lambda x: False}})
         self.interface.q.put_nowait({'block_height': 6, 'mock': {'binary':1, 'check': lambda x: 1, 'connect': lambda x: True}})
-        self.interface.q.put_nowait({'block_height': 7, 'mock': {'binary':1, 'check': lambda x: False, 'connect': lambda x: True}})
         ifa = self.interface
-        self.assertEqual(('join', 8), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=8)))
+        self.assertEqual(('conflict', 8), asyncio.get_event_loop().run_until_complete(ifa.sync_until(8, next_height=7)))
         self.assertEqual(self.interface.q.qsize(), 0)
-        self.assertEqual(times, 2)
+        self.assertEqual(times, 1)
 
 if __name__=="__main__":
     constants.set_regtest()
