@@ -310,8 +310,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 .emit(event, args)
 
         elif event == 'new_transaction':
-            self.tx_notifications.append(args[0])
-            self.notify_transactions_signal.emit()
+            tx, wallet = args
+            if wallet == self.wallet: # filter out tx's not for this wallet
+                self.tx_notifications.append(tx)
+                self.notify_transactions_signal.emit()
         elif event in ['status', 'banner', 'verified', 'fee']:
             # Handle in GUI thread
             self.network_signal.emit(event, args)

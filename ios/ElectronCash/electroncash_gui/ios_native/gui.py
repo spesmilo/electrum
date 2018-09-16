@@ -498,8 +498,10 @@ class ElectrumGui(PrintError):
         if event == 'updated':
             self.refresh_components('helper', 'network')
         elif event == 'new_transaction':
-            self.tx_notifications.append(args[0])
-            self.refresh_components('history', 'addresses', 'helper')
+            tx, wallet = args
+            if wallet == self.wallet:
+                self.tx_notifications.append(tx)
+                self.refresh_components('history', 'addresses', 'helper')
         elif event == 'banner':
             #todo: handle console stuff here
             pass
