@@ -842,9 +842,12 @@ def aiosafe(f):
         except asyncio.CancelledError as e:
             self.exception = e
         except BaseException as e:
-            self.print_error("Exception in", f.__name__, ":", e.__class__.__name__, str(e))
-            traceback.print_exc(file=sys.stderr)
             self.exception = e
+            self.print_error("Exception in", f.__name__, ":", e.__class__.__name__, str(e))
+            try:
+                traceback.print_exc(file=sys.stderr)
+            except BaseException as e2:
+                self.print_error("aiosafe:traceback.print_exc raised: {}... original exc: {}".format(e2, e))
     return f2
 
 TxMinedStatus = NamedTuple("TxMinedStatus", [("height", int),
