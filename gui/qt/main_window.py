@@ -628,7 +628,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def notify_transactions(self):
-        if self.tx_notify_timer:
+        if self.tx_notify_timer or not len(self.tx_notifications):
             # extant notify timer -- we got some tx's enqueued to notify. So bail and wait for timer to handle it.
             return
         elapsed = time.time() - self.last_notify_tx_time
