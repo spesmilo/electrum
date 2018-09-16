@@ -400,6 +400,7 @@ class Interface(PrintError):
             next_height = self.tip
         last = None
         while last is None or height <= next_height:
+            prev_last, prev_height = last, height
             if next_height > height + 10:
                 could_connect, num_headers = await self.request_chunk(height, next_height)
                 if not could_connect:
@@ -414,6 +415,7 @@ class Interface(PrintError):
                 last = 'catchup'
             else:
                 last, height = await self.step(height)
+            assert (prev_last, prev_height) != (last, height), 'had to prevent infinite loop in interface.sync_until'
         return last, height
 
     async def step(self, height, header=None):
@@ -422,7 +424,7 @@ class Interface(PrintError):
         if header is None:
             header = await self.get_block_header(height, 'catchup')
         chain = self.blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
-        if chain: return 'catchup', height
+        if chain: return 'catchup', height+1
         can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
 
         if not can_connect:
