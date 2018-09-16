@@ -588,11 +588,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.show_message(msg, title="Electrum - " + _("Reporting Bugs"))
 
     def notify_transactions(self):
-        # note: during initial history sync for a wallet, many txns will be
-        # received multiple times. hence the "total amount received" can be
-        # a lot different than should be. this is expected though not intended
         if self.tx_notification_queue.qsize() == 0:
             return
+        if not self.wallet.up_to_date:
+            return  # no notifications while syncing
         now = time.time()
         rate_limit = 20  # seconds
         if self.tx_notification_last_time + rate_limit > now:
