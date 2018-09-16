@@ -540,7 +540,8 @@ class Interface(PrintError):
             return True
 
         bad, bad_header = height, header
-        height -= 1
+        local_max = max([0] + [x.height() for x in blockchain.blockchains.values()]) if 'mock' not in header else float('inf')
+        height = min(local_max + 1, height - 1)
         while await iterate():
             bad, bad_header = height, header
             delta = self.tip - height
