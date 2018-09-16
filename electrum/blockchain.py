@@ -74,6 +74,8 @@ def hash_header(header: dict) -> str:
 
 
 blockchains = {}
+blockchains_lock = threading.Lock()
+
 
 def read_blockchains(config):
     blockchains[0] = Blockchain(config, 0, None)
@@ -118,7 +120,8 @@ class Blockchain(util.PrintError):
         return blockchains[self.parent_id]
 
     def get_max_child(self) -> Optional[int]:
-        children = list(filter(lambda y: y.parent_id==self.forkpoint, blockchains.values()))
+        with blockchains_lock: chains = list(blockchains.values())
+        children = list(filter(lambda y: y.parent_id==self.forkpoint, chains))
         return max([x.forkpoint for x in children]) if children else None
 
     def get_forkpoint(self) -> int:
@@ -237,21 +240,23 @@ class Blockchain(util.PrintError):
         self.write(parent_data, 0)
         parent.write(my_data, (forkpoint - parent.forkpoint)*HEADER_SIZE)
         # store file path
-        for b in blockchains.values():
+        with blockchains_lock: chains = list(blockchains.values())
+        for b in chains:
             b.old_path = b.path()
         # swap parameters
         self.parent_id = parent.parent_id; parent.parent_id = parent_id
         self.forkpoint = parent.forkpoint; parent.forkpoint = forkpoint
         self._size = parent._size; parent._size = parent_branch_size
         # move files
-        for b in blockchains.values():
+        for b in chains:
             if b in [self, parent]: continue
             if b.old_path != b.path():
                 self.print_error("renaming", b.old_path, b.path())
                 os.rename(b.old_path, b.path())
         # update pointers
-        blockchains[self.forkpoint] = self
-        blockchains[parent.forkpoint] = parent
+        with blockchains_lock:
+            blockchains[self.forkpoint] = self
+            blockchains[parent.forkpoint] = parent
 
     def assert_headers_file_available(self, path):
         if os.path.exists(path):
@@ -417,14 +422,16 @@ class Blockchain(util.PrintError):
 def check_header(header: dict) -> Optional[Blockchain]:
     if type(header) is not dict:
         return None
-    for b in blockchains.values():
+    with blockchains_lock: chains = list(blockchains.values())
+    for b in chains:
         if b.check_header(header):
             return b
     return None
 
 
 def can_connect(header: dict) -> Optional[Blockchain]:
-    for b in blockchains.values():
+    with blockchains_lock: chains = list(blockchains.values())
+    for b in chains:
         if b.can_connect(header):
             return b
     return None

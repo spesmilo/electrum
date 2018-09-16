@@ -177,7 +177,7 @@ class Network(PrintError):
             config = {}  # Do not use mutables as default values!
         self.config = SimpleConfig(config) if isinstance(config, dict) else config
         self.num_server = 10 if not self.config.get('oneserver') else 0
-        blockchain.blockchains = blockchain.read_blockchains(self.config)  # note: needs self.blockchains_lock
+        blockchain.blockchains = blockchain.read_blockchains(self.config)
         self.print_error("blockchains", list(blockchain.blockchains.keys()))
         self.blockchain_index = config.get('blockchain_index', 0)
         if self.blockchain_index not in blockchain.blockchains.keys():
@@ -199,7 +199,6 @@ class Network(PrintError):
         self.interface_lock = threading.RLock()            # <- re-entrant
         self.callback_lock = threading.Lock()
         self.recent_servers_lock = threading.RLock()       # <- re-entrant
-        self.blockchains_lock = threading.Lock()
 
         self.server_peers = {}  # returned by interface (servers that the main interface knows about)
         self.recent_servers = self.read_recent_servers()  # note: needs self.recent_servers_lock
@@ -711,8 +710,7 @@ class Network(PrintError):
     @with_interface_lock
     def get_blockchains(self):
         out = {}
-        with self.blockchains_lock:
-            blockchain_items = list(blockchain.blockchains.items())
+        with blockchain.blockchains_lock: blockchain_items = list(blockchain.blockchains.items())
         for k, b in blockchain_items:
             r = list(filter(lambda i: i.blockchain==b, list(self.interfaces.values())))
             if r:
