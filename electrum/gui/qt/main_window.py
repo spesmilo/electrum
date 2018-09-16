@@ -300,9 +300,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.gui_object.network_updated_signal_obj.network_updated_signal \
                 .emit(event, args)
         elif event == 'new_transaction':
-            # FIXME maybe this event should also include which wallet
-            # the tx is for. now all wallets get this.
-            self.tx_notification_queue.put(args[0])
+            wallet, tx = args
+            if wallet == self.wallet:
+                self.tx_notification_queue.put(tx)
         elif event in ['status', 'banner', 'verified', 'fee', 'fee_histogram']:
             # Handle in GUI thread
             self.network_signal.emit(event, args)
@@ -589,12 +589,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def notify_transactions(self):
         # note: during initial history sync for a wallet, many txns will be
-        # received multiple times. hence the "total amount received" will be
-        # a lot higher than should be. this is expected though not intended
+        # received multiple times. hence the "total amount received" can be
+        # a lot different than should be. this is expected though not intended
         if self.tx_notification_queue.qsize() == 0:
             return
         now = time.time()
-        if self.tx_notification_last_time + 5 > now:
+        rate_limit = 20  # seconds
+        if self.tx_notification_last_time + rate_limit > now:
             return
         self.tx_notification_last_time = now
         self.print_error("Notifying GUI about new transactions")
@@ -609,14 +610,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             total_amount = 0
             for tx in txns:
                 is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                if v > 0:
+                if is_relevant:
                     total_amount += v
             self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
                         .format(len(txns), self.format_amount_and_units(total_amount)))
         else:
             for tx in txns:
                 is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                if v > 0:
+                if is_relevant:
                     self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))
 
     def notify(self, message):

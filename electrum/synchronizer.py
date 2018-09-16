@@ -134,7 +134,7 @@ class Synchronizer(PrintError):
         self.print_error("received tx %s height: %d bytes: %d" %
                          (tx_hash, tx_height, len(tx.raw)))
         # callbacks
-        self.wallet.network.trigger_callback('new_transaction', tx)
+        self.wallet.network.trigger_callback('new_transaction', self.wallet, tx)
 
     async def subscribe_to_address(self, addr):
         h = address_to_scripthash(addr)

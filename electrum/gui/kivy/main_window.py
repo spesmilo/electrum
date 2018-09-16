@@ -677,7 +677,9 @@ class ElectrumWindow(App):
         elif event == 'status':
             self._trigger_update_status()
         elif event == 'new_transaction':
-            self._trigger_update_wallet()
+            wallet, tx = args
+            if wallet == self.wallet:
+                self._trigger_update_wallet()
         elif event == 'verified':
             self._trigger_update_wallet()
 
