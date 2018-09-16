@@ -102,8 +102,6 @@ class Synchronizer(PrintError):
         # Remove request; this allows up_to_date to be True
         self.requested_histories.pop(addr)
 
-        if self.wallet.network: self.wallet.network.notify('updated')
-
     async def request_missing_txs(self, hist):
         # "hist" is a list of [tx_hash, tx_height] lists
         transaction_hashes = []
@@ -136,7 +134,7 @@ class Synchronizer(PrintError):
         self.print_error("received tx %s height: %d bytes: %d" %
                          (tx_hash, tx_height, len(tx.raw)))
         # callbacks
-        self.wallet.network.trigger_callback('new_transaction', tx)
+        self.wallet.network.trigger_callback('new_transaction', self.wallet, tx)
 
     async def subscribe_to_address(self, addr):
         h = address_to_scripthash(addr)
