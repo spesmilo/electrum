@@ -59,6 +59,9 @@ class Synchronizer(PrintError):
         self.add_queue = asyncio.Queue()
         self.status_queue = asyncio.Queue()
 
+    def diagnostic_name(self):
+        return '{}:{}'.format(self.__class__.__name__, self.wallet.diagnostic_name())
+
     def is_up_to_date(self):
         return (not self.requested_addrs
                 and not self.requested_histories

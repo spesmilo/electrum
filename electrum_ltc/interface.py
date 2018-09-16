@@ -510,8 +510,9 @@ class Interface(PrintError):
                     chain = self.blockchain.check_header(bad_header)
                 if not chain:
                     b = forkfun(bad_header)
-                    assert bad not in blockchain.blockchains, (bad, list(blockchain.blockchains.keys()))
-                    blockchain.blockchains[bad] = b
+                    with blockchain.blockchains_lock:
+                        assert bad not in blockchain.blockchains, (bad, list(blockchain.blockchains))
+                        blockchain.blockchains[bad] = b
                     self.blockchain = b
                     height = b.forkpoint + 1
                     assert b.forkpoint == bad
@@ -540,7 +541,9 @@ class Interface(PrintError):
             return True
 
         bad, bad_header = height, header
-        height -= 1
+        with blockchain.blockchains_lock: chains = list(blockchain.blockchains.values())
+        local_max = max([0] + [x.height() for x in chains]) if 'mock' not in header else float('inf')
+        height = min(local_max + 1, height - 1)
         while await iterate():
             bad, bad_header = height, header
             delta = self.tip - height
