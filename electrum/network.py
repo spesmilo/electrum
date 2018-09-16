@@ -223,7 +223,6 @@ class Network(PrintError):
         self.interfaces = {}               # note: needs self.interface_lock
         self.auto_connect = self.config.get('auto_connect', True)
         self.connecting = set()
-        self.requested_chunks = set()
         self.server_queue = None
         self.server_queue_group = None
         self.asyncio_loop = asyncio.get_event_loop()
@@ -700,25 +699,8 @@ class Network(PrintError):
             return False, "error: " + out
         return True, out
 
-    async def request_chunk(self, height, tip, session=None, can_return_early=False):
-        if session is None: session = self.interface.session
-        index = height // 2016
-        if can_return_early and index in self.requested_chunks:
-            return
-        size = 2016
-        if tip is not None:
-            size = min(size, tip - index * 2016)
-            size = max(size, 0)
-        try:
-            self.requested_chunks.add(index)
-            res = await session.send_request('blockchain.block.headers', [index * 2016, size])
-        finally:
-            try: self.requested_chunks.remove(index)
-            except KeyError: pass
-        conn = self.blockchain().connect_chunk(index, res['hex'])
-        if not conn:
-            return conn, 0
-        return conn, res['count']
+    async def request_chunk(self, height, tip=None, *, can_return_early=False):
+        return await self.interface.request_chunk(height, tip=tip, can_return_early=can_return_early)
 
     @with_interface_lock
     def blockchain(self):

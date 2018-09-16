@@ -142,6 +142,7 @@ class Interface(PrintError):
         self.config_path = config_path
         self.cert_path = os.path.join(self.config_path, 'certs', self.host)
         self.blockchain = None
+        self._requested_chunks = set()
         self.network = network
         self._set_proxy(proxy)
 
@@ -317,9 +318,25 @@ class Interface(PrintError):
         res = await self.session.send_request('blockchain.block.header', [height], timeout=timeout)
         return blockchain.deserialize_header(bytes.fromhex(res), height)
 
-    async def request_chunk(self, start_height, tip):
-        self.print_error("requesting chunk from height {}".format(start_height))
-        return await self.network.request_chunk(start_height, tip, self.session)
+    async def request_chunk(self, height, tip=None, *, can_return_early=False):
+        index = height // 2016
+        if can_return_early and index in self._requested_chunks:
+            return
+        self.print_error("requesting chunk from height {}".format(height))
+        size = 2016
+        if tip is not None:
+            size = min(size, tip - index * 2016)
+            size = max(size, 0)
+        try:
+            self._requested_chunks.add(index)
+            res = await self.session.send_request('blockchain.block.headers', [index * 2016, size])
+        finally:
+            try: self._requested_chunks.remove(index)
+            except KeyError: pass
+        conn = self.blockchain.connect_chunk(index, res['hex'])
+        if not conn:
+            return conn, 0
+        return conn, res['count']
 
     async def open_session(self, sslc, exit_early):
         header_queue = asyncio.Queue()
