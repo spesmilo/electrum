@@ -518,8 +518,7 @@ def parse_json(message):
 class timeout(Exception):
     pass
 
-class TimeoutException(timeout): # Future compat. with Electrum codebase/cherrypicking
-    pass
+TimeoutException = timeout # Future compat. with Electrum codebase/cherrypicking
 
 import socket
 import json
@@ -592,40 +591,6 @@ class SocketPipe:
                 print_error("OSError", e)
                 time.sleep(0.1)
                 continue
-
-
-class QueuePipe:
-
-    def __init__(self, send_queue=None, get_queue=None):
-        self.send_queue = send_queue if send_queue else queue.Queue()
-        self.get_queue = get_queue if get_queue else queue.Queue()
-        self.set_timeout(0.1)
-
-    def get(self):
-        try:
-            return self.get_queue.get(timeout=self.timeout)
-        except queue.Empty:
-            raise timeout
-
-    def get_all(self):
-        responses = []
-        while True:
-            try:
-                r = self.get_queue.get_nowait()
-                responses.append(r)
-            except queue.Empty:
-                break
-        return responses
-
-    def set_timeout(self, t):
-        self.timeout = t
-
-    def send(self, request):
-        self.send_queue.put(request)
-
-    def send_all(self, requests):
-        for request in requests:
-            self.send(request)
 
 
 def setup_thread_excepthook():
