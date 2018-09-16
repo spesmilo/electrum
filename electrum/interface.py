@@ -326,7 +326,7 @@ class Interface(PrintError):
         self.print_error("requesting chunk from height {}".format(height))
         size = 2016
         if tip is not None:
-            size = min(size, tip - index * 2016)
+            size = min(size, tip - index * 2016 + 1)
             size = max(size, 0)
         try:
             self._requested_chunks.add(index)
@@ -411,8 +411,7 @@ class Interface(PrintError):
                     continue
                 self.network.notify('updated')
                 height = (height // 2016 * 2016) + num_headers
-                if height > next_height:
-                    assert False, (height, self.tip)
+                assert height <= next_height+1, (height, self.tip)
                 last = 'catchup'
             else:
                 last, height = await self.step(height)
