@@ -126,6 +126,8 @@ class NodesListWidget(QTreeWidget):
         h.setSectionResizeMode(0, QHeaderView.Stretch)
         h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
 
+        super().update()
+
 
 class ServerListWidget(QTreeWidget):
 
@@ -179,6 +181,8 @@ class ServerListWidget(QTreeWidget):
         h.setStretchLastSection(False)
         h.setSectionResizeMode(0, QHeaderView.Stretch)
         h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+
+        super().update()
 
 
 class NetworkChoiceLayout(object):
