@@ -444,10 +444,12 @@ class Interface(PrintError):
                 self.blockchain.save_header(header)
             return 'catchup', height
 
-        good, height, bad, bad_header = await self._search_headers_binary(height, bad, bad_header, chain)
-        return await self._resolve_potential_chain_fork_given_forkpoint(good, height, bad, bad_header)
+        good, bad, bad_header = await self._search_headers_binary(height, bad, bad_header, chain)
+        return await self._resolve_potential_chain_fork_given_forkpoint(good, bad, bad_header)
 
     async def _search_headers_binary(self, height, bad, bad_header, chain):
+        _assert_header_does_not_check_against_any_chain(bad_header)
+
         self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain
         good = height
         while True:
@@ -469,59 +471,45 @@ class Interface(PrintError):
         real = not mock and self.blockchain.can_connect(bad_header, check_height=False)
         if not real and not mock:
             raise Exception('unexpected bad header during binary: {}'.format(bad_header))
-        self.print_error("binary search exited. good {}, bad {}".format(good, bad))
-        return good, height, bad, bad_header
+        _assert_header_does_not_check_against_any_chain(bad_header)
 
-    async def _resolve_potential_chain_fork_given_forkpoint(self, good, height, bad, bad_header):
+        self.print_error("binary search exited. good {}, bad {}".format(good, bad))
+        return good, bad, bad_header
+
+    async def _resolve_potential_chain_fork_given_forkpoint(self, good, bad, bad_header):
+        assert good + 1 == bad
+        _assert_header_does_not_check_against_any_chain(bad_header)
+
         branch = blockchain.blockchains.get(bad)
         if branch is not None:
             self.print_error("existing fork found at bad height {}".format(bad))
             ismocking = type(branch) is dict
-            # FIXME: it does not seem sufficient to check that the branch
-            # contains the bad_header. what if self.blockchain doesn't?
-            # the chains shouldn't be joined then. observe the incorrect
-            # joining on regtest with a server that has a fork of height
-            # one. the problem is observed only if forking is not during
-            # electrum runtime
-            if not ismocking and branch.check_header(bad_header) \
-                    or ismocking and branch['check'](bad_header):
-                self.print_error('joining chain', bad)
-                height += 1
-                return 'join', height
-            else:
-                height = bad + 1
-                if ismocking:
-                    self.print_error("TODO replace blockchain")
-                    return 'conflict', height
-                self.print_error('forkpoint conflicts with existing fork', branch.path())
-                branch.write(b'', 0)
-                branch.save_header(bad_header)
-                self.blockchain = branch
+            height = bad + 1
+            if ismocking:
+                self.print_error("TODO replace blockchain")
                 return 'conflict', height
+            self.print_error('forkpoint conflicts with existing fork', branch.path())
+            branch.write(b'', 0)
+            branch.save_header(bad_header)
+            self.blockchain = branch
+            return 'conflict', height
         else:
             bh = self.blockchain.height()
             self.print_error("no existing fork yet at bad height {}. local chain height: {}".format(bad, bh))
             if bh > good:
-                forkfun = self.blockchain.fork
-                if 'mock' in bad_header:
-                    chain = bad_header['mock']['check'](bad_header)
-                    forkfun = bad_header['mock']['fork'] if 'fork' in bad_header['mock'] else forkfun
-                else:
-                    chain = self.blockchain.check_header(bad_header)
-                if not chain:
-                    b = forkfun(bad_header)
-                    with blockchain.blockchains_lock:
-                        assert bad not in blockchain.blockchains, (bad, list(blockchain.blockchains))
-                        blockchain.blockchains[bad] = b
-                    self.blockchain = b
-                    height = b.forkpoint + 1
-                    assert b.forkpoint == bad
+                forkfun = self.blockchain.fork if 'mock' not in bad_header else bad_header['mock']['fork']
+                b = forkfun(bad_header)
+                with blockchain.blockchains_lock:
+                    assert bad not in blockchain.blockchains, (bad, list(blockchain.blockchains))
+                    blockchain.blockchains[bad] = b
+                self.blockchain = b
+                height = b.forkpoint + 1
+                assert b.forkpoint == bad
                 return 'fork', height
             else:
                 assert bh == good
-                if bh < self.tip:
-                    self.print_error("catching up from %d" % (bh + 1))
-                    height = bh + 1
+                self.print_error("catching up from %d" % (bh + 1))
+                height = bh + 1
                 return 'no_fork', height
 
     async def _search_headers_backwards(self, height, header):
@@ -541,6 +529,7 @@ class Interface(PrintError):
             return True
 
         bad, bad_header = height, header
+        _assert_header_does_not_check_against_any_chain(bad_header)
         with blockchain.blockchains_lock: chains = list(blockchain.blockchains.values())
         local_max = max([0] + [x.height() for x in chains]) if 'mock' not in header else float('inf')
         height = min(local_max + 1, height - 1)
@@ -548,8 +537,16 @@ class Interface(PrintError):
             bad, bad_header = height, header
             delta = self.tip - height
             height = self.tip - 2 * delta
+
+        _assert_header_does_not_check_against_any_chain(bad_header)
         self.print_error("exiting backward mode at", height)
         return height, header, bad, bad_header
+
+
+def _assert_header_does_not_check_against_any_chain(header: dict) -> None:
+    chain_bad = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
+    if chain_bad:
+        raise Exception('bad_header must not check!')
 
 
 def check_cert(host, cert):
