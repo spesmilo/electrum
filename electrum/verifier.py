@@ -70,19 +70,22 @@ class SPV(PrintError):
         unverified = self.wallet.get_unverified_txs()
 
         for tx_hash, tx_height in unverified.items():
-            # do not request merkle branch before headers are available
+            # do not request merkle branch if we already requested it
+            if tx_hash in self.requested_merkle or tx_hash in self.merkle_roots:
+                continue
+            # or before headers are available
             if tx_height <= 0 or tx_height > local_height:
                 continue
-
+            # if it's in the checkpoint region, we still might not have the header
             header = blockchain.read_header(tx_height)
             if header is None:
                 if tx_height < constants.net.max_checkpoint():
                     await group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
-            elif (tx_hash not in self.requested_merkle
-                    and tx_hash not in self.merkle_roots):
-                self.print_error('requested merkle', tx_hash)
-                self.requested_merkle.add(tx_hash)
-                await group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
+                continue
+            # request now
+            self.print_error('requested merkle', tx_hash)
+            self.requested_merkle.add(tx_hash)
+            await group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
 
     async def _request_and_verify_single_proof(self, tx_hash, tx_height):
         try:
