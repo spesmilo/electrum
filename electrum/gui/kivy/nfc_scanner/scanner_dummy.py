@@ -3,6 +3,7 @@
 from . import NFCBase
 from kivy.clock import Clock
 from kivy.logger import Logger
+from kivy.app import App
 
 class ScannerDummy(NFCBase):
     '''This is the dummy interface that gets selected in case any other

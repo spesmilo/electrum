@@ -10,6 +10,7 @@ from kivy.factory import Factory
 from kivy.properties import OptionProperty, NumericProperty, ObjectProperty
 from kivy.clock import Clock
 from kivy.lang import Builder
+from kivy.logger import Logger
 
 import gc
 

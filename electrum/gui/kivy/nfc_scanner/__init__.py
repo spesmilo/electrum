@@ -1,3 +1,6 @@
+from kivy.uix.widget import Widget
+from kivy.properties import ObjectProperty
+
 __all__ = ('NFCBase', 'NFCScanner')
 
 class NFCBase(Widget):
