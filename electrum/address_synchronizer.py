@@ -593,7 +593,7 @@ class AddressSynchronizer(PrintError):
             self.unverified_tx.pop(tx_hash, None)
             self.verified_tx[tx_hash] = info
         tx_mined_status = self.get_tx_height(tx_hash)
-        self.network.trigger_callback('verified', tx_hash, tx_mined_status)
+        self.network.trigger_callback('verified', self, tx_hash, tx_mined_status)
 
     def get_unverified_txs(self):
         '''Returns a map from tx hash to transaction height'''
