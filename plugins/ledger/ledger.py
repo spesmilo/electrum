@@ -566,10 +566,6 @@ class LedgerPlugin(HW_PluginBase):
         if self.libraries_available:
             self.device_manager().register_devices(self.DEVICE_IDS)
 
-    def is_enabled(self):
-        # Not available for GRS.
-        return False
-
     def get_btchip_device(self, device):
         ledger = False
         if device.product_key[0] == 0x2581 and device.product_key[1] == 0x3b7c:
