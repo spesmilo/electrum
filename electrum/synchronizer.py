@@ -75,9 +75,6 @@ class Synchronizer(PrintError):
         history = self.wallet.history.get(addr, [])
         if history_status(history) == status:
             return
-        # note that at this point 'result' can be None;
-        # if we had a history for addr but now the server is telling us
-        # there is no history
         if addr in self.requested_histories:
             return
         # request address history

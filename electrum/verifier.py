@@ -24,6 +24,7 @@
 import asyncio
 from typing import Sequence, Optional
 
+import aiorpcx
 from aiorpcx import TaskGroup
 
 from .util import PrintError, bh2u, VerifiedTxInfo
@@ -84,9 +85,19 @@ class SPV(PrintError):
                 await group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
 
     async def _request_and_verify_single_proof(self, tx_hash, tx_height):
-        merkle = await self.network.get_merkle_for_transaction(tx_hash, tx_height)
+        try:
+            merkle = await self.network.get_merkle_for_transaction(tx_hash, tx_height)
+        except aiorpcx.jsonrpc.RPCError as e:
+            self.print_error('tx {} not at height {}'.format(tx_hash, tx_height))
+            self.wallet.remove_unverified_tx(tx_hash, tx_height)
+            try: self.requested_merkle.remove(tx_hash)
+            except KeyError: pass
+            return
         # Verify the hash of the server-provided merkle branch to a
         # transaction matches the merkle root of its block
+        if tx_height != merkle.get('block_height'):
+            self.print_error('requested tx_height {} differs from received tx_height {} for txid {}'
+                             .format(tx_height, merkle.get('block_height'), tx_hash))
         tx_height = merkle.get('block_height')
         pos = merkle.get('pos')
         merkle_branch = merkle.get('merkle')
@@ -100,8 +111,7 @@ class SPV(PrintError):
             raise GracefulDisconnect(e)
         # we passed all the tests
         self.merkle_roots[tx_hash] = header.get('merkle_root')
-        try:
-            self.requested_merkle.remove(tx_hash)
+        try: self.requested_merkle.remove(tx_hash)
         except KeyError: pass
         self.print_error("verified %s" % tx_hash)
         header_hash = hash_header(header)

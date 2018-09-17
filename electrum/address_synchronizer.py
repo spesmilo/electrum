@@ -575,6 +575,12 @@ class AddressSynchronizer(PrintError):
             if self.verifier:
                 self.verifier.remove_spv_proof_for_tx(tx_hash)
 
+    def remove_unverified_tx(self, tx_hash, tx_height):
+        with self.lock:
+            new_height = self.unverified_tx.get(tx_hash)
+            if new_height == tx_height:
+                self.unverified_tx.pop(tx_hash, None)
+
     def add_verified_tx(self, tx_hash: str, info: VerifiedTxInfo):
         # Remove from the unverified map and add to the verified map
         with self.lock:
