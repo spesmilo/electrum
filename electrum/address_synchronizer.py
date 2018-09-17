@@ -80,6 +80,12 @@ class AddressSynchronizer(PrintError):
 
         self.load_and_cleanup()
 
+    def with_transaction_lock(func):
+        def func_wrapper(self, *args, **kwargs):
+            with self.transaction_lock:
+                return func(self, *args, **kwargs)
+        return func_wrapper
+
     def load_and_cleanup(self):
         self.load_transactions()
         self.load_local_history()
@@ -651,8 +657,9 @@ class AddressSynchronizer(PrintError):
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
 
+    @with_transaction_lock
     def get_tx_delta(self, tx_hash, address):
-        "effect of tx on address"
+        """effect of tx on address"""
         delta = 0
         # substract the value of coins sent from address
         d = self.txi.get(tx_hash, {}).get(address, [])
@@ -664,8 +671,9 @@ class AddressSynchronizer(PrintError):
             delta += v
         return delta
 
+    @with_transaction_lock
     def get_tx_value(self, txid):
-        " effect of tx on the entire domain"
+        """effect of tx on the entire domain"""
         delta = 0
         for addr, d in self.txi.get(txid, {}).items():
             for n, v in d:
@@ -728,17 +736,18 @@ class AddressSynchronizer(PrintError):
         return is_relevant, is_mine, v, fee
 
     def get_addr_io(self, address):
-        h = self.get_address_history(address)
-        received = {}
-        sent = {}
-        for tx_hash, height in h:
-            l = self.txo.get(tx_hash, {}).get(address, [])
-            for n, v, is_cb in l:
-                received[tx_hash + ':%d'%n] = (height, v, is_cb)
-        for tx_hash, height in h:
-            l = self.txi.get(tx_hash, {}).get(address, [])
-            for txi, v in l:
-                sent[txi] = height
+        with self.lock, self.transaction_lock:
+            h = self.get_address_history(address)
+            received = {}
+            sent = {}
+            for tx_hash, height in h:
+                l = self.txo.get(tx_hash, {}).get(address, [])
+                for n, v, is_cb in l:
+                    received[tx_hash + ':%d'%n] = (height, v, is_cb)
+            for tx_hash, height in h:
+                l = self.txi.get(tx_hash, {}).get(address, [])
+                for txi, v in l:
+                    sent[txi] = height
         return received, sent
 
     def get_addr_utxo(self, address):
