@@ -630,8 +630,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def notify_transactions(self):
-        if self.tx_notify_timer or not len(self.tx_notifications):
-            # extant notify timer -- we got some tx's enqueued to notify. So bail and wait for timer to handle it.
+        if self.tx_notify_timer or not len(self.tx_notifications) or self.cleaned_up:
+            # common case: extant notify timer -- we already enqueued to notify. So bail and wait for timer to handle it.
             return
         elapsed = time.time() - self.last_notify_tx_time
         if elapsed < self.notify_tx_rate:
@@ -3093,6 +3093,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.wallet.thread.stop()
         if self.network:
             self.network.unregister_callback(self.on_network)
+
+        if self.tx_notify_timer:
+            self.tx_notify_timer.stop()
+            self.tx_notify_timer = None
 
         # We catch these errors with the understanding that there is no recovery at
         # this point, given user has likely performed an action we cannot recover
