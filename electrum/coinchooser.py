@@ -242,7 +242,7 @@ class CoinChooserBase(PrintError):
 
         # append outputs with asset id and adjust asset input value balance
         asset_outputs = [TxOutput(o.type, o.address, value, 1, asset, 1)
-                for o in outputs for (asset, value) in self.get_asset_outputs(o.value, input_map)]
+                for o in outputs for (asset, value) in get_asset_outputs(o.value, input_map)]
 
         tx = Transaction.from_io(inputs[:], asset_outputs[:])
         tx_weight = get_tx_weight(buckets)
@@ -261,11 +261,11 @@ class CoinChooserBase(PrintError):
 
         # add change outputs with asset id taken from the input asset map
         tx.add_outputs(TxOutput(o.type, o.address, value, 1, asset, 1)
-            for o in change for (asset, value) in self.get_asset_outputs(o.value, input_map))
+            for o in change for (asset, value) in get_asset_outputs(o.value, input_map))
 
         # add fee outputs for the asset remaining in the asset input balance
         tx.add_outputs(TxOutput(TYPE_SCRIPT, '', value, 1, asset, 1)
-            for (asset, value) in self.get_asset_outputs(tx.get_fee(), input_map))
+            for (asset, value) in get_asset_outputs(tx.get_fee(), input_map))
 
         self.print_error("using %d inputs" % len(tx.inputs()))
         self.print_error("using buckets:", [bucket.desc for bucket in buckets])
