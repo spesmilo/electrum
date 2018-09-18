@@ -8,6 +8,7 @@ from collections import namedtuple, defaultdict, OrderedDict, defaultdict
 from .lnutil import Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore
 from .lnutil import sign_and_get_sig_string, funding_output_script, get_ecdh, get_per_commitment_secret_from_seed
 from .lnutil import secret_to_pubkey, LNPeerAddr, PaymentFailure
+from .lnutil import LOCAL, REMOTE
 from .bitcoin import COIN
 
 from ecdsa.util import sigdecode_der, sigencode_string_canonize, sigdecode_string
@@ -33,7 +34,7 @@ from .util import PrintError, bh2u, print_error, bfh, aiosafe
 from .transaction import opcodes, Transaction, TxOutput
 from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error, ONION_FAILURE_CODE_MAP
 from .lnaddr import lndecode
-from .lnhtlc import UpdateAddHtlc, HTLCStateMachine, RevokeAndAck, SettleHtlc
+from .lnhtlc import HTLCStateMachine, RevokeAndAck
 
 def channel_id_from_funding_tx(funding_txid, funding_index):
     funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
@@ -496,7 +497,8 @@ class Peer(PrintError):
             to_self_delay=143,
             dust_limit_sat=546,
             max_htlc_value_in_flight_msat=0xffffffffffffffff,
-            max_accepted_htlcs=5
+            max_accepted_htlcs=5,
+            initial_msat=funding_sat * 1000 - push_msat,
         )
         # TODO derive this?
         per_commitment_secret_seed = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100.to_bytes(32, 'big')
@@ -536,7 +538,8 @@ class Peer(PrintError):
             to_self_delay=int.from_bytes(payload['to_self_delay'], byteorder='big'),
             dust_limit_sat=int.from_bytes(payload['dust_limit_satoshis'], byteorder='big'),
             max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'),
-            max_accepted_htlcs=int.from_bytes(payload["max_accepted_htlcs"], 'big')
+            max_accepted_htlcs=int.from_bytes(payload["max_accepted_htlcs"], 'big'),
+            initial_msat=push_msat
         )
         funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], 'big')
         assert remote_config.dust_limit_sat < 600
@@ -844,9 +847,9 @@ class Peer(PrintError):
         onion = new_onion_packet([x.node_id for x in route], self.secret_key, hops_data, associated_data)
         amount_msat += total_fee
         # FIXME this below will probably break with multiple HTLCs
-        msat_local = chan.local_state.amount_msat - amount_msat
-        msat_remote = chan.remote_state.amount_msat + amount_msat
-        htlc = UpdateAddHtlc(amount_msat, payment_hash, final_cltv_expiry_with_deltas)
+        msat_local = chan.balance(LOCAL) - amount_msat
+        msat_remote = chan.balance(REMOTE) + amount_msat
+        htlc = {'amount_msat':amount_msat, 'payment_hash':payment_hash, 'cltv_expiry':final_cltv_expiry_with_deltas}
 
         # FIXME if we raise here, this channel will not get blacklisted, and the payment can never succeed,
         # as we will just keep retrying this same path. using the current blacklisting is not a solution as
@@ -861,10 +864,10 @@ class Peer(PrintError):
             # FIXME what about channel_reserve_satoshis? will the remote fail the channel if we go below? test.
             raise PaymentFailure('not enough local balance')
 
-        self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=chan.local_state.next_htlc_id, cltv_expiry=final_cltv_expiry_with_deltas, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
+        htlc_id = chan.add_htlc(htlc)
+        self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=htlc_id, cltv_expiry=final_cltv_expiry_with_deltas, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
 
-        chan.add_htlc(htlc)
-        self.attempted_route[(chan.channel_id, htlc.htlc_id)] = route
+        self.attempted_route[(chan.channel_id, htlc_id)] = route
 
         sig_64, htlc_sigs = chan.sign_next_commitment()
         self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
@@ -947,7 +950,7 @@ class Peer(PrintError):
         assert amount_msat == expected_received_msat
         payment_hash = htlc["payment_hash"]
 
-        htlc = UpdateAddHtlc(amount_msat, payment_hash, cltv_expiry)
+        htlc = {'amount_msat': amount_msat, 'payment_hash':payment_hash, 'cltv_expiry':cltv_expiry}
 
         chan.receive_htlc(htlc)
 
@@ -967,7 +970,7 @@ class Peer(PrintError):
         # remote commitment transaction without htlcs
         # FIXME why is this not using the HTLC state machine?
         bare_ctx = chan.make_commitment(chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
-            chan.remote_state.amount_msat - expected_received_msat, chan.local_state.amount_msat + expected_received_msat)
+            chan.balance(REMOTE) - expected_received_msat, chan.balance(LOCAL) + expected_received_msat)
         self.lnwatcher.process_new_offchain_ctx(chan, bare_ctx, ours=False)
         sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
         self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=0))
