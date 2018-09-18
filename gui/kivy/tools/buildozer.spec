@@ -24,11 +24,11 @@ source.exclude_dirs = bin, build, dist, contrib, gui/qt, gui/kivy/tools, gui/kiv
 source.exclude_patterns = Makefile,setup*
 
 # (str) Application versioning (method 1)
-version.regex = APK_VERSION = '(.*)'
-version.filename = %(source.dir)s/lib/version.py
+# version.regex = APK_VERSION = '(.*)'
+# version.filename = %(source.dir)s/lib/version.py
 
 # (str) Application versioning (method 2)
-version = 3.1.2
+version = 3.2.2
 
 # (list) Application requirements
 requirements = python3crystax==3.6, android, openssl, plyer, kivy==master, libsecp256k1, groestlcoin_hash
