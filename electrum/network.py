@@ -487,6 +487,7 @@ class Network(PrintError):
         self._init_server_queue()
         self.set_proxy(proxy)
         self.start_interface(self.default_server)
+        self.trigger_callback('network_updated')
 
     def _init_server_queue(self):
         self.server_queue = queue.Queue()
@@ -508,6 +509,7 @@ class Network(PrintError):
         assert not self.interfaces
         self.connecting.clear()
         self._stop_server_queue()
+        self.trigger_callback('network_updated')
 
     def _stop_server_queue(self):
         # Get a new queue - no old pending connections thanks!
@@ -545,7 +547,6 @@ class Network(PrintError):
             self.switch_to_interface(server_str)
         else:
             self.switch_lagging_interface()
-            self.trigger_callback('network_updated')
 
     def switch_to_random_interface(self):
         '''Switch to a random connected server other than the current one'''
