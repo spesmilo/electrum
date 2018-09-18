@@ -102,6 +102,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
     cashaddr_toggled_signal = pyqtSignal()
+    history_updated_signal = pyqtSignal()
 
     def __init__(self, gui_object, wallet):
         QMainWindow.__init__(self)
@@ -227,6 +228,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.history_list.refresh_headers()
         self.history_list.update()
         self.address_list.update()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
 
     def on_quotes(self, b):
         self.new_fx_quotes_signal.emit()
@@ -241,6 +243,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # History tab needs updating if it used spot
         if self.fx.history_used_spot:
             self.history_list.update()
+            self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
 
     def toggle_tab(self, tab):
         show = not self.config.get('show_{}_tab'.format(tab.tab_name), False)
@@ -375,6 +378,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             self.show()
         self.watching_only_changed()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
         run_hook('load_wallet', wallet, self)
 
     def init_geometry(self):
@@ -812,6 +816,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.contact_list.update()
         self.invoice_list.update()
         self.update_completions()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
 
     def create_history_tab(self):
         from .history_list import HistoryList
@@ -1816,6 +1821,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.wallet.delete_address(addr)
             self.address_list.update()
             self.history_list.update()
+            self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
             self.clear_receive_tab()
 
     def get_coins(self, isInvoice = False):
@@ -1859,6 +1865,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.contacts[address] = ('address', label)
         self.contact_list.update()
         self.history_list.update()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
         self.update_completions()
         return True
 
@@ -1869,6 +1876,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         for label in labels:
             self.contacts.pop(label)
         self.history_list.update()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
         self.contact_list.update()
         self.update_completions()
 
@@ -1908,6 +1916,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if self.question(_('Delete invoice?')):
                 self.invoices.remove(key)
                 self.history_list.update()
+                self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
                 self.invoice_list.update()
                 d.close()
         deleteButton = EnterButton(_('Delete'), do_delete)
@@ -2512,6 +2521,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_critical(_("Electron Cash was unable to import your labels.") + "\n" + str(reason))
         self.address_list.update()
         self.history_list.update()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
 
     def do_export_labels(self):
         labels = self.wallet.labels
@@ -2655,6 +2665,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_critical(_("The following inputs could not be imported") + ':\n'+ '\n'.join(bad))
         self.address_list.update()
         self.history_list.update()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
 
     def import_addresses(self):
         if not self.wallet.can_import_address():
@@ -2679,6 +2690,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fiat_receive_e.setVisible(b)
         self.history_list.refresh_headers()
         self.history_list.update()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
         self.address_list.refresh_headers()
         self.address_list.update()
         self.update_status()
@@ -2764,6 +2776,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.num_zeros = value
                 self.config.set_key('num_zeros', value, True)
                 self.history_list.update()
+                self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
                 self.address_list.update()
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
@@ -2865,6 +2878,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.config.set_key('decimal_point', self.decimal_point, True)
             nz.setMaximum(self.decimal_point)
             self.history_list.update()
+            self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
             self.request_list.update()
             self.address_list.update()
             for edit, amount in zip(edits, amounts):

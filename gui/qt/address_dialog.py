@@ -98,6 +98,14 @@ class AddressDialog(WindowModalDialog):
         self.format_amount = self.parent.format_amount
         self.hw.update()
 
+        # connect slots so the embedded history list gets updated whenever the history changes
+        parent.history_updated_signal.connect(self.hw.update)
+        parent.network_signal.connect(self.got_verified_tx)
+
+    def got_verified_tx(self, event, args):
+        if event == 'verified':
+            self.hw.update_item(*args)
+
     def update_addr(self):
         self.addr_e.setText(self.address.to_full_ui_string())
 

@@ -562,7 +562,7 @@ class Abstract_Wallet(PrintError):
         height = conf = timestamp = None
         tx_hash = tx.txid()
         if tx.is_complete():
-            if tx_hash in self.transactions.keys():
+            if tx_hash in self.transactions:
                 label = self.get_label(tx_hash)
                 height, conf, timestamp = self.get_tx_height(tx_hash)
                 if height > 0:

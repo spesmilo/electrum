@@ -128,6 +128,18 @@ class TxDialog(QDialog, MessageBoxMixin):
         vbox.addLayout(hbox)
         self.update()
 
+        # connect slots so we update in realtime as blocks come in, etc
+        parent.history_updated_signal.connect(self.update_tx_if_in_wallet)
+        parent.network_signal.connect(self.got_verified_tx)
+
+    def got_verified_tx(self, event, args):
+        if event == 'verified' and args[0] == self.tx.txid():
+            self.update()
+
+    def update_tx_if_in_wallet(self):
+        if self.tx.txid() in self.wallet.transactions:
+            self.update()
+
     def do_broadcast(self):
         self.main_window.push_top_level_window(self)
         try:
