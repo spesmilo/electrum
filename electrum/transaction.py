@@ -1260,11 +1260,11 @@ class Transaction:
                 addr = bitcoin.public_key_to_p2pkh(bfh(o.address))
             else:
                 addr = 'SCRIPT ' + o.address
-            outputs.append((addr, o.value))      # consider using yield (addr, v)
+            outputs.append((addr, o.value, o.asset))      # consider using yield (addr, v)
         return outputs
 
     def get_output_addresses(self):
-        return [addr for addr, val in self.get_outputs()]
+        return [addr for addr, val, _ in self.get_outputs()]
 
 
     def has_address(self, addr):

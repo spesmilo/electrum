@@ -122,7 +122,7 @@ class TestTransaction(SequentialTestCase):
         self.assertEqual(tx.deserialize(), None)
 
         self.assertEqual(tx.as_dict(), {'hex': unsigned_blob, 'complete': False, 'final': True})
-        self.assertEqual(tx.get_outputs(), [('1EN2xnZ4Y8HDCxPqyt5PdwJRYbUXqTV4DV', 100000000), ('1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac', 4999599862000), ('SCRIPT ', 34500)])
+        self.assertEqual(tx.get_outputs(), [('1EN2xnZ4Y8HDCxPqyt5PdwJRYbUXqTV4DV', 100000000, 'f1c270c6ca139803d8556a2463b23be1c2170e69c5d3ae55e381b9c7e490938f'), ('1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac', 4999599862000, 'f1c270c6ca139803d8556a2463b23be1c2170e69c5d3ae55e381b9c7e490938f'), ('SCRIPT ', 34500, 'f1c270c6ca139803d8556a2463b23be1c2170e69c5d3ae55e381b9c7e490938f')])
         self.assertEqual(tx.get_output_addresses(), ['1EN2xnZ4Y8HDCxPqyt5PdwJRYbUXqTV4DV', '1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac', 'SCRIPT '])
 
         self.assertTrue(tx.has_address('1EN2xnZ4Y8HDCxPqyt5PdwJRYbUXqTV4DV'))

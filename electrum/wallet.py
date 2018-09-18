@@ -406,7 +406,7 @@ class Abstract_Wallet(AddressSynchronizer):
             if show_addresses:
                 tx = self.transactions.get(tx_hash)
                 item['inputs'] = list(map(lambda x: dict((k, x[k]) for k in ('prevout_hash', 'prevout_n')), tx.inputs()))
-                item['outputs'] = list(map(lambda x:{'address':x[0], 'value':Satoshis(x[1])}, tx.get_outputs()))
+                item['outputs'] = list(map(lambda x:{'address':x[0], 'value':Satoshis(x[1]), 'asset':x[2]}, tx.get_outputs()))
             # value may be None if wallet is not fully synchronized
             if value is None:
                 continue
