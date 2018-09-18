@@ -115,10 +115,11 @@ class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
 
 
-
 def deserialize_server(server_str: str) -> Tuple[str, str, str]:
     # host might be IPv6 address, hence do rsplit:
     host, port, protocol = str(server_str).rsplit(':', 2)
+    if not host:
+        raise ValueError('host must not be empty')
     if protocol not in ('s', 't'):
         raise ValueError('invalid network protocol: {}'.format(protocol))
     int(port)  # Throw if cannot be converted to int
