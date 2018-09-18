@@ -6,6 +6,7 @@ from electrum.util import inv_dict, bh2u, bfh
 from electrum.i18n import _
 from electrum.lnhtlc import HTLCStateMachine
 from electrum.lnaddr import lndecode
+from electrum.lnutil import LOCAL, REMOTE
 
 from .util import MyTreeWidget, SortableTreeWidgetItem, WindowModalDialog, Buttons, OkButton, CancelButton
 from .amountedit import BTCAmountEdit
@@ -24,8 +25,8 @@ class ChannelsList(MyTreeWidget):
     def format_fields(self, chan):
         return [
             bh2u(chan.node_id),
-            self.parent.format_amount(chan.local_state.amount_msat//1000),
-            self.parent.format_amount(chan.remote_state.amount_msat//1000),
+            self.parent.format_amount(chan.balance(LOCAL)//1000),
+            self.parent.format_amount(chan.balance(REMOTE)//1000),
             chan.get_state()
         ]
 
