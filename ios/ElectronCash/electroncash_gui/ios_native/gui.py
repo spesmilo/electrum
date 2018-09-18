@@ -1753,6 +1753,9 @@ class ElectrumGui(PrintError):
                 if len(name) > 30:
                     name = name[:14] + "..." + name[-13:]
                 msg = _("Opening encrypted wallet: '{}'").format(name)
+                if not self.wallet:
+                    # hide sensitive information
+                    self.walletsVC.setAmount_andUnits_unconf_('-', '', '')
                 self.prompt_password_if_needed_asynch(callBack = gotpw, prompt = msg, onCancel = cancelled,
                                                       onForcedDismissal = forciblyDismissed,
                                                       usingStorage = path)

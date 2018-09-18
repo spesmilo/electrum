@@ -811,3 +811,14 @@ UIPageViewControllerTransitionStylePageCurl = 0 #, // Navigate between views via
 UIPageViewControllerTransitionStyleScroll = 1   #// Navigate between views by scrolling.
 
 NSNumber = ObjCClass('NSNumber')
+
+#UIVisualEffect stuff
+UIBlurEffectStyleExtraLight = 0
+UIBlurEffectStyleLight = 1
+UIBlurEffectStyleDark = 2
+UIBlurEffectStyleExtraDark = 3 #__TVOS_AVAILABLE(10_0) __IOS_PROHIBITED __WATCHOS_PROHIBITED,
+UIBlurEffectStyleRegular = 4 #NS_ENUM_AVAILABLE_IOS(10_0), // Adapts to user interface style
+UIBlurEffectStyleProminent = 5#NS_ENUM_AVAILABLE_IOS(10_0), // Adapts to user interface style
+
+UIBlurEffect = ObjCClass('UIBlurEffect')
+UIVisualEffectView = ObjCClass('UIVisualEffectView')

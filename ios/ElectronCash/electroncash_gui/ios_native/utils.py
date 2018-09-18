@@ -1691,3 +1691,13 @@ class boilerplate:
             sv, NSLayoutAttributeHeight, NSLayoutRelationEqual, view, NSLayoutAttributeHeight, 1.0, 0.0 ))
         sv.addConstraint_(NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
             sv, NSLayoutAttributeWidth, NSLayoutRelationEqual, view, NSLayoutAttributeWidth, 1.0, 0.0 ))
+
+    @staticmethod
+    def create_and_add_blur_view(parent : UIView, effect = UIBlurEffectStyleRegular) -> UIView:
+        blurView = None
+        if parent:
+            effect = UIBlurEffect.effectWithStyle_(UIBlurEffectStyleLight)
+            blurView = UIVisualEffectView.alloc().initWithEffect_(effect).autorelease()
+            blurView.frame = parent.frame
+            parent.addSubview_(blurView)
+        return blurView

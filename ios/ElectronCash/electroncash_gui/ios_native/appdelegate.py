@@ -16,16 +16,20 @@ import time
 class PythonAppDelegate(UIResponder):
     
     firstRun = objc_property()
+    blurView = objc_property()
     
     @objc_method
     def init(self) -> ObjCInstance:
         self = ObjCInstance(send_super(__class__, self, 'init'))
-        if self is not None: self.firstRun = True
+        if self is not None:
+            self.firstRun = True
+            self.blurView = None
 
         return self
     
     @objc_method
     def dealloc(self) -> None:
+        self.cleanupBlurView()
         self.firstRun = None # clear out var
         send_super(__class__, self, 'dealloc')
     
@@ -88,22 +92,38 @@ class PythonAppDelegate(UIResponder):
         f()
         msg = "App became active " + s
         utils.NSLog("%s",msg)
-        
+
+        self.cleanupBlurView()
         eg = gui.ElectrumGui.gui
         if eg is not None and not eg.daemon_is_running() and not self.firstRun:
             utils.NSLog("Background: Restarting Daemon...")
             eg.start_daemon()
         
         self.firstRun = False
-                
+
+
+    @objc_method
+    def cleanupBlurView(self) -> None:
+        if self.blurView:
+            self.blurView.removeFromSuperview()
+            self.blurView = None
+
+    @objc_method
+    def addBlurView(self) -> None:
+        self.cleanupBlurView()
+        self.blurView = utils.boilerplate.create_and_add_blur_view(UIApplication.sharedApplication.keyWindow) 
+
 
     @objc_method
     def applicationDidEnterBackground_(self, application : ObjCInstance) -> None:
         if not self.firstRun:
             startup_bg_task_stuff(application)
             eg = gui.ElectrumGui.gui
-            if eg: eg.on_backgrounded()
-        
+            if eg:
+                eg.on_backgrounded()
+                if eg.wallet:
+                    self.addBlurView() # protect user's privacy -- this makes the snapshot view on iOS be blurred.
+
     @objc_method
     def applicationWillTerminate_(self, application : ObjCInstance) -> None:
         eg = gui.ElectrumGui.gui
@@ -114,7 +134,7 @@ class PythonAppDelegate(UIResponder):
     # this gets fired when another app window overlays out app and/or user pulls down notification bar, etc
     @objc_method
     def applicationWillResignActive_(self, application : ObjCInstance) -> None:
-        utils.NSLog("Appliction will resign active message received.")
+        utils.NSLog("Appliction will resign active message received")
 
 
 ## Global helper functions for this bgtask stuff
