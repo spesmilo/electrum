@@ -299,7 +299,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             wallet = args[0]
             if wallet == self.wallet:
                 self.need_update.set()
-                self.network_signal.emit('status', None)
         elif event == 'network_updated':
             self.gui_object.network_updated_signal_obj.network_updated_signal \
                 .emit(event, args)
@@ -772,6 +771,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.status_button.setIcon( icon )
 
     def update_wallet(self):
+        self.update_status()
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_tabs()
 
