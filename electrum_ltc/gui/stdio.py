@@ -37,7 +37,7 @@ class ElectrumGui:
         self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
-        self.network.register_callback(self.on_network, ['updated', 'banner'])
+        self.network.register_callback(self.on_network, ['wallet_updated', 'network_updated', 'banner'])
         self.commands = [_("[h] - displays this help text"), \
                          _("[i] - display transaction history"), \
                          _("[o] - enter payment order"), \
@@ -50,7 +50,7 @@ class ElectrumGui:
         self.num_commands = len(self.commands)
 
     def on_network(self, event, *args):
-        if event == 'updated':
+        if event in ['wallet_updated', 'network_updated']:
             self.updated()
         elif event == 'banner':
             self.print_banner()

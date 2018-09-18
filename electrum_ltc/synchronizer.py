@@ -177,4 +177,4 @@ class Synchronizer(PrintError):
             up_to_date = self.is_up_to_date()
             if up_to_date != self.wallet.is_up_to_date():
                 self.wallet.set_up_to_date(up_to_date)
-                self.wallet.network.trigger_callback('updated')
+                self.wallet.network.trigger_callback('wallet_updated', self.wallet)

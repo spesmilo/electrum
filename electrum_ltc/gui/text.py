@@ -62,7 +62,7 @@ class ElectrumGui:
         self.history = None
 
         if self.network:
-            self.network.register_callback(self.update, ['updated'])
+            self.network.register_callback(self.update, ['wallet_updated', 'network_updated'])
 
         self.tab_names = [_("History"), _("Send"), _("Receive"), _("Addresses"), _("Contacts"), _("Banner")]
         self.num_tabs = len(self.tab_names)
