@@ -1693,10 +1693,10 @@ class boilerplate:
             sv, NSLayoutAttributeWidth, NSLayoutRelationEqual, view, NSLayoutAttributeWidth, 1.0, 0.0 ))
 
     @staticmethod
-    def create_and_add_blur_view(parent : UIView, effect = UIBlurEffectStyleRegular) -> UIView:
+    def create_and_add_blur_view(parent : UIView, effectStyle = UIBlurEffectStyleRegular) -> UIView:
         blurView = None
         if parent:
-            effect = UIBlurEffect.effectWithStyle_(UIBlurEffectStyleLight)
+            effect = UIBlurEffect.effectWithStyle_(effectStyle)
             blurView = UIVisualEffectView.alloc().initWithEffect_(effect).autorelease()
             blurView.frame = parent.frame
             parent.addSubview_(blurView)
