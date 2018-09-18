@@ -316,7 +316,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         conf = tx_mined_status.conf
         status, status_str = self.wallet.get_tx_status(tx_hash, tx_mined_status)
         icon = self.icon_cache.get(":icons/" +  TX_ICONS[status])
-        items = self.findItems(tx_hash, Qt.UserRole|Qt.MatchContains|Qt.MatchRecursive, column=1)
+        items = self.findItems(tx_hash, Qt.MatchExactly, column=1)
         if items:
             item = items[0]
             item.setIcon(0, icon)
