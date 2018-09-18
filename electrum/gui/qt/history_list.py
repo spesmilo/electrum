@@ -25,6 +25,7 @@
 
 import webbrowser
 import datetime
+from datetime import date
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from .util import *
@@ -220,7 +221,6 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.transactions = r['transactions']
         self.summary = r['summary']
         if not self.years and self.transactions:
-            from datetime import date
             start_date = self.transactions[0].get('date') or date.today()
             end_date = self.transactions[-1].get('date') or date.today()
             self.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
