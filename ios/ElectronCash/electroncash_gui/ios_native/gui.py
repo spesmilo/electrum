@@ -239,26 +239,39 @@ class ElectrumGui(PrintError):
         self.encPasswords = utils.FileBackedDict(os.path.join(self.config.path, 'enc_pws.json'))
         self.touchIdAsked = utils.FileBackedDict(os.path.join(self.config.path, 'touch_id_asked.json'))
         self.killableAlerts = dict()
-                
+        
         self.window = UIWindow.alloc().initWithFrame_(UIScreen.mainScreen.bounds)
 
-        #For now we got rid of the launch screen with logo -- Max says it's better to show an empty UI as users
-        #feel this is a faster/better experience, and I tend to agree. If we want to change it back we can do this
-        #and also rename LaunchScreen_WithLogo.storyboard -> LaunchScreen.storyboard
-        #NSBundle.mainBundle.loadNibNamed_owner_options_("Splash2",self.window,None)
-                
+        # If this is uncommented, use launch screen with logo and activity animation.
+        NSBundle.mainBundle.loadNibNamed_owner_options_("Splash2",self.window,None) 
+
+        # To swith to the 'basic' fake UI launch screen:
+        #
+        #  1. Rename LaunchScreen.storyboard -> LaunchScreen_WithLogo.storyboard
+        #  2. Rename LaunchScreen_Basic.storyboard -> LaunchScreen.storyboard
+        #  3. Get rid of the call_later(0.010,gui.main) call in app.py and call gui.main() directly
+        #  4. Comment-out the above Splash2 load, uncomment the subsequent triple-quoted section
+        #
+        # To switch to the 'logo-based' launch screen:
+        #
+        #  1. Rename LaunchScreen.storyboard -> LaunchScreen_Basic.storyboard
+        #  2. Rename LaunchScreen_WithLogo.storyboard -> LaunchScreen.storyboard
+        #  3. Add call_later(0.010,gui.main) call in app.py, rather than calling gui.main() directly
+        #  4. Uncomment the above Splash2 load, comment-out the below section
+        '''
         # This is seemingly redundant but..
         # 1. We do the below in case user is on a very slow device so that iOS doesn't kill us for not creating a window in time.
         #    I timed it and on my iPhone 6s this adds about 20-30ms to startup time. Surprisingly quick. So we do it.
         # 2. This also safeguards against us possibly doing callbacks later that delay the creation of the window and root view controller
         #
-        # DO NOT REMOVE THIS!
         sb = UIStoryboard.storyboardWithName_bundle_("LaunchScreen", None)
         if not sb:
             utils.NSLog("*** ERROR: LaunchScreen.storyboard not found! WTF?")
         else:
             tb = sb.instantiateViewControllerWithIdentifier_("TabController")
             self.window.rootViewController = tb
+        '''
+        #
 
         self.window.makeKeyAndVisible()
         utils.NSLog("GUI instance created, splash screen 2 presented")
