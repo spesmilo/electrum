@@ -367,12 +367,10 @@ class Network(PrintError):
             value = self.config.fee_estimates
         elif key == 'fee_histogram':
             value = self.config.mempool_fees
-        elif key == 'updated':
-            value = (self.get_local_height(), self.get_server_height())
         elif key == 'servers':
             value = self.get_servers()
-        elif key == 'interfaces':
-            value = self.get_interfaces()
+        else:
+            raise Exception('unexpected trigger key {}'.format(key))
         return value
 
     def notify(self, key):
@@ -547,7 +545,7 @@ class Network(PrintError):
             self.switch_to_interface(server_str)
         else:
             self.switch_lagging_interface()
-            self.notify('updated')
+            self.trigger_callback('network_updated')
 
     def switch_to_random_interface(self):
         '''Switch to a random connected server other than the current one'''
@@ -603,8 +601,7 @@ class Network(PrintError):
                 i.group.spawn(self.request_server_info(i)))
             self.trigger_callback('default_server_changed')
             self.set_status('connected')
-            self.notify('updated')
-            self.notify('interfaces')
+            self.trigger_callback('network_updated')
 
     @with_interface_lock
     def close_interface(self, interface):
@@ -633,7 +630,7 @@ class Network(PrintError):
             self.set_status('disconnected')
         if server in self.interfaces:
             self.close_interface(self.interfaces[server])
-            self.notify('interfaces')
+            self.trigger_callback('network_updated')
 
     @aiosafe
     async def new_interface(self, server):
@@ -664,7 +661,7 @@ class Network(PrintError):
             self.switch_to_interface(server)
 
         self.add_recent_server(server)
-        self.notify('interfaces')
+        self.trigger_callback('network_updated')
 
     def init_headers_file(self):
         b = blockchain.blockchains[0]

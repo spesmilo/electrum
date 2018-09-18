@@ -375,7 +375,6 @@ class Interface(PrintError):
         header_queue = asyncio.Queue()
         await self.session.subscribe('blockchain.headers.subscribe', [], header_queue)
         while True:
-            self.network.notify('updated')
             item = await header_queue.get()
             raw_header = item[0]
             height = raw_header['height']
@@ -394,6 +393,7 @@ class Interface(PrintError):
                 # in the simple case, height == self.tip+1
                 if height <= self.tip:
                     await self.sync_until(height)
+            self.network.trigger_callback('network_updated')
             self.network.switch_lagging_interface()
 
     async def sync_until(self, height, next_height=None):
@@ -406,10 +406,10 @@ class Interface(PrintError):
                 could_connect, num_headers = await self.request_chunk(height, next_height)
                 if not could_connect:
                     if height <= constants.net.max_checkpoint():
-                        raise Exception('server chain conflicts with checkpoints or genesis')
+                        raise GracefulDisconnect('server chain conflicts with checkpoints or genesis')
                     last, height = await self.step(height)
                     continue
-                self.network.notify('updated')
+                self.network.trigger_callback('network_updated')
                 height = (height // 2016 * 2016) + num_headers
                 assert height <= next_height+1, (height, self.tip)
                 last = 'catchup'
@@ -536,7 +536,7 @@ class Interface(PrintError):
             if chain or can_connect:
                 return False
             if checkp:
-                raise Exception("server chain conflicts with checkpoints")
+                raise GracefulDisconnect("server chain conflicts with checkpoints")
             return True
 
         bad, bad_header = height, header
