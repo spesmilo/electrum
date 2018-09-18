@@ -1138,7 +1138,7 @@ class Transaction:
         return self.input_value() - self.output_value()
 
     def is_final(self):
-        return not any([x.get('sequence', 0xffffffff - 1) < 0xffffffff - 2 for x in self.inputs()])
+        return not any([x.get('sequence', 0xffffffff - 1) < 0xffffffff - 1 for x in self.inputs()])
 
     @profiler
     def estimated_size(self):
