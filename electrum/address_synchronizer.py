@@ -577,9 +577,6 @@ class AddressSynchronizer(PrintError):
             with self.lock:
                 # tx will be verified only if height > 0
                 self.unverified_tx[tx_hash] = tx_height
-            # to remove pending proof requests:
-            if self.verifier:
-                self.verifier.remove_spv_proof_for_tx(tx_hash)
 
     def remove_unverified_tx(self, tx_hash, tx_height):
         with self.lock:
