@@ -25,7 +25,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
         to_self_delay=l_csv,
         dust_limit_sat=l_dust,
         max_htlc_value_in_flight_msat=500000 * 1000,
-        max_accepted_htlcs=5
+        max_accepted_htlcs=5,
+        initial_msat=local_amount,
     )
     remote_config=lnbase.ChannelConfig(
         payment_basepoint=other_pubkeys[0],
@@ -36,7 +37,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
         to_self_delay=r_csv,
         dust_limit_sat=r_dust,
         max_htlc_value_in_flight_msat=500000 * 1000,
-        max_accepted_htlcs=5
+        max_accepted_htlcs=5,
+        initial_msat=remote_amount,
     )
 
     return {
@@ -132,11 +134,11 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
 
         self.paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(self.paymentPreimage)
-        self.htlc = lnhtlc.UpdateAddHtlc(
-            payment_hash = paymentHash,
-            amount_msat =  one_bitcoin_in_msat,
-            cltv_expiry =  5,
-        )
+        self.htlc = {
+            'payment_hash' : paymentHash,
+            'amount_msat' :  one_bitcoin_in_msat,
+            'cltv_expiry' :  5,
+        }
 
         # First Alice adds the outgoing HTLC to her local channel's state
         # update log. Then Alice sends this wire message over to Bob who adds
@@ -144,6 +146,7 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         self.aliceHtlcIndex = self.alice_channel.add_htlc(self.htlc)
 
         self.bobHtlcIndex = self.bob_channel.receive_htlc(self.htlc)
+        self.htlc = self.bob_channel.log[lnutil.REMOTE][0]
 
     def test_SimpleAddSettleWorkflow(self):
         alice_channel, bob_channel = self.alice_channel, self.bob_channel
@@ -250,6 +253,8 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         # revocation.
         #self.assertEqual(alice_channel.local_update_log, [], "alice's local not updated, should be empty, has %s entries instead"% len(alice_channel.local_update_log))
         #self.assertEqual(alice_channel.remote_update_log, [], "alice's remote not updated, should be empty, has %s entries instead"% len(alice_channel.remote_update_log))
+        alice_channel.update_fee(100000)
+        alice_channel.serialize()
 
     def alice_to_bob_fee_update(self):
         fee = 111
@@ -325,11 +330,11 @@ class TestLNHTLCDust(unittest.TestCase):
         self.assertEqual(fee_per_kw, 6000)
         htlcAmt = 500 + lnutil.HTLC_TIMEOUT_WEIGHT * (fee_per_kw // 1000)
         self.assertEqual(htlcAmt, 4478)
-        htlc = lnhtlc.UpdateAddHtlc(
-            payment_hash = paymentHash,
-            amount_msat =  1000 * htlcAmt,
-            cltv_expiry =  5, # also in create_test_channels
-        )
+        htlc = {
+            'payment_hash' : paymentHash,
+            'amount_msat' :  1000 * htlcAmt,
+            'cltv_expiry' :  5, # also in create_test_channels
+        }
 
         aliceHtlcIndex = alice_channel.add_htlc(htlc)
         bobHtlcIndex = bob_channel.receive_htlc(htlc)
@@ -338,7 +343,7 @@ class TestLNHTLCDust(unittest.TestCase):
         self.assertEqual(len(bob_channel.local_commitment.outputs()), 2)
         default_fee = calc_static_fee(0)
         self.assertEqual(bob_channel.pending_local_fee, default_fee + htlcAmt)
-        bob_channel.settle_htlc(paymentPreimage, htlc.htlc_id)
+        bob_channel.settle_htlc(paymentPreimage, bobHtlcIndex)
         alice_channel.receive_htlc_settle(paymentPreimage, aliceHtlcIndex)
         force_state_transition(bob_channel, alice_channel)
         self.assertEqual(len(alice_channel.local_commitment.outputs()), 2)
