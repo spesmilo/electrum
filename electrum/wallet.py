@@ -406,7 +406,7 @@ class Abstract_Wallet(AddressSynchronizer):
             if show_addresses:
                 tx = self.transactions.get(tx_hash)
                 item['inputs'] = list(map(lambda x: dict((k, x[k]) for k in ('prevout_hash', 'prevout_n')), tx.inputs()))
-                item['outputs'] = list(map(lambda x:{'address':x[0], 'value':Satoshis(x[1])}, tx.get_outputs()))
+                item['outputs'] = list(map(lambda x:{'address':x[0], 'value':Satoshis(x[1]), 'asset':x[2]}, tx.get_outputs()))
             # value may be None if wallet is not fully synchronized
             if value is None:
                 continue
@@ -599,13 +599,15 @@ class Abstract_Wallet(AddressSynchronizer):
                 raise NotEnoughFunds()
 
             # add asset information to output
-            asset = inputs[0]['asset']
             outputs[i_max] = outputs[i_max]._replace(value=amount)
-            outputs_with_assetid = [TxOutput(o.type, o.address, o.value, o.vvalue, asset, 1) for o in outputs]
+            input_map = {i['asset']: i['value'] for i in inputs}
+            asset_outputs = [TxOutput(o.type, o.address, value, 1, asset, 1)
+                for o in outputs for (asset, value) in coinchooser.get_asset_outputs(o.value, input_map)]
 
             # add fee output
-            tx = Transaction.from_io(inputs, outputs_with_assetid[:])
-            tx.add_outputs([TxOutput(TYPE_SCRIPT, '', tx.get_fee(), 1, asset, 1)])
+            tx = Transaction.from_io(inputs, asset_outputs[:])
+            tx.add_outputs(TxOutput(TYPE_SCRIPT, '', value, 1, asset, 1)
+                for (asset, value) in coinchooser.get_asset_outputs(tx.get_fee(), input_map))
 
         # Sort the inputs and outputs deterministically
         tx.BIP_LI01_sort()
@@ -1091,7 +1093,7 @@ class Abstract_Wallet(AddressSynchronizer):
         txid = txin['prevout_hash']
         prev_n = txin['prevout_n']
         for address, d in self.txo.get(txid, {}).items():
-            for n, v, cb in d:
+            for n, v, a, cb in d:
                 if n == prev_n:
                     return v
         # may occur if wallet is not synchronized

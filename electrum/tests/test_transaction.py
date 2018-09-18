@@ -8,9 +8,9 @@ from electrum.util import bh2u, bfh
 from . import SequentialTestCase, TestCaseForTestnet
 from .test_bitcoin import needs_test_with_all_ecc_implementations
 
-unsigned_blob = '45505446ff00010000000001d19d4379f7b2031b8c336e09d605c0b73dc558c71f8afee1af2d6fec190b9daa010000005701ff4c53ff0488b21e000000000000000000350138c626aac760ea9eedb47287f12c4d783910821c5602d5f8ed933a8f0d95025fb1f45ecb87f2089dc8b0257fc23cc5fd13ae9d4e14c08b0398002d68eae14c01000800fdffffff03018f9390e4c7b981e355aed3c5690e17c2e13bb263246a55d8039813cac670c2f1010000000005f5e100001976a9149294020e329f3f25bdb43560bad8057ff55a807a88ac018f9390e4c7b981e355aed3c5690e17c2e13bb263246a55d8039813cac670c2f1010000048c0f5fb0f0001976a9149e327995acc97229c07ce5e75789dab5eb3b689188ac018f9390e4c7b981e355aed3c5690e17c2e13bb263246a55d8039813cac670c2f10100000000000086c4000029000000'
-signed_blob = '010000000001d19d4379f7b2031b8c336e09d605c0b73dc558c71f8afee1af2d6fec190b9daa010000006a47304402205a4538424b4fd734ac6f9d88fb8a1feaf2d650db569bf3818196caaeb1f7b3dc0220414ddcdc9daa45803f89b76da90ee1f21701be244cf5c9e67bcead988d576aae012102bf9e924b4771ed6f44614293e8d3f6e12b90e16035e7f3d51eb9e6447d9d1223fdffffff03018f9390e4c7b981e355aed3c5690e17c2e13bb263246a55d8039813cac670c2f1010000000005f5e100001976a9149294020e329f3f25bdb43560bad8057ff55a807a88ac018f9390e4c7b981e355aed3c5690e17c2e13bb263246a55d8039813cac670c2f1010000048c0f5fb0f0001976a9149e327995acc97229c07ce5e75789dab5eb3b689188ac018f9390e4c7b981e355aed3c5690e17c2e13bb263246a55d8039813cac670c2f10100000000000086c4000029000000'
-signed_blob_signatures = ['304402205a4538424b4fd734ac6f9d88fb8a1feaf2d650db569bf3818196caaeb1f7b3dc0220414ddcdc9daa45803f89b76da90ee1f21701be244cf5c9e67bcead988d576aae01',]
+unsigned_blob = '45505446ff00010000000001f8ddeb9a69819ed38bec0d121a241bbf2465f61263068881a28cc2b71c4b5525010000005701ff4c53ff0488b21e000000000000000000350138c626aac760ea9eedb47287f12c4d783910821c5602d5f8ed933a8f0d95025fb1f45ecb87f2089dc8b0257fc23cc5fd13ae9d4e14c08b0398002d68eae14c00000000feffffff0301a41dc2f5b4e17ec90d88808ff7a4e54e53acce037ff51c093d3f1f57fafd18670100005af3107a4000001976a9140210e63973f9feddf155e5e73ac8f7289549b5f788ac01a41dc2f5b4e17ec90d88808ff7a4e54e53acce037ff51c093d3f1f57fafd18670100016bcc41e8793c001976a9149e327995acc97229c07ce5e75789dab5eb3b689188ac01a41dc2f5b4e17ec90d88808ff7a4e54e53acce037ff51c093d3f1f57fafd18670100000000000086c4000003000000'
+signed_blob = '010000000001f8ddeb9a69819ed38bec0d121a241bbf2465f61263068881a28cc2b71c4b5525010000006b483045022100c055b7b07847ee98bce64b22058356efca5b81f8a69f8c2b285669081c58361c02202d14691a6909888fc09e6fb2ab37949de87e0c7d1e72db10d6a2bfbec35fe61b0121031ec67b31750c9ca58b859200267625681d4c9849f8fb163207c4186a273e0b0afeffffff0301a41dc2f5b4e17ec90d88808ff7a4e54e53acce037ff51c093d3f1f57fafd18670100005af3107a4000001976a9140210e63973f9feddf155e5e73ac8f7289549b5f788ac01a41dc2f5b4e17ec90d88808ff7a4e54e53acce037ff51c093d3f1f57fafd18670100016bcc41e8793c001976a9149e327995acc97229c07ce5e75789dab5eb3b689188ac01a41dc2f5b4e17ec90d88808ff7a4e54e53acce037ff51c093d3f1f57fafd18670100000000000086c4000003000000'
+signed_blob_signatures = ['3045022100c055b7b07847ee98bce64b22058356efca5b81f8a69f8c2b285669081c58361c02202d14691a6909888fc09e6fb2ab37949de87e0c7d1e72db10d6a2bfbec35fe61b01',]
 
 v2_blob = "0200000000026d88e03db6f5537a1e8ab5e6f5629b9bd3d8cd202ebdd957b2082190b7aecf9e000000006a473044022008430c1563591de0313db6fcbb9bbc1314bc4782ae18cbc4b69fec65a5843a160220079efb70719c75e307f0ac2f7cce8ebd3bb3d4a79eccb7b1fe58df1a0e81f15b0121025980f0aa6b634c1a2c8ae2b01aa257669f436c740ca392a61120e69fc478774bfeffffff6d88e03db6f5537a1e8ab5e6f5629b9bd3d8cd202ebdd957b2082190b7aecf9e010000006a47304402203b7407baee09f20013856e682656fd3b6d7444eddaee40130eaa1d8dddf2dcce02202264c5de2f1422a89d22b3ade2dae0162ea0bc0489384bc94285aeca2c801dc90121021fe5af011813507148fd6b55e1aee4b5e316dada54c4cb448a0839e2a6d55428feffffff0401613d2c1a8ff549ce716a749f5e8e2b123ae1b4b7661bd3a2d731609dada0ff3b0100038d7e8ceefc00001976a914a017fc5aefbcf6cd57044b90c3d85cfbec95c72888ac01613d2c1a8ff549ce716a749f5e8e2b123ae1b4b7661bd3a2d731609dada0ff3b010000000017d78400001976a9140217928daaa582b55e07363cd88a998ab167812088ac0190f6212d141349050aca026eeb6e53a037bfaf5e0383deae7b9a5139d972465901000000746a524458001976a91450fc2d2d68e3224e8334ac469f0a2cf6928dd3ca88ac0190f6212d141349050aca026eeb6e53a037bfaf5e0383deae7b9a5139d9724659010000000000002b98000000000000"
 signed_segwit_blob = "0200000001010000000000000000000000000000000000000000000000000000000000000000ffffffff03520101ffffffff020190f6212d141349050aca026eeb6e53a037bfaf5e0383deae7b9a5139d9724659010000000000060ab80001510190f6212d141349050aca026eeb6e53a037bfaf5e0383deae7b9a5139d972465901000000000000000000266a24aa21a9ed818007e5b371ffd2ddaf01a00a017ac309b1f0dd184fac749babd10505496e8e000000000000012000000000000000000000000000000000000000000000000000000000000000000000000000"
@@ -63,33 +63,33 @@ class TestTransaction(SequentialTestCase):
         expected = {
             'inputs': [{
                 'type': 'p2pkh',
-                'address': '16knJHnrnVqXitGgp5v2wBaFRFPk6qRcM8',
+                'address': '14iRdacqJ95JffkUFUTUoZmHCUkq21UMAZ',
                 'issuance': None,
                 'num_sig': 1,
-                'prevout_hash': 'aa9d0b19ec6f2dafe1fe8a1fc758c53db7c005d6096e338c1b03b2f779439dd1',
+                'prevout_hash': '25554b1cb7c28ca28188066312f66524bf1b241a120dec8bd39e81699aebddf8',
                 'prevout_n': 1,
-                'pubkeys': ['02bf9e924b4771ed6f44614293e8d3f6e12b90e16035e7f3d51eb9e6447d9d1223'],
-                'scriptSig': '01ff4c53ff0488b21e000000000000000000350138c626aac760ea9eedb47287f12c4d783910821c5602d5f8ed933a8f0d95025fb1f45ecb87f2089dc8b0257fc23cc5fd13ae9d4e14c08b0398002d68eae14c01000800',
-                'sequence': 4294967293,
+                'pubkeys': ['031ec67b31750c9ca58b859200267625681d4c9849f8fb163207c4186a273e0b0a'],
+                'scriptSig': '01ff4c53ff0488b21e000000000000000000350138c626aac760ea9eedb47287f12c4d783910821c5602d5f8ed933a8f0d95025fb1f45ecb87f2089dc8b0257fc23cc5fd13ae9d4e14c08b0398002d68eae14c00000000',
+                'sequence': 4294967294,
                 'signatures': [None],
-                'x_pubkeys': ['ff0488b21e000000000000000000350138c626aac760ea9eedb47287f12c4d783910821c5602d5f8ed933a8f0d95025fb1f45ecb87f2089dc8b0257fc23cc5fd13ae9d4e14c08b0398002d68eae14c01000800']}],
-            'lockTime': 41,
+                'x_pubkeys': ['ff0488b21e000000000000000000350138c626aac760ea9eedb47287f12c4d783910821c5602d5f8ed933a8f0d95025fb1f45ecb87f2089dc8b0257fc23cc5fd13ae9d4e14c08b0398002d68eae14c00000000']}],
+            'lockTime': 3,
             'outputs': [{
-                'address': '1EN2xnZ4Y8HDCxPqyt5PdwJRYbUXqTV4DV',
-                'asset': 'f1c270c6ca139803d8556a2463b23be1c2170e69c5d3ae55e381b9c7e490938f',
+                'address': '1BvbZykUE5oS5ACH5U4mhwE5KdJPHson7',
+                'asset': '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4',
                 'asset_version': 1,
                 'nonce': None,
                 'nonce_version': 0,
                 'prevout_n': 0,
-                'scriptPubKey': '76a9149294020e329f3f25bdb43560bad8057ff55a807a88ac',
+                'scriptPubKey': '76a9140210e63973f9feddf155e5e73ac8f7289549b5f788ac',
                 'range_proof': None,
                 'surjection_proof': None,
                 'type': TYPE_ADDRESS,
-                'value': 100000000,
+                'value': 100000000000000,
                 'value_version': 1},
                 {
                 'address': '1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac',
-                'asset': 'f1c270c6ca139803d8556a2463b23be1c2170e69c5d3ae55e381b9c7e490938f',
+                'asset': '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4',
                 'asset_version': 1,
                 'nonce': None,
                 'nonce_version': 0,
@@ -98,11 +98,11 @@ class TestTransaction(SequentialTestCase):
                 'range_proof': None,
                 'surjection_proof': None,
                 'type': TYPE_ADDRESS,
-                'value': 4999599862000,
+                'value': 399999999965500,
                 'value_version': 1},
                 {
                 'address': '',
-                'asset': 'f1c270c6ca139803d8556a2463b23be1c2170e69c5d3ae55e381b9c7e490938f',
+                'asset': '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4',
                 'asset_version': 1,
                 'nonce': None,
                 'nonce_version': 0,
@@ -122,10 +122,10 @@ class TestTransaction(SequentialTestCase):
         self.assertEqual(tx.deserialize(), None)
 
         self.assertEqual(tx.as_dict(), {'hex': unsigned_blob, 'complete': False, 'final': True})
-        self.assertEqual(tx.get_outputs(), [('1EN2xnZ4Y8HDCxPqyt5PdwJRYbUXqTV4DV', 100000000), ('1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac', 4999599862000), ('SCRIPT ', 34500)])
-        self.assertEqual(tx.get_output_addresses(), ['1EN2xnZ4Y8HDCxPqyt5PdwJRYbUXqTV4DV', '1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac', 'SCRIPT '])
+        self.assertEqual(tx.get_outputs(), [('1BvbZykUE5oS5ACH5U4mhwE5KdJPHson7', 100000000000000, '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4'), ('1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac', 399999999965500, '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4'), ('SCRIPT ', 34500, '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4')])
+        self.assertEqual(tx.get_output_addresses(), ['1BvbZykUE5oS5ACH5U4mhwE5KdJPHson7', '1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac', 'SCRIPT '])
 
-        self.assertTrue(tx.has_address('1EN2xnZ4Y8HDCxPqyt5PdwJRYbUXqTV4DV'))
+        self.assertTrue(tx.has_address('1BvbZykUE5oS5ACH5U4mhwE5KdJPHson7'))
         self.assertTrue(tx.has_address('1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac'))
         self.assertFalse(tx.has_address('1FRUENS6LR8JdwEoptZwjRA1c64WDgcsab'))
         self.assertEqual(tx.serialize(), unsigned_blob)
@@ -140,34 +140,35 @@ class TestTransaction(SequentialTestCase):
 
     @needs_test_with_all_ecc_implementations
     def test_tx_signed(self):
+        self.maxDiff=None
         expected = {
             'inputs': [{
                 'type': 'unknown',
                 'address': None,
                 'issuance': None,
                 'num_sig': 0,
-                'prevout_hash': 'aa9d0b19ec6f2dafe1fe8a1fc758c53db7c005d6096e338c1b03b2f779439dd1',
+                'prevout_hash': '25554b1cb7c28ca28188066312f66524bf1b241a120dec8bd39e81699aebddf8',
                 'prevout_n': 1,
-                'scriptSig': '47304402205a4538424b4fd734ac6f9d88fb8a1feaf2d650db569bf3818196caaeb1f7b3dc0220414ddcdc9daa45803f89b76da90ee1f21701be244cf5c9e67bcead988d576aae012102bf9e924b4771ed6f44614293e8d3f6e12b90e16035e7f3d51eb9e6447d9d1223',
-                'sequence': 4294967293}],
-            'lockTime': 41,
+                'scriptSig': '483045022100c055b7b07847ee98bce64b22058356efca5b81f8a69f8c2b285669081c58361c02202d14691a6909888fc09e6fb2ab37949de87e0c7d1e72db10d6a2bfbec35fe61b0121031ec67b31750c9ca58b859200267625681d4c9849f8fb163207c4186a273e0b0a',
+                'sequence': 4294967294}],
+            'lockTime': 3,
             'outputs': [
                 {
-                'address': '1EN2xnZ4Y8HDCxPqyt5PdwJRYbUXqTV4DV',
-                'asset': 'f1c270c6ca139803d8556a2463b23be1c2170e69c5d3ae55e381b9c7e490938f',
+                'address': '1BvbZykUE5oS5ACH5U4mhwE5KdJPHson7',
+                'asset': '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4',
                 'asset_version': 1,
                 'nonce': None,
                 'nonce_version': 0,
                 'prevout_n': 0,
-                'scriptPubKey': '76a9149294020e329f3f25bdb43560bad8057ff55a807a88ac',
+                'scriptPubKey': '76a9140210e63973f9feddf155e5e73ac8f7289549b5f788ac',
                 'range_proof': None,
                 'surjection_proof': None,
                 'type': TYPE_ADDRESS,
-                'value': 100000000,
+                'value': 100000000000000,
                 'value_version': 1},
                 {
                 'address': '1FRUENS6LR8JdwEoptZwjRA1c64WDgcsac',
-                'asset': 'f1c270c6ca139803d8556a2463b23be1c2170e69c5d3ae55e381b9c7e490938f',
+                'asset': '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4',
                 'asset_version': 1,
                 'nonce': None,
                 'nonce_version': 0,
@@ -176,11 +177,11 @@ class TestTransaction(SequentialTestCase):
                 'range_proof': None,
                 'surjection_proof': None,
                 'type': TYPE_ADDRESS,
-                'value': 4999599862000,
+                'value': 399999999965500,
                 'value_version': 1},
                 {
                 'address': '',
-                'asset': 'f1c270c6ca139803d8556a2463b23be1c2170e69c5d3ae55e381b9c7e490938f',
+                'asset': '6718fdfa571f3f3d091cf57f03ceac534ee5a4f78f80880dc97ee1b4f5c21da4',
                 'asset_version': 1,
                 'nonce': None,
                 'nonce_version': 0,
@@ -205,11 +206,11 @@ class TestTransaction(SequentialTestCase):
 
         tx.update_signatures(signed_blob_signatures)
 
-        self.assertEqual(tx.estimated_total_size(), 340)
-        self.assertEqual(tx.estimated_base_size(), 340)
+        self.assertEqual(tx.estimated_total_size(), 341)
+        self.assertEqual(tx.estimated_base_size(), 341)
         self.assertEqual(tx.estimated_witness_size(), 0)
-        self.assertEqual(tx.estimated_weight(), 1360)
-        self.assertEqual(tx.estimated_size(), 340)
+        self.assertEqual(tx.estimated_weight(), 1364)
+        self.assertEqual(tx.estimated_size(), 341)
 
     def test_estimated_output_size(self):
         estimated_output_size = transaction.Transaction.estimated_output_size

@@ -502,22 +502,81 @@ class TestWalletKeystoreAddressIntegrityForTestnet(TestCaseForTestnet):
         self.assertEqual(w.get_change_addresses()[0], 'tb1q0fj5mra96hhnum80kllklc52zqn6kppt3hyzr49yhr3ecr42z3ts5777jl')
 
 
-# class TestWalletSending(TestCaseForTestnet):
+class TestWalletSending(SequentialTestCase):
 
-#     @classmethod
-#     def setUpClass(cls):
-#         super().setUpClass()
-#         cls.electrum_path = tempfile.mkdtemp()
-#         cls.config = SimpleConfig({'electrum_path': cls.electrum_path})
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.electrum_path = tempfile.mkdtemp()
+        cls.config = SimpleConfig({'electrum_path': cls.electrum_path})
 
-#     @classmethod
-#     def tearDownClass(cls):
-#         super().tearDownClass()
-#         shutil.rmtree(cls.electrum_path)
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(cls.electrum_path)
 
-#     def create_standard_wallet_from_seed(self, seed_words):
-#         ks = keystore.from_seed(seed_words, '', False)
-#         return WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=2)
+    def create_standard_wallet_from_seed(self, seed_words):
+        ks = keystore.from_seed(seed_words, '', False)
+        return WalletIntegrityHelper.create_standard_wallet(ks, gap_limit=2)
+
+    @needs_test_with_all_ecc_implementations
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_sending_between_p2pkh_and_p2pkh(self, mock_write):
+        self.maxDiff = None
+
+        wallet1 = self.create_standard_wallet_from_seed('fold object utility erase deputy output stadium feed stereo usage modify bean')
+        wallet2 = self.create_standard_wallet_from_seed('cycle rocket west magnet parrot shuffle foot correct salt library feed song')
+
+        # bootstrap wallet1
+        funding_tx = Transaction('0200000000013fce6d84a9f5ad913d810a571c4502a6202679ca1f4deace8ce90e8fb43192df000000006a47304402203d6058c1428d47af4ea33908af4fd1ce197c11fe6d2c56ea02a707a97eb74ea102204587b89d06244bea54dea8fed5ffc4caf622abab7cc540ac3b6257ca0b7a6741012102db072d171201b0904ce83242bc4bc7f5ff903c0bbbe2e211beb6d2c4865a457afeffffff0301eb792dbb1a335e04062c72a49a80b931f58a65fe67f449c830fa98b3d3fd2cfd010000011cd25c8e5c001976a91472e34cebab371967b038ce41d0e8fa1fb983795e88ac01ea792dbb1a335e04062c72a49a80b931f58a65fe67f449c830fa98b3d3fd2cfd01000007fb525cb55c001976a91472e34cebab371967b038ce41d0e8fa1fb983795e88ac01ea792dbb1a335e04062c72a49a80b931f58a65fe67f449c830fa98b3d3fd2cfd010000000000001aa4000002000000')
+        funding_txid = funding_tx.txid()
+        funding_output_value = 9999299986360    # 9999299993180 - 6820(fee)
+        self.assertEqual('67febda918db209bf176ce9009b10d64965e6a0914715e9b36f05bbaf908322f', funding_txid)
+        wallet1.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        # wallet1 -> wallet2
+        outputs = [TxOutput(bitcoin.TYPE_ADDRESS, wallet2.get_receiving_address(), 250000)]
+        tx = wallet1.mktx(outputs=outputs, password=None, config=self.config, fee=5000)
+
+        self.assertTrue(tx.is_complete())
+        self.assertTrue(not tx.is_segwit())
+        self.assertEqual(2, len(tx.inputs()))
+        self.assertEqual(wallet1.txin_type, tx.inputs()[0]['type'])
+        tx_copy = Transaction(tx.serialize())
+        self.assertTrue(wallet1.is_mine(wallet1.get_txin_address(tx_copy.inputs()[0])))
+
+        self.assertEqual('0100000000022f3208f9ba5bf0369b5e7114096a5e96640db10990ce76f19b20db18a9bdfe67000000006b4830450221009f5d45937473adef459380074ab28192d43809ab7493e1c9fbe179bfb938f1d00220138a57168076a6685965b50988ab2461cbb51741344c155ff670938cc03f6b55012102a807c07bd7975211078e916bdda061d97e98d59a3631a804aada2f9a3f5b587afeffffff2f3208f9ba5bf0369b5e7114096a5e96640db10990ce76f19b20db18a9bdfe67010000006b483045022100b5a5e83845bddfc6e80ac2f9bd0d0ea9d60ffd4c81285e8be93ec46a97a1e57302201f553a60f6c77650af1cb88467b5a83825208b243c134787f2389e7404a560e0012102a807c07bd7975211078e916bdda061d97e98d59a3631a804aada2f9a3f5b587afeffffff0401eb792dbb1a335e04062c72a49a80b931f58a65fe67f449c830fa98b3d3fd2cfd01000000000003d090001976a914ea7804a2c266063572cc009a63dc25dcc0e9d9b588ac01eb792dbb1a335e04062c72a49a80b931f58a65fe67f449c830fa98b3d3fd2cfd010000011cd258bdcc001976a914aab9af3fbee0ab4e5c00d53e92f66d4bcb44f1bd88ac01ea792dbb1a335e04062c72a49a80b931f58a65fe67f449c830fa98b3d3fd2cfd01000007fb525ca1d4001976a914aab9af3fbee0ab4e5c00d53e92f66d4bcb44f1bd88ac01ea792dbb1a335e04062c72a49a80b931f58a65fe67f449c830fa98b3d3fd2cfd010000000000001388000000000000',
+                         str(tx_copy))
+        self.assertEqual('089b7c5be8c0a12b807f87d4c0ced646649d2d79ec6b5e27d734e56340ef06e2', tx_copy.txid())
+        self.assertEqual('089b7c5be8c0a12b807f87d4c0ced646649d2d79ec6b5e27d734e56340ef06e2', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        wallet1.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)  # TX_HEIGHT_UNCONF_PARENT but nvm
+        wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
+
+        # wallet2 -> wallet1
+        outputs = [TxOutput(bitcoin.TYPE_ADDRESS, wallet1.get_receiving_address(), 100000)]
+        tx = wallet2.mktx(outputs=outputs, password=None, config=self.config, fee=5000)
+
+        self.assertTrue(tx.is_complete())
+        self.assertFalse(tx.is_segwit())
+        self.assertEqual(1, len(tx.inputs()))
+        self.assertEqual(wallet2.txin_type, tx.inputs()[0]['type'])
+        tx_copy = Transaction(tx.serialize())
+        self.assertTrue(wallet2.is_mine(wallet2.get_txin_address(tx_copy.inputs()[0])))
+
+        self.assertEqual('010000000001e206ef4063e534d7275e6bec792d9d6446d6cec0d4877f802ba1c0e85b7c9b08000000006a473044022024d2f37d0f1b5db89f02fee9fbb953231fe2ca721361c58f88f106b8dd2d67ab0220271936ebd20432382946797de071877d8d0d43a0aa6d7322245501cd8c90f67e0121030b482838721a38d94847699fed8818b5c5f56500ef72f13489e365b65e5749cffeffffff0301eb792dbb1a335e04062c72a49a80b931f58a65fe67f449c830fa98b3d3fd2cfd0100000000000186a0001976a91472e34cebab371967b038ce41d0e8fa1fb983795e88ac01eb792dbb1a335e04062c72a49a80b931f58a65fe67f449c830fa98b3d3fd2cfd010000000000023668001976a914ca4c60999c46c2108326590b125aefd476dcb11888ac01eb792dbb1a335e04062c72a49a80b931f58a65fe67f449c830fa98b3d3fd2cfd010000000000001388000000000000',
+                         str(tx_copy))
+        self.assertEqual('8aaf058c1fa2a4f877062e881cae5f28210b158aab21f52e5ad0f13decc568e1', tx_copy.txid())
+        self.assertEqual('8aaf058c1fa2a4f877062e881cae5f28210b158aab21f52e5ad0f13decc568e1', tx_copy.wtxid())
+        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+
+        wallet1.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
+        wallet2.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
+
+        # wallet level checks
+        self.assertEqual((0, funding_output_value - 250000 - 5000 + 100000, 0), wallet1.get_balance())
+        self.assertEqual((0, 250000 - 5000 - 100000, 0), wallet2.get_balance())
 
 #     @needs_test_with_all_ecc_implementations
 #     @mock.patch.object(storage.WalletStorage, '_write')

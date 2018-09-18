@@ -49,7 +49,7 @@ class Plugin(BasePlugin):
     def get_my_addr(self, d):
         """Returns the address for given tx which can be used to request
         instant confirmation verification from GreenAddress"""
-        for addr, _ in d.tx.get_outputs():
+        for addr, _, _ in d.tx.get_outputs():
             if d.wallet.is_mine(addr):
                 return addr
         return None
