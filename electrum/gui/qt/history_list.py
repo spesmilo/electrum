@@ -26,6 +26,7 @@
 import webbrowser
 import datetime
 from datetime import date
+from concurrent.futures import ThreadPoolExecutor
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from .util import *
@@ -56,6 +57,8 @@ TX_ICONS = [
 class HistoryList(MyTreeWidget, AcceptFileDragDrop):
     filter_columns = [2, 3, 4]  # Date, Description, Amount
 
+    history_ready_signal = pyqtSignal()
+
     def __init__(self, parent=None):
         MyTreeWidget.__init__(self, parent, self.create_menu, [], 3)
         AcceptFileDragDrop.__init__(self, ".txn")
@@ -68,6 +71,9 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         self.years = []
         self.create_toolbar_buttons()
         self.wallet = None
+        self._threadpool = ThreadPoolExecutor(max_workers=1)
+        self._history = None
+        self.history_ready_signal.connect(lambda: MyTreeWidget.update(self))
 
     def format_date(self, d):
         return str(datetime.date(d.year, d.month, d.day)) if d else _('None')
@@ -213,13 +219,27 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         except NothingToPlotException as e:
             self.parent.show_message(str(e))
 
+    def update(self):
+        def job():
+            hist = self.wallet.get_full_history(domain=self.get_domain(), from_timestamp=self.start_timestamp,
+                                                to_timestamp=self.end_timestamp, fx=self.parent.fx)
+            self._history = hist
+        def on_done(fut):
+            e = fut.exception()
+            if e: raise e
+            self.history_ready_signal.emit()
+
+        self.wallet = self.parent.wallet
+        fut = self._threadpool.submit(job)
+        fut.add_done_callback(on_done)
+
     @profiler
     def on_update(self):
-        self.wallet = self.parent.wallet
         fx = self.parent.fx
-        r = self.wallet.get_full_history(domain=self.get_domain(), from_timestamp=self.start_timestamp, to_timestamp=self.end_timestamp, fx=fx)
-        self.transactions = r['transactions']
-        self.summary = r['summary']
+        hist = self._history
+        if hist is None: return
+        self.transactions = hist['transactions']
+        self.summary = hist['summary']
         if not self.years and self.transactions:
             start_date = self.transactions[0].get('date') or date.today()
             end_date = self.transactions[-1].get('date') or date.today()
