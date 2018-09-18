@@ -237,16 +237,14 @@ class CoinChooserBase(PrintError):
         buckets = self.choose_buckets(buckets, sufficient_funds,
                                       self.penalty_func(tx))
 
-        # hacky and temporary
-        # assumes that we are only transacting in the chain pegged asset
-        # thus assigning the same asset id to all outputs and sends the
-        # fee on the same asset id as the pegged asset
         inputs = [coin for b in buckets for coin in b.coins]
-        asset = inputs[0]['asset']
+        input_map = {i['asset']: i['value'] for i in inputs}
 
-        outputs_with_assetid = [TxOutput(o.type, o.address, o.value, o.vvalue, asset, 1) for o in outputs]
+        # append outputs with asset id and adjust asset input value balance
+        asset_outputs = [TxOutput(o.type, o.address, value, 1, asset, 1)
+                for o in outputs for (asset, value) in self.get_asset_outputs(o.value, input_map)]
 
-        tx = Transaction.from_io(inputs[:], outputs_with_assetid[:])
+        tx = Transaction.from_io(inputs[:], asset_outputs[:])
         tx_weight = get_tx_weight(buckets)
 
         # change is sent back to sending address unless specified
@@ -261,10 +259,13 @@ class CoinChooserBase(PrintError):
         fee = lambda count: fee_estimator_w(tx_weight + count * output_weight)
         change = self.change_outputs(tx, change_addrs, fee, dust_threshold)
 
-        tx.add_outputs([TxOutput(o.type, o.address, o.value, o.vvalue, asset, 1) for o in change])
+        # add change outputs with asset id taken from the input asset map
+        tx.add_outputs(TxOutput(o.type, o.address, value, 1, asset, 1)
+            for o in change for (asset, value) in self.get_asset_outputs(o.value, input_map))
 
-        # Add an output for fees as it is currently required in the Ocean client
-        tx.add_outputs([TxOutput(TYPE_SCRIPT, '', tx.get_fee(), 1, asset, 1)])
+        # add fee outputs for the asset remaining in the asset input balance
+        tx.add_outputs(TxOutput(TYPE_SCRIPT, '', value, 1, asset, 1)
+            for (asset, value) in self.get_asset_outputs(tx.get_fee(), input_map))
 
         self.print_error("using %d inputs" % len(tx.inputs()))
         self.print_error("using buckets:", [bucket.desc for bucket in buckets])
@@ -273,7 +274,6 @@ class CoinChooserBase(PrintError):
 
     def choose_buckets(self, buckets, sufficient_funds, penalty_func):
         raise NotImplemented('To be subclassed')
-
 
 class CoinChooserRandom(CoinChooserBase):
 
@@ -387,6 +387,23 @@ class CoinChooserPrivacy(CoinChooserRandom):
 
         return penalty
 
+def get_asset_outputs(value, input_map):
+    """
+    Given a map of asset-value pairs construct transaction outputs
+    The outputs should cover the output_value required and there
+    must be a unique output for each input asset it
+    """
+    outputs = []
+    for (asset, in_value) in input_map.items():
+        assert value > 0
+        out_value = min(value, in_value)
+        value -= out_value
+        input_map[asset] -= out_value
+        if out_value > 0:
+            outputs.append((asset, out_value))
+        if value == 0:
+            break
+    return outputs
 
 COIN_CHOOSERS = {
     'Privacy': CoinChooserPrivacy,
