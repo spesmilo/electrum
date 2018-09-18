@@ -195,7 +195,7 @@ class AddressSynchronizer(PrintError):
         if self.synchronizer:
             self.synchronizer.add(address)
 
-    def get_conflicting_transactions(self, tx):
+    def get_conflicting_transactions(self, tx_hash, tx):
         """Returns a set of transaction hashes from the wallet history that are
         directly conflicting with tx, i.e. they have common outpoints being
         spent with tx. If the tx is already in wallet history, that will not be
@@ -214,18 +214,18 @@ class AddressSynchronizer(PrintError):
                 # this outpoint has already been spent, by spending_tx
                 assert spending_tx_hash in self.transactions
                 conflicting_txns |= {spending_tx_hash}
-            txid = tx.txid()
-            if txid in conflicting_txns:
+            if tx_hash in conflicting_txns:
                 # this tx is already in history, so it conflicts with itself
                 if len(conflicting_txns) > 1:
                     raise Exception('Found conflicting transactions already in wallet history.')
-                conflicting_txns -= {txid}
+                conflicting_txns -= {tx_hash}
             return conflicting_txns
 
     def add_transaction(self, tx_hash, tx, allow_unrelated=False):
         assert tx_hash, tx_hash
         assert tx, tx
         assert tx.is_complete()
+        # assert tx_hash == tx.txid()  # disabled as expensive; test done by Synchronizer.
         # we need self.transaction_lock but get_tx_height will take self.lock
         # so we need to take that too here, to enforce order of locks
         with self.lock, self.transaction_lock:
@@ -250,7 +250,7 @@ class AddressSynchronizer(PrintError):
             # When this method exits, there must NOT be any conflict, so
             # either keep this txn and remove all conflicting (along with dependencies)
             #     or drop this txn
-            conflicting_txns = self.get_conflicting_transactions(tx)
+            conflicting_txns = self.get_conflicting_transactions(tx_hash, tx)
             if conflicting_txns:
                 existing_mempool_txn = any(
                     self.get_tx_height(tx_hash2).height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT)
