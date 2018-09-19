@@ -964,7 +964,6 @@ class Peer(PrintError):
 
         await self.receive_revoke(chan)
 
-        chan.settle_htlc(payment_preimage, htlc_id)
         self.send_message(gen_msg("update_fulfill_htlc", channel_id=channel_id, id=htlc_id, payment_preimage=payment_preimage))
 
         # remote commitment transaction without htlcs
@@ -984,6 +983,8 @@ class Peer(PrintError):
 
         if commit_coro.done():
             # this branch is taken with lnd after a fee update (initiated by us, of course)
+            await self.receive_commitment(chan, commit_coro.result())
+            chan.settle_htlc(payment_preimage, htlc_id)
             await revoke_coro
             process_revoke(revoke_coro.result())
             self.revoke(chan)
@@ -994,6 +995,7 @@ class Peer(PrintError):
             self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
             await self.receive_revoke(chan)
         elif revoke_coro.done():
+            chan.settle_htlc(payment_preimage, htlc_id)
             process_revoke(revoke_coro.result())
 
             await commit_coro
