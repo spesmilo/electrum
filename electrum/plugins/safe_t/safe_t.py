@@ -401,7 +401,7 @@ class SafeTPlugin(HW_PluginBase):
     def tx_outputs(self, derivation, tx):
 
         def create_output_by_derivation():
-            script_type = self.get_trezor_output_script_type(info.script_type)
+            script_type = self.get_safet_output_script_type(info.script_type)
             if len(xpubs) == 1:
                 address_n = self.client_class.expand_path(derivation + "/%d/%d" % index)
                 txoutputtype = self.types.TxOutputType(
