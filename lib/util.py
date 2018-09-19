@@ -291,7 +291,7 @@ def android_check_data_dir():
 def ensure_sparse_file(filename):
     if os.name == "nt":
         try:
-            os.system(r"fsutil sparse setFlag "+ filename +" 1")
+            os.system("fsutil sparse setFlag \""+ filename +"\" 1")
         except:
             pass
 
