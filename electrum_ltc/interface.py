@@ -503,11 +503,14 @@ class Interface(PrintError):
             # is assumed to be expensive; especially as forks below the max
             # checkpoint are ignored.
             self.print_error("new fork at bad height {}. conflict!!".format(bad))
+            assert self.blockchain != branch
             ismocking = type(branch) is dict
             if ismocking:
                 self.print_error("TODO replace blockchain")
                 return 'fork_conflict', height
             self.print_error('forkpoint conflicts with existing fork', branch.path())
+            self._raise_if_fork_conflicts_with_default_server(branch)
+            self._disconnect_from_interfaces_on_conflicting_blockchain(branch)
             branch.write(b'', 0)
             branch.save_header(bad_header)
             self.blockchain = branch
@@ -523,6 +526,21 @@ class Interface(PrintError):
             self.blockchain = b
             assert b.forkpoint == bad
             return 'fork_noconflict', height
+
+    def _raise_if_fork_conflicts_with_default_server(self, chain_to_delete: Blockchain) -> None:
+        main_interface = self.network.interface
+        if not main_interface: return
+        if main_interface == self: return
+        chain_of_default_server = main_interface.blockchain
+        if not chain_of_default_server: return
+        if chain_to_delete == chain_of_default_server:
+            raise GracefulDisconnect('refusing to overwrite blockchain of default server')
+
+    def _disconnect_from_interfaces_on_conflicting_blockchain(self, chain: Blockchain) -> None:
+        ifaces = self.network.disconnect_from_interfaces_on_given_blockchain(chain)
+        if not ifaces: return
+        servers = [interface.server for interface in ifaces]
+        self.print_error("forcing disconnect of other interfaces: {}".format(servers))
 
     async def _search_headers_backwards(self, height, header):
         async def iterate():

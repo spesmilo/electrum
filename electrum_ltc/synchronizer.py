@@ -160,6 +160,7 @@ class Synchronizer(PrintError):
         return s
 
     async def main(self):
+        self.wallet.set_up_to_date(False)
         # request missing txns, if any
         async with TaskGroup() as group:
             for history in self.wallet.history.values():

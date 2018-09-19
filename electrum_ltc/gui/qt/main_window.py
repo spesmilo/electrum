@@ -107,6 +107,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.setup_exception_hook()
 
         self.network = gui_object.daemon.network
+        self.wallet = wallet
         self.fx = gui_object.daemon.fx
         self.invoices = wallet.invoices
         self.contacts = wallet.contacts
@@ -356,7 +357,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     @profiler
     def load_wallet(self, wallet):
         wallet.thread = TaskThread(self, self.on_error)
-        self.wallet = wallet
         self.update_recently_visited(wallet.storage.path)
         # update(==init) all tabs; expensive for large wallets..
         # so delay it somewhat, hence __init__ can finish and the window can appear sooner
