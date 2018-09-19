@@ -308,7 +308,8 @@ class Network(PrintError):
         self.notify('status')
 
     def is_connected(self):
-        return self.interface is not None and self.interface.ready.done()
+        interface = self.interface
+        return interface is not None and interface.ready.done()
 
     def is_connecting(self):
         return self.connection_status == 'connecting'

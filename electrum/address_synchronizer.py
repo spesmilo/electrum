@@ -643,6 +643,8 @@ class AddressSynchronizer(PrintError):
     def set_up_to_date(self, up_to_date):
         with self.lock:
             self.up_to_date = up_to_date
+        if self.network:
+            self.network.notify('status')
         if up_to_date:
             self.save_transactions(write=True)
             # if the verifier is also up to date, persist that too;
