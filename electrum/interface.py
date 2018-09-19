@@ -400,6 +400,7 @@ class Interface(PrintError):
             # in the simple case, height == self.tip+1
             if height <= self.tip:
                 await self.sync_until(height)
+        self.network.trigger_callback('blockchain_updated')
 
     async def sync_until(self, height, next_height=None):
         if next_height is None:
