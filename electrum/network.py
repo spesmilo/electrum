@@ -675,9 +675,10 @@ class Network(PrintError):
         length = 80 * len(constants.net.CHECKPOINTS) * 2016
         if not os.path.exists(filename) or os.path.getsize(filename) < length:
             with open(filename, 'wb') as f:
-                if length>0:
+                if length > 0:
                     f.seek(length-1)
                     f.write(b'\x00')
+            util.ensure_sparse_file(filename)
         with b.lock:
             b.update_size()
 

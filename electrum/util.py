@@ -383,6 +383,16 @@ def android_check_data_dir():
     return data_dir
 
 
+def ensure_sparse_file(filename):
+    # On modern Linux, no need to do anything.
+    # On Windows, need to explicitly mark file.
+    if os.name == "nt":
+        try:
+            os.system('fsutil sparse setflag "{}" 1'.format(filename))
+        except Exception as e:
+            print_error('error marking file {} as sparse: {}'.format(filename, e))
+
+
 def get_headers_dir(config):
     return android_headers_dir() if 'ANDROID_DATA' in os.environ else config.path
 
