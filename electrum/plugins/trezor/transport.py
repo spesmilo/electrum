@@ -14,11 +14,11 @@ class TrezorTransport(PrintError):
         except ImportError:
             # old trezorlib. compat for trezorlib < 0.9.2
             transports = []
-            #try:
-            #    from trezorlib.transport_bridge import BridgeTransport
-            #    transports.append(BridgeTransport)
-            #except BaseException:
-            #    pass
+            try:
+               from trezorlib.transport_bridge import BridgeTransport
+               transports.append(BridgeTransport)
+            except BaseException:
+               pass
             try:
                 from trezorlib.transport_hid import HidTransport
                 transports.append(HidTransport)
@@ -37,11 +37,11 @@ class TrezorTransport(PrintError):
         else:
             # new trezorlib.
             transports = []
-            #try:
-            #    from trezorlib.transport.bridge import BridgeTransport
-            #    transports.append(BridgeTransport)
-            #except BaseException:
-            #    pass
+            try:
+               from trezorlib.transport.bridge import BridgeTransport
+               transports.append(BridgeTransport)
+            except BaseException:
+               pass
             try:
                 from trezorlib.transport.hid import HidTransport
                 transports.append(HidTransport)
