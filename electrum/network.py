@@ -32,7 +32,7 @@ import json
 import sys
 import ipaddress
 import asyncio
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, Sequence
 
 import dns
 import dns.resolver
@@ -43,6 +43,7 @@ from .util import PrintError, print_error, aiosafe, bfh
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
+from .blockchain import Blockchain
 from .interface import Interface, serialize_server, deserialize_server
 from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
@@ -708,13 +709,21 @@ class Network(PrintError):
 
     @with_interface_lock
     def get_blockchains(self):
-        out = {}
+        out = {}  # blockchain_id -> list(interfaces)
         with blockchain.blockchains_lock: blockchain_items = list(blockchain.blockchains.items())
-        for k, b in blockchain_items:
-            r = list(filter(lambda i: i.blockchain==b, list(self.interfaces.values())))
+        for chain_id, bc in blockchain_items:
+            r = list(filter(lambda i: i.blockchain==bc, list(self.interfaces.values())))
             if r:
-                out[k] = r
+                out[chain_id] = r
         return out
+
+    @with_interface_lock
+    def disconnect_from_interfaces_on_given_blockchain(self, chain: Blockchain) -> Sequence[Interface]:
+        chain_id = chain.forkpoint
+        ifaces = self.get_blockchains().get(chain_id) or []
+        for interface in ifaces:
+            self.connection_down(interface.server)
+        return ifaces
 
     def follow_chain(self, index):
         bc = blockchain.blockchains.get(index)
