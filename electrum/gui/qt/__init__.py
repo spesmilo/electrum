@@ -38,7 +38,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 import PyQt5.QtCore as QtCore
 
-from electrum.i18n import _, set_language
+from electrum.i18n import _, set_language, get_default_language
 from electrum.plugin import run_hook
 from electrum.storage import WalletStorage
 from electrum.base_wizard import GoBack
@@ -89,7 +89,7 @@ class QNetworkUpdatedSignalObject(QObject):
 class ElectrumGui(PrintError):
 
     def __init__(self, config, daemon, plugins):
-        set_language(config.get('language'))
+        set_language(config.get('language', get_default_language()))
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
         #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,

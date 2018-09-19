@@ -26,6 +26,8 @@ import os
 
 import gettext
 
+from PyQt5.QtCore import QLocale
+
 LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale')
 language = gettext.translation('electrum', LOCALE_DIR, fallback=True)
 
@@ -39,6 +41,11 @@ def set_language(x):
     global language
     if x:
         language = gettext.translation('electrum', LOCALE_DIR, fallback=True, languages=[x])
+
+
+def get_default_language():
+    system_locale = QLocale.system().name()
+    return languages.get(system_locale, 'en_UK')
 
 
 languages = {
