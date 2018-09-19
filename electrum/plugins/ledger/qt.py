@@ -7,6 +7,7 @@ from electrum.gui.qt.util import *
 
 from .ledger import LedgerPlugin
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
+from ..hw_wallet.plugin import only_hook_if_libraries_available
 
 
 class Plugin(LedgerPlugin, QtPluginBase):
@@ -17,6 +18,7 @@ class Plugin(LedgerPlugin, QtPluginBase):
         return Ledger_Handler(window)
 
     @hook
+    @only_hook_if_libraries_available
     def receive_menu(self, menu, addrs, wallet):
         if type(wallet) is not Standard_Wallet:
             return

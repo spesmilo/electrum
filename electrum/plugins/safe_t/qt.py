@@ -12,6 +12,7 @@ from electrum.util import PrintError, UserCancelled, bh2u
 from electrum.wallet import Wallet, Standard_Wallet
 
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
+from ..hw_wallet.plugin import only_hook_if_libraries_available
 from .safe_t import SafeTPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
 
 
@@ -71,6 +72,7 @@ class QtPlugin(QtPluginBase):
         return QtHandler(window, self.pin_matrix_widget_class(), self.device)
 
     @hook
+    @only_hook_if_libraries_available
     def receive_menu(self, menu, addrs, wallet):
         if len(addrs) != 1:
             return

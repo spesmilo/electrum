@@ -7,6 +7,7 @@ from electrum.gui.qt.util import *
 
 from .coldcard import ColdcardPlugin
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
+from ..hw_wallet.plugin import only_hook_if_libraries_available
 
 
 class Plugin(ColdcardPlugin, QtPluginBase):
@@ -17,6 +18,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
         return Coldcard_Handler(window)
 
     @hook
+    @only_hook_if_libraries_available
     def receive_menu(self, menu, addrs, wallet):
         if type(wallet) is not Standard_Wallet:
             return
@@ -27,6 +29,7 @@ class Plugin(ColdcardPlugin, QtPluginBase):
             menu.addAction(_("Show on Coldcard"), show_address)
 
     @hook
+    @only_hook_if_libraries_available
     def transaction_dialog(self, dia):
         # see gui/qt/transaction_dialog.py
 
