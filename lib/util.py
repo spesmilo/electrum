@@ -288,6 +288,13 @@ def android_check_data_dir():
         shutil.move(old_electrum_dir, data_dir)
     return data_dir
 
+def ensure_sparse_file(filename):
+    if os.name == "nt":
+        try:
+            os.system(r"fsutil sparse setFlag "+ filename +" 1")
+        except:
+            pass
+
 def get_headers_dir(config):
     return android_headers_dir() if 'ANDROID_DATA' in os.environ else config.path
 
@@ -377,7 +384,7 @@ def user_dir(prefer_local=False):
         return os.path.join(os.environ["HOME"], ".electron-cash" )
     elif "APPDATA" in os.environ or "LOCALAPPDATA" in os.environ:
         app_dir = os.environ.get("APPDATA")
-        localapp_dir = os.environ.get("LOCALAPPDATA")         
+        localapp_dir = os.environ.get("LOCALAPPDATA")
         # Prefer APPDATA, but may get LOCALAPPDATA if present and req'd.
         if localapp_dir is not None and prefer_local or app_dir is None:
             app_dir = localapp_dir

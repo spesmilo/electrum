@@ -1094,6 +1094,7 @@ class Network(util.DaemonThread):
                 if length>0:
                     f.seek(length-1)
                     f.write(b'\x00')
+        util.ensure_sparse_file(filename)
         with b.lock:
             b.update_size()
 
