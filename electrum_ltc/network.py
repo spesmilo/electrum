@@ -589,7 +589,9 @@ class Network(PrintError):
         i = self.interfaces[server]
         if self.interface != i:
             self.print_error("switching to", server)
+            blockchain_updated = False
             if self.interface is not None:
+                blockchain_updated = i.blockchain != self.interface.blockchain
                 # Stop any current interface in order to terminate subscriptions,
                 # and to cancel tasks in interface.group.
                 # However, for headers sub, give preference to this interface
@@ -605,6 +607,7 @@ class Network(PrintError):
             self.trigger_callback('default_server_changed')
             self.set_status('connected')
             self.trigger_callback('network_updated')
+            if blockchain_updated: self.trigger_callback('blockchain_updated')
 
     @with_interface_lock
     def close_interface(self, interface):
@@ -672,9 +675,10 @@ class Network(PrintError):
         length = 80 * len(constants.net.CHECKPOINTS) * 2016
         if not os.path.exists(filename) or os.path.getsize(filename) < length:
             with open(filename, 'wb') as f:
-                if length>0:
+                if length > 0:
                     f.seek(length-1)
                     f.write(b'\x00')
+            util.ensure_sparse_file(filename)
         with b.lock:
             b.update_size()
 

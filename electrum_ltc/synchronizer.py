@@ -55,6 +55,7 @@ class Synchronizer(PrintError):
         self.requested_histories = {}
         self.requested_addrs = set()
         self.scripthash_to_address = {}
+        self._processed_some_notifications = False  # so that we don't miss them
         # Queues
         self.add_queue = asyncio.Queue()
         self.status_queue = asyncio.Queue()
@@ -152,6 +153,7 @@ class Synchronizer(PrintError):
             h, status = await self.status_queue.get()
             addr = self.scripthash_to_address[h]
             await group.spawn(self.on_address_status, addr, status)
+            self._processed_some_notifications = True
 
     @property
     def session(self):
@@ -176,6 +178,8 @@ class Synchronizer(PrintError):
             await asyncio.sleep(0.1)
             self.wallet.synchronize()
             up_to_date = self.is_up_to_date()
-            if up_to_date != self.wallet.is_up_to_date():
+            if (up_to_date != self.wallet.is_up_to_date()
+                    or up_to_date and self._processed_some_notifications):
+                self._processed_some_notifications = False
                 self.wallet.set_up_to_date(up_to_date)
                 self.wallet.network.trigger_callback('wallet_updated', self.wallet)

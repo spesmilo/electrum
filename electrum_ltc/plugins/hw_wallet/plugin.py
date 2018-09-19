@@ -135,3 +135,10 @@ def trezor_validate_op_return_output_and_get_data(output: TxOutput) -> bytes:
     if output.value != 0:
         raise Exception(_("Amount for OP_RETURN output must be zero."))
     return script[2:]
+
+
+def only_hook_if_libraries_available(func):
+    def wrapper(self, *args, **kwargs):
+        if not self.libraries_available: return None
+        return func(self, *args, **kwargs)
+    return wrapper

@@ -385,17 +385,22 @@ class Interface(PrintError):
             if self.tip < constants.net.max_checkpoint():
                 raise GracefulDisconnect('server tip below max checkpoint')
             self.mark_ready()
-            async with self.network.bhi_lock:
-                if self.blockchain.height() >= height and self.blockchain.check_header(header):
-                    # another interface amended the blockchain
-                    self.print_error("skipping header", height)
-                    continue
-                _, height = await self.step(height, header)
-                # in the simple case, height == self.tip+1
-                if height <= self.tip:
-                    await self.sync_until(height)
+            await self._process_header_at_tip()
             self.network.trigger_callback('network_updated')
             self.network.switch_lagging_interface()
+
+    async def _process_header_at_tip(self):
+        height, header = self.tip, self.tip_header
+        async with self.network.bhi_lock:
+            if self.blockchain.height() >= height and self.blockchain.check_header(header):
+                # another interface amended the blockchain
+                self.print_error("skipping header", height)
+                return
+            _, height = await self.step(height, header)
+            # in the simple case, height == self.tip+1
+            if height <= self.tip:
+                await self.sync_until(height)
+        self.network.trigger_callback('blockchain_updated')
 
     async def sync_until(self, height, next_height=None):
         if next_height is None:

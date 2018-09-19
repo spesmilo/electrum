@@ -189,7 +189,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # network callbacks
         if self.network:
             self.network_signal.connect(self.on_network_qt)
-            interests = ['wallet_updated', 'network_updated', 'new_transaction', 'status',
+            interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
+                         'new_transaction', 'status',
                          'banner', 'verified', 'fee', 'fee_histogram']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
@@ -304,6 +305,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.gui_object.network_updated_signal_obj.network_updated_signal \
                 .emit(event, args)
             self.network_signal.emit('status', None)
+        elif event == 'blockchain_updated':
+            # to update number of confirmations in history
+            self.need_update.set()
         elif event == 'new_transaction':
             wallet, tx = args
             if wallet == self.wallet:
