@@ -33,6 +33,7 @@ from .uikit_bindings import *
 from .custom_objc import *
 
 from electroncash.i18n import _
+from electroncash.util import PrintError
 
 
 def is_2x_screen() -> bool:
@@ -49,9 +50,18 @@ def is_iphone4() -> bool:
     # iphone4 has <1136 pix height
     return is_iphone() and ( UIScreen.mainScreen.nativeBounds.size.height - 1136.0 < -0.5 )
 
+IPHONE_X_SIZES = [
+    ( 1125.0, 2436.0 ), # iPhone X & iPhone XS
+    (  828.0, 1792.0 ), # iPhone XR
+    ( 1242.0, 2688.0 ), # iPhone XS Max
+]
 def is_iphoneX() -> bool:
-    # iphone X has 2436 pix height
-    return is_iphone() and ( UIScreen.mainScreen.nativeBounds.size.height - 2436.0 < 0.5 )
+    if is_iphone():
+        size = UIScreen.mainScreen.nativeBounds.size
+        for s in IPHONE_X_SIZES:
+            if abs(s.width - size.width) < 0.5 and abs(s.height - size.height) < 0.5:
+                return True
+    return False
    
 def is_ipad() -> bool:
     return not is_iphone()
@@ -62,6 +72,9 @@ def is_landscape() -> bool:
 
 def is_portrait() -> bool:
     return not is_landscape()
+
+def is_debug_build() -> bool:
+    return bool(HelpfulGlue.isDebugBuild())
 
 def get_fn_and_ext(fileName: str) -> tuple:
     *p1, ext = fileName.split('.')
@@ -105,9 +118,10 @@ def cleanup_tmp_dir():
                 os.remove(f)
                 ct += 1
             except:
+                #NSLog("Cleanup Tmp Dir: failed to remove tmp file: %s", f)
                 pass
     if tot:
-        NSLog("Cleaned up %d/%d files from tmp dir in %f ms",ct,tot,(time.time()-t0)*1e3)
+        NSLog("Cleanup Tmp Dir: removed %d/%d files from tmp dir in %f ms",ct,tot,(time.time()-t0)*1e3)
 
 def ios_version_string() -> str:
     dev = UIDevice.currentDevice
@@ -235,7 +249,7 @@ def nsurl_read_local_file(url : ObjCInstance, binary = False) -> tuple:
             #print("File data:\n",data)
         return data, filename
     except:
-        NSLog("nsurl_read_local_file got exception: %s",str(sys.exc_info[1]))
+        NSLog("nsurl_read_local_file got exception: %s",str(sys.exc_info()[1]))
         return None, None        
 
 _threading_original__init__ = None
@@ -742,8 +756,15 @@ def dismiss_notification(cw_notif : ObjCInstance) -> None:
  #######################################################
  ### NSLog emulation -- python wrapper for NSLog
  #######################################################
+NSLOG_SUPPRESS = False
+
+def NSLogSuppress(b : bool) -> None:
+    global NSLOG_SUPPRESS
+    NSLOG_SUPPRESS = b 
 
 def NSLog(fmt : str, *args) -> int:
+    if NSLOG_SUPPRESS:
+        return
     args = list(args)
     if isinstance(fmt, ObjCInstance):
         fmt = str(py_from_ns(fmt))
@@ -1082,7 +1103,7 @@ def nspy_pop_byname(ns : ObjCInstance, name : str) -> Any:
 ####################################################################
 # Another take on signals/slots -- Python-only signal/slot mechanism
 ####################################################################
-class PySig:
+class PySig(PrintError):
     
     Entry = namedtuple('Entry', 'func key is_ns')
     
@@ -1120,11 +1141,14 @@ class PySig:
                 key = key.ptr.value
                 removeAll = True
         removeCt = 0
+        keep = list()
         for i,entry in enumerate(self.entries):
-            if (key is not None and key == entry.key) or (func is not None and func == entry.func):
-                self.entries.pop(i)
+            if (removeCt == 0 or removeAll) and ((key is not None and key == entry.key) or (func is not None and func == entry.func)):
                 removeCt += 1
-                if not removeAll: return
+            else:
+                keep.append(entry)
+        self.entries = keep
+        #NSLog("Remove %d connections", removeCt)
         if removeCt: return
         name = "<Unknown NSObject>"
         try:

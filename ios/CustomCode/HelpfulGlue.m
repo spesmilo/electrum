@@ -34,5 +34,13 @@ typedef void(^VoidBlock)(void);
         dispatch_async(dispatch_get_main_queue(), block);
     }
 }
+
++ (BOOL) isDebugBuild {
+#ifdef DEBUG
+    return YES;
+#else
+    return NO;
+#endif
+}
 @end
 

@@ -133,6 +133,10 @@ class CoinsDetail(CoinsDetailBase):
         
         self.freezeBut.selected = coin.is_frozen
         
+        watch_only = bool(hasattr(parent.wallet,'is_watching_only') and parent.wallet.is_watching_only())
+        self.freezeBut.setHidden_(watch_only)
+
+        
         self.status.setText_withKerning_(("Change" if coin.is_change else "Receiving") + " Address", utils._kern)
         
         color = utils.uicolor_custom('dark')
@@ -145,7 +149,7 @@ class CoinsDetail(CoinsDetailBase):
         self.amount.textColor = color
         self.fiatAmount.textColor = color
 
-        self.spendFromBut.setHidden_(coin.is_frozen)   
+        self.spendFromBut.setHidden_(coin.is_frozen or watch_only)   
         
         size = CGSizeMake(174.0,174.0) # the returned image has a 10 pix margin -- this compensates for it
         self.qr.contentMode = UIViewContentModeCenter # if the image pix margin changes -- FIX THIS
@@ -446,7 +450,7 @@ class CoinsTableVC(UITableViewController):
                 pass
             entry = _Get(self)[obj.tag]
             parent = gui.ElectrumGui.gui
-            watch_only = False if parent.wallet and not parent.wallet.is_watching_only() else True
+            watch_only = False if parent.wallet and (not hasattr(parent.wallet, 'is_watching_only') or not parent.wallet.is_watching_only()) else True
             def spend_from2(utxos : list) -> None:
                 validSels = list(self.updateSelectionButtons())
                 coins = _Get(self)

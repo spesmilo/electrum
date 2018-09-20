@@ -177,6 +177,7 @@ class ElectrumGui(PrintError):
         self.sigContacts = contacts.ContactsMgr()
         self.sigCoins = coins.CoinsMgr()
         self.sigWallets = wallets.WalletsMgr()
+        self.contactHistSync = history.ContactsHistorySynchronizer(self)
         
         #todo: support multiple wallets in 1 UI?
         self.config = config
@@ -456,6 +457,7 @@ class ElectrumGui(PrintError):
         self.sigContacts.clear()
         self.sigCoins.clear()
         self.sigWallets.clear()
+        self.contactHistSync = None
             
     def on_backgrounded(self):
         ct = 0
@@ -1269,6 +1271,7 @@ class ElectrumGui(PrintError):
                 # make sure that all our tabs are on the root viewcontroller.
                 # (this is to remove stale addresses, coins, contacts, etc screens from old wallet which are irrelevant to this new wallet)
                 if isinstance(vcs[i], UINavigationController): vcs[i].popToRootViewControllerAnimated_(False)
+            self.contactHistSync.restart()
             self.tx_notifications = list() # make sure the tx_notifications are reset when we open a new wallet
             self.refresh_cost_stats = dict()
             self.refresh_rate_current = self.refresh_rate_min
@@ -1319,6 +1322,7 @@ class ElectrumGui(PrintError):
                     vc.popToRootViewControllerAnimated_(False)
             if vcs: self.tabController.selectedIndex = 0
         self.unregister_network_callbacks()
+        self.contactHistSync.stop()
         self.empty_caches(doEmit=False)
         if self.wallet and self.wallet.storage:
             self.daemon.stop_wallet(self.wallet.storage.path)
@@ -1521,6 +1525,7 @@ class ElectrumGui(PrintError):
                 wallet = Wallet(storage)
                 wallet.start_threads(self.daemon.network)
                 if self.wallet:
+                    self.contactHistSync.stop()
                     self.daemon.stop_wallet(self.wallet.storage.path)
                 self.wallet = wallet
                 self.daemon.add_wallet(self.wallet)
@@ -1769,6 +1774,7 @@ class ElectrumGui(PrintError):
                 if not self.wallet:
                     # hide sensitive information
                     self.walletsVC.setAmount_andUnits_unconf_('-', '', '')
+                    self.refresh_all()
                 self.prompt_password_if_needed_asynch(callBack = gotpw, prompt = msg, onCancel = cancelled,
                                                       onForcedDismissal = forciblyDismissed,
                                                       usingStorage = path)

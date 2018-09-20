@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14113" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14313.18" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
     <device id="retina4_0" orientation="portrait">
         <adaptation id="fullscreen"/>
     </device>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14088"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14283.14"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -28,7 +28,7 @@
             </connections>
         </placeholder>
         <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
-        <scrollView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" ambiguous="YES" id="rs4-A6-TkR">
+        <scrollView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" id="rs4-A6-TkR">
             <rect key="frame" x="0.0" y="0.0" width="320" height="568"/>
             <autoresizingMask key="autoresizingMask"/>
             <subviews>
@@ -171,7 +171,7 @@ You are encouraged to use the 'Cash address' format.</string>
                             </connections>
                         </button>
                         <button opaque="NO" contentMode="scaleToFill" enabled="NO" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="b9O-QE-cGH">
-                            <rect key="frame" x="283" y="212" width="22" height="22"/>
+                            <rect key="frame" x="283" y="212.5" width="22" height="22"/>
                             <constraints>
                                 <constraint firstAttribute="width" constant="22" id="8Ib-hi-en5"/>
                                 <constraint firstAttribute="height" constant="22" id="AO4-Di-R2Q"/>
@@ -220,7 +220,9 @@ You are encouraged to use the 'Cash address' format.</string>
                 </view>
             </subviews>
             <constraints>
+                <constraint firstItem="iN0-l3-epB" firstAttribute="trailing" secondItem="rs4-A6-TkR" secondAttribute="trailingMargin" constant="16" id="5gf-oc-C1H"/>
                 <constraint firstItem="iN0-l3-epB" firstAttribute="top" secondItem="rs4-A6-TkR" secondAttribute="top" id="ddB-tn-cW2"/>
+                <constraint firstItem="iN0-l3-epB" firstAttribute="leading" secondItem="rs4-A6-TkR" secondAttribute="leadingMargin" constant="-16" id="f6C-eb-jv8"/>
                 <constraint firstItem="W51-1Q-CTu" firstAttribute="trailing" secondItem="iN0-l3-epB" secondAttribute="trailing" id="jiF-YR-NnX"/>
                 <constraint firstItem="iN0-l3-epB" firstAttribute="centerX" secondItem="rs4-A6-TkR" secondAttribute="centerX" id="mZx-pA-TjV"/>
                 <constraint firstAttribute="bottom" secondItem="iN0-l3-epB" secondAttribute="bottom" id="pLS-qM-Qdi"/>

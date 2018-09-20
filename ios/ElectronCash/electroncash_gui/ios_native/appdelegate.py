@@ -44,7 +44,7 @@ class PythonAppDelegate(UIResponder):
 
     @objc_method
     def application_didFinishLaunchingWithOptions_(self, application : ObjCInstance, launchOptions : ObjCInstance) -> bool:
-        utils.NSLog("App finished launching. Options: %s",str(py_from_ns(launchOptions) if launchOptions else dict()))
+        #utils.NSLog("App finished launching. Options: %s",str(py_from_ns(launchOptions) if launchOptions else dict()))
         
         ElectronCash.app.main()
 

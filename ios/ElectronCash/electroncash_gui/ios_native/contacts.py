@@ -15,7 +15,7 @@ from .custom_objc import *
 from collections import namedtuple
 import time, sys, traceback
 
-ContactsEntry = namedtuple("ContactsEntry", "name address address_str hist_entries")
+ContactsEntry = namedtuple("ContactsEntry", "name address address_str")
 
 from . import history
 
@@ -105,6 +105,7 @@ class ContactsVC(ContactsVCBase):
     def dealloc(self) -> None:
         # do cleanup stuff here
         gui.ElectrumGui.gui.sigContacts.disconnect(self)
+        gui.ElectrumGui.gui.contactHistSync.disconnect(self)
         self.needsRefresh = None
         self.blockRefresh = None
         self.selected = None
@@ -144,6 +145,7 @@ class ContactsVC(ContactsVCBase):
     def viewDidLoad(self) -> None:
         send_super(__class__, self, 'viewDidLoad')
         gui.ElectrumGui.gui.sigContacts.connect(lambda:self.refresh(), self) 
+        gui.ElectrumGui.gui.contactHistSync.connect(lambda:self.refresh(), self)
         self.refresh()
 
     @objc_method
@@ -181,7 +183,8 @@ class ContactsVC(ContactsVCBase):
                 cell.address.tag = indexPath.row # associate the tapped 'link' with this contact
                 c = contacts[indexPath.row]
                 cell.name.text = c.name
-                cell.numTxs.text = str(len(c.hist_entries) if c.hist_entries else 0) + " " + _('Transactions')
+                hist = history.get_contact_history(c.address)
+                cell.numTxs.text = str(len(hist) if hist else 0) + " " + _('Transactions')
                 enabledLink = self.mode == ModeNormal
                 if enabledLink:
                     cell.address.textColor = utils.uicolor_custom('link')
@@ -200,6 +203,8 @@ class ContactsVC(ContactsVCBase):
                     cell.address.linkWillAnimate = None
                 self.setupAccessoryForCell_atIndex_(cell, indexPath.row)
         except:
+            #import traceback
+            #traceback.print_exc()
             utils.NSLog("exception in Contacts tableView_cellForRowAtIndexPath_: %s",str(sys.exc_info()[1]))
             cell = UITableViewCell.alloc().initWithStyle_reuseIdentifier_(UITableViewCellStyleSubtitle, "ACell").autorelease()
             empty_cell(cell, txt = "")
@@ -249,7 +254,7 @@ class ContactsVC(ContactsVCBase):
         contacts = _Get()
         if not contacts or indexPath.row < 0 or indexPath.row >= len(contacts): return
         if editingStyle == UITableViewCellEditingStyleDelete:
-            if delete_contact(contacts[indexPath.row]):  
+            if delete_contact(contacts[indexPath.row]):
                 was = self.blockRefresh
                 self.blockRefresh = True
                 _Updated()
@@ -468,7 +473,7 @@ class NewContactVC(NewContactBase):
                 entry = None
                 if name and address_str and Address.is_valid(address_str):
                     address = Address.from_string(address_str)
-                    entry = ContactsEntry(name, address, address_str, build_contact_tx_list(address))
+                    entry = ContactsEntry(name, address, address_str)
                 cb(entry)
             self.autorelease()
         self.retain()
@@ -690,44 +695,16 @@ def Find(addy) -> ContactsEntry:
                 return c
     return None
 
-def build_contact_tx_list(address : Address) -> list:
-    parent = gui.ElectrumGui.gui
-    ret = list()
-    if isinstance(address, Address) and parent and parent.sigHistory:
-        alltxs = parent.sigHistory.get(None)
-        seen = set() # 'seen' set.. guard against the same address appearing in both inputs and outputs
-        for hentry in alltxs:
-            if hentry.tx:
-                ins = hentry.tx.inputs()
-                for x in ins:
-                    xa = x['address']
-                    if isinstance(xa, PublicKey):
-                        xa = xa.toAddress()
-                    if isinstance(xa, Address) and xa.to_storage_string() == address.to_storage_string() and hentry.tx_hash not in seen:
-                        ret.append(hentry)
-                        seen.add(hentry.tx_hash)
-                        break
-                outs = hentry.tx.get_outputs()
-                for x in outs:
-                    xa, dummy = x
-                    if isinstance(xa, Address) and xa.to_storage_string() == address.to_storage_string() and hentry.tx_hash not in seen:
-                        ret.append(hentry)
-                        seen.add(hentry.tx_hash)
-                        break
-    #print("build_contact_tx_list: address", address.to_ui_string(), "found", len(ret),"associated txs")
-    return ret
 
-
-def get_contacts() -> list:
+def get_contacts(wallet = None, sort = True) -> list:
     ''' Builds a list of
         ContactsEntry tuples:
         
-        ContactsEntry = namedtuple("ContactsEntry", "name address address_str hist_entries")
+        ContactsEntry = namedtuple("ContactsEntry", "name address address_str")
 
     '''
     t0 = time.time()
-    parent = gui.ElectrumGui.gui
-    wallet = parent.wallet
+    if not wallet: wallet = gui.ElectrumGui.gui.wallet
     if wallet is None:
         utils.NSLog("get_contacts: wallent was None, returning early")
         return list()
@@ -737,11 +714,11 @@ def get_contacts() -> list:
         typ, name = tupl
         if typ == 'address' and Address.is_valid(addr):
             address = Address.from_string(addr)
-            hist_entries = build_contact_tx_list(address)
-            entry = ContactsEntry(name, address, addr, hist_entries)
-            contacts.append(entry)    
-    contacts.sort(key=lambda x: [x.name, x.address_str], reverse=False)
-    utils.NSLog("get_contacts: fetched %d contacts in %f ms",len(contacts), (time.time()-t0)*1000.0)
+            entry = ContactsEntry(name, address, addr)
+            contacts.append(entry)
+    if sort:
+        contacts.sort(key=lambda x: [x.name, x.address_str], reverse=False)
+    #utils.NSLog("get_contacts: fetched %d contacts in %f ms",len(contacts), (time.time()-t0)*1000.0)
     return contacts
 
 def delete_contact(entry : ContactsEntry, do_write = True) -> int:
@@ -755,6 +732,7 @@ def delete_contact(entry : ContactsEntry, do_write = True) -> int:
         return None
     n = len(c)
     c.pop(entry.address_str)
+    history.delete_contact_history(entry.address)
     n2 = len(c)
     if n2 < n:
         c.save()
@@ -825,9 +803,9 @@ def show_new_edit_contact(contact, parentvc, onEdit = None, title = None) -> Obj
         if isinstance(contact, ContactsEntry):
             pass
         if isinstance(contact, (tuple,list)) and len(contact) >= 2 and isinstance(contact[1], Address) and isinstance(contact[0], str):
-            contact = ContactsEntry(contact[0], contact[1], contact[1].to_ui_string(), list())
+            contact = ContactsEntry(contact[0], contact[1], contact[1].to_ui_string())
         elif isinstance(contact, Address):
-            contact = ContactsEntry('', contact, contact.to_ui_string(), list())
+            contact = ContactsEntry('', contact, contact.to_ui_string())
         else:
             raise ValueError('First parameter to show_new_edit_contact must be either a ContactsEntry, a tuple, or an Address!')
         utils.nspy_put_byname(vc, contact, 'edit_contact')

@@ -128,6 +128,7 @@ if [ -f "${infoplist}" ]; then
 	plutil -insert 'UIStatusBarStyle' -string 'UIStatusBarStyleLightContent' -- ${infoplist}
 	plutil -insert 'NSPhotoLibraryAddUsageDescription' -string 'Required to save QR images to the photo library' -- ${infoplist}
 	plutil -insert 'NSPhotoLibraryUsageDescription' -string 'Required to save QR images to the photo library' -- ${infoplist}
+	plutil -insert 'LSSupportsOpeningDocumentsInPlace' -bool NO -- ${infoplist}
 fi
 
 if [ -d overrides/ ]; then

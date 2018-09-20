@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14113" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14313.18" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
     <device id="retina4_7" orientation="portrait">
         <adaptation id="fullscreen"/>
     </device>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14088"/>
-        <capability name="Alignment constraints to the first baseline" minToolsVersion="6.0"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14283.14"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -30,7 +29,7 @@
                 <outlet property="view" destination="0gb-DM-Qsx" id="X9l-SW-qBD"/>
             </connections>
         </placeholder>
-        <scrollView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" ambiguous="YES" id="0gb-DM-Qsx">
+        <scrollView clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleToFill" id="0gb-DM-Qsx">
             <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
             <autoresizingMask key="autoresizingMask"/>
             <subviews>
@@ -96,7 +95,7 @@
                             <nil key="highlightedColor"/>
                         </label>
                         <label opaque="NO" userInteractionEnabled="NO" tag="300" contentMode="left" horizontalHuggingPriority="252" verticalHuggingPriority="251" text="Private key" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="mH0-Ne-KUL">
-                            <rect key="frame" x="15" y="145.5" width="82" height="18"/>
+                            <rect key="frame" x="15" y="145" width="82" height="18"/>
                             <constraints>
                                 <constraint firstAttribute="height" constant="18" id="fjg-Ji-gjq"/>
                             </constraints>
@@ -105,7 +104,7 @@
                             <nil key="highlightedColor"/>
                         </label>
                         <textView clipsSubviews="YES" multipleTouchEnabled="YES" tag="310" contentMode="center" editable="NO" textAlignment="natural" translatesAutoresizingMaskIntoConstraints="NO" id="o4I-xx-lCw">
-                            <rect key="frame" x="15" y="168.5" width="345" height="60"/>
+                            <rect key="frame" x="15" y="168" width="345" height="60"/>
                             <color key="backgroundColor" red="0.96470588239999999" green="0.96470588239999999" blue="0.96470588239999999" alpha="1" colorSpace="deviceRGB"/>
                             <constraints>
                                 <constraint firstAttribute="height" constant="60" id="mvt-jQ-dzA"/>
@@ -145,7 +144,7 @@
                             </connections>
                         </button>
                         <label opaque="NO" userInteractionEnabled="NO" tag="400" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Redeem script" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="D6J-vC-QYL">
-                            <rect key="frame" x="15" y="260.5" width="82" height="18"/>
+                            <rect key="frame" x="15" y="260" width="82" height="18"/>
                             <constraints>
                                 <constraint firstAttribute="height" constant="18" id="mLz-LU-rFC"/>
                             </constraints>
@@ -154,7 +153,7 @@
                             <nil key="highlightedColor"/>
                         </label>
                         <textView clipsSubviews="YES" multipleTouchEnabled="YES" tag="410" contentMode="center" editable="NO" textAlignment="natural" translatesAutoresizingMaskIntoConstraints="NO" id="ydH-6y-bp2">
-                            <rect key="frame" x="15" y="283.5" width="345" height="60"/>
+                            <rect key="frame" x="15" y="283" width="345" height="60"/>
                             <color key="backgroundColor" red="0.96470588239999999" green="0.96470588239999999" blue="0.96470588239999999" alpha="1" colorSpace="deviceRGB"/>
                             <constraints>
                                 <constraint firstAttribute="height" constant="60" id="h8X-Xs-N7r"/>
@@ -170,7 +169,7 @@
                             </userDefinedRuntimeAttributes>
                         </textView>
                         <button opaque="NO" tag="430" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="kLU-fe-YX8">
-                            <rect key="frame" x="338" y="253.5" width="22" height="22"/>
+                            <rect key="frame" x="338" y="253" width="22" height="22"/>
                             <constraints>
                                 <constraint firstAttribute="height" constant="22" id="PQ2-a3-1vr"/>
                                 <constraint firstAttribute="width" constant="22" id="sgM-7L-jnY"/>
@@ -182,7 +181,7 @@
                             </connections>
                         </button>
                         <button opaque="NO" tag="420" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="UaY-G7-DWf">
-                            <rect key="frame" x="300" y="253.5" width="18" height="22"/>
+                            <rect key="frame" x="300" y="253" width="18" height="22"/>
                             <constraints>
                                 <constraint firstAttribute="width" constant="18" id="qeg-Pl-4JY"/>
                                 <constraint firstAttribute="height" constant="22" id="vat-W1-an3"/>
@@ -237,9 +236,11 @@
             </subviews>
             <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
             <constraints>
+                <constraint firstItem="iN0-l3-epB" firstAttribute="trailing" secondItem="0gb-DM-Qsx" secondAttribute="trailingMargin" constant="16" id="Gfy-Dj-Mxp"/>
                 <constraint firstItem="DIp-op-7kT" firstAttribute="trailing" secondItem="iN0-l3-epB" secondAttribute="trailing" id="H0R-8E-gDp"/>
-                <constraint firstItem="iN0-l3-epB" firstAttribute="leading" secondItem="DIp-op-7kT" secondAttribute="leading" id="I8p-A5-WCv"/>
+                <constraint firstItem="iN0-l3-epB" firstAttribute="leading" secondItem="0gb-DM-Qsx" secondAttribute="leadingMargin" constant="-16" id="I8p-A5-WCv"/>
                 <constraint firstAttribute="bottom" secondItem="iN0-l3-epB" secondAttribute="bottom" id="bLE-3Z-ptq"/>
+                <constraint firstItem="iN0-l3-epB" firstAttribute="leading" secondItem="DIp-op-7kT" secondAttribute="leading" id="fIX-P3-YkI"/>
                 <constraint firstItem="iN0-l3-epB" firstAttribute="centerX" secondItem="0gb-DM-Qsx" secondAttribute="centerX" id="haZ-1i-Yve"/>
                 <constraint firstItem="iN0-l3-epB" firstAttribute="top" secondItem="0gb-DM-Qsx" secondAttribute="top" id="uM5-P0-5Wn"/>
             </constraints>
