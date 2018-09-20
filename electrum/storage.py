@@ -54,7 +54,7 @@ def multisig_type(wallet_type):
     otherwise return None.'''
     if not wallet_type:
         return None
-    match = re.match('(\d+)of(\d+)', wallet_type)
+    match = re.match(r'(\d+)of(\d+)', wallet_type)
     if match:
         match = [int(x) for x in match.group(1, 2)]
     return match

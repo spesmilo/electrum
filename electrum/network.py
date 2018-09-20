@@ -62,13 +62,13 @@ def parse_servers(result):
         pruning_level = '-'
         if len(item) > 2:
             for v in item[2]:
-                if re.match("[st]\d*", v):
+                if re.match(r"[st]\d*", v):
                     protocol, port = v[0], v[1:]
                     if port == '': port = constants.net.DEFAULT_PORTS[protocol]
                     out[protocol] = port
                 elif re.match("v(.?)+", v):
                     version = v[1:]
-                elif re.match("p\d*", v):
+                elif re.match(r"p\d*", v):
                     pruning_level = v[1:]
                 if pruning_level == '': pruning_level = '0'
         if out:
