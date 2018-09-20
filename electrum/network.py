@@ -260,11 +260,11 @@ class Network(PrintError):
         with self.callback_lock:
             callbacks = self.callbacks[event][:]
         for callback in callbacks:
+            # FIXME: if callback throws, we will lose the traceback
             if asyncio.iscoroutinefunction(callback):
-                # FIXME: if callback throws, we will lose the traceback
                 asyncio.run_coroutine_threadsafe(callback(event, *args), self.asyncio_loop)
             else:
-                callback(event, *args)
+                self.asyncio_loop.call_soon_threadsafe(callback, event, *args)
 
     def read_recent_servers(self):
         if not self.config.path:
@@ -425,7 +425,7 @@ class Network(PrintError):
 
     def start_random_interface(self):
         with self.interface_lock:
-            exclude_set = self.disconnected_servers.union(set(self.interfaces))
+            exclude_set = self.disconnected_servers | set(self.interfaces) | self.connecting
         server = pick_random_server(self.get_servers(), self.protocol, exclude_set)
         if server:
             self.start_interface(server)
@@ -602,8 +602,8 @@ class Network(PrintError):
                     self.start_interface(old_server)
 
             self.interface = i
-            asyncio.get_event_loop().create_task(
-                i.group.spawn(self.request_server_info(i)))
+            asyncio.run_coroutine_threadsafe(
+                i.group.spawn(self.request_server_info(i)), self.asyncio_loop)
             self.trigger_callback('default_server_changed')
             self.set_status('connected')
             self.trigger_callback('network_updated')
@@ -647,21 +647,22 @@ class Network(PrintError):
         except BaseException as e:
             #import traceback
             #traceback.print_exc()
-            self.print_error(interface.server, "couldn't launch because", str(e), str(type(e)))
+            self.print_error(server, "couldn't launch because", str(e), str(type(e)))
             # note: connection_down will not call interface.close() as
             # interface is not yet in self.interfaces. OTOH, calling
             # interface.close() here will sometimes raise deep inside the
             # asyncio internal select.select... instead, interface will close
             # itself when it detects the cancellation of interface.ready;
             # however this might take several seconds...
-            self.connection_down(interface.server)
+            self.connection_down(server)
             return
+        else:
+            with self.interface_lock:
+                self.interfaces[server] = interface
         finally:
-            try: self.connecting.remove(server)
-            except KeyError: pass
-
-        with self.interface_lock:
-            self.interfaces[server] = interface
+            with self.interface_lock:
+                try: self.connecting.remove(server)
+                except KeyError: pass
 
         if server == self.default_server:
             self.switch_to_interface(server)
@@ -819,6 +820,6 @@ class Network(PrintError):
                         self.switch_to_interface(self.default_server)
             else:
                 if self.config.is_fee_estimates_update_required():
-                    await self.interface.group.spawn(self.request_fee_estimates(self.interface))
+                    await self.interface.group.spawn(self.request_fee_estimates, self.interface)
 
             await asyncio.sleep(0.1)

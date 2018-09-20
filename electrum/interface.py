@@ -369,8 +369,10 @@ class Interface(PrintError):
             await self.session.send_request('server.ping')
 
     def close(self):
-        self.fut.cancel()
-        asyncio.get_event_loop().create_task(self.group.cancel_remaining())
+        async def job():
+            self.fut.cancel()
+            await self.group.cancel_remaining()
+        asyncio.run_coroutine_threadsafe(job(), self.network.asyncio_loop)
 
     async def run_fetch_blocks(self):
         header_queue = asyncio.Queue()
