@@ -11,8 +11,10 @@ from copy import deepcopy
 
 from . import util
 from .util import (user_dir, print_error, PrintError, make_dir,
-                   NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate)
+                   NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate,
+                   bh2u)
 from .i18n import _
+from .crypto import Hash
 
 FEE_ETA_TARGETS = [25, 10, 5, 2]
 FEE_DEPTH_TARGETS = [10000000, 5000000, 2000000, 1000000, 500000, 200000, 100000]
@@ -85,6 +87,7 @@ class SimpleConfig(PrintError):
         self.user_config = {}  # for self.get in electrum_path()
         self.path = self.electrum_path()
         self.user_config = read_user_config_function(self.path)
+        self.update_contract_from_file(self.path)
         if not self.user_config:
             # avoid new config getting upgraded
             self.user_config = {'config_version': FINAL_CONFIG_VERSION}
@@ -285,6 +288,24 @@ class SimpleConfig(PrintError):
         if self.get('wallet_path') is None:
             path = wallet.storage.path
             self.set_key('gui_last_wallet', path)
+
+    def update_contract_from_file(self, path):
+        # Read contract from file and store it's hash in config
+        if not path:
+            return {}
+        contract_path = os.path.join(path, "contract")
+        if not os.path.exists(contract_path):
+            print_error("Warning: Contract file does not exist.", contract_path)
+            return {}
+        try:
+            with open(contract_path, "r", encoding='utf-8') as f:
+                data = f.read()
+        except:
+            print_error("Warning: Cannot read contract file.", contract_path)
+            return {}
+
+        # Hash contract and store in string format
+        self.set_key('contract_hash', bh2u(Hash(data)[::-1]))
 
     def impose_hard_limits_on_fee(func):
         def get_fee_within_limits(self, *args, **kwargs):

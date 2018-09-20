@@ -106,14 +106,14 @@ def run_non_RPC(config):
         passphrase = config.get('passphrase', '')
         password = password_dialog() if keystore.is_private(text) else None
         if keystore.is_address_list(text):
-            wallet = Imported_Wallet(storage)
+            wallet = Imported_Wallet(storage, config.get('contract_hash'))
             for x in text.split():
                 wallet.import_address(x)
         elif keystore.is_private_key_list(text):
             k = keystore.Imported_KeyStore({})
             storage.put('keystore', k.dump())
             storage.put('use_encryption', bool(password))
-            wallet = Imported_Wallet(storage)
+            wallet = Imported_Wallet(storage, config.get('contract_hash'))
             for x in text.split():
                 wallet.import_private_key(x, password)
             storage.write()
@@ -130,7 +130,7 @@ def run_non_RPC(config):
             storage.put('wallet_type', 'standard')
             storage.put('use_encryption', bool(password))
             storage.write()
-            wallet = Wallet(storage)
+            wallet = Wallet(storage, config.get('contract_hash'))
         if not config.get('offline'):
             network = Network(config)
             network.start()
@@ -153,7 +153,7 @@ def run_non_RPC(config):
         k = keystore.from_seed(seed, passphrase, False)
         storage.put('keystore', k.dump())
         storage.put('wallet_type', 'standard')
-        wallet = Wallet(storage)
+        wallet = Wallet(storage, config.get('contract_hash'))
         wallet.update_password(None, password, True)
         wallet.synchronize()
         print_msg("Your wallet generation seed is:\n\"%s\"" % seed)
@@ -290,7 +290,7 @@ def run_offline_command(config, config_options, plugins):
                 password = get_password_for_hw_device_encrypted_storage(plugins)
                 config_options['password'] = password
             storage.decrypt(password)
-        wallet = Wallet(storage)
+        wallet = Wallet(storage, config.get('contract_hash'))
     else:
         wallet = None
     # check password
@@ -388,6 +388,11 @@ if __name__ == '__main__':
 
     # todo: defer this to gui
     config = SimpleConfig(config_options)
+
+    if not config.get('contract_hash'):
+        print_stderr("Contract Hash not set. Move the `terms-and-conditions.txt` file to `{}`".format(config.electrum_path()))
+        sys.exit(1)
+
     cmdname = config.get('cmd')
 
     if config.get('testnet'):

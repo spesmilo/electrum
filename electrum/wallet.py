@@ -1436,6 +1436,9 @@ class Deterministic_Wallet(Abstract_Wallet):
             addr_list = self.change_addresses if for_change else self.receiving_addresses
             n = len(addr_list)
             x = self.derive_pubkeys(for_change, n)
+
+            # tweak
+
             address = self.pubkeys_to_address(x)
             addr_list.append(address)
             self._addr_to_addr_index[address] = (for_change, n)
@@ -1656,7 +1659,11 @@ class Wallet(object):
     This class is actually a factory that will return a wallet of the correct
     type when passed a WalletStorage instance."""
 
-    def __new__(self, storage):
+    def __new__(self, storage, contract=None):
+         # update contract hash
+        if contract:
+            storage.update_contract_hash(contract)
+
         wallet_type = storage.get('wallet_type')
         WalletClass = Wallet.wallet_class(wallet_type)
         wallet = WalletClass(storage)

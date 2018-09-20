@@ -91,11 +91,17 @@ class Software_KeyStore(KeyStore):
 
     def sign_message(self, sequence, message, password):
         privkey, compressed = self.get_private_key(sequence, password)
+
+        # tweak
+
         key = ecc.ECPrivkey(privkey)
         return key.sign_message(message, compressed)
 
     def decrypt_message(self, sequence, message, password):
         privkey, compressed = self.get_private_key(sequence, password)
+
+        # tweak
+
         ec = ecc.ECPrivkey(privkey)
         decrypted = ec.decrypt_message(message)
         return decrypted
@@ -108,6 +114,9 @@ class Software_KeyStore(KeyStore):
         # Add private keys
         keypairs = self.get_tx_derivations(tx)
         for k, v in keypairs.items():
+
+            # tweak
+
             keypairs[k] = self.get_private_key(v, password)
         # Sign
         if keypairs:

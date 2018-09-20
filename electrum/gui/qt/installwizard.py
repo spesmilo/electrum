@@ -312,7 +312,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             self.run(action)
             return self.wallet
 
-        self.wallet = Wallet(self.storage)
+        self.wallet = Wallet(self.storage, self.config.get('contract_hash'))
         return self.wallet
 
     def finished(self):
