@@ -452,6 +452,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if filename in recent:
             recent.remove(filename)
         recent.insert(0, filename)
+        recent = [path for path in recent if os.path.exists(path)]
         recent = recent[:5]
         self.config.set_key('recently_open', recent)
         self.recently_visited_menu.clear()
