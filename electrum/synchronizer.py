@@ -25,7 +25,7 @@
 import asyncio
 import hashlib
 
-from aiorpcx import TaskGroup
+from aiorpcx import TaskGroup, run_in_thread
 
 from .transaction import Transaction
 from .util import bh2u, PrintError
@@ -180,7 +180,7 @@ class Synchronizer(PrintError):
         # main loop
         while True:
             await asyncio.sleep(0.1)
-            self.wallet.synchronize()
+            await run_in_thread(self.wallet.synchronize)
             up_to_date = self.is_up_to_date()
             if (up_to_date != self.wallet.is_up_to_date()
                     or up_to_date and self._processed_some_notifications):
