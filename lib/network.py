@@ -1037,7 +1037,8 @@ class Network(util.DaemonThread):
                 self.switch_lagging_interface()
                 self.notify('updated')
         elif interface.mode == 'default':
-            raise BaseException(interface.mode)
+            interface.print_error("ignored header {} received in default mode".format(height))
+            return
 
         # If not finished, get the next header
         if next_height:
