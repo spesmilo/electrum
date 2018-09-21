@@ -276,8 +276,12 @@ class WalletStorage(JsonDB):
     def set_keystore_encryption(self, enable):
         self.put('use_encryption', enable)
 
-    def update_contract_hash(self, contract_hash):
-        self.put('contract_hash', contract_hash)
+    def update_contracts(self, contract_hash):
+        contracts = self.get('contracts', [])
+        if contract_hash in contracts:
+            return
+        contracts.append(contract_hash)
+        self.put('contracts', contracts)
         self.write()
 
     def set_password(self, password, enc_version=None):

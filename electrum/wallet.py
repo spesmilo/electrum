@@ -178,6 +178,7 @@ class Abstract_Wallet(AddressSynchronizer):
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
+        self.contracts             = storage.get('contracts', [])
 
         # save wallet type the first time
         if self.storage.get('wallet_type') is None:
@@ -295,7 +296,11 @@ class Abstract_Wallet(AddressSynchronizer):
         if self.is_watching_only():
             return []
         index = self.get_address_index(address)
-        pk, compressed = self.keystore.get_private_key(index, password)
+
+        # Go through all contracts and no contract to find the
+        # private key that corresponds to the address in our wallet
+        pk, compressed = self.keystore.get_tweaked_private_key(index, password, self.contracts)
+
         txin_type = self.get_txin_type(address)
         redeem_script = self.get_redeem_script(address)
         serialized_privkey = bitcoin.serialize_privkey(pk, compressed, txin_type)
@@ -811,7 +816,7 @@ class Abstract_Wallet(AddressSynchronizer):
         for k in sorted(self.get_keystores(), key=lambda ks: ks.ready_to_sign(), reverse=True):
             try:
                 if k.can_sign(tx):
-                    k.sign_transaction(tx, password)
+                    k.sign_transaction(tx, password, self.contracts)
             except UserCancelled:
                 continue
         return tx
@@ -1071,12 +1076,12 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def sign_message(self, address, message, password):
         index = self.get_address_index(address)
-        return self.keystore.sign_message(index, message, password)
+        return self.keystore.sign_message(index, message, password, self.contract_hash)
 
     def decrypt_message(self, pubkey, message, password):
         addr = self.pubkeys_to_address(pubkey)
         index = self.get_address_index(addr)
-        return self.keystore.decrypt_message(index, message, password)
+        return self.keystore.decrypt_message(index, message, password, self.contract_hash)
 
     def get_depending_transactions(self, tx_hash):
         """Returns all (grand-)children of tx_hash in this wallet."""
@@ -1436,9 +1441,8 @@ class Deterministic_Wallet(Abstract_Wallet):
             addr_list = self.change_addresses if for_change else self.receiving_addresses
             n = len(addr_list)
             x = self.derive_pubkeys(for_change, n)
-
-            # tweak
-
+            if self.contracts:
+                x = self.tweak_pubkeys(x, self.contracts[-1])
             address = self.pubkeys_to_address(x)
             addr_list.append(address)
             self._addr_to_addr_index[address] = (for_change, n)
@@ -1524,6 +1528,8 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
     def derive_pubkeys(self, c, i):
         return self.keystore.derive_pubkey(c, i)
 
+    def tweak_pubkeys(self, c, t):
+        return self.keystore.tweak_pubkey(c, t)
 
 
 
@@ -1566,6 +1572,9 @@ class Multisig_Wallet(Deterministic_Wallet):
 
     def derive_pubkeys(self, c, i):
         return [k.derive_pubkey(c, i) for k in self.get_keystores()]
+
+    def tweak_pubkeys(self, c, t):
+        return [k.tweak_pubkey(c, t) for k in self.get_keystores()]
 
     def load_keystore(self):
         self.keystores = {}
@@ -1662,7 +1671,7 @@ class Wallet(object):
     def __new__(self, storage, contract=None):
          # update contract hash
         if contract:
-            storage.update_contract_hash(contract)
+            storage.update_contracts(contract)
 
         wallet_type = storage.get('wallet_type')
         WalletClass = Wallet.wallet_class(wallet_type)

@@ -89,24 +89,18 @@ class Software_KeyStore(KeyStore):
     def may_have_password(self):
         return not self.is_watching_only()
 
-    def sign_message(self, sequence, message, password):
-        privkey, compressed = self.get_private_key(sequence, password)
-
-        # tweak
-
+    def sign_message(self, sequence, message, password, contracts):
+        privkey, compressed = self.get_tweaked_private_key(sequence, password, contracts)
         key = ecc.ECPrivkey(privkey)
         return key.sign_message(message, compressed)
 
-    def decrypt_message(self, sequence, message, password):
-        privkey, compressed = self.get_private_key(sequence, password)
-
-        # tweak
-
+    def decrypt_message(self, sequence, message, password, contracts):
+        privkey, compressed = self.get_tweaked_private_key(sequence, password, contracts)
         ec = ecc.ECPrivkey(privkey)
         decrypted = ec.decrypt_message(message)
         return decrypted
 
-    def sign_transaction(self, tx, password):
+    def sign_transaction(self, tx, password, contracts):
         if self.is_watching_only():
             return
         # Raise if password is not correct.
@@ -114,10 +108,7 @@ class Software_KeyStore(KeyStore):
         # Add private keys
         keypairs = self.get_tx_derivations(tx)
         for k, v in keypairs.items():
-
-            # tweak
-
-            keypairs[k] = self.get_private_key(v, password)
+            keypairs[k] = self.get_tweaked_private_key(v, password, contracts)
         # Sign
         if keypairs:
             tx.sign(keypairs)
@@ -165,7 +156,11 @@ class Imported_KeyStore(Software_KeyStore):
     def delete_imported_key(self, key):
         self.keypairs.pop(key)
 
-    def get_private_key(self, pubkey, password):
+    # Assume imported private keys have already been tweaked
+    def get_tweaked_private_key(self, pubkey, password, contracts):
+        return self.get_private_key(pubkey, password, None)
+
+    def get_private_key(self, pubkey, password, tweak=None):
         sec = pw_decode(self.keypairs[pubkey], password)
         txin_type, privkey, compressed = deserialize_privkey(sec)
         # this checks the password
@@ -248,6 +243,12 @@ class Xpub:
             else:
                 self.xpub_receive = xpub
         return self.get_pubkey_from_xpub(xpub, (n,))
+
+    def tweak_pubkey(self, c, t):
+        tweak = bfh(t)[::-1]
+        cK = bfh(c)
+        cK = tweak_pub(cK, tweak)
+        return bh2u(cK)
 
     @classmethod
     def get_pubkey_from_xpub(self, xpub, sequence):
@@ -336,13 +337,33 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
         self.add_xprv(xprv)
 
-    def get_private_key(self, sequence, password):
+    def tweak_privkey(self, pk, t):
+        tweak = bfh(t)[::-1]
+        pk = tweak_priv(pk, tweak)
+        return pk
+
+    def get_tweaked_private_key(self, sequence, password, contracts):
+        for contract_hash in contracts + [None]:
+            pk, compressed = self.get_private_key(sequence, password, contract_hash)
+            pubkey = self.derive_pubkey(sequence[0], sequence[1])
+            pubkey_from_priv = ecc.ECPrivkey(pk).get_public_key_hex(compressed=compressed)
+            if pubkey == pubkey_from_priv:
+                return pk, compressed
+        # This exception will probably never be thrown since we allow
+        # non-tweaked addresses in the above loop (by using 'None')
+        # Might want to remove that to stop people from generating
+        # addresses without first importing the terms and conditions file
+        raise WalletFileException('Private key not found. The corresponding '
+            'address might have been derived without tweaking or incorrect tweaking.')
+
+    def get_private_key(self, sequence, password, tweak):
         xprv = self.get_master_private_key(password)
         _, _, _, _, c, k = deserialize_xprv(xprv)
         pk = bip32_private_key(sequence, k, c)
+        # add tweak to priv key
+        if tweak:
+            pk = self.tweak_privkey(pk, tweak)
         return pk, True
-
-
 
 class Old_KeyStore(Deterministic_KeyStore):
 
@@ -420,7 +441,11 @@ class Old_KeyStore(Deterministic_KeyStore):
         pk = number_to_string(secexp, ecc.CURVE_ORDER)
         return pk
 
-    def get_private_key(self, sequence, password):
+    # Tweaking not supported in old storage private keys
+    def get_tweaked_private_key(self, pubkey, password, contracts):
+        return self.get_private_key(pubkey, password, None)
+
+    def get_private_key(self, sequence, password, tweak=None):
         seed = self.get_hex_seed(password)
         self.check_seed(seed)
         for_change, n = sequence

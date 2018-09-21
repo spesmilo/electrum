@@ -574,6 +574,14 @@ def _CKD_priv(k, c, s, is_prime):
     c_n = I[32:]
     return k_n, c_n
 
+def tweak_priv(k, tweak: bytes):
+    tweak_num = ecc.string_to_number(tweak)
+    k_n = (tweak_num + ecc.string_to_number(k)) % ecc.CURVE_ORDER
+    if tweak_num >= ecc.CURVE_ORDER or k_n == 0:
+        raise ecc.InvalidECPointException()
+    k_n = ecc.number_to_string(k_n, ecc.CURVE_ORDER)
+    return k_n
+
 # Child public key derivation function (from public key only)
 # K = master public key
 # c = master chain code
@@ -596,6 +604,13 @@ def _CKD_pub(cK, c, s):
     cK_n = pubkey.get_public_key_bytes(compressed=True)
     c_n = I[32:]
     return cK_n, c_n
+
+def tweak_pub(cK, tweak: bytes):
+    pubkey = ecc.ECPrivkey(tweak) + ecc.ECPubkey(cK)
+    if pubkey.is_at_infinity():
+        raise ecc.InvalidECPointException()
+    cK_n = pubkey.get_public_key_bytes(compressed=True)
+    return cK_n
 
 
 def xprv_header(xtype, *, net=None):
