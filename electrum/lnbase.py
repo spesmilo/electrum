@@ -291,6 +291,7 @@ class Peer(PrintError):
         self.commitment_signed = defaultdict(asyncio.Queue)
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.update_fail_htlc = defaultdict(asyncio.Queue)
+        self.closing_signed = defaultdict(asyncio.Queue)
         self.localfeatures = (0x08 if request_initial_sync else 0)
         self.invoices = lnworker.invoices
         self.attempted_route = {}
@@ -393,7 +394,7 @@ class Peer(PrintError):
             self._sn = 0
         return o
 
-    def process_message(self, message):
+    async def process_message(self, message):
         message_type, payload = decode_msg(message)
         #self.print_error("Received '%s'" % message_type.upper())
         try:
@@ -404,7 +405,10 @@ class Peer(PrintError):
         # raw message is needed to check signature
         if message_type=='node_announcement':
             payload['raw'] = message
-        f(payload)
+        if asyncio.iscoroutinefunction(f):
+            await f(payload)
+        else:
+            f(payload)
 
     def on_error(self, payload):
         self.print_error("error", payload["data"].decode("ascii"))
@@ -451,7 +455,7 @@ class Peer(PrintError):
         self.send_message(gen_msg("init", gflen=0, lflen=1, localfeatures=self.localfeatures))
         # read init
         msg = await self.read_message()
-        self.process_message(msg)
+        await self.process_message(msg)
         self.initialized.set_result(True)
 
     @aiosafe
@@ -462,7 +466,7 @@ class Peer(PrintError):
         while True:
             self.ping_if_required()
             msg = await self.read_message()
-            self.process_message(msg)
+            await self.process_message(msg)
 
     def close_and_cleanup(self):
         try:
@@ -1076,3 +1080,31 @@ class Peer(PrintError):
         if feerate_per_kvbyte is None:
             feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
         return max(253, feerate_per_kvbyte // 4)
+
+    def on_closing_signed(self, payload):
+        chan_id = payload["channel_id"]
+        if chan_id not in self.closing_signed: raise Exception("Got unknown closing_signed")
+        self.closing_signed[chan_id].put_nowait(payload)
+
+    async def on_shutdown(self, payload):
+        # length of scripts allowed in BOLT-02
+        if int.from_bytes(payload['len'], 'big') not in (3+20+2, 2+20+1, 2+20, 2+32):
+            raise Exception('scriptpubkey length in received shutdown message invalid: ' + str(payload['len']))
+
+        chan = self.channels[payload['channel_id']]
+        scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
+        self.send_message(gen_msg('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey))
+
+        signature, fee = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'])
+        self.send_message(gen_msg('closing_signed', channel_id=chan.channel_id, fee_satoshis=fee, signature=signature))
+
+        while chan.get_state() != 'CLOSED':
+            try:
+                closing_signed = await asyncio.wait_for(self.closing_signed[chan.channel_id].get(), 1)
+            except asyncio.TimeoutError:
+                pass
+            else:
+                fee = closing_signed['fee_satoshis']
+                signature, _ = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'], fee_sat=fee)
+                self.send_message(gen_msg('closing_signed', channel_id=chan.channel_id, fee_satoshis=fee, signature=signature))
+        self.print_error('REMOTE PEER CLOSED CHANNEL')
