@@ -280,9 +280,10 @@ class WalletStorage(JsonDB):
         contracts = self.get('contracts', [])
         if contract_hash in contracts:
             return
-        contracts.append(contract_hash)
-        self.put('contracts', contracts)
-        self.write()
+        if contract_hash:
+            contracts.append(contract_hash)
+            self.put('contracts', contracts)
+            self.write()
 
     def set_password(self, password, enc_version=None):
         """Set a password to be used for encrypting this storage."""

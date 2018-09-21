@@ -182,13 +182,13 @@ class BaseWizard(object):
         # create a temporary wallet and exploit that modifications
         # will be reflected on self.storage
         if keystore.is_address_list(text):
-            w = Imported_Wallet(self.storage, self.config.get('contract_hash'))
+            w = Imported_Wallet(self.storage)
             for x in text.split():
                 w.import_address(x)
         elif keystore.is_private_key_list(text):
             k = keystore.Imported_KeyStore({})
             self.storage.put('keystore', k.dump())
-            w = Imported_Wallet(self.storage, self.config.get('contract_hash'))
+            w = Imported_Wallet(self.storage)
             for x in keystore.get_private_keys(text):
                 w.import_private_key(x, None)
             self.keystores.append(w.keystore)
@@ -494,19 +494,21 @@ class BaseWizard(object):
             self.storage.put('seed_type', self.seed_type)
             keys = self.keystores[0].dump()
             self.storage.put('keystore', keys)
-            self.wallet = Standard_Wallet(self.storage, self.config.get('contract_hash'))
+            self.storage.update_contracts(self.config.get('contract_hash'))
+            self.wallet = Standard_Wallet(self.storage)
             self.run('create_addresses')
         elif self.wallet_type == 'multisig':
             for i, k in enumerate(self.keystores):
                 self.storage.put('x%d/'%(i+1), k.dump())
             self.storage.write()
-            self.wallet = Multisig_Wallet(self.storage, self.config.get('contract_hash'))
+            self.storage.update_contracts(self.config.get('contract_hash'))
+            self.wallet = Multisig_Wallet(self.storage)
             self.run('create_addresses')
         elif self.wallet_type == 'imported':
             if len(self.keystores) > 0:
                 keys = self.keystores[0].dump()
                 self.storage.put('keystore', keys)
-            self.wallet = Imported_Wallet(self.storage, self.config.get('contract_hash'))
+            self.wallet = Imported_Wallet(self.storage)
             self.wallet.storage.write()
             self.terminate()
 

@@ -4,7 +4,7 @@ import shutil
 import tempfile
 from typing import Sequence
 
-from electrum import storage, bitcoin, keystore, constants
+from electrum import storage, bitcoin, keystore, constants, ecc
 from electrum import Transaction
 from electrum import SimpleConfig
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
@@ -23,6 +23,7 @@ _UNICODE_HORROR_HEX = 'e282bf20f09f988020f09f98882020202020e3818620e38191e3819fe
 UNICODE_HORROR = bfh(_UNICODE_HORROR_HEX).decode('utf-8')
 # '₿ 😀 😈     う けたま わる w͢͢͝h͡o͢͡ ̸͢k̵͟n̴͘ǫw̸̛s͘ ̀́w͘͢ḩ̵a҉̡͢t ̧̕h́o̵r͏̵rors̡ ̶͡͠lį̶e͟͟ ̶͝in͢ ͏t̕h̷̡͟e ͟͟d̛a͜r̕͡k̢̨ ͡h̴e͏a̷̢̡rt́͏ ̴̷͠ò̵̶f̸ u̧͘ní̛͜c͢͏o̷͏d̸͢e̡͝?͞'
 
+TEST_CONTRACT_HASH = '858ab0fbcee7654401eb2db40f3318ddcdf679003b00a01f8d8d920a6ce9e3e6'
 
 class WalletIntegrityHelper:
 
@@ -47,6 +48,16 @@ class WalletIntegrityHelper:
         store = storage.WalletStorage('if_this_exists_mocking_failed_648151893')
         store.put('keystore', ks.dump())
         store.put('gap_limit', gap_limit or cls.gap_limit)
+        w = Standard_Wallet(store)
+        w.synchronize()
+        return w
+
+    @classmethod
+    def create_standard_wallet_with_contract(cls, ks, gap_limit=None):
+        store = storage.WalletStorage('if_this_exists_mocking_failed_648151893')
+        store.put('keystore', ks.dump())
+        store.put('gap_limit', gap_limit or cls.gap_limit)
+        store.update_contracts(TEST_CONTRACT_HASH)
         w = Standard_Wallet(store)
         w.synchronize()
         return w
@@ -95,6 +106,73 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
 
         self.assertEqual(w.get_receiving_addresses()[0], '1NNkttn1YvVGdqBW4PR6zvc3Zx3H5owKRf')
         self.assertEqual(w.get_change_addresses()[0], '1KSezYMhAJMWqFbVFB2JshYg69UpmEXR4D')
+
+    @needs_test_with_all_ecc_implementations
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_electrum_seed_standard_with_contract(self, mock_write):
+        seed_words = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
+        self.assertEqual(bitcoin.seed_type(seed_words), 'standard')
+
+        ks = keystore.from_seed(seed_words, '', False)
+
+        WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks)
+        self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
+
+        self.assertEqual(ks.xprv, 'xprv9s21ZrQH143K32jECVM729vWgGq4mUDJCk1ozqAStTphzQtCTuoFmFafNoG1g55iCnBTXUzz3zWnDb5CVLGiFvmaZjuazHDL8a81cPQ8KL6')
+        self.assertEqual(ks.xpub, 'xpub661MyMwAqRbcFWohJWt7PHsFEJfZAvw9ZxwQoDa4SoMgsDDM1T7WK3u9E4edkC4ugRnZ8E4xDZRpk8Rnts3Nbt97dPwT52CwBdDWroaZf8U')
+
+        w = WalletIntegrityHelper.create_standard_wallet_with_contract(ks)
+        self.assertEqual(w.txin_type, 'p2pkh')
+
+        self.assertEqual(w.get_receiving_addresses()[0], '12RjB23T83b4V9oDnMbEPBNRovdjBnzAWz')
+        self.assertEqual(w.get_change_addresses()[0], '1EcuMe6bRUcoFhATF6dits1EKYQeGYiGcs')
+
+        # Test pub/priv key generation from contract hash
+        index = w.get_address_index('12RjB23T83b4V9oDnMbEPBNRovdjBnzAWz')
+        pk, compressed = w.keystore.get_private_key(index, None, TEST_CONTRACT_HASH)
+        pub = ecc.ECPrivkey(pk).get_public_key_hex(compressed=compressed)
+        self.assertEqual(w.pubkeys_to_address(pub), '12RjB23T83b4V9oDnMbEPBNRovdjBnzAWz')
+
+    @needs_test_with_all_ecc_implementations
+    @mock.patch.object(storage.WalletStorage, '_write')
+    def test_electrum_seed_standard_with_and_without_contract(self, mock_write):
+        seed_words = 'cycle rocket west magnet parrot shuffle foot correct salt library feed song'
+        self.assertEqual(bitcoin.seed_type(seed_words), 'standard')
+
+        ks = keystore.from_seed(seed_words, '', False)
+
+        WalletIntegrityHelper.check_seeded_keystore_sanity(self, ks)
+        self.assertTrue(isinstance(ks, keystore.BIP32_KeyStore))
+
+        self.assertEqual(ks.xprv, 'xprv9s21ZrQH143K32jECVM729vWgGq4mUDJCk1ozqAStTphzQtCTuoFmFafNoG1g55iCnBTXUzz3zWnDb5CVLGiFvmaZjuazHDL8a81cPQ8KL6')
+        self.assertEqual(ks.xpub, 'xpub661MyMwAqRbcFWohJWt7PHsFEJfZAvw9ZxwQoDa4SoMgsDDM1T7WK3u9E4edkC4ugRnZ8E4xDZRpk8Rnts3Nbt97dPwT52CwBdDWroaZf8U')
+
+        w = WalletIntegrityHelper.create_standard_wallet(ks)
+        self.assertEqual(w.txin_type, 'p2pkh')
+
+        self.assertEqual(w.get_receiving_addresses()[0], '1NNkttn1YvVGdqBW4PR6zvc3Zx3H5owKRf')
+        self.assertEqual(w.get_change_addresses()[0], '1KSezYMhAJMWqFbVFB2JshYg69UpmEXR4D')
+
+        # Verify this address was generated without tweaking
+        index = w.get_address_index('1NNkttn1YvVGdqBW4PR6zvc3Zx3H5owKRf')
+        pk, compressed = w.keystore.get_private_key(index, None, None)
+        pub = ecc.ECPrivkey(pk).get_public_key_hex(compressed=compressed)
+        self.assertEqual(w.pubkeys_to_address(pub), '1NNkttn1YvVGdqBW4PR6zvc3Zx3H5owKRf')
+
+        # Now add the contract and generate a new address
+        storage = w.storage
+        storage.update_contracts(TEST_CONTRACT_HASH)
+        w = Standard_Wallet(storage)
+        new_addr = w.create_new_address()
+
+        # Verify the new address was generated with tweaking
+        index = w.get_address_index(new_addr)
+        pk_new, compressed = w.keystore.get_private_key(index, None, TEST_CONTRACT_HASH)
+        pub_new = ecc.ECPrivkey(pk_new).get_public_key_hex(compressed=compressed)
+        self.assertEqual(w.pubkeys_to_address(pub_new), new_addr)
+
+        # Verify that we can receive keys for both untweaked and tweaked addr
+        self.assertEqual([bitcoin.deserialize_privkey(w.export_private_key(address, None)[0])[1] for address in ['1NNkttn1YvVGdqBW4PR6zvc3Zx3H5owKRf', new_addr]], [pk, pk_new])
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')

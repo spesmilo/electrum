@@ -47,7 +47,7 @@ from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
 
 from .bitcoin import *
 from .version import *
-from .keystore import load_keystore, Hardware_KeyStore
+from .keystore import load_keystore, Hardware_KeyStore, xpubkey_to_address
 from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW
 
 from . import transaction, bitcoin, coinchooser, paymentrequest, contacts
@@ -299,7 +299,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
         # Go through all contracts and no contract to find the
         # private key that corresponds to the address in our wallet
-        pk, compressed = self.keystore.get_tweaked_private_key(index, password, self.contracts)
+        pk, compressed = self.get_tweaked_private_key(address, index, password, self.contracts)
 
         txin_type = self.get_txin_type(address)
         redeem_script = self.get_redeem_script(address)
@@ -816,7 +816,12 @@ class Abstract_Wallet(AddressSynchronizer):
         for k in sorted(self.get_keystores(), key=lambda ks: ks.ready_to_sign(), reverse=True):
             try:
                 if k.can_sign(tx):
-                    k.sign_transaction(tx, password, self.contracts)
+                    k.check_password(password)
+                    # Add private keys
+                    keypairs = k.get_tx_derivations(tx)
+                    for x_pubkey, derivation in keypairs.items():
+                        keypairs[x_pubkey] = self.get_tweaked_private_key(xpubkey_to_address(x_pubkey)[1], derivation, password, self.contracts)
+                    k.sign_transaction(tx, keypairs)
             except UserCancelled:
                 continue
         return tx
@@ -1074,14 +1079,29 @@ class Abstract_Wallet(AddressSynchronizer):
 
         self.storage.write()
 
+    def get_tweaked_private_key(self, address, sequence, password, contracts):
+        for contract_hash in contracts + [None]:
+            pk, compressed = self.keystore.get_private_key(sequence, password, contract_hash)
+            pubkey_from_priv = ecc.ECPrivkey(pk).get_public_key_hex(compressed=compressed)
+            if address == self.pubkeys_to_address(pubkey_from_priv):
+                return pk, compressed
+        # This exception will probably never be thrown since we allow
+        # non-tweaked addresses in the above loop (by using 'None')
+        # Might want to remove that to stop people from generating
+        # addresses without first importing the terms and conditions file
+        raise WalletFileException('Private key not found. The corresponding '
+            'address might have been derived without tweaking or incorrect tweaking.')
+
     def sign_message(self, address, message, password):
         index = self.get_address_index(address)
-        return self.keystore.sign_message(index, message, password, self.contract_hash)
+        priv, compressed = self.get_tweaked_private_key(address, index, password, self.contracts)
+        return self.keystore.sign_message(priv, compressed, message)
 
     def decrypt_message(self, pubkey, message, password):
         addr = self.pubkeys_to_address(pubkey)
         index = self.get_address_index(addr)
-        return self.keystore.decrypt_message(index, message, password, self.contract_hash)
+        priv, compressed = self.get_tweaked_private_key(address, index, password, self.contracts)
+        return self.keystore.decrypt_message(priv, compressed, message)
 
     def get_depending_transactions(self, tx_hash):
         """Returns all (grand-)children of tx_hash in this wallet."""
@@ -1670,8 +1690,7 @@ class Wallet(object):
 
     def __new__(self, storage, contract=None):
          # update contract hash
-        if contract:
-            storage.update_contracts(contract)
+        storage.update_contracts(contract)
 
         wallet_type = storage.get('wallet_type')
         WalletClass = Wallet.wallet_class(wallet_type)
