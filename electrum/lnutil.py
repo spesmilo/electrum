@@ -1,7 +1,7 @@
 from enum import IntFlag
 import json
 from collections import namedtuple
-from typing import NamedTuple
+from typing import NamedTuple, List, Tuple
 
 from .util import bfh, bh2u, inv_dict
 from .crypto import sha256
@@ -270,24 +270,15 @@ def make_htlc_tx_with_open_channel(chan, pcp, for_us, we_receive, amount_msat, c
     htlc_tx = make_htlc_tx(cltv_expiry, inputs=htlc_tx_inputs, output=htlc_tx_output)
     return htlc_tx
 
-
-def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
-                    remote_payment_pubkey, payment_basepoint,
-                    remote_payment_basepoint, revocation_pubkey,
-                    delayed_pubkey, to_self_delay, funding_txid,
-                    funding_pos, funding_sat, local_amount, remote_amount,
-                    dust_limit_sat, local_feerate, for_us, we_are_initiator,
-                    htlcs):
-
+def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
+        payment_basepoint: bytes, remote_payment_basepoint: bytes, we_are_initiator: bool,
+        funding_pos: int, funding_txid: bytes, funding_sat: int):
     pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
     payments = [payment_basepoint, remote_payment_basepoint]
     if not we_are_initiator:
         payments.reverse()
-    obs = get_obscured_ctn(ctn, *payments)
-    locktime = (0x20 << 24) + (obs & 0xffffff)
-    sequence = (0x80 << 24) + (obs >> 24)
     # commitment tx input
-    c_inputs = [{
+    c_input = {
         'type': 'p2wsh',
         'x_pubkeys': pubkeys,
         'signatures': [None, None],
@@ -296,19 +287,15 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
         'prevout_hash': funding_txid,
         'value': funding_sat,
         'coinbase': False,
-        'sequence': sequence
-    }]
-    # commitment tx outputs
-    local_address = make_commitment_output_to_local_address(revocation_pubkey, to_self_delay, delayed_pubkey)
-    remote_address = make_commitment_output_to_remote_address(remote_payment_pubkey)
-    # TODO trim htlc outputs here while also considering 2nd stage htlc transactions
-    fee = local_feerate * overall_weight(len(htlcs))
-    fee = fee // 1000 * 1000
-    we_pay_fee = for_us == we_are_initiator
-    to_local_amt = local_amount - (fee if we_pay_fee else 0)
-    to_local = TxOutput(bitcoin.TYPE_ADDRESS, local_address, to_local_amt // 1000)
-    to_remote_amt = remote_amount - (fee if not we_pay_fee else 0)
-    to_remote = TxOutput(bitcoin.TYPE_ADDRESS, remote_address, to_remote_amt // 1000)
+    }
+    return c_input, payments
+
+def make_outputs(fee_msat: int, we_pay_fee: bool, local_amount: int, remote_amount: int,
+        local_tupl, remote_tupl, htlcs: List[Tuple[bytes, int]], dust_limit_sat: int) -> Tuple[List[TxOutput], List[TxOutput]]:
+    to_local_amt = local_amount - (fee_msat if we_pay_fee else 0)
+    to_local = TxOutput(*local_tupl, to_local_amt // 1000)
+    to_remote_amt = remote_amount - (fee_msat if not we_pay_fee else 0)
+    to_remote = TxOutput(*remote_tupl, to_remote_amt // 1000)
     c_outputs = [to_local, to_remote]
     for script, msat_amount in htlcs:
         c_outputs += [TxOutput(bitcoin.TYPE_ADDRESS,
@@ -317,6 +304,37 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
 
     # trim outputs
     c_outputs_filtered = list(filter(lambda x:x[2]>= dust_limit_sat, c_outputs))
+    return c_outputs, c_outputs_filtered
+
+
+def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
+                    remote_payment_pubkey, payment_basepoint,
+                    remote_payment_basepoint, revocation_pubkey,
+                    delayed_pubkey, to_self_delay, funding_txid,
+                    funding_pos, funding_sat, local_amount, remote_amount,
+                    dust_limit_sat, local_feerate, for_us, we_are_initiator,
+                    htlcs):
+    c_input, payments = make_funding_input(local_funding_pubkey, remote_funding_pubkey,
+        payment_basepoint, remote_payment_basepoint, we_are_initiator, funding_pos,
+        funding_txid, funding_sat)
+    obs = get_obscured_ctn(ctn, *payments)
+    locktime = (0x20 << 24) + (obs & 0xffffff)
+    sequence = (0x80 << 24) + (obs >> 24)
+    c_input['sequence'] = sequence
+
+    c_inputs = [c_input]
+
+    # commitment tx outputs
+    local_address = make_commitment_output_to_local_address(revocation_pubkey, to_self_delay, delayed_pubkey)
+    remote_address = make_commitment_output_to_remote_address(remote_payment_pubkey)
+    # TODO trim htlc outputs here while also considering 2nd stage htlc transactions
+    fee = local_feerate * overall_weight(len(htlcs))
+    fee = fee // 1000 * 1000
+    we_pay_fee = for_us == we_are_initiator
+
+    c_outputs, c_outputs_filtered = make_outputs(fee, we_pay_fee, local_amount, remote_amount,
+        (bitcoin.TYPE_ADDRESS, local_address), (bitcoin.TYPE_ADDRESS, remote_address), htlcs, dust_limit_sat)
+
     assert sum(x[2] for x in c_outputs) <= funding_sat
 
     # create commitment tx
@@ -445,3 +463,14 @@ SENT = HTLCOwner.SENT
 RECEIVED = HTLCOwner.RECEIVED
 LOCAL = HTLCOwner.LOCAL
 REMOTE = HTLCOwner.REMOTE
+
+def make_closing_tx(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
+        payment_basepoint: bytes, remote_payment_basepoint: bytes, we_are_initiator: bool,
+        funding_txid: bytes, funding_pos: int, funding_sat: int, outputs: List[TxOutput]):
+    c_input, payments = make_funding_input(local_funding_pubkey, remote_funding_pubkey,
+        payment_basepoint, remote_payment_basepoint, we_are_initiator, funding_pos,
+        funding_txid, funding_sat)
+    c_input['sequence'] = 0xFFFF_FFFF
+    tx = Transaction.from_io([c_input], outputs, locktime=0, version=2)
+    tx.BIP_LI01_sort()
+    return tx

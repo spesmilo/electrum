@@ -3,9 +3,10 @@ from collections import namedtuple
 import binascii
 import json
 from enum import Enum, auto
+from typing import Optional
 
 from .util import bfh, PrintError, bh2u
-from .bitcoin import Hash
+from .bitcoin import Hash, TYPE_SCRIPT
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256
 from . import ecc
@@ -15,8 +16,7 @@ from .lnutil import secret_to_pubkey, derive_privkey, derive_pubkey, derive_blin
 from .lnutil import sign_and_get_sig_string
 from .lnutil import make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc
 from .lnutil import HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT
-from .lnutil import funding_output_script, extract_ctn_from_tx_and_chan
-from .lnutil import LOCAL, REMOTE, SENT, RECEIVED, HTLCOwner
+from .lnutil import funding_output_script, LOCAL, REMOTE, HTLCOwner, make_closing_tx, make_outputs
 from .transaction import Transaction
 
 
@@ -730,3 +730,26 @@ class HTLCStateMachine(PrintError):
             for_us,
             chan.constraints.is_initiator,
             htlcs=htlcs)
+
+    def make_closing_tx(self, local_script: bytes, remote_script: bytes, fee_sat: Optional[int] = None) -> (bytes, int):
+        if fee_sat is None:
+            fee_sat = self.pending_local_fee
+
+        _, outputs = make_outputs(fee_sat * 1000, True,
+                self.local_state.amount_msat,
+                self.remote_state.amount_msat,
+                (TYPE_SCRIPT, bh2u(local_script)),
+                (TYPE_SCRIPT, bh2u(remote_script)),
+                [], self.local_config.dust_limit_sat)
+
+        closing_tx = make_closing_tx(self.local_config.multisig_key.pubkey,
+                self.remote_config.multisig_key.pubkey,
+                self.local_config.payment_basepoint.pubkey,
+                self.remote_config.payment_basepoint.pubkey,
+                # TODO hardcoded we_are_initiator:
+                True, *self.funding_outpoint, self.constraints.capacity,
+                outputs)
+
+        der_sig = bfh(closing_tx.sign_txin(0, self.local_config.multisig_key.privkey))
+        sig = ecc.sig_string_from_der_sig(der_sig[:-1])
+        return sig, fee_sat

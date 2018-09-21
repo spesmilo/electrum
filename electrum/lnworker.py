@@ -218,7 +218,8 @@ class LNWorker(PrintError):
 
     def list_channels(self):
         with self.lock:
-            return [str(x) for x in self.channels]
+            # we output the funding_outpoint instead of the channel_id because lnd uses channel_point (funding outpoint) to identify channels
+            return [(chan.funding_outpoint.to_str(), chan.get_state()) for channel_id, chan in self.channels.items()]
 
     def close_channel(self, chan_id):
         chan = self.channels[chan_id]
