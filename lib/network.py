@@ -1037,7 +1037,7 @@ class Network(util.DaemonThread):
                 self.switch_lagging_interface()
                 self.notify('updated')
         elif interface.mode == 'default':
-            raise BaseException(interface.mode)
+            raise BaseException("interface {} has mode {}".format(interface, interface.mode))
 
         # If not finished, get the next header
         if next_height:
