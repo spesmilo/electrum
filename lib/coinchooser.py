@@ -163,7 +163,7 @@ class CoinChooserBase(PrintError):
         self.print_error('change:', change)
         if dust:
             self.print_error('not keeping dust', dust)
-        return change
+        return change, dust
 
     def make_tx(self, coins, outputs, change_addrs, fee_estimator,
                 dust_threshold):
@@ -200,8 +200,9 @@ class CoinChooserBase(PrintError):
         # This takes a count of change outputs and returns a tx fee;
         # each pay-to-bitcoin-address output serializes as 34 bytes
         fee = lambda count: fee_estimator(tx_size + count * 34)
-        change = self.change_outputs(tx, change_addrs, fee, dust_threshold)
+        change, dust = self.change_outputs(tx, change_addrs, fee, dust_threshold)
         tx.add_outputs(change)
+        tx.ephemeral['dust_to_fee'] = dust
 
         self.print_error("using %d inputs" % len(tx.inputs()))
         self.print_error("using buckets:", [bucket.desc for bucket in buckets])

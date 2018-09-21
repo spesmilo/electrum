@@ -431,7 +431,7 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
     return result
 
 def format_fee_satoshis(fee, num_zeros=0):
-    return format_satoshis(fee, num_zeros, 0, precision=1)
+    return format_satoshis(fee, num_zeros, 0, precision=num_zeros)
 
 def timestamp_to_datetime(timestamp):
     try:

@@ -200,6 +200,11 @@ class TxDialog(QDialog, MessageBoxMixin):
             (self.wallet.can_sign(self.tx) or bool(self.main_window.tx_external_keypairs))
         self.sign_button.setEnabled(can_sign)
         self.tx_hash_e.setText(tx_hash or _('Unknown'))
+        if fee is None:
+            try:
+                fee = self.tx.get_fee() # Try and compute fee. We don't always have 'value' in all the inputs though. :/
+            except KeyError: # Value key missing from an input
+                pass
         if desc is None:
             self.tx_desc.hide()
         else:
@@ -225,8 +230,11 @@ class TxDialog(QDialog, MessageBoxMixin):
             amount_str = _("Amount sent:") + ' %s'% format_amount(-amount) + ' ' + base_unit
         size_str = _("Size:") + ' %d bytes'% size
         fee_str = _("Fee") + ': %s'% (format_amount(fee) + ' ' + base_unit if fee is not None else _('unknown'))
+        dusty_fee = self.tx.ephemeral.get('dust_to_fee', 0)
         if fee is not None:
             fee_str += '  ( %s ) '%  self.main_window.format_fee_rate(fee/size*1000)
+            if dusty_fee:
+                fee_str += ' <font color=#999999>' + (_("( %s in dust was added to fee )") % format_amount(dusty_fee)) + '</font>'
         self.amount_label.setText(amount_str)
         self.fee_label.setText(fee_str)
         self.size_label.setText(size_str)
