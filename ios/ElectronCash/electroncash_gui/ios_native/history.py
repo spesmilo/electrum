@@ -205,7 +205,7 @@ class HistoryMgr(utils.DataMgr):
         if isinstance(key, (type(None), list)):
             # the common case, 'None' or [Address]
             hist = get_history(domain = key)
-        # contacts entires 
+        # contacts entires
         elif isinstance(key, contacts.ContactsEntry):
             hist = get_contact_history(key.address)
         elif isinstance(key, Address):
@@ -253,7 +253,7 @@ class ContactsHistorySynchronizer(utils.PySig):
         ret = '<None>'
         if self.parent.wallet and self.parent.wallet.storage:
             ret = os.path.split(self.parent.wallet.storage.path)[1]
-        return ret    
+        return ret
     def _synchronizer(self):
         self.print_error("Started (wallet=%s)..." % self.wallet_name())
         last_seen_len, announce = (0, False)
@@ -325,7 +325,7 @@ class ContactsHistorySynchronizer(utils.PySig):
         if isinstance(address, str) and Address.is_valid(address):
             address = Address.from_string(address)
         storage = self.parent.wallet.storage if self.parent.wallet else None
-        if storage:        
+        if storage:
             with self.lock:
                 addrstr = address.to_storage_string()
                 k = 'contact_history_%s' % (addrstr)
@@ -380,7 +380,7 @@ class ContactsHistorySynchronizer(utils.PySig):
         h = wallet.get_history(None)
         h.reverse()
         return h
-        
+
 def get_contact_history(address : Address) -> list:
     hitems = gui.ElectrumGui.gui.contactHistSync.get_history(address)
     ret = _HistoryListProxy()
@@ -406,8 +406,8 @@ class TxHistoryHelper(TxHistoryHelperBase):
         self.haveShowMoreTxs = None
         utils.nspy_pop(self) # clear 'txs' python dict
         send_super(__class__, self, 'dealloc')
-     
-    @objc_method 
+
+    @objc_method
     def miscSetup(self) -> None:
         nib = UINib.nibWithNibName_bundle_("TxHistoryCell", None)
         self.tv.registerNib_forCellReuseIdentifier_(nib, "TxHistoryCell")
@@ -417,7 +417,7 @@ class TxHistoryHelper(TxHistoryHelperBase):
                 if self.tv.refreshControl: self.tv.refreshControl.endRefreshing()
                 self.tv.reloadData()
         gui.ElectrumGui.gui.sigHistory.connect(gotRefresh, self)
-       
+
     @objc_method
     def numberOfSectionsInTableView_(self, tableView) -> int:
         return 1
@@ -435,7 +435,7 @@ class TxHistoryHelper(TxHistoryHelperBase):
             rows = min(rows,len_h)
             self.haveShowMoreTxs = len_h > rows
         return rows
-    
+
     @objc_method
     def tableView_viewForFooterInSection_(self, tv, section : int) -> ObjCInstance:
         if self.haveShowMoreTxs:
@@ -476,7 +476,7 @@ class TxHistoryHelper(TxHistoryHelperBase):
         gr.view.viewWithTag_(1).textColorAnimationFromColor_toColor_duration_reverses_completion_(
             utils.uicolor_custom('link'), utils.uicolor_custom('linktapped'), 0.2, True, seeAllTxs
         )
- 
+
     @objc_method
     def tableView_heightForFooterInSection_(self, tv, section : int) -> float:
         if self.compactMode:
@@ -539,7 +539,7 @@ class TxHistoryHelper(TxHistoryHelperBase):
                     pass
                 else:
                     cell.dateWidthCS.constant = _date_width - 24.0
-            cell.amount.attributedText = utils.hackyFiatAmtAttrStr(amtStr,utils.stripAmount(entry.fiat_amount_str),entry.ccy,s2.width-s1.width,utils.uicolor_custom('light'),adjustCS,utils._kern*1.25, isIpad=_is_ipad) 
+            cell.amount.attributedText = utils.hackyFiatAmtAttrStr(amtStr,utils.stripAmount(entry.fiat_amount_str),entry.ccy,s2.width-s1.width,utils.uicolor_custom('light'),adjustCS,utils._kern*1.25, isIpad=_is_ipad)
             cell.balance.attributedText = utils.hackyFiatAmtAttrStr(balStr,utils.stripAmount(entry.fiat_balance_str),entry.ccy,s1.width-s2.width,utils.uicolor_custom('light'),adjustCS,utils._kern*1.25, isIpad=_is_ipad)
             # end experimental zone...
         cell.desc.setText_withKerning_(entry.label.strip() if isinstance(entry.label, str) else '', utils._kern)
@@ -550,7 +550,7 @@ class TxHistoryHelper(TxHistoryHelperBase):
             cell.date.text = entry.status_str.strip()
         cell.status.text = ff #if entry.conf < 6 else ""
         cell.statusIcon.image = entry.status_image
-        
+
         return cell
 
     @objc_method
@@ -574,7 +574,7 @@ class TxHistoryHelper(TxHistoryHelperBase):
             else:
                 tx = parent.wallet.transactions.get(entry.tx_hash, None)
         except:
-            return        
+            return
         if tx is None:
             # I'm not sure why this would happen but we did get issue #810 where it happened to 1 user.
             # Perhaps a chain split led to an "old" history view on-screen.  That's my theory, at least. -Calin
@@ -582,7 +582,7 @@ class TxHistoryHelper(TxHistoryHelperBase):
                               title = _("Transaction Not Found"),
                               onOk = lambda: parent.refresh_components('history'))
             return
-        txd = txdetail.CreateTxDetailWithEntry(entry,tx=tx)        
+        txd = txdetail.CreateTxDetailWithEntry(entry,tx=tx)
         self.vc.navigationController.pushViewController_animated_(txd, True)
 
 class TxHistoryHelperWithHeader(TxHistoryHelper):
@@ -615,7 +615,7 @@ def NewTxHistoryHelper(tv : ObjCInstance, vc : ObjCInstance, domain : list = Non
         utils.nspy_put_byname(helper, domain, 'domain')
     helper.miscSetup()
     if noRefreshControl: helper.tv.refreshControl = None
-    from rubicon.objc.runtime import libobjc            
+    from rubicon.objc.runtime import libobjc
     libobjc.objc_setAssociatedObject(tv.ptr, helper.ptr, helper.ptr, 0x301)
     return helper
 
@@ -630,7 +630,7 @@ def TxHistoryHelperDissociate(helper):
         helper.tv = None
         if libobjc.objc_getAssociatedObject(theTV.ptr, helper.ptr).value == helper.ptr.value:
             libobjc.objc_setAssociatedObject(theTV.ptr, helper.ptr, None, 0x301)
-        
+
 
 # this should be a method of TxHistoryHelper but it returns a python object, so it has to be a standalone global function
 def _GetTxs(txsHelper : object) -> list:

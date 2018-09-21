@@ -61,7 +61,7 @@ def parent() -> object:
     return gui.ElectrumGui.gui
 
 class NetworkDialogVC(UIViewController):
-    
+
     connectedTV = objc_property()
     untranslatedMap = objc_property()
     peersTV = objc_property()
@@ -98,8 +98,8 @@ class NetworkDialogVC(UIViewController):
         self.kbas = None
         utils.nspy_pop(self)
         send_super(__class__, self, 'dealloc')
-   
-    
+
+
     @objc_method
     def loadView(self) -> None:
         parent().sigNetwork.connect(lambda:self.refresh(), self)
@@ -111,7 +111,7 @@ class NetworkDialogVC(UIViewController):
         sv = UIScrollView.alloc().initWithFrame_(CGRectMake(0,0,320,580)).autorelease()
         sv.contentSize = CGSizeMake(320,700)
         sv.addSubview_(v)
-        
+
         self.connectedTV = v.viewWithTag_(TAG_CONNECTED_TV)
         self.connectedTV.registerNib_forCellReuseIdentifier_(uinib, self.cellIdentifier)
         self.connectedTV.dataSource = self
@@ -120,11 +120,11 @@ class NetworkDialogVC(UIViewController):
         self.peersTV.registerNib_forCellReuseIdentifier_(uinib, self.cellIdentifier)
         self.peersTV.dataSource = self
         self.peersTV.delegate = self
-        
+
         self.view = sv
-        
+
         self.lastPort = at(0)
-        
+
         # connect buttons to functions
         views = self.view.allSubviewsRecursively()
         showHelpBlock = Block(showHelpForButton)
@@ -143,7 +143,7 @@ class NetworkDialogVC(UIViewController):
                 lastPort = str(py_from_ns(self.lastPort)) if self.lastPort else ''
                 if lastPort != tf.text:
                     tf.text = lastPort
-                
+
         onTfChgBlock = Block(onTfChg)
         for v in views:
             tag = v.tag
@@ -183,7 +183,7 @@ class NetworkDialogVC(UIViewController):
             if txt[-1] == ':':
                 hadColon = True
                 txt = txt[:len(txt)-1]
-            return  _(txt) + (':' if hadColon else '')     
+            return  _(txt) + (':' if hadColon else '')
         views = view.allSubviewsRecursively()
         for v in views:
             if isinstance(v, UILabel):
@@ -193,7 +193,7 @@ class NetworkDialogVC(UIViewController):
                 txt = doTranslate(v, v.placeholder)
                 if txt: v.placeholder = txt
         self.untranslatedMap = utmap
-        
+
     @objc_method
     def updateAutoServerSWStuff(self) -> None:
         config = parent().config if parent() else None
@@ -212,7 +212,7 @@ class NetworkDialogVC(UIViewController):
             if v is None: continue
             utils.uiview_set_enabled(v, enabled)
 
-        
+
     @objc_method
     def refresh(self) -> None:
         utils.NSLog("NETOWRK VC UPDATE, isMainThread = %s",str(NSThread.currentThread.isMainThread))
@@ -267,7 +267,7 @@ class NetworkDialogVC(UIViewController):
         else:
             msg = ''
         utils.uilabel_replace_attributed_text(self.splitLbl, msg, self.splitAttrTxtOrig)
-        
+
         # setup 'connected' data -- list of ConnData items
         connected = []
         for k, items in chains.items():
@@ -287,9 +287,9 @@ class NetworkDialogVC(UIViewController):
             section = ConnData(secHeader,secItems)
             connected.append(section)
         utils.nspy_put_byname(self, connected, 'connected')
-        
+
         self.connectedTV.reloadData()
-        
+
     @objc_method
     def viewWillAppear_(self, animated : bool) -> None:
         send_super(__class__,self,'viewWillAppear:', c_bool(animated), argtypes=[c_bool])
@@ -302,14 +302,14 @@ class NetworkDialogVC(UIViewController):
         if self.kbas:
             utils.unregister_keyboard_autoscroll(int(self.kbas))
             self.kbas = None
-    
+
     @objc_method
     def viewDidAppear_(self, animated : bool) -> None:
         send_super(__class__,self,'viewDidAppear:', c_bool(animated), argtypes=[c_bool])
         self.view.flashScrollIndicators()
         self.connectedTV.flashScrollIndicators()
         self.peersTV.flashScrollIndicators()
-    
+
     @objc_method
     def numberOfSectionsInTableView_(self, tv) -> int:
         if tv.ptr == self.connectedTV.ptr:
@@ -318,7 +318,7 @@ class NetworkDialogVC(UIViewController):
         elif tv.ptr == self.peersTV.ptr:
             return 1
         return 0
-    
+
     @objc_method
     def tableView_titleForHeaderInSection_(self, tv : ObjCInstance, section : int) -> ObjCInstance:
         if tv.ptr == self.connectedTV.ptr:
@@ -330,7 +330,7 @@ class NetworkDialogVC(UIViewController):
             return _("Host") + ", " + _("Port")
         print("*** WARNING *** tableView is unknown in tableView_titleForHeaderInSection_!!")
         return _("Unknown")
-        
+
     @objc_method
     def tableView_numberOfRowsInSection_(self, tv : ObjCInstance, section : int) -> int:
         if tv.ptr == self.connectedTV.ptr:
@@ -343,7 +343,7 @@ class NetworkDialogVC(UIViewController):
             return len(servers) if servers else 0
         return 0
 
-    
+
     @objc_method
     def tableView_cellForRowAtIndexPath_(self, tv, indexPath) -> ObjCInstance:
         cell = None
@@ -367,7 +367,7 @@ class NetworkDialogVC(UIViewController):
             cell = tv.dequeueReusableCellWithIdentifier_(identifier) # will always return a valid cell because we registered our nib in loadView
             l1 = cell.viewWithTag_(150)
             l2 = cell.viewWithTag_(160)
-            
+
             servers = utils.nspy_get_byname(self, 'servers')
             host = _('Unknown')
             d = {'t':0,'s':0}
@@ -375,7 +375,7 @@ class NetworkDialogVC(UIViewController):
                 host, d, ser = servers[indexPath.row]
             l1.text = str(host)
             l2.text = str(d.get(self.protocol,None))
-            cell.contentView.backgroundColor = UIColor.clearColor if not indexPath.row % 2 else UIColor.colorWithRed_green_blue_alpha_(0.0,0.0,0.0,0.03)            
+            cell.contentView.backgroundColor = UIColor.clearColor if not indexPath.row % 2 else UIColor.colorWithRed_green_blue_alpha_(0.0,0.0,0.0,0.03)
         return cell
 
     # Below 2 methods conform to UITableViewDelegate protocol
@@ -383,7 +383,7 @@ class NetworkDialogVC(UIViewController):
     def tableView_accessoryButtonTappedForRowWithIndexPath_(self, tv, indexPath) -> None:
         print("ACCESSORY TAPPED CALLED")
         pass
-    
+
     @objc_method
     def tableView_didSelectRowAtIndexPath_(self, tv, indexPath) -> None:
         print("DID SELECT ROW CALLED FOR SECTION %s, ROW %s"%(str(indexPath.section),str(indexPath.row)))
@@ -399,7 +399,7 @@ class NetworkDialogVC(UIViewController):
                 extraData = item[2]
                 is_server = extraData[0]
                 server_or_branch = extraData[1]
-                if is_server:                
+                if is_server:
                     server, port, *bla = deserialize_server(server_or_branch)
                     message = _("Do you wish to use\n{}:{}\nas the wallet server?").format(str(server),str(port))
                     title = str(_("Use as server") + '?')
@@ -433,21 +433,21 @@ class NetworkDialogVC(UIViewController):
                                   title = title,
                                   yesno = True,
                                   onOk = wantsToChangeServer)
-            
+
         tv.deselectRowAtIndexPath_animated_(indexPath, True)
-        
+
     @objc_method
     def textFieldDidEndEditing_(self, tf : ObjCInstance) -> None:
         #print("textFieldDidEndEditing", tf.tag, tf.text)
         self.doSetServer()
         return True
-    
+
     @objc_method
     def textFieldShouldReturn_(self, tf: ObjCInstance) -> bool:
         #print("textFieldShouldReturn", tf.tag)
         tf.resignFirstResponder()
         return True
-            
+
     @objc_method
     def followBranch_(self, index : int) -> None:
         network = parent().daemon.network if parent() and parent().daemon else None
@@ -476,7 +476,7 @@ class NetworkDialogVC(UIViewController):
         auto_connect = self.autoServerSW.isOn()
         network.set_parameters(host, port, protocol, proxy, auto_connect)
 
-    @objc_method        
+    @objc_method
     def setServer_(self, s : ObjCInstance) -> None:
         host, port, protocol = deserialize_server(py_from_ns(s))
         self.hostTF.text = str(host)
@@ -485,7 +485,7 @@ class NetworkDialogVC(UIViewController):
         self.doSetServer()
         self.refresh()
 
-            
+
 def showHelpForButton(oid : objc_id) -> None:
     tag = int(ObjCInstance(oid).tag)
     msg = _("Unknown")

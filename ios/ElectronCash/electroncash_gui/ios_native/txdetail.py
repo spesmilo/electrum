@@ -23,7 +23,7 @@ _TxInputsOutputsHeaderHeight = 22.0
 
 # ViewController used for the TxDetail view's "Inputs" and "Outputs" tables.. not exposed.. managed internally
 class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
-    
+
     tagin = objc_property()
     tagout = objc_property()
     ts = objc_property()
@@ -42,32 +42,32 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
                 outputTV.tag = self.tagin + 1
             self.tagout = outputTV.tag
             self.ts = ts
-            
+
             if self.tagin == self.tagout or inputTV.ptr.value == outputTV.ptr.value:
                 raise ValueError("The input and output table views must be different and have different tags!")
-            
+
             nib = UINib.nibWithNibName_bundle_("TxDetailInOutCell", None)
             inputTV.registerNib_forCellReuseIdentifier_(nib, "TxDetailInOutCell")
             outputTV.registerNib_forCellReuseIdentifier_(nib, "TxDetailInOutCell")
-            
+
             inputTV.delegate = self
             outputTV.delegate = self
             inputTV.dataSource = self
             outputTV.dataSource = self
-            
-            from rubicon.objc.runtime import libobjc            
+
+            from rubicon.objc.runtime import libobjc
             libobjc.objc_setAssociatedObject(inputTV.ptr, self.ptr, self.ptr, 0x301)
             libobjc.objc_setAssociatedObject(outputTV.ptr, self.ptr, self.ptr, 0x301)
 
             def refresh() -> None:
                 inputTV.reloadData()
                 outputTV.reloadData()
-            
+
             gui.ElectrumGui.gui.cash_addr_sig.connect(lambda x: refresh(), self)
             gui.ElectrumGui.gui.sigContacts.connect(lambda: refresh(), self)
 
         return self
-    
+
     @objc_method
     def dealloc(self) -> None:
         print("TxInputsOutputsTVC dealloc")
@@ -78,12 +78,12 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
         self.ts = None
         utils.nspy_pop(self)
         send_super(__class__, self, 'dealloc')
-        
-    
+
+
     @objc_method
     def numberOfSectionsInTableView_(self, tv) -> int:
         return 1
-    
+
     @objc_method
     def tableView_viewForHeaderInSection_(self, tv : ObjCInstance, section : int) -> ObjCInstance:
         objs = NSBundle.mainBundle.loadNibNamed_owner_options_("TableHeaders", None, None)
@@ -104,19 +104,19 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
         else:
             hdr = UIView.alloc().initWithFrame_(CGRectMake(0,0,0,0)).autorelease()
         return hdr
-    
+
     @objc_method
     def tableView_heightForRowAtIndexPath_(self, tv, indexPath) -> float:
         return _TxInputsOutputsCellHeight
-    
+
     @objc_method
     def tableView_heightForHeaderInSection_(self, tv, section : int) -> float:
         return _TxInputsOutputsHeaderHeight
-            
+
     @objc_method
     def tableView_numberOfRowsInSection_(self, tv : ObjCInstance, section : int) -> int:
         tx = utils.nspy_get(self)
-        
+
         if tv.tag == self.tagin:
             return len(tx.inputs())
         elif tv.tag == self.tagout:
@@ -129,10 +129,10 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
         cell = tv.dequeueReusableCellWithIdentifier_(identifier)
         parent = gui.ElectrumGui.gui
         wallet = parent.wallet
-        
+
         def format_amount(amt):
             return parent.format_amount(amt, whitespaces = False)
-        
+
         def fx():
             return parent.daemon.fx if parent.daemon and parent.daemon.fx and parent.daemon.fx.show_history() else None
 
@@ -140,7 +140,7 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
 
         try:
             tx = utils.nspy_get(self)
-        
+
             isInput = None
             x = None
             if tv.tag == self.tagin:
@@ -151,14 +151,14 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
                 x = tx.get_outputs()[indexPath.row]
             else:
                 raise ValueError("tv tag %d is neither input (%d) or output (%d) tag!"%(int(tv.tag),int(self.tagin),int(self.tagout)))
-            
+
 
             cell.address.text = ""
             cell.addressType.text = ""
             cell.detail.text = ""
 
             addr = None
-            
+
             if isInput:
                 if x['type'] == 'coinbase':
                     cell.addressType.text = "coinbase"
@@ -188,7 +188,7 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
                 if v is not None:
                     cell.detail.text = (format_amount(v) + " " + base_unit +  ((' (' + fx().historical_value_str(v,timestamp_to_datetime(self.ts)) + " " + fx().get_currency() + ')') if fx() else '')).strip()
 
-            
+
 
             typ = ''
             if isinstance(addr, Address):
@@ -202,7 +202,7 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
                     contact = contacts.Find(addr)
                     if contact:
                         typ += ', ' + _('Contact') + ": " + contact.name
-            cell.addressType.text = typ                
+            cell.addressType.text = typ
             cell.accessoryType = UITableViewCellAccessoryNone #UITableViewCellAccessoryDisclosureIndicator#UITableViewCellAccessoryDetailDisclosureButton#UITableViewCellAccessoryDetailButton #
         except Exception as e:
             print("exception in %s: %s"%(__class__.name,str(e)))
@@ -211,13 +211,13 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
             cell.detail.text = ""
             cell.accessoryType = UITableViewCellAccessoryNone
         return cell
-    
+
     # Below 2 methods conform to UITableViewDelegate protocol
     @objc_method
     def tableView_accessoryButtonTappedForRowWithIndexPath_(self, tv, indexPath):
         print("ACCESSORY TAPPED CALLED")
         pass
-    
+
     @objc_method
     def tableView_didSelectRowAtIndexPath_(self, tv, indexPath):
         print("DID SELECT ROW CALLED FOR SECTION %s, ROW %s"%(str(indexPath.section),str(indexPath.row)))
@@ -231,7 +231,7 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
         vc = self.txDetailVC
         title = _("Options")
         message = _("Transaction Input {}").format(indexPath.row) if isInput else _("Transaction Output {}").format(indexPath.row)
-        
+
         def getData(x, isAddr, isInput) -> str:
             data = ""
             if isAddr:
@@ -253,7 +253,7 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
                 data = prevout_hash[:] #+ ":%-4d" % prevout_n
             print("Data=%s"%str(data))
             return data
-        
+
         def isScriptOutput(x) -> bool:
             if not isInput:
                 try:
@@ -262,7 +262,7 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
                 except:
                     pass
             return False
-        
+
         def onCpy(isAddr : bool) -> None:
             print ("onCpy %s"%str(isAddr))
             parent.copy_to_clipboard(getData(x,isAddr,isInput))
@@ -286,7 +286,7 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
                 data = getData(x, True, False)
                 data = Address.from_string(data)
             parent.view_on_block_explorer(data, "tx" if isInput else "addr")
-        
+
         actions = [
             [ _("Copy Address"), onCpy, True ],
             [ _("Show Address QR"), onQR, True ],
@@ -298,7 +298,7 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
         if not isInput:
             actions.pop(2)
             actions.pop(2)
-            
+
             if isScriptOutput(x):
                 # it's a script output, so indicate that in the messaging
                 actions[0][0] = _('Copy Script')
@@ -317,7 +317,7 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
                     actions.insert(0, [_("Show Coin Info"), onShowCoin, coin])
             except:
                 print("Failed to get_name:",str(sys.exc_info()[1]))
-            
+
         addy = getData(x, True, isInput)
         if addy and not isinstance(addy, Address):
             try:
@@ -328,7 +328,7 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
             if parent.wallet.is_mine(addy):
                 def onShowAddy(addy):
                     addresses.PushDetail(addy,self.txDetailVC.navigationController)
-                
+
                 actions.insert(0, [ _("Address Details"), onShowAddy, addy ] )
             else:
                 entry = contacts.Find(addy)
@@ -339,7 +339,7 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
                 elif self.txDetailVC.navigationController: # is not mine but is in contacts, so offer them a chance to view the contact
                     actions.insert(1, [ _("Show Contact"), contacts.PushNewContactDetailVC, entry, self.txDetailVC.navigationController ] )
 
-        
+
         utils.show_alert(vc = vc,
                          title = title,
                          message = message,
@@ -348,9 +348,9 @@ class TxInputsOutputsTVC(TxInputsOutputsTVCBase):
                          style = UIAlertControllerStyleActionSheet,
                          ipadAnchor = tv.convertRect_toView_(tv.rectForRowAtIndexPath_(indexPath), vc.view)
                          )
-    
 
-        
+
+
 def CreateTxInputsOutputsTVC(txDetailVC : ObjCInstance, tx : Transaction, itv : ObjCInstance, otv : ObjCInstance, timestamp : float) -> ObjCInstance:
     tvc = TxInputsOutputsTVC.alloc()
     utils.nspy_put(tvc, tx)
@@ -368,7 +368,7 @@ def _setup_transaction_detail_view(vc : ObjCInstance) -> None:
     format_amount = parent.format_amount
     if not wallet:
         utils.NSLog("TxDetail: Wallet not open.. aborting early (tx_hash=%s)",tx_hash)
-        return        
+        return
     if tx is None:
         tx = wallet.transactions.get(tx_hash, None)
         if tx is not None: tx.deserialize()
@@ -378,19 +378,19 @@ def _setup_transaction_detail_view(vc : ObjCInstance) -> None:
     tx_hash, status_, label_, can_broadcast, amount, fee, height, conf, timestamp, exp_n = wallet.get_tx_info(tx)
     size = tx.estimated_size()
     can_sign = not tx.is_complete() and wallet and wallet.can_sign(tx) #and (wallet.can_sign(tx) # or bool(self.main_window.tx_external_keypairs))
-    
+
     wasNew = False
     if not vc.viewIfLoaded:
         NSBundle.mainBundle.loadNibNamed_owner_options_("TxDetail",vc,None)
         wasNew = True
         if vc.maxTVHeight < 1.0:
             vc.maxTVHeight = vc.inputsTVHeightCS.constant
-    
+
     # grab all the views
     # Transaction ID:
     txTit = vc.txTit
     txHash =  vc.txHash
-    copyBut = vc.cpyBut  
+    copyBut = vc.cpyBut
     qrBut =  vc.qrBut
     # Description:
     descTit = vc.descTit
@@ -418,7 +418,7 @@ def _setup_transaction_detail_view(vc : ObjCInstance) -> None:
     inputsTV = vc.inputsTV
     # Outputs
     outputsTV = vc.outputsTV
-    
+
     # Setup data for all the stuff
     txTit.text = _("Transaction ID:").translate({ord(':') : None})
     tx_hash_str = tx_hash if tx_hash is not None and tx_hash != "None" and tx_hash != "Unknown" and tx_hash != _("Unknown") else _('Unknown')
@@ -442,7 +442,7 @@ def _setup_transaction_detail_view(vc : ObjCInstance) -> None:
         vc.bottomBut.setTitle_forState_(_('Broadcast'), UIControlStateNormal)
         if not img:
             img = StatusImages[-2]
-            
+
     if tx_hash_str == _("Unknown") or tx_hash is None: #unsigned tx
         copyBut.setHidden_(True)
         qrBut.setHidden_(True)
@@ -460,7 +460,7 @@ def _setup_transaction_detail_view(vc : ObjCInstance) -> None:
         vc.notsigned = False
         txHash.linkText = tx_hash_str
         txHash.userInteractionEnabled = True
-        
+
         def onTxLinkTap(ll : objc_id) -> None:
             vc.onTxLink_(ObjCInstance(ll).gr)
         txHash.linkTarget = Block(onTxLinkTap)
@@ -469,11 +469,11 @@ def _setup_transaction_detail_view(vc : ObjCInstance) -> None:
     if amount is None: # unrelated to this wallet.. hide the description textfield.. also affects messaging below.. see viewDidLayoutSubviews
         vc.unrelated = True
     else:
-        vc.unrelated = False        
+        vc.unrelated = False
 
-    vc.navigationItem.rightBarButtonItems = rbbs 
+    vc.navigationItem.rightBarButtonItems = rbbs
 
-    descTit.text = _("Description") 
+    descTit.text = _("Description")
     descTf.text = label
     descTf.placeholder = _("Tap to add a description")
     descTf.clearButtonMode = UITextFieldViewModeWhileEditing
@@ -495,12 +495,12 @@ def _setup_transaction_detail_view(vc : ObjCInstance) -> None:
            ff = "%s %s"%(str(conf), _('confirmations'))
         vc.canRefresh = conf >= 0 # if we got here means refresh has meaning.. it's not an external tx or if it is, it now is on the network, so enable refreshing
     except:
-        pass        
+        pass
     statusLbl.text = _(ff)
     if vc.canRefresh and conf >= 1: img = StatusImages[min(len(StatusImages)-1,3+min(6,conf))]
     statusIV.image = img
 
-    
+
     if timestamp or exp_n:
         if timestamp:
             dateTit.setText_withKerning_(_("Date"), utils._kern)
@@ -513,12 +513,12 @@ def _setup_transaction_detail_view(vc : ObjCInstance) -> None:
         dateTit.alpha = 1.0
         dateLbl.alpha = 1.0
     else:
-        # wtf? what to do here? 
-        dateTit.setText_withKerning_(_("Date"), utils._kern) 
+        # wtf? what to do here?
+        dateTit.setText_withKerning_(_("Date"), utils._kern)
         dateLbl.text = ""
         dateTit.alpha = 0.5
         dateLbl.alpha = 0.5
- 
+
     myAmtStr = ''
     if vc.unrelated:
         amtTit.setText_withKerning_(_("Amount"), utils._kern)
@@ -540,11 +540,11 @@ def _setup_transaction_detail_view(vc : ObjCInstance) -> None:
         rest = ' ' + ' '.join(l[2:]) if len(l) > 2 else ''
         ats = NSMutableAttributedString.alloc().initWithString_attributes_(am, {NSFontAttributeName : UIFont.systemFontOfSize_weight_(16.0, UIFontWeightBold)}).autorelease()
         if unt:
-            ats.appendAttributedString_(NSAttributedString.alloc().initWithString_attributes_(unt, {NSFontAttributeName : UIFont.systemFontOfSize_weight_(16.0, UIFontWeightBold)}).autorelease())            
+            ats.appendAttributedString_(NSAttributedString.alloc().initWithString_attributes_(unt, {NSFontAttributeName : UIFont.systemFontOfSize_weight_(16.0, UIFontWeightBold)}).autorelease())
         if rest:
             ats.appendAttributedString_(NSAttributedString.alloc().initWithString_attributes_(rest, {NSFontAttributeName : UIFont.systemFontOfSize_weight_(14.0, UIFontWeightRegular)}).autorelease())
         amtLbl.attributedText = ats
-        
+
     sizeTit.setText_withKerning_( _("Size:").translate({ord(':') : None}), utils._kern )
     if size:
         sizeLbl.text = ('%d bytes' % (size))
@@ -556,7 +556,7 @@ def _setup_transaction_detail_view(vc : ObjCInstance) -> None:
     if fee is not None:
         fee_str += '  ( %s ) '%  parent.format_fee_rate(fee/size*1000)
     feeLbl.text = fee_str
-    
+
     lockTit.setText_withKerning_(_("Locktime"), utils._kern)
     if tx.locktime > 0:
         lockLbl.text = str(tx.locktime)
@@ -566,7 +566,7 @@ def _setup_transaction_detail_view(vc : ObjCInstance) -> None:
         lockTit.setHidden_(True)
         lockLbl.setHidden_(True)
 
-    # auto-adjust height of table views        
+    # auto-adjust height of table views
     vc.inputsTVHeightCS.constant = min(_TxInputsOutputsHeaderHeight + _TxInputsOutputsCellHeight*len(tx.inputs()), vc.maxTVHeight)
     vc.outputsTVHeightCS.constant = min(_TxInputsOutputsHeaderHeight + _TxInputsOutputsCellHeight*len(tx.outputs()), vc.maxTVHeight)
 
@@ -578,7 +578,7 @@ def _setup_transaction_detail_view(vc : ObjCInstance) -> None:
         inputsTV.reloadData()
         outputsTV.reloadData()
 
-        
+
 class TxDetail(TxDetailBase):
     notsigned = objc_property() # by default is false.. if true, offer different buttons/options
     unrelated = objc_property() # by default false, if set to true, hide the desc tf and other layout niceties
@@ -599,19 +599,19 @@ class TxDetail(TxDetailBase):
             self.navigationItem.backBarButtonItem = bb
             self.commonInit()
         return self
-    
+
     @objc_method
     def initWithCoder_(self, coder : ObjCInstance) -> ObjCInstance:
         self = ObjCInstance(send_super(__class__, self, 'initWithCoder:', coder.ptr, argtypes=[objc_id]))
         if self:
             self.commonInit()
         return self
-    
+
     @objc_method
     def commonInit(self) -> None:
         gui.ElectrumGui.gui.sigHistory.connect(lambda:self.refresh(), self)
 
-    
+
     @objc_method
     def dealloc(self) -> None:
         print("TxDetail dealloc")
@@ -627,13 +627,13 @@ class TxDetail(TxDetailBase):
         utils.nspy_pop(self)
         utils.remove_all_callbacks(self)
         send_super(__class__, self, 'dealloc')
-    
+
     @objc_method
     def loadView(self) -> None:
         self.edgesForExtendedLayout = 0
         self.extendedLayoutIncludesOpaqueBars = False
         _setup_transaction_detail_view(self)
-        
+
     @objc_method
     def refresh(self) -> None:
         if not self.viewIfLoaded: return
@@ -649,23 +649,23 @@ class TxDetail(TxDetailBase):
             utils.NSLog("TxDetail will not refresh transaction (not refreshable)")
             self.refreshNeeded = False
             self.blockRefresh = False
-    
+
     @objc_method
     def doRefreshIfNeeded(self) -> None:
         if self.refreshNeeded: self.refresh()
-            
+
     @objc_method
     def viewWillAppear_(self, animated : bool) -> None:
         send_super(__class__, self, 'viewWillAppear:', animated, argtypes=[c_bool])
         entry = utils.nspy_get_byname(self, 'tx_entry')
         self.descTf.text = entry.label
         #todo update this stuff in realtime?
-        
+
     @objc_method
     def viewDidAppear_(self, animated : bool) -> None:
         send_super(__class__, self, 'viewDidAppear:', animated, argtypes=[c_bool])
         utils.get_callback(self, "on_appear")()
-        
+
     @objc_method
     def viewDidLayoutSubviews(self) -> None:
         send_super(__class__, self, 'viewDidLayoutSubviews')
@@ -684,11 +684,11 @@ class TxDetail(TxDetailBase):
     def textFieldShouldReturn_(self, tf : ObjCInstance) -> bool:
         tf.resignFirstResponder()
         return True
-    
+
     @objc_method
     def textFieldDidBeginEditing_(self, tf) -> None:
         self.blockRefresh = True
-    
+
     @objc_method
     def textFieldDidEndEditing_(self, tf : ObjCInstance) -> None:
         entry = utils.nspy_get_byname(self, 'tx_entry')
@@ -714,7 +714,7 @@ class TxDetail(TxDetailBase):
         def DoIt() -> None:
             entry = utils.nspy_get_byname(self, 'tx_entry')
             if not entry: return
-    
+
             qrvc = utils.present_qrcode_vc_for_data(vc=self,
                                                     data=entry.tx_hash,
                                                     title = _('QR code'))
@@ -723,7 +723,7 @@ class TxDetail(TxDetailBase):
 
     @objc_method
     def onShareSave_(self, sender : ObjCInstance) -> None:
-        parent = gui.ElectrumGui.gui        
+        parent = gui.ElectrumGui.gui
         ipadAnchor = sender.view.frame if isinstance(sender, UIGestureRecognizer) else sender # else clause means it's a UIBarButtonItem
         if not parent.wallet: return
         self.view.endEditing_(True)
@@ -734,7 +734,7 @@ class TxDetail(TxDetailBase):
             if waitDlg:
                 waitDlg.dismissViewControllerAnimated_completion_(animated, compl)
                 waitDlg = None
-                
+
         def DoIt() -> None:
             try:
                 name = 'signed_%s.txt' % (tx.txid()[0:8]) if tx.is_complete() else 'unsigned.txt'
@@ -761,12 +761,12 @@ class TxDetail(TxDetailBase):
                 Dismiss(MyCompl, False)
                 utils.NSLog("Got exception generating TX text file: %s", err)
         waitDlg = utils.show_please_wait(vc = self, message = _("Calculating Tx Details..."), completion = DoIt)
-        
+
     @objc_method
     def onTxLink_(self, sender : ObjCInstance) -> None:
         entry = utils.nspy_get_byname(self, 'tx_entry')
         parent = gui.ElectrumGui.gui
-        
+
         ipadAnchor = sender.view.frame if isinstance(sender, UIGestureRecognizer) else sender # else clause means it's a UIBarButtonItem
 
         def on_block_explorer() -> None:
@@ -779,10 +779,10 @@ class TxDetail(TxDetailBase):
         ]
         if not self.noBlkXplo:
             actions.append([ _("View on block explorer"), on_block_explorer ])
-         
-            
+
+
         actions.append([_("Share/Save..."), lambda: self.onShareSave_(sender)])
-            
+
         utils.show_alert(
             vc = self,
             title = _("Options"),
@@ -792,7 +792,7 @@ class TxDetail(TxDetailBase):
             style = UIAlertControllerStyleActionSheet,
             ipadAnchor = ipadAnchor
         )
-        
+
     @objc_method
     def onSign(self) -> None:
         password = None
@@ -816,7 +816,7 @@ class TxDetail(TxDetailBase):
                 #else:
                 #    parent.show_error(_("An Unknown Error Occurred"))
             parent.sign_tx_with_password(tx, sign_done, password)
-            
+
 
         parent.prompt_password_if_needed_asynch(callBack = DoSign, vc = self)
 
@@ -829,7 +829,7 @@ class TxDetail(TxDetailBase):
         self.view.endEditing_(True)
         entry = utils.nspy_get_byname(self, 'tx_entry')
         tx = entry.tx
-        
+
         def broadcastDone():
             nonlocal entry
             if self.viewIfLoaded is None:
@@ -852,10 +852,10 @@ class TxDetail(TxDetailBase):
                 entry = utils.set_namedtuple_field(entry, 'status_image', StatusImages[status])
                 utils.nspy_put_byname(self, entry, 'tx_entry')
             _setup_transaction_detail_view(self) # nb: don't call refresh here, instead call this to re-evaluate everything, including 'canRefresh'
-            
+
         parent.broadcast_transaction(tx, self.descTf.text, broadcastDone)
 
-    
+
 def CreateTxDetailWithEntry(entry : HistoryEntry, on_label = None, on_appear = None, tx = None, asModalNav = False) -> ObjCInstance:
     txvc = TxDetail.alloc()
     if not isinstance(entry.tx, Transaction) or isinstance(tx, Transaction):
@@ -893,10 +893,10 @@ def CreateTxDetailWithTx(tx : Transaction, on_label = None, on_appear = None, as
     timestamp = time.time() if timestamp is None else timestamp
     doFX = False #fx() and fx().is_enabled()
     ccy = None #fx().get_currency() if doFX else None
-    fiat_amount_str = None #str(self.fiat.text) if doFX else None 
+    fiat_amount_str = None #str(self.fiat.text) if doFX else None
     #HistoryEntry = namedtuple("HistoryEntry", "extra_data tx_hash status_str label v_str balance_str date ts conf status value fiat_amount fiat_balance fiat_amount_str fiat_balance_str ccy status_image")
     entry = HistoryEntry(tx,tx_hash,status_str,label_,parent.format_amount(amount) if amount is not None else _("Transaction unrelated to your wallet"),
                          "",timestamp_to_datetime(time.time() if conf <= 0 else timestamp),
                          timestamp,conf,status,amount,None,None,fiat_amount_str,None,ccy,img)
-      
+
     return CreateTxDetailWithEntry(entry, on_label = on_label, on_appear = on_appear, asModalNav = asModalNav)
