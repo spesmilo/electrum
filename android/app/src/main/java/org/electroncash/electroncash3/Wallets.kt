@@ -7,6 +7,7 @@ import android.support.v7.app.AlertDialog
 import android.support.v7.widget.DividerItemDecoration
 import android.support.v7.widget.LinearLayoutManager
 import android.view.*
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
@@ -25,7 +26,7 @@ class WalletsFragment : MainFragment() {
             if (status != null) {
                 title.value = getString(R.string.online)
                 subtitle.value = if (status.localHeight < status.serverHeight) {
-                    "${getString(R.string.synchronizing)} ${status.localHeight}/${status.serverHeight}"
+                    "${getString(R.string.synchronizing)} ${status.localHeight} / ${status.serverHeight}"
                 } else {
                     "${getString(R.string.height)} ${status.localHeight}"
                 }
@@ -214,7 +215,10 @@ abstract class PasswordDialog : AlertDialogFragment() {
             .setPositiveButton(android.R.string.ok, null)
             .setNegativeButton(android.R.string.cancel, null)
     }
+
     override fun onShowDialog(dialog: AlertDialog) {
+        getSystemService(InputMethodManager::class)
+            .showSoftInput(dialog.etPassword, InputMethodManager.SHOW_IMPLICIT)
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
                 tryPassword(dialog.etPassword.text.toString())

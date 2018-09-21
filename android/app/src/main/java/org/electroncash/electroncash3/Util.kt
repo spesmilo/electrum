@@ -4,10 +4,12 @@ import android.databinding.DataBindingUtil
 import android.databinding.ViewDataBinding
 import android.support.v4.app.DialogFragment
 import android.support.v4.app.FragmentActivity
+import android.support.v4.content.ContextCompat
 import android.support.v7.widget.RecyclerView
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.Toast
+import kotlin.reflect.KClass
 
 
 val UNIT_BCH = 100000000L
@@ -71,6 +73,11 @@ fun toast(text: CharSequence, duration: Int = Toast.LENGTH_SHORT, key: String? =
 
 fun toast(resId: Int, duration: Int = Toast.LENGTH_SHORT, key: String? = null) {
     toast(app.getString(resId), duration, key)
+}
+
+
+fun <T: Any> getSystemService(kcls: KClass<T>): T {
+    return ContextCompat.getSystemService(app, kcls.java)!!
 }
 
 
