@@ -316,13 +316,21 @@ class HTLCStateMachine(PrintError):
 
         _, this_point, _ = self.points
 
-        if len(self.htlcs_in_remote) > 0 and len(pending_local_commitment.outputs()) == 3:
+        if len(pending_local_commitment.outputs()) >= 3:
             print("CHECKING HTLC SIGS")
-            we_receive = True
-            payment_hash = self.htlcs_in_remote[0].payment_hash
-            amount_msat = self.htlcs_in_remote[0].amount_msat
-            cltv_expiry = self.htlcs_in_remote[0].cltv_expiry
-            htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, amount_msat, cltv_expiry, payment_hash, pending_local_commitment, 0)
+            assert len(pending_local_commitment.outputs()) == 3
+            if len(self.htlcs_in_remote) > 0:
+                assert len(self.htlcs_in_remote) == 1
+                we_receive = True
+                htlc = self.htlcs_in_remote[0]
+            elif len(self.htlcs_in_local) > 0:
+                assert len(self.htlcs_in_local) == 1
+                we_receive = False
+                htlc = self.htlcs_in_local[0]
+            else:
+                assert False
+
+            htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, htlc.amount_msat, htlc.cltv_expiry, htlc.payment_hash, pending_local_commitment, 0)
             pre_hash = Hash(bfh(htlc_tx.serialize_preimage(0)))
             remote_htlc_pubkey = derive_pubkey(self.remote_config.htlc_basepoint.pubkey, this_point)
             if not ecc.verify_signature(remote_htlc_pubkey, htlc_sigs[0], pre_hash):
@@ -450,9 +458,6 @@ class HTLCStateMachine(PrintError):
         self.local_state=self.local_state._replace(
             amount_msat = self.local_state.amount_msat + (received_this_batch - sent_this_batch)
         )
-
-        self.balance(LOCAL)
-        self.balance(REMOTE)
 
         for pending_fee in self.fee_mgr:
             if pending_fee.is_proposed():
