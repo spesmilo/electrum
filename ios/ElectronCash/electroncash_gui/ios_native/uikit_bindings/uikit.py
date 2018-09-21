@@ -431,7 +431,7 @@ UIStackViewDistributionFill = 0
 #     When space allows, this will be the size of the item with the largest
 #     intrinsicContentSize (along the axis of the stack).
 #     Overflow or underflow adjustments are distributed equally among the items.
-#   
+#
 #     Overflow or underflow adjustments are distributed among the items proportional
 #     to their intrinsicContentSizes.
 UIStackViewDistributionFillEqually = 1
@@ -444,23 +444,23 @@ UIStackViewDistributionEqualSpacing = 3
 #     Equal center-to-center spacing of the items is maintained as much
 #     as possible while still maintaining a minimum edge-to-edge spacing within the
 #     allowed area.
-#        Additional underflow spacing is divided equally in the spacing. Overflow 
-#     squeezing is distributed first according to compressionResistance priorities 
-#     of items, then according to subview order while maintaining the configured 
+#        Additional underflow spacing is divided equally in the spacing. Overflow
+#     squeezing is distributed first according to compressionResistance priorities
+#     of items, then according to subview order while maintaining the configured
 #     (edge-to-edge) spacing as a minimum.
 UIStackViewDistributionEqualCentering = 4
 # UIStackViewAlignment
 #    /* Align the leading and trailing edges of vertically stacked items
 #     or the top and bottom edges of horizontally stacked items tightly to the container.
 #     */
-UIStackViewAlignmentFill = 0    
+UIStackViewAlignmentFill = 0
 #    /* Align the leading edges of vertically stacked items
 #     or the top edges of horizontally stacked items tightly to the relevant edge
 #     of the container
 #     */
 UIStackViewAlignmentLeading = 1
 UIStackViewAlignmentTop = UIStackViewAlignmentLeading
-UIStackViewAlignmentFirstBaseline = 2 # Valid for horizontal axis only    
+UIStackViewAlignmentFirstBaseline = 2 # Valid for horizontal axis only
 #    /* Center the items in a vertical stack horizontally
 #     or the items in a horizontal stack vertically
 #     */
@@ -520,7 +520,7 @@ UITextAutocapitalizationTypeAllCharacters = 3
 # // UITextAutocorrectionType
 # //
 # // Controls keyboard autocorrection behavior for a text widget.
-# // Note: Some input methods do not support inline autocorrection, and 
+# // Note: Some input methods do not support inline autocorrection, and
 # // instead use a conversion and/or candidate selection methodology. In such
 # // cases, these values are ignored by the keyboard/input method implementation.
 # //
@@ -540,10 +540,10 @@ UITextSpellCheckingTypeYes = 2
 # // UIKeyboardType
 # //
 # // Requests that a particular keyboard type be displayed when a text widget
-# // becomes first responder. 
-# // Note: Some keyboard/input methods types may not support every variant. 
-# // In such cases, the input method will make a best effort to find a close 
-# // match to the requested type (e.g. displaying UIKeyboardTypeNumbersAndPunctuation 
+# // becomes first responder.
+# // Note: Some keyboard/input methods types may not support every variant.
+# // In such cases, the input method will make a best effort to find a close
+# // match to the requested type (e.g. displaying UIKeyboardTypeNumbersAndPunctuation
 # // type if UIKeyboardTypeNumberPad is not supported).
 # //
 UIKeyboardTypeDefault = 0 #                // Default type for the current input method.
@@ -563,9 +563,9 @@ UIKeyboardTypeAlphabet = UIKeyboardTypeASCIICapable #, // Deprecated
 # // UIKeyboardAppearance
 # //
 # // Requests a keyboard appearance be used when a text widget
-# // becomes first responder.. 
-# // Note: Some keyboard/input methods types may not support every variant. 
-# // In such cases, the input method will make a best effort to find a close 
+# // becomes first responder..
+# // Note: Some keyboard/input methods types may not support every variant.
+# // In such cases, the input method will make a best effort to find a close
 # // match to the requested type.
 # //
 UIKeyboardAppearanceDefault = 0 #         // Default apperance for the current input method.
@@ -575,9 +575,9 @@ UIKeyboardAppearanceAlert = UIKeyboardAppearanceDark #  // Deprecated
 # //
 # // UIReturnKeyType
 # //
-# // Controls the display of the return key. 
+# // Controls the display of the return key.
 # //
-# // Note: This enum is under discussion and may be replaced with a 
+# // Note: This enum is under discussion and may be replaced with a
 # // different implementation.
 # //
 UIReturnKeyDefault = 0
@@ -713,7 +713,7 @@ UIStatusBarStyleBlackOpaque = 2 # DEPRECATED "Use UIStatusBarStyleLightContent")
 #UIStatusBarAnimation
 UIStatusBarAnimationNone = 0
 UIStatusBarAnimationFade = 1
-UIStatusBarAnimationSlide = 2 
+UIStatusBarAnimationSlide = 2
 
 #// Note that UIInterfaceOrientationLandscapeLeft is equal to UIDeviceOrientationLandscapeRight (and vice versa).
 #// This is because rotating the device to the left requires rotating the content to the right.
@@ -811,3 +811,14 @@ UIPageViewControllerTransitionStylePageCurl = 0 #, // Navigate between views via
 UIPageViewControllerTransitionStyleScroll = 1   #// Navigate between views by scrolling.
 
 NSNumber = ObjCClass('NSNumber')
+
+#UIVisualEffect stuff
+UIBlurEffectStyleExtraLight = 0
+UIBlurEffectStyleLight = 1
+UIBlurEffectStyleDark = 2
+UIBlurEffectStyleExtraDark = 3 #__TVOS_AVAILABLE(10_0) __IOS_PROHIBITED __WATCHOS_PROHIBITED,
+UIBlurEffectStyleRegular = 4 #NS_ENUM_AVAILABLE_IOS(10_0), // Adapts to user interface style
+UIBlurEffectStyleProminent = 5#NS_ENUM_AVAILABLE_IOS(10_0), // Adapts to user interface style
+
+UIBlurEffect = ObjCClass('UIBlurEffect')
+UIVisualEffectView = ObjCClass('UIVisualEffectView')

@@ -34,7 +34,7 @@ from .custom_objc import *
 
 from electroncash.i18n import _
 from electroncash import WalletStorage, Wallet
-       
+
 
 def Create_PWChangeVC(msg : str, hasPW : bool, isEnc : bool, hasTouchId : bool,
                       callback : Callable[[str,str,bool,bool], None], # pass a callback that accepts oldPW, newPW, encrypt_wallet_bool
@@ -60,7 +60,7 @@ class PWChangeVC(UIViewController):
     tidSW = objc_property()
     tidTit = objc_property()
     kbas = objc_property()
-    
+
     @objc_classmethod
     def pwChangeVCWithMessage_hasPW_isEncrypted_hasTouchId_(cls : ObjCInstance, msg : ObjCInstance, hasPW : bool, isEnc : bool, hasTouchId : bool) -> ObjCInstance:
         ret = PWChangeVC.new().autorelease()
@@ -72,7 +72,7 @@ class PWChangeVC(UIViewController):
         ret.modalTransitionStyle = UIModalTransitionStyleCrossDissolve
         #ret.disablesAutomaticKeyboardDismissal = False #NB: this caused an app crash due to missing selector in some iOS! DO NOT USE!
         return ret
-    
+
     @objc_method
     def dealloc(self) -> None:
         self.okBut = None
@@ -91,7 +91,7 @@ class PWChangeVC(UIViewController):
         self.kbas = None
         utils.remove_all_callbacks(self)
         send_super(__class__, self, 'dealloc')
-    
+
     @objc_method
     def doChkOkBut(self) -> None:
         is_en = bool( (not self.hasPW or self.curPW.text) and self.pw1.text == self.pw2.text )
@@ -99,17 +99,17 @@ class PWChangeVC(UIViewController):
         for a in [self.okBut]:
             if a: utils.uiview_set_enabled(a, is_en)
 
-  
+
     @objc_method
     def textFieldDidBeginEditing_(self, tf : ObjCInstance) -> None:
         if not utils.is_iphone(): return
-        
+
     @objc_method
     def textFieldDidEndEditing_(self, tf : ObjCInstance) -> None:
         #print("textFieldDidEndEditing", tf.tag, tf.text)
         self.doChkOkBut()
         return True
-    
+
     @objc_method
     def textFieldShouldReturn_(self, tf: ObjCInstance) -> bool:
         #print("textFieldShouldReturn", tf.tag)
@@ -119,7 +119,7 @@ class PWChangeVC(UIViewController):
         else:
             tf.resignFirstResponder()
         return True
-    
+
     @objc_method
     def viewWillAppear_(self, animated : bool) -> None:
         send_super(__class__, self, 'viewWillAppear:', animated, argtypes=[c_bool])
@@ -132,7 +132,7 @@ class PWChangeVC(UIViewController):
             utils.unregister_keyboard_autoscroll(self.kbas)
             self.kbas = None
 
-    
+
     @objc_method
     def loadView(self) -> None:
         is_encrypted = self.isEnc
@@ -155,7 +155,7 @@ class PWChangeVC(UIViewController):
         allviews = v.allSubviewsRecursively()
         for a in allviews:
             if isinstance(a, UILabel):
-                # translate UI automatically since placeholder text has potential translations 
+                # translate UI automatically since placeholder text has potential translations
                 a.text = _(a.text)
             elif isinstance(a, UITextField):
                 a.delegate = self
@@ -251,7 +251,7 @@ def check_password_strength(password):
     score = len(password)*( n + caps + num + extra)/20
     password_strength = {0:"Weak",1:"Medium",2:"Strong",3:"Very Strong"}
     strength = min(3, int(score))
-    return password_strength[strength] 
+    return password_strength[strength]
 
 
 def prompt_password_local_runloop(vc : ObjCInstance, prompt : str = None, title : str = None) -> str:
@@ -273,7 +273,7 @@ def prompt_password_local_runloop(vc : ObjCInstance, prompt : str = None, title 
         nonlocal retPW
         nonlocal tf
         if tf:
-            retPW = tf.text 
+            retPW = tf.text
             tf.release()
             tf = None
     def onCancel() -> None:
@@ -299,7 +299,7 @@ def kill_extant_asynch_pw_prompts() -> None:
         dlgs = _extant_pw_dialogs.copy()
         for tup in dlgs:
             tup[0].dismissViewControllerAnimated_completion_(False, Block(tup[1]))
-    
+
 def prompt_password_asynch(vc : ObjCInstance, onOk : Callable, prompt : str = None, title : str = None, onCancel : Callable = None,
                            onForcedDismissal : Callable = None) -> ObjCInstance:
     title =  _("Enter Password") if not title else title
@@ -354,5 +354,5 @@ def prompt_password_asynch(vc : ObjCInstance, onOk : Callable, prompt : str = No
         uiTextFieldHandlers = [tfConfigHandler],
         completion = MyCompletion
     )
-    
+
     return alert

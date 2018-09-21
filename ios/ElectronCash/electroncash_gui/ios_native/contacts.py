@@ -15,7 +15,7 @@ from .custom_objc import *
 from collections import namedtuple
 import time, sys, traceback
 
-ContactsEntry = namedtuple("ContactsEntry", "name address address_str hist_entries")
+ContactsEntry = namedtuple("ContactsEntry", "name address address_str")
 
 from . import history
 
@@ -72,7 +72,7 @@ class ContactsVC(ContactsVCBase):
         self.addBut = None
         self.doneBut = None
         self.cancelBut = None
-      
+
         if self.mode == ModePicker:
             lbuts = [
                 UIBarButtonItem.alloc().initWithBarButtonSystemItem_target_action_(UIBarButtonSystemItemCancel, self, SEL(b'onPickerCancel')).autorelease(),
@@ -96,15 +96,16 @@ class ContactsVC(ContactsVCBase):
             self.addBut = buts[0]
             #self.doneBut = buts[1]
             self.navigationItem.rightBarButtonItems = buts
- 
+
         bb = UIBarButtonItem.new().autorelease()
         bb.title = _("Back")
         self.navigationItem.backBarButtonItem = bb
-       
+
     @objc_method
     def dealloc(self) -> None:
         # do cleanup stuff here
         gui.ElectrumGui.gui.sigContacts.disconnect(self)
+        gui.ElectrumGui.gui.contactHistSync.disconnect(self)
         self.needsRefresh = None
         self.blockRefresh = None
         self.selected = None
@@ -139,17 +140,18 @@ class ContactsVC(ContactsVCBase):
         # Can't set this property from IB, so we do it here programmatically to create the stroke around the New contact bottom button
         self.butBottom.layer.borderColor = self.butBottom.titleColorForState_(UIControlStateNormal).CGColor
 
-    
+
     @objc_method
     def viewDidLoad(self) -> None:
         send_super(__class__, self, 'viewDidLoad')
-        gui.ElectrumGui.gui.sigContacts.connect(lambda:self.refresh(), self) 
+        gui.ElectrumGui.gui.sigContacts.connect(lambda:self.refresh(), self)
+        gui.ElectrumGui.gui.contactHistSync.connect(lambda:self.refresh(), self)
         self.refresh()
 
     @objc_method
     def viewWillAppear_(self, animated : bool) -> None:
         send_super(__class__, self, 'viewWillAppear:', animated, argtypes=[c_bool])
-        presel = utils.nspy_get_byname(self, 'preselected') 
+        presel = utils.nspy_get_byname(self, 'preselected')
         if presel:
             utils.nspy_pop_byname(self, 'preselected')
             self.selected = [presel]
@@ -181,13 +183,14 @@ class ContactsVC(ContactsVCBase):
                 cell.address.tag = indexPath.row # associate the tapped 'link' with this contact
                 c = contacts[indexPath.row]
                 cell.name.text = c.name
-                cell.numTxs.text = str(len(c.hist_entries) if c.hist_entries else 0) + " " + _('Transactions')
+                hist = history.get_contact_history(c.address)
+                cell.numTxs.text = str(len(hist) if hist else 0) + " " + _('Transactions')
                 enabledLink = self.mode == ModeNormal
                 if enabledLink:
                     cell.address.textColor = utils.uicolor_custom('link')
                     cell.address.userInteractionEnabled = True
                     cell.address.linkText = c.address_str
-                    def target(add : objc_id) -> None:                        
+                    def target(add : objc_id) -> None:
                         if self.navigationController and self.navigationController.visibleViewController.ptr == self.ptr:
                             self.onTapAddress_(ObjCInstance(add))
                     cell.address.linkTarget = target
@@ -200,18 +203,20 @@ class ContactsVC(ContactsVCBase):
                     cell.address.linkWillAnimate = None
                 self.setupAccessoryForCell_atIndex_(cell, indexPath.row)
         except:
+            #import traceback
+            #traceback.print_exc()
             utils.NSLog("exception in Contacts tableView_cellForRowAtIndexPath_: %s",str(sys.exc_info()[1]))
             cell = UITableViewCell.alloc().initWithStyle_reuseIdentifier_(UITableViewCellStyleSubtitle, "ACell").autorelease()
             empty_cell(cell, txt = "")
         return cell
-    
+
     # Below 2 methods conform to UITableViewDelegate protocol
     @objc_method
     def tableView_accessoryButtonTappedForRowWithIndexPath_(self, tv, indexPath):
         #print("ACCESSORY TAPPED CALLED")
         pass
-        
-    
+
+
     @objc_method
     def tableView_didSelectRowAtIndexPath_(self, tv, indexPath):
         #print("DID SELECT ROW CALLED FOR ROW %d"%indexPath.row)
@@ -220,13 +225,13 @@ class ContactsVC(ContactsVCBase):
 
         contacts = _Get()
         if not contacts or indexPath.row >= len(contacts): return
-    
+
         if self.mode == ModePicker:
             if not self.pickSingle:
                 self.setIndex_selected_(indexPath.row, not self.isIndexSelected_(indexPath.row))
                 wasSel = self.setupAccessoryForCell_atIndex_(cell, indexPath.row) # this sometimes fails if address is frozen and/or we are watching only
                 self.setIndex_selected_(indexPath.row, wasSel)
-        
+
                 self.selected = self.updateSelectionButtons()
             else:
                 # force only 1 contact to be selected, clearing all others
@@ -249,7 +254,7 @@ class ContactsVC(ContactsVCBase):
         contacts = _Get()
         if not contacts or indexPath.row < 0 or indexPath.row >= len(contacts): return
         if editingStyle == UITableViewCellEditingStyleDelete:
-            if delete_contact(contacts[indexPath.row]):  
+            if delete_contact(contacts[indexPath.row]):
                 was = self.blockRefresh
                 self.blockRefresh = True
                 _Updated()
@@ -303,11 +308,11 @@ class ContactsVC(ContactsVCBase):
             if self.blockRefresh:
                 return
             if self.refreshControl: self.refreshControl.endRefreshing()
-            self.selected = self.updateSelectionButtons() 
+            self.selected = self.updateSelectionButtons()
             self.tv.reloadData()
             self.doChkEmpty()
         self.needsRefresh = False
-    
+
     @objc_method
     def doRefreshIfNeeded(self):
         if self.needsRefresh:
@@ -351,7 +356,7 @@ class ContactsVC(ContactsVCBase):
     def onPickerCancel(self) -> None:
         print ("picker cancel...")
         self.presentingViewController.dismissViewControllerAnimated_completion_(True, None)
-        
+
     @objc_method
     def onPickerPayTo(self) -> None:
         #print ("picker done/payto...")
@@ -394,7 +399,7 @@ class ContactsVC(ContactsVCBase):
             if len(newSels) and self.doneBut:
                 self.doneBut.enabled = True
         return ns_from_py(list(newSels))
-    
+
     @objc_method
     def setupAccessoryForCell_atIndex_(self, cell, index : int) -> bool:
         parent = gui.ElectrumGui.gui
@@ -403,15 +408,15 @@ class ContactsVC(ContactsVCBase):
             entry = _Get()[index]
         except:
             no_good = True
-        
+
         ret = False
-        
+
         if no_good or not self.isIndexSelected_(index) or self.mode == ModeNormal:
             cell.customAccessory.image = UIImage.imageNamed_("circle2" if self.mode == ModePicker else "chevron_gray_right")
         else:
             cell.customAccessory.image = UIImage.imageNamed_("bluechk")
             ret = True
-        
+
         return ret
 
     @objc_method
@@ -422,8 +427,8 @@ class ContactsVC(ContactsVCBase):
             if contacts and index < len(contacts):
                 contact = contacts[index]
         show_new_edit_contact(contact, self, onEdit = lambda x: utils.show_notification(_("Contact saved")))
-        
-            
+
+
     @objc_method
     def onAddBut(self) -> None:
         self.showNewEditForm_(-1)
@@ -431,11 +436,11 @@ class ContactsVC(ContactsVCBase):
 
 
 class NewContactVC(NewContactBase):
-    
+
     qr = objc_property()
     qrvc = objc_property()
     editMode = objc_property()
-        
+
     @objc_method
     def dealloc(self) -> None:
         self.qrvc = None
@@ -445,12 +450,12 @@ class NewContactVC(NewContactBase):
         utils.remove_all_callbacks(self)
         print("NewContactVC dealloc")
         send_super(__class__, self, 'dealloc')
-    
+
     @objc_method
     def viewDidLoad(self) -> None:
-        send_super(__class__, self, 'viewDidLoad')        
+        send_super(__class__, self, 'viewDidLoad')
 
-        
+
     @objc_method
     def onOk(self) -> None:
         #print("On OK...")
@@ -461,14 +466,14 @@ class NewContactVC(NewContactBase):
             return
         if not name:
             gui.ElectrumGui.gui.show_error(_("Name is empty"), title=self.title)
-            return                
+            return
         def doCB() -> None:
             cb = utils.get_callback(self, 'on_ok')
             if callable(cb):
                 entry = None
                 if name and address_str and Address.is_valid(address_str):
                     address = Address.from_string(address_str)
-                    entry = ContactsEntry(name, address, address_str, build_contact_tx_list(address))
+                    entry = ContactsEntry(name, address, address_str)
                 cb(entry)
             self.autorelease()
         self.retain()
@@ -501,7 +506,7 @@ class NewContactVC(NewContactBase):
         try:
             datum = str(self.name.text) if sender.ptr.value == self.cpyNameBut.ptr.value else str(self.address.text)
             msgPfx = "Name" if sender.ptr.value == self.cpyNameBut.ptr.value else "Address"
-            
+
             gui.ElectrumGui.gui.copy_to_clipboard(datum, msgPfx)
             print ("copied to clipboard =", datum)
         except:
@@ -525,14 +530,14 @@ class NewContactVC(NewContactBase):
         else:
             self.address.text = result
             self.readerDidCancel_(reader)
-             
+
     @objc_method
     def readerDidCancel_(self, reader) -> None:
         if reader is not None: reader.stopScanning()
         self.dismissViewControllerAnimated_completion_(True, None)
         self.qr = None
         self.qrvc = None
-        
+
     @objc_method
     def viewWillAppear_(self, animated : bool) -> None:
         send_super(__class__, self, 'viewWillAppear:', animated, argtypes=[c_bool])
@@ -545,7 +550,7 @@ class NewContactVC(NewContactBase):
             self.name.text = editContact.name
 
         self.translateUI()
-        
+
     @objc_method
     def translateUI(self) -> None:
         if not self.viewIfLoaded: return
@@ -556,11 +561,11 @@ class NewContactVC(NewContactBase):
             self.title = titleOverride
         #self.blurb.text = _("Contacts are a convenient feature to associate addresses with user-friendly names. "
         #                    "Contacts can be accessed when sending a payment via the 'Send' tab.") if not self.editMode else self.title
-        self.addressTit.text = _("Address") 
-        self.nameTit.text = _("Name") 
+        self.addressTit.text = _("Address")
+        self.nameTit.text = _("Name")
         self.name.placeholder = _("Satoshi Nakamoto")
         self.address.placeholdeer = _("Paste an address or use QR")
-        
+
         tfwts = { self.name : 0, self.address : 1 }
         for tf in tfwts:
             tf.tag = tfwts[tf]
@@ -573,7 +578,7 @@ class NewContactVC(NewContactBase):
     @objc_method
     def textFieldDidBeginEditing_(self, tf : ObjCInstance) -> None:
         pass
-    
+
     @objc_method
     def textFieldShouldReturn_(self, tf : ObjCInstance) -> bool:
         tf.resignFirstResponder()
@@ -582,11 +587,11 @@ class NewContactVC(NewContactBase):
 
 
 class ContactDetailVC(ContactDetailVCBase):
-    
+
     @objc_method
     def loadView(self) -> None:
         NSBundle.mainBundle.loadNibNamed_owner_options_("ContactDetail", self, None)
-        
+
     @objc_method
     def viewDidLoad(self) -> None:
         send_super(__class__, self, 'viewDidLoad')
@@ -596,12 +601,12 @@ class ContactDetailVC(ContactDetailVCBase):
         bb = UIBarButtonItem.new().autorelease()
         bb.title = _("Back")
         self.navigationItem.backBarButtonItem = bb
-        
+
     @objc_method
     def viewWillAppear_(self, animated : bool) -> None:
         send_super(__class__, self, 'viewWillAppear:', animated, argtypes=[c_bool])
         self.refresh()
-        
+
     @objc_method
     def refresh(self) -> None:
         if not self.viewIfLoaded: return
@@ -612,18 +617,18 @@ class ContactDetailVC(ContactDetailVCBase):
             self.address.text = c.address_str
             self.name.text = c.name
             if not self.helper:
-                self.helper = history.NewTxHistoryHelper(tv = self.tv, vc = self, noRefreshControl = True, cls = history.TxHistoryHelperWithHeader, domain = c) 
-        
+                self.helper = history.NewTxHistoryHelper(tv = self.tv, vc = self, noRefreshControl = True, cls = history.TxHistoryHelperWithHeader, domain = c)
+
         size = CGSizeMake(200.0,200.0) # the returned image has a 10 pix margin -- this compensates for it
         self.qr.contentMode = UIViewContentModeCenter # if the image pix margin changes -- FIX THIS
         self.qr.image = utils.get_qrcode_image_for_data(self.address.text, size = size)
 
         self.tv.reloadData()
-        
+
     @objc_method
     def onPayTo(self) -> None:
         pay_to([self.address.text])
-        
+
     @objc_method
     def onOptions(self) -> None:
         def onEdit(contact : ContactsEntry) -> None:
@@ -636,7 +641,7 @@ class ContactDetailVC(ContactDetailVCBase):
                 (history.NewTxHistoryHelper() factory func will reap the old helper that was associated with self.tv as a side-effect)
                 '''
                 if self.helper:
-                    self.helper = None 
+                    self.helper = None
             self.refresh()
             utils.show_notification(_("Contact saved"))
         show_contact_options_actionsheet(_Contact(self), self, self.navigationItem.rightBarButtonItem, navBackOnDelete = True, onEdit = onEdit)
@@ -647,7 +652,7 @@ class ContactDetailVC(ContactDetailVCBase):
     @objc_method
     def cpyNameToClipboard(self) -> None:
         gui.ElectrumGui.gui.copy_to_clipboard(str(self.name.text).strip(),"Name")
-        
+
     @objc_method
     def onQRImgTap(self) -> None:
         if not self.qr.image: gui.ElectrumGui.gui.show_error(vc = self, message = "Error, No QR Image")
@@ -659,7 +664,7 @@ class ContactDetailVC(ContactDetailVCBase):
             self.qr.backgroundColorAnimationFromColor_toColor_duration_reverses_completion_(c1, c2, 0.2, True, ShowIt)
 
 
-        
+
 def _Contact(slf : ObjCInstance) -> ContactsEntry:
     return utils.nspy_get_byname(slf, 'contact_entry')
 
@@ -676,7 +681,7 @@ def _Get() -> list:
 
 def _Updated() -> None:
     gui.ElectrumGui.gui.refresh_components('contacts')
-    
+
 def Find(addy) -> ContactsEntry:
     if isinstance(addy, str):
         try:
@@ -690,44 +695,16 @@ def Find(addy) -> ContactsEntry:
                 return c
     return None
 
-def build_contact_tx_list(address : Address) -> list:
-    parent = gui.ElectrumGui.gui
-    ret = list()
-    if isinstance(address, Address) and parent and parent.sigHistory:
-        alltxs = parent.sigHistory.get(None)
-        seen = set() # 'seen' set.. guard against the same address appearing in both inputs and outputs
-        for hentry in alltxs:
-            if hentry.tx:
-                ins = hentry.tx.inputs()
-                for x in ins:
-                    xa = x['address']
-                    if isinstance(xa, PublicKey):
-                        xa = xa.toAddress()
-                    if isinstance(xa, Address) and xa.to_storage_string() == address.to_storage_string() and hentry.tx_hash not in seen:
-                        ret.append(hentry)
-                        seen.add(hentry.tx_hash)
-                        break
-                outs = hentry.tx.get_outputs()
-                for x in outs:
-                    xa, dummy = x
-                    if isinstance(xa, Address) and xa.to_storage_string() == address.to_storage_string() and hentry.tx_hash not in seen:
-                        ret.append(hentry)
-                        seen.add(hentry.tx_hash)
-                        break
-    #print("build_contact_tx_list: address", address.to_ui_string(), "found", len(ret),"associated txs")
-    return ret
 
-
-def get_contacts() -> list:
+def get_contacts(wallet = None, sort = True) -> list:
     ''' Builds a list of
         ContactsEntry tuples:
-        
-        ContactsEntry = namedtuple("ContactsEntry", "name address address_str hist_entries")
+
+        ContactsEntry = namedtuple("ContactsEntry", "name address address_str")
 
     '''
     t0 = time.time()
-    parent = gui.ElectrumGui.gui
-    wallet = parent.wallet
+    if not wallet: wallet = gui.ElectrumGui.gui.wallet
     if wallet is None:
         utils.NSLog("get_contacts: wallent was None, returning early")
         return list()
@@ -737,11 +714,11 @@ def get_contacts() -> list:
         typ, name = tupl
         if typ == 'address' and Address.is_valid(addr):
             address = Address.from_string(addr)
-            hist_entries = build_contact_tx_list(address)
-            entry = ContactsEntry(name, address, addr, hist_entries)
-            contacts.append(entry)    
-    contacts.sort(key=lambda x: [x.name, x.address_str], reverse=False)
-    utils.NSLog("get_contacts: fetched %d contacts in %f ms",len(contacts), (time.time()-t0)*1000.0)
+            entry = ContactsEntry(name, address, addr)
+            contacts.append(entry)
+    if sort:
+        contacts.sort(key=lambda x: [x.name, x.address_str], reverse=False)
+    #utils.NSLog("get_contacts: fetched %d contacts in %f ms",len(contacts), (time.time()-t0)*1000.0)
     return contacts
 
 def delete_contact(entry : ContactsEntry, do_write = True) -> int:
@@ -755,6 +732,7 @@ def delete_contact(entry : ContactsEntry, do_write = True) -> int:
         return None
     n = len(c)
     c.pop(entry.address_str)
+    history.delete_contact_history(entry.address)
     n2 = len(c)
     if n2 < n:
         c.save()
@@ -801,7 +779,7 @@ def empty_cell(cell : ObjCInstance, txt : str = "*Error*", italic : bool = False
 def cleanup_address_remove_colon(result : str) -> str:
     if result is not None:
         result = str(result).strip()
-        
+
         if ':' in result:
             try:
                 result = ''.join(result.split(':')[1:])
@@ -825,9 +803,9 @@ def show_new_edit_contact(contact, parentvc, onEdit = None, title = None) -> Obj
         if isinstance(contact, ContactsEntry):
             pass
         if isinstance(contact, (tuple,list)) and len(contact) >= 2 and isinstance(contact[1], Address) and isinstance(contact[0], str):
-            contact = ContactsEntry(contact[0], contact[1], contact[1].to_ui_string(), list())
+            contact = ContactsEntry(contact[0], contact[1], contact[1].to_ui_string())
         elif isinstance(contact, Address):
-            contact = ContactsEntry('', contact, contact.to_ui_string(), list())
+            contact = ContactsEntry('', contact, contact.to_ui_string())
         else:
             raise ValueError('First parameter to show_new_edit_contact must be either a ContactsEntry, a tuple, or an Address!')
         utils.nspy_put_byname(vc, contact, 'edit_contact')
@@ -876,7 +854,7 @@ def show_contact_options_actionsheet(contact : ContactsEntry, vc : ObjCInstance,
             parent.question(title=_("Confirm Delete"),
                             message=_("Are you sure you wish to delete this contact?"),
                             onOk=doDelete, vc=vc, destructive = True, okButTitle = _('Delete'))
-            
+
         actions = [
                 [ _('Cancel') ],
                 [ _("Copy Address"), on_cpy ],
@@ -885,13 +863,13 @@ def show_contact_options_actionsheet(contact : ContactsEntry, vc : ObjCInstance,
                 [ _("View on block explorer"), on_block_explorer ],
                 [ _("Delete"), on_delete ],
             ]
-        
+
         if parent.wallet.is_watching_only():
             actions.pop(3)
 
         if isinstance(vc, ContactDetailVC):
             actions.insert(2, [ _('Share/Save QR...'), lambda: vc.onQRImgTap() ])
-                                        
+
         utils.show_alert(
             vc = vc,
             title = contact.name,#_("Options"),

@@ -17,8 +17,21 @@
 #define SCROLL_DELAY 1.0f
 
 static BOOL IS_IPHONEX() {
-    return UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPhone
-    && fabs(UIScreen.mainScreen.nativeBounds.size.height - 2436.0) < 0.5;
+    static const CGSize XSizes[] = {
+        { 1125.0, 2436.0 }, // iPhone X & iPhone XS
+        {  828.0, 1792.0 }, // iPhone XR
+        { 1242.0, 2688.0 }, // iPhone XS Max
+    };
+    static const int N = sizeof(XSizes)/sizeof(XSizes[0]);
+
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPhone) {
+        CGSize size = UIScreen.mainScreen.nativeBounds.size;
+        for (int i = 0; i < N; ++i) {
+            if (fabs(XSizes[i].width - size.width) < 0.5 && fabs(XSizes[i].height - size.height) < 0.5)
+                return YES;
+        }
+    }
+    return NO;
 }
 
 # pragma mark - ScrollLabel

@@ -62,9 +62,16 @@ class AddressDialog(WindowModalDialog):
         self.update_addr()
 
         try:
+            # the below line only works for deterministic wallets, other wallets lack this method
             pubkeys = self.wallet.get_public_keys(address)
         except BaseException as e:
-            pubkeys = None
+            try:
+                # ok, now try the usual method for imported wallets, etc
+                pubkey = self.wallet.get_public_key(address)
+                pubkeys = [pubkey.to_ui_string()]
+            except:
+                # watching only wallets (totally lacks a private/public key pair for this address)
+                pubkeys = None
         if pubkeys:
             vbox.addWidget(QLabel(_("Public keys") + ':'))
             for pubkey in pubkeys:
@@ -90,6 +97,14 @@ class AddressDialog(WindowModalDialog):
         vbox.addLayout(Buttons(CloseButton(self)))
         self.format_amount = self.parent.format_amount
         self.hw.update()
+
+        # connect slots so the embedded history list gets updated whenever the history changes
+        parent.history_updated_signal.connect(self.hw.update)
+        parent.network_signal.connect(self.got_verified_tx)
+
+    def got_verified_tx(self, event, args):
+        if event == 'verified':
+            self.hw.update_item(*args)
 
     def update_addr(self):
         self.addr_e.setText(self.address.to_full_ui_string())

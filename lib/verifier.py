@@ -62,7 +62,7 @@ class SPV(ThreadJob):
                     # currently designed for catching up post-checkpoint headers.
                     index = tx_height // 2016
                     if self.network.request_chunk(interface, index):
-                        interface.print_msg("verifier requesting chunk {} for height {}".format(index, tx_height))                    
+                        interface.print_error("verifier requesting chunk {} for height {}".format(index, tx_height))                    
             elif (tx_hash not in self.requested_merkle
                     and tx_hash not in self.merkle_roots):
                 self.network.get_merkle_for_transaction(

@@ -63,15 +63,15 @@ class WalletFileNotFound(Exception):
     pass
 
 class MyTabBarController(UITabBarController):
-    
+
     didLayout = objc_property()
-    
+
     @objc_method
     def init(self) -> ObjCInstance:
         self = ObjCInstance(send_super(__class__, self, 'init'))
         if self is not None: self.didLayout = False
         return self
-    
+
     @objc_method
     def viewDidLayoutSubviews(self) -> None:
         self.didLayout = True
@@ -86,7 +86,7 @@ class MyTabBarController(UITabBarController):
             if not isinstance(pvc, UIAlertController):
                 return pvc.supportedInterfaceOrientations()
         return send_super(__class__, self, 'supportedInterfaceOrientations', restype=c_int)
-    
+
     @objc_method
     def shouldAutorotate(self) -> bool:
         pvc = self.presentedViewController
@@ -96,30 +96,30 @@ class MyTabBarController(UITabBarController):
             if not isinstance(pvc, UIAlertController):
                 return pvc.shouldAutorotate()
         return send_super(__class__, self, 'shouldAutorotate', restype=c_bool)
-    
+
 
 class GuiHelper(NSObject):
-    
+
     @objc_method
     def init(self):
         self = ObjCInstance(send_super(__class__, self, 'init'))
         ElectrumGui.gui.sigHelper.connect(lambda: self.doUpdate(), self.ptr.value)
         return self
-    
+
     @objc_method
     def dealloc(self) -> None:
         ElectrumGui.gui.sigHelper.disconnect(self.ptr.value)
         send_super(__class__, self, 'dealloc')
-    
+
     @objc_method
     def onTimer_(self, ignored):
         pass
-    
+
     @objc_method
     def doUpdate(self):
         if ElectrumGui.gui is not None:
             ElectrumGui.gui.on_status_update()
-                    
+
     @objc_method
     def onRefreshControl_(self, refreshControl : ObjCInstance) -> None:
         if ElectrumGui.gui is not None:
@@ -130,22 +130,22 @@ class GuiHelper(NSObject):
         if (refreshControl is not None
             and refreshControl.actionsForTarget_forControlEvent_(self, UIControlEventValueChanged) is None):
             refreshControl.addTarget_action_forControlEvents_(self,SEL('onRefreshControl:'), UIControlEventValueChanged)
-            
+
     @objc_method
     def createAndBindRefreshControl(self) -> ObjCInstance:
         rc = UIRefreshControl.new().autorelease()
         self.bindRefreshControl_(rc)
         return rc
-            
+
     @objc_method
     def onModalClose_(self,but) -> None:
         if ElectrumGui.gui is not None:
             ElectrumGui.gui.on_modal_close(but)
-        
+
     @objc_method
     def navigationController_willShowViewController_animated_(self, nav, vc, anim : bool) -> None:
         return
-        
+
     @objc_method
     def tabBarController_didEndCustomizingViewControllers_changed_(self, tabController, viewControllers, changed : bool) -> None:
         return
@@ -166,7 +166,7 @@ class ElectrumGui(PrintError):
         self.appName = 'Electron-Cash'
         self.appDomain = 'com.c3-soft.ElectronCash'
         self.set_language()
-          
+
         # Signals mechanism for publishing data to interested components asynchronously -- see self.refresh_components()
         self.sigHelper = utils.PySig()
         self.sigHistory = history.HistoryMgr() # this DataMgr instance also caches history data
@@ -177,7 +177,8 @@ class ElectrumGui(PrintError):
         self.sigContacts = contacts.ContactsMgr()
         self.sigCoins = coins.CoinsMgr()
         self.sigWallets = wallets.WalletsMgr()
-        
+        self.contactHistSync = history.ContactsHistorySynchronizer(self)
+
         #todo: support multiple wallets in 1 UI?
         self.config = config
         self.daemon = None
@@ -199,25 +200,27 @@ class ElectrumGui(PrintError):
         self.contactsNav = None
         self.walletsNav = None
         self.walletsVC = None
-        
+
         self.prefsVC = None
         self.prefsNav = None
         self.networkVC = None
         self.networkNav = None
-        
+
         self.onboardingWizard = None
-        
+
         self.decimal_point = config.get('decimal_point', 5)
         self.fee_unit = config.get('fee_unit', 0)
         self.num_zeros     = self.prefs_get_num_zeros()
         self.alias_info = None # TODO: IMPLEMENT alias stuff
         self.lastHeightSeen = -2
-        
+
         Address.show_cashaddr(self.prefs_get_use_cashaddr())
-        
+
         self.cash_addr_sig = utils.PySig()
 
         self.tx_notifications = list()
+        self.tx_notify_timer = None
+        self.tx_notify_last_ts = 0.0
         self.helper = None
         self.helperTimer = None
         self.lowMemoryToken = None
@@ -228,49 +231,66 @@ class ElectrumGui(PrintError):
         self.queued_refresh_components = set()
         self.queued_refresh_components_mut = threading.Lock()
         self.last_refresh = 0
-        
+        self.refresh_rate_min = 0.300
+        self.refresh_rate_max = 5.0
+        self.refresh_rate_current = self.refresh_rate_min
+        self.refresh_cost_stats = dict()
+
         self.keyEnclave = utils.SecureKeyEnclave(self.appDomain)
         self.encPasswords = utils.FileBackedDict(os.path.join(self.config.path, 'enc_pws.json'))
         self.touchIdAsked = utils.FileBackedDict(os.path.join(self.config.path, 'touch_id_asked.json'))
         self.killableAlerts = dict()
-                
+
         self.window = UIWindow.alloc().initWithFrame_(UIScreen.mainScreen.bounds)
 
-        #For now we got rid of the launch screen with logo -- Max says it's better to show an empty UI as users
-        #feel this is a faster/better experience, and I tend to agree. If we want to change it back we can do this
-        #and also rename LaunchScreen_WithLogo.storyboard -> LaunchScreen.storyboard
-        #NSBundle.mainBundle.loadNibNamed_owner_options_("Splash2",self.window,None)
-                
+        # If this is uncommented, use launch screen with logo and activity animation.
+        NSBundle.mainBundle.loadNibNamed_owner_options_("Splash2",self.window,None)
+
+        # To swith to the 'basic' fake UI launch screen:
+        #
+        #  1. Rename LaunchScreen.storyboard -> LaunchScreen_WithLogo.storyboard
+        #  2. Rename LaunchScreen_Basic.storyboard -> LaunchScreen.storyboard
+        #  3. Get rid of the call_later(0.010,gui.main) call in app.py and call gui.main() directly
+        #  4. Comment-out the above Splash2 load, uncomment the subsequent triple-quoted section
+        #
+        # To switch to the 'logo-based' launch screen:
+        #
+        #  1. Rename LaunchScreen.storyboard -> LaunchScreen_Basic.storyboard
+        #  2. Rename LaunchScreen_WithLogo.storyboard -> LaunchScreen.storyboard
+        #  3. Add call_later(0.010,gui.main) call in app.py, rather than calling gui.main() directly
+        #  4. Uncomment the above Splash2 load, comment-out the below section
+        '''
         # This is seemingly redundant but..
         # 1. We do the below in case user is on a very slow device so that iOS doesn't kill us for not creating a window in time.
         #    I timed it and on my iPhone 6s this adds about 20-30ms to startup time. Surprisingly quick. So we do it.
         # 2. This also safeguards against us possibly doing callbacks later that delay the creation of the window and root view controller
         #
-        # DO NOT REMOVE THIS!
         sb = UIStoryboard.storyboardWithName_bundle_("LaunchScreen", None)
         if not sb:
             utils.NSLog("*** ERROR: LaunchScreen.storyboard not found! WTF?")
         else:
             tb = sb.instantiateViewControllerWithIdentifier_("TabController")
             self.window.rootViewController = tb
+        '''
+        #
 
         self.window.makeKeyAndVisible()
         utils.NSLog("GUI instance created, splash screen 2 presented")
 
     def createAndShowUI(self):
         self.helper = GuiHelper.alloc().init()
-                
+
         self.tabController = MyTabBarController.alloc().init().autorelease()
         self.tabController.tabBar.tintColor = utils.uicolor_custom('nav')
         self.tabController.tabBar.setTranslucent_(False)
-    
+
         self.addressesVC = adr = addresses.AddressesVC.alloc().initWithMode_(UITableViewStylePlain, addresses.ModeNormal).autorelease()
-        
+
         self.coinsVC = cns = coins.CoinsTableVC.alloc().initWithStyle_(UITableViewStylePlain).autorelease()
-                
+
         self.contactsVC = cntcts = contacts.ContactsVC.new().autorelease()
         self.prefsVC = prefs.PrefsVC.new().autorelease()
-  
+
         # Wallets tab
         objs = NSBundle.mainBundle.loadNibNamed_owner_options_("WalletsTab",None,None)
         for obj in objs:
@@ -301,7 +321,7 @@ class ElectrumGui(PrintError):
 
         self.tabController.viewControllers = self.tabs
         self.tabController.delegate = self.helper # just in case we need this for later UI stuff...
-        
+
         self.helper.doUpdate()
 
         self.lowMemoryToken = NSNotificationCenter.defaultCenter.addObserverForName_object_queue_usingBlock_(
@@ -315,12 +335,12 @@ class ElectrumGui(PrintError):
         self.window.rootViewController = self.tabController
 
         self.window.makeKeyAndVisible()
-        
+
         sys.excepthook = self.exception_handler
         utils.setup_thread_excepthook()
 
         utils.NSLog("UI Created Ok")
-        
+
     def register_network_callbacks(self):
         # network callbacks
         if self.daemon.network:
@@ -341,21 +361,21 @@ class ElectrumGui(PrintError):
             self.daemon.network.unregister_callback(self.on_quotes)
             self.daemon.network.unregister_callback(self.on_network)
             utils.NSLog("UN-REGISTERED NETWORK CALLBACKS")
-    
-            
+
+
     def get_image_for_tab_index(self, index) -> ObjCInstance:
         if not self.tabController: return None
         vcs = self.tabController.viewControllers
         if index < 0 or index >= len(vcs): return None
         return vcs[index].tabBarItem.image
-          
+
     def setup_downloading_notif(self):
         if self.downloadingNotif is not None: return
         self.downloadingNotif = CWStatusBarNotification.new()
         def OnTap() -> None:
             self.query_hide_downloading_notif()
             pass
-        # NB: if I change the type it crashes sometimes on app startup due to bugs in this control.. perhaps? 
+        # NB: if I change the type it crashes sometimes on app startup due to bugs in this control.. perhaps?
         self.downloadingNotif.notificationAnimationType = CWNotificationAnimationTypeOverlay
         self.downloadingNotif.notificationTappedBlock = OnTap
         if self.downloadingNotif_view is None:
@@ -366,11 +386,11 @@ class ElectrumGui(PrintError):
             if lbl is not None:
                 lbl.text = _("Downloading blockchain headers...")
             self.downloadingNotif_view = objs[0].retain()
-    
+
     def __del__(self):
         utils.NSLog("GUI instance __del__")
         self.dispose()
-          
+
     def dispose(self):
         self.queued_ext_txn = None
         if self.window is None:
@@ -394,10 +414,13 @@ class ElectrumGui(PrintError):
         self.networkVC = None
         self.prefsVC = None
         self.prefsNav = None
+        if self.tx_notify_timer is not None:
+            self.tx_notify_timer.invalidate()
+            self.tx_notify_timer = None
         if self.helperTimer is not None:
             self.helperTimer.invalidate()
             self.helperTimer = None
-        if self.tabController is not None: 
+        if self.tabController is not None:
             self.tabController.viewControllers = None
         if self.sendNav: self.sendNav.release()
         if self.receiveNav: self.receiveNav.release()
@@ -424,7 +447,7 @@ class ElectrumGui(PrintError):
         self.touchIdAsked = None
         self.killableAlerts = dict()
         self.cash_addr_sig.clear()
-        
+
         self.sigHelper.clear()
         self.sigHistory.clear()
         self.sigAddresses.clear()
@@ -434,7 +457,8 @@ class ElectrumGui(PrintError):
         self.sigContacts.clear()
         self.sigCoins.clear()
         self.sigWallets.clear()
-            
+        self.contactHistSync = None
+
     def on_backgrounded(self):
         ct = 0
         for a in self.killableAlerts:
@@ -446,7 +470,7 @@ class ElectrumGui(PrintError):
         self.killableAlerts = dict()
         if ct or wasLen:
             utils.NSLog("on_backgrounded: Dismissed %d of %d extant killable alerts", ct, wasLen)
-    
+
     # killable alerts are immediately dismissed when app goes to background (user hits home button) -- they are for things
     # like convenient questions for the user that aren't important or critical (such as whether to enable touchid, etc)
     # Be sure to use the 'onKilled' callback to react to the alert being killed due to user hitting home button.
@@ -460,26 +484,26 @@ class ElectrumGui(PrintError):
                 else:
                     utils.NSLog("KillableAlert: Alert was not found in list. Must have been auto-dismissed.")
             utils.NSDeallocObserver(alert).connect(OnDealloc)
-    
+
     def on_rotated(self): # called by PythonAppDelegate after screen rotation
         #update status bar label width
-                
+
         # on rotation sometimes the notif gets messed up.. so re-create it
         #if self.downloadingNotif is not None and self.is_downloading_notif_showing() and self.downloadingNotif_view is not None:
         #    self.dismiss_downloading_notif()
         #    self.show_downloading_notif()
         pass
-            
+
     def on_history(self, b):
         utils.NSLog("ON HISTORY (IsMainThread: %s)",str(NSThread.currentThread.isMainThread))
         assert self.walletsVC is not None
         self.refresh_components('history', 'helper')
-        
+
     def on_quotes(self, event, *args):
         utils.NSLog("ON QUOTES (IsMainThread: %s)",str(NSThread.currentThread.isMainThread))
         #if self.daemon.fx.history_used_spot: #TODO: this is from qt gui.. figure out what this means.. does it help rate-limit?
         self.refresh_components('history', 'addresses', 'helper', 'requests')
-            
+
     def on_network(self, event, *args):
         utils.NSLog("ON NETWORK: %s (IsMainThread: %s)",event,str(NSThread.currentThread.isMainThread))
         if not self.daemon:
@@ -489,8 +513,10 @@ class ElectrumGui(PrintError):
         if event == 'updated':
             self.refresh_components('helper', 'network')
         elif event == 'new_transaction':
-            self.tx_notifications.append(args[0])
-            self.refresh_components('history', 'addresses', 'helper')
+            tx, wallet = args
+            if wallet == self.wallet:
+                self.tx_notifications.append(tx)
+                self.refresh_components('history', 'addresses', 'helper')
         elif event == 'banner':
             #todo: handle console stuff here
             pass
@@ -518,7 +544,7 @@ class ElectrumGui(PrintError):
             if lbl is not None: lbl.text = txt
 
         activityIndicator = self.downloadingNotif_view.viewWithTag_(1)
-        
+
         if not activityIndicator.animating:
             activityIndicator.animating = True
 
@@ -532,12 +558,12 @@ class ElectrumGui(PrintError):
             self.downloadingNotif_view,
             Completion
         )
-        
+
     def is_downloading_notif_showing(self):
         return (self.downloadingNotif
                 and self.downloadingNotif.notificationIsShowing
                 and not self.downloadingNotif.notificationIsDismissing)
-            
+
     def dismiss_downloading_notif(self):
         if not self.is_downloading_notif_showing(): return
         dnf = self.downloadingNotif
@@ -552,16 +578,16 @@ class ElectrumGui(PrintError):
                 self.downloadingNotif_view.removeFromSuperview()
             dnf.release()
         dnf.dismissNotificationWithCompletion_(compl)
-            
+
     def on_status_update(self):
         utils.NSLog("ON STATUS UPDATE (IsMainThread: %s)",str(NSThread.currentThread.isMainThread))
         show_dl_pct = None
-        
+
         if not self.wallet or not self.daemon:
             utils.NSLog("(Returning early.. wallet and/or daemon stopped)")
             self.walletsVC.status = wallets.StatusOffline
             return
-        
+
         walletStatus = wallets.StatusOffline
         walletBalanceTxt = ""
         walletUnitTxt = ""
@@ -626,7 +652,7 @@ class ElectrumGui(PrintError):
                 #    icon = "status_connected.png"
                 #else:
                 #    icon = "status_connected_proxy.png"
-            
+
             '''utils.NSLog("lh=%d sh=%d is_up_to_date=%d Wallet Network is_up_to_date=%d is_connecting=%d is_connected=%d",
                         int(lh), int(sh),
                         int(self.wallet.up_to_date),
@@ -654,12 +680,12 @@ class ElectrumGui(PrintError):
 
         if len(self.tx_notifications):
             self.notify_transactions()
-            
+
         if show_dl_pct is not None and self.tabController.didLayout:
             self.show_downloading_notif(_("Downloading headers {}% ...").format(show_dl_pct) if show_dl_pct > 0 else None)
         else:
             self.dismiss_downloading_notif()
-        
+
         self.walletsVC.status = walletStatus
         self.walletsVC.setAmount_andUnits_unconf_(walletBalanceTxt, walletUnitTxt, walletUnconfTxt)
 
@@ -673,34 +699,50 @@ class ElectrumGui(PrintError):
             self.prefsVC.hasSeed = hasSeed
             self.prefsVC.hasPW = hasPW
             self.prefsVC.refresh()
-            
+
     def notify_transactions(self):
         if not self.daemon.network or not self.daemon.network.is_connected():
             return
-        self.print_error("Notifying GUI")
+
         if len(self.tx_notifications) > 0:
-            if not self.wallet:
-                # spurious call, walled closed. kill all tx notifications since they are irrelevant at this point, and return
-                self.tx_notifications = list()
+
+            if self.tx_notify_timer:
+                # already have a timer active, return early
                 return
-            # Combine the transactions if there are at least 2
-            num_txns = len(self.tx_notifications)
-            if num_txns >= 2:
-                total_amount = 0
-                for tx in self.tx_notifications:
-                    is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                    if v > 0:
-                        total_amount += v
-                self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
-                            .format(num_txns, self.format_amount_and_units(total_amount)))
-                self.tx_notifications = []
+
+            def do_notify_cb():
+                n_ok = 0
+                if self.wallet and self.daemon.network and self.daemon.network.is_connected(): # check for spurious call or walled closed.
+                    num_txns = len(self.tx_notifications)
+                    if num_txns:
+                        # Combine the transactions if there are at least 2
+                        total_amount = 0
+                        for tx in self.tx_notifications:
+                            if tx:
+                                is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
+                                if v > 0 and is_relevant:
+                                    total_amount += v
+                                    n_ok += 1
+                        if n_ok:
+                            self.print_error("Notifying GUI %d tx"%(n_ok))
+                            if n_ok > 1:
+                                self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
+                                            .format(n_ok, self.format_amount_and_units(total_amount)))
+                            else:
+                                self.notify(_("New transaction received: {}").format(self.format_amount_and_units(total_amount)))
+                self.tx_notify_timer = None
+                self.tx_notifications = list()
+                self.tx_notify_last_ts = time.time() if n_ok else self.tx_notify_last_ts
+            # end do_notify_cb
+
+            elapsed_since_last_notify = time.time() - self.tx_notify_last_ts
+            if elapsed_since_last_notify < 15.0:
+                # we have been spammed tx notifications, so set up a timer to deliver them later
+                self.tx_notify_timer = utils.call_later(15.0-elapsed_since_last_notify, do_notify_cb)
             else:
-                for tx in self.tx_notifications:
-                    if tx:
-                        self.tx_notifications.remove(tx)
-                        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                        if v > 0:
-                            self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))
+                # no spam, do it immediately
+                do_notify_cb()
+
 
     def notify(self, message):
         lines = message.split(': ')
@@ -711,7 +753,7 @@ class ElectrumGui(PrintError):
                                 font=UIFont.systemFontOfSize_(12.0),
                                 style=CWNotificationStyleNavigationBarNotification,
                                 multiline=bool(len(lines)))
-        
+
     def query_hide_downloading_notif(self):
         vc = self.tabController if self.tabController.presentedViewController is None else self.tabController.presentedViewController
         utils.show_alert(vc = vc,
@@ -723,8 +765,8 @@ class ElectrumGui(PrintError):
                             ],
                          cancel = _('No')
                         )
-        
-            
+
+
     def get_root_vc(self, nav : ObjCInstance) -> ObjCInstance:
         if nav is None or not nav.ptr.value: return None
         ret = self.rootVCs.get(nav.ptr.value, None)
@@ -732,15 +774,15 @@ class ElectrumGui(PrintError):
             ret = nav.viewControllers[0]
         return ret
 
- 
+
     def unimplemented(self, componentName : str) -> None:
         utils.show_timed_alert(self.get_presented_viewcontroller(),
                                "UNIMPLEMENTED", "%s unimplemented -- coming soon!"%(str(componentName)), 2.0)
-   
-            
+
+
     def on_modal_close(self, but : ObjCInstance) -> None:
         title = "UNKNOWN View Controller"
-        try: 
+        try:
             presented = self.tabController.presentedViewController
             title = py_from_ns(presented.visibleViewController.title)
         except:
@@ -749,7 +791,7 @@ class ElectrumGui(PrintError):
         if but and but.tag:
             vc = ObjCInstance(objc_id(but.tag))
         vc.dismissViewControllerAnimated_completion_(True, None)
-        
+
     def add_navigation_bar_close_to_modal_vc(self, vc : ObjCInstance, leftSide = True, useXIcon = True) -> ObjCInstance:
         if useXIcon:
             closeButton = UIBarButtonItem.alloc().initWithBarButtonSystemItem_target_action_(UIBarButtonSystemItemStop, self.helper, SEL(b'onModalClose:')).autorelease()
@@ -758,26 +800,26 @@ class ElectrumGui(PrintError):
         # poor man's weak ref -- used in above on_modal_close() to properly close nested modals
         closeButton.tag = vc.ptr.value
         if leftSide:
-            extra = vc.navigationItem.leftBarButtonItems if vc.navigationItem.leftBarButtonItems else [] 
+            extra = vc.navigationItem.leftBarButtonItems if vc.navigationItem.leftBarButtonItems else []
             vc.navigationItem.leftBarButtonItems = [closeButton, *extra]
         else:
-            extra = vc.navigationItem.rightBarButtonItems if vc.navigationItem.rightBarButtonItems else [] 
+            extra = vc.navigationItem.rightBarButtonItems if vc.navigationItem.rightBarButtonItems else []
             vc.navigationItem.rightBarButtonItems = [closeButton, *extra]
         return closeButton
-        
-        
+
+
     def cashaddr_icon(self):
         imgname = "cashaddr_off_new"
         #if self.prefs_get_use_cashaddr():
         #    imgname = "cashaddr_on_new"
-        return UIImage.imageNamed_(imgname)#.imageWithRenderingMode_(UIImageRenderingModeAlwaysOriginal) 
+        return UIImage.imageNamed_(imgname)#.imageWithRenderingMode_(UIImageRenderingModeAlwaysOriginal)
 
     def toggle_cashaddr(self, on : bool) -> None:
         self.config.set_key('show_cashaddr', on)
         Address.show_cashaddr(on)
         self.refresh_all()
         self.cash_addr_sig.emit(on)
-                  
+
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, is_diff=is_diff, num_zeros=self.num_zeros, decimal_point=self.decimal_point, whitespaces=whitespaces)
 
@@ -807,7 +849,7 @@ class ElectrumGui(PrintError):
 
     def get_decimal_point(self):
         return self.decimal_point
-   
+
     def on_label_edited(self, key, newvalue):
         if self.wallet is None:
             return
@@ -822,18 +864,21 @@ class ElectrumGui(PrintError):
         if langs:
             l = langs[0].replace('-','_')
             if not languages.get(l):
-                # iOS sometimes returns a mixed language_REGION code, so try and match it to what we have 
+                # iOS sometimes returns a mixed language_REGION code, so try and match it to what we have
                 pre1 = l.split('_')[0]
-                for k in languages.keys():
-                    pre2 = k.split('_')[0]
-                    if pre1 == pre2:
-                        print("OS language is '%s', but we are guessing this matches our language code '%s'"%(l, k))
-                        l = k
-                        break
+                if pre1 == 'es':
+                    l = 'es_AR' # hack to force all Spanish to be South American Spanish as that's a more complete translation
+                else:
+                    for k in languages.keys():
+                        pre2 = k.split('_')[0]
+                        if pre1 == pre2:
+                            print("OS language is '%s', but we are guessing this matches our language code '%s'"%(l, k))
+                            l = k
+                            break
             print ("Setting language to {}".format(l))
             self.language = l
             set_language(l)
-            
+
     def prefs_set_downloading_notif_hidden(self, b : bool) -> None:
         was = self.prefs_get_downloading_notif_hidden()
         if b == was: return
@@ -841,16 +886,16 @@ class ElectrumGui(PrintError):
         self.config.set_key('hide_downloading_banner', bool(b))
         self.prefsVC.refresh()
         self.on_status_update()
-    
+
     def prefs_get_downloading_notif_hidden(self) -> bool:
         return self.config.get('hide_downloading_banner', False)
-        
+
     def prefs_get_show_fee(self) -> bool:
         return self.config.get('show_fee', True)
-    
+
     def prefs_set_show_fee(self, b : bool) -> None:
         self.config.set_key('show_fee', bool(b))
-        
+
     def prefs_get_max_fee_rate(self) -> float:
         return  float(format_satoshis_plain(self.config.max_fee_rate(), self.decimal_point))
 
@@ -859,13 +904,13 @@ class ElectrumGui(PrintError):
         if amt is not None:
             self.config.set_key('max_fee_rate', amt)
         return self.prefs_get_max_fee_rate()
-    
+
     def prefs_get_confirmed_only(self) -> bool:
         return bool(self.config.get('confirmed_only', False))
-    
+
     def prefs_set_confirmed_only(self, b : bool) -> None:
         self.config.set_key('confirmed_only', bool(b))
-        
+
     def prefs_get_use_change(self) -> tuple: # returns the setting plus a second bool that indicates whether this setting can be modified
         if not self.wallet: return False, False
         r1 = self.wallet.use_change
@@ -877,8 +922,8 @@ class ElectrumGui(PrintError):
         usechange_result = bool(x)
         if self.wallet.use_change != usechange_result:
             self.wallet.use_change = usechange_result
-            self.wallet.storage.put('use_change', self.wallet.use_change)        
-   
+            self.wallet.storage.put('use_change', self.wallet.use_change)
+
     def prefs_get_multiple_change(self) -> tuple:
         if not self.wallet: return False, False
         multiple_change = self.wallet.multiple_change
@@ -891,10 +936,10 @@ class ElectrumGui(PrintError):
         if self.wallet.multiple_change != multiple:
             self.wallet.multiple_change = multiple
             self.wallet.storage.put('multiple_change', multiple)
-    
+
     def prefs_get_use_cashaddr(self) -> bool:
         return bool(self.config.get('show_cashaddr', True))
-    
+
     def prefs_set_decimal_point(self, dec: int) -> None:
         if dec in [2, 5, 8]:
             if dec == self.decimal_point:
@@ -905,17 +950,17 @@ class ElectrumGui(PrintError):
             print("Decimal point set to: %d"%dec)
         else:
             raise ValueError('Passed-in decimal point %s is not one of [2,5,8]'%str(dec))
-        
+
     def prefs_get_num_zeros(self) -> int:
         return int(self.config.get('num_zeros', 2))
-        
+
     def prefs_set_num_zeros(self, nz : int) -> None:
         value = int(nz)
         if self.num_zeros != value:
             self.num_zeros = value
             self.config.set_key('num_zeros', value, True)
             self.refresh_all()
-            
+
     def view_on_block_explorer(self, item : str, which : str) -> None:
         which = which if which in ['tx', 'addr'] else None
         assert which is not None and item is not None
@@ -932,13 +977,13 @@ class ElectrumGui(PrintError):
             return None
         p = pow(10, self.decimal_point)
         return int( p * x ) if x > 0 else None
-    
+
     def has_modal(self) -> ObjCInstance:
         rvc = self.window.rootViewController if self.window else None
         if rvc:
             return rvc.presentedViewController is not None
         return False
-    
+
     def get_presented_viewcontroller(self) -> ObjCInstance:
         rvc = self.window.rootViewController if self.window else None
         pvc = rvc.presentedViewController if rvc is not None else None
@@ -949,7 +994,7 @@ class ElectrumGui(PrintError):
 
     def get_current_nav_controller(self) -> ObjCInstance:
         return self.tabController.selectedViewController
-    
+
     def show_warning_if_watching_only(self, vc = None, onOk = None) -> None:
         if not self.wallet: return
         if self.wallet.is_watching_only():
@@ -958,11 +1003,11 @@ class ElectrumGui(PrintError):
                               vc = vc,
                               onOk = onOk)
 
-    
+
     # can be called from any thread, always runs in main thread
     def show_error(self, message, title = _("Error"), onOk = None, localRunLoop = False, vc = None):
         return self.show_message(message=message, title=title, onOk=onOk, localRunLoop=localRunLoop, vc=vc)
-    
+
     # full stop question for user -- appropriate for send tx dialog
     def question(self, message, title = _("Question"), yesno = False, onOk = None, vc = None, destructive = False, okButTitle = None,
                  onCancel = None) -> bool:
@@ -981,7 +1026,7 @@ class ElectrumGui(PrintError):
             extrakwargs['okButTitle'] = okButTitle
         self.show_message(message=message, title=title, onOk=okFun, localRunLoop = localRunLoop, hasCancel = True, **extrakwargs, vc = vc, destructive = destructive, onCancel = onCancel)
         return ret
-        
+
     # can be called from any thread, always runs in main thread
     def show_message(self, message, title = _("Information"), onOk = None, localRunLoop = False, hasCancel = False,
                      cancelButTitle = _('Cancel'), okButTitle = _('OK'), vc = None, destructive = False, onCancel = None):
@@ -1029,7 +1074,7 @@ class ElectrumGui(PrintError):
         except:
             pass
         utils.NSLog("On PR verify thread callback not yet implemented. TODO: Implement in next version. (PR was: %s)",s)
-    
+
     def sign_payment_request(self, addr : Address, onSuccess : Callable[[],None] = None, onFailure : Callable[[],None] = None, vc : ObjCInstance = None):
         ''' No-op for now -- needs to be IMPLEMENTED -- requires the alias functionality '''
         assert isinstance(addr, Address)
@@ -1051,8 +1096,8 @@ class ElectrumGui(PrintError):
                             except Exception as e:
                                 if callable(onFailure): onFailure()
                                 self.show_error(str(e), vc = vc)
-                    self.prompt_password_if_needed_asynch(callBack = DoSign, prompt = msg, vc = vc, onCancel = onFailure, onForcedDismissal = onFailure)                        
-        else:       
+                    self.prompt_password_if_needed_asynch(callBack = DoSign, prompt = msg, vc = vc, onCancel = onFailure, onForcedDismissal = onFailure)
+        else:
             if callable(onSuccess): onSuccess()
 
     def pay_to_URI(self, URI, showErr : bool = True) -> bool:
@@ -1087,10 +1132,10 @@ class ElectrumGui(PrintError):
             self.show_error("Oops! Something went wrong! Email the developers!")
         return False
 
-    
+
     def refresh_all(self):
         self.refresh_components('*')
-        
+
     def refresh_components(self, *args) -> None:
         # BEGIN SPECIAL LOGIC TO RATE-LIMIT refresh_components spam
         dummy = "dummy_for_queue"
@@ -1103,30 +1148,30 @@ class ElectrumGui(PrintError):
         qsize = len(self.queued_refresh_components)
         #oldq = self.queued_refresh_components.copy()
         # pick up queued as well as this call's components for refreshing..
-        components = set(map(lambda x: str(x).strip().lower(),args)) | self.queued_refresh_components 
+        components = set(map(lambda x: str(x).strip().lower(),args)) | self.queued_refresh_components
         self.queued_refresh_components = set() # immediately empty queue while we hold the lock
         diff = time.time() - float(self.last_refresh)
         if {dummy} == components: # spurious self-call
             abortEarly = True
         else:
-            if diff < 0.300: 
-                # rate-limit to 300ms between refreshes
+            if diff < self.refresh_rate_current:
+                # rate-limit to at least 300ms between refreshes
                 doLater = True
                 self.queued_refresh_components = components.copy()
             else:
                 # ok, we're going to refresh this time around.. update timestamp
-                self.last_refresh = time.time() 
+                self.last_refresh = time.time()
         self.queued_refresh_components_mut.release() # Unlock
 
         if abortEarly:
             #print("refresh_components: aborting early.. got dummy set...")
             return
-            
+
         if doLater:
             # enqueue a call to this function at most 1 times
             if not qsize:
                 #print("refresh_components: rate limiting.. calling later ",diff,"(",*args,")")
-                utils.call_later((0.300-diff) + 0.010, lambda: self.refresh_components(dummy))
+                utils.call_later((self.refresh_rate_current-diff) + 0.010, lambda: self.refresh_components(dummy))
             else:
                 # already had a queue -- this means another call_later() is pending, so do nothing but return and assume subsequent
                 # call_later() will execute this function in the future.
@@ -1134,8 +1179,8 @@ class ElectrumGui(PrintError):
                 #print("refresh_components: already Queued! Q=",oldq)
             return
         # END SPECIAL LOGIC TO RATE-LIMIT refresh_components spam
-        
-        signalled = set()         
+
+        signalled = set()
         al = {'*','all','world','everything'}
         #print("components: ",*components)
         if components & {'helper', *al} and self.sigHelper not in signalled:
@@ -1157,7 +1202,7 @@ class ElectrumGui(PrintError):
             signalled.add(self.sigPrefs)
             self.sigPrefs.emit()
         if components & {'receive', 'requests', 'paymentrequests', 'pr', *al} and self.sigRequests not in signalled:
-            signalled.add(self.sigRequests) 
+            signalled.add(self.sigRequests)
             self.sigRequests.emit() # implicitly does an emptyCache() then emit()
         if components & {'network', 'servers','connection', 'interfaces', *al} and self.sigNetwork not in signalled:
             signalled.add(self.sigNetwork)
@@ -1170,20 +1215,52 @@ class ElectrumGui(PrintError):
             signalled.add(self.sigWallets)
             self.sigWallets.emit()
 
+    def refresh_cost(self, component : str, time_cost : float) -> None:
+        l = self.refresh_cost_stats.get(component, list())
+        if not len(l): self.refresh_cost_stats[component] = l
+        l.insert(0, (time_cost, time.time()))
+        self.refresh_rate_update()
+
+    def refresh_rate_update(self) -> None:
+        now = time.time()
+        the_times = list()
+        for comp in self.refresh_cost_stats.keys():
+            stats = self.refresh_cost_stats.get(comp)
+            # 1. take the last 30 seconds worth of refresh timestamps, per component
+            # 2. insert them in a list
+            # 3. order the list in descending order
+            # 4. take the worst case time, add 250ms. That's the refresh rate limit.
+            for i in range(len(stats)):
+                cost, ts = stats[i]
+                if now - ts < 30.0:
+                    the_times.append(cost)
+                else:
+                    # got to entries that are too old, purge list
+                    stats = stats[:i]
+                    break
+        the_times.sort(reverse=True)
+        rate = the_times[0] if len(the_times) else 0.0
+        rate = rate + 0.250
+        #utils.NSLog("Computed %f rate limit, len(the_times)=%d, len(refresh_cost_stats)=%d", limit, len(the_times), len(self.refresh_cost_stats) )
+        if rate < self.refresh_rate_min: rate = self.refresh_rate_min # minimum 300ms rate
+        elif rate > self.refresh_rate_max: rate = self.refresh_rate_max # maximum 5.0 sec rate
+        self.refresh_rate_current = rate
+        utils.NSLog("Component refresh rate set to: %f", self.refresh_rate_current)
+
     def empty_caches(self, doEmit = False):
         self.sigHistory.emptyCache(noEmit=not doEmit)
         self.sigRequests.emptyCache(noEmit=not doEmit)
         self.sigContacts.emptyCache(noEmit=not doEmit)
         self.sigWallets.emptyCache(noEmit=not doEmit)
-        
+
 
     def on_new_daemon(self):
         self.daemon.gui = self
         self.open_last_wallet()
         self.register_network_callbacks()
-        
+
     # pass password param optionally if you want to prompt user for touchid if they don't have it enabled and it's possible to do
-    def on_wallet_opened(self, password : str = None) -> None: 
+    def on_wallet_opened(self, password : str = None) -> None:
         if self.wallet:
             if self.onboardingWizard and not self.onboardingWizard.isBeingDismissed():
                 self.onboardingWizard.presentingViewController.dismissViewControllerAnimated_completion_(False, None)
@@ -1194,6 +1271,10 @@ class ElectrumGui(PrintError):
                 # make sure that all our tabs are on the root viewcontroller.
                 # (this is to remove stale addresses, coins, contacts, etc screens from old wallet which are irrelevant to this new wallet)
                 if isinstance(vcs[i], UINavigationController): vcs[i].popToRootViewControllerAnimated_(False)
+            self.contactHistSync.restart()
+            self.tx_notifications = list() # make sure the tx_notifications are reset when we open a new wallet
+            self.refresh_cost_stats = dict()
+            self.refresh_rate_current = self.refresh_rate_min
             self.refresh_all()
 
             def onWalletDelayed() -> None:
@@ -1203,11 +1284,11 @@ class ElectrumGui(PrintError):
                 self.queued_payto_uri = None
 
             utils.call_later(1.0, onWalletDelayed)
-            
+
     def on_open_last_wallet_fail(self):
         if not self.present_on_boarding_wizard_if_needed():
             self.warn_user_if_no_wallet()
-            
+
     def warn_user_if_no_wallet(self) -> bool:
         if not self.wallet:
             def showDrawer() -> None:
@@ -1221,14 +1302,14 @@ class ElectrumGui(PrintError):
         return False
 
 
-        
+
     def on_low_memory(self) -> None:
         utils.NSLog("GUI: Low memory")
         if self.downloadingNotif_view is not None and self.downloadingNotif is None:
             self.downloadingNotif_view.release()
             self.downloadingNotif_view = None
             utils.NSLog("Released cached 'downloading notification banner view' due to low memory")
-        
+
     def stop_daemon(self):
         if not self.daemon_is_running(): return
         password_dialog.kill_extant_asynch_pw_prompts()
@@ -1241,6 +1322,7 @@ class ElectrumGui(PrintError):
                     vc.popToRootViewControllerAnimated_(False)
             if vcs: self.tabController.selectedIndex = 0
         self.unregister_network_callbacks()
+        self.contactHistSync.stop()
         self.empty_caches(doEmit=False)
         if self.wallet and self.wallet.storage:
             self.daemon.stop_wallet(self.wallet.storage.path)
@@ -1249,7 +1331,7 @@ class ElectrumGui(PrintError):
         self.daemon = None
         self.dismiss_downloading_notif()
         utils.cleanup_tmp_dir()
-        
+
     def start_daemon(self):
         if self.daemon_is_running(): return
         import electroncash.daemon as ed
@@ -1275,7 +1357,7 @@ class ElectrumGui(PrintError):
 
     def check_wallet_exists(self, wallet_filename : str) -> bool:
         return wallets.WalletsMgr.check_wallet_exists(wallet_filename)
-    
+
     # supports only standard wallets for now...
     def generate_new_wallet(self, wallet_name : str,
                             wallet_pass : str = '',
@@ -1283,7 +1365,7 @@ class ElectrumGui(PrintError):
                             seed_ext : str = '',
                             seed_type : str = 'standard',
                             have_keystore : object = None, # not required but if we already have generated a keystore, will use this and ignore wallet_seed param
-                            private_keys : list = [], # if specified, ignores wallet_seed and have_keystore, do not specify this and watching_addresses at the same time 
+                            private_keys : list = [], # if specified, ignores wallet_seed and have_keystore, do not specify this and watching_addresses at the same time
                             watching_addresses : list = [], # if specified, ignores wallet_seed and have_keystore and wallet_pass.. do not specify this and private_keys at the same time
                             onSuccess = None, # signature: fun()
                             onFailure = None, # signature: fun(errMsg)
@@ -1297,12 +1379,12 @@ class ElectrumGui(PrintError):
         if self.check_wallet_exists(wallet_name):
             onFailure("A wallet with the same name already exists")
             return
-        
+
         if private_keys and (watching_addresses or wallet_seed or have_keystore):
             raise ValueError('Cannot specify private_keys along with other seed related params or watching addresses')
         if watching_addresses and (wallet_seed or have_keystore or wallet_pass or private_keys):
             raise ValueError('Cannot specify watching_addresses along with other seed related params, private keys, or a wallet password')
-        
+
 
         waitDlg = None
 
@@ -1313,8 +1395,8 @@ class ElectrumGui(PrintError):
                 waitDlg = None
             elif compl:
                 compl()
-                
-        def DoIt_Seed_Or_Keystore() -> None:    
+
+        def DoIt_Seed_Or_Keystore() -> None:
             nonlocal waitDlg
             try:
                 from electroncash import keystore
@@ -1332,7 +1414,7 @@ class ElectrumGui(PrintError):
                         def compl() -> None: onFailure(_('Wrong key type') + ": '%s'"%t1)
                         doDismiss(animated = False, compl = compl)
                         return
-    
+
                 path = os.path.join(wallets.WalletsMgr.wallets_dir(), wallet_name)
                 storage = WalletStorage(path, manual_upgrades=True)
                 if wallet_pass:
@@ -1353,7 +1435,7 @@ class ElectrumGui(PrintError):
                 self.refresh_components('wallets')
                 def myOnSuccess() -> None: onSuccess()
                 doDismiss(animated = True, compl = myOnSuccess)
-                    
+
             except:
                 einfo = str(sys.exc_info()[1])
                 def myCompl() -> None:
@@ -1361,8 +1443,8 @@ class ElectrumGui(PrintError):
                 utils.NSLog("Generate keystore/seed wallet failure: %s", einfo)
                 doDismiss(animated = False, compl = myCompl)
 
-        def DoIt_Imported() -> None:    
-            nonlocal waitDlg                    
+        def DoIt_Imported() -> None:
+            nonlocal waitDlg
             try:
                 from electroncash import keystore
                 from electroncash.wallet import ImportedAddressWallet, ImportedPrivkeyWallet
@@ -1370,7 +1452,7 @@ class ElectrumGui(PrintError):
                 path = os.path.join(wallets.WalletsMgr.wallets_dir(), wallet_name)
                 storage = WalletStorage(path, manual_upgrades=True)
                 keystores = list()
-                
+
                 if private_keys:
                     text = ' '.join(private_keys)
                     wallet = ImportedPrivkeyWallet.from_text(storage, text, None)
@@ -1381,7 +1463,7 @@ class ElectrumGui(PrintError):
                 else:
                     raise ValueError('Missing one of private_keys or watching_addresses!')
 
-                if wallet_pass:                
+                if wallet_pass:
                     storage.set_password(wallet_pass, encrypt)
                     for k in keystores:
                         if k.may_have_password():
@@ -1397,7 +1479,7 @@ class ElectrumGui(PrintError):
                 self.refresh_components('wallets')
                 def myOnSuccess() -> None: onSuccess()
                 doDismiss(animated = True, compl = myOnSuccess)
-                    
+
             except:
                 einfo = str(sys.exc_info()[1])
                 def myCompl() -> None:
@@ -1405,14 +1487,14 @@ class ElectrumGui(PrintError):
                 utils.NSLog("Generate imported wallet failure: %s", einfo)
                 doDismiss(animated = False, compl = myCompl)
 
-        
+
         if private_keys or watching_addresses:
             func = DoIt_Imported
         else:
             func = DoIt_Seed_Or_Keystore
         if not message: message = _("Generating your addresses...")
         waitDlg = utils.show_please_wait(vc = vc, message = message, completion = func)
-        
+
 
     def switch_wallets(self, wallet_name : str,
                        onSuccess = None, # cb signature is fun(), and this indicates the new wallet is now opened successfully
@@ -1420,7 +1502,7 @@ class ElectrumGui(PrintError):
                        onCancel = None,  # cb signature is fun()
                        vc = None,
                        wallet_pass = None # if None, will prompt for password as needed
-                       ) -> None: 
+                       ) -> None:
         if not self.daemon:
             utils.NSLog("Switch wallets but no daemon running!")
             return
@@ -1434,7 +1516,7 @@ class ElectrumGui(PrintError):
         if not storage.file_exists():
             onFailure("Wallet File Not Found")
             return
-        
+
         def DoSwicheroo(pw = None) -> None:
             if not self.daemon:
                 onFailure(_("Daemon was not running."))
@@ -1443,6 +1525,7 @@ class ElectrumGui(PrintError):
                 wallet = Wallet(storage)
                 wallet.start_threads(self.daemon.network)
                 if self.wallet:
+                    self.contactHistSync.stop()
                     self.daemon.stop_wallet(self.wallet.storage.path)
                 self.wallet = wallet
                 self.daemon.add_wallet(self.wallet)
@@ -1452,7 +1535,7 @@ class ElectrumGui(PrintError):
                 traceback.print_exc(file=sys.stdout)
                 utils.NSLog("Exception in opening wallet: %s",str(sys.exc_info()[1]))
                 onFailure(str(sys.exc_info()[1]))
-                
+
         if storage.is_encrypted():
             waitDlg = None
             def promptPW() -> None:
@@ -1489,7 +1572,7 @@ class ElectrumGui(PrintError):
             waitDlg = utils.show_please_wait(vc = vc, message = "Opening " + wallet_name[:25] + "...", completion = promptPwLater)
         else:
             DoSwicheroo()
-            
+
     def show_wallet_share_actions(self, info : wallets.WalletsMgr.Info, vc : UIViewController = None, ipadAnchor : object = None, warnIfUnsafe : bool = True) -> None:
         if vc is None: vc = self.get_presented_viewcontroller()
         if not os.path.exists(info.full_path):
@@ -1507,14 +1590,14 @@ class ElectrumGui(PrintError):
                         return
             except:
                 self.show_error(sys.exc_info()[1], vc = vc)
-                return 
+                return
         waitDlg = None
         def Dismiss(compl = None, animated = True) -> None:
             nonlocal waitDlg
             if waitDlg:
                 waitDlg.presentingViewController.dismissViewControllerAnimated_completion_(animated, compl)
                 waitDlg = None
-                
+
         def DoIt() -> None:
             try:
                 from shutil import copy2
@@ -1555,7 +1638,7 @@ class ElectrumGui(PrintError):
             if isCurrent:
                 self.daemon.stop_wallet(self.wallet.storage.path)
                 self.wallet = None
-            
+
             os.rename(info.full_path, new_path)
             oldEncPw = self.encPasswords.get(info.name)
             if oldEncPw:
@@ -1570,16 +1653,17 @@ class ElectrumGui(PrintError):
                 self.switch_wallets(wallet_name = newName, wallet_pass = password, vc = vc)
         except:
             self.show_error(str(sys.exc_info()[1]), vc = vc)
-    
+
     def prompt_password_if_needed_asynch(self, callBack, prompt = None, title = None, vc = None, onCancel = None, onForcedDismissal = None,
                                          usingStorage : Any = None) -> ObjCInstance:
         if vc is None: vc = self.get_presented_viewcontroller()
         touchIdTry = 0
         wallet_name = None
+        keyWasLost = False
         def GotAPasswordCallback(password : str) -> None:
             def CallUserCallback(wallet_name, password) -> None:
                 callBack(password)
-            if not touchIdTry:
+            if not touchIdTry or keyWasLost:
                 self.prompt_user_maybe_wants_touchid(wallet_name = wallet_name, password = password, completion = CallUserCallback, vc = vc)
             else:
                 CallUserCallback(wallet_name, password)
@@ -1588,18 +1672,33 @@ class ElectrumGui(PrintError):
             encpw = self.encPasswords.get(wallet_name)
             if not touchIdTry and encpw:
                 touchIdTry += 1
-                def MyTouchID_CB(pw : str) -> None:
-                    if pw: my_callback(pw)
-                    else: DoPromptPW(my_callback)
+                def MyTouchID_CB(pw : str, lostKey : bool) -> None:
+                    nonlocal keyWasLost
+                    if pw:
+                        # decrypted a password using touchid -- pass it along to calling code
+                        my_callback(pw)
+                    else:
+                        if lostKey:
+                            keyWasLost = True
+                            self.encPasswords.pop(wallet_name)
+                            self.touchIdAsked.pop(wallet_name)
+                            # Full stop.. will proceed with DoPromptPW (calling self recursively) after msg box is dismissed
+                            self.show_error(title=_('Secure Enclave Key Reset'),
+                                            message=_('Your biometrics-based key for this wallet was reset. This means you will need to enter your password for this wallet again.\n\n(Then, you can optionally re-enable Touch/Face ID as before.)'),
+                                            onOk = lambda: DoPromptPW(my_callback))
+                        else:
+                            # Some other error occurred with touch id besides a lost key (perhaps they hit "cancel" on
+                            # the touchid prompt), so call self recursively to try again!
+                            DoPromptPW(my_callback)
                 self.get_wallet_password_using_touchid(wallet_name, MyTouchID_CB, prompt = prompt)
                 return None
             else:
-                return password_dialog.prompt_password_asynch(vc = vc, onOk = my_callback, prompt = prompt, title = title, onCancel = onCancel, onForcedDismissal = onForcedDismissal)            
+                return password_dialog.prompt_password_asynch(vc = vc, onOk = my_callback, prompt = prompt, title = title, onCancel = onCancel, onForcedDismissal = onForcedDismissal)
         if usingStorage:
             storage = WalletStorage(usingStorage, manual_upgrades=True) if not isinstance(usingStorage, WalletStorage) else usingStorage
             if not isinstance(storage, WalletStorage):
                 raise ValueError('usingStorage parameter needs to be a WalletStorage instance or a string path!')
-            if not storage.file_exists():  
+            if not storage.file_exists():
                 raise WalletFileNotFound('Wallet File Not Found')
             wallet_name = os.path.split(storage.path)[-1]
             if not storage.is_encrypted():
@@ -1635,9 +1734,9 @@ class ElectrumGui(PrintError):
             walletPath = os.path.join(os.path.split(self.config.get_wallet_path())[0],walletName)
             self.config.set_key('gui_last_wallet', walletPath)
             guiLast = walletPath
-                   
+
         path = None
-        
+
         if guiLast and os.path.exists(guiLast):
             path = guiLast
         if not path:
@@ -1646,11 +1745,11 @@ class ElectrumGui(PrintError):
                 if os.path.exists(info.full_path):
                     path = info.full_path
                     break
-                
+
         if not path or not os.path.exists(path):
             self.on_open_last_wallet_fail()
         else:
-            def do_wallet_open(path : str) -> None: 
+            def do_wallet_open(path : str) -> None:
                 def cancelled() -> None:
                     self.on_open_last_wallet_fail()
                 def gotpw(password) -> None:
@@ -1667,11 +1766,15 @@ class ElectrumGui(PrintError):
                     # the assumption here is it was dimmissed because they exited app, then it backgrounded, then they came back.
                     # ... we'll let it slide
                     pass
-                
+
                 name = os.path.split(path)[1]
                 if len(name) > 30:
                     name = name[:14] + "..." + name[-13:]
                 msg = _("Opening encrypted wallet: '{}'").format(name)
+                if not self.wallet:
+                    # hide sensitive information
+                    self.walletsVC.setAmount_andUnits_unconf_('-', '', '')
+                    self.refresh_all()
                 self.prompt_password_if_needed_asynch(callBack = gotpw, prompt = msg, onCancel = cancelled,
                                                       onForcedDismissal = forciblyDismissed,
                                                       usingStorage = path)
@@ -1769,7 +1872,7 @@ class ElectrumGui(PrintError):
                 self.set_wallet_use_touchid(wallet_name, None)
                 if self.is_touchid_possible() and hadTouchId:
                     utils.show_notification(_("Touch/Face ID disabled for wallet"))
-                    
+
         except BaseException as e:
             self.show_error(str(e))
             return
@@ -1780,13 +1883,13 @@ class ElectrumGui(PrintError):
         msg = _('Password was updated successfully') if newpw else _('Password is disabled, this wallet is not protected')
         self.show_message(msg, title=_("Success"))
         self.refresh_components('helper')
-   
+
     def is_touchid_possible(self) -> bool:
         return self.keyEnclave.has_keys()
-    
+
     def is_touchid_available(self) -> bool:
         return self.is_touchid_possible() and self.keyEnclave.biometrics_available()
-    
+
     def check_touchid_for_gui(self, onOff : bool) -> bool:
         if not onOff: return False
         if self.keyEnclave.has_keys():
@@ -1798,11 +1901,11 @@ class ElectrumGui(PrintError):
             self.show_error(title=_("Secure Enclave Unavailable"),
                             message = _("This device lacks the secure enclave service. As such, Touch/Face ID based wallet authentication is unavailable."))
         return False
-        
+
 
     def show_change_password(self, msg = None, vc = None):
         if self.wallet is None or self.wallet.storage is None: return
-         
+
         pwvc = password_dialog.Create_PWChangeVC(msg, self.wallet.has_password(),
                                                  self.wallet.storage.is_encrypted(),
                                                  (self.encPasswords.has(wallets.CurrentWalletName()) and self.is_touchid_possible()),
@@ -1810,7 +1913,7 @@ class ElectrumGui(PrintError):
                                                  self.check_touchid_for_gui)
         (self.get_presented_viewcontroller() if not vc else vc).presentViewController_animated_completion_(pwvc, True, None)
 
-        
+
     def show_seed_dialog(self, password, vc = None):
         if self.wallet is None or self.wallet.storage is None: return
         if not self.wallet.has_seed():
@@ -1849,7 +1952,7 @@ class ElectrumGui(PrintError):
         utils.NSDeallocObserver(self.networkNav).connect(doCleanup)
         self.add_navigation_bar_close_to_modal_vc(self.networkVC)
         (vc if vc else self.get_presented_viewcontroller()).presentViewController_animated_completion_(self.networkNav, True, None)
-    
+
     def send_create_if_none(self) -> None:
         if self.sendVC: return
         self.sendVC = send.SendVC.alloc().init().autorelease()
@@ -1861,7 +1964,7 @@ class ElectrumGui(PrintError):
             self.sendVC = None
             self.sendNav = None
         utils.NSDeallocObserver(self.sendVC).connect(doCleanup)
-     
+
     def show_send_modal(self, vc = None) -> None:
         self.send_create_if_none()
         if not self.tabController or not self.sendNav: return
@@ -1870,7 +1973,7 @@ class ElectrumGui(PrintError):
         if self.sendNav.presentingViewController: return # already presented, return early
         if not vc: vc = self.get_presented_viewcontroller()
         vc.presentViewController_animated_completion_(self.sendNav, True, None)
-     
+
     def show_receive_modal(self, vc = None, onDone = None) -> None:
         self.receive_create_if_none()
         if not self.tabController or not self.receiveNav: return
@@ -1880,13 +1983,13 @@ class ElectrumGui(PrintError):
         if not vc: vc = self.get_presented_viewcontroller()
         if callable(onDone): utils.add_callback(self.receiveVC, 'on_done', onDone)
         vc.presentViewController_animated_completion_(self.receiveNav, True, None)
-        
+
     def show_addresses_tab(self) -> None:
         if not self.tabController or not self.addressesNav: return
         self.tabController.selectedViewController = self.addressesNav
         if self.addressesNav.topViewController.ptr.value != self.addressesVC.ptr.value:
             self.addressesNav.popToRootViewControllerAnimated_(True)
-        
+
     def jump_to_send_with_spend_from(self, coins, vc = None) -> None:
         self.send_create_if_none()
         utils.nspy_put_byname(self.sendVC, coins, 'spend_from')
@@ -1909,13 +2012,13 @@ class ElectrumGui(PrintError):
             self.receiveVC = None
             self.receiveNav = None
         utils.NSDeallocObserver(self.receiveVC).connect(doCleanup)
-        
+
     def jump_to_receive_with_address(self, address) -> None:
         self.receive_create_if_none()
         if not isinstance(address, (Address, str)): return
         self.receiveVC.addr = (str(address))
         self.show_receive_modal()
-            
+
     def get_history_entry(self, tx_hash) -> tuple:
         ''' returns a history.HistoryEntry namedtuple instance if tx_hash exists in history, or None if not found '''
         history = self.sigHistory.get(tx_hash) # NEW! Can get history by tx_hash
@@ -1924,7 +2027,7 @@ class ElectrumGui(PrintError):
                 if entry.tx_hash == tx_hash:
                     return entry
         return None
-    
+
     def get_address_entry(self, address) -> tuple:
         ''' returns an addresses.AddrData.Entry namedtuple or None if not found. Accepts either a string or an Address instance'''
         if isinstance(address, str):
@@ -1934,34 +2037,34 @@ class ElectrumGui(PrintError):
     def copy_to_clipboard(self, text, messagePrefix = "Text") -> None:
         UIPasteboard.generalPasteboard.string = text
         utils.show_notification(message=_(messagePrefix.strip() + " copied to clipboard"))
-      
+
     def open_bitcoincash_url(self, uri : str) -> None:
         if not self.wallet:
             self.queued_payto_uri = uri
         else:
             self.pay_to_URI(uri)
-            
+
     def open_ext_txn(self, data : str) -> None:
         if not self.wallet:
             self.queued_ext_txn = data
         else:
             self.show_ext_txn(data)
- 
+
     def ext_txn_check(self) -> bool:
         if self.queued_ext_txn and self.wallet and self.window and self.tabController and self.window.rootViewController and self.window.rootViewController.ptr.value == self.tabController.ptr.value:
             txn = self.queued_ext_txn
             self.queued_ext_txn = None
             return self.show_ext_txn(txn)
         return False
-    
+
     def open_uri_check(self) -> bool:
         if self.queued_payto_uri and self.wallet and self.window and self.tabController and self.window.rootViewController and self.window.rootViewController.ptr.value == self.tabController.ptr.value:
             uri = self.queued_payto_uri
             self.queued_payto_uri = None
             return self.pay_to_URI(uri)
         return False
-        
-           
+
+
     def show_ext_txn(self, txn : str) -> bool:
         if isinstance(txn, bytes):
             txn = txn.decode('utf-8')
@@ -1998,7 +2101,7 @@ class ElectrumGui(PrintError):
     def present_on_boarding_wizard_if_needed(self) -> ObjCInstance:
         if ( (not self.onboardingWizard or self.onboardingWizard.isBeingDismissed())
             and not self.wallet and not wallets.WalletsMgr.list_wallets() ):
-            
+
             wiz = None
             def Completion() -> None:
                 nonlocal wiz
@@ -2014,7 +2117,7 @@ class ElectrumGui(PrintError):
             wiz = newwallet.PresentOnBoardingWizard(vc = self.tabController, completion = Block(Completion))
             return wiz
         return None
-    
+
     def prompt_user_maybe_wants_touchid(self, wallet_name : str, password : str, completion : Callable[[str,str],None],
                                         vc : UIViewController = None) -> None:
         if (password and self.is_touchid_available() and not self.touchIdAsked.get(wallet_name)
@@ -2041,12 +2144,15 @@ class ElectrumGui(PrintError):
                 self.register_killable_alert(alert, lambda: completion(wallet_name, password))
         else:
             completion(wallet_name, password)
-        
-    
-    def set_wallet_use_touchid(self, wallet_name : str, wallet_pass_or_none : str, completion : Callable[[bool],None] = None) -> None:
+
+
+    def set_wallet_use_touchid(self, wallet_name : str, wallet_pass_or_none : str, completion : Callable[[bool],None] = None,
+                               clear_asked : bool = False) -> None:
         if not callable(completion): completion = lambda x: None
         if wallet_pass_or_none is None:
             self.encPasswords.pop(wallet_name)
+            if clear_asked:
+                self.touchIdAsked.pop(wallet_name)
             completion(True)
             return
         wallet_pass = wallet_pass_or_none
@@ -2061,14 +2167,18 @@ class ElectrumGui(PrintError):
         else:
             DoEnc(True, None)
 
-    def get_wallet_password_using_touchid(self, wallet_name : str, completion : Callable[[str],None], prompt : str = None) -> None:
+    def get_wallet_password_using_touchid(self, wallet_name : str, completion : Callable[[str, bool],None], prompt : str = None) -> None:
         hexpass = self.encPasswords.get(wallet_name)
         if not hexpass:
             completion(None)
             return
         def MyCallback(pw : str, err : str) -> None:
-            if err: utils.NSLog("Got error from enclave attempting to get password for %s: %s",wallet_name, err)
-            completion(pw)
+            lostKey = False
+            if err:
+                if self.keyEnclave.lastErrorCode == -50:
+                    lostKey = True
+                utils.NSLog("Got error (Code=%d) from enclave attempting to get password for %s: %s", self.keyEnclave.lastErrorCode, wallet_name, err)
+            completion(pw, lostKey)
         self.keyEnclave.decrypt_hex2str(hexpass, MyCallback, prompt = prompt)
 
     def setup_key_enclave(self, completion : Callable[[],None]) -> None:
@@ -2085,7 +2195,7 @@ class ElectrumGui(PrintError):
             self.keyEnclave.generate_keys(Compl)
         else:
             completion()
-            
+
     def show_crash_reporter(self, etype : type, eobj : object, tb : object) -> bool:
         from . import crashreporter
         if crashreporter.Singleton:
@@ -2104,7 +2214,7 @@ class ElectrumGui(PrintError):
             self.get_presented_viewcontroller().presentViewController_animated_completion_(nav, True, None)
             return True
         return False
-    
+
     def exception_handler(self, etype : type, eobj : object, tb : object) -> None:
         def InMain(etype, eobj, tb):
             if not self.show_crash_reporter(etype, eobj, tb):
@@ -2114,6 +2224,6 @@ class ElectrumGui(PrintError):
     # this method is called by Electron Cash libs to start the GUI
     def main(self):
         self.createAndShowUI()
-        
+
         self.setup_key_enclave(lambda: self.start_daemon())
 

@@ -128,6 +128,7 @@ if [ -f "${infoplist}" ]; then
 	plutil -insert 'UIStatusBarStyle' -string 'UIStatusBarStyleLightContent' -- ${infoplist}
 	plutil -insert 'NSPhotoLibraryAddUsageDescription' -string 'Required to save QR images to the photo library' -- ${infoplist}
 	plutil -insert 'NSPhotoLibraryUsageDescription' -string 'Required to save QR images to the photo library' -- ${infoplist}
+	plutil -insert 'LSSupportsOpeningDocumentsInPlace' -bool NO -- ${infoplist}
 fi
 
 if [ -d overrides/ ]; then
@@ -224,6 +225,16 @@ if [ -n "$so_crap" ]; then
 	for a in $so_crap; do
 		rm -vf $a
 	done
+fi
+
+echo ""
+echo "Modifying main.m to include PYTHONIOENCODING=UTF-8..."
+echo ""
+main_m="iOS/ElectronCash/main.m"
+if cat $main_m | sed -e '1 s/putenv/putenv("PYTHONIOENCODING=UTF-8"); putenv/; t' -e '1,// s//putenv("PYTHONIOENCODING=UTF-8"); putenv/' > ${main_m}.new; then
+	mv -fv ${main_m}.new $main_m
+else
+	echo "** WARNING: Failed to modify main.m to include PYTHONIOENCODING=UTF-8"
 fi
 
 echo ''

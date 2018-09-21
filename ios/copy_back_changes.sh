@@ -5,6 +5,10 @@ if [ ! -d iOS ]; then
     exit 1
 fi
 
+DIFF="diff"
+if which -s gdiff; then
+	DIFF="gdiff --color=always"
+fi
 projdir="iOS/app"
 projdir_top="iOS/"
 
@@ -31,7 +35,7 @@ function doIt() {
     f2=$2
     dstInfo=$3
 
-    if [ -e "$f1" ] && diff -q $f1 $f2 > /dev/null 2>&1; then
+    if [ -e "$f1" ] && $DIFF -q $f1 $f2 > /dev/null 2>&1; then
         true
     else
         while true; do
@@ -45,7 +49,7 @@ function doIt() {
                 read answer
             fi
             if [ "$answer" == "d" ]; then
-                diff -u $f1 $f2 | less
+                $DIFF -u $f1 $f2 | less -r
                 echo ""
                 continue
             fi

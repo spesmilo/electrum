@@ -33,6 +33,7 @@ from .uikit_bindings import *
 from .custom_objc import *
 
 from electroncash.i18n import _
+from electroncash.util import PrintError
 
 
 def is_2x_screen() -> bool:
@@ -49,10 +50,19 @@ def is_iphone4() -> bool:
     # iphone4 has <1136 pix height
     return is_iphone() and ( UIScreen.mainScreen.nativeBounds.size.height - 1136.0 < -0.5 )
 
+IPHONE_X_SIZES = [
+    ( 1125.0, 2436.0 ), # iPhone X & iPhone XS
+    (  828.0, 1792.0 ), # iPhone XR
+    ( 1242.0, 2688.0 ), # iPhone XS Max
+]
 def is_iphoneX() -> bool:
-    # iphone X has 2436 pix height
-    return is_iphone() and ( UIScreen.mainScreen.nativeBounds.size.height - 2436.0 < 0.5 )
-   
+    if is_iphone():
+        size = UIScreen.mainScreen.nativeBounds.size
+        for s in IPHONE_X_SIZES:
+            if abs(s.width - size.width) < 0.5 and abs(s.height - size.height) < 0.5:
+                return True
+    return False
+
 def is_ipad() -> bool:
     return not is_iphone()
 
@@ -63,6 +73,9 @@ def is_landscape() -> bool:
 def is_portrait() -> bool:
     return not is_landscape()
 
+def is_debug_build() -> bool:
+    return bool(HelpfulGlue.isDebugBuild())
+
 def get_fn_and_ext(fileName: str) -> tuple:
     *p1, ext = fileName.split('.')
     fn=''
@@ -70,7 +83,7 @@ def get_fn_and_ext(fileName: str) -> tuple:
         fn = ext
         ext = None
     else:
-        fn = '.'.join(p1) 
+        fn = '.'.join(p1)
     return (fn,ext)
 
 def get_user_dir():
@@ -105,9 +118,10 @@ def cleanup_tmp_dir():
                 os.remove(f)
                 ct += 1
             except:
+                #NSLog("Cleanup Tmp Dir: failed to remove tmp file: %s", f)
                 pass
     if tot:
-        NSLog("Cleaned up %d/%d files from tmp dir in %f ms",ct,tot,(time.time()-t0)*1e3)
+        NSLog("Cleanup Tmp Dir: removed %d/%d files from tmp dir in %f ms",ct,tot,(time.time()-t0)*1e3)
 
 def ios_version_string() -> str:
     dev = UIDevice.currentDevice
@@ -115,20 +129,20 @@ def ios_version_string() -> str:
 
 # new color schem from Max
 _ColorScheme = None
-    
+
 def uicolor_custom(name : str) -> ObjCInstance:
     global _ColorScheme
     name = name.strip().lower() if name else ""
     if not _ColorScheme:
         # initialize it on first call. We don't initialize it on initial module load to shave a few mss off app loading time.
         _ColorScheme = {
-            'dark'      : UIColor.colorInDeviceRGBWithHexString_("#414141").retain(), 
+            'dark'      : UIColor.colorInDeviceRGBWithHexString_("#414141").retain(),
             'light'     : UIColor.colorInDeviceRGBWithHexString_("#CCCCCC").retain(),
             'ultralight': UIColor.colorInDeviceRGBWithHexString_("#F6F6F6").retain(),
-            'nav'       : UIColor.colorInDeviceRGBWithHexString_("#558BFF").retain(), 
-            'link'      : UIColor.colorInDeviceRGBWithHexString_("#558BFF").retain(), 
-            'linktapped': UIColor.colorInDeviceRGBWithHexString_("#FF8BFF").retain(), 
-            'navtint'   : UIColor.colorInDeviceRGBWithHexString_("#FFFFFF").retain(), 
+            'nav'       : UIColor.colorInDeviceRGBWithHexString_("#558BFF").retain(),
+            'link'      : UIColor.colorInDeviceRGBWithHexString_("#558BFF").retain(),
+            'linktapped': UIColor.colorInDeviceRGBWithHexString_("#FF8BFF").retain(),
+            'navtint'   : UIColor.colorInDeviceRGBWithHexString_("#FFFFFF").retain(),
             'red'       : UIColor.colorInDeviceRGBWithHexString_("#FF6161").retain(),
             'notif'     : UIColor.colorInDeviceRGBWithHexString_("#BBFF3B").retain(), # very bright green
             'green'     : UIColor.colorInDeviceRGBWithHexString_("#9BDF1B").retain(), # less bright green
@@ -144,11 +158,11 @@ def uicolor_custom(name : str) -> ObjCInstance:
     if name in ['frozen', 'frozenaddress', 'frozen address']:
         return UIColor.colorWithRed_green_blue_alpha_(0.0,0.5,0.5,0.125)
     if name in ['frozentext', 'frozen text', 'frozenaddresstext', 'frozen address text']:
-        return UIColor.colorWithRed_green_blue_alpha_(0.0,0.5,0.5,1.0) 
+        return UIColor.colorWithRed_green_blue_alpha_(0.0,0.5,0.5,1.0)
     if name in ['frozentextbright', 'frozen text bright', 'frozenaddresstextbright', 'frozen address text bright']:
-        return UIColor.colorWithRed_green_blue_alpha_(0.0,0.8,0.8,1.0) 
+        return UIColor.colorWithRed_green_blue_alpha_(0.0,0.8,0.8,1.0)
     if name in ['frozentextlight', 'frozen text light', 'frozenaddresstextlight', 'frozen address text light']:
-        return UIColor.colorWithRed_green_blue_alpha_(0.0,0.5,0.5,0.4) 
+        return UIColor.colorWithRed_green_blue_alpha_(0.0,0.5,0.5,0.4)
     NSLog("uicolor_custom: UNKNOWN custom color '%s' -- returning GRAY -- FIXME"%(str(name)))
     return UIColor.grayColor
 
@@ -224,7 +238,7 @@ def nsurl_read_local_file(url : ObjCInstance, binary = False) -> tuple:
         from ctypes import c_char_p
         url.getFileSystemRepresentation_maxLength_(c_char_p(cstring.mutableBytes), 4096)
         filename = py_from_ns(cstring)
-        nul = filename.find(b'\0') 
+        nul = filename.find(b'\0')
         if nul >= 0:
             filename = filename[:nul]
         filename = filename.decode('utf-8')
@@ -235,8 +249,8 @@ def nsurl_read_local_file(url : ObjCInstance, binary = False) -> tuple:
             #print("File data:\n",data)
         return data, filename
     except:
-        NSLog("nsurl_read_local_file got exception: %s",str(sys.exc_info[1]))
-        return None, None        
+        NSLog("nsurl_read_local_file got exception: %s",str(sys.exc_info()[1]))
+        return None, None
 
 _threading_original__init__ = None
 def setup_thread_excepthook():
@@ -269,7 +283,7 @@ def setup_thread_excepthook():
     threading.Thread.__init__ = MyInit
 def cleanup_thread_excepthook():
     global _threading_original__init__
-    
+
     if _threading_original__init__:
         threading.Thread.__init__ = _threading_original__init__
         _threading_original__init__ = None
@@ -357,12 +371,12 @@ def show_share_actions(vc : ObjCInstance,
             show_notification(message = _("{} saved to photo library").format(objectName))
         else:
             show_notification(message = _("{} exported successfully").format(objectName))
-        
-        
+
+
     avc.completionWithItemsHandler = Block(ActivityCompletion)
     vc.presentViewController_animated_completion_(avc,animated,onCompletion)
     return avc
-    
+
 ###################################################
 ### Show modal alert
 ###################################################
@@ -381,7 +395,7 @@ def show_please_wait(vc : ObjCInstance, message : str, animated : bool = True, c
     pw.message.text = message
     vc.presentViewController_animated_completion_(pw, animated, completion)
     return pw
-    
+
 def show_alert(vc : ObjCInstance, # the viewcontroller to present the alert view in
                title : str, # the alert title
                message : str, # the alert message
@@ -544,7 +558,7 @@ def do_in_main_thread_sync(func : Callable, *args) -> Any:
 def do_in_main_thread_async(func : Callable, *args) -> None:
     def VoidFun() -> None:
         func(*args)
-    HelpfulGlue.performBlockInMainThread_sync_(VoidFun, False)        
+    HelpfulGlue.performBlockInMainThread_sync_(VoidFun, False)
 
 def call_later(timeout : float, func : Callable, *args) -> ObjCInstance:
     timer = None
@@ -555,7 +569,7 @@ def call_later(timeout : float, func : Callable, *args) -> ObjCInstance:
         def inMain() -> None:
             nonlocal timer
             timer = call_later(timeout, func, *args)
-        HelpfulGlue.performBlockInMainThread_sync_(inMain, True)        
+        HelpfulGlue.performBlockInMainThread_sync_(inMain, True)
     else:
         def OnTimer(t_in : objc_id) -> None:
             t = ObjCInstance(t_in)
@@ -576,7 +590,7 @@ class UTILSModalPickerHelper(UIViewController):
     items = objc_property()
     lastSelection = objc_property()
     needsDismiss = objc_property()
- 
+
     @objc_method
     def init(self) -> ObjCInstance:
         self = ObjCInstance(send_super(__class__, self,'init'))
@@ -586,7 +600,7 @@ class UTILSModalPickerHelper(UIViewController):
             self.needsDismiss = False
             self.modalPresentationStyle = UIModalPresentationOverFullScreen
         return self
-    
+
     @objc_method
     def dealloc(self) -> None:
         self.finished()
@@ -594,29 +608,29 @@ class UTILSModalPickerHelper(UIViewController):
         self.needsDismiss = None
 #        print("UTILSModalPickerHelper dealloc")
         send_super(__class__, self, 'dealloc')
-    
+
     @objc_method
     def numberOfComponentsInPickerView_(self, p : ObjCInstance) -> int:
         return 1
     @objc_method
     def  pickerView_numberOfRowsInComponent_(self, p : ObjCInstance, component : int) -> int:
         assert component == 0
-        return len(self.items)    
+        return len(self.items)
     @objc_method
     def pickerView_didSelectRow_inComponent_(self, p : ObjCInstance, row : int, component : int) -> None:
         assert component == 0 and row < len(self.items)
         self.lastSelection = row
-                
+
     @objc_method
     def  pickerView_titleForRow_forComponent_(self, p : ObjCInstance, row : int, component : int) -> ObjCInstance:
         txt = ''
         if component == 0 and row < len(self.items): txt = self.items[row]
         return txt
-    
+
     @objc_method
     def onOk_(self, but : ObjCInstance) -> None:
 #        print ("Ok pushed")
-        cb = get_callback(self, 'onOk') 
+        cb = get_callback(self, 'onOk')
         if callable(cb):
             sig = signature(cb)
             params = sig.parameters
@@ -628,7 +642,7 @@ class UTILSModalPickerHelper(UIViewController):
 
     @objc_method
     def onCancel_(self, but : ObjCInstance) -> None:
-#        print ("Cancel pushed")        
+#        print ("Cancel pushed")
         self.finished()
 
     @objc_method
@@ -638,7 +652,7 @@ class UTILSModalPickerHelper(UIViewController):
         self.items = None
         self.lastSelection = None
         self.needsDismiss = False
-        
+
 ###################################################
 ### Modal picker
 ###################################################
@@ -692,13 +706,13 @@ def show_notification(message : str,
                       completion : callable = None, # if you want to use the completion handler, set duration to None
                       ) -> ObjCInstance:
     cw_notif = CWStatusBarNotification.new().autorelease()
-    
+
     def onTap() -> None:
         #print("onTap")
         if onTapCallback is not None: onTapCallback()
         if not cw_notif.notificationIsDismissing and not noTapDismiss:
             cw_notif.dismissNotification()
-    
+
     if isinstance(color, UIColor):
         pass
     elif color is None or not isinstance(color, (tuple, list)) or len(color) != 4 or [c for c in color if type(c) not in [float,int] ]:
@@ -714,7 +728,7 @@ def show_notification(message : str,
     if not isinstance(font, UIFont):
         font = UIFont.systemFontOfSize_weight_(12, UIFontWeightMedium)
 
-        
+
     # set default blue color (since iOS 7.1, default window tintColor is black)
     cw_notif.notificationLabelBackgroundColor = color
     cw_notif.notificationLabelTextColor = textColor
@@ -742,8 +756,15 @@ def dismiss_notification(cw_notif : ObjCInstance) -> None:
  #######################################################
  ### NSLog emulation -- python wrapper for NSLog
  #######################################################
+NSLOG_SUPPRESS = False
+
+def NSLogSuppress(b : bool) -> None:
+    global NSLOG_SUPPRESS
+    NSLOG_SUPPRESS = b
 
 def NSLog(fmt : str, *args) -> int:
+    if NSLOG_SUPPRESS:
+        return
     args = list(args)
     if isinstance(fmt, ObjCInstance):
         fmt = str(py_from_ns(fmt))
@@ -791,7 +812,7 @@ class NSObjCache:
             self._cache = dict()
             self._last = None
             if ct: NSLog("Low Memory: Flushed %d objects from '%s' NSObjCache."%(ct,self._name))
-     
+
         self._token = NSNotificationCenter.defaultCenter.addObserverForName_object_queue_usingBlock_(
             UIApplicationDidReceiveMemoryWarningNotification,
             UIApplication.sharedApplication,
@@ -830,7 +851,7 @@ class NSObjCache:
         return len(self._cache)
 
 #############################
-# Shows a QRCode 
+# Shows a QRCode
 #############################
 _qr_cache = NSObjCache(10,"QR UIImage Cache")
 def present_qrcode_vc_for_data(vc : ObjCInstance, data : str, title : str = "QR Code") -> ObjCInstance:
@@ -864,7 +885,7 @@ def get_qrcode_image_for_data(data : str, size : CGSize = None) -> ObjCInstance:
     uiimage = None
     if not size: size = CGSizeMake(256.0,256.0)
     key = "(%0.2f,%0.2f)[%s]"%(size.width,size.height,data)
-    uiimage = _qr_cache.get(key) 
+    uiimage = _qr_cache.get(key)
     if uiimage is None:
         #print("**** CACHE MISS for",key)
         qr = qrcode.QRCode(image_factory=qrcode.image.svg.SvgPathFillImage)
@@ -899,9 +920,9 @@ def add_callback(obj : ObjCInstance, name : str, callback : Callable) -> None:
     if callable(callback):
         m = _cb_map.get(obj.ptr.value, dict())
         m[name] = callback
-        _cb_map[obj.ptr.value] = m 
+        _cb_map[obj.ptr.value] = m
     else:
-        remove_callback(obj, name)        
+        remove_callback(obj, name)
 
 def remove_all_callbacks(obj : ObjCInstance) -> None:
     global _cb_map
@@ -930,11 +951,11 @@ def get_callback(obj : ObjCInstance, name : str) -> Callable:
 #########################################################
 # TaskThread Stuff
 #  -- execute a python task in a separate (Python) Thread
-######################################################### 
+#########################################################
 class TaskThread:
     '''Thread that runs background tasks.  Callbacks are guaranteed
     to happen in the main thread.'''
-    
+
     Task = namedtuple("Task", "task cb_success cb_done cb_error")
 
     def __init__(self, on_error=None):
@@ -942,7 +963,7 @@ class TaskThread:
         self.tasks = queue.Queue()
         self.worker = threading.Thread(target=self.run, name="TaskThread worker", daemon=True)
         self.start()
-    
+
     def __del__(self):
         #NSLog("TaskThread __del__")
         if self.worker:
@@ -958,7 +979,7 @@ class TaskThread:
             return True
         elif not self.worker:
             raise ValueError("The Thread worker was None!")
-        
+
     def add(self, task, on_success=None, on_done=None, on_error=None):
         on_error = on_error or self.on_error
         self.tasks.put(TaskThread.Task(task, on_success, on_done, on_error))
@@ -974,7 +995,7 @@ class TaskThread:
             except:
                 do_in_main_thread(self.on_done, sys.exc_info(), task.cb_done, task.cb_error)
         NSLog("Exiting TaskThread worker thread...")
-                
+
     def on_done(self, result, cb_done, cb):
         # This runs in the main thread.
         if cb_done:
@@ -985,7 +1006,7 @@ class TaskThread:
     def stop(self):
         if self.worker and self.worker.is_alive():
             self.tasks.put(None)
-        
+
     def wait(self):
         if self.worker and self.worker.is_alive():
             self.worker.join()
@@ -1082,10 +1103,10 @@ def nspy_pop_byname(ns : ObjCInstance, name : str) -> Any:
 ####################################################################
 # Another take on signals/slots -- Python-only signal/slot mechanism
 ####################################################################
-class PySig:
-    
+class PySig(PrintError):
+
     Entry = namedtuple('Entry', 'func key is_ns')
-    
+
     def __init__(self):
         self.clear()
     def clear(self) -> None:
@@ -1093,8 +1114,8 @@ class PySig:
             del self.entries
         except AttributeError:
             pass
-        self.entries = list() # list of slots 
-        
+        self.entries = list() # list of slots
+
     def connect(self, func : Callable, key : Any = None) -> None:
         ''' Note: the func arg, for now, needs to take explicit args and no *args, **kwags business as it's not yet supported.'''
         if not callable(func):
@@ -1120,11 +1141,14 @@ class PySig:
                 key = key.ptr.value
                 removeAll = True
         removeCt = 0
+        keep = list()
         for i,entry in enumerate(self.entries):
-            if (key is not None and key == entry.key) or (func is not None and func == entry.func):
-                self.entries.pop(i)
+            if (removeCt == 0 or removeAll) and ((key is not None and key == entry.key) or (func is not None and func == entry.func)):
                 removeCt += 1
-                if not removeAll: return
+            else:
+                keep.append(entry)
+        self.entries = keep
+        #NSLog("Remove %d connections", removeCt)
         if removeCt: return
         name = "<Unknown NSObject>"
         try:
@@ -1133,7 +1157,7 @@ class PySig:
             print(str(sys.exc_info()[1]))
         finally:
             NSLog("PySig disconnect: *** WARNING -- could not find '%s' in list of connections!",name)
-        
+
     def emit_common(self, require_sync : bool, *args) -> None:
         def doIt(entry, wasMainThread, *args) -> None:
             try:
@@ -1154,7 +1178,7 @@ class PySig:
         # guard against slots requesting themselves to be removed while this loop is iterating
         entries = self.entries.copy()
         #if not isMainThread: # first, run through all entries that may be NSObjects and retain them
-            #for entry in entries: 
+            #for entry in entries:
                 # if it's an NSObject, retain it then release it in the embedded callback
                 #if entry.is_ns:
                 #    NSLog(" *** NSObject retain")
@@ -1189,7 +1213,7 @@ class NSDeallocObserver(PySig):
     ''' Provides the ability to observe the destruction of an objective-c object instance, and be notified of said
         object's destruction on the main thread via our Qt-like 'signal' mechanism. For an example of this class's usefulness,
         see the 'register_keyboard_callbacks' function later in this file.
-        
+
         Note that it is not necessary to keep a reference to this object around as it automatically gets associated with
         internal data structures and auto-removes itself once the signal is emitted. The signal itself has 1 param, the objc_id
         of the watched object. The watched object may or may not still be alive when the signal is emitted, however.'''
@@ -1203,12 +1227,12 @@ class NSDeallocObserver(PySig):
         self.observer = observer_class.new().autorelease()
         rt.libobjc.objc_setAssociatedObject(self.ptr, self.observer.ptr, self.observer.ptr, 0x301)
         nspy_put(self.observer, self) # our NSObject keeps a strong reference to us
-        
+
     def dissociate(self) -> None:
         self.disconnect()
         import rubicon.objc.runtime as rt
         rt.libobjc.objc_setAssociatedObject(self.ptr, self.observer.ptr, objc_id(0), 0x301)
-        
+
 
     '''
     # This is here for debugging purposes.. Commented out as __del__ is dangerous if it has external dependencies
@@ -1219,7 +1243,7 @@ class NSDeallocObserver(PySig):
             nspy_pop(self.observer)
         #super().__del__()
     '''
-    
+
 def set_namedtuple_field(nt : object, fieldname : str, newval : Any) -> object:
     try:
         d = nt._asdict()
@@ -1242,16 +1266,16 @@ class DataMgr(PySig):
     def __init__(self):
         super().__init__()
         #self.clear() # super calls clear, which calls this instance method, which itself calls super().clear().. python inheritence is weird
-        
+
     def clear(self):
         super().clear()
         self.datas = dict()
-        
+
     def keyify(self, key: Any) -> Any:
         if isinstance(key, (list,tuple,dict,set)):
             key = str(key)
         return key
-        
+
     def get(self, realkey : Any) -> Any:
         key = self.keyify(realkey)
         if key not in self.datas:
@@ -1261,20 +1285,20 @@ class DataMgr(PySig):
             pass
             #print("DataMgr: cache HIT for domain (%s)"%(str(key)))
         return self.datas.get(key, None)
-        
+
     def emptyCache(self, noEmit : bool = False, require_sync : bool = False, *args) -> None:
         self.datas = dict()
         if not noEmit:
             super().emit_common(require_sync = require_sync, *args)
-            
+
     def emit_common(self, require_sync : bool, *args) -> None:
         self.emptyCache(noEmit = False, require_sync = require_sync, *args)
-    
+
     def doReloadForKey(self, key : Any) -> Any:
         NSLog("DataMgr: UNIMPLEMENTED -- doReloadForKey() needs to be overridden in a child class!")
         return None
 
-######    
+######
 ### Various helpers for laying out text, building attributed strings, etc...
 ######
 _f1 = UIFont.systemFontOfSize_weight_(16.0,UIFontWeightBold).retain()
@@ -1331,7 +1355,7 @@ def hackyFiatAmtAttrStr(amtStr : str, fiatStr : str, ccy : str, pad : float, col
         #ps.lineBreakMode = NSLineBreakByWordWrapping
         #ats.addAttribute_value_range_(NSParagraphStyleAttributeName, ps, r)
     return ats
-    
+
 ###############################################################################
 # Facility to register python callbacks for when the keyboard is shown/hidden #
 ###############################################################################
@@ -1368,7 +1392,7 @@ class UTILSKBCBHandler(NSObject):
         window = entry.view.window()
         if window: rect = entry.view.convertRect_fromView_(rect, window)
         if entry.onDidShow: entry.onDidShow(rect)
-    
+
 # it's safe to never unregister, as an objc associated object will be created for the view in question and will clean everything up on
 # view dealloc. The '*Hide' callbacks should take 0 arguments, the '*Show' callbacks take 1, a CGRect of the keyboard in the destination view's coordinates
 def register_keyboard_callbacks(view : ObjCInstance, onWillHide = None, onWillShow = None, onDidHide = None, onDidShow = None) -> int:
@@ -1381,13 +1405,13 @@ def register_keyboard_callbacks(view : ObjCInstance, onWillHide = None, onWillSh
     obs = NSDeallocObserver(view)
     handler = UTILSKBCBHandler.new()
     handler.handle = handle
-    
+
     entry = _kbcb_Entry(handle, view, obs, handler, onWillHide, onWillShow, onDidHide, onDidShow)
     if entry.onWillHide: NSNotificationCenter.defaultCenter.addObserver_selector_name_object_(entry.handler,SEL('willHide:'),UIKeyboardWillHideNotification,None)
     if entry.onWillShow: NSNotificationCenter.defaultCenter.addObserver_selector_name_object_(entry.handler,SEL('willShow:'),UIKeyboardWillShowNotification,None)
     if entry.onDidHide: NSNotificationCenter.defaultCenter.addObserver_selector_name_object_(entry.handler,SEL('didHide:'),UIKeyboardDidHideNotification,None)
     if entry.onDidShow: NSNotificationCenter.defaultCenter.addObserver_selector_name_object_(entry.handler,SEL('didShow:'),UIKeyboardDidShowNotification,None)
-    _kbcb_dict[handle] = entry    
+    _kbcb_dict[handle] = entry
     obs.connect(lambda x: unregister_keyboard_callbacks(handle))
     return handle
 # unless you call this, the keyboard callback will stay alive until the target view is dealloc'd. At which time all resources
@@ -1405,7 +1429,7 @@ def unregister_keyboard_callbacks(handle : int) -> None:
         entry.handler.release()
     else:
         NSLog("*** WARNING: unregister_keyboard_callbacks could not find handle %d!", handle)
-        
+
 # boilerplate code below to auto-scroll textfields/textviews when keyboard shown. Install this in viewWillAppear.
 def register_keyboard_autoscroll(sv : UIScrollView) -> int:
     if not isinstance(sv, UIScrollView):
@@ -1422,8 +1446,8 @@ def register_keyboard_autoscroll(sv : UIScrollView) -> int:
             origin = respFrame.origin
             bottomLeft = CGPoint(origin.x, origin.y+respFrame.size.height)
             diff = None
-            if not CGRectContainsPoint(visible, bottomLeft) and (is_portrait() or is_ipad()): 
-                diff = (bottomLeft.y - (visible.origin.y+visible.size.height)) + 25.0 
+            if not CGRectContainsPoint(visible, bottomLeft) and (is_portrait() or is_ipad()):
+                diff = (bottomLeft.y - (visible.origin.y+visible.size.height)) + 25.0
             elif not CGRectContainsPoint(visible, origin):
                 diff = origin.y - visible.origin.y - 25.0
             if diff:
@@ -1473,7 +1497,7 @@ class FileBackedDict(object):
             NSLog("*** WARNING: JSON file read but is not a dict: %s", self._fn)
             return False
         self._d = result
-        return True        
+        return True
     def write(self) -> bool:
         try:
             with open(self._fn, "w") as f:
@@ -1505,10 +1529,11 @@ class FileBackedDict(object):
 ##### Wrapper for iOS Secure key enclave -- instantiates a KeyInterface class on the Objective C side.  Note this requires TouchID/FaceID
 class SecureKeyEnclave:
     instances = 0
-    
+
     def __init__(self, keyDomain : str):
         self._keyInterface = KeyInterface.keyInterfaceWithPublicKeyName_privateKeyName_(keyDomain + ".pubkey", keyDomain + ".privkey").retain()
         SecureKeyEnclave.instances += 1
+        self.lastErrorCode = 0
         #NSLog("SecureKeyEnclave: instance created (%d total extant instances)",SecureKeyEnclave.instances)
 
     def __del__(self):
@@ -1526,9 +1551,11 @@ class SecureKeyEnclave:
 
     def biometrics_are_not_available_reason(self) -> str: # returns failure reason if unavailable, or '' if available
         err = objc_id(0)
+        self.lastErrorCode = 0
         if not self._keyInterface.biometricsAreAvailableWithError_(byref(err)):
             if err and err.value:
                 err = ObjCInstance(err)
+                self.lastErrorCode = err.code
                 return str(err.description)
             else:
                 return 'Unknown Reason'
@@ -1543,28 +1570,38 @@ class SecureKeyEnclave:
     # Asynchronously generate the private/public keypair.  Note that touchID doesn't seem to come up when this is called
     # but it may.  Completion is called on success or error. If error, first arge is false and second arg may be an iOS error string.
     def generate_keys(self, completion : Callable[[bool,str],None] = None) -> None:
+        self.lastErrorCode = 0
         if self._keyInterface.publicKeyExists:
             if callable(completion):
                 completion(True,'')
             return
         def Compl(b : bool, e : objc_id) -> None:
-            e = ObjCInstance(e) if e and e.value else None
-            if callable(completion): completion(bool(b),str(e.description) if e else '')
+            errStr = ''
+            if e and e.value:
+                e = ObjCInstance(e)
+                self.lastErrorCode = e.code
+                errStr = str(e.description)
+            if callable(completion): completion(bool(b), errStr)
         self._keyInterface.generateTouchIDKeyPairWithCompletion_(Compl)
-     
+
     def encrypt_data(self, data : bytes) -> bytes:
         if isinstance(data, str): data = data.encode('utf-8')
         if not isinstance(data, bytes): raise ValueError('SecureKeyEnclave.encrypt_data requires a bytes argument!')
         plainText = NSData.dataWithBytes_length_(data,len(data))
+        self.lastErrorCode = 0
         err = objc_id(0)
         cypherText = self._keyInterface.encryptData_error_(plainText, byref(err))
         if not cypherText:
-            e = str(ObjCInstance(err).description) if err and err.value else ''
-            NSLog("SecureKeyEnclave encrypt data failed with error: %s",e)
+            e = ''
+            if err and err.value:
+                err = ObjCInstance(err)
+                e = str(err.description)
+                self.lastErrorCode = err.code
+            NSLog("SecureKeyEnclave encrypt data failed with (Code=%d) error: %s", self.lastErrorCode, e)
             return None
         return bytes((c_ubyte * cypherText.length).from_address(cypherText.bytes))
-    
-    # input: any plaintext string.  output: a hex representation of the encrypted cyphertext data eg 'ff80be3376ff..' 
+
+    # input: any plaintext string.  output: a hex representation of the encrypted cyphertext data eg 'ff80be3376ff..'
     def encrypt_str2hex(self, plainText : str) -> str:
         b = self.encrypt_data(plainText)
         if b is not None:
@@ -1572,21 +1609,22 @@ class SecureKeyEnclave:
             return binascii.hexlify(b).decode('utf-8')
         return None
 
-    # the inverse of the above. input: a hex string, eg 'ff80be3376...',  callback is called with (plainText:str, error:str) as args   
+    # the inverse of the above. input: a hex string, eg 'ff80be3376...',  callback is called with (plainText:str, error:str) as args
     def decrypt_hex2str(self, hexdata : str, completion : Callable[[str,str],None], prompt : str = None) -> None:
         if not callable(completion):
             raise ValueError('A completion function is required as the second argument to this function!')
         import binascii
         cypherBytes = binascii.unhexlify(hexdata)
         def MyCompl(pt : bytes, error : str) -> None:
-            plainText = pt.decode('utf-8') if pt is not None else None
+            plainText = pt.decode('utf-8', errors='ignore') if pt is not None else None
             completion(plainText, error)
-        self.decrypt_data(cypherBytes, MyCompl, prompt = prompt) 
-    
+        self.decrypt_data(cypherBytes, MyCompl, prompt = prompt)
+
     # May pop up a touchid window, which user may cancel.  If touchid not available, or user cancels, the completion is called
     # with None,errstr as args (errStr comes from iOS and is pretty arcane).
     # Otherwise completion is called with the plainText bytes as first argument on success.
     def decrypt_data(self, data : bytes, completion : Callable[[bytes,str],None], prompt : str = None) -> None:
+        self.lastErrorCode = 0
         if not callable(completion):
             raise ValueError('A completion function is required as the second argument to this function!')
         if not prompt: prompt = _("Authenticate, please")
@@ -1595,7 +1633,11 @@ class SecureKeyEnclave:
         cypherText = NSData.dataWithBytes_length_(data, len(data))
         def Compl(dptr : objc_id, eptr : objc_id) -> None:
             plainText = ObjCInstance(dptr) if dptr and dptr.value else None
-            error = ObjCInstance(eptr).description if eptr and eptr.value else None
+            error = None
+            if eptr and eptr.value:
+                e = ObjCInstance(eptr)
+                error = e.description
+                self.lastErrorCode = e.code
             if plainText:
                 plainText = bytes((c_ubyte * plainText.length).from_address(plainText.bytes))
             completion(plainText, error)
@@ -1632,7 +1674,7 @@ class SecureKeyEnclave:
             keyEnclave.generate_keys(KeysGenerated)
         else:
             DoEnc()
-            
+
         def Cleaner() -> None:
             # keep a ref around for 10s then delete object.
             nonlocal keyEnclave
@@ -1646,6 +1688,10 @@ class boilerplate:
     # iOS weirdness. Buttons don't always flash to highlighted state on tap.. so we have to force it using this hack.
     @staticmethod
     def vc_highlight_button_then_do(vc : UIViewController,  but : UIButton, func : Callable[[],None]) -> None:
+        if not but or not vc:
+            # Defensive programming...
+            func()
+            return
         #if not isinstance(vc, UIViewController) or not isinstance(but, UIButton) or not callable(func):
         #    raise ValueError('One of the arguments passed to vc_highlight_button_then_do is invalid!')
         but.retain()
@@ -1669,3 +1715,13 @@ class boilerplate:
             sv, NSLayoutAttributeHeight, NSLayoutRelationEqual, view, NSLayoutAttributeHeight, 1.0, 0.0 ))
         sv.addConstraint_(NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
             sv, NSLayoutAttributeWidth, NSLayoutRelationEqual, view, NSLayoutAttributeWidth, 1.0, 0.0 ))
+
+    @staticmethod
+    def create_and_add_blur_view(parent : UIView, effectStyle = UIBlurEffectStyleRegular) -> UIView:
+        blurView = None
+        if parent:
+            effect = UIBlurEffect.effectWithStyle_(effectStyle)
+            blurView = UIVisualEffectView.alloc().initWithEffect_(effect).autorelease()
+            blurView.frame = parent.frame
+            parent.addSubview_(blurView)
+        return blurView

@@ -38,14 +38,14 @@ def VChevronImages() -> list:
         UIImage.imageNamed_("chevron_00005"),
     ]
 
-class WalletsNav(WalletsNavBase):    
+class WalletsNav(WalletsNavBase):
     @objc_method
     def dealloc(self) -> None:
         send_super(__class__, self, 'dealloc')
 
 class WalletsVC(WalletsVCBase):
     lineHider = objc_property()
-    
+
     @objc_method
     def dealloc(self) -> None:
         # cleanup code here..
@@ -54,7 +54,7 @@ class WalletsVC(WalletsVCBase):
         gui.ElectrumGui.gui.sigWallets.disconnect(self)
 
         self.lineHider = None
-        send_super(__class__, self, 'dealloc')  
+        send_super(__class__, self, 'dealloc')
 
     @objc_method
     def commonInit(self) -> None:
@@ -71,24 +71,24 @@ class WalletsVC(WalletsVCBase):
         self.segControl.autoAdjustSelectionIndicatorWidth = False
         # Can't set this property from IB, so we do it here programmatically to create the stroke around the receive button
         self.receiveBut.layer.borderColor = self.sendBut.backgroundColor.CGColor
-        
+
         gui.ElectrumGui.gui.sigHistory.connect(lambda: self.refresh(), self)
         gui.ElectrumGui.gui.sigRequests.connect(lambda: self.refresh(), self)
         gui.ElectrumGui.gui.sigWallets.connect(lambda: self.refresh(), self)
-        
+
         noViews = [ self.noTXsView, self.noReqsView ]
         font = UIFont.italicSystemFontOfSize_(14.0)
         for v in noViews:
             # mogrify the fonts on the "no tx's" and "no reqs" views to italic since IB sucks.
             lbl = v.viewWithTag_(4041)
             if isinstance(lbl, UILabel): lbl.attributedText = utils.ats_replace_font(lbl.attributedText, font)
-    
+
     @objc_method
     def refresh(self) -> None:
         self.doChkTableViewCounts()
         if self.walletName: self.walletName.text = str(CurrentWalletName())
         if self.statusBlurb: self.statusBlurb.sizeToFit()
-    
+
     @objc_method
     def viewDidLoad(self) -> None:
         send_super(__class__, self, 'viewDidLoad')
@@ -143,15 +143,15 @@ class WalletsVC(WalletsVCBase):
         elif mode == StatusSynchronizing:
             self.statusBlurb.text = _("Updating transaction history.")
             self.statusLabel.text = _("Synchronizing")
-        else: # mode == StatusOffline        
+        else: # mode == StatusOffline
             self.statusBlurb.text = _("Cannot send/receive new transactions.")
             self.statusLabel.text = _("Offline")
-            
+
         s = self.statusLabel.attributedText.size()
         self.statusLabelWidthCS.constant = s.width + self.statusLabel.layer.cornerRadius*2.0 # this magic forces the status label 'pill' to be properly padded on either side no matter what text it contians
-            
+
         self.statusBlurb.sizeToFit()
-        
+
     @objc_method
     def setAmount_andUnits_unconf_(self, amt, units, unconf) -> None:
         #ats = NSMutableAttributedString.alloc().initWithString_(units).autorelease()
@@ -173,7 +173,7 @@ class WalletsVC(WalletsVCBase):
             self.modalDrawerVC.amount.text = amt
             #self.modalDrawerVC.units.attributedText = ats
             self.modalDrawerVC.units.text = units+unconf
-            
+
 
     @objc_method
     def toggleDrawer(self) -> None:
@@ -205,16 +205,16 @@ class WalletsVC(WalletsVCBase):
             # NB: weak ref self.modalDrawerVC will be auto-cleared by obj-c runtime after it is dismissed
             utils.call_later(0.100, self.dismissViewControllerAnimated_completion_,True, None)
             self.modalDrawerVC.closeAnimated_(True)
-            
+
     @objc_method
     def openDrawer(self) -> None:
         if not self.modalDrawerVC: self.toggleDrawer()
-        
+
     @objc_method
     def closeDrawer(self) -> None:
         if self.modalDrawerVC: self.toggleDrawer()
-        
-        
+
+
     @objc_method
     def didChangeSegment_(self, control : ObjCInstance) -> None:
         ix = self.segControl.selectedSegmentIndex
@@ -237,7 +237,7 @@ class WalletsVC(WalletsVCBase):
         return self.navigationController.visibleViewController.ptr.value == self.ptr.value and \
                 ( (p.x >= 0 and p.y >= 0 and p.x <= s.width and p.y <= s.height) \
                   or (p2.x >= 0 and p2.y >= 0 and p2.x <= s2.width and p2.y <= s2.height) )
-                  
+
 
     # pops up the network setup dialog and also does a little animation on the status label
     @objc_method
@@ -253,7 +253,7 @@ class WalletsVC(WalletsVCBase):
             gui.ElectrumGui.gui.show_network_dialog()
         self.statusLabel.backgroundColorAnimationToColor_duration_reverses_completion_(c1,0.2,True,doShowNetworkDialog)
         self.statusBlurb.textColorAnimationToColor_duration_reverses_completion_(c2,0.2,True,None)
-        
+
     @objc_method
     def onSendBut(self) -> None:
         if gui.ElectrumGui.gui.warn_user_if_no_wallet():
@@ -269,7 +269,7 @@ class WalletsVC(WalletsVCBase):
                 self.segControl.setSelectedSegmentIndex_animated_(1, False)
                 self.didChangeSegment_(self.segControl)
         gui.ElectrumGui.gui.show_receive_modal(vc = self, onDone = OnReqSaved)
-        
+
     @objc_method
     def doChkTableViewCounts(self) -> None:
         if not self.reqstv or not self.txsHelper or not self.txsHelper.tv or not self.segControl or not self.reqstv.dataSource:
@@ -290,32 +290,32 @@ class WalletsVC(WalletsVCBase):
 
 class WalletsDrawerVC(WalletsDrawerVCBase):
     bluchk = objc_property()
-        
+
     @objc_method
     def dealloc(self) -> None:
         #cleanup code here
         gui.ElectrumGui.gui.sigWallets.disconnect(self)
         self.bluchk = None
         send_super(__class__, self, 'dealloc')
-     
-    @objc_method 
+
+    @objc_method
     def viewDidLoad(self) -> None:
         send_super(__class__, self, 'viewDidLoad')
         self.tv.tableFooterView = self.tableFooter
         nib = UINib.nibWithNibName_bundle_("WalletsDrawerCell", None)
         self.tv.registerNib_forCellReuseIdentifier_(nib, "WalletsDrawerCell")
         gui.ElectrumGui.gui.sigWallets.connect(lambda: self.refresh(), self)
-       
+
     @objc_method
     def refresh(self) -> None:
         self.name.text = str(CurrentWalletName())
         self.tv and self.tv.reloadData()
-        
+
     @objc_method
     def viewWillAppear_(self, animated : bool) -> None:
         send_super(__class__, self, 'viewWillAppear:', animated, argtypes=[c_bool])
         self.ensureCurrentIsVisible()
-        
+
     @objc_method
     def ensureCurrentIsVisible(self) -> None:
         if self.tv:
@@ -325,7 +325,7 @@ class WalletsDrawerVC(WalletsDrawerVCBase):
                 if current == wallet.name:
                     self.tv.scrollToRowAtIndexPath_atScrollPosition_animated_(NSIndexPath.indexPathForRow_inSection_(i, 0), UITableViewScrollPositionMiddle, False)
                     return
-        
+
     @objc_method
     def numberOfSectionsInTableView_(self, tableView) -> int:
         return 1
@@ -346,7 +346,7 @@ class WalletsDrawerVC(WalletsDrawerVCBase):
         if ret:
             name = ret.viewWithTag_(1)
             size = ret.viewWithTag_(2)
-            name.setText_withKerning_(_("Name"), utils._kern) 
+            name.setText_withKerning_(_("Name"), utils._kern)
             size.setText_withKerning_(_("Size:").translate({ord(i):None for i in ':'}), utils._kern)
         return ret
 
@@ -380,7 +380,7 @@ class WalletsDrawerVC(WalletsDrawerVCBase):
             def onBut(b : objc_id) -> None:
                 if info.size:
                     def DoIt() -> None:
-                        if self and self.ptr.value and self.viewIfLoaded and self.viewIfLoaded.window:                    
+                        if self and self.ptr.value and self.viewIfLoaded and self.viewIfLoaded.window:
                             _ShowOptionsForWalletAtIndex(vc = self, index = row, ipadAnchor = cell.convertRect_toView_(cell.bounds, self.view))
                     utils.boilerplate.vc_highlight_button_then_do(self, but, DoIt)
             blk = Block(onBut)
@@ -428,7 +428,7 @@ class WalletsDrawerVC(WalletsDrawerVCBase):
         def doAddWallet() -> None:
             newwallet.PresentAddWalletWizard(vc = self, animated = True, completion = None)
         addWalletView.backgroundColorAnimationToColor_duration_reverses_completion_(c,0.2,True,doAddWallet)
-     
+
     # overrides base
     @objc_method
     def openAnimated_(self, animated : bool) -> None:
@@ -472,27 +472,27 @@ import os, sys, glob
 class WalletsMgr(utils.DataMgr):
 
     Info = namedtuple('WalletInfo', 'name size full_path')
-    
+
     def __init__(self):
         super().__init__()
-     
-    @classmethod   
+
+    @classmethod
     def parent(self) -> object:
         # I'm paranoid about circular references.. so we return this on-demand each time
         return gui.ElectrumGui.gui
-    
-    @classmethod   
+
+    @classmethod
     def wallets_dir(self) -> str:
         p = self.parent()
         return os.path.split(p.config.get_wallet_path())[0] if p and p.config else ''
-    
+
     def doReloadForKey(self, key : Any) -> Any:
         if key in ('current', 'basename', 'name', 'wallet_name', 'wallet', 'opened'):
             p = WalletsMgr.parent()
             return p.wallet.basename() if p and p.wallet else None
         return WalletsMgr.list_wallets()
-    
-    @classmethod   
+
+    @classmethod
     def list_wallets(self) -> list:
         ret = list()
         d = self.wallets_dir()
@@ -508,8 +508,8 @@ class WalletsMgr(utils.DataMgr):
         ret.sort(key=lambda x: [x.name, 0-x.size], reverse=False)
         return ret
 
-    
-    @classmethod   
+
+    @classmethod
     def check_wallet_exists(self, wallet_name : str) -> bool:
         w = os.path.split(wallet_name)[1]
         path = self.wallets_dir()
@@ -562,7 +562,7 @@ def _ShowOptionsForWalletAtIndex(index : int, vc : UIViewController, ipadAnchor 
                 parent.show_error(_('A wallet with that name already exists, please try again.'), vc = vc, onOk = Retry)
                 return
             parent.do_wallet_rename(info = info, newName = newName, vc = vc)
-        
+
         prefill = prefill or info.name
         placeholder = _('Enter new wallet name')
         utils.show_alert(vc = vc,
@@ -590,7 +590,7 @@ def _ShowOptionsForWalletAtIndex(index : int, vc : UIViewController, ipadAnchor 
                 if txt == 'delete':
                     try:
                         os.remove(info.full_path)
-                        parent.set_wallet_use_touchid(info.name, None) # clear cached password if any
+                        parent.set_wallet_use_touchid(info.name, None, clear_asked = True) # clear cached password if any
                         parent.refresh_components('wallets')
                         utils.show_notification(message = _("Wallet deleted successfully"))
                     except:
@@ -612,7 +612,7 @@ def _ShowOptionsForWalletAtIndex(index : int, vc : UIViewController, ipadAnchor 
         parent.prompt_password_if_needed_asynch(vc=vc, callBack = gotPW)
     def DoPWChange() -> None:
         parent.show_change_password(vc = vc)
-        
+
     actions = [
         [ _("Open Wallet"), DoOpen ],
         [ _("Rename Wallet"), DoRename ],

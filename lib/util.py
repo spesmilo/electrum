@@ -277,6 +277,13 @@ def android_headers_dir():
     except ImportError:
         return android_data_dir()
 
+def ensure_sparse_file(filename):
+    if os.name == "nt":
+        try:
+            os.system("fsutil sparse setFlag \""+ filename +"\" 1")
+        except:
+            pass
+
 def get_headers_dir(config):
     return android_headers_dir() if 'ANDROID_DATA' in os.environ else config.path
 
@@ -366,7 +373,7 @@ def user_dir(prefer_local=False):
         return os.path.join(os.environ["HOME"], ".electron-cash" )
     elif "APPDATA" in os.environ or "LOCALAPPDATA" in os.environ:
         app_dir = os.environ.get("APPDATA")
-        localapp_dir = os.environ.get("LOCALAPPDATA")         
+        localapp_dir = os.environ.get("LOCALAPPDATA")
         # Prefer APPDATA, but may get LOCALAPPDATA if present and req'd.
         if localapp_dir is not None and prefer_local or app_dir is None:
             app_dir = localapp_dir
@@ -508,6 +515,8 @@ def parse_json(message):
 class timeout(Exception):
     pass
 
+TimeoutException = timeout # Future compat. with Electrum codebase/cherrypicking
+
 import socket
 import json
 import ssl
@@ -579,40 +588,6 @@ class SocketPipe:
                 print_error("OSError", e)
                 time.sleep(0.1)
                 continue
-
-
-class QueuePipe:
-
-    def __init__(self, send_queue=None, get_queue=None):
-        self.send_queue = send_queue if send_queue else queue.Queue()
-        self.get_queue = get_queue if get_queue else queue.Queue()
-        self.set_timeout(0.1)
-
-    def get(self):
-        try:
-            return self.get_queue.get(timeout=self.timeout)
-        except queue.Empty:
-            raise timeout
-
-    def get_all(self):
-        responses = []
-        while True:
-            try:
-                r = self.get_queue.get_nowait()
-                responses.append(r)
-            except queue.Empty:
-                break
-        return responses
-
-    def set_timeout(self, t):
-        self.timeout = t
-
-    def send(self, request):
-        self.send_queue.put(request)
-
-    def send_all(self, requests):
-        for request in requests:
-            self.send(request)
 
 
 def setup_thread_excepthook():

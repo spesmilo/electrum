@@ -562,7 +562,7 @@ class Abstract_Wallet(PrintError):
         height = conf = timestamp = None
         tx_hash = tx.txid()
         if tx.is_complete():
-            if tx_hash in self.transactions.keys():
+            if tx_hash in self.transactions:
                 label = self.get_label(tx_hash)
                 height, conf, timestamp = self.get_tx_height(tx_hash)
                 if height > 0:
@@ -827,8 +827,7 @@ class Abstract_Wallet(PrintError):
             delta = tx_deltas[tx_hash]
             height, conf, timestamp = self.get_tx_height(tx_hash)
             history.append((tx_hash, height, conf, timestamp, delta))
-        history.sort(key = lambda x: self.get_txpos(x[0]))
-        history.reverse()
+        history.sort(key = lambda x: self.get_txpos(x[0]), reverse=True)
 
         # 3. add balance
         c, u, x = self.get_balance(domain)

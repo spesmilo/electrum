@@ -24,7 +24,7 @@ class CoinsDetail(CoinsDetailBase):
     blockRefresh = objc_property()
     needsRefresh = objc_property()
     kbas = objc_property()
-    
+
     @objc_method
     def init(self) -> ObjCInstance:
         self = ObjCInstance(send_super(__class__, self, 'init'))
@@ -38,7 +38,7 @@ class CoinsDetail(CoinsDetailBase):
             gui.ElectrumGui.gui.sigCoins.connect(lambda: self.refresh(), self)
             gui.ElectrumGui.gui.cash_addr_sig.connect(lambda: self.refresh(), self)
         return self
-    
+
     @objc_method
     def dealloc(self) -> None:
         self.outputhash = None
@@ -51,21 +51,21 @@ class CoinsDetail(CoinsDetailBase):
         gui.ElectrumGui.gui.cash_addr_sig.disconnect(self)
         send_super(__class__, self, 'dealloc')
 
-    
+
     @objc_method
     def loadView(self) -> None:
-        NSBundle.mainBundle.loadNibNamed_owner_options_("CoinsDetail", self, None)        
+        NSBundle.mainBundle.loadNibNamed_owner_options_("CoinsDetail", self, None)
         self.addressTopSaved = self.addressTopCS.constant
         self.statusTopSaved = self.statusTopCS.constant
         self.descDel.placeholderFont = UIFont.italicSystemFontOfSize_(14.0)
         self.descDel.placeholderText = '\n' + _(str(self.descDel.placeholderText).strip())
-        
+
         # kern the tits
         tits = [ self.addressTit, self.utxoTit, self.heightTit, self.descTit, self.amountTit ]
         for tit in tits:
             tit.setText_withKerning_(_(tit.text), utils._kern)
-        
-        
+
+
     @objc_method
     def viewDidLoad(self) -> None:
         #setup callbacks..
@@ -83,8 +83,8 @@ class CoinsDetail(CoinsDetailBase):
             if self.needsRefresh: self.refresh()
         self.descDel.didBeginEditing = Block(didBeginEditing)
         self.descDel.didEndEditing = Block(didEndEditing)
-        
- 
+
+
     @objc_method
     def viewWillAppear_(self, animated : bool) -> None:
         send_super(__class__, self, 'viewWillAppear:', animated, argtypes=[c_bool])
@@ -107,7 +107,7 @@ class CoinsDetail(CoinsDetailBase):
             self.needsRefresh = True
             return
         coin = _Get(self)
-        
+
         if not coin:
             # if coin goes None.. that means the user spent this UTXO.. so we back out!
             if (self.navigationController and self.navigationController.topViewController
@@ -115,7 +115,7 @@ class CoinsDetail(CoinsDetailBase):
                 self.navigationController.popViewControllerAnimated_(True)
             utils.NSLog("WARNING: CoinsDetailVC lost its 'coin' entry from underneath its own feet. This could mean the user spent the coin on another screen or something else strange happened. Backing out!")
             return
-        
+
         self.address.text = coin.address.to_ui_string()
         self.utxo.text = str(coin.name)
         self.height.text = str(coin.height)
@@ -125,16 +125,20 @@ class CoinsDetail(CoinsDetailBase):
         if fx and fx.is_enabled() and fx.get_fiat_address_config():
             self.fiatAmount.text = fx.format_amount_and_units(coin.amount).strip()
         else:
-            self.fiatAmount.text = ''        
+            self.fiatAmount.text = ''
         if not self.fiatAmount.text:
             self.addressTopCS.constant = 0.0
         else:
             self.addressTopCS.constant = self.addressTopSaved
-        
+
         self.freezeBut.selected = coin.is_frozen
-        
+
+        watch_only = bool(hasattr(parent.wallet,'is_watching_only') and parent.wallet.is_watching_only())
+        self.freezeBut.setHidden_(watch_only)
+
+
         self.status.setText_withKerning_(("Change" if coin.is_change else "Receiving") + " Address", utils._kern)
-        
+
         color = utils.uicolor_custom('dark')
         if coin.is_frozen:
             self.status.setText_withKerning_(_("Frozen"), 0.0)
@@ -145,22 +149,22 @@ class CoinsDetail(CoinsDetailBase):
         self.amount.textColor = color
         self.fiatAmount.textColor = color
 
-        self.spendFromBut.setHidden_(coin.is_frozen)   
-        
+        self.spendFromBut.setHidden_(coin.is_frozen or watch_only)
+
         size = CGSizeMake(174.0,174.0) # the returned image has a 10 pix margin -- this compensates for it
         self.qr.contentMode = UIViewContentModeCenter # if the image pix margin changes -- FIX THIS
         self.qr.image = utils.get_qrcode_image_for_data(coin.tx_hash or '', size = size)
-        
+
         if gui.ElectrumGui.gui.prefs_get_use_cashaddr() and not utils.is_landscape() and not utils.is_ipad():
             self.statusTopCS.constant = self.statusTopSaved
         else:
             self.statusTopCS.constant = self.statusTopSaved + 8
-                
+
         self.needsRefresh = False
-        
+
         f = self.descBox.frame
         self.contentHeightCS.constant = f.origin.y + f.size.height + 75
-    
+
     @objc_method
     def viewWillTransitionToSize_withTransitionCoordinator_(self, size : CGSize, coordinator : ObjCInstance) -> None:
         send_super(__class__, self, 'viewWillTransitionToSize:withTransitionCoordinator:', size, coordinator.ptr, argtypes=[CGSize,objc_id])
@@ -171,7 +175,7 @@ class CoinsDetail(CoinsDetailBase):
             self.autorelease()
         self.retain()
         utils.call_later(0.4, later)
-   
+
     @objc_method
     def onOptions(self) -> None:
         entry = _Get(self)
@@ -201,13 +205,13 @@ class CoinsDetail(CoinsDetailBase):
     @objc_method
     def cpyUTXO(self) -> None:
         gui.ElectrumGui.gui.copy_to_clipboard(str(self.utxo.text), "UTXO")
-        
+
     @objc_method
     def onSpendFrom(self) -> None:
         c = _Get(self)
         if c and c.utxo:
             spend_from([c.utxo])
-        
+
     @objc_method
     def onQRImgTap(self) -> None:
         if not self.qr.image: gui.ElectrumGui.gui.show_error(vc = self, message = "Error, No QR Image")
@@ -239,7 +243,7 @@ class CoinsTableVC(UITableViewController):
         self.title = _("Coins")
         self.selected = []
         self.tabBarItem.image = UIImage.imageNamed_("tab_coins_new")
-      
+
         buts = [
             UIBarButtonItem.alloc().initWithTitle_style_target_action_(_("Spend"), UIBarButtonItemStyleDone, self, SEL(b'spendFromSelection')).autorelease(),
             UIBarButtonItem.alloc().initWithTitle_style_target_action_(_("Clear"), UIBarButtonItemStylePlain, self, SEL(b'clearSelection')).autorelease(),
@@ -252,7 +256,7 @@ class CoinsTableVC(UITableViewController):
         bb = UIBarButtonItem.new().autorelease()
         bb.title = _("Back")
         self.navigationItem.backBarButtonItem = bb
-        
+
         gui.ElectrumGui.gui.sigCoins.connect(lambda: self.refresh(), self)
 
         return self
@@ -284,12 +288,12 @@ class CoinsTableVC(UITableViewController):
         self.tableView.registerNib_forCellReuseIdentifier_(nib, _CellIdentifier[0])
         self.refreshControl = gui.ElectrumGui.gui.helper.createAndBindRefreshControl()
         self.refresh()
-     
+
     @objc_method
     def viewWillDisappear_(self, animated : bool) -> None:
         send_super(__class__, self, 'viewWillDisappear:', animated, argtypes=[c_bool])
         utils.nspy_pop_byname(self, 'HAVE_CELL_ANIM') # remove any extant cell anims
-        
+
     @objc_method
     def numberOfSectionsInTableView_(self, tableView) -> int:
         return 1
@@ -302,9 +306,9 @@ class CoinsTableVC(UITableViewController):
             num = len(coins) if coins else 0
         except:
             print("Error, exception retrieving coins from nspy cache")
-        self.showHideNoCoins_(num > 0)    
+        self.showHideNoCoins_(num > 0)
         return num
-    
+
     @objc_method
     def showHideNoCoins_(self, hide : bool) -> None:
         if not self.noCoins: return
@@ -359,7 +363,7 @@ class CoinsTableVC(UITableViewController):
                 cell.onButton = Block(butTapped)
                 cell.onAccessory = Block(doDetail)
                 self.setupSelectionButtonCell_atIndex_(cell, idx)
-                    
+
             else:
                 empty_cell(cell,_("No coins"),True)
         except Exception as e:
@@ -367,8 +371,8 @@ class CoinsTableVC(UITableViewController):
             cell = UITableViewCell.alloc().initWithStyle_reuseIdentifier_(UITableViewCellStyleSubtitle, _CellIdentifier[-1]).autorelease()
             empty_cell(cell)
         return cell
-        
-        
+
+
     @objc_method
     def tableView_didSelectRowAtIndexPath_(self, tv, indexPath) -> None:
         #print("DID SELECT ROW CALLED FOR ROW %d"%indexPath.row)
@@ -379,7 +383,7 @@ class CoinsTableVC(UITableViewController):
             animated = self.selectDeselectCell_(cell)
 
         tv.deselectRowAtIndexPath_animated_(indexPath, animated)
-        
+
     @objc_method
     def selectDeselectCell_(self, cell : ObjCInstance) -> bool: # returns False IFF it was a frozen address and select/deselect failed
         coins = _Get(self)
@@ -391,7 +395,7 @@ class CoinsTableVC(UITableViewController):
         self.setIndex_selected_(index, wasSel)
 
         self.selected = self.updateSelectionButtons()
-        
+
         # animate to indicate to user why they were DENIED
         if not wasSel and index < len(coins) and coins[index].is_frozen:
             cell.amount.textColorAnimationFromColor_toColor_duration_reverses_completion_(
@@ -406,8 +410,8 @@ class CoinsTableVC(UITableViewController):
             )
             return False
         return True
-        
- 
+
+
     @objc_method
     def tableView_heightForRowAtIndexPath_(self, tv, indexPath) -> float:
         coins = _Get(self)
@@ -416,7 +420,7 @@ class CoinsTableVC(UITableViewController):
             lbl = coins[indexPath.row].label
             return 136.0 if lbl and lbl.strip() else 113.0
         return 44.0
-   
+
     @objc_method
     def refresh(self):
         self.needsRefresh = True # mark that a refresh was called in case refresh is blocked
@@ -435,7 +439,7 @@ class CoinsTableVC(UITableViewController):
             self.refresh()
             #print ("COINS REFRESHED")
 
-            
+
     @objc_method
     def onOptions_(self, obj : ObjCInstance) -> None:
         #print ("On Options But")
@@ -446,7 +450,7 @@ class CoinsTableVC(UITableViewController):
                 pass
             entry = _Get(self)[obj.tag]
             parent = gui.ElectrumGui.gui
-            watch_only = False if parent.wallet and not parent.wallet.is_watching_only() else True
+            watch_only = False if parent.wallet and (not hasattr(parent.wallet, 'is_watching_only') or not parent.wallet.is_watching_only()) else True
             def spend_from2(utxos : list) -> None:
                 validSels = list(self.updateSelectionButtons())
                 coins = _Get(self)
@@ -455,15 +459,15 @@ class CoinsTableVC(UITableViewController):
                         utxos.append(entry.utxo)
                 if utxos:
                     spend_from(utxos)
-     
+
             actions = _BuildGenericOptionsList(entry, self.navigationController)
             if not actions: return
-        
+
             if not watch_only and not entry.is_frozen:
                 if len(list(self.updateSelectionButtons())):
                     actions.insert(-1,[ _('Spend from this UTXO + Selected'), lambda: spend_from2([entry.utxo]) ] )
 
-                    
+
             utils.show_alert(
                 vc = self,
                 title = _("Options"),
@@ -505,7 +509,7 @@ class CoinsTableVC(UITableViewController):
     def clearSelection(self) -> None:
         self.selected = []
         self.refresh()
-        
+
     @objc_method
     def spendFromSelection(self) -> None:
         #print ("spend selected...")
@@ -518,7 +522,7 @@ class CoinsTableVC(UITableViewController):
                 utxos.append(entry.utxo)
         if utxos:
             spend_from(utxos)
-        
+
     @objc_method
     def updateSelectionButtons(self) -> ObjCInstance:
         parent = gui.ElectrumGui.gui
@@ -536,7 +540,7 @@ class CoinsTableVC(UITableViewController):
             if len(sels):
                 self.clearBut.enabled = True
         return ns_from_py(list(newSels))
-    
+
     @objc_method
     def setupSelectionButtonCell_atIndex_(self, cell, index : int) -> bool:
         if not isinstance(cell, CoinsCell):
@@ -551,17 +555,17 @@ class CoinsTableVC(UITableViewController):
                 frozen = True
         except:
             no_good = True
-        
+
         ret = False
-        
+
         if no_good or not self.isIndexSelected_(index):
             cell.buttonSelected = False
         else:
             cell.buttonSelected = True
             ret = True
-            
+
         cell.buttonEnabled = not no_good
-        
+
         return ret
 
 
@@ -580,9 +584,9 @@ def setup_cell_for_coins_entry(cell : ObjCInstance, entry : CoinsEntry) -> None:
     cell.chevronHidden = False
 
     cell.address.linkText = entry.address_str
-    
+
     kern = utils._kern
-    
+
     cell.amountTit.setText_withKerning_(_("Amount"), kern)
     cell.utxoTit.setText_withKerning_(_("UTXO"), kern)
     cell.heightTit.setText_withKerning_(_("Height"), kern)
@@ -610,9 +614,9 @@ def _BuildGenericOptionsList(entry : CoinsEntry, navController : UINavigationCon
         parent.view_on_block_explorer(entry.tx_hash, 'tx')
     def on_request_payment() -> None:
         parent.jump_to_receive_with_address(entry.address)
-    def on_address_details() -> None:                
+    def on_address_details() -> None:
         addrDetail = addresses.PushDetail(entry.address, navController)
-    
+
     actions = [
             [ _('Copy Address'), parent.copy_to_clipboard, entry.address_str, _('Address') ],
             [ _('Copy UTXO'), parent.copy_to_clipboard, entry.name, _('UTXO') ],
@@ -621,18 +625,18 @@ def _BuildGenericOptionsList(entry : CoinsEntry, navController : UINavigationCon
             [ _("Transaction Details"), _ShowTxDetailForEntry, entry, navController],
             [ _("Request payment"), on_request_payment ],
         ]
-    
+
     watch_only = False if parent.wallet and not parent.wallet.is_watching_only() else True
-    
+
     if not watch_only:
         actions.append([ _('Freeze') if not entry.is_frozen else _('Unfreeze'), lambda: toggle_freeze(entry) ])
-    
+
     if not watch_only and not entry.is_frozen:
         actions.append([ _('Spend from this UTXO'), lambda: spend_from([entry.utxo]) ] )
-    
+
     # make sure this is last
     actions.append([ _("View on block explorer"), on_block_explorer ] )
-    
+
     return actions
 
 def _ShowTxDetailForEntry(entry : CoinsEntry, navController : UINavigationController) -> None:
@@ -645,7 +649,7 @@ def _ShowTxDetailForEntry(entry : CoinsEntry, navController : UINavigationContro
     except:
         import sys
         utils.NSLog("coins._ShowTxDetailForEntry got exception: %s",str(sys.exc_info()[1]))
-        return        
+        return
     tx = parent.wallet.transactions.get(entry.tx_hash, None)
     rawtx = None
     if tx is None:
@@ -658,7 +662,7 @@ def _Get(vc : ObjCInstance) -> list:
         return gui.ElectrumGui.gui.sigCoins.get(utils.nspy_get_byname(vc, 'domain'))
     elif isinstance(vc, CoinsDetail):
         # this case returns a bare CoinsEntry (not wrapped in a list)
-        c = utils.nspy_get_byname(vc, 'coin') 
+        c = utils.nspy_get_byname(vc, 'coin')
         if c:
             vc.outputhash = c.name
             utils.nspy_pop_byname(vc, 'coin')
@@ -666,7 +670,7 @@ def _Get(vc : ObjCInstance) -> list:
         elif vc.outputhash:
             return Find(py_from_ns(vc.outputhash))
         utils.NSLog("WARNING: could not find 'coin' for a CoinsDetail. Returning None!")
-        return None 
+        return None
     utils.NSLog("WARNING: coins._Get() received an unknown type as argument. Returning an empty list!")
     return list()
 
@@ -680,9 +684,10 @@ def Find(utxo_name : str) -> CoinsEntry:
 from typing import Any
 class CoinsMgr(utils.DataMgr):
     def doReloadForKey(self, key : Any) -> Any:
-        t0 = time.time()    
+        t0 = time.time()
         c = get_coins(key)
-        utils.NSLog("CoinsMgr: Fetched %d utxo entries [domain=%s] in %f ms", len(c), str(key)[:16], (time.time()-t0)*1e3)
+        elapsed = time.time()-t0
+        utils.NSLog("CoinsMgr: Fetched %d utxo entries [domain=%s] in %f ms", len(c), str(key)[:16], elapsed*1e3)
         return c
 
 def get_coin_counts(domain : list, exclude_frozen : bool = False, mature : bool = False, confirmed_only : bool = False) -> int:
@@ -698,7 +703,7 @@ def get_coin_counts(domain : list, exclude_frozen : bool = False, mature : bool 
 def get_coins(domain : list = None, exclude_frozen : bool = False, mature : bool = False, confirmed_only : bool = False) -> list:
     ''' For a given set of addresses (or None for all addresses), builds a list of
         CoinsEntry tuples:
-        
+
         CoinsEntry = namedtuple("CoinsEntry", "utxo tx_hash address address_str height name label amount amount_str is_frozen is_change base_unit"))
 
     '''
@@ -725,7 +730,7 @@ def get_coins(domain : list = None, exclude_frozen : bool = False, mature : bool
         is_change = wallet.is_change(address)
         entry = CoinsEntry(x, tx_hash, address, address_str, height, name, label, amount, amount_str, is_frozen, is_change, base_unit)
         coins.append(entry)
-    
+
     coins.sort(key=lambda x: [x.address_str, x.amount, x.height], reverse=True)
 
     return coins
@@ -742,7 +747,7 @@ def empty_cell(cell : ObjCInstance, txt : str = "*Error*", italic : bool = False
         cell.onButton = None
         cell.chevronHidden = True
         cell.buttonSelected = False
-    else:        
+    else:
         cell.textLabel.attributedText = None
         cell.textLabel.text = txt
         if italic:

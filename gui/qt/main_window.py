@@ -102,6 +102,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
     cashaddr_toggled_signal = pyqtSignal()
+    history_updated_signal = pyqtSignal()
 
     def __init__(self, gui_object, wallet):
         QMainWindow.__init__(self)
@@ -128,6 +129,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.externalpluginsdialog = None
         self.require_fee_update = False
         self.tx_notifications = []
+        self.tx_notify_timer = None
         self.tl_windows = []
         self.tx_external_keypairs = {}
 
@@ -216,12 +218,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.connect_slots(gui_object.timer)
         self.fetch_alias()
 
-    last_update_time = time.time()
-
     def on_history(self, b):
-        if time.time() - self.last_update_time > 1.0:
-            self.last_update_time = time.time()
-            self.new_fx_history_signal.emit()
+        self.new_fx_history_signal.emit()
 
     def setup_exception_hook(self):
         Exception_Hook(self)
@@ -230,6 +228,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.history_list.refresh_headers()
         self.history_list.update()
         self.address_list.update()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
 
     def on_quotes(self, b):
         self.new_fx_quotes_signal.emit()
@@ -244,6 +243,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # History tab needs updating if it used spot
         if self.fx.history_used_spot:
             self.history_list.update()
+            self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
 
     def toggle_tab(self, tab):
         show = not self.config.get('show_{}_tab'.format(tab.tab_name), False)
@@ -313,8 +313,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 .emit(event, args)
 
         elif event == 'new_transaction':
-            self.tx_notifications.append(args[0])
-            self.notify_transactions_signal.emit()
+            tx, wallet = args
+            if wallet == self.wallet: # filter out tx's not for this wallet
+                self.tx_notifications.append(tx)
+                self.notify_transactions_signal.emit()
         elif event in ['status', 'banner', 'verified', 'fee']:
             # Handle in GUI thread
             self.network_signal.emit(event, args)
@@ -376,6 +378,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             self.show()
         self.watching_only_changed()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
         run_hook('load_wallet', wallet, self)
 
     def init_geometry(self):
@@ -459,7 +462,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if filename in recent:
             recent.remove(filename)
         recent.insert(0, filename)
-        recent = recent[:5]
+        recent2 = []
+        for k in recent:
+            if os.path.exists(k):
+                recent2.append(k)
+        recent = recent2[:5]
         self.config.set_key('recently_open', recent)
         self.recently_visited_menu.clear()
         for i, k in enumerate(sorted(recent)):
@@ -596,35 +603,54 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
          ])
         self.show_message(msg, title="Electron Cash - " + _("Reporting Bugs"))
 
-    last_notify_transactions_time = time.time()
+    last_notify_tx_time = 0.0
+    notify_tx_rate = 30.0
 
-    def notify_transactions(self):
-        if not self.network or not self.network.is_connected():
-            return
-        if self.last_notify_transactions_time < 45.0:
-            return
-        self.last_notify_transactions_time = time.time()
-
-        self.print_error("Notifying GUI")
-        if len(self.tx_notifications) > 0:
-            # Combine the transactions if there are at least three
+    def notify_tx_cb(self):
+        n_ok = 0
+        if self.network and self.network.is_connected() and self.wallet:
             num_txns = len(self.tx_notifications)
-            if num_txns >= 3:
+            if num_txns:
+                # Combine the transactions
                 total_amount = 0
                 for tx in self.tx_notifications:
-                    is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                    if v > 0:
-                        total_amount += v
-                self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
-                            .format(num_txns, self.format_amount_and_units(total_amount)))
-                self.tx_notifications = []
-            else:
-                for tx in self.tx_notifications:
                     if tx:
-                        self.tx_notifications.remove(tx)
                         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                        if v > 0:
-                            self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))
+                        if v > 0 and is_relevant:
+                            total_amount += v
+                            n_ok += 1
+                if n_ok:
+                    self.print_error("Notifying GUI %d tx"%(n_ok))
+                    if n_ok > 1:
+                        self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
+                                    .format(n_ok, self.format_amount_and_units(total_amount)))
+                    else:
+                        self.notify(_("New transaction received: {}").format(self.format_amount_and_units(total_amount)))
+        self.tx_notifications = list()
+        self.last_notify_tx_time = time.time() if n_ok else self.last_notify_tx_time
+        if self.tx_notify_timer:
+            self.tx_notify_timer.stop()
+            self.tx_notify_timer = None
+
+
+    def notify_transactions(self):
+        if self.tx_notify_timer or not len(self.tx_notifications) or self.cleaned_up:
+            # common case: extant notify timer -- we already enqueued to notify. So bail and wait for timer to handle it.
+            return
+        elapsed = time.time() - self.last_notify_tx_time
+        if elapsed < self.notify_tx_rate:
+            # spam control. force tx notify popup to not appear more often than every 30 seconds by enqueing the request for a timer to
+            # handle it sometime later
+            self.tx_notify_timer = QTimer(self)
+            self.tx_notify_timer.setSingleShot(True)
+            self.tx_notify_timer.timeout.connect(self.notify_tx_cb)
+            when = (self.notify_tx_rate - elapsed)
+            self.print_error("Notify spam control: will notify GUI of %d new tx's in %f seconds"%(len(self.tx_notifications),when))
+            self.tx_notify_timer.start(when * 1e3) # time in ms
+        else:
+            # it's been a while since we got a tx notify -- so do it immediately (no timer necessary)
+            self.notify_tx_cb()
+
 
     def notify(self, message):
         if self.tray:
@@ -660,9 +686,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.need_update.is_set():
             self.need_update.clear()
             self.update_wallet()
-        elif time.time() - self.last_update_time > 1.0:
-            self.last_update_time = time.time()
-            self.on_fx_history()
 
         # resolve aliases
         # FIXME this is a blocking network call that has a timeout of 5 sec
@@ -793,6 +816,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.contact_list.update()
         self.invoice_list.update()
         self.update_completions()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
 
     def create_history_tab(self):
         from .history_list import HistoryList
@@ -1797,6 +1821,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.wallet.delete_address(addr)
             self.address_list.update()
             self.history_list.update()
+            self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
             self.clear_receive_tab()
 
     def get_coins(self, isInvoice = False):
@@ -1840,6 +1865,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.contacts[address] = ('address', label)
         self.contact_list.update()
         self.history_list.update()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
         self.update_completions()
         return True
 
@@ -1850,6 +1876,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         for label in labels:
             self.contacts.pop(label)
         self.history_list.update()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
         self.contact_list.update()
         self.update_completions()
 
@@ -1889,6 +1916,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if self.question(_('Delete invoice?')):
                 self.invoices.remove(key)
                 self.history_list.update()
+                self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
                 self.invoice_list.update()
                 d.close()
         deleteButton = EnterButton(_('Delete'), do_delete)
@@ -2077,6 +2105,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.gui_object.daemon.stop_wallet(wallet_path)
         self.close()
         os.unlink(wallet_path)
+        self.update_recently_visited(wallet_path) # this ensures it's deleted from the menu
         self.show_error("Wallet removed:" + basename)
 
     @protected
@@ -2493,6 +2522,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_critical(_("Electron Cash was unable to import your labels.") + "\n" + str(reason))
         self.address_list.update()
         self.history_list.update()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
 
     def do_export_labels(self):
         labels = self.wallet.labels
@@ -2636,6 +2666,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_critical(_("The following inputs could not be imported") + ':\n'+ '\n'.join(bad))
         self.address_list.update()
         self.history_list.update()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
 
     def import_addresses(self):
         if not self.wallet.can_import_address():
@@ -2660,6 +2691,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fiat_receive_e.setVisible(b)
         self.history_list.refresh_headers()
         self.history_list.update()
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
         self.address_list.refresh_headers()
         self.address_list.update()
         self.update_status()
@@ -2745,6 +2777,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.num_zeros = value
                 self.config.set_key('num_zeros', value, True)
                 self.history_list.update()
+                self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
                 self.address_list.update()
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
@@ -2846,6 +2879,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.config.set_key('decimal_point', self.decimal_point, True)
             nz.setMaximum(self.decimal_point)
             self.history_list.update()
+            self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
             self.request_list.update()
             self.address_list.update()
             for edit, amount in zip(edits, amounts):
@@ -3074,6 +3108,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.wallet.thread.stop()
         if self.network:
             self.network.unregister_callback(self.on_network)
+
+        if self.tx_notify_timer:
+            self.tx_notify_timer.stop()
+            self.tx_notify_timer = None
 
         # We catch these errors with the understanding that there is no recovery at
         # this point, given user has likely performed an action we cannot recover

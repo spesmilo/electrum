@@ -45,6 +45,7 @@ languages = {
     'eo_UY':_('Esperanto'),
     'el_GR':_('Greek'),
     'en_UK':_('English'),
+    'es_AR':_('Spanish (S. America)'),
     'es_ES':_('Spanish'),
     'fr_FR':_('French'),
     'hu_HU':_('Hungarian'),
