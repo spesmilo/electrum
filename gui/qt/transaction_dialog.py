@@ -296,8 +296,14 @@ class TxDialog(QDialog, MessageBoxMixin):
         o_text.clear()
         cursor = o_text.textCursor()
         for addr, v in self.tx.get_outputs():
-            cursor.insertText(addr.to_ui_string(), text_format(addr))
+            addrstr = addr.to_ui_string()
+            cursor.insertText(addrstr, text_format(addr))
             if v is not None:
-                cursor.insertText('\t', ext)
+                if len(addrstr) > 42: # for long outputs, make a linebreak.
+                    cursor.insertBlock()
+                    addrstr = '\u21b3'
+                    cursor.insertText(addrstr, ext)
+                # insert enough spaces until column 43, to line up amounts
+                cursor.insertText(' '*(43 - len(addrstr)), ext)
                 cursor.insertText(format_amount(v), ext)
             cursor.insertBlock()
