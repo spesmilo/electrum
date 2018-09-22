@@ -218,14 +218,19 @@ abstract class PasswordDialog : AlertDialogFragment() {
     }
 
     override fun onShowDialog(dialog: AlertDialog) {
-        getSystemService(InputMethodManager::class)
-            .showSoftInput(dialog.etPassword, InputMethodManager.SHOW_IMPLICIT)
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+        val posButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+        posButton.setOnClickListener {
             try {
                 tryPassword(dialog.etPassword.text.toString())
             } catch (e: ToastException) {
                 e.show()
             }
+        }
+
+        getSystemService(InputMethodManager::class)
+            .showSoftInput(dialog.etPassword, InputMethodManager.SHOW_IMPLICIT)
+        dialog.etPassword.setOnEditorActionListener { _, _, _ ->
+            posButton.performClick()
         }
     }
 
