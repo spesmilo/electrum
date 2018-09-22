@@ -88,7 +88,7 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
                 }
             }
         }
-        onCallback("ui_startup")  // Set initial LiveData values.
+        onCallback("ui_create")  // Set initial LiveData values.
     }
 
     // This will sometimes be called on the main thread and sometimes on the network thread.

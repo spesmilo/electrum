@@ -3,6 +3,12 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/menuRefresh"
+        android:icon="@drawable/ic_refresh_black_24dp"
+        android:title="@string/refresh"
+        app:showAsAction="ifRoom|withText"/>
+
+    <item
         android:id="@+id/menuClose"
         android:icon="@drawable/ic_menu_close_24dp"
         android:title="@string/close_wallet"

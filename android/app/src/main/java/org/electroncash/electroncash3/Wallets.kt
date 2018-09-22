@@ -54,6 +54,7 @@ class WalletsFragment : MainFragment() {
         when (item.itemId) {
             R.id.menuShowSeed-> showDialog(activity!!, ShowSeedPasswordDialog())
             R.id.menuDelete -> showDialog(activity!!, DeleteWalletDialog())
+            R.id.menuRefresh -> daemonModel.onCallback("ui_refresh")
             R.id.menuClose -> daemonModel.commands.callAttr("close_wallet")
             else -> throw Exception("Unknown item $item")
         }
@@ -176,7 +177,7 @@ class NewSeedDialog : SeedDialog() {
         super.onShowDialog(dialog)
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
-                val name = arguments!!.getString("name")
+                val name = arguments!!.getString("name")!!
                 val password = arguments!!.getString("password")
                 val seed = dialog.etSeed.text.toString()
                 try {
@@ -255,7 +256,7 @@ abstract class PasswordDialog : AlertDialogFragment() {
 
 class OpenWalletDialog: PasswordDialog() {
     override fun onPassword(password: String?) {
-        daemonModel.loadWallet(arguments!!.getString("walletName"), password)
+        daemonModel.loadWallet(arguments!!.getString("walletName")!!, password)
     }
 }
 

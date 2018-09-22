@@ -88,7 +88,7 @@ class SendDialog : AlertDialogFragment(), View.OnClickListener {
 
 class SendPasswordDialog : PasswordDialog() {
     override fun onPassword(password: String?) {
-        val tx = daemonModel.makeTx(arguments!!.getString("address"),
+        val tx = daemonModel.makeTx(arguments!!.getString("address")!!,
                                     arguments!!.getLong("amount"), password)
         if (daemonModel.netStatus.value == null) {
             throw ToastException(getString(R.string.offline) + "\n" +
