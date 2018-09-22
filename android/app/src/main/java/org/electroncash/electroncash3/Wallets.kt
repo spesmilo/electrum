@@ -1,5 +1,6 @@
 package org.electroncash.electroncash3
 
+import android.app.Dialog
 import android.arch.lifecycle.Observer
 import android.content.DialogInterface
 import android.os.Bundle
@@ -217,6 +218,12 @@ abstract class PasswordDialog : AlertDialogFragment() {
             .setNegativeButton(android.R.string.cancel, null)
     }
 
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        val dialog = super.onCreateDialog(savedInstanceState)
+        dialog.window!!.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+        return dialog
+    }
+
     override fun onShowDialog(dialog: AlertDialog) {
         val posButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
         posButton.setOnClickListener {
@@ -226,9 +233,6 @@ abstract class PasswordDialog : AlertDialogFragment() {
                 e.show()
             }
         }
-
-        getSystemService(InputMethodManager::class)
-            .showSoftInput(dialog.etPassword, InputMethodManager.SHOW_IMPLICIT)
         dialog.etPassword.setOnEditorActionListener { _, _, _ ->
             posButton.performClick()
         }
