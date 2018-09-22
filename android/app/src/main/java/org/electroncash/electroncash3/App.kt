@@ -37,9 +37,9 @@ class App : Application() {
         mainHandler = Handler()
 
         if (Build.VERSION.SDK_INT >= 26) {
-            val channel = NotificationChannel(DEFAULT_CHANNEL, "Default", NotificationManager.IMPORTANCE_DEFAULT)
-            (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-                .createNotificationChannel(channel)
+            getSystemService(NotificationManager::class).createNotificationChannel(
+                NotificationChannel(DEFAULT_CHANNEL, "Default",
+                                    NotificationManager.IMPORTANCE_DEFAULT))
         }
     }
 

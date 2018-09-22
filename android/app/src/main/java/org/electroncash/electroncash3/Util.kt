@@ -1,5 +1,8 @@
 package org.electroncash.electroncash3
 
+import android.app.NotificationManager
+import android.content.ClipboardManager
+import android.content.Context
 import android.databinding.DataBindingUtil
 import android.databinding.ViewDataBinding
 import android.support.v4.app.DialogFragment
@@ -8,6 +11,7 @@ import android.support.v4.content.ContextCompat
 import android.support.v7.widget.RecyclerView
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import kotlin.reflect.KClass
 
@@ -76,8 +80,17 @@ fun toast(resId: Int, duration: Int = Toast.LENGTH_SHORT, key: String? = null) {
 }
 
 
+val SERVICES = mapOf(
+    ClipboardManager::class to Context.CLIPBOARD_SERVICE,
+    InputMethodManager::class to Context.INPUT_METHOD_SERVICE,
+    NotificationManager::class to Context.NOTIFICATION_SERVICE
+)
+
 fun <T: Any> getSystemService(kcls: KClass<T>): T {
-    return ContextCompat.getSystemService(app, kcls.java)!!
+    // TODO: do this once we move to support library version 28 (28.0.0-rc02 breaks the layout
+    // editor in Android Studio 3.1):
+    // return ContextCompat.getSystemService(app, kcls.java)!!
+    return app.getSystemService(SERVICES.get(kcls)!!) as T
 }
 
 
