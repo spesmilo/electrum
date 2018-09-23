@@ -93,8 +93,6 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         self.add_io(vbox)
 
-        vbox.addStretch(1)
-
         self.sign_button = b = QPushButton(_("Sign"))
         b.clicked.connect(self.sign)
 
@@ -249,14 +247,12 @@ class TxDialog(QDialog, MessageBoxMixin):
         i_text = QTextEdit()
         i_text.setFont(QFont(MONOSPACE_FONT))
         i_text.setReadOnly(True)
-        i_text.setMaximumHeight(100)
 
         vbox.addWidget(i_text)
         vbox.addWidget(QLabel(_("Outputs") + ' (%d)'%len(self.tx.outputs())))
         o_text = QTextEdit()
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)
-        o_text.setMaximumHeight(100)
         vbox.addWidget(o_text)
         self.main_window.cashaddr_toggled_signal.connect(
             partial(self.update_io, i_text, o_text))
