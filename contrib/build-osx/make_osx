@@ -21,7 +21,8 @@ VERSION=`git describe --tags`
 PYTHON_VERSION=3.6.4
 BUILDDIR=/tmp/electron-cash-build
 PACKAGE=Electron-Cash
-GIT_REPO=https://github.com/fyookball/electrum
+GIT_REPO_ACCT=http://github.com/Electron-Cash
+GIT_REPO=$GIT_REPO_ACCT/Electron-Cash
 
 
 info "Installing Python $PYTHON_VERSION"
@@ -53,7 +54,7 @@ mkdir $BUILDDIR
 
 info "Downloading icons..."
 for repo in icons; do
-  git clone $GIT_REPO-$repo $BUILDDIR/electrum-$repo
+  git clone $GIT_REPO_ACCT/electrum-$repo $BUILDDIR/electrum-$repo
 done
 
 cp    $BUILDDIR/electrum-icons/icons_rc.py ./gui/qt/

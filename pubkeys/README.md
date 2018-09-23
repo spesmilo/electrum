@@ -6,7 +6,7 @@ PLEASE NOTE: sha256sum is known as gsha256sum in MACOS
 
     cd Downloads
 
-    wget https://raw.githubusercontent.com/fyookball/keys-n-hashes/master/sigs-and-sums/3.1/mac/SHA256.Electron-Cash-3.1-macosx.dmg.txt
+    wget https://raw.githubusercontent.com/Electron-Cash/keys-n-hashes/master/sigs-and-sums/3.1/mac/SHA256.Electron-Cash-3.1-macosx.dmg.txt
 
 Compare the file hashes
 
@@ -22,7 +22,7 @@ If the hashes do not match, then there was a problem with either the download or
 
 Download the SHA256SUMS files
 
-    wget https://raw.githubusercontent.com/fyookball/keys-n-hashes/master/sigs-and-sums/3.1/mac/SHA256.Electron-Cash-3.1-macosx.dmg.txt
+    wget https://raw.githubusercontent.com/Electron-Cash/keys-n-hashes/master/sigs-and-sums/3.1/mac/SHA256.Electron-Cash-3.1-macosx.dmg.txt
     
 View the SHA256SUMS file
 
@@ -54,7 +54,7 @@ When both hashes match exactly then the downloaded file is almost certainly inta
 
 2. Download the public key of the person/institution you want to verify. For TrueCrypt, their public key is available here.
 
-        wget https://raw.githubusercontent.com/fyookball/keys-n-hashes/master/pubkeys/calinkey.txt
+        wget https://raw.githubusercontent.com/Electron-Cash/keys-n-hashes/master/pubkeys/calinkey.txt
 
 3. Import the person’s public key into your key ring
 
@@ -83,7 +83,7 @@ When both hashes match exactly then the downloaded file is almost certainly inta
 
 6. Download the corresponding signature file
 
-        wget https://github.com/fyookball/keys-n-hashes/raw/master/sigs-and-sums/3.1/mac/Electron-Cash-3.1-macosx.dmg.sig
+        wget https://github.com/Electron-Cash/keys-n-hashes/raw/master/sigs-and-sums/3.1/mac/Electron-Cash-3.1-macosx.dmg.sig
         
 7. Now you can verify the signature of the file you downloaded
 

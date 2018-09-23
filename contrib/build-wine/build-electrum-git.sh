@@ -19,15 +19,15 @@ set -e
 cd tmp
 
 
-for repo in electrum; do
+for repo in Electron-Cash; do
     if [ -d $repo ]; then
 	cd $repo
 	git pull
 	git checkout 3.3.1
 	cd ..
     else
-	URL=https://github.com/fyookball/$repo.git
-	git clone -b master $URL $repo
+	URL=https://github.com/Electron-Cash/$repo
+	git clone -b master $URL electrum # rest of script assumes the dir is called 'electrum'
     fi
 done
 
@@ -39,7 +39,7 @@ for repo in electrum-locale electrum-icons; do
 	git checkout master
 	cd ..
     else
-	URL=https://github.com/fyookball/$repo.git
+	URL=https://github.com/Electron-Cash/$repo
 	git clone -b master $URL $repo
     fi
 done

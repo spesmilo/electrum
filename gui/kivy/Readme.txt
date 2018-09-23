@@ -17,9 +17,9 @@ Building instructions for Ubuntu 16.04 x86_64::
   sudo apt-get install build-essential ccache git libncurses5:i386 libstdc++6:i386 libgtk2.0-0:i386 libpangox-1.0-0:i386 libpangoxft-1.0-0:i386 libidn11:i386 openjdk-8-jdk unzip zlib1g-dev zlib1g:i386
   sudo apt-get install python3-kivy python3-pip
   pip3 install -U --user pip cython
-  pip3 install -U --user git+https://github.com/fyookball/buildozer@ec3
-  git clone -b ec3 --single-branch https://github.com/fyookball/python-for-android.git ~/Downloads/python-for-android
-  git clone https://github.com/fyookball/electrum.git electron-cash
+  pip3 install -U --user git+https://github.com/Electron-Cash/buildozer@ec3
+  git clone -b ec3 --single-branch https://github.com/Electron-Cash/python-for-android.git ~/Downloads/python-for-android
+  git clone http://github.com/Electron-Cash/Electron-Cash electron-cash
   cd electron-cash
   cd gui/kivy
   make theming
