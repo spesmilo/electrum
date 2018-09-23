@@ -89,7 +89,7 @@ class LNChanAnnVerifier(ThreadJob):
             if header is None:
                 index = block_height // 2016
                 if index < len(blockchain.checkpoints):
-                    await tg.spawn(self.network.request_chunk(interface, index))
+                    await tg.spawn(self.network.request_chunk(block_height, None, can_return_early=True))
                 continue
             await tg.spawn(self.verify_channel(block_height, tx_pos, short_channel_id))
             #self.print_error('requested short_channel_id', bh2u(short_channel_id))
