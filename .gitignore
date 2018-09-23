@@ -24,6 +24,7 @@ bin/
 
 # MacOSX
 .DS_Store/
+.DS_Store
 icons/.DS_Store/
 
 # IntelliJ Pycharm IDE
