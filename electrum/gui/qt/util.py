@@ -10,7 +10,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
-from electrum.i18n import _
+from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
 
@@ -810,6 +810,11 @@ class IconCache:
         if file_name not in self.__cache:
             self.__cache[file_name] = QIcon(file_name)
         return self.__cache[file_name]
+
+
+def get_default_language():
+    name = QLocale.system().name()
+    return name if name in languages else 'en_UK'
 
 
 if __name__ == "__main__":
