@@ -64,6 +64,7 @@ from .interface import NetworkException
 from .ecc_fast import is_using_fast_ecc
 from .mnemonic import Mnemonic
 from .logging import get_logger
+from .lnworker import LNWorker
 
 if TYPE_CHECKING:
     from .network import Network
@@ -245,6 +246,10 @@ class Abstract_Wallet(AddressSynchronizer):
     def clear_history(self):
         super().clear_history()
         self.storage.write()
+
+    def start_network(self, network):
+        AddressSynchronizer.start_network(self, network)
+        self.lnworker = LNWorker(self, network)
 
     def load_and_cleanup(self):
         self.load_keystore()
