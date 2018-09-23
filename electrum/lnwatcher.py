@@ -141,7 +141,7 @@ class LNWatcher(PrintError):
     def watch_address(self, addr):
         with self.lock:
             self.watched_addresses.add(addr)
-            self.addr_sync.synchronizer.add(addr)
+            self.addr_sync.add_address(addr)
 
     async def check_onchain_situation(self, funding_outpoint):
         ctx_candidate_txid = self.addr_sync.spent_outpoints[funding_outpoint.txid].get(funding_outpoint.output_index)
