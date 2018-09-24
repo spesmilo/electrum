@@ -922,6 +922,7 @@ class Peer(PrintError):
 
     def revoke(self, m):
         rev, _ = m.revoke_current_commitment()
+        self.lnworker.save_channel(chan)
         self.send_message(gen_msg("revoke_and_ack",
             channel_id=m.channel_id,
             per_commitment_secret=rev.per_commitment_secret,
