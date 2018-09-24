@@ -795,6 +795,10 @@ class Commands:
         self.network.config.fee_estimates = ast.literal_eval(fees)
         self.network.notify('fee')
 
+    @command('n')
+    def clear_ln_blacklist(self):
+        self.network.path_finder.blacklist.clear()
+
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
     if x == 'true': return True
