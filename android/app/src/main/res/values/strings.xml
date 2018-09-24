@@ -75,4 +75,5 @@
     <string name="synchronizing">Synchronizing</string>
     <string name="please_wait">Please wait</string>
     <string name="not_connected">Not connected</string>
+    <string name="generating_your">Generating your addresses...</string>
 </resources>

@@ -89,7 +89,7 @@ class WalletsFragment : MainFragment() {
             layoutManager = LinearLayoutManager(activity)
             addItemDecoration(DividerItemDecoration(context, DividerItemDecoration.VERTICAL))
         }
-        daemonModel.walletTransactions.observe(this, Observer {
+        daemonModel.transactions.observe(this, Observer {
             rvTransactions.adapter = if (it == null) null else TransactionsAdapter(it)
         })
 

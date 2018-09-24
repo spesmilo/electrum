@@ -40,7 +40,8 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     val netStatus = MutableLiveData<NetworkStatus>()
     val walletName = MutableLiveData<String>()
     val walletBalance = MutableLiveData<Long>()
-    val walletTransactions = MutableLiveData<PyObject>()
+    val transactions = MutableLiveData<PyObject>()
+    val addresses = MutableLiveData<PyObject>()
 
     init {
         checkAcra()
@@ -81,9 +82,10 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
                 } else {
                     walletBalance.value = null
                 }
-                walletTransactions.value = wallet.callAttr("export_history")
+                transactions.value = wallet.callAttr("export_history")
+                addresses.value = modAddresses.callAttr("get_addresses", wallet)
             } else {
-                for (ld in listOf(walletName, walletBalance, walletTransactions)) {
+                for (ld in listOf(walletName, walletBalance, transactions, addresses)) {
                     ld.value = null
                 }
             }

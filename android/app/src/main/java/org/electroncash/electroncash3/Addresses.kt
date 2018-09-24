@@ -2,7 +2,6 @@ package org.electroncash.electroncash3
 
 import android.arch.lifecycle.Observer
 import android.content.ClipboardManager
-import android.content.Context
 import android.os.Bundle
 import android.support.v7.widget.DividerItemDecoration
 import android.support.v7.widget.LinearLayoutManager
@@ -20,10 +19,6 @@ class AddressesFragment : MainFragment() {
         super.onCreate(savedInstanceState)
         setHasOptionsMenu(true)
         title.value = getString(R.string.addresses)
-        daemonModel.walletName.observe(this, Observer {
-            subtitle.value = getString(if (it == null) R.string.no_wallet
-                                       else R.string.touch_to_copy)
-        })
     }
 
     override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
@@ -58,11 +53,16 @@ class AddressesFragment : MainFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         rvAddresses.layoutManager = LinearLayoutManager(activity)
         rvAddresses.addItemDecoration(DividerItemDecoration(context, DividerItemDecoration.VERTICAL))
-        daemonModel.walletName.observe(this, Observer {
-            val wallet = daemonModel.wallet
+        daemonModel.addresses.observe(this, Observer { addresses ->
             rvAddresses.adapter =
-                if (wallet == null) null
-                else AddressesAdapter(wallet, modAddresses.callAttr("get_addresses", wallet))
+                if (addresses == null) null
+                else AddressesAdapter(daemonModel.wallet!!, addresses)
+
+            subtitle.value = getString(when {
+                addresses == null -> R.string.no_wallet
+                rvAddresses.adapter.itemCount == 0 -> R.string.generating_your
+                else -> R.string.touch_to_copy
+            })
         })
     }
 }
