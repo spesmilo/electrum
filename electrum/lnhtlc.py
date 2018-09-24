@@ -159,6 +159,7 @@ class HTLCStateMachine(PrintError):
         self.funding_outpoint = Outpoint(**decodeAll(state["funding_outpoint"])) if type(state["funding_outpoint"]) is not Outpoint else state["funding_outpoint"]
         self.node_id = maybeDecode("node_id", state["node_id"]) if type(state["node_id"]) is not bytes else state["node_id"]
         self.short_channel_id = maybeDecode("short_channel_id", state["short_channel_id"]) if type(state["short_channel_id"]) is not bytes else state["short_channel_id"]
+        self.onion_keys = {int(k): bfh(v) for k,v in state['onion_keys'].items()} if 'onion_keys' in state else {}
 
         # FIXME this is a tx serialised in the custom electrum partial tx format.
         # we should not persist txns in this format. we should persist htlcs, and be able to derive
@@ -689,6 +690,7 @@ class HTLCStateMachine(PrintError):
                 "remote_log": [(type(x).__name__, x) for x in self.log[REMOTE]],
                 "local_log": [(type(x).__name__, x) for x in self.log[LOCAL]],
                 "fee_updates": [x.to_save() for x in self.fee_mgr],
+                "onion_keys": {str(k): bh2u(v) for k, v in self.onion_keys.items()},
         }
 
     def serialize(self):
