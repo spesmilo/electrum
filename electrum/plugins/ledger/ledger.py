@@ -349,7 +349,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
             for i, x_pubkey in enumerate(x_pubkeys):
                 if x_pubkey in derivations:
                     signingPos = i
-                    s = derivations.get(x_pubkey)
+                    s, _ = derivations.get(x_pubkey)
                     hwAddress = "%s/%d/%d" % (self.get_derivation()[2:], s[0], s[1])
                     break
             else:

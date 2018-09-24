@@ -299,7 +299,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
         # Go through all contracts and no contract to find the
         # private key that corresponds to the address in our wallet
-        pk, compressed = self.get_tweaked_private_key(address, index, password, self.contracts)
+        pk, compressed = self.get_tweaked_private_key(address, index, password)
 
         txin_type = self.get_txin_type(address)
         redeem_script = self.get_redeem_script(address)
@@ -819,8 +819,8 @@ class Abstract_Wallet(AddressSynchronizer):
                     k.check_password(password)
                     # Add private keys
                     keypairs = k.get_tx_derivations(tx)
-                    for x_pubkey, derivation in keypairs.items():
-                        keypairs[x_pubkey] = self.get_tweaked_private_key(xpubkey_to_address(x_pubkey)[1], derivation, password, self.contracts)
+                    for x_pubkey, (derivation, address) in keypairs.items():
+                        keypairs[x_pubkey] = self.get_tweaked_private_key(address, derivation, password)
                     k.sign_transaction(tx, keypairs)
             except UserCancelled:
                 continue
@@ -1079,8 +1079,8 @@ class Abstract_Wallet(AddressSynchronizer):
 
         self.storage.write()
 
-    def get_tweaked_private_key(self, address, sequence, password, contracts):
-        for contract_hash in contracts + [None]:
+    def get_tweaked_private_key(self, address, sequence, password):
+        for contract_hash in self.contracts + [None]:
             pk, compressed = self.keystore.get_private_key(sequence, password, contract_hash)
             pubkey_from_priv = ecc.ECPrivkey(pk).get_public_key_hex(compressed=compressed)
             if address == self.pubkeys_to_address(pubkey_from_priv):
@@ -1092,15 +1092,23 @@ class Abstract_Wallet(AddressSynchronizer):
         raise WalletFileException('Private key not found. The corresponding '
             'address might have been derived without tweaking or incorrect tweaking.')
 
+    def get_tweaked_public_key(self, address, pubkey):
+        for contract_hash in self.contracts + [None]:
+            tweaked_pubkey = self.tweak_pubkeys(pubkey, contract_hash)
+            if address == self.pubkeys_to_address(tweaked_pubkey):
+                return tweaked_pubkey
+        raise WalletFileException('Public key not found. The corresponding '
+        'address might have been derived without tweaking or incorrect tweaking.')
+
     def sign_message(self, address, message, password):
         index = self.get_address_index(address)
-        priv, compressed = self.get_tweaked_private_key(address, index, password, self.contracts)
+        priv, compressed = self.get_tweaked_private_key(address, index, password)
         return self.keystore.sign_message(priv, compressed, message)
 
     def decrypt_message(self, pubkey, message, password):
         addr = self.pubkeys_to_address(pubkey)
         index = self.get_address_index(addr)
-        priv, compressed = self.get_tweaked_private_key(address, index, password, self.contracts)
+        priv, compressed = self.get_tweaked_private_key(address, index, password)
         return self.keystore.decrypt_message(priv, compressed, message)
 
     def get_depending_transactions(self, tx_hash):
@@ -1521,8 +1529,8 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
 
     def get_public_key(self, address):
         sequence = self.get_address_index(address)
-        pubkey = self.get_pubkey(*sequence)
-        return pubkey
+        pubkey = self.derive_pubkeys(*sequence)
+        return self.get_tweaked_public_key(address, pubkey)
 
     def load_keystore(self):
         self.keystore = load_keystore(self.storage, 'keystore')
@@ -1532,12 +1540,12 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
             xtype = 'standard'
         self.txin_type = 'p2pkh' if xtype == 'standard' else xtype
 
-    def get_pubkey(self, c, i):
-        return self.derive_pubkeys(c, i)
-
     def add_input_sig_info(self, txin, address):
         derivation = self.get_address_index(address)
         x_pubkey = self.keystore.get_xpubkey(*derivation)
+        # Get pubkey derived with the correct contract tweak
+        pubkey = self.get_public_key(address)
+        txin['pubkeys'] = [pubkey]
         txin['x_pubkeys'] = [x_pubkey]
         txin['signatures'] = [None]
         txin['num_sig'] = 1
@@ -1571,12 +1579,13 @@ class Multisig_Wallet(Deterministic_Wallet):
         self.m, self.n = multisig_type(self.wallet_type)
         Deterministic_Wallet.__init__(self, storage)
 
-    def get_pubkeys(self, c, i):
-        return self.derive_pubkeys(c, i)
-
     def get_public_keys(self, address):
         sequence = self.get_address_index(address)
-        return self.get_pubkeys(*sequence)
+        pubkeys = self.derive_pubkeys(*sequence)
+        tweaked_pubkeys = []
+        for pubkey in pubkeys:
+            tweaked_pubkeys.append(self.get_tweaked_public_key(address, pubkey))
+        return tweaked_pubkeys
 
     def pubkeys_to_address(self, pubkeys):
         redeem_script = self.pubkeys_to_redeem_script(pubkeys)
@@ -1660,8 +1669,9 @@ class Multisig_Wallet(Deterministic_Wallet):
         # otherwise we might delete signatures
         if x_pubkeys_actual and set(x_pubkeys_actual) == set(x_pubkeys_expected):
             return
+        pubkeys = self.get_public_keys(address)
         txin['x_pubkeys'] = x_pubkeys_expected
-        txin['pubkeys'] = None
+        txin['pubkeys'] = pubkeys
         # we need n place holders
         txin['signatures'] = [None] * self.n
         txin['num_sig'] = self.m

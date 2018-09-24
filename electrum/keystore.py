@@ -69,7 +69,7 @@ class KeyStore(PrintError):
                 derivation = self.get_pubkey_derivation(x_pubkey)
                 if not derivation:
                     continue
-                keypairs[x_pubkey] = derivation
+                keypairs[x_pubkey] = (derivation, txin['address'])
         return keypairs
 
     def can_sign(self, tx):
