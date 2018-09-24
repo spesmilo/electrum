@@ -710,6 +710,10 @@ class Commands:
         self.network.config.fee_estimates = ast.literal_eval(fees)
         self.network.notify('fee')
 
+    @command('n')
+    def clear_ln_blacklist(self):
+        self.network.path_finder.blacklist.clear()
+
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',
     'destination': 'Bitcoin address, contact or alias',
