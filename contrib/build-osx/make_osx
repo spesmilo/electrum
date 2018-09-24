@@ -21,7 +21,7 @@ VERSION=`git describe --tags`
 PYTHON_VERSION=3.6.4
 BUILDDIR=/tmp/electron-cash-build
 PACKAGE=Electron-Cash
-GIT_REPO_ACCT=http://github.com/Electron-Cash
+GIT_REPO_ACCT=https://github.com/Electron-Cash
 GIT_REPO=$GIT_REPO_ACCT/Electron-Cash
 
 

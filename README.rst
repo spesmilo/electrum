@@ -51,7 +51,7 @@ Development version
 
 Check out the code from Github::
 
-    git clone http://github.com/Electron-Cash/Electron-Cash
+    git clone https://github.com/Electron-Cash/Electron-Cash
     cd Electron-Cash
 
 Run install (this should install dependencies)::
