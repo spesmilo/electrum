@@ -394,7 +394,7 @@ class Peer(PrintError):
             self._sn = 0
         return o
 
-    async def process_message(self, message):
+    def process_message(self, message):
         message_type, payload = decode_msg(message)
         #self.print_error("Received '%s'" % message_type.upper())
         try:
@@ -405,10 +405,7 @@ class Peer(PrintError):
         # raw message is needed to check signature
         if message_type=='node_announcement':
             payload['raw'] = message
-        if asyncio.iscoroutinefunction(f):
-            await f(payload)
-        else:
-            f(payload)
+        f(payload)
 
     def on_error(self, payload):
         self.print_error("error", payload["data"].decode("ascii"))
@@ -455,7 +452,7 @@ class Peer(PrintError):
         self.send_message(gen_msg("init", gflen=0, lflen=1, localfeatures=self.localfeatures))
         # read init
         msg = await self.read_message()
-        await self.process_message(msg)
+        self.process_message(msg)
         self.initialized.set_result(True)
 
     @aiosafe
@@ -1087,17 +1084,18 @@ class Peer(PrintError):
         self.closing_signed[chan_id].put_nowait(payload)
 
     async def on_shutdown(self, payload):
+        coro = self.shutdown_coroutine(payload)
+        asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+
+    async def shutdown_coroutine(self, payload):
         # length of scripts allowed in BOLT-02
         if int.from_bytes(payload['len'], 'big') not in (3+20+2, 2+20+1, 2+20, 2+32):
             raise Exception('scriptpubkey length in received shutdown message invalid: ' + str(payload['len']))
-
         chan = self.channels[payload['channel_id']]
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
         self.send_message(gen_msg('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey))
-
         signature, fee = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'])
         self.send_message(gen_msg('closing_signed', channel_id=chan.channel_id, fee_satoshis=fee, signature=signature))
-
         while chan.get_state() != 'CLOSED':
             try:
                 closing_signed = await asyncio.wait_for(self.closing_signed[chan.channel_id].get(), 1)
