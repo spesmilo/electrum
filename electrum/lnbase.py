@@ -1082,7 +1082,7 @@ class Peer(PrintError):
         if chan_id not in self.closing_signed: raise Exception("Got unknown closing_signed")
         self.closing_signed[chan_id].put_nowait(payload)
 
-    async def on_shutdown(self, payload):
+    def on_shutdown(self, payload):
         coro = self.shutdown_coroutine(payload)
         asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
