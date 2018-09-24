@@ -41,8 +41,8 @@ fun showDialog(activity: FragmentActivity, frag: DialogFragment) {
     }
 }
 
-fun dismissDialog(activity: FragmentActivity, simpleName: String) {
-    val frag = activity.supportFragmentManager.findFragmentByTag(simpleName)
+fun <T: DialogFragment> dismissDialog(activity: FragmentActivity, fragClass: KClass<T>) {
+    val frag = activity.supportFragmentManager.findFragmentByTag(fragClass.java.simpleName)
     (frag as DialogFragment?)?.dismiss()
 }
 
@@ -67,12 +67,16 @@ class ToastException(message: String, val duration: Int = Toast.LENGTH_LONG)
 val toastCache = HashMap<String, Toast>()
 
 fun toast(text: CharSequence, duration: Int = Toast.LENGTH_SHORT, key: String? = null) {
-    val cacheKey = key ?: text.toString()
-    toastCache.get(cacheKey)?.cancel()
-    // Creating a new Toast each time is more robust than attempting to reuse the existing one.
-    val toast = Toast.makeText(app, text, duration)
-    toastCache.put(cacheKey, toast)
-    toast.show()
+    if (!onUiThread()) {
+        runOnUiThread { toast(text, duration, key) }
+    } else {
+        val cacheKey = key ?: text.toString()
+        toastCache.get(cacheKey)?.cancel()
+        // Creating a new Toast each time is more robust than attempting to reuse the existing one.
+        val toast = Toast.makeText(app, text, duration)
+        toastCache.put(cacheKey, toast)
+        toast.show()
+    }
 }
 
 fun toast(resId: Int, duration: Int = Toast.LENGTH_SHORT, key: String? = null) {

@@ -757,8 +757,11 @@ def from_seed(seed, passphrase, is_p2sh):
         xtype = 'standard'
         keystore.add_xprv_from_seed(bip32_seed, xtype, der)
     else:
-        raise BaseException(t)
+        raise InvalidSeed()
     return keystore
+
+class InvalidSeed(Exception):
+    pass
 
 def from_private_key_list(text):
     keystore = Imported_KeyStore({})

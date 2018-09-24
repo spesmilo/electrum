@@ -1,5 +1,9 @@
 package org.electroncash.electroncash3
 
+import android.arch.lifecycle.MutableLiveData
+import android.arch.lifecycle.Observer
+import android.arch.lifecycle.ViewModel
+import android.arch.lifecycle.ViewModelProviders
 import android.os.Bundle
 import android.support.v7.app.AlertDialog
 import android.text.Editable
@@ -86,35 +90,54 @@ class SendDialog : AlertDialogFragment(), View.OnClickListener {
 }
 
 
-class SendPasswordDialog : PasswordDialog() {
+class SendPasswordDialog : PasswordDialog(runInBackground = true) {
+    class Model : ViewModel() {
+        val result = MutableLiveData<ServerError>()
+    }
+    private val model by lazy { ViewModelProviders.of(this).get(Model::class.java) }
+
+    override fun onShowDialog(dialog: AlertDialog) {
+        super.onShowDialog(dialog)
+        model.result.observe(this, Observer { onResult(it) })
+    }
+
     override fun onPassword(password: String?) {
         val tx = daemonModel.makeTx(arguments!!.getString("address")!!,
                                     arguments!!.getLong("amount"), password)
         if (daemonModel.netStatus.value == null) {
-            throw ToastException(getString(R.string.offline) + "\n" +
-                                 getString(R.string.cannot_send))
+            throw ToastException(R.string.not_connected)
         }
         val result = daemonModel.network.callAttr("broadcast_transaction", tx)
         if (result.callAttr("__getitem__", 0).toJava(Boolean::class.java)) {
-            toast(R.string.payment_sent)
+            model.result.postValue(null)
         } else {
             val err = ServerError(result.callAttr("__getitem__", 1).toString())
             if (err.isClean) {
                 throw ToastException(err.message)
             } else {
-                // We can't tell whether the transaction went through or not, so close all
-                // dialogs and show a warning.
-                showDialog(activity!!, MessageDialog(
-                    getString(R.string.error),
-                    err.message + "\n\n" + getString(R.string.the_app)))
+                model.result.postValue(err)
             }
         }
-        dismissDialog(activity!!, "SendDialog")
+    }
+
+    fun onResult(err: ServerError?) {
+        dismissDialog(activity!!, SendDialog::class)
+        if (err == null) {
+            toast(R.string.payment_sent)
+        } else {
+            showDialog(activity!!, MessageDialog(
+                getString(R.string.error),
+                err.message + "\n\n" + getString(R.string.the_app)))
+        }
     }
 }
 
 class ServerError(input: String) {
     var message: String = input
+
+    // If isClean is true, the server rejected the transaction, so leave the dialog open and
+    // give the user a chance to fix it. If isClean is false, we can't tell whether the
+    // transaction went through or not, so close the dialog and show a warning.
     var isClean = false
 
     init {
@@ -123,7 +146,7 @@ class ServerError(input: String) {
             message = message.replace(reError, "$1")
             try {
                 message = JSONObject(message).getString("message")
-                isClean = true  // Server rejected the transaction.
+                isClean = true
                 val reRules = Regex("^(the transaction was rejected by network rules).\n\n(.*)\n.*")
                 if (message.contains(reRules)) {
                     // Remove the raw transaction dump (see electrumx/server/session.py).

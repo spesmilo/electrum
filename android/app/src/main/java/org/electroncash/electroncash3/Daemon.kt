@@ -97,6 +97,10 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
         mainHandler.post(callback)
     }
 
+    // TODO: when the app is off-screen, the device is rotated, and the app is resumed, all
+    // ViewModels are incorrectly recreated. This is said to be fixed in support library version
+    // 28 (https://stackoverflow.com/a/51475630), but we're not using that yet because the
+    // current pre-release breaks the layout editor in Android Studio 3.1.
     override fun onCleared() {
         mainHandler.removeCallbacks(watchdog)
         commands.callAttr("stop")

@@ -1,6 +1,7 @@
 package org.electroncash.electroncash3
 
 import android.app.Dialog
+import android.app.ProgressDialog
 import android.arch.lifecycle.MutableLiveData
 import android.arch.lifecycle.Observer
 import android.arch.lifecycle.ViewModelProviders
@@ -124,5 +125,14 @@ open class MessageDialog() : AlertDialogFragment() {
         builder.setTitle(arguments!!.getString("title"))
             .setMessage(arguments!!.getString("message"))
             .setPositiveButton(android.R.string.ok, null)
+    }
+}
+
+class ProgressDialogFragment : AlertDialogFragment() {
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        isCancelable = false
+        return ProgressDialog(context).apply {
+            setMessage(getString(R.string.please_wait))
+        }
     }
 }

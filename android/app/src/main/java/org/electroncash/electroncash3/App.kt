@@ -49,9 +49,11 @@ class App : Application() {
 fun runOnUiThread(r: () -> Unit) { runOnUiThread(Runnable { r() }) }
 
 fun runOnUiThread(r: Runnable) {
-    if (Thread.currentThread() == mainHandler.looper.thread) {
+    if (onUiThread()) {
         r.run()
     } else {
         mainHandler.post(r)
     }
 }
+
+fun onUiThread() = Thread.currentThread() == mainHandler.looper.thread

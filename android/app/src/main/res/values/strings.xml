@@ -73,4 +73,6 @@
     <string name="to_help">To help us diagnose and fix the problem, you can send us a bug report that contains useful debug information:</string>
     <string name="please_briefly">Please briefly describe what led to the error (optional):</string>
     <string name="synchronizing">Synchronizing</string>
+    <string name="please_wait">Please wait</string>
+    <string name="not_connected">Not connected</string>
 </resources>

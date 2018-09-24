@@ -1,14 +1,16 @@
 package org.electroncash.electroncash3
 
 import android.app.Dialog
+import android.arch.lifecycle.MutableLiveData
 import android.arch.lifecycle.Observer
+import android.arch.lifecycle.ViewModel
+import android.arch.lifecycle.ViewModelProviders
 import android.content.DialogInterface
 import android.os.Bundle
 import android.support.v7.app.AlertDialog
 import android.support.v7.widget.DividerItemDecoration
 import android.support.v7.widget.LinearLayoutManager
 import android.view.*
-import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import com.chaquo.python.PyException
 import com.chaquo.python.PyObject
@@ -174,24 +176,45 @@ class NewWalletDialog : AlertDialogFragment(), DialogInterface.OnClickListener {
 }
 
 class NewSeedDialog : SeedDialog() {
+    class Model : ViewModel() {
+        val result = MutableLiveData<Boolean>()
+    }
+    private val model by lazy { ViewModelProviders.of(this).get(Model::class.java) }
+
     override fun onShowDialog(dialog: AlertDialog) {
         super.onShowDialog(dialog)
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            try {
-                val name = arguments!!.getString("name")!!
-                val password = arguments!!.getString("password")
-                val seed = dialog.etSeed.text.toString()
+            model.result.value = null
+            showDialog(mainActivity, ProgressDialogFragment())
+            Thread {
                 try {
-                    daemonModel.commands.callAttr("create", name, password, seed)
-                } catch (e: PyException) {
-                    if (e.message!!.startsWith("BaseException")) {  // See keystore.from_seed
-                        throw ToastException(R.string.the_seed)
+                    val name = arguments!!.getString("name")!!
+                    val password = arguments!!.getString("password")
+                    val seed = dialog.etSeed.text.toString()
+                    try {
+                        daemonModel.commands.callAttr("create", name, password, seed)
+                    } catch (e: PyException) {
+                        if (e.message!!.startsWith("InvalidSeed")) {
+                            throw ToastException(R.string.the_seed)
+                        }
+                        throw e
                     }
-                    throw e
+                    daemonModel.loadWallet(name, password)
+                    model.result.postValue(true)
+                } catch (e: ToastException) {
+                    e.show()
+                    model.result.postValue(false)
                 }
-                dismiss()
-                daemonModel.loadWallet(name, password)
-            } catch (e: ToastException) { e.show() }
+            }.start()
+        }
+        model.result.observe(this, Observer { onResult(it) })
+    }
+
+    fun onResult(success: Boolean?) {
+        if (success == null) return
+        dismissDialog(mainActivity, ProgressDialogFragment::class)
+        if (success) {
+            dismiss()
         }
     }
 }
@@ -210,7 +233,13 @@ class DeleteWalletDialog : AlertDialogFragment() {
 }
 
 
-abstract class PasswordDialog : AlertDialogFragment() {
+abstract class PasswordDialog(val runInBackground: Boolean = false) : AlertDialogFragment() {
+    class Model : ViewModel() {
+        var firstStart = true
+        val result = MutableLiveData<Boolean>()
+    }
+    private val model by lazy { ViewModelProviders.of(this).get(Model::class.java) }
+
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.password_required)
             .setView(R.layout.password)
@@ -227,31 +256,42 @@ abstract class PasswordDialog : AlertDialogFragment() {
     override fun onShowDialog(dialog: AlertDialog) {
         val posButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
         posButton.setOnClickListener {
-            try {
-                tryPassword(dialog.etPassword.text.toString())
-            } catch (e: ToastException) {
-                e.show()
-            }
+            tryPassword(dialog.etPassword.text.toString())
         }
         dialog.etPassword.setOnEditorActionListener { _, _, _ ->
             posButton.performClick()
         }
+
+        model.result.observe(this, Observer { onResult(it) })
+        if (model.firstStart) {
+            model.firstStart = false
+            tryPassword(null, showError = false)
+        }
     }
 
-    override fun onResume() {
-        super.onResume()
-        try {
-            tryPassword(null)
-        } catch (e: ToastException) {}
-    }
-
-    fun tryPassword(password: String?) {
-        try {
-            onPassword(password)
-            dismiss()
-        } catch (e: PyException) {
-            throw if (e.message!!.startsWith("InvalidPassword"))
-                ToastException(R.string.password_incorrect, Toast.LENGTH_SHORT) else e
+    fun tryPassword(password: String?, showError: Boolean = true) {
+        model.result.value = null
+        val r = Runnable {
+            try {
+                try {
+                    onPassword(password)
+                    model.result.postValue(true)
+                } catch (e: PyException) {
+                    throw if (e.message!!.startsWith("InvalidPassword"))
+                        ToastException(R.string.password_incorrect, Toast.LENGTH_SHORT) else e
+                }
+            } catch (e: ToastException) {
+                if (showError) {
+                    e.show()
+                }
+                model.result.postValue(false)
+            }
+        }
+        if (runInBackground) {
+            showDialog(mainActivity, ProgressDialogFragment())
+            Thread(r).start()
+        } else {
+            r.run()
         }
     }
 
@@ -260,10 +300,18 @@ abstract class PasswordDialog : AlertDialogFragment() {
      * operation fails, this method should throw either a ToastException, or an InvalidPassword
      * PyException (most lib functions that take passwords will do this automatically). */
     abstract fun onPassword(password: String?)
+
+    private fun onResult(success: Boolean?) {
+        if (success == null) return
+        dismissDialog(mainActivity, ProgressDialogFragment::class)
+        if (success) {
+            dismiss()
+        }
+    }
 }
 
 
-class OpenWalletDialog: PasswordDialog() {
+class OpenWalletDialog: PasswordDialog(runInBackground = true) {
     override fun onPassword(password: String?) {
         daemonModel.loadWallet(arguments!!.getString("walletName")!!, password)
     }
