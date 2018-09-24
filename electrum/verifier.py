@@ -121,7 +121,6 @@ class SPV(PrintError):
         vtx_info = VerifiedTxInfo(tx_height, header.get('timestamp'), pos, header_hash)
         self.wallet.add_verified_tx(tx_hash, vtx_info)
         if self.is_up_to_date() and self.wallet.is_up_to_date():
-            self.network.trigger_callback('updated')
             self.wallet.save_verified_tx(write=True)
 
     @classmethod

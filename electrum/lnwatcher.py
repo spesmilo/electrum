@@ -128,6 +128,10 @@ class LNWatcher(PrintError):
 
     @aiosafe
     async def on_network_update(self, event, *args):
+        if event == 'verified':
+            wallet = args[0]
+            if wallet != self.addr_sync:
+                return
         if not self.addr_sync.synchronizer:
             self.print_error("synchronizer not set yet")
             return
