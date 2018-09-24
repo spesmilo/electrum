@@ -133,8 +133,8 @@ class SPV(NetworkJobOnDefaultServer):
                               txpos=pos,
                               header_hash=header_hash)
         self.wallet.add_verified_tx(tx_hash, tx_info)
-        #if self.is_up_to_date() and self.wallet.is_up_to_date():
-        #    self.wallet.save_verified_tx(write=True)
+        if self.is_up_to_date() and self.wallet.is_up_to_date():
+            self.wallet.save_verified_tx(write=True)
 
     @classmethod
     def hash_merkle_root(cls, merkle_branch: Sequence[str], tx_hash: str, leaf_pos_in_tree: int):
