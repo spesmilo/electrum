@@ -306,8 +306,8 @@ class Abstract_Wallet(AddressSynchronizer):
         serialized_privkey = bitcoin.serialize_privkey(pk, compressed, txin_type)
         return serialized_privkey, redeem_script
 
-    def get_public_keys(self, address):
-        return [self.get_public_key(address)]
+    def get_public_keys(self, address, tweaked=True):
+        return [self.get_public_key(address, tweaked)]
 
     def is_found(self):
         return self.history.values() != [[]] * len(self.history)
@@ -1527,10 +1527,15 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
     def __init__(self, storage):
         Deterministic_Wallet.__init__(self, storage)
 
-    def get_public_key(self, address):
+    def get_pubkey(self, c, i):
+        return self.derive_pubkeys(c, i)
+
+    def get_public_key(self, address, tweaked=True):
         sequence = self.get_address_index(address)
-        pubkey = self.derive_pubkeys(*sequence)
-        return self.get_tweaked_public_key(address, pubkey)
+        pubkey = self.get_pubkey(*sequence)
+        if tweaked:
+            return self.get_tweaked_public_key(address, pubkey)
+        return pubkey
 
     def load_keystore(self):
         self.keystore = load_keystore(self.storage, 'keystore')
@@ -1579,13 +1584,18 @@ class Multisig_Wallet(Deterministic_Wallet):
         self.m, self.n = multisig_type(self.wallet_type)
         Deterministic_Wallet.__init__(self, storage)
 
-    def get_public_keys(self, address):
+    def get_pubkeys(self, c, i):
+        return self.derive_pubkeys(c, i)
+
+    def get_public_keys(self, address, tweaked=True):
         sequence = self.get_address_index(address)
-        pubkeys = self.derive_pubkeys(*sequence)
-        tweaked_pubkeys = []
-        for pubkey in pubkeys:
-            tweaked_pubkeys.append(self.get_tweaked_public_key(address, pubkey))
-        return tweaked_pubkeys
+        pubkeys = self.get_pubkeys(*sequence)
+        if tweaked:
+            tweaked_pubkeys = []
+            for pubkey in pubkeys:
+                tweaked_pubkeys.append(self.get_tweaked_public_key(address, pubkey))
+            return tweaked_pubkeys
+        return pubkeys
 
     def pubkeys_to_address(self, pubkeys):
         redeem_script = self.pubkeys_to_redeem_script(pubkeys)
