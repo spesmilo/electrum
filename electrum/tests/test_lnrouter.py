@@ -8,7 +8,6 @@ from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet, OnionPerHop
                               process_onion_packet, _decode_onion_error)
 from electrum import bitcoin, lnrouter
 from electrum.simple_config import SimpleConfig
-from electrum import lnchanannverifier
 
 from . import TestCaseForTestnet
 
