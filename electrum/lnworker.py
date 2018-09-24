@@ -57,7 +57,7 @@ class LNWorker(PrintError):
         self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
         # wait until we see confirmations
-        self.network.register_callback(self.on_network_update, ['updated', 'verified', 'fee']) # thread safe
+        self.network.register_callback(self.on_network_update, ['network_updated', 'verified', 'fee'])  # thread safe
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
 
     def _add_peers_from_config(self):
@@ -346,7 +346,8 @@ class LNWorker(PrintError):
                 asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     async def main_loop(self):
-        await self.on_network_update('updated') # shortcut (don't block) if funding tx locked and verified
+        await self.on_network_update('network_updated')  # shortcut (don't block) if funding tx locked and verified
+        await self.network.lnwatcher.on_network_update('network_updated')  # ping watcher to check our channels
         while True:
             await asyncio.sleep(1)
             now = time.time()
