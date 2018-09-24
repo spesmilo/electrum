@@ -187,7 +187,7 @@ class Commands:
     def listunspent(self):
         """List unspent outputs. Returns the list of unspent transaction
         outputs in your wallet."""
-        l = copy.deepcopy(self.wallet.get_utxos(exclude_frozen=False))
+        l = copy.deepcopy(self.wallet.get_utxos())
         for i in l:
             v = i["value"]
             i["value"] = str(Decimal(v)/COIN) if v is not None else None
@@ -301,9 +301,16 @@ class Commands:
         return is_address(address)
 
     @command('w')
-    def getpubkeys(self, address):
-        """Return the public keys for a wallet address. """
-        return self.wallet.get_public_keys(address)
+    def getpubkeys(self, address, tweaked=False):
+        """Return the public keys for a wallet address. Keys are untweaked by default."""
+        return self.wallet.get_public_keys(address, tweaked)
+
+    @command('w')
+    def dumpderivedkeys(self):
+        out = []
+        for addr in self.wallet.get_addresses():
+            out.append("{} {}".format(addr, ''.join(self.wallet.get_public_keys(addr, False))))
+        return out
 
     @command('w')
     def getbalance(self):
@@ -324,6 +331,8 @@ class Commands:
         sh = bitcoin.address_to_scripthash(address)
         out = self.network.get_balance_for_scripthash(sh)
         out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
+        for k, v in out["confirmed_per_asset"].items():
+            out["confirmed_per_asset"][k] = str(Decimal(v)/COIN)
         out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
         return out
 
@@ -733,7 +742,8 @@ command_options = {
     'show_fiat':   (None, "Show fiat value of transactions"),
     'year':        (None, "Show history for a given year"),
     'fee_method':  (None, "Fee estimation method to use"),
-    'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position")
+    'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
+    'tweaked':     (None, "Show tweaked public keys")
 }
 
 
