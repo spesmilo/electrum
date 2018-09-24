@@ -25,6 +25,7 @@
 
 import hashlib
 import urllib.parse
+import sys
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -124,11 +125,18 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
             hbox = QHBoxLayout()
             vbox.addLayout(hbox)
             self.installButton = QPushButton("Install")
-            hbox.addWidget(self.installButton)
-            hbox.addStretch(1)
             self.cancelButton = QPushButton("Close")
             self.cancelButton.setDefault(True)
-            hbox.addWidget(self.cancelButton)
+            if sys.platform == 'darwin':
+                # macOS convention is Cancel-on-left, "Action" on right
+                hbox.addWidget(self.cancelButton)
+                hbox.addStretch(1)
+                hbox.addWidget(self.installButton)
+            else:
+                # non-macOS, go with the Windows convention of Cancel-on-right
+                hbox.addWidget(self.installButton)
+                hbox.addStretch(1)
+                hbox.addWidget(self.cancelButton)
 
             self.installButton.clicked.connect(self.on_install)
             self.cancelButton.clicked.connect(self.close)
@@ -207,7 +215,13 @@ class ExternalPluginsPreviewDialog(WindowModalDialog):
         self.checksumLabel.setEnabled(are_widgets_enabled)
         if self.is_preview:
             was_liability_accepted = self.does_user_accept_liability()
-            self.installButton.setEnabled(was_liability_accepted and are_widgets_enabled)
+            was_en = self.installButton.isEnabled()
+            is_en = was_liability_accepted and are_widgets_enabled
+            self.installButton.setEnabled(is_en)
+            if was_en != is_en and sys.platform == 'darwin':
+                # fix macOS Qt ui bug where the button doesn't update on setEnabled() on some modals
+                # that are children of modals unless you do this
+                self.installButton.repaint()
             self.liabilityCheckbox1.setEnabled(are_widgets_enabled)
             self.liabilityCheckbox2.setEnabled(are_widgets_enabled)
             self.liabilityCheckbox3.setEnabled(are_widgets_enabled)
