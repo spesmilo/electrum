@@ -93,7 +93,7 @@ class LNWatcher(PrintError):
                     e_tx2 = EncumberedTransaction.from_json(e_tx)
                     self.sweepstore[funding_outpoint][ctx_txid].add(e_tx2)
 
-        self.network.register_callback(self.on_network_update, ['updated'])
+        self.network.register_callback(self.on_network_update, ['network_updated', 'blockchain_updated', 'verified'])
 
     def write_to_disk(self):
         # FIXME: json => every update takes linear instead of constant disk write
@@ -128,6 +128,10 @@ class LNWatcher(PrintError):
 
     @aiosafe
     async def on_network_update(self, event, *args):
+        if event == 'verified':
+            wallet = args[0]
+            if wallet != self.addr_sync:
+                return
         if not self.addr_sync.synchronizer:
             self.print_error("synchronizer not set yet")
             return

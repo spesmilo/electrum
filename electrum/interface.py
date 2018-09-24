@@ -162,7 +162,7 @@ class Interface(PrintError):
         self.group = SilentTaskGroup()
 
     def diagnostic_name(self):
-        return self.host
+        return 'iface:{}'.format(self.host)
 
     def _set_proxy(self, proxy: dict):
         if proxy:
