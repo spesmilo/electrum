@@ -35,7 +35,7 @@ import base64
 from . import constants
 from .util import PrintError, bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits
 from .storage import JsonDB
-from .lnchanannverifier import LNChanAnnVerifier, verify_sig_for_channel_update
+from .lnchannelverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .crypto import Hash
 from . import ecc
 from .lnutil import LN_GLOBAL_FEATURE_BITS, LNPeerAddr
@@ -276,7 +276,7 @@ class ChannelDB(JsonDB):
         self._recent_peers = []
         self._last_good_address = {}  # node_id -> LNPeerAddr
 
-        self.ca_verifier = LNChanAnnVerifier(network, self)
+        self.ca_verifier = LNChannelVerifier(network, self)
 
         self.load_data()
 

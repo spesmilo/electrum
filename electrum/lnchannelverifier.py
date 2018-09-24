@@ -36,7 +36,7 @@ from .verifier import verify_tx_is_in_block, MerkleVerificationFailure
 from .transaction import Transaction
 
 
-class LNChanAnnVerifier(ThreadJob):
+class LNChannelVerifier(ThreadJob):
     """ Verify channel announcements for the Channel DB """
 
     def __init__(self, network, channel_db):
