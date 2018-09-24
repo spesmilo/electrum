@@ -463,7 +463,7 @@ class Peer(PrintError):
         while True:
             self.ping_if_required()
             msg = await self.read_message()
-            await self.process_message(msg)
+            self.process_message(msg)
 
     def close_and_cleanup(self):
         try:
