@@ -25,11 +25,13 @@
 
 import asyncio
 import threading
+
 from aiorpcx import TaskGroup
 
 from . import lnbase
 from . import bitcoin
 from . import ecc
+from . import constants
 from .util import ThreadJob, bh2u, bfh
 from .lnutil import invert_short_channel_id, funding_output_script_from_keys
 from .verifier import verify_tx_is_in_block, MerkleVerificationFailure
@@ -50,6 +52,7 @@ class LNChannelVerifier(ThreadJob):
 
         self.unverified_channel_info = {}  # short_channel_id -> channel_info
 
+    # TODO make async; and rm self.lock completely
     def add_new_channel_info(self, channel_info):
         short_channel_id = channel_info.channel_id
         if short_channel_id in self.unverified_channel_info:
@@ -64,18 +67,13 @@ class LNChannelVerifier(ThreadJob):
 
     async def main(self):
         while True:
-            async with TaskGroup() as tg:
-                await self.iteration(tg)
+            async with TaskGroup() as group:
+                await self.iteration(group)
             await asyncio.sleep(0.1)
 
-    async def iteration(self, tg):
-        interface = self.network.interface
-        if not interface:
-            return
-
-        blockchain = interface.blockchain
-        if not blockchain:
-            return
+    async def iteration(self, group: TaskGroup):
+        blockchain = self.network.blockchain()
+        local_height = blockchain.height()
 
         with self.lock:
             unverified_channel_info = list(self.unverified_channel_info)
@@ -85,13 +83,14 @@ class LNChannelVerifier(ThreadJob):
                 continue
             block_height, tx_pos, output_idx = invert_short_channel_id(short_channel_id)
             # only resolve short_channel_id if headers are available.
+            if block_height <= 0 or block_height > local_height:
+                continue
             header = blockchain.read_header(block_height)
             if header is None:
-                index = block_height // 2016
-                if index < len(blockchain.checkpoints):
-                    await tg.spawn(self.network.request_chunk(block_height, None, can_return_early=True))
+                if block_height < constants.net.max_checkpoint():
+                    await group.spawn(self.network.request_chunk(block_height, None, can_return_early=True))
                 continue
-            await tg.spawn(self.verify_channel(block_height, tx_pos, short_channel_id))
+            await group.spawn(self.verify_channel(block_height, tx_pos, short_channel_id))
             #self.print_error('requested short_channel_id', bh2u(short_channel_id))
 
     async def verify_channel(self, block_height, tx_pos, short_channel_id):
@@ -100,7 +99,9 @@ class LNChannelVerifier(ThreadJob):
         result = await self.network.get_txid_from_txpos(block_height, tx_pos, True)
         tx_hash = result['tx_hash']
         merkle_branch = result['merkle']
-        header = self.network.blockchain().read_header(block_height)
+        # we need to wait if header sync/reorg is still ongoing, hence lock:
+        async with self.network.bhi_lock:
+            header = self.network.blockchain().read_header(block_height)
         try:
             verify_tx_is_in_block(tx_hash, merkle_branch, tx_pos, header, block_height)
         except MerkleVerificationFailure as e:
