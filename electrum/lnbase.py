@@ -885,7 +885,7 @@ class Peer(PrintError):
             sig_64, htlc_sigs = chan.sign_next_commitment()
             self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
             await self.receive_revoke(chan)
-            chan.fail_htlc(htlc)
+            chan.receive_fail_htlc(htlc_id)
             await self.receive_commitment(chan)
             self.revoke(chan)
             sig_64, htlc_sigs = chan.sign_next_commitment()
@@ -1082,7 +1082,7 @@ class Peer(PrintError):
         if chan_id not in self.closing_signed: raise Exception("Got unknown closing_signed")
         self.closing_signed[chan_id].put_nowait(payload)
 
-    async def on_shutdown(self, payload):
+    def on_shutdown(self, payload):
         coro = self.shutdown_coroutine(payload)
         asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
