@@ -9,7 +9,7 @@ import electrum.util as util
 import os
 import binascii
 
-from electrum.lnhtlc import SENT, LOCAL, REMOTE, RECEIVED
+from electrum.lnutil import SENT, LOCAL, REMOTE, RECEIVED
 
 def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate, is_initiator, local_amount, remote_amount, privkeys, other_pubkeys, seed, cur, nex, other_node_id, l_dust, r_dust, l_csv, r_csv):
     assert local_amount > 0
@@ -70,6 +70,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
             "constraints":lnbase.ChannelConstraints(capacity=funding_sat, is_initiator=is_initiator, funding_txn_minimum_depth=3),
             "node_id":other_node_id,
             "remote_commitment_to_be_revoked": None,
+            'onion_keys': {},
     }
 
 def bip32(sequence):
