@@ -826,9 +826,7 @@ class Peer(PrintError):
 
         self.update_fail_htlc[payload["channel_id"]].put_nowait("HTLC failure with code {} ({})".format(code, code_name))
 
-    @aiosafe
     async def pay(self, path, chan, amount_msat, payment_hash, pubkey_in_invoice, min_final_cltv_expiry):
-        # FIXME aiosafe is breaking "raise PaymentFailure"
         assert chan.get_state() == "OPEN", chan.get_state()
         assert amount_msat > 0, "amount_msat is not greater zero"
 
