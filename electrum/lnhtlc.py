@@ -20,6 +20,7 @@ from .lnutil import funding_output_script, LOCAL, REMOTE, HTLCOwner, make_closin
 from .transaction import Transaction
 
 
+FailHtlc = namedtuple("FailHtlc", ["htlc_id"])
 SettleHtlc = namedtuple("SettleHtlc", ["htlc_id"])
 RevokeAndAck = namedtuple("RevokeAndAck", ["per_commitment_secret", "next_per_commitment_point"])
 
@@ -172,6 +173,8 @@ class HTLCStateMachine(PrintError):
                     self.log[subject].append(UpdateAddHtlc(*decodeAll(y)))
                 elif typ == "SettleHtlc":
                     self.log[subject].append(SettleHtlc(*decodeAll(y)))
+                elif typ == "FailHtlc":
+                    self.log[subject].append(FailHtlc(*decodeAll(y)))
                 else:
                     assert False
 
@@ -247,7 +250,8 @@ class HTLCStateMachine(PrintError):
         """
         for htlc in self.log[LOCAL]:
             if not type(htlc) is UpdateAddHtlc: continue
-            if htlc.locked_in[LOCAL] is None: htlc.locked_in[LOCAL] = self.local_state.ctn
+            if htlc.locked_in[LOCAL] is None and FailHtlc(htlc.htlc_id) not in self.log[REMOTE]:
+                htlc.locked_in[LOCAL] = self.local_state.ctn
         self.print_error("sign_next_commitment")
 
         pending_remote_commitment = self.pending_remote_commitment
@@ -305,7 +309,8 @@ class HTLCStateMachine(PrintError):
         self.print_error("receive_new_commitment")
         for htlc in self.log[REMOTE]:
             if not type(htlc) is UpdateAddHtlc: continue
-            if htlc.locked_in[REMOTE] is None: htlc.locked_in[REMOTE] = self.remote_state.ctn
+            if htlc.locked_in[REMOTE] is None and FailHtlc(htlc.htlc_id) not in self.log[LOCAL]:
+                htlc.locked_in[REMOTE] = self.remote_state.ctn
         assert len(htlc_sigs) == 0 or type(htlc_sigs[0]) is bytes
 
         pending_local_commitment = self.pending_local_commitment
@@ -642,11 +647,12 @@ class HTLCStateMachine(PrintError):
         assert len([x for x in self.log[LOCAL] if x.htlc_id == htlc_index and type(x) is UpdateAddHtlc]) == 1, (self.log[LOCAL], htlc_index)
         self.log[REMOTE].append(SettleHtlc(htlc_index))
 
-    def fail_htlc(self, htlc):
-        # TODO
-        self.log[LOCAL] = []
-        self.log[REMOTE] = []
-        self.print_error("fail_htlc (EMPTIED LOGS)")
+    def receive_fail_htlc(self, htlc_id):
+        self.print_error("receive_fail_htlc")
+        htlc = self.lookup_htlc(self.log[LOCAL], htlc_id)
+        htlc.locked_in[LOCAL] = None
+        htlc.locked_in[REMOTE] = None
+        self.log[REMOTE].append(FailHtlc(htlc_id))
 
     @property
     def current_height(self):
@@ -696,6 +702,8 @@ class HTLCStateMachine(PrintError):
                     return o.serialize()
                 if isinstance(o, SettleHtlc):
                     return json.dumps(('SettleHtlc', namedtuples_to_dict(o)))
+                if isinstance(o, FailHtlc):
+                    return json.dumps(('FailHtlc', namedtuples_to_dict(o)))
                 if isinstance(o, UpdateAddHtlc):
                     return json.dumps(('UpdateAddHtlc', namedtuples_to_dict(o)))
                 return super(MyJsonEncoder, self)
