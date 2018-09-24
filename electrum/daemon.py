@@ -242,7 +242,7 @@ class Daemon(DaemonThread):
             return
         if storage.get_action():
             return
-        wallet = Wallet(storage)
+        wallet = Wallet(storage, self.config.get('contract_hash'))
         wallet.start_threads(self.network)
         self.wallets[path] = wallet
         return wallet

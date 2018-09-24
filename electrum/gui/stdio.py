@@ -33,7 +33,7 @@ class ElectrumGui:
         self.str_amount = ""
         self.str_fee = ""
 
-        self.wallet = Wallet(storage)
+        self.wallet = Wallet(storage, self.config.get('contract_hash'))
         self.wallet.start_threads(self.network)
         self.contacts = self.wallet.contacts
 

@@ -26,7 +26,8 @@ class ElectrumGui:
         if storage.is_encrypted():
             password = getpass.getpass('Password:', stream=None)
             storage.decrypt(password)
-        self.wallet = Wallet(storage)
+
+        self.wallet = Wallet(storage, self.config.get('contract_hash'))
         self.wallet.start_threads(self.network)
         self.contacts = self.wallet.contacts
 

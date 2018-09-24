@@ -523,7 +523,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
 
                 for x_pubkey in txin['x_pubkeys']:
                     if x_pubkey in derivations:
-                        index = derivations.get(x_pubkey)
+                        index, _ = derivations.get(x_pubkey)
                         inputPath = "%s/%d/%d" % (self.get_derivation(), index[0], index[1])
                         inputHash = Hash(binascii.unhexlify(tx.serialize_preimage(i)))
                         hasharray_i = {'hash': to_hexstr(inputHash), 'keypath': inputPath}

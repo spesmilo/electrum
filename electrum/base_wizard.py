@@ -109,7 +109,7 @@ class BaseWizard(object):
         exc = None
         def on_finished():
             if exc is None:
-                self.wallet = Wallet(self.storage)
+                self.wallet = Wallet(self.storage, self.config.get('contract_hash'))
                 self.terminate()
             else:
                 raise exc
@@ -494,12 +494,14 @@ class BaseWizard(object):
             self.storage.put('seed_type', self.seed_type)
             keys = self.keystores[0].dump()
             self.storage.put('keystore', keys)
+            self.storage.update_contracts(self.config.get('contract_hash'))
             self.wallet = Standard_Wallet(self.storage)
             self.run('create_addresses')
         elif self.wallet_type == 'multisig':
             for i, k in enumerate(self.keystores):
                 self.storage.put('x%d/'%(i+1), k.dump())
             self.storage.write()
+            self.storage.update_contracts(self.config.get('contract_hash'))
             self.wallet = Multisig_Wallet(self.storage)
             self.run('create_addresses')
         elif self.wallet_type == 'imported':
