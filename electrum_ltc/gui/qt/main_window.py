@@ -22,8 +22,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import sys, time, threading
-import os, json, traceback
+import sys
+import time
+import threading
+import os
+import traceback
+import json
 import shutil
 import weakref
 import webbrowser
@@ -36,8 +40,6 @@ import queue
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 import PyQt5.QtCore as QtCore
-
-from .exception_window import Exception_Hook
 from PyQt5.QtWidgets import *
 
 from electrum_ltc import (keystore, simple_config, ecc, constants, util, bitcoin, commands,
@@ -56,6 +58,7 @@ from electrum_ltc.transaction import Transaction, TxOutput
 from electrum_ltc.address_synchronizer import AddTransactionException
 from electrum_ltc.wallet import Multisig_Wallet, CannotBumpFee
 
+from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
@@ -2504,7 +2507,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 for addr, pk in pklist.items():
                     transaction.writerow(["%34s"%addr,pk])
             else:
-                import json
                 f.write(json.dumps(pklist, indent = 4))
 
     def do_import_labels(self):

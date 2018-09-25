@@ -1,14 +1,17 @@
 from decimal import Decimal
-_ = lambda x:x
-#from i18n import _
+import getpass
+import datetime
+
 from electrum_ltc import WalletStorage, Wallet
 from electrum_ltc.util import format_satoshis, set_verbosity
 from electrum_ltc.bitcoin import is_address, COIN, TYPE_ADDRESS
 from electrum_ltc.transaction import TxOutput
-import getpass, datetime
+
+_ = lambda x:x  # i18n
 
 # minimal fdisk like gui for console usage
 # written by rofl0r, with some bits stolen from the text gui (ncurses)
+
 
 class ElectrumGui:
 
