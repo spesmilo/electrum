@@ -17,6 +17,7 @@ from .lnutil import sign_and_get_sig_string
 from .lnutil import make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc
 from .lnutil import HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT
 from .lnutil import funding_output_script, LOCAL, REMOTE, HTLCOwner, make_closing_tx, make_outputs
+from .lnutil import ScriptHtlc
 from .transaction import Transaction
 
 
@@ -265,19 +266,10 @@ class HTLCStateMachine(PrintError):
 
         for_us = False
 
-        feerate = self.pending_feerate(REMOTE)
-
         htlcsigs = []
-        for we_receive, htlcs in zip([True, False], [self.htlcs_in_remote, self.htlcs_in_local]):
-            assert len(htlcs) <= 1
+        for we_receive, htlcs in zip([True, False], [self.included_htlcs(REMOTE, REMOTE), self.included_htlcs(REMOTE, LOCAL)]):
             for htlc in htlcs:
-                weight = HTLC_SUCCESS_WEIGHT if we_receive else HTLC_TIMEOUT_WEIGHT
-                fee = feerate // 1000 * weight
-                if htlc.amount_msat // 1000 < self.remote_config.dust_limit_sat + fee:
-                    print("value too small, skipping. htlc amt: {}, weight: {}, remote feerate {}, remote dust limit {}".format( htlc.amount_msat, weight, feerate, self.remote_config.dust_limit_sat))
-                    continue
-                original_htlc_output_index = 0
-                args = [self.remote_state.next_per_commitment_point, for_us, we_receive, htlc.amount_msat, htlc.cltv_expiry, htlc.payment_hash, pending_remote_commitment, original_htlc_output_index]
+                args = [self.remote_state.next_per_commitment_point, for_us, we_receive, pending_remote_commitment, htlc]
                 htlc_tx = make_htlc_tx_with_open_channel(self, *args)
                 sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
                 htlc_sig = ecc.sig_string_from_der_sig(sig[:-1])
@@ -292,6 +284,8 @@ class HTLCStateMachine(PrintError):
 
         if self.lnwatcher:
             self.lnwatcher.process_new_offchain_ctx(self, pending_remote_commitment, ours=False)
+
+        htlcsigs.sort()
 
         return sig_64, htlcsigs
 
@@ -322,27 +316,19 @@ class HTLCStateMachine(PrintError):
 
         _, this_point, _ = self.points
 
-        if len(pending_local_commitment.outputs()) >= 3:
-            print("CHECKING HTLC SIGS")
-            assert len(pending_local_commitment.outputs()) == 3
-            if len(self.htlcs_in_remote) > 0:
-                assert len(self.htlcs_in_remote) == 1
-                we_receive = True
-                htlc = self.htlcs_in_remote[0]
-            elif len(self.htlcs_in_local) > 0:
-                assert len(self.htlcs_in_local) == 1
-                we_receive = False
-                htlc = self.htlcs_in_local[0]
-            else:
-                assert False
-
-            htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, htlc.amount_msat, htlc.cltv_expiry, htlc.payment_hash, pending_local_commitment, 0)
-            pre_hash = Hash(bfh(htlc_tx.serialize_preimage(0)))
-            remote_htlc_pubkey = derive_pubkey(self.remote_config.htlc_basepoint.pubkey, this_point)
-            if not ecc.verify_signature(remote_htlc_pubkey, htlc_sigs[0], pre_hash):
-                raise Exception("failed verifying signature an HTLC tx spending from one of our commit tx'es HTLC outputs")
-
-        # TODO check htlc in htlcs_in_local
+        for htlcs, we_receive in [(self.included_htlcs(LOCAL, REMOTE), True), (self.included_htlcs(LOCAL, LOCAL), False)]:
+            for htlc in htlcs:
+                htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, pending_local_commitment, htlc)
+                pre_hash = Hash(bfh(htlc_tx.serialize_preimage(0)))
+                remote_htlc_pubkey = derive_pubkey(self.remote_config.htlc_basepoint.pubkey, this_point)
+                for idx, sig in enumerate(htlc_sigs):
+                    if ecc.verify_signature(remote_htlc_pubkey, sig, pre_hash):
+                        del htlc_sigs[idx]
+                        break
+                else:
+                    raise Exception(f'failed verifying HTLC signatures: {htlc}')
+        if len(htlc_sigs) != 0: # all sigs should have been popped above
+            raise Exception('failed verifying HTLC signatures: invalid amount of correct signatures')
 
         for pending_fee in self.fee_mgr:
             if pending_fee.is_proposed():
@@ -513,6 +499,13 @@ class HTLCStateMachine(PrintError):
           unsettled_local + remote_settled - local_settled
         return remote_msat, local_msat
 
+    def included_htlcs(self, subject, htlc_initiator):
+        feerate = self.pending_feerate(subject)
+        conf = self.remote_config if subject == REMOTE else self.local_config
+        weight = HTLC_SUCCESS_WEIGHT if subject != htlc_initiator else HTLC_TIMEOUT_WEIGHT
+        return filter(lambda htlc: htlc.amount_msat // 1000 - weight * (feerate // 1000) >= conf.dust_limit_sat,
+            self.htlcs_in_local if htlc_initiator == LOCAL else self.htlcs_in_remote)
+
     @property
     def pending_remote_commitment(self):
         remote_msat, local_msat = self.amounts()
@@ -525,21 +518,15 @@ class HTLCStateMachine(PrintError):
         local_htlc_pubkey = derive_pubkey(self.local_config.htlc_basepoint.pubkey, this_point)
         local_revocation_pubkey = derive_blinded_pubkey(self.local_config.revocation_basepoint.pubkey, this_point)
 
-        feerate = self.pending_feerate(REMOTE)
-
         htlcs_in_local = []
-        for htlc in self.htlcs_in_local:
-            if htlc.amount_msat // 1000 - HTLC_SUCCESS_WEIGHT * (feerate // 1000) < self.remote_config.dust_limit_sat:
-                continue
+        for htlc in self.included_htlcs(REMOTE, LOCAL):
             htlcs_in_local.append(
-                ( make_received_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat))
+                ScriptHtlc( make_received_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc))
 
         htlcs_in_remote = []
-        for htlc in self.htlcs_in_remote:
-            if htlc.amount_msat // 1000 - HTLC_TIMEOUT_WEIGHT * (feerate // 1000) < self.remote_config.dust_limit_sat:
-                continue
+        for htlc in self.included_htlcs(REMOTE, REMOTE):
             htlcs_in_remote.append(
-                ( make_offered_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash), htlc.amount_msat))
+                ScriptHtlc( make_offered_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash), htlc))
 
         commit = self.make_commitment(self.remote_state.ctn + 1,
             False, this_point,
@@ -575,18 +562,14 @@ class HTLCStateMachine(PrintError):
         feerate = self.pending_feerate(LOCAL)
 
         htlcs_in_local = []
-        for htlc in self.htlcs_in_local:
-            if htlc.amount_msat // 1000 - HTLC_TIMEOUT_WEIGHT * (feerate // 1000) < self.local_config.dust_limit_sat:
-                continue
+        for htlc in self.included_htlcs(LOCAL, LOCAL):
             htlcs_in_local.append(
-                ( make_offered_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash), htlc.amount_msat))
+                ScriptHtlc( make_offered_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash), htlc))
 
         htlcs_in_remote = []
-        for htlc in self.htlcs_in_remote:
-            if htlc.amount_msat // 1000 - HTLC_SUCCESS_WEIGHT * (feerate // 1000) < self.local_config.dust_limit_sat:
-                continue
+        for htlc in self.included_htlcs(LOCAL, REMOTE):
             htlcs_in_remote.append(
-                ( make_received_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc.amount_msat))
+                ScriptHtlc( make_received_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc))
 
         commit = self.make_commitment(self.local_state.ctn + 1,
             True, this_point,
