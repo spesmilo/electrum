@@ -16,6 +16,7 @@ from electrum_ltc.plugin import run_hook
 from electrum_ltc.util import format_satoshis, format_satoshis_plain
 from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum_ltc import blockchain
+from electrum_ltc.network import Network
 from .i18n import _
 
 from kivy.app import App
@@ -96,7 +97,7 @@ class ElectrumWindow(App):
     def on_auto_connect(self, instance, x):
         net_params = self.network.get_parameters()
         net_params = net_params._replace(auto_connect=self.auto_connect)
-        self.network.set_parameters(net_params)
+        self.network.run_from_another_thread(self.network.set_parameters(net_params))
     def toggle_auto_connect(self, x):
         self.auto_connect = not self.auto_connect
 
@@ -116,9 +117,10 @@ class ElectrumWindow(App):
         from .uix.dialogs.choice_dialog import ChoiceDialog
         chains = self.network.get_blockchains()
         def cb(name):
-            for index, b in blockchain.blockchains.items():
+            with blockchain.blockchains_lock: blockchain_items = list(blockchain.blockchains.items())
+            for index, b in blockchain_items:
                 if name == b.get_name():
-                    self.network.follow_chain(index)
+                    self.network.run_from_another_thread(self.network.follow_chain(index))
         names = [blockchain.blockchains[b].get_name() for b in chains]
         if len(names) > 1:
             cur_chain = self.network.blockchain().get_name()
@@ -265,7 +267,7 @@ class ElectrumWindow(App):
         title = _('Electrum-LTC App')
         self.electrum_config = config = kwargs.get('config', None)
         self.language = config.get('language', 'en')
-        self.network = network = kwargs.get('network', None)
+        self.network = network = kwargs.get('network', None)  # type: Network
         if self.network:
             self.num_blocks = self.network.get_local_height()
             self.num_nodes = len(self.network.get_interfaces())
@@ -708,7 +710,7 @@ class ElectrumWindow(App):
             status = _("Offline")
         elif self.network.is_connected():
             server_height = self.network.get_server_height()
-            server_lag = self.network.get_local_height() - server_height
+            server_lag = self.num_blocks - server_height
             if not self.wallet.up_to_date or server_height == 0:
                 status = _("Synchronizing...")
             elif server_lag > 1:
@@ -885,7 +887,8 @@ class ElectrumWindow(App):
         Clock.schedule_once(lambda dt: on_success(tx))
 
     def _broadcast_thread(self, tx, on_complete):
-        ok, txid = self.network.broadcast_transaction_from_non_network_thread(tx)
+        ok, txid = self.network.run_from_another_thread(
+            self.network.broadcast_transaction(tx))
         Clock.schedule_once(lambda dt: on_complete(ok, txid))
 
     def broadcast(self, tx, pr=None):

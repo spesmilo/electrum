@@ -47,7 +47,6 @@ class SPV(PrintError):
     def __init__(self, network, wallet):
         self.wallet = wallet
         self.network = network
-        self.blockchain = network.blockchain()
         self.merkle_roots = {}  # txid -> merkle root (once it has been verified)
         self.requested_merkle = set()  # txid set of pending requests
 
@@ -55,18 +54,14 @@ class SPV(PrintError):
         return '{}:{}'.format(self.__class__.__name__, self.wallet.diagnostic_name())
 
     async def main(self, group: TaskGroup):
+        self.blockchain = self.network.blockchain()
         while True:
             await self._maybe_undo_verifications()
             await self._request_proofs(group)
             await asyncio.sleep(0.1)
 
     async def _request_proofs(self, group: TaskGroup):
-        blockchain = self.network.blockchain()
-        if not blockchain:
-            self.print_error("no blockchain")
-            return
-
-        local_height = self.network.get_local_height()
+        local_height = self.blockchain.height()
         unverified = self.wallet.get_unverified_txs()
 
         for tx_hash, tx_height in unverified.items():
@@ -77,7 +72,7 @@ class SPV(PrintError):
             if tx_height <= 0 or tx_height > local_height:
                 continue
             # if it's in the checkpoint region, we still might not have the header
-            header = blockchain.read_header(tx_height)
+            header = self.blockchain.read_header(tx_height)
             if header is None:
                 if tx_height < constants.net.max_checkpoint():
                     await group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))

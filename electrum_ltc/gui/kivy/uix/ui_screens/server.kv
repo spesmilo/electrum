@@ -58,5 +58,5 @@ Popup:
                 on_release:
                     net_params = app.network.get_parameters()
                     net_params = net_params._replace(host=str(root.ids.host.text), port=str(root.ids.port.text))
-                    app.network.set_parameters(net_params)
+                    app.network.run_from_another_thread(app.network.set_parameters(net_params))
                     nd.dismiss()

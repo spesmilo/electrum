@@ -72,6 +72,6 @@ Popup:
                     proxy['password']=str(root.ids.password.text)
                     if proxy['mode']=='none': proxy = None
                     net_params = net_params._replace(proxy=proxy)
-                    app.network.set_parameters(net_params)
+                    app.network.run_from_another_thread(app.network.set_parameters(net_params))
                     app.proxy_config = proxy if proxy else {}
                     nd.dismiss()

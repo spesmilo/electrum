@@ -47,6 +47,7 @@ class Plugins(DaemonThread):
     @profiler
     def __init__(self, config, is_local, gui_name):
         DaemonThread.__init__(self)
+        self.setName('Plugins')
         self.pkgpath = os.path.dirname(plugins.__file__)
         self.config = config
         self.hw_wallets = {}

@@ -107,11 +107,7 @@ class NotificationSession(ClientSession):
 
 
 class GracefulDisconnect(Exception): pass
-
-
 class ErrorParsingSSLCert(Exception): pass
-
-
 class ErrorGettingSSLCertFromServer(Exception): pass
 
 
@@ -150,8 +146,11 @@ class Interface(PrintError):
         self.tip_header = None
         self.tip = 0
 
-        # TODO combine?
-        self.fut = asyncio.get_event_loop().create_task(self.run())
+        # note that an interface dying MUST NOT kill the whole network,
+        # hence exceptions raised by "run" need to be caught not to kill
+        # main_taskgroup! the aiosafe decorator does this.
+        asyncio.run_coroutine_threadsafe(
+            self.network.main_taskgroup.spawn(self.run()), self.network.asyncio_loop)
         self.group = SilentTaskGroup()
 
     def diagnostic_name(self):
@@ -239,31 +238,29 @@ class Interface(PrintError):
             sslc.check_hostname = 0
         return sslc
 
-    def handle_graceful_disconnect(func):
+    def handle_disconnect(func):
         async def wrapper_func(self, *args, **kwargs):
             try:
                 return await func(self, *args, **kwargs)
             except GracefulDisconnect as e:
                 self.print_error("disconnecting gracefully. {}".format(e))
-                self.exception = e
+            finally:
+                await self.network.connection_down(self.server)
         return wrapper_func
 
     @aiosafe
-    @handle_graceful_disconnect
+    @handle_disconnect
     async def run(self):
         try:
             ssl_context = await self._get_ssl_context()
         except (ErrorParsingSSLCert, ErrorGettingSSLCertFromServer) as e:
-            self.exception = e
+            self.print_error('disconnecting due to: {} {}'.format(e, type(e)))
             return
         try:
             await self.open_session(ssl_context, exit_early=False)
         except (asyncio.CancelledError, OSError, aiorpcx.socks.SOCKSFailure) as e:
             self.print_error('disconnecting due to: {} {}'.format(e, type(e)))
-            self.exception = e
             return
-        # should never get here (can only exit via exception)
-        assert False
 
     def mark_ready(self):
         if self.ready.cancelled():
@@ -352,9 +349,9 @@ class Interface(PrintError):
             self.print_error("connection established. version: {}".format(ver))
 
             async with self.group as group:
-                await group.spawn(self.ping())
-                await group.spawn(self.run_fetch_blocks())
-                await group.spawn(self.monitor_connection())
+                await group.spawn(self.ping)
+                await group.spawn(self.run_fetch_blocks)
+                await group.spawn(self.monitor_connection)
                 # NOTE: group.__aexit__ will be called here; this is needed to notice exceptions in the group!
 
     async def monitor_connection(self):
@@ -368,11 +365,8 @@ class Interface(PrintError):
             await asyncio.sleep(300)
             await self.session.send_request('server.ping')
 
-    def close(self):
-        async def job():
-            self.fut.cancel()
-            await self.group.cancel_remaining()
-        asyncio.run_coroutine_threadsafe(job(), self.network.asyncio_loop)
+    async def close(self):
+        await self.group.cancel_remaining()
 
     async def run_fetch_blocks(self):
         header_queue = asyncio.Queue()
@@ -389,7 +383,7 @@ class Interface(PrintError):
             self.mark_ready()
             await self._process_header_at_tip()
             self.network.trigger_callback('network_updated')
-            self.network.switch_lagging_interface()
+            await self.network.switch_lagging_interface()
 
     async def _process_header_at_tip(self):
         height, header = self.tip, self.tip_header
@@ -517,7 +511,7 @@ class Interface(PrintError):
                 return 'fork_conflict', height
             self.print_error('forkpoint conflicts with existing fork', branch.path())
             self._raise_if_fork_conflicts_with_default_server(branch)
-            self._disconnect_from_interfaces_on_conflicting_blockchain(branch)
+            await self._disconnect_from_interfaces_on_conflicting_blockchain(branch)
             branch.write(b'', 0)
             branch.save_header(bad_header)
             self.blockchain = branch
@@ -543,8 +537,8 @@ class Interface(PrintError):
         if chain_to_delete == chain_of_default_server:
             raise GracefulDisconnect('refusing to overwrite blockchain of default server')
 
-    def _disconnect_from_interfaces_on_conflicting_blockchain(self, chain: Blockchain) -> None:
-        ifaces = self.network.disconnect_from_interfaces_on_given_blockchain(chain)
+    async def _disconnect_from_interfaces_on_conflicting_blockchain(self, chain: Blockchain) -> None:
+        ifaces = await self.network.disconnect_from_interfaces_on_given_blockchain(chain)
         if not ifaces: return
         servers = [interface.server for interface in ifaces]
         self.print_error("forcing disconnect of other interfaces: {}".format(servers))
