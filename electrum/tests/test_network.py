@@ -7,10 +7,17 @@ from electrum.simple_config import SimpleConfig
 from electrum import blockchain
 from electrum.interface import Interface
 
+class MockTaskGroup:
+    async def spawn(self, x): return
+
+class MockNetwork:
+    main_taskgroup = MockTaskGroup()
+    asyncio_loop = asyncio.get_event_loop()
+
 class MockInterface(Interface):
     def __init__(self, config):
         self.config = config
-        super().__init__(None, 'mock-server:50000:t', self.config.electrum_path(), None)
+        super().__init__(MockNetwork(), 'mock-server:50000:t', self.config.electrum_path(), None)
         self.q = asyncio.Queue()
         self.blockchain = blockchain.Blockchain(self.config, 2002, None)
         self.tip = 12
