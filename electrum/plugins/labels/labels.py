@@ -54,7 +54,7 @@ class LabelsPlugin(BasePlugin):
                   "walletNonce": nonce,
                   "externalId": self.encode(wallet, item),
                   "encryptedLabel": self.encode(wallet, label)}
-        asyncio.get_event_loop().create_task(self.do_post_safe("/label", bundle))
+        asyncio.run_coroutine_threadsafe(self.do_post_safe("/label", bundle), wallet.network.asyncio_loop)
         # Caller will write the wallet
         self.set_nonce(wallet, nonce + 1)
 
@@ -134,12 +134,15 @@ class LabelsPlugin(BasePlugin):
         await self.pull_thread(wallet, force)
 
     def pull(self, wallet, force):
+        if not wallet.network: raise Exception(_('You are offline.'))
         return asyncio.run_coroutine_threadsafe(self.pull_thread(wallet, force), wallet.network.asyncio_loop).result()
 
     def push(self, wallet):
+        if not wallet.network: raise Exception(_('You are offline.'))
         return asyncio.run_coroutine_threadsafe(self.push_thread(wallet), wallet.network.asyncio_loop).result()
 
     def start_wallet(self, wallet):
+        if not wallet.network: return  # 'offline' mode
         nonce = self.get_nonce(wallet)
         self.print_error("wallet", wallet.basename(), "nonce is", nonce)
         mpk = wallet.get_fingerprint()
@@ -151,11 +154,12 @@ class LabelsPlugin(BasePlugin):
         wallet_id = hashlib.sha256(mpk).hexdigest()
         self.wallets[wallet] = (password, iv, wallet_id)
         # If there is an auth token we can try to actually start syncing
-        asyncio.get_event_loop().create_task(self.pull_safe_thread(wallet, False))
+        asyncio.run_coroutine_threadsafe(self.pull_safe_thread(wallet, False), wallet.network.asyncio_loop)
         self.proxy = wallet.network.proxy
         wallet.network.register_callback(self.set_proxy, ['proxy_set'])
 
     def stop_wallet(self, wallet):
+        if not wallet.network: return  # 'offline' mode
         wallet.network.unregister_callback('proxy_set')
         self.wallets.pop(wallet, None)
 
