@@ -659,15 +659,8 @@ class HTLCStateMachine(PrintError):
         pending_fee = FeeUpdate(self, rate=feerate)
         self.fee_mgr.append(pending_fee)
 
-    @staticmethod
-    def remove_unlocked(log):
-        copy = []
-        for i in log:
-            if type(i) is not UpdateAddHtlc or i.locked_in[LOCAL] is not None or i.locked_in[REMOTE] is not None:
-                copy.append(i)
-        return copy
-
     def to_save(self):
+        is_locked = lambda i: type(i) is not UpdateAddHtlc or i.locked_in[LOCAL] is not None or i.locked_in[REMOTE] is not None
         return {
                 "local_config": self.local_config,
                 "remote_config": self.remote_config,
@@ -679,8 +672,8 @@ class HTLCStateMachine(PrintError):
                 "funding_outpoint": self.funding_outpoint,
                 "node_id": self.node_id,
                 "remote_commitment_to_be_revoked": str(self.remote_commitment_to_be_revoked),
-                "remote_log": [(type(x).__name__, x) for x in self.remove_unlocked(self.log[REMOTE])],
-                "local_log": [(type(x).__name__, x) for x in self.remove_unlocked(self.log[LOCAL])],
+                "remote_log": [(type(x).__name__, x) for x in filter(is_locked, self.log[REMOTE])],
+                "local_log": [(type(x).__name__, x) for x in filter(is_locked, self.log[LOCAL])],
                 "fee_updates": [x.to_save() for x in self.fee_mgr],
                 "onion_keys": {str(k): bh2u(v) for k, v in self.onion_keys.items()},
         }
