@@ -42,12 +42,8 @@ from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
 from electrum.storage import WalletStorage
 from electrum.base_wizard import GoBack
-# from electrum.synchronizer import Synchronizer
-# from electrum.verifier import SPV
-# from electrum.util import DebugMem
 from electrum.util import (UserCancelled, PrintError,
                            WalletFileException, BitcoinException)
-# from electrum.wallet import Abstract_Wallet
 
 from .installwizard import InstallWizard
 

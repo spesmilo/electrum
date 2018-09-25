@@ -1,5 +1,8 @@
-import tty, sys
-import curses, datetime, locale
+import tty
+import sys
+import curses
+import datetime
+import locale
 from decimal import Decimal
 import getpass
 
@@ -13,7 +16,6 @@ from electrum.network import NetworkParameters
 from electrum.interface import deserialize_server
 
 _ = lambda x:x
-
 
 
 class ElectrumGui:

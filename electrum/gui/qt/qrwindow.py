@@ -41,6 +41,7 @@ else:
 
 column_index = 4
 
+
 class QR_Window(QWidget):
 
     def __init__(self, win):

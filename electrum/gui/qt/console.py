@@ -1,11 +1,16 @@
 
 # source: http://stackoverflow.com/questions/2758159/how-to-embed-a-python-interpreter-in-a-pyqt-widget
 
-import sys, os, re
-import traceback, platform
+import sys
+import os
+import re
+import traceback
+import platform
+
 from PyQt5 import QtCore
 from PyQt5 import QtGui
 from PyQt5 import QtWidgets
+
 from electrum import util
 from electrum.i18n import _
 

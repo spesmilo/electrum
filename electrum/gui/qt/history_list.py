@@ -28,9 +28,10 @@ import datetime
 from datetime import date
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
-from .util import *
 from electrum.i18n import _
 from electrum.util import block_explorer_URL, profiler, print_error, TxMinedStatus
+
+from .util import *
 
 try:
     from electrum.plot import plot_history, NothingToPlotException

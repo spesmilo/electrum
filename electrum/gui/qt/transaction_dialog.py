@@ -38,7 +38,6 @@ from electrum.bitcoin import base_encode
 from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum import simple_config
-
 from electrum.util import bfh
 from electrum.transaction import SerializationError
 

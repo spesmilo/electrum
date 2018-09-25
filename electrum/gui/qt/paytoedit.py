@@ -23,9 +23,10 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from PyQt5.QtGui import *
 import re
 from decimal import Decimal
+
+from PyQt5.QtGui import *
 
 from electrum import bitcoin
 from electrum.util import bfh
@@ -39,6 +40,7 @@ RE_ALIAS = '(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 
 frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
+
 
 class PayToEdit(CompletionTextEdit, ScanQRTextEdit):
 
