@@ -396,7 +396,6 @@ class Peer(PrintError):
 
     def process_message(self, message):
         message_type, payload = decode_msg(message)
-        #self.print_error("Received '%s'" % message_type.upper())
         try:
             f = getattr(self, 'on_' + message_type)
         except AttributeError:
@@ -413,6 +412,9 @@ class Peer(PrintError):
     def on_ping(self, payload):
         l = int.from_bytes(payload['num_pong_bytes'], 'big')
         self.send_message(gen_msg('pong', byteslen=l))
+
+    def on_pong(self, payload):
+        pass
 
     def on_accept_channel(self, payload):
         temp_chan_id = payload["temporary_channel_id"]
