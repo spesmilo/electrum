@@ -273,7 +273,7 @@ class HTLCStateMachine(PrintError):
                 htlc_tx = make_htlc_tx_with_open_channel(self, *args)
                 sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
                 htlc_sig = ecc.sig_string_from_der_sig(sig[:-1])
-                htlcsigs.append(htlc_sig)
+                htlcsigs.append((pending_remote_commitment.htlc_output_indices[htlc.payment_hash], htlc_sig))
 
         for pending_fee in self.fee_mgr:
             if pending_fee.is_proposed():
@@ -286,6 +286,7 @@ class HTLCStateMachine(PrintError):
             self.lnwatcher.process_new_offchain_ctx(self, pending_remote_commitment, ours=False)
 
         htlcsigs.sort()
+        htlcsigs = [x[1] for x in htlcsigs]
 
         return sig_64, htlcsigs
 
