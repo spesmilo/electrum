@@ -659,9 +659,33 @@ class HTLCStateMachine(PrintError):
         pending_fee = FeeUpdate(self, rate=feerate)
         self.fee_mgr.append(pending_fee)
 
+    def remove_uncommitted_htlcs_from_log(self, subject):
+        """
+        returns
+        - the htlcs with uncommited (not locked in) htlcs removed
+        - a list of htlc_ids that were removed
+        """
+        removed = []
+        htlcs = []
+        for i in self.log[subject]:
+            if type(i) is not UpdateAddHtlc:
+                htlcs.append(i)
+                continue
+            if i.locked_in[LOCAL] is not None or i.locked_in[REMOTE] is not None:
+                htlcs.append(i)
+            else:
+                # should not settle or fail before being locked in
+                assert SettleHtlc(i.htlc_id) not in self.log[-subject] and FailHtlc(i.htlc_id) not in self.log[-subject]
+                removed.append(i.htlc_id)
+        return htlcs, removed
+
     def to_save(self):
-        is_locked = lambda i: type(i) is not UpdateAddHtlc or i.locked_in[LOCAL] is not None or i.locked_in[REMOTE] is not None
-        return {
+        # need to forget about uncommited htlcs
+        # since we must assume they don't know about it,
+        # if it was not acked
+        remote_filtered, remote_removed = self.remove_uncommitted_htlcs_from_log(REMOTE)
+        local_filtered, local_removed = self.remove_uncommitted_htlcs_from_log(LOCAL)
+        to_save = {
                 "local_config": self.local_config,
                 "remote_config": self.remote_config,
                 "local_state": self.local_state,
@@ -672,11 +696,23 @@ class HTLCStateMachine(PrintError):
                 "funding_outpoint": self.funding_outpoint,
                 "node_id": self.node_id,
                 "remote_commitment_to_be_revoked": str(self.remote_commitment_to_be_revoked),
-                "remote_log": [(type(x).__name__, x) for x in filter(is_locked, self.log[REMOTE])],
-                "local_log": [(type(x).__name__, x) for x in filter(is_locked, self.log[LOCAL])],
+                "remote_log": [(type(x).__name__, x) for x in remote_filtered],
+                "local_log": [(type(x).__name__, x) for x in local_filtered],
                 "fee_updates": [x.to_save() for x in self.fee_mgr],
                 "onion_keys": {str(k): bh2u(v) for k, v in self.onion_keys.items()},
         }
+
+        # htlcs number must be monotonically increasing,
+        # so we have to decrease the counter
+        if len(remote_removed) != 0:
+            assert min(remote_removed) < to_save['remote_state'].next_htlc_id
+            to_save['remote_state'] = to_save['remote_state']._replace(next_htlc_id = min(remote_removed))
+
+        if len(local_removed) != 0:
+            assert min(local_removed) < to_save['local_state'].next_htlc_id
+            to_save['local_state'] = to_save['local_state']._replace(next_htlc_id = min(local_removed))
+
+        return to_save
 
     def serialize(self):
         namedtuples_to_dict = lambda v: {i: j._asdict() if isinstance(j, tuple) else j for i, j in v._asdict().items()}
@@ -700,7 +736,13 @@ class HTLCStateMachine(PrintError):
         roundtripped = json.loads(dumped)
         reconstructed = HTLCStateMachine(roundtripped)
         if reconstructed.to_save() != self.to_save():
-            raise Exception("Channels did not roundtrip serialization without changes:\n" + repr(reconstructed.to_save()) + "\n" + repr(self.to_save()))
+            from pprint import pformat
+            try:
+                from deepdiff import DeepDiff
+            except ImportError:
+                raise Exception("Channels did not roundtrip serialization without changes:\n" + pformat(reconstructed.to_save()) + "\n" + pformat(self.to_save()))
+            else:
+                raise Exception("Channels did not roundtrip serialization without changes:\n" + pformat(DeepDiff(reconstructed.to_save(), self.to_save())))
         return roundtripped
 
     def __str__(self):
