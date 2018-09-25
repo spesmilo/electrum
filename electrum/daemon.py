@@ -28,11 +28,11 @@ import os
 import time
 import traceback
 import sys
+import threading
 
-# from jsonrpc import JSONRPCResponseManager
 import jsonrpclib
-from .jsonrpc import VerifyingJSONRPCServer
 
+from .jsonrpc import VerifyingJSONRPCServer
 from .version import ELECTRUM_VERSION
 from .network import Network
 from .util import json_decode, DaemonThread
@@ -129,7 +129,7 @@ class Daemon(DaemonThread):
             self.network = Network(config)
         self.fx = FxThread(config, self.network)
         if self.network:
-            self.network.start(self.fx.run())
+            self.network.start([self.fx.run])
         self.gui = None
         self.wallets = {}
         # Setup JSONRPC server
@@ -308,6 +308,7 @@ class Daemon(DaemonThread):
             gui_name = 'qt'
         gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
         self.gui = gui.ElectrumGui(config, self, plugins)
+        threading.current_thread().setName('GUI')
         try:
             self.gui.main()
         except BaseException as e:

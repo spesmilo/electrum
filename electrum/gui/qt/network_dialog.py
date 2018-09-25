@@ -34,6 +34,7 @@ from electrum.i18n import _
 from electrum import constants, blockchain
 from electrum.util import print_error
 from electrum.interface import serialize_server, deserialize_server
+from electrum.network import Network
 
 from .util import *
 
@@ -97,7 +98,7 @@ class NodesListWidget(QTreeWidget):
         pt.setX(50)
         self.customContextMenuRequested.emit(pt)
 
-    def update(self, network):
+    def update(self, network: Network):
         self.clear()
         self.addChild = self.addTopLevelItem
         chains = network.get_blockchains()
@@ -187,7 +188,7 @@ class ServerListWidget(QTreeWidget):
 
 class NetworkChoiceLayout(object):
 
-    def __init__(self, network, config, wizard=False):
+    def __init__(self, network: Network, config, wizard=False):
         self.network = network
         self.config = config
         self.protocol = None
@@ -361,7 +362,7 @@ class NetworkChoiceLayout(object):
         status = _("Connected to {0} nodes.").format(n) if n else _("Not connected")
         self.status_label.setText(status)
         chains = self.network.get_blockchains()
-        if len(chains)>1:
+        if len(chains) > 1:
             chain = self.network.blockchain()
             forkpoint = chain.get_forkpoint()
             name = chain.get_name()
@@ -410,15 +411,14 @@ class NetworkChoiceLayout(object):
         self.set_server()
 
     def follow_branch(self, index):
-        self.network.follow_chain(index)
+        self.network.run_from_another_thread(self.network.follow_chain(index))
         self.update()
 
     def follow_server(self, server):
-        self.network.switch_to_interface(server)
         net_params = self.network.get_parameters()
         host, port, protocol = deserialize_server(server)
         net_params = net_params._replace(host=host, port=port, protocol=protocol)
-        self.network.set_parameters(net_params)
+        self.network.run_from_another_thread(self.network.set_parameters(net_params))
         self.update()
 
     def server_changed(self, x):
@@ -451,7 +451,7 @@ class NetworkChoiceLayout(object):
         net_params = net_params._replace(host=str(self.server_host.text()),
                                          port=str(self.server_port.text()),
                                          auto_connect=self.autoconnect_cb.isChecked())
-        self.network.set_parameters(net_params)
+        self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     def set_proxy(self):
         net_params = self.network.get_parameters()
@@ -465,7 +465,7 @@ class NetworkChoiceLayout(object):
             proxy = None
             self.tor_cb.setChecked(False)
         net_params = net_params._replace(proxy=proxy)
-        self.network.set_parameters(net_params)
+        self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     def suggest_proxy(self, found_proxy):
         self.tor_proxy = found_proxy

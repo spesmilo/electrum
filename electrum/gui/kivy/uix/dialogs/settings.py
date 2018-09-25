@@ -159,8 +159,9 @@ class SettingsDialog(Factory.Popup):
         return proxy.get('host') +':' + proxy.get('port') if proxy else _('None')
 
     def proxy_dialog(self, item, dt):
+        network = self.app.network
         if self._proxy_dialog is None:
-            net_params = self.app.network.get_parameters()
+            net_params = network.get_parameters()
             proxy = net_params.proxy
             def callback(popup):
                 nonlocal net_params
@@ -175,7 +176,7 @@ class SettingsDialog(Factory.Popup):
                 else:
                     proxy = None
                 net_params = net_params._replace(proxy=proxy)
-                self.app.network.set_parameters(net_params)
+                network.run_from_another_thread(network.set_parameters(net_params))
                 item.status = self.proxy_status()
             popup = Builder.load_file('electrum/gui/kivy/uix/ui_screens/proxy.kv')
             popup.ids.mode.text = proxy.get('mode') if proxy else 'None'
