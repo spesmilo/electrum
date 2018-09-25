@@ -73,6 +73,7 @@ class Synchronizer(PrintError):
         asyncio.run_coroutine_threadsafe(self._add(addr), self.asyncio_loop)
 
     async def _add(self, addr):
+        if addr in self.requested_addrs: return
         self.requested_addrs.add(addr)
         await self.add_queue.put(addr)
 
