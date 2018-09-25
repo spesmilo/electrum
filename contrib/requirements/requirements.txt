@@ -6,6 +6,6 @@ protobuf
 dnspython
 jsonrpclib-pelix
 qdarkstyle<3.0
-aiorpcx>=0.8.1,<0.9
+aiorpcx>=0.8.2,<0.9
 aiohttp
 aiohttp_socks
