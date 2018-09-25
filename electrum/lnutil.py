@@ -25,6 +25,8 @@ LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amo
 ChannelConstraints = namedtuple("ChannelConstraints", ["capacity", "is_initiator", "funding_txn_minimum_depth"])
 #OpenChannel = namedtuple("OpenChannel", ["channel_id", "short_channel_id", "funding_outpoint", "local_config", "remote_config", "remote_state", "local_state", "constraints", "node_id"])
 
+ScriptHtlc = namedtuple('ScriptHtlc', ['redeem_script', 'htlc'])
+
 class Outpoint(NamedTuple("Outpoint", [('txid', str), ('output_index', int)])):
     def to_str(self):
         return "{}:{}".format(self.txid, self.output_index)
@@ -235,7 +237,8 @@ def make_received_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, p
         + bitcoin.add_number_to_script(cltv_expiry) \
         + bytes([opcodes.OP_CLTV, opcodes.OP_DROP, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF, opcodes.OP_ENDIF])
 
-def make_htlc_tx_with_open_channel(chan, pcp, for_us, we_receive, amount_msat, cltv_expiry, payment_hash, commit, original_htlc_output_index):
+def make_htlc_tx_with_open_channel(chan, pcp, for_us, we_receive, commit, htlc):
+    amount_msat, cltv_expiry, payment_hash = htlc.amount_msat, htlc.cltv_expiry, htlc.payment_hash
     conf = chan.local_config if for_us else chan.remote_config
     other_conf = chan.local_config if not for_us else chan.remote_config
 
@@ -258,8 +261,9 @@ def make_htlc_tx_with_open_channel(chan, pcp, for_us, we_receive, amount_msat, c
         preimage_script = make_received_htlc(other_revocation_pubkey, other_htlc_pubkey, htlc_pubkey, payment_hash, cltv_expiry)
     else:
         preimage_script = make_offered_htlc(other_revocation_pubkey, other_htlc_pubkey, htlc_pubkey, payment_hash)
+    output_idx = commit.htlc_output_indices[htlc.payment_hash]
     htlc_tx_inputs = make_htlc_tx_inputs(
-        commit.txid(), commit.htlc_output_indices[original_htlc_output_index],
+        commit.txid(), output_idx,
         revocationpubkey=revocation_pubkey,
         local_delayedpubkey=delayedpubkey,
         amount_msat=amount_msat,
@@ -290,20 +294,21 @@ def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes
     return c_input, payments
 
 def make_outputs(fee_msat: int, we_pay_fee: bool, local_amount: int, remote_amount: int,
-        local_tupl, remote_tupl, htlcs: List[Tuple[bytes, int]], dust_limit_sat: int) -> Tuple[List[TxOutput], List[TxOutput]]:
+        local_tupl, remote_tupl, htlcs: List[ScriptHtlc], dust_limit_sat: int) -> Tuple[List[TxOutput], List[TxOutput]]:
     to_local_amt = local_amount - (fee_msat if we_pay_fee else 0)
     to_local = TxOutput(*local_tupl, to_local_amt // 1000)
     to_remote_amt = remote_amount - (fee_msat if not we_pay_fee else 0)
     to_remote = TxOutput(*remote_tupl, to_remote_amt // 1000)
-    c_outputs = [to_local, to_remote]
-    for script, msat_amount in htlcs:
-        c_outputs += [TxOutput(bitcoin.TYPE_ADDRESS,
+    non_htlc_outputs = [to_local, to_remote]
+    htlc_outputs = []
+    for script, htlc in htlcs:
+        htlc_outputs.append(TxOutput(bitcoin.TYPE_ADDRESS,
                                bitcoin.redeem_script_to_address('p2wsh', bh2u(script)),
-                               msat_amount // 1000)]
+                               htlc.amount_msat // 1000))
 
     # trim outputs
-    c_outputs_filtered = list(filter(lambda x:x[2]>= dust_limit_sat, c_outputs))
-    return c_outputs, c_outputs_filtered
+    c_outputs_filtered = list(filter(lambda x: x.value >= dust_limit_sat, non_htlc_outputs + htlc_outputs))
+    return htlc_outputs, c_outputs_filtered
 
 
 def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
@@ -331,19 +336,21 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
     fee = fee // 1000 * 1000
     we_pay_fee = for_us == we_are_initiator
 
-    c_outputs, c_outputs_filtered = make_outputs(fee, we_pay_fee, local_amount, remote_amount,
+    htlc_outputs, c_outputs_filtered = make_outputs(fee, we_pay_fee, local_amount, remote_amount,
         (bitcoin.TYPE_ADDRESS, local_address), (bitcoin.TYPE_ADDRESS, remote_address), htlcs, dust_limit_sat)
 
-    assert sum(x[2] for x in c_outputs) <= funding_sat
+    assert sum(x.value for x in c_outputs_filtered) <= funding_sat
 
     # create commitment tx
     tx = Transaction.from_io(c_inputs, c_outputs_filtered, locktime=locktime, version=2)
 
     tx.htlc_output_indices = {}
-    for idx, output in enumerate(c_outputs):
+    assert len(htlcs) == len(htlc_outputs)
+    for script_htlc, output in zip(htlcs, htlc_outputs):
         if output in tx.outputs():
             # minus the first two outputs (to_local, to_remote)
-            tx.htlc_output_indices[idx - 2] = tx.outputs().index(output)
+            assert script_htlc.htlc.payment_hash not in tx.htlc_output_indices
+            tx.htlc_output_indices[script_htlc.htlc.payment_hash] = tx.outputs().index(output)
 
     return tx
 
