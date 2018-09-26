@@ -1040,7 +1040,7 @@ class Peer(PrintError):
         channel_id = payload["channel_id"]
         self.channels[channel_id].receive_update_fee(int.from_bytes(payload["feerate_per_kw"], "big"))
 
-    def on_bitcoin_fee_update(self, chan):
+    async def bitcoin_fee_update(self, chan):
         """
         called when our fee estimates change
         """
@@ -1062,6 +1062,11 @@ class Peer(PrintError):
             return
 
         self.send_message(gen_msg("update_fee", channel_id=chan.channel_id, feerate_per_kw=feerate_per_kw))
+        sig_64, htlc_sigs = chan.sign_next_commitment()
+        self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
+        await self.receive_revoke(chan)
+        await self.receive_commitment(chan)
+        self.revoke(chan)
         self.lnworker.save_channel(chan)
 
     def current_feerate_per_kw(self):
