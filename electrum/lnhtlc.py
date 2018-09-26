@@ -62,9 +62,17 @@ class FeeUpdate:
         self.progress[field] = self.height
 
     def is_proposed(self):
+        """
+        returns True when this FeeUpdate has been proposed
+        at or above the current commitment number of the funder
+        """
         return self.progress[COMMITTED] is None and self.proposed is not None and self.proposed <= self.height
 
     def had(self, field):
+        """
+        returns true when the progress field given has been
+        set at the current commitment number of the funder
+        """
         return self.progress[field] is not None and self.height >= self.progress[field]
 
     def pending_feerate(self, subject):
@@ -76,6 +84,7 @@ class FeeUpdate:
             return self.rate
         if subject == LOCAL and not self.chan.constraints.is_initiator:
             return self.rate
+        # implicit return None
 
     def to_save(self):
         return {'rate': self.rate, 'proposed': self.proposed, 'progress': self.progress}
