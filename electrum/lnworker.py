@@ -150,7 +150,7 @@ class LNWorker(PrintError):
                     self.print_error("peer not found for {}".format(bh2u(chan.node_id)))
                     return
                 if event == 'fee':
-                    peer.on_bitcoin_fee_update(chan)
+                    await peer.bitcoin_fee_update(chan)
                 conf = self.wallet.get_tx_height(chan.funding_outpoint.txid).conf
                 peer.on_network_update(chan, conf)
 
