@@ -200,7 +200,7 @@ class Plugins(DaemonThread):
 
         try:
             module = zipfile.load_module(name)
-        except zipimport.ZipImportError:
+        except zipimport.ZipImportError as e:
             self.print_error("unable to load zip plugin '%s' package '%s'" % (plugin_file_path, name), str(e))
             return
 
