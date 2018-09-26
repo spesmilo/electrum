@@ -841,10 +841,18 @@ class Peer(PrintError):
         await self.receive_revoke(chan)
         self.lnworker.save_channel(chan)
 
+    async def update_channel(self, chan, update):
+        """ generic channel update flow """
+        self.send_message(update)
+        sig_64, htlc_sigs = chan.sign_next_commitment()
+        self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
+        await self.receive_revoke(chan)
+        await self.receive_commitment(chan)
+        self.revoke(chan)
+
     async def pay(self, path, chan, amount_msat, payment_hash, pubkey_in_invoice, min_final_cltv_expiry):
         assert chan.get_state() == "OPEN", chan.get_state()
         assert amount_msat > 0, "amount_msat is not greater zero"
-
         height = self.network.get_local_height()
         route = self.network.path_finder.create_route_from_path(path, self.lnworker.pubkey)
         hops_data = []
@@ -864,7 +872,6 @@ class Peer(PrintError):
         msat_local = chan.balance(LOCAL) - amount_msat
         msat_remote = chan.balance(REMOTE) + amount_msat
         htlc = {'amount_msat':amount_msat, 'payment_hash':payment_hash, 'cltv_expiry':final_cltv_expiry_with_deltas}
-
         # FIXME if we raise here, this channel will not get blacklisted, and the payment can never succeed,
         # as we will just keep retrying this same path. using the current blacklisting is not a solution as
         # then no other payment can use this channel either.
@@ -877,18 +884,11 @@ class Peer(PrintError):
         if msat_local < 0:
             # FIXME what about channel_reserve_satoshis? will the remote fail the channel if we go below? test.
             raise PaymentFailure('not enough local balance')
-
         htlc_id = chan.add_htlc(htlc)
         chan.onion_keys[htlc_id] = secret_key
-        self.send_message(gen_msg("update_add_htlc", channel_id=chan.channel_id, id=htlc_id, cltv_expiry=final_cltv_expiry_with_deltas, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes()))
-
+        update = gen_msg("update_add_htlc", channel_id=chan.channel_id, id=htlc_id, cltv_expiry=final_cltv_expiry_with_deltas, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes())
         self.attempted_route[(chan.channel_id, htlc_id)] = route
-
-        sig_64, htlc_sigs = chan.sign_next_commitment()
-        self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
-        await self.receive_revoke(chan)
-        await self.receive_commitment(chan)
-        self.revoke(chan)
+        await self.update_channel(chan, update)
 
     async def receive_revoke(self, m):
         revoke_and_ack_msg = await self.revoke_and_ack[m.channel_id].get()
@@ -1047,27 +1047,19 @@ class Peer(PrintError):
         if not chan.constraints.is_initiator:
             # TODO force close if initiator does not update_fee enough
             return
-
         feerate_per_kw = self.current_feerate_per_kw()
         chan_fee = chan.pending_feerate(REMOTE)
         self.print_error("current pending feerate", chan_fee)
         self.print_error("new feerate", feerate_per_kw)
         if feerate_per_kw < chan_fee / 2:
             self.print_error("FEES HAVE FALLEN")
-            chan.update_fee(feerate_per_kw)
         elif feerate_per_kw > chan_fee * 2:
             self.print_error("FEES HAVE RISEN")
-            chan.update_fee(feerate_per_kw)
         else:
             return
-
-        self.send_message(gen_msg("update_fee", channel_id=chan.channel_id, feerate_per_kw=feerate_per_kw))
-        sig_64, htlc_sigs = chan.sign_next_commitment()
-        self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
-        await self.receive_revoke(chan)
-        await self.receive_commitment(chan)
-        self.revoke(chan)
-        self.lnworker.save_channel(chan)
+        chan.update_fee(feerate_per_kw)
+        update = gen_msg("update_fee", channel_id=chan.channel_id, feerate_per_kw=feerate_per_kw)
+        await self.update_channel(chan, update)
 
     def current_feerate_per_kw(self):
         from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE
