@@ -1049,12 +1049,13 @@ class Peer(PrintError):
             return
 
         feerate_per_kw = self.current_feerate_per_kw()
-        self.print_error("current feerate", chan.remote_state.feerate)
+        chan_fee = chan.pending_feerate(REMOTE)
+        self.print_error("current pending feerate", chan_fee)
         self.print_error("new feerate", feerate_per_kw)
-        if feerate_per_kw < chan.remote_state.feerate / 2:
+        if feerate_per_kw < chan_fee / 2:
             self.print_error("FEES HAVE FALLEN")
             chan.update_fee(feerate_per_kw)
-        elif feerate_per_kw > chan.remote_state.feerate * 2:
+        elif feerate_per_kw > chan_fee * 2:
             self.print_error("FEES HAVE RISEN")
             chan.update_fee(feerate_per_kw)
         else:
