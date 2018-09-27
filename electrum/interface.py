@@ -130,7 +130,6 @@ def serialize_server(host: str, port: Union[str, int], protocol: str) -> str:
 class Interface(PrintError):
 
     def __init__(self, network, server, config_path, proxy):
-        self.exception = None
         self.ready = asyncio.Future()
         self.got_disconnected = asyncio.Future()
         self.server = server

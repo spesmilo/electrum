@@ -642,17 +642,28 @@ class Network(PrintError):
         async def make_reliable_wrapper(self, *args, **kwargs):
             for i in range(10):
                 iface = self.interface
-                session = iface.session if iface else None
-                if not session:
-                    # no main interface; try again
+                # retry until there is a main interface
+                if not iface:
                     await asyncio.sleep(0.1)
-                    continue
+                    continue  # try again
+                # wait for it to be usable
+                iface_ready = iface.ready
+                iface_disconnected = iface.got_disconnected
+                await asyncio.wait([iface_ready, iface_disconnected], return_when=asyncio.FIRST_COMPLETED)
+                if not iface_ready.done() or iface_ready.cancelled():
+                    await asyncio.sleep(0.1)
+                    continue  # try again
+                # try actual request
                 success_fut = asyncio.ensure_future(func(self, *args, **kwargs))
-                disconnected_fut = asyncio.shield(iface.got_disconnected)
-                await asyncio.wait([success_fut, disconnected_fut], return_when=asyncio.FIRST_COMPLETED)
-                if success_fut.done():
+                await asyncio.wait([success_fut, iface_disconnected], return_when=asyncio.FIRST_COMPLETED)
+                if success_fut.done() and not success_fut.cancelled():
                     if success_fut.exception():
-                        raise success_fut.exception()
+                        try:
+                            raise success_fut.exception()
+                        except RequestTimedOut:
+                            await iface.close()
+                            await iface_disconnected
+                            continue  # try again
                     return success_fut.result()
                 # otherwise; try again
             raise Exception('no interface to do request on... gave up.')
