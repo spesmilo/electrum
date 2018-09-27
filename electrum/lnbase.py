@@ -13,7 +13,6 @@ from .bitcoin import COIN
 
 from ecdsa.util import sigdecode_der, sigencode_string_canonize, sigdecode_string
 import queue
-import traceback
 import json
 import asyncio
 from concurrent.futures import FIRST_COMPLETED
@@ -830,22 +829,24 @@ class Peer(PrintError):
 
         print("HTLC failure with code {} ({})".format(code, code_name))
         chan = self.channels[channel_id]
-        sig_64, htlc_sigs = chan.sign_next_commitment()
-        self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
+        self.send_commitment(chan)
         await self.receive_revoke(chan)
         chan.receive_fail_htlc(htlc_id)
         await self.receive_commitment(chan)
         self.revoke(chan)
-        sig_64, htlc_sigs = chan.sign_next_commitment()
-        self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=0))
+        self.send_commitment(chan) # htlc will be removed
         await self.receive_revoke(chan)
         self.lnworker.save_channel(chan)
+
+    def send_commitment(self, chan):
+        sig_64, htlc_sigs = chan.sign_next_commitment()
+        self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
+        return len(htlc_sigs)
 
     async def update_channel(self, chan, update):
         """ generic channel update flow """
         self.send_message(update)
-        sig_64, htlc_sigs = chan.sign_next_commitment()
-        self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
+        self.send_commitment(chan)
         await self.receive_revoke(chan)
         await self.receive_commitment(chan)
         self.revoke(chan)
@@ -917,29 +918,18 @@ class Peer(PrintError):
         expected_received_msat = int(decoded.amount * bitcoin.COIN * 1000)
         htlc_id = int.from_bytes(htlc["id"], 'big')
         assert htlc_id == chan.remote_state.next_htlc_id, (htlc_id, chan.remote_state.next_htlc_id)
-
         assert chan.get_state() == "OPEN"
-
         cltv_expiry = int.from_bytes(htlc["cltv_expiry"], 'big')
         # TODO verify sanity of their cltv expiry
         amount_msat = int.from_bytes(htlc["amount_msat"], 'big')
         assert amount_msat == expected_received_msat
         payment_hash = htlc["payment_hash"]
-
         htlc = {'amount_msat': amount_msat, 'payment_hash':payment_hash, 'cltv_expiry':cltv_expiry}
-
         chan.receive_htlc(htlc)
-
         assert (await self.receive_commitment(chan)) <= 1
-
         self.revoke(chan)
-
-        sig_64, htlc_sigs = chan.sign_next_commitment()
-        htlc_sig = b''.join(htlc_sigs)
-        self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=htlc_sig))
-
+        self.send_commitment(chan)
         await self.receive_revoke(chan)
-
         chan.settle_htlc(payment_preimage, htlc_id)
         fulfillment = gen_msg("update_fulfill_htlc", channel_id=channel_id, id=htlc_id, payment_preimage=payment_preimage)
         await self.update_channel(chan, fulfillment)
@@ -963,17 +953,9 @@ class Peer(PrintError):
         htlc_id = int.from_bytes(update_fulfill_htlc_msg["id"], "big")
         htlc = chan.lookup_htlc(chan.log[LOCAL], htlc_id)
         chan.receive_htlc_settle(preimage, htlc_id)
-        msat_local = chan.balance(LOCAL) - htlc.amount_msat
-        msat_remote = chan.balance(REMOTE) + htlc.amount_msat
         await self.receive_commitment(chan)
         self.revoke(chan)
-        # FIXME why is this not using the HTLC state machine?
-        bare_ctx = chan.make_commitment(chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
-            msat_remote, msat_local)
-        self.lnwatcher.process_new_offchain_ctx(chan, bare_ctx, ours=False)
-        sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
-
-        self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=0))
+        self.send_commitment(chan) # htlc will be removed
         await self.receive_revoke(chan)
         self.lnworker.save_channel(chan)
 
