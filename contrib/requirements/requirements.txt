@@ -9,3 +9,5 @@ qdarkstyle<2.6
 aiorpcx>=0.9,<0.11
 aiohttp
 aiohttp_socks
+bitstring
+cryptography
