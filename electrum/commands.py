@@ -181,7 +181,7 @@ class Commands:
         walletless server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        return self.network.get_history_for_scripthash(sh)
+        return self.network.run_from_another_thread(self.network.get_history_for_scripthash(sh))
 
     @command('w')
     def listunspent(self):
@@ -199,7 +199,7 @@ class Commands:
         is a walletless server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        return self.network.listunspent_for_scripthash(sh)
+        return self.network.run_from_another_thread(self.network.listunspent_for_scripthash(sh))
 
     @command('')
     def serialize(self, jsontx):
@@ -322,7 +322,7 @@ class Commands:
         server query, results are not checked by SPV.
         """
         sh = bitcoin.address_to_scripthash(address)
-        out = self.network.get_balance_for_scripthash(sh)
+        out = self.network.run_from_another_thread(self.network.get_balance_for_scripthash(sh))
         out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
         out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
         return out
@@ -331,7 +331,7 @@ class Commands:
     def getmerkle(self, txid, height):
         """Get Merkle branch of a transaction included in a block. Electrum
         uses this to verify transactions (Simple Payment Verification)."""
-        return self.network.get_merkle_for_transaction(txid, int(height))
+        return self.network.run_from_another_thread(self.network.get_merkle_for_transaction(txid, int(height)))
 
     @command('n')
     def getservers(self):
@@ -517,7 +517,7 @@ class Commands:
         if self.wallet and txid in self.wallet.transactions:
             tx = self.wallet.transactions[txid]
         else:
-            raw = self.network.get_transaction(txid)
+            raw = self.network.run_from_another_thread(self.network.get_transaction(txid))
             if raw:
                 tx = Transaction(raw)
             else:
@@ -637,6 +637,7 @@ class Commands:
     @command('n')
     def notify(self, address, URL):
         """Watch an address. Every time the address changes, a http POST is sent to the URL."""
+        raise NotImplementedError()  # TODO this method is currently broken
         def callback(x):
             import urllib.request
             headers = {'content-type':'application/json'}

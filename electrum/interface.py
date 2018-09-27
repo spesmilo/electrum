@@ -76,7 +76,7 @@ class NotificationSession(ClientSession):
                     super().send_request(*args, **kwargs),
                     timeout)
             except asyncio.TimeoutError as e:
-                raise GracefulDisconnect('request timed out: {}'.format(args)) from e
+                raise RequestTimedOut('request timed out: {}'.format(args)) from e
 
     async def subscribe(self, method, params, queue):
         # note: until the cache is written for the first time,
@@ -105,6 +105,7 @@ class NotificationSession(ClientSession):
 
 
 class GracefulDisconnect(Exception): pass
+class RequestTimedOut(GracefulDisconnect): pass
 class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
 
@@ -140,6 +141,7 @@ class Interface(PrintError):
         self._requested_chunks = set()
         self.network = network
         self._set_proxy(proxy)
+        self.session = None
 
         self.tip_header = None
         self.tip = 0
