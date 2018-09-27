@@ -3,9 +3,10 @@ import os
 from decimal import Decimal
 import random
 import time
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Tuple, List
 import threading
 from functools import partial
+import socket
 
 import dns.resolver
 import dns.exception
@@ -17,8 +18,10 @@ from .lnbase import Peer, privkey_to_pubkey, aiosafe
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .lnhtlc import HTLCStateMachine
-from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr, get_compressed_pubkey_from_bech32,
-                     PaymentFailure)
+from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
+                     get_compressed_pubkey_from_bech32, extract_nodeid,
+                     PaymentFailure, split_host_port, ConnStringFormatError)
+from electrum.lnaddr import lndecode
 from .i18n import _
 
 
@@ -29,7 +32,6 @@ PEER_RETRY_INTERVAL_FOR_CHANNELS = 30  # seconds
 FALLBACK_NODE_LIST = (
     LNPeerAddr('ecdsa.net', 9735, bfh('038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff')),
 )
-
 
 class LNWorker(PrintError):
 
@@ -89,6 +91,7 @@ class LNWorker(PrintError):
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(peer.main_loop()), self.network.asyncio_loop)
         self.peers[node_id] = peer
         self.network.trigger_callback('ln_status')
+        return peer
 
     def save_channel(self, openchannel):
         assert type(openchannel) is HTLCStateMachine
@@ -154,8 +157,10 @@ class LNWorker(PrintError):
                 conf = self.wallet.get_tx_height(chan.funding_outpoint.txid).conf
                 peer.on_network_update(chan, conf)
 
-    async def _open_channel_coroutine(self, node_id, local_amount_sat, push_sat, password):
-        peer = self.peers[node_id]
+    async def _open_channel_coroutine(self, peer, local_amount_sat, push_sat, password):
+        # peer might just have been connected to
+        await asyncio.wait_for(peer.initialized, 5)
+
         openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password,
                                                                funding_sat=local_amount_sat + push_sat,
                                                                push_msat=push_sat * 1000,
@@ -171,8 +176,34 @@ class LNWorker(PrintError):
     def on_channels_updated(self):
         self.network.trigger_callback('channels')
 
-    def open_channel(self, node_id, local_amt_sat, push_amt_sat, pw):
-        coro = self._open_channel_coroutine(node_id, local_amt_sat, push_amt_sat, None if pw == "" else pw)
+    @staticmethod
+    def choose_preferred_address(addr_list: List[Tuple[str, int]]) -> Tuple[str, int]:
+        for host, port in addr_list:
+            if is_ip_address(host):
+                return host, port
+        # TODO maybe filter out onion if not on tor?
+        self.print_error('Chose random address from ' + str(node_info.addresses))
+        return random.choice(node_info.addresses)
+
+    def open_channel(self, connect_contents, local_amt_sat, push_amt_sat, pw):
+        node_id, rest = extract_nodeid(connect_contents)
+
+        peer = self.peers.get(node_id)
+        if not peer:
+            all_nodes = self.network.channel_db.nodes
+            node_info = all_nodes.get(node_id, None)
+            if rest is not None:
+                host, port = split_host_port(rest)
+            elif node_info and len(node_info.addresses) > 0:
+                host, port = self.choose_preferred_address(node_info.addresses)
+            else:
+                raise ConnStringFormatError(_('Unknown node:') + ' ' + bh2u(node_id))
+            try:
+                socket.getaddrinfo(host, int(port))
+            except socket.gaierror:
+                raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
+            peer = self.add_peer(host, port, node_id)
+        coro = self._open_channel_coroutine(peer, local_amt_sat, push_amt_sat, None if pw == "" else pw)
         return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     def pay(self, invoice, amount_sat=None):
@@ -262,7 +293,7 @@ class LNWorker(PrintError):
                 if node is None: continue
                 addresses = node.addresses
                 if not addresses: continue
-                host, port = random.choice(addresses)
+                host, port = self.choose_preferred_address(addresses)
                 peer = LNPeerAddr(host, port, node_id)
                 if peer.pubkey in self.peers: continue
                 if peer in self._last_tried_peer: continue

@@ -2,6 +2,7 @@ from enum import IntFlag
 import json
 from collections import namedtuple
 from typing import NamedTuple, List, Tuple
+import re
 
 from .util import bfh, bh2u, inv_dict
 from .crypto import sha256
@@ -11,6 +12,7 @@ from . import ecc, bitcoin, crypto, transaction
 from .transaction import opcodes, TxOutput
 from .bitcoin import push_script
 from . import segwit_addr
+from .i18n import _
 
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
@@ -478,3 +480,48 @@ def make_closing_tx(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
     c_input['sequence'] = 0xFFFF_FFFF
     tx = Transaction.from_io([c_input], outputs, locktime=0, version=2)
     return tx
+
+class ConnStringFormatError(Exception):
+    pass
+
+def split_host_port(host_port: str) -> Tuple[str, str]: # port returned as string
+    ipv6  = re.compile(r'\[(?P<host>[:0-9]+)\](?P<port>:\d+)?$')
+    other = re.compile(r'(?P<host>[^:]+)(?P<port>:\d+)?$')
+    m = ipv6.match(host_port)
+    if not m:
+        m = other.match(host_port)
+    if not m:
+        raise ConnStringFormatError(_('Connection strings must be in <node_pubkey>@<host>:<port> format'))
+    host = m.group('host')
+    if m.group('port'):
+        port = m.group('port')[1:]
+    else:
+        port = '9735'
+    try:
+        int(port)
+    except ValueError:
+        raise ConnStringFormatError(_('Port number must be decimal'))
+    return host, port
+
+def extract_nodeid(connect_contents: str) -> Tuple[bytes, str]:
+    rest = None
+    try:
+        # connection string?
+        nodeid_hex, rest = connect_contents.split("@", 1)
+    except ValueError:
+        try:
+            # invoice?
+            invoice = lndecode(connect_contents)
+            nodeid_bytes = invoice.pubkey.serialize()
+            nodeid_hex = bh2u(nodeid_bytes)
+        except:
+            # node id as hex?
+            nodeid_hex = connect_contents
+    if rest == '':
+        raise ConnStringFormatError(_('At least a hostname must be supplied after the at symbol.'))
+    try:
+        node_id = bfh(nodeid_hex)
+        assert len(node_id) == 33
+    except:
+        raise ConnStringFormatError(_('Invalid node ID, must be 33 bytes and hexadecimal'))
+    return node_id, rest
