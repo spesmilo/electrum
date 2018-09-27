@@ -9,3 +9,5 @@ aiorpcx>=0.9,<0.11
 aiohttp
 aiohttp_socks
 certifi
+bitstring
+cryptography
