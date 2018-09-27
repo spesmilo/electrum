@@ -77,7 +77,7 @@ class ChannelsList(MyTreeWidget):
     def new_channel_dialog(self):
         lnworker = self.parent.wallet.lnworker
         d = WindowModalDialog(self.parent, _('Open Channel'))
-        d.setFixedWidth(700)
+        d.setMinimumWidth(700)
         vbox = QVBoxLayout(d)
         h = QGridLayout()
         local_nodeid = QLineEdit()
@@ -98,7 +98,9 @@ class ChannelsList(MyTreeWidget):
         h.addWidget(QLabel('Push amount'), 3, 0)
         h.addWidget(push_amt_inp, 3, 1)
         vbox.addLayout(h)
-        vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
+        ok_button = OkButton(d)
+        ok_button.setDefault(True)
+        vbox.addLayout(Buttons(CancelButton(d), ok_button))
         suggestion = lnworker.suggest_peer() or b''
         remote_nodeid.setText(bh2u(suggestion))
         remote_nodeid.setCursorPosition(0)
