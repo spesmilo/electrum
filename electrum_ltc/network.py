@@ -45,7 +45,7 @@ from .bitcoin import COIN
 from . import constants
 from . import blockchain
 from .blockchain import Blockchain, HEADER_SIZE
-from .interface import Interface, serialize_server, deserialize_server
+from .interface import Interface, serialize_server, deserialize_server, RequestTimedOut
 from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 
@@ -216,7 +216,7 @@ class Network(PrintError):
         # kick off the network.  interface is the main server we are currently
         # communicating with.  interfaces is the set of servers we are connecting
         # to or have an ongoing connection with
-        self.interface = None
+        self.interface = None  # type: Interface
         self.interfaces = {}
         self.auto_connect = self.config.get('auto_connect', True)
         self.connecting = set()
@@ -638,13 +638,46 @@ class Network(PrintError):
         with b.lock:
             b.update_size()
 
-    async def get_merkle_for_transaction(self, tx_hash, tx_height):
+    def best_effort_reliable(func):
+        async def make_reliable_wrapper(self, *args, **kwargs):
+            for i in range(10):
+                iface = self.interface
+                # retry until there is a main interface
+                if not iface:
+                    await asyncio.sleep(0.1)
+                    continue  # try again
+                # wait for it to be usable
+                iface_ready = iface.ready
+                iface_disconnected = iface.got_disconnected
+                await asyncio.wait([iface_ready, iface_disconnected], return_when=asyncio.FIRST_COMPLETED)
+                if not iface_ready.done() or iface_ready.cancelled():
+                    await asyncio.sleep(0.1)
+                    continue  # try again
+                # try actual request
+                success_fut = asyncio.ensure_future(func(self, *args, **kwargs))
+                await asyncio.wait([success_fut, iface_disconnected], return_when=asyncio.FIRST_COMPLETED)
+                if success_fut.done() and not success_fut.cancelled():
+                    if success_fut.exception():
+                        try:
+                            raise success_fut.exception()
+                        except RequestTimedOut:
+                            await iface.close()
+                            await iface_disconnected
+                            continue  # try again
+                    return success_fut.result()
+                # otherwise; try again
+            raise Exception('no interface to do request on... gave up.')
+        return make_reliable_wrapper
+
+    @best_effort_reliable
+    async def get_merkle_for_transaction(self, tx_hash: str, tx_height: int) -> dict:
         return await self.interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
 
+    @best_effort_reliable
     async def broadcast_transaction(self, tx, timeout=10):
         try:
             out = await self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)], timeout=timeout)
-        except asyncio.TimeoutError as e:
+        except RequestTimedOut as e:
             return False, "error: operation timed out"
         except Exception as e:
             return False, "error: " + str(e)
@@ -653,10 +686,27 @@ class Network(PrintError):
             return False, "error: " + out
         return True, out
 
+    @best_effort_reliable
     async def request_chunk(self, height, tip=None, *, can_return_early=False):
         return await self.interface.request_chunk(height, tip=tip, can_return_early=can_return_early)
 
-    def blockchain(self):
+    @best_effort_reliable
+    async def get_transaction(self, tx_hash: str) -> str:
+        return await self.interface.session.send_request('blockchain.transaction.get', [tx_hash])
+
+    @best_effort_reliable
+    async def get_history_for_scripthash(self, sh: str) -> List[dict]:
+        return await self.interface.session.send_request('blockchain.scripthash.get_history', [sh])
+
+    @best_effort_reliable
+    async def listunspent_for_scripthash(self, sh: str) -> List[dict]:
+        return await self.interface.session.send_request('blockchain.scripthash.listunspent', [sh])
+
+    @best_effort_reliable
+    async def get_balance_for_scripthash(self, sh: str) -> dict:
+        return await self.interface.session.send_request('blockchain.scripthash.get_balance', [sh])
+
+    def blockchain(self) -> Blockchain:
         interface = self.interface
         if interface and interface.blockchain is not None:
             self.blockchain_index = interface.blockchain.forkpoint

@@ -76,7 +76,7 @@ class NotificationSession(ClientSession):
                     super().send_request(*args, **kwargs),
                     timeout)
             except asyncio.TimeoutError as e:
-                raise GracefulDisconnect('request timed out: {}'.format(args)) from e
+                raise RequestTimedOut('request timed out: {}'.format(args)) from e
 
     async def subscribe(self, method, params, queue):
         # note: until the cache is written for the first time,
@@ -105,6 +105,7 @@ class NotificationSession(ClientSession):
 
 
 class GracefulDisconnect(Exception): pass
+class RequestTimedOut(GracefulDisconnect): pass
 class ErrorParsingSSLCert(Exception): pass
 class ErrorGettingSSLCertFromServer(Exception): pass
 
@@ -129,8 +130,8 @@ def serialize_server(host: str, port: Union[str, int], protocol: str) -> str:
 class Interface(PrintError):
 
     def __init__(self, network, server, config_path, proxy):
-        self.exception = None
         self.ready = asyncio.Future()
+        self.got_disconnected = asyncio.Future()
         self.server = server
         self.host, self.port, self.protocol = deserialize_server(self.server)
         self.port = int(self.port)
@@ -140,6 +141,7 @@ class Interface(PrintError):
         self._requested_chunks = set()
         self.network = network
         self._set_proxy(proxy)
+        self.session = None
 
         self.tip_header = None
         self.tip = 0
@@ -244,6 +246,7 @@ class Interface(PrintError):
                 self.print_error("disconnecting gracefully. {}".format(e))
             finally:
                 await self.network.connection_down(self.server)
+                self.got_disconnected.set_result(1)
         return wrapper_func
 
     @aiosafe

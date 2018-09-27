@@ -116,8 +116,6 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         self.add_io(vbox)
 
-        vbox.addStretch(1)
-
         self.sign_button = b = QPushButton(_("Sign"))
         b.clicked.connect(self.sign)
 
@@ -296,10 +294,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         def format_amount(amt):
             return self.main_window.format_amount(amt, whitespaces=True)
 
-        i_text = QTextEdit()
+        i_text = QTextEditWithDefaultSize()
         i_text.setFont(QFont(MONOSPACE_FONT))
         i_text.setReadOnly(True)
-        i_text.setMaximumHeight(100)
         cursor = i_text.textCursor()
         for x in self.tx.inputs():
             if x['type'] == 'coinbase':
@@ -318,10 +315,9 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         vbox.addWidget(i_text)
         vbox.addWidget(QLabel(_("Outputs") + ' (%d)'%len(self.tx.outputs())))
-        o_text = QTextEdit()
+        o_text = QTextEditWithDefaultSize()
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)
-        o_text.setMaximumHeight(100)
         cursor = o_text.textCursor()
         for addr, v in self.tx.get_outputs():
             cursor.insertText(addr, text_format(addr))
@@ -330,3 +326,8 @@ class TxDialog(QDialog, MessageBoxMixin):
                 cursor.insertText(format_amount(v), ext)
             cursor.insertBlock()
         vbox.addWidget(o_text)
+
+
+class QTextEditWithDefaultSize(QTextEdit):
+    def sizeHint(self):
+        return QSize(0, 100)
