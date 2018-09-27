@@ -767,9 +767,9 @@ class Commands:
 
     # lightning network commands
     @command('wpn')
-    def open_channel(self, node_id, amount, channel_push=0, password=None):
-        f = self.wallet.lnworker.open_channel(bytes.fromhex(node_id), satoshis(amount), satoshis(channel_push), password)
-        return f.result()
+    def open_channel(self, connection_string, amount, channel_push=0, password=None):
+        f = self.wallet.lnworker.open_channel(connection_string, satoshis(amount), satoshis(channel_push), password)
+        return f.result(5)
 
     @command('wn')
     def reestablish_channel(self):
