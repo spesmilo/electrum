@@ -5,7 +5,9 @@ from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_see
                              make_received_htlc, make_commitment, make_htlc_tx_witness, make_htlc_tx_output,
                              make_htlc_tx_inputs, secret_to_pubkey, derive_blinded_pubkey, derive_privkey,
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
-                             get_compressed_pubkey_from_bech32)
+                             get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
+                             ScriptHtlc, extract_nodeid)
+from electrum import lnhtlc
 from electrum.util import bh2u, bfh
 from electrum.transaction import Transaction
 
@@ -488,13 +490,14 @@ class TestLNUtil(unittest.TestCase):
         remote_signature = "304402204fd4928835db1ccdfc40f5c78ce9bd65249b16348df81f0c44328dcdefc97d630220194d3869c38bc732dd87d13d2958015e2fc16829e74cd4377f84d215c0b70606"
         output_commit_tx = "02000000000101bef67e4e2fb9ddeeb3461973cd4c62abb35050b1add772995b820b584a488489000000000038b02b8007e80300000000000022002052bfef0479d7b293c27e0f1eb294bea154c63a3294ef092c19af51409bce0e2ad007000000000000220020403d394747cae42e98ff01734ad5c08f82ba123d3d9a620abda88989651e2ab5d007000000000000220020748eba944fedc8827f6b06bc44678f93c0f9e6078b35c6331ed31e75f8ce0c2db80b000000000000220020c20b5d1f8584fd90443e7b7b720136174fa4b9333c261d04dbbd012635c0f419a00f0000000000002200208c48d15160397c9731df9bc3b236656efb6665fbfe92b4a6878e88a499f741c4c0c62d0000000000160014ccf1af2f2aabee14bb40fa3851ab2301de843110e0a06a00000000002200204adb4e2f00643db396dd120d4e7dc17625f5f2c11a40d857accc862d6b7dd80e04004730440220275b0c325a5e9355650dc30c0eccfbc7efb23987c24b556b9dfdd40effca18d202206caceb2c067836c51f296740c7ae807ffcbfbf1dd3a0d56b6de9a5b247985f060147304402204fd4928835db1ccdfc40f5c78ce9bd65249b16348df81f0c44328dcdefc97d630220194d3869c38bc732dd87d13d2958015e2fc16829e74cd4377f84d215c0b7060601475221023da092f6980e58d2c037173180e9a465476026ee50f96695963e8efe436f54eb21030e9f7b623d2ccc7c9bd44d66d5ce21ce504c0acf6385a132cec6d3c39fa711c152ae3e195220"
 
-        htlc_msat = {}
-        htlc_msat[0] = 1000 * 1000
-        htlc_msat[2] = 2000 * 1000
-        htlc_msat[1] = 2000 * 1000
-        htlc_msat[3] = 3000 * 1000
-        htlc_msat[4] = 4000 * 1000
-        htlcs = [(htlc[x], htlc_msat[x]) for x in range(5)]
+        htlc_obj = {}
+        for num, msat in [(0, 1000 * 1000),
+            (2, 2000 * 1000),
+            (1, 2000 * 1000),
+            (3, 3000 * 1000),
+            (4, 4000 * 1000)]:
+            htlc_obj[num] = lnhtlc.UpdateAddHtlc(amount_msat=msat, payment_hash=bitcoin.sha256(htlc_payment_preimage[num]), cltv_expiry=None, htlc_id=None)
+        htlcs = [ScriptHtlc(htlc[x], htlc_obj[x]) for x in range(5)]
 
         our_commit_tx = make_commitment(
             commitment_number,
@@ -531,7 +534,7 @@ class TestLNUtil(unittest.TestCase):
 
         for i in range(5):
             self.assertEqual(output_htlc_tx[i][1], self.htlc_tx(htlc[i], htlc_output_index[i],
-                htlc_msat[i],
+                htlcs[i].htlc.amount_msat,
                 htlc_payment_preimage[i],
                 signature_for_output_remote_htlc[i],
                 output_htlc_tx[i][0], htlc_cltv_timeout[i] if not output_htlc_tx[i][0] else 0,
@@ -680,3 +683,28 @@ class TestLNUtil(unittest.TestCase):
     def test_get_compressed_pubkey_from_bech32(self):
         self.assertEqual(b'\x03\x84\xef\x87\xd9d\xa2\xaaa7=\xff\xb8\xfe=t8[}>;\n\x13\xa8e\x8eo:\xf5Mi\xb5H',
                          get_compressed_pubkey_from_bech32('ln1qwzwlp7evj325cfh8hlm3l3awsu9klf78v9p82r93ehn4a2ddx65s66awg5'))
+
+    def test_split_host_port(self):
+        self.assertEqual(split_host_port("[::1]:8000"), ("::1", "8000"))
+        self.assertEqual(split_host_port("[::1]"), ("::1", "9735"))
+        self.assertEqual(split_host_port("kæn.guru:8000"), ("kæn.guru", "8000"))
+        self.assertEqual(split_host_port("kæn.guru"), ("kæn.guru", "9735"))
+        self.assertEqual(split_host_port("127.0.0.1:8000"), ("127.0.0.1", "8000"))
+        self.assertEqual(split_host_port("127.0.0.1"), ("127.0.0.1", "9735"))
+        # accepted by getaddrinfo but not ipaddress.ip_address
+        self.assertEqual(split_host_port("127.0.0:8000"), ("127.0.0", "8000"))
+        self.assertEqual(split_host_port("127.0.0"), ("127.0.0", "9735"))
+        self.assertEqual(split_host_port("electrum.org:8000"), ("electrum.org", "8000"))
+        self.assertEqual(split_host_port("electrum.org"), ("electrum.org", "9735"))
+
+        with self.assertRaises(ConnStringFormatError):
+            split_host_port("electrum.org:8000:")
+        with self.assertRaises(ConnStringFormatError):
+            split_host_port("electrum.org:")
+
+    def test_extract_nodeid(self):
+        with self.assertRaises(ConnStringFormatError):
+            extract_nodeid("00" * 32 + "@localhost")
+        with self.assertRaises(ConnStringFormatError):
+            extract_nodeid("00" * 33 + "@")
+        self.assertEqual(extract_nodeid("00" * 33 + "@localhost"), (b"\x00" * 33, "localhost"))
