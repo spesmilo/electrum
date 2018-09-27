@@ -789,6 +789,10 @@ class Commands:
     def listchannels(self):
         return self.wallet.lnworker.list_channels()
 
+    @command('wn')
+    def dumpgraph(self):
+        return list(map(bh2u, self.wallet.lnworker.channel_db.nodes.keys()))
+
     @command('n')
     def inject_fees(self, fees):
         import ast
