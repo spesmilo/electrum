@@ -680,11 +680,12 @@ class HTLCStateMachine(PrintError):
             if type(i) is not UpdateAddHtlc:
                 htlcs.append(i)
                 continue
-            if i.locked_in[LOCAL] is not None or i.locked_in[REMOTE] is not None:
+            settled = SettleHtlc(i.htlc_id) in self.log[-subject]
+            failed = FailHtlc(i.htlc_id) in self.log[-subject]
+            locked_in = i.locked_in[LOCAL] is not None or i.locked_in[REMOTE] is not None
+            if locked_in or settled or failed:
                 htlcs.append(i)
             else:
-                # should not settle or fail before being locked in
-                assert SettleHtlc(i.htlc_id) not in self.log[-subject] and FailHtlc(i.htlc_id) not in self.log[-subject]
                 removed.append(i.htlc_id)
         return htlcs, removed
 
