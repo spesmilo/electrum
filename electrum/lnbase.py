@@ -940,44 +940,9 @@ class Peer(PrintError):
 
         await self.receive_revoke(chan)
 
-        self.send_message(gen_msg("update_fulfill_htlc", channel_id=channel_id, id=htlc_id, payment_preimage=payment_preimage))
-
-        # remote commitment transaction without htlcs
-        # FIXME why is this not using the HTLC state machine?
-        bare_ctx = chan.make_commitment(chan.remote_state.ctn + 1, False, chan.remote_state.next_per_commitment_point,
-            chan.balance(REMOTE) - expected_received_msat, chan.balance(LOCAL) + expected_received_msat)
-        self.lnwatcher.process_new_offchain_ctx(chan, bare_ctx, ours=False)
-        sig_64 = sign_and_get_sig_string(bare_ctx, chan.local_config, chan.remote_config)
-        self.send_message(gen_msg("commitment_signed", channel_id=channel_id, signature=sig_64, num_htlcs=0))
-
-        revoke_coro = asyncio.ensure_future(self.revoke_and_ack[chan.channel_id].get())
-        commit_coro = asyncio.ensure_future(self.commitment_signed[chan.channel_id].get())
-        _done, _pending = await asyncio.wait([revoke_coro, commit_coro], return_when=FIRST_COMPLETED)
-
-        def process_revoke(revoke_and_ack_msg):
-            chan.receive_revocation(RevokeAndAck(revoke_and_ack_msg["per_commitment_secret"], revoke_and_ack_msg["next_per_commitment_point"]))
-
-        if commit_coro.done():
-            # this branch is taken with lnd after a fee update (initiated by us, of course)
-            await self.receive_commitment(chan, commit_coro.result())
-            chan.settle_htlc(payment_preimage, htlc_id)
-            await revoke_coro
-            process_revoke(revoke_coro.result())
-            self.revoke(chan)
-            await self.receive_commitment(chan)
-            self.revoke(chan)
-            sig_64, htlc_sigs = chan.sign_next_commitment()
-
-            self.send_message(gen_msg("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs)))
-            await self.receive_revoke(chan)
-        elif revoke_coro.done():
-            chan.settle_htlc(payment_preimage, htlc_id)
-            process_revoke(revoke_coro.result())
-
-            await commit_coro
-            await self.receive_commitment(chan, commit_coro.result())
-            self.revoke(chan)
-
+        chan.settle_htlc(payment_preimage, htlc_id)
+        fulfillment = gen_msg("update_fulfill_htlc", channel_id=channel_id, id=htlc_id, payment_preimage=payment_preimage)
+        await self.update_channel(chan, fulfillment)
         self.lnworker.save_channel(chan)
 
     def on_commitment_signed(self, payload):
