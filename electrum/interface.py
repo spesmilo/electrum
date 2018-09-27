@@ -132,6 +132,7 @@ class Interface(PrintError):
     def __init__(self, network, server, config_path, proxy):
         self.exception = None
         self.ready = asyncio.Future()
+        self.got_disconnected = asyncio.Future()
         self.server = server
         self.host, self.port, self.protocol = deserialize_server(self.server)
         self.port = int(self.port)
@@ -246,6 +247,7 @@ class Interface(PrintError):
                 self.print_error("disconnecting gracefully. {}".format(e))
             finally:
                 await self.network.connection_down(self.server)
+                self.got_disconnected.set_result(1)
         return wrapper_func
 
     @aiosafe

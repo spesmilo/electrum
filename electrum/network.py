@@ -216,7 +216,7 @@ class Network(PrintError):
         # kick off the network.  interface is the main server we are currently
         # communicating with.  interfaces is the set of servers we are connecting
         # to or have an ongoing connection with
-        self.interface = None
+        self.interface = None  # type: Interface
         self.interfaces = {}
         self.auto_connect = self.config.get('auto_connect', True)
         self.connecting = set()
@@ -647,13 +647,14 @@ class Network(PrintError):
                     # no main interface; try again
                     await asyncio.sleep(0.1)
                     continue
-                try:
-                    return await func(self, *args, **kwargs)
-                except RequestTimedOut:
-                    if self.interface != iface:
-                        # main interface changed; try again
-                        continue
-                    raise
+                success_fut = asyncio.ensure_future(func(self, *args, **kwargs))
+                disconnected_fut = asyncio.shield(iface.got_disconnected)
+                await asyncio.wait([success_fut, disconnected_fut], return_when=asyncio.FIRST_COMPLETED)
+                if success_fut.done():
+                    if success_fut.exception():
+                        raise success_fut.exception()
+                    return success_fut.result()
+                # otherwise; try again
             raise Exception('no interface to do request on... gave up.')
         return make_reliable_wrapper
 
