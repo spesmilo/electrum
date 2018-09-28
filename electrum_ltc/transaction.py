@@ -747,6 +747,7 @@ class Transaction:
         self._inputs = inputs
         self._outputs = outputs
         self.locktime = locktime
+        self.BIP69_sort()
         return self
 
     @classmethod
@@ -981,10 +982,11 @@ class Transaction:
         for txin in self.inputs():
             txin['sequence'] = nSequence
 
-    def BIP_LI01_sort(self):
-        # See https://github.com/kristovatlas/rfc/blob/master/bips/bip-li01.mediawiki
-        self._inputs.sort(key = lambda i: (i['prevout_hash'], i['prevout_n']))
-        self._outputs.sort(key = lambda o: (o[2], self.pay_script(o[0], o[1])))
+    def BIP69_sort(self, inputs=True, outputs=True):
+        if inputs:
+            self._inputs.sort(key = lambda i: (i['prevout_hash'], i['prevout_n']))
+        if outputs:
+            self._outputs.sort(key = lambda o: (o[2], self.pay_script(o[0], o[1])))
 
     def serialize_output(self, output):
         output_type, addr, amount = output
@@ -1070,10 +1072,12 @@ class Transaction:
     def add_inputs(self, inputs):
         self._inputs.extend(inputs)
         self.raw = None
+        self.BIP69_sort(outputs=False)
 
     def add_outputs(self, outputs):
         self._outputs.extend(outputs)
         self.raw = None
+        self.BIP69_sort(inputs=False)
 
     def input_value(self):
         return sum(x['value'] for x in self.inputs())

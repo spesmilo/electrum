@@ -63,7 +63,7 @@ class NotificationSession(ClientSession):
                 for queue in self.subscriptions[key]:
                     await queue.put(request.args)
             else:
-                assert False, request.method
+                raise Exception('unexpected request: {}'.format(repr(request)))
 
     async def send_request(self, *args, timeout=-1, **kwargs):
         # note: the timeout starts after the request touches the wire!
@@ -255,12 +255,12 @@ class Interface(PrintError):
         try:
             ssl_context = await self._get_ssl_context()
         except (ErrorParsingSSLCert, ErrorGettingSSLCertFromServer) as e:
-            self.print_error('disconnecting due to: {} {}'.format(e, type(e)))
+            self.print_error('disconnecting due to: {}'.format(repr(e)))
             return
         try:
-            await self.open_session(ssl_context, exit_early=False)
+            await self.open_session(ssl_context)
         except (asyncio.CancelledError, OSError, aiorpcx.socks.SOCKSFailure) as e:
-            self.print_error('disconnecting due to: {} {}'.format(e, type(e)))
+            self.print_error('disconnecting due to: {}'.format(repr(e)))
             return
 
     def mark_ready(self):
@@ -338,7 +338,7 @@ class Interface(PrintError):
             return conn, 0
         return conn, res['count']
 
-    async def open_session(self, sslc, exit_early):
+    async def open_session(self, sslc, exit_early=False):
         self.session = NotificationSession(self.host, self.port, ssl=sslc, proxy=self.proxy)
         async with self.session as session:
             try:

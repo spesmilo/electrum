@@ -1,6 +1,4 @@
 import asyncio
-import aiohttp
-from aiohttp_socks import SocksConnector, SocksVer
 from datetime import datetime
 import inspect
 import sys
@@ -12,6 +10,7 @@ import decimal
 from decimal import Decimal
 import concurrent.futures
 import traceback
+from typing import Sequence
 
 from .bitcoin import COIN
 from .i18n import _
@@ -26,6 +25,7 @@ CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
                   'LYD': 3, 'MGA': 1, 'MRO': 1, 'OMR': 3, 'PYG': 0,
                   'RWF': 0, 'TND': 3, 'UGX': 0, 'UYI': 0, 'VND': 0,
                   'VUV': 0, 'XAF': 0, 'XAU': 4, 'XOF': 0, 'XPF': 0}
+
 
 class ExchangeBase(PrintError):
 
@@ -65,7 +65,7 @@ class ExchangeBase(PrintError):
             self.quotes = await self.get_rates(ccy)
             self.print_error("received fx quotes")
         except BaseException as e:
-            self.print_error("failed fx quotes:", e)
+            self.print_error("failed fx quotes:", repr(e))
             self.quotes = {}
         self.on_quotes()
 
@@ -355,12 +355,14 @@ class FxThread(ThreadJob):
     def set_proxy(self, trigger_name, *args):
         self._trigger.set()
 
-    def get_currencies(self, h):
-        d = get_exchanges_by_ccy(h)
+    @staticmethod
+    def get_currencies(history: bool) -> Sequence[str]:
+        d = get_exchanges_by_ccy(history)
         return sorted(d.keys())
 
-    def get_exchanges_by_ccy(self, ccy, h):
-        d = get_exchanges_by_ccy(h)
+    @staticmethod
+    def get_exchanges_by_ccy(ccy: str, history: bool) -> Sequence[str]:
+        d = get_exchanges_by_ccy(history)
         return d.get(ccy, [])
 
     def ccy_amount_str(self, amount, commas):
