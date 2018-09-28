@@ -13,7 +13,7 @@ import dns.exception
 
 from . import constants
 from .bitcoin import sha256, COIN
-from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv
+from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address
 from .lnbase import Peer, privkey_to_pubkey, aiosafe
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
