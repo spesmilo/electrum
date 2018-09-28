@@ -134,7 +134,7 @@ class Plugins(DaemonThread):
             try:
                 __import__(dep)
             except ImportError as e:
-                self.print_error('Plugin', name, 'unavailable:', type(e).__name__, ':', str(e))
+                self.print_error('Plugin', name, 'unavailable:', repr(e))
                 return False
         requires = d.get('requires_wallet_type', [])
         return not requires or w.wallet_type in requires

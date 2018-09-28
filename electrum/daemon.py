@@ -29,6 +29,7 @@ import time
 import traceback
 import sys
 import threading
+from typing import Dict
 
 import jsonrpclib
 
@@ -37,7 +38,7 @@ from .version import ELECTRUM_VERSION
 from .network import Network
 from .util import json_decode, DaemonThread
 from .util import print_error, to_string
-from .wallet import Wallet
+from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .commands import known_commands, Commands
 from .simple_config import SimpleConfig
@@ -131,7 +132,7 @@ class Daemon(DaemonThread):
         if self.network:
             self.network.start([self.fx.run])
         self.gui = None
-        self.wallets = {}
+        self.wallets = {}  # type: Dict[str, Abstract_Wallet]
         # Setup JSONRPC server
         self.init_server(config, fd)
 
