@@ -17,7 +17,7 @@ from .lnutil import sign_and_get_sig_string
 from .lnutil import make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc
 from .lnutil import HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT
 from .lnutil import funding_output_script, LOCAL, REMOTE, HTLCOwner, make_closing_tx, make_outputs
-from .lnutil import ScriptHtlc
+from .lnutil import ScriptHtlc, SENT, RECEIVED
 from .transaction import Transaction
 
 
@@ -474,19 +474,15 @@ class HTLCStateMachine(PrintError):
     def balance(self, subject):
         initial = self.local_config.initial_msat if subject == LOCAL else self.remote_config.initial_msat
 
-        for x in self.log[-subject]:
-            if type(x) is not SettleHtlc: continue
-            htlc = self.lookup_htlc(self.log[subject], x.htlc_id)
-            htlc_height = htlc.settled[subject]
-            if htlc_height is not None and htlc_height <= self.current_height[subject]:
-                initial -= htlc.amount_msat
-
-        for x in self.log[subject]:
-            if type(x) is not SettleHtlc: continue
-            htlc = self.lookup_htlc(self.log[-subject], x.htlc_id)
-            htlc_height = htlc.settled[-subject]
-            if htlc_height is not None and htlc_height <= self.current_height[-subject]:
-                initial += htlc.amount_msat
+        for direction in (SENT, RECEIVED):
+           for x in self.log[-direction]:
+               if type(x) is not SettleHtlc: continue
+               htlc = self.lookup_htlc(self.log[direction], x.htlc_id)
+               htlc_height = htlc.settled[direction]
+               if htlc_height is not None and htlc_height <= self.current_height[direction]:
+                   # so we will subtract when direction == subject.
+                   # example subject=LOCAL, direction=SENT: we subtract
+                   initial -= htlc.amount_msat * subject * direction
 
         assert initial == (self.local_state.amount_msat if subject == LOCAL else self.remote_state.amount_msat)
         return initial
@@ -518,30 +514,8 @@ class HTLCStateMachine(PrintError):
 
     @property
     def pending_remote_commitment(self):
-        remote_msat, local_msat = self.amounts()
-        assert local_msat >= 0
-        assert remote_msat >= 0
-
         this_point = self.remote_state.next_per_commitment_point
-
-        remote_htlc_pubkey = derive_pubkey(self.remote_config.htlc_basepoint.pubkey, this_point)
-        local_htlc_pubkey = derive_pubkey(self.local_config.htlc_basepoint.pubkey, this_point)
-        local_revocation_pubkey = derive_blinded_pubkey(self.local_config.revocation_basepoint.pubkey, this_point)
-
-        htlcs_in_local = []
-        for htlc in self.included_htlcs(REMOTE, LOCAL):
-            htlcs_in_local.append(
-                ScriptHtlc( make_received_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc))
-
-        htlcs_in_remote = []
-        for htlc in self.included_htlcs(REMOTE, REMOTE):
-            htlcs_in_remote.append(
-                ScriptHtlc( make_offered_htlc(local_revocation_pubkey, local_htlc_pubkey, remote_htlc_pubkey, htlc.payment_hash), htlc))
-
-        commit = self.make_commitment(self.remote_state.ctn + 1,
-            False, this_point,
-            remote_msat, local_msat, htlcs_in_local + htlcs_in_remote)
-        return commit
+        return self.make_commitment(REMOTE, this_point)
 
     def pending_feerate(self, subject):
         candidate = None
@@ -559,32 +533,8 @@ class HTLCStateMachine(PrintError):
 
     @property
     def pending_local_commitment(self):
-        remote_msat, local_msat = self.amounts()
-        assert local_msat >= 0
-        assert remote_msat >= 0
-
         _, this_point, _ = self.points
-
-        remote_htlc_pubkey = derive_pubkey(self.remote_config.htlc_basepoint.pubkey, this_point)
-        local_htlc_pubkey = derive_pubkey(self.local_config.htlc_basepoint.pubkey, this_point)
-        remote_revocation_pubkey = derive_blinded_pubkey(self.remote_config.revocation_basepoint.pubkey, this_point)
-
-        feerate = self.pending_feerate(LOCAL)
-
-        htlcs_in_local = []
-        for htlc in self.included_htlcs(LOCAL, LOCAL):
-            htlcs_in_local.append(
-                ScriptHtlc( make_offered_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash), htlc))
-
-        htlcs_in_remote = []
-        for htlc in self.included_htlcs(LOCAL, REMOTE):
-            htlcs_in_remote.append(
-                ScriptHtlc( make_received_htlc(remote_revocation_pubkey, remote_htlc_pubkey, local_htlc_pubkey, htlc.payment_hash, htlc.cltv_expiry), htlc))
-
-        commit = self.make_commitment(self.local_state.ctn + 1,
-            True, this_point,
-            local_msat, remote_msat, htlcs_in_local + htlcs_in_remote)
-        return commit
+        return self.make_commitment(LOCAL, this_point)
 
     @property
     def total_msat(self):
@@ -758,29 +708,51 @@ class HTLCStateMachine(PrintError):
     def __str__(self):
         return self.serialize()
 
-    def make_commitment(chan, ctn, for_us, pcp, local_msat, remote_msat, htlcs=[]):
-        conf = chan.local_config if for_us else chan.remote_config
-        other_conf = chan.local_config if not for_us else chan.remote_config
-        payment_pubkey = derive_pubkey(other_conf.payment_basepoint.pubkey, pcp)
-        remote_revocation_pubkey = derive_blinded_pubkey(other_conf.revocation_basepoint.pubkey, pcp)
+    def make_commitment(self, subject, this_point) -> Transaction:
+        remote_msat, local_msat = self.amounts()
+        assert local_msat >= 0
+        assert remote_msat >= 0
+        this_config = self.remote_config if subject != LOCAL else self.local_config
+        other_config = self.remote_config if subject == LOCAL else self.local_config
+        other_htlc_pubkey = derive_pubkey(other_config.htlc_basepoint.pubkey, this_point)
+        this_htlc_pubkey = derive_pubkey(this_config.htlc_basepoint.pubkey, this_point)
+        other_revocation_pubkey = derive_blinded_pubkey(other_config.revocation_basepoint.pubkey, this_point)
+        htlcs = []
+        for htlc in self.included_htlcs(subject, -subject):
+            htlcs.append( ScriptHtlc( make_received_htlc(
+                other_revocation_pubkey,
+                other_htlc_pubkey,
+                this_htlc_pubkey,
+                htlc.payment_hash,
+                htlc.cltv_expiry), htlc))
+        for htlc in self.included_htlcs(subject, subject):
+            htlcs.append(
+                ScriptHtlc( make_offered_htlc(
+                    other_revocation_pubkey,
+                    other_htlc_pubkey,
+                    this_htlc_pubkey,
+                    htlc.payment_hash), htlc))
+        if subject != LOCAL:
+            remote_msat, local_msat = local_msat, remote_msat
+        payment_pubkey = derive_pubkey(other_config.payment_basepoint.pubkey, this_point)
         return make_commitment(
-            ctn,
-            conf.multisig_key.pubkey,
-            other_conf.multisig_key.pubkey,
+            (self.local_state.ctn if subject == LOCAL else self.remote_state.ctn) + 1,
+            this_config.multisig_key.pubkey,
+            other_config.multisig_key.pubkey,
             payment_pubkey,
-            chan.local_config.payment_basepoint.pubkey,
-            chan.remote_config.payment_basepoint.pubkey,
-            remote_revocation_pubkey,
-            derive_pubkey(conf.delayed_basepoint.pubkey, pcp),
-            other_conf.to_self_delay,
-            *chan.funding_outpoint,
-            chan.constraints.capacity,
+            self.local_config.payment_basepoint.pubkey,
+            self.remote_config.payment_basepoint.pubkey,
+            other_revocation_pubkey,
+            derive_pubkey(this_config.delayed_basepoint.pubkey, this_point),
+            other_config.to_self_delay,
+            *self.funding_outpoint,
+            self.constraints.capacity,
             local_msat,
             remote_msat,
-            conf.dust_limit_sat,
-            chan.pending_feerate(LOCAL if for_us else REMOTE),
-            for_us,
-            chan.constraints.is_initiator,
+            this_config.dust_limit_sat,
+            self.pending_feerate(subject),
+            subject == LOCAL,
+            self.constraints.is_initiator,
             htlcs=htlcs)
 
     def make_closing_tx(self, local_script: bytes, remote_script: bytes, fee_sat: Optional[int] = None) -> (bytes, int):
