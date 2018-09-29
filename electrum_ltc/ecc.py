@@ -296,6 +296,14 @@ class ECPubkey(object):
     def is_at_infinity(self):
         return self == point_at_infinity()
 
+    @classmethod
+    def is_pubkey_bytes(cls, b: bytes):
+        try:
+            ECPubkey(b)
+            return True
+        except:
+            return False
+
 
 def msg_magic(message: bytes) -> bytes:
     from .bitcoin import var_int
