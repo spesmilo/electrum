@@ -3,8 +3,8 @@ import traceback
 import sys
 
 from electrum.util import bfh, bh2u, versiontuple, UserCancelled
-from electrum.bitcoin import (b58_address_to_hash160, xpub_from_pubkey, deserialize_xpub,
-                              TYPE_ADDRESS, TYPE_SCRIPT, is_address)
+from electrum.bitcoin import (xpub_from_pubkey, deserialize_xpub,
+                              TYPE_ADDRESS, TYPE_SCRIPT)
 from electrum import constants
 from electrum.i18n import _
 from electrum.plugin import BasePlugin, Device
