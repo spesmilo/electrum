@@ -17,8 +17,8 @@ class Plugin(LedgerPlugin, QtPluginBase):
     def create_handler(self, window):
         return Ledger_Handler(window)
 
-    @hook
     @only_hook_if_libraries_available
+    @hook
     def receive_menu(self, menu, addrs, wallet):
         if type(wallet) is not Standard_Wallet:
             return
