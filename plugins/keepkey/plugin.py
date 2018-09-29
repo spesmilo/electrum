@@ -335,11 +335,8 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
                     txoutputtype.script_type = self.types.PAYTOOPRETURN
                     txoutputtype.op_return_data = address.to_script()[2:]
                 elif _type == TYPE_ADDRESS:
-                    if address.kind == address.ADDR_P2PKH:
-                        txoutputtype.script_type = self.types.PAYTOADDRESS
-                    else:
-                        txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
-                    txoutputtype.address = address.to_string(address.FMT_LEGACY)
+                    txoutputtype.script_type = self.types.PAYTOADDRESS
+                    txoutputtype.address = address.to_full_ui_string()
 
             outputs.append(txoutputtype)
 
