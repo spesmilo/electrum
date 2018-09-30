@@ -3,8 +3,8 @@ import traceback
 import sys
 
 from electrum_ltc.util import bfh, bh2u, versiontuple, UserCancelled
-from electrum_ltc.bitcoin import (b58_address_to_hash160, xpub_from_pubkey, deserialize_xpub,
-                                  TYPE_ADDRESS, TYPE_SCRIPT, is_address)
+from electrum_ltc.bitcoin import (xpub_from_pubkey, deserialize_xpub,
+                                  TYPE_ADDRESS, TYPE_SCRIPT)
 from electrum_ltc import constants
 from electrum_ltc.i18n import _
 from electrum_ltc.plugin import BasePlugin, Device
@@ -365,11 +365,7 @@ class TrezorPlugin(HW_PluginBase):
                         txinputtype.script_type = self.get_trezor_input_script_type(txin['type'])
                     else:
                         def f(x_pubkey):
-                            if is_xpubkey(x_pubkey):
-                                xpub, s = parse_xpubkey(x_pubkey)
-                            else:
-                                xpub = xpub_from_pubkey(0, bfh(x_pubkey))
-                                s = []
+                            xpub, s = parse_xpubkey(x_pubkey)
                             return self._make_node_path(xpub, s)
                         pubkeys = list(map(f, x_pubkeys))
                         multisig = self.types.MultisigRedeemScriptType(

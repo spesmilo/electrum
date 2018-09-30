@@ -166,8 +166,8 @@ class QtPlugin(QtPluginBase):
     def create_handler(self, window):
         return QtHandler(window, self.pin_matrix_widget_class(), self.device)
 
-    @hook
     @only_hook_if_libraries_available
+    @hook
     def receive_menu(self, menu, addrs, wallet):
         if len(addrs) != 1:
             return

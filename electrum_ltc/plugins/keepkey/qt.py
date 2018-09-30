@@ -195,16 +195,17 @@ class QtPlugin(QtPluginBase):
     def create_handler(self, window):
         return QtHandler(window, self.pin_matrix_widget_class(), self.device)
 
-    @hook
     @only_hook_if_libraries_available
+    @hook
     def receive_menu(self, menu, addrs, wallet):
-        if type(wallet) is not Standard_Wallet:
+        if len(addrs) != 1:
             return
-        keystore = wallet.get_keystore()
-        if type(keystore) == self.keystore_class and len(addrs) == 1:
-            def show_address():
-                keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
-            menu.addAction(_("Show on {}").format(self.device), show_address)
+        for keystore in wallet.get_keystores():
+            if type(keystore) == self.keystore_class:
+                def show_address():
+                    keystore.thread.add(partial(self.show_address, wallet, addrs[0], keystore))
+                device_name = "{} ({})".format(self.device, keystore.label)
+                menu.addAction(_("Show on {}").format(device_name), show_address)
 
     def show_settings_dialog(self, window, keystore):
         device_id = self.choose_device(window, keystore)

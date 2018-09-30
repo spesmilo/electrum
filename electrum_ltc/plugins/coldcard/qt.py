@@ -17,8 +17,8 @@ class Plugin(ColdcardPlugin, QtPluginBase):
     def create_handler(self, window):
         return Coldcard_Handler(window)
 
-    @hook
     @only_hook_if_libraries_available
+    @hook
     def receive_menu(self, menu, addrs, wallet):
         if type(wallet) is not Standard_Wallet:
             return
@@ -28,8 +28,8 @@ class Plugin(ColdcardPlugin, QtPluginBase):
                 keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
             menu.addAction(_("Show on Coldcard"), show_address)
 
-    @hook
     @only_hook_if_libraries_available
+    @hook
     def transaction_dialog(self, dia):
         # see gui/qt/transaction_dialog.py
 
