@@ -354,11 +354,7 @@ class SafeTPlugin(HW_PluginBase):
                         txinputtype.script_type = self.get_safet_input_script_type(txin['type'])
                     else:
                         def f(x_pubkey):
-                            if is_xpubkey(x_pubkey):
-                                xpub, s = parse_xpubkey(x_pubkey)
-                            else:
-                                xpub = xpub_from_pubkey(0, bfh(x_pubkey))
-                                s = []
+                            xpub, s = parse_xpubkey(x_pubkey)
                             return self._make_node_path(xpub, s)
                         pubkeys = list(map(f, x_pubkeys))
                         multisig = self.types.MultisigRedeemScriptType(

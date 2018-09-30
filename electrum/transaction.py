@@ -742,7 +742,6 @@ class Transaction:
                     j = pubkeys.index(pubkey_hex)
                     print_error("adding sig", i, j, pubkey_hex, sig)
                     self.add_signature_to_txin(i, j, sig)
-                    #self._inputs[i]['x_pubkeys'][j] = pubkey
                     break
         # redo raw
         self.raw = self.serialize()
