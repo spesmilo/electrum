@@ -87,7 +87,7 @@ def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
         scripthash = bitcoin.script_to_scripthash(script)
         address = '(pubkey)'
 
-    u = network.listunspent_for_scripthash(scripthash)
+    u = network.run_from_another_thread(network.listunspent_for_scripthash(scripthash))
     for item in u:
         if len(inputs) >= imax:
             break

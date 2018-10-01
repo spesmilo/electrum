@@ -2583,7 +2583,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.spend_max()
             self.payto_e.setFrozen(True)
             self.amount_e.setFrozen(True)
-        except BaseException as e:
+        except Exception as e:  # FIXME too broad...
             self.show_message(str(e))
             return
         self.warn_if_watching_only()
