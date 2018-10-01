@@ -511,6 +511,11 @@ class InvoiceStore(object):
         return key
 
     def remove(self, key):
+        paid_list = self.paid.items()
+        for p in paid_list:
+            if p[1] == key:
+                self.paid.pop(p[0])
+                break
         self.invoices.pop(key)
         self.save()
 
