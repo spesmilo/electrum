@@ -813,6 +813,22 @@ class Network(PrintError):
     def join(self):
         self._thread.join(1)
 
+    async def _ensure_there_is_a_main_interface(self):
+        if self.is_connected():
+            return
+        now = time.time()
+        # if auto_connect is set, try a different server
+        if self.auto_connect and not self.is_connecting():
+            await self._switch_to_random_interface()
+        # if auto_connect is not set, or still no main interface, retry current
+        if not self.is_connected() and not self.is_connecting():
+            if self.default_server in self.disconnected_servers:
+                if now - self.server_retry_time > SERVER_RETRY_INTERVAL:
+                    self.disconnected_servers.remove(self.default_server)
+                    self.server_retry_time = now
+            else:
+                await self.switch_to_interface(self.default_server)
+
     async def _maintain_sessions(self):
         while True:
             # launch already queued up new interfaces
@@ -830,18 +846,8 @@ class Network(PrintError):
                 self.nodes_retry_time = now
 
             # main interface
-            if not self.is_connected():
-                if self.auto_connect:
-                    if not self.is_connecting():
-                        await self._switch_to_random_interface()
-                else:
-                    if self.default_server in self.disconnected_servers:
-                        if now - self.server_retry_time > SERVER_RETRY_INTERVAL:
-                            self.disconnected_servers.remove(self.default_server)
-                            self.server_retry_time = now
-                    else:
-                        await self.switch_to_interface(self.default_server)
-            else:
+            await self._ensure_there_is_a_main_interface()
+            if self.is_connected():
                 if self.config.is_fee_estimates_update_required():
                     await self.interface.group.spawn(self._request_fee_estimates, self.interface)
 
