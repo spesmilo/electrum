@@ -121,9 +121,12 @@ def get_rpc_credentials(config):
 
 class Daemon(DaemonThread):
 
-    def __init__(self, config, fd):
+    def __init__(self, config, fd=None):
         DaemonThread.__init__(self)
         self.config = config
+        if fd is None:
+            fd, server = get_fd_or_server(config)
+            if fd is None: raise Exception('failed to lock daemon; already running?')
         if config.get('offline'):
             self.network = None
         else:
