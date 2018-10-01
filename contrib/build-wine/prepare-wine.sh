@@ -13,7 +13,7 @@ LIBUSB_FILENAME=libusb-1.0.22.7z
 LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-1.0.22/$LIBUSB_FILENAME?download
 LIBUSB_SHA256=671f1a420757b4480e7fadc8313d6fb3cbb75ca00934c417c1efa6e77fb8779b
 
-PYTHON_VERSION=3.5.4
+PYTHON_VERSION=3.6.6
 
 ## These settings probably don't need change
 export WINEPREFIX=/opt/wine64
@@ -79,12 +79,12 @@ retry() {
 here=$(dirname $(readlink -e $0))
 set -e
 
-# Clean up Wine environment
-echo "Cleaning $WINEPREFIX"
-rm -rf $WINEPREFIX
-echo "done"
-
 wine 'wineboot'
+
+# HACK to work around https://bugs.winehq.org/show_bug.cgi?id=42474#c22
+# needed for python 3.6+
+rm -f /opt/wine-stable/lib/wine/fakedlls/api-ms-win-core-path-l1-1-0.dll
+rm -f /opt/wine-stable/lib/wine/api-ms-win-core-path-l1-1-0.dll.so
 
 cd /tmp/electrum-build
 
@@ -96,8 +96,7 @@ KEYRING_PYTHON_DEV="keyring-electrum-build-python-dev.gpg"
 for server in $(shuf -e ha.pool.sks-keyservers.net \
                         hkp://p80.pool.sks-keyservers.net:80 \
                         keyserver.ubuntu.com \
-                        hkp://keyserver.ubuntu.com:80 \
-                        pgp.mit.edu) ; do
+                        hkp://keyserver.ubuntu.com:80) ; do
     retry gpg --no-default-keyring --keyring $KEYRING_PYTHON_DEV --keyserver "$server" --recv-keys $KEYLIST_PYTHON_DEV \
     && break || : ;
 done
