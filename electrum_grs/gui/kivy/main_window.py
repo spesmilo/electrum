@@ -713,7 +713,7 @@ class ElectrumWindow(App):
         self.fiat_balance = self.fx.format_amount(c+u+x) + ' [size=22dp]%s[/size]'% self.fx.ccy
 
     def get_max_amount(self):
-        from electrum.transaction import TxOutput
+        from electrum_grs.transaction import TxOutput
         if run_hook('abort_send', self):
             return ''
         inputs = self.wallet.get_spendable_coins(None, self.electrum_config)
