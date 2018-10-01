@@ -289,6 +289,7 @@ class Peer(PrintError):
         self.commitment_signed = defaultdict(asyncio.Queue)
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.closing_signed = defaultdict(asyncio.Queue)
+        self.payment_preimages = defaultdict(asyncio.Queue)
         self.localfeatures = (0x08 if request_initial_sync else 0)
         self.invoices = lnworker.invoices
         self.attempted_route = {}
@@ -958,6 +959,9 @@ class Peer(PrintError):
         self.send_commitment(chan) # htlc will be removed
         await self.receive_revoke(chan)
         self.lnworker.save_channel(chan)
+
+        # used in lightning-integration
+        self.payment_preimages[sha256(preimage)].put_nowait(preimage)
 
     def on_update_fail_malformed_htlc(self, payload):
         self.on_error(payload)

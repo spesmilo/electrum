@@ -1683,7 +1683,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             failure_list = []
             for i in range(LN_NUM_PAYMENT_ATTEMPTS):
                 try:
-                    future = self.wallet.lnworker.pay(invoice, amount_sat=amount)
+                    addr, peer, future = self.wallet.lnworker.pay(invoice, amount_sat=amount)
                     future.result()
                     break
                 except PaymentFailure as e:

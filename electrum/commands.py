@@ -775,7 +775,7 @@ class Commands:
 
     @command('wn')
     def lnpay(self, invoice):
-        f = self.wallet.lnworker.pay(invoice)
+        addr, peer, f = self.wallet.lnworker.pay(invoice)
         return f.result()
 
     @command('wn')

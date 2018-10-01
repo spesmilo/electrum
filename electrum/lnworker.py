@@ -227,7 +227,7 @@ class LNWorker(PrintError):
         else:
             raise Exception("ChannelDB returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
         coro = peer.pay(path, chan, amount_msat, payment_hash, invoice_pubkey, addr.min_final_cltv_expiry)
-        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+        return addr, peer, asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     def add_invoice(self, amount_sat, message):
         payment_preimage = os.urandom(32)
