@@ -1,4 +1,5 @@
 from electrum import transaction
+from electrum.transaction import TxOutputForUI
 from electrum.bitcoin import TYPE_ADDRESS
 from electrum.keystore import xpubkey_to_address
 from electrum.util import bh2u, bfh
@@ -86,8 +87,7 @@ class TestTransaction(SequentialTestCase):
         self.assertEqual(tx.deserialize(), None)
 
         self.assertEqual(tx.as_dict(), {'hex': unsigned_blob, 'complete': False, 'final': True})
-        self.assertEqual(tx.get_outputs(), [('14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs', 1000000)])
-        self.assertEqual(tx.get_output_addresses(), ['14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs'])
+        self.assertEqual(tx.get_outputs_for_UI(), [TxOutputForUI('14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs', 1000000)])
 
         self.assertTrue(tx.has_address('14CHYaaByjJZpx4oHBpfDMdqhTyXnZ3kVs'))
         self.assertTrue(tx.has_address('1446oU3z268EeFgfcwJv6X2VBXHfoYxfuD'))
