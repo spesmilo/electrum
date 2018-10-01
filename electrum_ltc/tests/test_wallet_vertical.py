@@ -2,6 +2,7 @@ from unittest import mock
 import shutil
 import tempfile
 from typing import Sequence
+import asyncio
 
 from electrum_ltc import storage, bitcoin, keystore
 from electrum_ltc import Transaction
@@ -961,7 +962,10 @@ class TestWalletSending(TestCaseForTestnet):
         class NetworkMock:
             relay_fee = 1000
             def get_local_height(self): return 1325785
-            def listunspent_for_scripthash(self, scripthash):
+            def run_from_another_thread(self, coro):
+                loop = asyncio.get_event_loop()
+                return loop.run_until_complete(coro)
+            async def listunspent_for_scripthash(self, scripthash):
                 if scripthash == '460e4fb540b657d775d84ff4955c9b13bd954c2adc26a6b998331343f85b6a45':
                     return [{'tx_hash': 'ac24de8b58e826f60bd7b9ba31670bdfc3e8aedb2f28d0e91599d741569e3429', 'tx_pos': 1, 'height': 1325785, 'value': 1000000}]
                 else:

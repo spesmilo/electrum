@@ -68,6 +68,9 @@ TxOutput = NamedTuple("TxOutput", [('type', int), ('address', str), ('value', Un
 # ^ value is str when the output is set to max: '!'
 
 
+TxOutputForUI = NamedTuple("TxOutputForUI", [('address', str), ('value', int)])
+
+
 TxOutputHwInfo = NamedTuple("TxOutputHwInfo", [('address_index', Tuple),
                                                ('sorted_xpubs', Iterable[str]),
                                                ('num_sig', Optional[int]),
@@ -671,7 +674,7 @@ class Transaction:
         else:
             raise Exception("cannot initialize transaction", raw)
         self._inputs = None
-        self._outputs = None
+        self._outputs = None  # type: List[TxOutput]
         self.locktime = 0
         self.version = 1
         # by default we assume this is a partial txn;
@@ -689,7 +692,7 @@ class Transaction:
             self.deserialize()
         return self._inputs
 
-    def outputs(self):
+    def outputs(self) -> List[TxOutput]:
         if self._outputs is None:
             self.deserialize()
         return self._outputs
@@ -1221,26 +1224,21 @@ class Transaction:
         sig = bh2u(sig) + '01'
         return sig
 
-    def get_outputs(self):
-        """convert pubkeys to addresses"""
+    def get_outputs_for_UI(self) -> Sequence[TxOutputForUI]:
         outputs = []
         for o in self.outputs():
             if o.type == TYPE_ADDRESS:
                 addr = o.address
             elif o.type == TYPE_PUBKEY:
-                # TODO do we really want this conversion? it's not really that address after all
-                addr = bitcoin.public_key_to_p2pkh(bfh(o.address))
+                addr = 'PUBKEY ' + o.address
             else:
                 addr = 'SCRIPT ' + o.address
-            outputs.append((addr, o.value))      # consider using yield (addr, v)
+            outputs.append(TxOutputForUI(addr, o.value))      # consider using yield
         return outputs
 
-    def get_output_addresses(self):
-        return [addr for addr, val in self.get_outputs()]
-
-
-    def has_address(self, addr):
-        return (addr in self.get_output_addresses()) or (addr in (tx.get("address") for tx in self.inputs()))
+    def has_address(self, addr: str) -> bool:
+        return (addr in (o.address for o in self.outputs())) \
+               or (addr in (txin.get("address") for txin in self.inputs()))
 
     def as_dict(self):
         if self.raw is None:
