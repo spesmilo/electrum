@@ -173,7 +173,7 @@ class SettingsDialog(Factory.Popup):
                     proxy = None
                 self.app.network.set_parameters(server, port, protocol, proxy, auto_connect)
                 item.status = self.proxy_status()
-            popup = Builder.load_file('electrum/gui/kivy/uix/ui_screens/proxy.kv')
+            popup = Builder.load_file('electrum_grs/gui/kivy/uix/ui_screens/proxy.kv')
             popup.ids.mode.text = proxy.get('mode') if proxy else 'None'
             popup.ids.host.text = proxy.get('host') if proxy else ''
             popup.ids.port.text = proxy.get('port') if proxy else ''

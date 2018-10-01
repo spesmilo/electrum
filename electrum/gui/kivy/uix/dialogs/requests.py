@@ -17,7 +17,7 @@ Builder.load_string('''
     amount: ''
     status: ''
     date: ''
-    icon: 'atlas://electrum/gui/kivy/theming/light/important'
+    icon: 'atlas://electrum_grs/gui/kivy/theming/light/important'
     Image:
         id: icon
         source: root.icon
@@ -80,10 +80,10 @@ from electrum_grs.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIR
 from electrum_grs.gui.kivy.uix.context_menu import ContextMenu
 
 pr_icon = {
-    PR_UNPAID: 'atlas://electrum/gui/kivy/theming/light/important',
-    PR_UNKNOWN: 'atlas://electrum/gui/kivy/theming/light/important',
-    PR_PAID: 'atlas://electrum/gui/kivy/theming/light/confirmed',
-    PR_EXPIRED: 'atlas://electrum/gui/kivy/theming/light/close'
+    PR_UNPAID: 'atlas://electrum_grs/gui/kivy/theming/light/important',
+    PR_UNKNOWN: 'atlas://electrum_grs/gui/kivy/theming/light/important',
+    PR_PAID: 'atlas://electrum_grs/gui/kivy/theming/light/confirmed',
+    PR_EXPIRED: 'atlas://electrum_grs/gui/kivy/theming/light/close'
 }
 request_text = {
     PR_UNPAID: _('Pending'),

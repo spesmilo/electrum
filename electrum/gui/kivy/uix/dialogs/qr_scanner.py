@@ -33,7 +33,7 @@ Builder.load_string('''
     #separator_color: .89, .89, .89, 1
     #separator_height: '1.2dp'
     #title_color: .437, .437, .437, 1
-    #background: 'atlas://electrum/gui/kivy/theming/light/dialog'
+    #background: 'atlas://electrum_grs/gui/kivy/theming/light/dialog'
     on_activate:
         qrscr.start()
         qrscr.size = self.size
