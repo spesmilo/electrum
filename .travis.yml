@@ -19,7 +19,7 @@ cache:
 script:
     - tox
 after_success:
-    - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install pycurl requests && contrib/make_locale; fi
+    - if [ "$TRAVIS_BRANCH" = "master" ]; then pip install requests && contrib/make_locale; fi
     - coveralls
 jobs:
   include:
