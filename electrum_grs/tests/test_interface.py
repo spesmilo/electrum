@@ -1,6 +1,6 @@
 import unittest
 
-from electrum import interface
+from electrum_grs import interface
 
 from . import SequentialTestCase
 

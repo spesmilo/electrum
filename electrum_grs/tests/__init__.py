@@ -1,7 +1,7 @@
 import unittest
 import threading
 
-from electrum import constants
+from electrum_grs import constants
 
 
 # Set this locally to make the test suite run faster.

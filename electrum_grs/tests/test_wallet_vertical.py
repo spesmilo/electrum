@@ -4,15 +4,15 @@ import shutil
 import tempfile
 from typing import Sequence
 
-from electrum import storage, bitcoin, keystore, constants
-from electrum import Transaction
-from electrum import SimpleConfig
-from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
-from electrum.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet
-from electrum.util import bfh, bh2u
-from electrum.transaction import TxOutput
+from electrum_grs import storage, bitcoin, keystore, constants
+from electrum_grs import Transaction
+from electrum_grs import SimpleConfig
+from electrum_grs.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
+from electrum_grs.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet
+from electrum_grs.util import bfh, bh2u
+from electrum_grs.transaction import TxOutput
 
-from electrum.plugins.trustedcoin import trustedcoin
+from electrum_grs.plugins.trustedcoin import trustedcoin
 
 from . import TestCaseForTestnet
 from . import SequentialTestCase

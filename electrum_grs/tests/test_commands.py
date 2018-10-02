@@ -1,7 +1,7 @@
 import unittest
 from decimal import Decimal
 
-from electrum.commands import Commands
+from electrum_grs.commands import Commands
 
 
 class TestCommands(unittest.TestCase):
