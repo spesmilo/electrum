@@ -40,7 +40,7 @@ from .exception_window import Exception_Hook
 from PyQt5.QtWidgets import *
 
 from electrum_grs import (keystore, simple_config, ecc, constants, util, bitcoin, commands,
-             _grs         coinchooser, paymentrequest)
+                          coinchooser, paymentrequest)
 from electrum_grs.bitcoin import COIN, is_address, TYPE_ADDRESS
 from electrum_grs.plugin import run_hook
 from electrum_grs.i18n import _

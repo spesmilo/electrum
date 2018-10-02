@@ -319,7 +319,7 @@ def run_offline_command(config, config_options, plugins):
     return result
 
 def init_plugins(config, gui_name):
-    from electrum_grs.plugins import Plugins
+    from electrum_grs.plugin import Plugins
     return Plugins(config, is_local or is_android, gui_name)
 
 

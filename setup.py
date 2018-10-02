@@ -89,7 +89,7 @@ setup(
             'locale/*/LC_MESSAGES/electrum.mo',
         ],
     },
-    scripts=['electrum_grs/electrum_grs'],
+    scripts=['electrum_grs/electrum-grs'],
     data_files=data_files,
     description="Lightweight Groestlcoin Wallet",
     author="Groestlcoin Developers",
