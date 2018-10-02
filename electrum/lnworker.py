@@ -252,7 +252,7 @@ class LNWorker(PrintError):
             # we output the funding_outpoint instead of the channel_id because lnd uses channel_point (funding outpoint) to identify channels
             return [(chan.funding_outpoint.to_str(), chan.get_state()) for channel_id, chan in self.channels.items()]
 
-    def close_channel(self, chan_id):
+    async def close_channel(self, chan_id):
         chan = self.channels[chan_id]
         # local_commitment always gives back the next expected local_commitment,
         # but in this case, we want the current one. So substract one ctn number
@@ -266,7 +266,7 @@ class LNWorker(PrintError):
         none_idx = tx._inputs[0]["signatures"].index(None)
         tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
         assert tx.is_complete()
-        return self.network.broadcast_transaction_from_non_network_thread(tx)
+        return await self.network.broadcast_transaction(tx)
 
     def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
         now = time.time()
