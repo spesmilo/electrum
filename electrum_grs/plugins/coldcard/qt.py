@@ -1,9 +1,9 @@
 import time
 
-from electrum.i18n import _
-from electrum.plugin import hook
-from electrum.wallet import Standard_Wallet
-from electrum.gui.qt.util import *
+from electrum_grs.i18n import _
+from electrum_grs.plugin import hook
+from electrum_grs.wallet import Standard_Wallet
+from electrum_grs.gui.qt.util import *
 
 from .coldcard import ColdcardPlugin
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
