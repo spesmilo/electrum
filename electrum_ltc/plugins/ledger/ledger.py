@@ -319,7 +319,6 @@ class Ledger_KeyStore(Hardware_KeyStore):
         chipInputs = []
         redeemScripts = []
         signatures = []
-        preparedTrustedInputs = []
         changePath = ""
         output = None
         p2shTransaction = False
@@ -378,8 +377,8 @@ class Ledger_KeyStore(Hardware_KeyStore):
                     self.give_error("P2SH / regular input mixed in same transaction not supported") # should never happen
 
         txOutput = var_int(len(tx.outputs()))
-        for txout in tx.outputs():
-            output_type, addr, amount = txout
+        for o in tx.outputs():
+            output_type, addr, amount = o.type, o.address, o.value
             txOutput += int_to_hex(amount, 8)
             script = tx.pay_script(output_type, addr)
             txOutput += var_int(len(script)//2)
@@ -443,14 +442,10 @@ class Ledger_KeyStore(Hardware_KeyStore):
             if segwitTransaction:
                 self.get_client().startUntrustedTransaction(True, inputIndex,
                                                             chipInputs, redeemScripts[inputIndex])
-                if changePath:
-                    # we don't set meaningful outputAddress, amount and fees
-                    # as we only care about the alternateEncoding==True branch
-                    outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx))
-                else:
-                    outputData = self.get_client().finalizeInputFull(txOutput)
+                # we don't set meaningful outputAddress, amount and fees
+                # as we only care about the alternateEncoding==True branch
+                outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx))
                 outputData['outputData'] = txOutput
-                transactionOutput = outputData['outputData']
                 if outputData['confirmationNeeded']:
                     outputData['address'] = output
                     self.handler.finished()
@@ -470,16 +465,11 @@ class Ledger_KeyStore(Hardware_KeyStore):
             else:
                 while inputIndex < len(inputs):
                     self.get_client().startUntrustedTransaction(firstTransaction, inputIndex,
-                                                            chipInputs, redeemScripts[inputIndex])
-                    if changePath:
-                        # we don't set meaningful outputAddress, amount and fees
-                        # as we only care about the alternateEncoding==True branch
-                        outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx))
-                    else:
-                        outputData = self.get_client().finalizeInputFull(txOutput)
+                                                                chipInputs, redeemScripts[inputIndex])
+                    # we don't set meaningful outputAddress, amount and fees
+                    # as we only care about the alternateEncoding==True branch
+                    outputData = self.get_client().finalizeInput(b'', 0, 0, changePath, bfh(rawTx))
                     outputData['outputData'] = txOutput
-                    if firstTransaction:
-                        transactionOutput = outputData['outputData']
                     if outputData['confirmationNeeded']:
                         outputData['address'] = output
                         self.handler.finished()

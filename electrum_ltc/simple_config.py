@@ -22,7 +22,8 @@ FEERATE_MAX_DYNAMIC = 1000000
 FEERATE_WARNING_HIGH_FEE = 600000
 FEERATE_FALLBACK_STATIC_FEE = 100000
 FEERATE_DEFAULT_RELAY = 1000
-FEERATE_STATIC_VALUES = [10000, 20000, 30000, 50000, 70000, 100000, 150000, 200000, 300000, 500000]
+FEERATE_STATIC_VALUES = [10000, 20000, 30000, 50000, 70000, 100000,
+                         150000, 200000, 300000, 500000]
 
 
 config = None
@@ -446,7 +447,7 @@ class SimpleConfig(PrintError):
         else:
             fee_rate = self.fee_per_kb(dyn=False)
             pos = self.static_fee_index(fee_rate)
-            maxp = 9
+            maxp = len(FEERATE_STATIC_VALUES) - 1
         return maxp, pos, fee_rate
 
     def static_fee(self, i):
