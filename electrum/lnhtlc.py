@@ -509,8 +509,9 @@ class HTLCStateMachine(PrintError):
         feerate = self.pending_feerate(subject)
         conf = self.remote_config if subject == REMOTE else self.local_config
         weight = HTLC_SUCCESS_WEIGHT if subject != htlc_initiator else HTLC_TIMEOUT_WEIGHT
-        return filter(lambda htlc: htlc.amount_msat // 1000 - weight * (feerate // 1000) >= conf.dust_limit_sat,
-            self.htlcs_in_local if htlc_initiator == LOCAL else self.htlcs_in_remote)
+        htlcs = self.htlcs_in_local if htlc_initiator == LOCAL else self.htlcs_in_remote
+        fee_for_htlc = lambda htlc: htlc.amount_msat // 1000 - (weight * feerate // 1000)
+        return filter(lambda htlc: fee_for_htlc(htlc) >= conf.dust_limit_sat, htlcs)
 
     @property
     def pending_remote_commitment(self):
