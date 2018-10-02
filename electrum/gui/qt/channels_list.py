@@ -34,7 +34,9 @@ class ChannelsList(MyTreeWidget):
         channel_id = self.currentItem().data(0, QtCore.Qt.UserRole)
         print('ID', bh2u(channel_id))
         def close():
-            suc, msg = self.parent.wallet.lnworker.close_channel(channel_id)
+            netw = self.parent.network
+            coro = self.parent.wallet.lnworker.close_channel(channel_id)
+            suc, msg = netw.run_from_another_thread(coro)
             if not suc:
                 self.main_window.show_error('Force-close failed:\n{}'.format(msg))
         menu.addAction(_("Force-close channel"), close)
