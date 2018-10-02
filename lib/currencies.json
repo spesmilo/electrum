@@ -523,5 +523,8 @@
         "LTC",
         "RUB",
         "USD"
+    ],
+    "CoinCap": [
+        "USD"
     ]
 }

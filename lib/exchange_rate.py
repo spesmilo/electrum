@@ -211,6 +211,13 @@ class WEX(ExchangeBase):
                 'DSH': Decimal(json_dsh['bch_dsh']['last'])}
 
 
+class CoinCap(ExchangeBase):
+
+    def get_rates(self, ccy):
+        json = self.get_json('api.coincap.io', '/v2/rates/bitcoin-cash/')
+        return {'USD': Decimal(json['data']['rateUsd'])}
+
+
 def dictinvert(d):
     inv = {}
     for k, vlist in d.items():
