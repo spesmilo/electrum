@@ -198,7 +198,6 @@ def make_htlc_tx(cltv_timeout, inputs, output):
     assert type(cltv_timeout) is int
     c_outputs = [output]
     tx = Transaction.from_io(inputs, c_outputs, locktime=cltv_timeout, version=2)
-    tx.BIP_LI01_sort()
     return tx
 
 def make_offered_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, payment_hash):
@@ -339,7 +338,6 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
 
     # create commitment tx
     tx = Transaction.from_io(c_inputs, c_outputs_filtered, locktime=locktime, version=2)
-    tx.BIP_LI01_sort()
 
     tx.htlc_output_indices = {}
     for idx, output in enumerate(c_outputs):
@@ -472,5 +470,4 @@ def make_closing_tx(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
         funding_txid, funding_sat)
     c_input['sequence'] = 0xFFFF_FFFF
     tx = Transaction.from_io([c_input], outputs, locktime=0, version=2)
-    tx.BIP_LI01_sort()
     return tx
