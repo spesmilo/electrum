@@ -1,10 +1,10 @@
 import time
 from struct import pack
 
-from electrum.i18n import _
-from electrum.util import PrintError, UserCancelled
-from electrum.keystore import bip39_normalize_passphrase
-from electrum.bitcoin import serialize_xpub, convert_bip32_path_to_list_of_uint32
+from electrum_grs.i18n import _
+from electrum_grs.util import PrintError, UserCancelled
+from electrum_grs.keystore import bip39_normalize_passphrase
+from electrum_grs.bitcoin import serialize_xpub, convert_bip32_path_to_list_of_uint32
 
 
 class GuiMixin(object):
@@ -67,7 +67,7 @@ class GuiMixin(object):
             msg = _("Enter a passphrase to generate this wallet.  Each time "
                     "you use this wallet your {} will prompt you for the "
                     "passphrase.  If you forget the passphrase you cannot "
-                    "access the bitcoins in the wallet.").format(self.device)
+                    "access the groestlcoins in the wallet.").format(self.device)
         else:
             msg = _("Enter the passphrase to unlock this wallet:")
         passphrase = self.handler.get_passphrase(msg, self.creating_wallet)
@@ -123,8 +123,8 @@ class SafeTClientBase(GuiMixin, PrintError):
 
     def has_usable_connection_with_device(self):
         try:
-            res = self.ping("electrum pinging device")
-            assert res == "electrum pinging device"
+            res = self.ping("electrum-GRS pinging device")
+            assert res == "electrum-GRS pinging device"
         except BaseException:
             return False
         return True

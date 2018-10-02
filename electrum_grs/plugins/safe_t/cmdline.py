@@ -1,4 +1,4 @@
-from electrum.plugin import hook
+from electrum_grs.plugin import hook
 from .safe_t import SafeTPlugin
 from ..hw_wallet import CmdLineHandler
 

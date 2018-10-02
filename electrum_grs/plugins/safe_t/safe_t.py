@@ -2,15 +2,15 @@ from binascii import hexlify, unhexlify
 import traceback
 import sys
 
-from electrum.util import bfh, bh2u, versiontuple, UserCancelled
-from electrum.bitcoin import (b58_address_to_hash160, xpub_from_pubkey, deserialize_xpub,
+from electrum_grs.util import bfh, bh2u, versiontuple, UserCancelled
+from electrum_grs.bitcoin import (b58_address_to_hash160, xpub_from_pubkey, deserialize_xpub,
                               TYPE_ADDRESS, TYPE_SCRIPT, is_address)
-from electrum import constants
-from electrum.i18n import _
-from electrum.plugin import BasePlugin, Device
-from electrum.transaction import deserialize, Transaction
-from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
-from electrum.base_wizard import ScriptTypeNotSupported
+from electrum_grs import constants
+from electrum_grs.i18n import _
+from electrum_grs.plugin import BasePlugin, Device
+from electrum_grs.transaction import deserialize, Transaction
+from electrum_grs.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
+from electrum_grs.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data
@@ -153,7 +153,7 @@ class SafeTPlugin(HW_PluginBase):
         return client
 
     def get_coin_name(self):
-        return "Testnet" if constants.net.TESTNET else "Bitcoin"
+        return "Groestlcoin Testnet" if constants.net.TESTNET else "Groestlcoin"
 
     def initialize_device(self, device_id, wizard, handler):
         # Initialization method
