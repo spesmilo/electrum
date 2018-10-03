@@ -69,6 +69,7 @@ class Contacts(dict):
         dict.__setitem__(self, key, value)
         self.save()
 
+    # This breaks expected dictionary pop behaviour.  In the normal case, it'd return the popped value, or throw a KeyError.
     def pop(self, key):
         if key in self.keys():
             dict.pop(self, key)

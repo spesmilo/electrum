@@ -1862,23 +1862,33 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('Invalid Address'))
             self.contact_list.update()  # Displays original unchanged value
             return False
+        old_entry = self.contacts.get(address, None)
         self.contacts[address] = ('address', label)
         self.contact_list.update()
         self.history_list.update()
         self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
         self.update_completions()
+
+        # The contact has changed, update any addresses that are displayed with the old information.
+        run_hook('update_contact', address, self.contacts[address], old_entry)
         return True
 
-    def delete_contacts(self, labels):
+    def delete_contacts(self, addresses):
         if not self.question(_("Remove {} from your list of contacts?")
-                             .format(" + ".join(labels))):
+                             .format(" + ".join(addresses))):
             return
-        for label in labels:
-            self.contacts.pop(label)
+        removed_entries = []
+        for address in addresses:
+            if address in self.contacts.keys():
+                removed_entries.append((address, self.contacts[address]))
+            self.contacts.pop(address)
+
         self.history_list.update()
         self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
         self.contact_list.update()
         self.update_completions()
+
+        run_hook('delete_contacts', removed_entries)
 
     def show_invoice(self, key):
         pr = self.invoices.get(key)
