@@ -127,10 +127,10 @@ class LNChannelVerifier(ThreadJob):
             actual_output = tx.outputs()[output_idx]
         except IndexError:
             return
-        if expected_address != actual_output[1]:
+        if expected_address != actual_output.address:
             return
         # put channel into channel DB
-        channel_info.set_capacity(actual_output[2])
+        channel_info.set_capacity(actual_output.value)
         self.channel_db.add_verified_channel_info(short_channel_id, channel_info)
         # remove channel from unverified
         with self.lock:
