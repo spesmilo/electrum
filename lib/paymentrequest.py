@@ -261,7 +261,7 @@ class PaymentRequest:
     def get_outputs(self):
         return self.outputs[:]
 
-    def send_ack(self, raw_tx, refund_addr):
+    def send_payment(self, raw_tx, refund_addr):
         pay_det = self.details
         if not self.details.payment_url:
             return False, "no url"
@@ -270,7 +270,7 @@ class PaymentRequest:
         paymnt.transactions.append(bfh(raw_tx))
         ref_out = paymnt.refund_to.add()
         ref_out.script = bfh(transaction.Transaction.pay_script(refund_addr))
-        paymnt.memo = "Paid using Electrum"
+        paymnt.memo = "Paid using Electron Cash"
         pm = paymnt.SerializeToString()
         payurl = urllib.parse.urlparse(pay_det.payment_url)
         try:
@@ -282,7 +282,7 @@ class PaymentRequest:
             except Exception as e:
                 print(e)
                 return False, "Payment Message/PaymentACK Failed"
-        if r.status_code >= 500:
+        if r.status_code != 200:
             return False, r.reason
         try:
             paymntack = pb2.PaymentACK()
