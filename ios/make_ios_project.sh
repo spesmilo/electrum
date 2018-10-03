@@ -67,7 +67,7 @@ echo ""
 echo "Building Briefcase-Based iOS Project..."
 echo ""
 
-python3.5 setup.py ios 
+python3 setup.py ios
 if [ "$?" != 0 ]; then
 	echo "An error occurred running setup.py"
 	exit 4
