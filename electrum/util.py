@@ -869,7 +869,12 @@ VerifiedTxInfo = NamedTuple("VerifiedTxInfo", [("height", int),
                                                ("txpos", int),
                                                ("header_hash", str)])
 
-def make_aiohttp_session(proxy):
+
+def make_aiohttp_session(proxy: dict, headers=None, timeout=None):
+    if headers is None:
+        headers = {'User-Agent': 'Electrum'}
+    if timeout is None:
+        timeout = aiohttp.ClientTimeout(total=10)
     if proxy:
         connector = SocksConnector(
             socks_ver=SocksVer.SOCKS5 if proxy['mode'] == 'socks5' else SocksVer.SOCKS4,
@@ -879,9 +884,9 @@ def make_aiohttp_session(proxy):
             password=proxy.get('password', None),
             rdns=True
         )
-        return aiohttp.ClientSession(headers={'User-Agent' : 'Electrum'}, timeout=aiohttp.ClientTimeout(total=10), connector=connector)
+        return aiohttp.ClientSession(headers=headers, timeout=timeout, connector=connector)
     else:
-        return aiohttp.ClientSession(headers={'User-Agent' : 'Electrum'}, timeout=aiohttp.ClientTimeout(total=10))
+        return aiohttp.ClientSession(headers=headers, timeout=timeout)
 
 
 class SilentTaskGroup(TaskGroup):
