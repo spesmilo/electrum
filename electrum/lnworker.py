@@ -178,12 +178,13 @@ class LNWorker(PrintError):
 
     @staticmethod
     def choose_preferred_address(addr_list: List[Tuple[str, int]]) -> Tuple[str, int]:
+        # choose first one that is an IP
         for host, port in addr_list:
             if is_ip_address(host):
                 return host, port
+        # otherwise choose one at random
         # TODO maybe filter out onion if not on tor?
-        self.print_error('Chose random address from ' + str(node_info.addresses))
-        return random.choice(node_info.addresses)
+        return random.choice(addr_list)
 
     def open_channel(self, connect_contents, local_amt_sat, push_amt_sat, pw):
         node_id, rest = extract_nodeid(connect_contents)
