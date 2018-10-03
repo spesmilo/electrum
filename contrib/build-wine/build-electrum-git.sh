@@ -1,7 +1,7 @@
 #!/bin/bash
 
 NAME_ROOT=electrum
-PYTHON_VERSION=3.5.4
+PYTHON_VERSION=3.6.6
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
@@ -19,39 +19,32 @@ set -e
 mkdir -p tmp
 cd tmp
 
-if [ -d ./electrum ]; then
-  rm ./electrum -rf
-fi
-
-git clone https://github.com/spesmilo/electrum -b master
-
-pushd electrum
-if [ ! -z "$1" ]; then
-    git checkout $1
-fi
+pushd $WINEPREFIX/drive_c/electrum
 
 # Load electrum-icons and electrum-locale for this release
 git submodule init
 git submodule update
 
+VERSION=`git describe --tags --dirty --always`
+echo "Last commit: $VERSION"
+
 pushd ./contrib/deterministic-build/electrum-locale
+if ! which msgfmt > /dev/null 2>&1; then
+    echo "Please install gettext"
+    exit 1
+fi
 for i in ./locale/*; do
-    dir=$i/LC_MESSAGES
+    dir=$WINEPREFIX/drive_c/electrum/electrum/$i/LC_MESSAGES
     mkdir -p $dir
     msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
 done
 popd
 
-VERSION=`git describe --tags --dirty`
-echo "Last commit: $VERSION"
 find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
-rm -rf $WINEPREFIX/drive_c/electrum
-cp -r electrum $WINEPREFIX/drive_c/electrum
-cp electrum/LICENCE .
-cp -r ./electrum/contrib/deterministic-build/electrum-locale/locale $WINEPREFIX/drive_c/electrum/lib/
-cp ./electrum/contrib/deterministic-build/electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum/gui/qt/
+cp $WINEPREFIX/drive_c/electrum/LICENCE .
+cp $WINEPREFIX/drive_c/electrum/contrib/deterministic-build/electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum/electrum/gui/qt/
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt
@@ -67,7 +60,7 @@ cd ..
 rm -rf dist/
 
 # build standalone and portable versions
-wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --name $NAME_ROOT-$VERSION -w deterministic.spec
+wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --clean --name $NAME_ROOT-$VERSION -w deterministic.spec
 
 # set timestamps in dist, in order to make the installer reproducible
 pushd dist

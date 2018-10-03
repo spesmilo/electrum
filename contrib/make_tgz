@@ -1,0 +1,11 @@
+#!/bin/bash
+
+contrib=$(dirname "$0")
+packages="$contrib"/../packages/
+
+if [ ! -d "$packages" ]; then
+  echo "Run make_packages first!"
+  exit 1
+fi
+
+python3 setup.py sdist --format=zip,gztar

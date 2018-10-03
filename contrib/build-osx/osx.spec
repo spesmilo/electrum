@@ -7,7 +7,7 @@ import os
 
 PACKAGE='Electrum'
 PYPKG='electrum'
-MAIN_SCRIPT='electrum'
+MAIN_SCRIPT='run_electrum'
 ICONS_FILE='electrum.icns'
 
 for i, x in enumerate(sys.argv):
@@ -23,46 +23,50 @@ block_cipher = None
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
 hiddenimports = []
 hiddenimports += collect_submodules('trezorlib')
+hiddenimports += collect_submodules('safetlib')
 hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
+hiddenimports += collect_submodules('ckcc')
 
 datas = [
-    (electrum+'lib/currencies.json', PYPKG),
-    (electrum+'lib/servers.json', PYPKG),
-    (electrum+'lib/checkpoints.json', PYPKG),
-    (electrum+'lib/servers_testnet.json', PYPKG),
-    (electrum+'lib/checkpoints_testnet.json', PYPKG),
-    (electrum+'lib/wordlist/english.txt', PYPKG + '/wordlist'),
-    (electrum+'lib/locale', PYPKG + '/locale'),
-    (electrum+'plugins', PYPKG + '_plugins'),
+    (electrum + PYPKG + '/*.json', PYPKG),
+    (electrum + PYPKG + '/wordlist/english.txt', PYPKG + '/wordlist'),
+    (electrum + PYPKG + '/locale', PYPKG + '/locale'),
+    (electrum + PYPKG + '/plugins', PYPKG + '/plugins'),
 ]
 datas += collect_data_files('trezorlib')
+datas += collect_data_files('safetlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
+datas += collect_data_files('ckcc')
 
-# Add libusb so Trezor will work
+# Add libusb so Trezor and Safe-T mini will work
 binaries = [(electrum + "contrib/build-osx/libusb-1.0.dylib", ".")]
+binaries += [(electrum + "contrib/build-osx/libsecp256k1.0.dylib", ".")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
-a = Analysis([electrum+MAIN_SCRIPT,
-              electrum+'gui/qt/main_window.py',
-              electrum+'gui/text.py',
-              electrum+'lib/util.py',
-              electrum+'lib/wallet.py',
-              electrum+'lib/simple_config.py',
-              electrum+'lib/bitcoin.py',
-              electrum+'lib/dnssec.py',
-              electrum+'lib/commands.py',
-              electrum+'plugins/cosigner_pool/qt.py',
-              electrum+'plugins/email_requests/qt.py',
-              electrum+'plugins/trezor/client.py',
-              electrum+'plugins/trezor/qt.py',
-              electrum+'plugins/keepkey/qt.py',
-              electrum+'plugins/ledger/qt.py',
+a = Analysis([electrum+ MAIN_SCRIPT,
+              electrum+'electrum/gui/qt/main_window.py',
+              electrum+'electrum/gui/text.py',
+              electrum+'electrum/util.py',
+              electrum+'electrum/wallet.py',
+              electrum+'electrum/simple_config.py',
+              electrum+'electrum/bitcoin.py',
+              electrum+'electrum/dnssec.py',
+              electrum+'electrum/commands.py',
+              electrum+'electrum/plugins/cosigner_pool/qt.py',
+              electrum+'electrum/plugins/email_requests/qt.py',
+              electrum+'electrum/plugins/trezor/client.py',
+              electrum+'electrum/plugins/trezor/qt.py',
+              electrum+'electrum/plugins/safe_t/client.py',
+              electrum+'electrum/plugins/safe_t/qt.py',
+              electrum+'electrum/plugins/keepkey/qt.py',
+              electrum+'electrum/plugins/ledger/qt.py',
+              electrum+'electrum/plugins/coldcard/qt.py',
               ],
              binaries=binaries,
              datas=datas,

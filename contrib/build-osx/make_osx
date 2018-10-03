@@ -5,6 +5,7 @@ PYTHON_VERSION=3.6.4
 BUILDDIR=/tmp/electrum-build
 PACKAGE=Electrum
 GIT_REPO=https://github.com/spesmilo/electrum
+LIBSECP_VERSION=452d8e4d2a2f9f1b5be6b02e18f1ba102e5ca0b4
 
 . $(dirname "$0")/base.sh
 
@@ -12,7 +13,9 @@ src_dir=$(dirname "$0")
 cd $src_dir/../..
 
 export PYTHONHASHSEED=22
-VERSION=`git describe --tags --dirty`
+VERSION=`git describe --tags --dirty --always`
+
+which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
 
 info "Installing Python $PYTHON_VERSION"
 export PATH="~/.pyenv/bin:~/.pyenv/shims:~/Library/Python/3.6/bin:$PATH"
@@ -27,7 +30,7 @@ fail "Unable to use Python $PYTHON_VERSION"
 
 
 info "Installing pyinstaller"
-python3 -m pip install git+https://github.com/ecdsa/pyinstaller@fix_2952 -I --user || fail "Could not install pyinstaller"
+python3 -m pip install -I --user pyinstaller==3.4 || fail "Could not install pyinstaller"
 
 info "Using these versions for building $PACKAGE:"
 sw_vers
@@ -43,14 +46,27 @@ git submodule update
 rm  -rf $BUILDDIR > /dev/null 2>&1
 mkdir $BUILDDIR
 
-cp -R ./contrib/deterministic-build/electrum-locale/locale/ ./lib/locale/
-cp    ./contrib/deterministic-build/electrum-icons/icons_rc.py ./gui/qt/
+cp -R ./contrib/deterministic-build/electrum-locale/locale/ ./electrum/locale/
+cp    ./contrib/deterministic-build/electrum-icons/icons_rc.py ./electrum/gui/qt/
 
 
 info "Downloading libusb..."
 curl https://homebrew.bintray.com/bottles/libusb-1.0.22.el_capitan.bottle.tar.gz | \
 tar xz --directory $BUILDDIR
 cp $BUILDDIR/libusb/1.0.22/lib/libusb-1.0.dylib contrib/build-osx
+
+info "Building libsecp256k1"
+brew install autoconf automake libtool
+git clone https://github.com/bitcoin-core/secp256k1 $BUILDDIR/secp256k1
+pushd $BUILDDIR/secp256k1
+git reset --hard $LIBSECP_VERSION
+git clean -f -x -q
+./autogen.sh
+./configure --enable-module-recovery --enable-experimental --enable-module-ecdh --disable-jni
+make
+popd
+cp $BUILDDIR/secp256k1/.libs/libsecp256k1.0.dylib contrib/build-osx
+
 
 info "Installing requirements..."
 python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user && \
@@ -72,7 +88,13 @@ for d in ~/Library/Python/ ~/.pyenv .; do
 done
 
 info "Building binary"
-pyinstaller --noconfirm --ascii --name $VERSION contrib/build-osx/osx.spec || fail "Could not build binary"
+pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/build-osx/osx.spec || fail "Could not build binary"
+
+info "Adding bitcoin URI types to Info.plist"
+plutil -insert 'CFBundleURLTypes' \
+	-xml '<array><dict> <key>CFBundleURLName</key> <string>bitcoin</string> <key>CFBundleURLSchemes</key> <array><string>bitcoin</string></array> </dict></array>' \
+	-- dist/$PACKAGE.app/Contents/Info.plist \
+	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
 
 info "Creating .DMG"
 hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION.dmg || fail "Could not create .DMG"

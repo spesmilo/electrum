@@ -11,8 +11,9 @@
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    version="1.0"
-   width="22"
-   height="22"
+   width="512"
+   height="512"
+   viewBox="0 0 22 22"
    id="svg2"
    inkscape:version="0.47 r22583"
    sodipodi:docname="unlock.svg">

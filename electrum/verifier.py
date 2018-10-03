@@ -1,0 +1,184 @@
+# Electrum - Lightweight Bitcoin Client
+# Copyright (c) 2012 Thomas Voegtlin
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+import asyncio
+from typing import Sequence, Optional
+
+import aiorpcx
+from aiorpcx import TaskGroup
+
+from .util import PrintError, bh2u, VerifiedTxInfo
+from .bitcoin import Hash, hash_decode, hash_encode
+from .transaction import Transaction
+from .blockchain import hash_header
+from .interface import GracefulDisconnect
+from . import constants
+
+
+class MerkleVerificationFailure(Exception): pass
+class MissingBlockHeader(MerkleVerificationFailure): pass
+class MerkleRootMismatch(MerkleVerificationFailure): pass
+class InnerNodeOfSpvProofIsValidTx(MerkleVerificationFailure): pass
+
+
+class SPV(PrintError):
+    """ Simple Payment Verification """
+
+    def __init__(self, network, wallet):
+        self.wallet = wallet
+        self.network = network
+        self.merkle_roots = {}  # txid -> merkle root (once it has been verified)
+        self.requested_merkle = set()  # txid set of pending requests
+
+    def diagnostic_name(self):
+        return '{}:{}'.format(self.__class__.__name__, self.wallet.diagnostic_name())
+
+    async def main(self, group: TaskGroup):
+        self.blockchain = self.network.blockchain()
+        while True:
+            await self._maybe_undo_verifications()
+            await self._request_proofs(group)
+            await asyncio.sleep(0.1)
+
+    async def _request_proofs(self, group: TaskGroup):
+        local_height = self.blockchain.height()
+        unverified = self.wallet.get_unverified_txs()
+
+        for tx_hash, tx_height in unverified.items():
+            # do not request merkle branch if we already requested it
+            if tx_hash in self.requested_merkle or tx_hash in self.merkle_roots:
+                continue
+            # or before headers are available
+            if tx_height <= 0 or tx_height > local_height:
+                continue
+            # if it's in the checkpoint region, we still might not have the header
+            header = self.blockchain.read_header(tx_height)
+            if header is None:
+                if tx_height < constants.net.max_checkpoint():
+                    await group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
+                continue
+            # request now
+            self.print_error('requested merkle', tx_hash)
+            self.requested_merkle.add(tx_hash)
+            await group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
+
+    async def _request_and_verify_single_proof(self, tx_hash, tx_height):
+        try:
+            merkle = await self.network.get_merkle_for_transaction(tx_hash, tx_height)
+        except aiorpcx.jsonrpc.RPCError as e:
+            self.print_error('tx {} not at height {}'.format(tx_hash, tx_height))
+            self.wallet.remove_unverified_tx(tx_hash, tx_height)
+            try: self.requested_merkle.remove(tx_hash)
+            except KeyError: pass
+            return
+        # Verify the hash of the server-provided merkle branch to a
+        # transaction matches the merkle root of its block
+        if tx_height != merkle.get('block_height'):
+            self.print_error('requested tx_height {} differs from received tx_height {} for txid {}'
+                             .format(tx_height, merkle.get('block_height'), tx_hash))
+        tx_height = merkle.get('block_height')
+        pos = merkle.get('pos')
+        merkle_branch = merkle.get('merkle')
+        # we need to wait if header sync/reorg is still ongoing, hence lock:
+        async with self.network.bhi_lock:
+            header = self.network.blockchain().read_header(tx_height)
+        try:
+            verify_tx_is_in_block(tx_hash, merkle_branch, pos, header, tx_height)
+        except MerkleVerificationFailure as e:
+            self.print_error(str(e))
+            raise GracefulDisconnect(e)
+        # we passed all the tests
+        self.merkle_roots[tx_hash] = header.get('merkle_root')
+        try: self.requested_merkle.remove(tx_hash)
+        except KeyError: pass
+        self.print_error("verified %s" % tx_hash)
+        header_hash = hash_header(header)
+        vtx_info = VerifiedTxInfo(tx_height, header.get('timestamp'), pos, header_hash)
+        self.wallet.add_verified_tx(tx_hash, vtx_info)
+        if self.is_up_to_date() and self.wallet.is_up_to_date():
+            self.wallet.save_verified_tx(write=True)
+
+    @classmethod
+    def hash_merkle_root(cls, merkle_branch: Sequence[str], tx_hash: str, leaf_pos_in_tree: int):
+        """Return calculated merkle root."""
+        try:
+            h = hash_decode(tx_hash)
+            merkle_branch_bytes = [hash_decode(item) for item in merkle_branch]
+            int(leaf_pos_in_tree)  # raise if invalid
+        except Exception as e:
+            raise MerkleVerificationFailure(e)
+
+        for i, item in enumerate(merkle_branch_bytes):
+            h = Hash(item + h) if ((leaf_pos_in_tree >> i) & 1) else Hash(h + item)
+            cls._raise_if_valid_tx(bh2u(h))
+        return hash_encode(h)
+
+    @classmethod
+    def _raise_if_valid_tx(cls, raw_tx: str):
+        # If an inner node of the merkle proof is also a valid tx, chances are, this is an attack.
+        # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-June/016105.html
+        # https://lists.linuxfoundation.org/pipermail/bitcoin-dev/attachments/20180609/9f4f5b1f/attachment-0001.pdf
+        # https://bitcoin.stackexchange.com/questions/76121/how-is-the-leaf-node-weakness-in-merkle-trees-exploitable/76122#76122
+        tx = Transaction(raw_tx)
+        try:
+            tx.deserialize()
+        except:
+            pass
+        else:
+            raise InnerNodeOfSpvProofIsValidTx()
+
+    async def _maybe_undo_verifications(self):
+        def undo_verifications():
+            height = self.blockchain.get_forkpoint()
+            self.print_error("undoing verifications back to height {}".format(height))
+            tx_hashes = self.wallet.undo_verifications(self.blockchain, height)
+            for tx_hash in tx_hashes:
+                self.print_error("redoing", tx_hash)
+                self.remove_spv_proof_for_tx(tx_hash)
+
+        if self.network.blockchain() != self.blockchain:
+            self.blockchain = self.network.blockchain()
+            undo_verifications()
+
+    def remove_spv_proof_for_tx(self, tx_hash):
+        self.merkle_roots.pop(tx_hash, None)
+        try:
+            self.requested_merkle.remove(tx_hash)
+        except KeyError:
+            pass
+
+    def is_up_to_date(self):
+        return not self.requested_merkle
+
+
+def verify_tx_is_in_block(tx_hash: str, merkle_branch: Sequence[str],
+                          leaf_pos_in_tree: int, block_header: Optional[dict],
+                          block_height: int) -> None:
+    """Raise MerkleVerificationFailure if verification fails."""
+    if not block_header:
+        raise MissingBlockHeader("merkle verification failed for {} (missing header {})"
+                                 .format(tx_hash, block_height))
+    calc_merkle_root = SPV.hash_merkle_root(merkle_branch, tx_hash, leaf_pos_in_tree)
+    if block_header.get('merkle_root') != calc_merkle_root:
+        raise MerkleRootMismatch("merkle verification failed for {} ({} != {})".format(
+            tx_hash, block_header.get('merkle_root'), calc_merkle_root))
