@@ -13,6 +13,7 @@ from .transaction import opcodes, TxOutput
 from .bitcoin import push_script
 from . import segwit_addr
 from .i18n import _
+from .lnaddr import lndecode
 
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
