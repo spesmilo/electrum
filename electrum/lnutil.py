@@ -398,24 +398,24 @@ def invert_short_channel_id(short_channel_id: bytes) -> (int, int, int):
     oi = int.from_bytes(short_channel_id[6:8], byteorder='big')
     return bh, tpos, oi
 
-def get_obscured_ctn(ctn: int, local: bytes, remote: bytes) -> int:
-    mask = int.from_bytes(sha256(local + remote)[-6:], 'big')
+def get_obscured_ctn(ctn: int, funder: bytes, fundee: bytes) -> int:
+    mask = int.from_bytes(sha256(funder + fundee)[-6:], 'big')
     return ctn ^ mask
 
-def extract_ctn_from_tx(tx, txin_index: int, local_payment_basepoint: bytes,
-                        remote_payment_basepoint: bytes) -> int:
+def extract_ctn_from_tx(tx, txin_index: int, funder_payment_basepoint: bytes,
+                        fundee_payment_basepoint: bytes) -> int:
     tx.deserialize()
     locktime = tx.locktime
     sequence = tx.inputs()[txin_index]['sequence']
     obs = ((sequence & 0xffffff) << 24) + (locktime & 0xffffff)
-    return get_obscured_ctn(obs, local_payment_basepoint, remote_payment_basepoint)
+    return get_obscured_ctn(obs, funder_payment_basepoint, fundee_payment_basepoint)
 
 def extract_ctn_from_tx_and_chan(tx, chan) -> int:
-    local_pubkey = chan.local_config.payment_basepoint.pubkey
-    remote_pubkey = chan.remote_config.payment_basepoint.pubkey
+    funder_conf = chan.local_config if     chan.constraints.is_initiator else chan.remote_config
+    fundee_conf = chan.local_config if not chan.constraints.is_initiator else chan.remote_config
     return extract_ctn_from_tx(tx, txin_index=0,
-                               local_payment_basepoint=local_pubkey,
-                               remote_payment_basepoint=remote_pubkey)
+                               funder_payment_basepoint=funder_conf.payment_basepoint.pubkey,
+                               fundee_payment_basepoint=fundee_conf.payment_basepoint.pubkey)
 
 def overall_weight(num_htlc):
     return 500 + 172 * num_htlc + 224
