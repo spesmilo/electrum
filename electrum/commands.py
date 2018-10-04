@@ -786,6 +786,10 @@ class Commands:
         return self.wallet.lnworker.add_invoice(satoshis(requested_amount), message)
 
     @command('wn')
+    def nodeid(self):
+        return bh2u(self.wallet.lnworker.pubkey)
+
+    @command('wn')
     def listchannels(self):
         return self.wallet.lnworker.list_channels()
 

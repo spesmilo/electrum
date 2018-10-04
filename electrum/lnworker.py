@@ -112,17 +112,18 @@ class LNWorker(PrintError):
         """
         assert chan.get_state() in ["OPEN", "OPENING"]
         peer = self.peers[chan.node_id]
-        conf = self.wallet.get_tx_height(chan.funding_outpoint.txid).conf
+        addr_sync = self.network.lnwatcher.addr_sync
+        conf = addr_sync.get_tx_height(chan.funding_outpoint.txid).conf
         if conf >= chan.constraints.funding_txn_minimum_depth:
-            block_height, tx_pos = self.wallet.get_txpos(chan.funding_outpoint.txid)
+            block_height, tx_pos = addr_sync.get_txpos(chan.funding_outpoint.txid)
             if tx_pos == -1:
                 self.print_error('funding tx is not yet SPV verified.. but there are '
                                  'already enough confirmations (currently {})'.format(conf))
-                return False
+                return False, conf
             chan.short_channel_id = calc_short_channel_id(block_height, tx_pos, chan.funding_outpoint.output_index)
             self.save_channel(chan)
-            return True
-        return False
+            return True, conf
+        return False, conf
 
     def on_channel_utxos(self, chan, is_funding_txo_spent: bool):
         chan.set_funding_txo_spentness(is_funding_txo_spent)
@@ -138,11 +139,12 @@ class LNWorker(PrintError):
         # since short_channel_id could be changed while saving.
         with self.lock:
             channels = list(self.channels.values())
+        addr_sync = self.network.lnwatcher.addr_sync
         for chan in channels:
             if chan.get_state() == "OPENING":
-                res = self.save_short_chan_id(chan)
+                res, depth = self.save_short_chan_id(chan)
                 if not res:
-                    self.print_error("network update but funding tx is still not at sufficient depth")
+                    self.print_error("network update but funding tx is still not at sufficient depth. actual depth: " + str(depth))
                     continue
                 # this results in the channel being marked OPEN
                 peer = self.peers[chan.node_id]
@@ -154,14 +156,14 @@ class LNWorker(PrintError):
                     return
                 if event == 'fee':
                     await peer.bitcoin_fee_update(chan)
-                conf = self.wallet.get_tx_height(chan.funding_outpoint.txid).conf
+                conf = addr_sync.get_tx_height(chan.funding_outpoint.txid).conf
                 peer.on_network_update(chan, conf)
 
     async def _open_channel_coroutine(self, peer, local_amount_sat, push_sat, password):
         # peer might just have been connected to
         await asyncio.wait_for(peer.initialized, 5)
 
-        openingchannel = await peer.channel_establishment_flow(self.wallet, self.config, password,
+        openingchannel = await peer.channel_establishment_flow(password,
                                                                funding_sat=local_amount_sat + push_sat,
                                                                push_msat=push_sat * 1000,
                                                                temp_channel_id=os.urandom(32),
