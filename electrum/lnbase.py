@@ -484,7 +484,7 @@ class Peer(PrintError):
             chan.set_state('DISCONNECTED')
             self.network.trigger_callback('channel', chan)
 
-    def make_local_config(self, funding_msat, push_msat, initiator: HTLCOwner, password):
+    def make_local_config(self, funding_sat, push_msat, initiator: HTLCOwner, password):
         # see lnd/keychain/derivation.go
         keyfamilymultisig = 0
         keyfamilyrevocationbase = 1
@@ -520,7 +520,7 @@ class Peer(PrintError):
     @aiosafe
     async def channel_establishment_flow(self, password, funding_sat, push_msat, temp_channel_id, sweep_address):
         await self.initialized
-        local_config = self.make_local_config(funding_msat, push_msat, LOCAL, password)
+        local_config = self.make_local_config(funding_sat, push_msat, LOCAL, password)
         # amounts
         local_feerate = self.current_feerate_per_kw()
         # TODO derive this?
