@@ -29,55 +29,30 @@ class FeeUpdateProgress(Enum):
     FUNDEE_SIGNED = auto()
     FUNDEE_ACKED =  auto()
     FUNDER_SIGNED = auto()
-    COMMITTED = auto()
 
 FUNDEE_SIGNED = FeeUpdateProgress.FUNDEE_SIGNED
 FUNDEE_ACKED = FeeUpdateProgress.FUNDEE_ACKED
 FUNDER_SIGNED = FeeUpdateProgress.FUNDER_SIGNED
-COMMITTED = FeeUpdateProgress.COMMITTED
 
 from collections import namedtuple
 
 class FeeUpdate:
-    def __init__(self, chan, **kwargs):
-        if 'rate' in kwargs:
-            self.rate = kwargs['rate']
-        else:
-            assert False
-        if 'proposed' not in kwargs:
-            self.proposed = chan.remote_state.ctn if not chan.constraints.is_initiator else chan.local_state.ctn
-        else:
-            self.proposed = kwargs['proposed']
-        if 'progress' not in kwargs:
-            self.progress = {FUNDEE_SIGNED: None, FUNDEE_ACKED: None, FUNDER_SIGNED: None, COMMITTED: None}
-        else:
-            self.progress = {FeeUpdateProgress[x.partition('.')[2]]: y for x,y in kwargs['progress'].items()}
+    def __init__(self, chan, rate):
+        self.rate = rate
+        self.progress = {FUNDEE_SIGNED: None, FUNDEE_ACKED: None, FUNDER_SIGNED: None}
         self.chan = chan
 
-    @property
-    def height(self):
-        return self.chan.current_height[LOCAL if self.chan.constraints.is_initiator else REMOTE]
-
     def set(self, field):
-        self.progress[field] = self.height
-
-    def is_proposed(self):
-        """
-        returns True when this FeeUpdate has been proposed
-        at or above the current commitment number of the funder
-        """
-        return self.progress[COMMITTED] is None and self.proposed is not None and self.proposed <= self.height
+        self.progress[field] = self.chan.current_height[LOCAL if self.chan.constraints.is_initiator else REMOTE]
 
     def had(self, field):
         """
         returns true when the progress field given has been
         set at the current commitment number of the funder
         """
-        return self.progress[field] is not None and self.height >= self.progress[field]
+        return self.progress[field] is not None
 
     def pending_feerate(self, subject):
-        if not self.is_proposed():
-            return
         if self.had(FUNDEE_ACKED):
             return self.rate
         if subject == REMOTE and self.chan.constraints.is_initiator:
@@ -85,9 +60,6 @@ class FeeUpdate:
         if subject == LOCAL and not self.chan.constraints.is_initiator:
             return self.rate
         # implicit return None
-
-    def to_save(self):
-        return {'rate': self.rate, 'proposed': self.proposed, 'progress': self.progress}
 
 class UpdateAddHtlc(namedtuple('UpdateAddHtlc', ['amount_msat', 'payment_hash', 'cltv_expiry', 'settled', 'locked_in', 'htlc_id'])):
     __slots__ = ()
@@ -192,9 +164,6 @@ class HTLCStateMachine(PrintError):
         self.name = name
 
         self.fee_mgr = []
-        if 'fee_updates' in state:
-            for y in state['fee_updates']:
-                self.fee_mgr.append(FeeUpdate(self, **y))
 
         self.local_commitment = self.pending_local_commitment
         self.remote_commitment = self.pending_remote_commitment
@@ -285,11 +254,10 @@ class HTLCStateMachine(PrintError):
                 htlcsigs.append((pending_remote_commitment.htlc_output_indices[htlc.payment_hash], htlc_sig))
 
         for pending_fee in self.fee_mgr:
-            if pending_fee.is_proposed():
-                if not self.constraints.is_initiator:
-                    pending_fee.set(FUNDEE_SIGNED)
-                if self.constraints.is_initiator and pending_fee.had(FUNDEE_ACKED):
-                    pending_fee.set(FUNDER_SIGNED)
+            if not self.constraints.is_initiator:
+                pending_fee.set(FUNDEE_SIGNED)
+            if self.constraints.is_initiator and pending_fee.had(FUNDEE_ACKED):
+                pending_fee.set(FUNDER_SIGNED)
 
         if self.lnwatcher:
             self.lnwatcher.process_new_offchain_ctx(self, pending_remote_commitment, ours=False)
@@ -341,11 +309,10 @@ class HTLCStateMachine(PrintError):
             raise Exception('failed verifying HTLC signatures: invalid amount of correct signatures')
 
         for pending_fee in self.fee_mgr:
-            if pending_fee.is_proposed():
-                if not self.constraints.is_initiator:
-                    pending_fee.set(FUNDEE_SIGNED)
-                if self.constraints.is_initiator and pending_fee.had(FUNDEE_ACKED):
-                    pending_fee.set(FUNDER_SIGNED)
+            if not self.constraints.is_initiator:
+                pending_fee.set(FUNDEE_SIGNED)
+            if self.constraints.is_initiator and pending_fee.had(FUNDEE_ACKED):
+                pending_fee.set(FUNDER_SIGNED)
 
         if self.lnwatcher:
             self.lnwatcher.process_new_offchain_ctx(self, pending_local_commitment, ours=True)
@@ -369,14 +336,14 @@ class HTLCStateMachine(PrintError):
         new_local_feerate = self.local_state.feerate
         new_remote_feerate = self.remote_state.feerate
 
-        for pending_fee in self.fee_mgr:
+        for pending_fee in self.fee_mgr[:]:
             if not self.constraints.is_initiator and pending_fee.had(FUNDEE_SIGNED):
                 new_local_feerate = new_remote_feerate = pending_fee.rate
-                pending_fee.set(COMMITTED)
+                self.fee_mgr.remove(pending_fee)
                 print("FEERATE CHANGE COMPLETE (non-initiator)")
             if self.constraints.is_initiator and pending_fee.had(FUNDER_SIGNED):
                 new_local_feerate = new_remote_feerate = pending_fee.rate
-                pending_fee.set(COMMITTED)
+                self.fee_mgr.remove(pending_fee)
                 print("FEERATE CHANGE COMPLETE (initiator)")
 
         self.local_state=self.local_state._replace(
@@ -462,9 +429,8 @@ class HTLCStateMachine(PrintError):
         )
 
         for pending_fee in self.fee_mgr:
-            if pending_fee.is_proposed():
-                if self.constraints.is_initiator:
-                    pending_fee.set(FUNDEE_ACKED)
+            if self.constraints.is_initiator:
+                pending_fee.set(FUNDEE_ACKED)
 
         self.local_commitment = self.pending_local_commitment
         self.remote_commitment = self.pending_remote_commitment
@@ -659,7 +625,6 @@ class HTLCStateMachine(PrintError):
                 "remote_commitment_to_be_revoked": str(self.remote_commitment_to_be_revoked),
                 "remote_log": [(type(x).__name__, x) for x in remote_filtered],
                 "local_log": [(type(x).__name__, x) for x in local_filtered],
-                "fee_updates": [x.to_save() for x in self.fee_mgr],
                 "onion_keys": {str(k): bh2u(v) for k, v in self.onion_keys.items()},
         }
 
@@ -691,8 +656,6 @@ class HTLCStateMachine(PrintError):
                 if isinstance(o, UpdateAddHtlc):
                     return json.dumps(('UpdateAddHtlc', namedtuples_to_dict(o)))
                 return super(MyJsonEncoder, self)
-        for fee_upd in serialized_channel['fee_updates']:
-            fee_upd['progress'] = {str(k): v for k,v in fee_upd['progress'].items()}
         dumped = MyJsonEncoder().encode(serialized_channel)
         roundtripped = json.loads(dumped)
         reconstructed = HTLCStateMachine(roundtripped)
