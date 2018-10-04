@@ -8,7 +8,7 @@ from collections import namedtuple, defaultdict, OrderedDict, defaultdict
 from .lnutil import Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore
 from .lnutil import sign_and_get_sig_string, funding_output_script, get_ecdh, get_per_commitment_secret_from_seed
 from .lnutil import secret_to_pubkey, LNPeerAddr, PaymentFailure
-from .lnutil import LOCAL, REMOTE
+from .lnutil import LOCAL, REMOTE, HTLCOwner
 from .bitcoin import COIN
 
 from ecdsa.util import sigdecode_der, sigencode_string_canonize, sigdecode_string
@@ -22,6 +22,8 @@ import binascii
 import hashlib
 import hmac
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
+import aiorpcx
+from functools import partial
 
 from . import bitcoin
 from . import ecc
@@ -285,6 +287,7 @@ class Peer(PrintError):
         self.channel_accepted = defaultdict(asyncio.Queue)
         self.channel_reestablished = defaultdict(asyncio.Future)
         self.funding_signed = defaultdict(asyncio.Queue)
+        self.funding_created = defaultdict(asyncio.Queue)
         self.revoke_and_ack = defaultdict(asyncio.Queue)
         self.commitment_signed = defaultdict(asyncio.Queue)
         self.announcement_signatures = defaultdict(asyncio.Queue)
@@ -426,6 +429,11 @@ class Peer(PrintError):
         if channel_id not in self.funding_signed: raise Exception("Got unknown funding_signed")
         self.funding_signed[channel_id].put_nowait(payload)
 
+    def on_funding_created(self, payload):
+        channel_id = payload['temporary_channel_id']
+        if channel_id not in self.funding_created: raise Exception("Got unknown funding_created")
+        self.funding_created[channel_id].put_nowait(payload)
+
     def on_node_announcement(self, payload):
         self.channel_db.on_node_announcement(payload)
         self.network.trigger_callback('ln_status')
@@ -476,9 +484,7 @@ class Peer(PrintError):
             chan.set_state('DISCONNECTED')
             self.network.trigger_callback('channel', chan)
 
-    @aiosafe
-    async def channel_establishment_flow(self, wallet, config, password, funding_sat, push_msat, temp_channel_id, sweep_address):
-        await self.initialized
+    def make_local_config(self, funding_msat, push_msat, initiator: HTLCOwner, password):
         # see lnd/keychain/derivation.go
         keyfamilymultisig = 0
         keyfamilyrevocationbase = 1
@@ -487,10 +493,12 @@ class Peer(PrintError):
         keyfamilydelaybase = 4
         keyfamilyrevocationroot = 5
         keyfamilynodekey = 6 # TODO currently unused
-        # amounts
-        local_feerate = self.current_feerate_per_kw()
         # key derivation
-        keypair_generator = lambda family, i: Keypair(*wallet.keystore.get_keypair([family, i], password))
+        keypair_generator = lambda family, i: Keypair(*self.lnworker.wallet.keystore.get_keypair([family, i], password))
+        if initiator == LOCAL:
+            initial_msat = funding_sat * 1000 - push_msat
+        else:
+            initial_msat = push_msat
         local_config=ChannelConfig(
             payment_basepoint=keypair_generator(keyfamilypaymentbase, 0),
             multisig_key=keypair_generator(keyfamilymultisig, 0),
@@ -501,10 +509,22 @@ class Peer(PrintError):
             dust_limit_sat=546,
             max_htlc_value_in_flight_msat=0xffffffffffffffff,
             max_accepted_htlcs=5,
-            initial_msat=funding_sat * 1000 - push_msat,
+            initial_msat=initial_msat,
         )
+        return local_config
+
+    def make_per_commitment_secret_seed(self):
+        # TODO
+        return 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100.to_bytes(32, 'big')
+
+    @aiosafe
+    async def channel_establishment_flow(self, password, funding_sat, push_msat, temp_channel_id, sweep_address):
+        await self.initialized
+        local_config = self.make_local_config(funding_msat, push_msat, LOCAL, password)
+        # amounts
+        local_feerate = self.current_feerate_per_kw()
         # TODO derive this?
-        per_commitment_secret_seed = 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100.to_bytes(32, 'big')
+        per_commitment_secret_seed = self.make_per_commitment_secret_seed()
         per_commitment_secret_index = RevocationStore.START_INDEX
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index)
@@ -554,7 +574,7 @@ class Peer(PrintError):
         redeem_script = funding_output_script(local_config, remote_config)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         funding_output = TxOutput(bitcoin.TYPE_ADDRESS, funding_address, funding_sat)
-        funding_tx = wallet.mktx([funding_output], password, config, 1000)
+        funding_tx = self.lnworker.wallet.mktx([funding_output], password, self.lnworker.config, 1000)
         funding_txid = funding_tx.txid()
         funding_index = funding_tx.outputs().index(funding_output)
         # compute amounts
@@ -614,6 +634,120 @@ class Peer(PrintError):
         m.local_state = m.local_state._replace(ctn=0, current_commitment_signature=remote_sig)
         m.set_state('OPENING')
         return m
+
+    async def on_open_channel(self, payload):
+        # payload['channel_flags']
+        # payload['channel_reserve_satoshis']
+        if payload['chain_hash'] != constants.net.rev_genesis_bytes():
+            raise Exception('wrong chain_hash')
+        funding_sat = int.from_bytes(payload['funding_satoshis'], 'big')
+        push_msat = int.from_bytes(payload['push_msat'], 'big')
+
+        remote_config = ChannelConfig(
+            payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
+            multisig_key=OnlyPubkeyKeypair(payload['funding_pubkey']),
+            htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
+            delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
+            revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
+            to_self_delay=int.from_bytes(payload['to_self_delay'], 'big'),
+            dust_limit_sat=int.from_bytes(payload['dust_limit_satoshis'], 'big'),
+            max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'),
+            max_accepted_htlcs=int.from_bytes(payload['max_accepted_htlcs'], 'big'),
+            initial_msat=funding_sat * 1000 - push_msat,
+        )
+        temp_chan_id = payload['temporary_channel_id']
+        password = None # TODO
+        local_config = self.make_local_config(funding_sat * 1000, push_msat, REMOTE, password)
+
+        per_commitment_secret_seed = self.make_per_commitment_secret_seed()
+        per_commitment_secret_index = RevocationStore.START_INDEX
+        # for the first commitment transaction
+        per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index)
+        per_commitment_point_first = secret_to_pubkey(int.from_bytes(per_commitment_secret_first, 'big'))
+
+        min_depth = 3
+        self.send_message(gen_msg('accept_channel',
+            temporary_channel_id=temp_chan_id,
+            dust_limit_satoshis=local_config.dust_limit_sat,
+            max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
+            channel_reserve_satoshis=546,
+            htlc_minimum_msat=1000,
+            minimum_depth=min_depth,
+            to_self_delay=local_config.to_self_delay,
+            max_accepted_htlcs=local_config.max_accepted_htlcs,
+            funding_pubkey=local_config.multisig_key.pubkey,
+            revocation_basepoint=local_config.revocation_basepoint.pubkey,
+            payment_basepoint=local_config.payment_basepoint.pubkey,
+            delayed_payment_basepoint=local_config.delayed_basepoint.pubkey,
+            htlc_basepoint=local_config.htlc_basepoint.pubkey,
+            first_per_commitment_point=per_commitment_point_first,
+        ))
+        funding_created = await self.funding_created[temp_chan_id].get()
+        funding_idx = int.from_bytes(funding_created['funding_output_index'], 'big')
+        funding_txid = bh2u(funding_created['funding_txid'][::-1])
+        channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_idx)
+        their_revocation_store = RevocationStore()
+        local_feerate = int.from_bytes(payload['feerate_per_kw'], 'big')
+        chan = {
+                "node_id": self.pubkey,
+                "channel_id": channel_id,
+                "short_channel_id": None,
+                "funding_outpoint": Outpoint(funding_txid, funding_idx),
+                "local_config": local_config,
+                "remote_config": remote_config,
+                "remote_state": RemoteState(
+                    ctn = -1,
+                    next_per_commitment_point=payload['first_per_commitment_point'],
+                    current_per_commitment_point=None,
+                    amount_msat=remote_config.initial_msat,
+                    revocation_store=their_revocation_store,
+                    next_htlc_id = 0,
+                    feerate=local_feerate
+                ),
+                "local_state": LocalState(
+                    ctn = -1,
+                    per_commitment_secret_seed=per_commitment_secret_seed,
+                    amount_msat=local_config.initial_msat,
+                    next_htlc_id = 0,
+                    funding_locked_received = False,
+                    was_announced = False,
+                    current_commitment_signature = None,
+                    current_htlc_signatures = None,
+                    feerate=local_feerate
+                ),
+                "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth),
+                "remote_commitment_to_be_revoked": None,
+        }
+        m = HTLCStateMachine(chan)
+        m.lnwatcher = self.lnwatcher
+        m.sweep_address = self.lnworker.wallet.get_unused_address()
+        remote_sig = funding_created['signature']
+        m.receive_new_commitment(remote_sig, [])
+        sig_64, _ = m.sign_next_commitment()
+        self.send_message(gen_msg('funding_signed',
+            channel_id=channel_id,
+            signature=sig_64,
+        ))
+        m.set_state('OPENING')
+        m.remote_commitment_to_be_revoked = m.pending_remote_commitment
+        m.remote_state = m.remote_state._replace(ctn=0)
+        m.local_state = m.local_state._replace(ctn=0, current_commitment_signature=remote_sig)
+        self.lnworker.save_channel(m)
+        self.lnwatcher.watch_channel(m, m.sweep_address, partial(self.lnworker.on_channel_utxos, m))
+        while True:
+            try:
+                funding_tx = Transaction(await self.network.get_transaction(funding_txid))
+            except aiorpcx.jsonrpc.RPCError as e:
+                print("sleeping", str(e))
+                await asyncio.sleep(1)
+            else:
+                break
+        outp = funding_tx.outputs()[funding_idx]
+        redeem_script = funding_output_script(remote_config, local_config)
+        funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
+        if outp != TxOutput(bitcoin.TYPE_ADDRESS, funding_address, funding_sat):
+            m.set_state('DISCONNECTED')
+            raise Exception('funding outpoint mismatch')
 
     @aiosafe
     async def reestablish_channel(self, chan):
