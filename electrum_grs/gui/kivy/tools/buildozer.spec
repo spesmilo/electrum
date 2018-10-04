@@ -24,11 +24,11 @@ source.exclude_dirs = bin, build, dist, contrib, electrum_grs/gui/qt, electrum_g
 source.exclude_patterns = Makefile,setup*
 
 # (str) Application versioning (method 1)
-version.regex = APK_VERSION = '(.*)'
-version.filename = %(source.dir)s/electrum_grs/version.py
+#version.regex = APK_VERSION = '(.*)'
+#version.filename = %(source.dir)s/electrum_grs/version.py
 
 # (str) Application versioning (method 2)
-version = 3.2.2
+version = 3.2.3
 
 # (list) Application requirements
 requirements = python3crystax==3.6, android, openssl, plyer, kivy==master, libsecp256k1, groestlcoin_hash
