@@ -734,6 +734,7 @@ class Peer(PrintError):
         m.local_state = m.local_state._replace(ctn=0, current_commitment_signature=remote_sig)
         self.lnworker.save_channel(m)
         self.lnwatcher.watch_channel(m, m.sweep_address, partial(self.lnworker.on_channel_utxos, m))
+        self.lnworker.on_channels_updated()
         while True:
             try:
                 funding_tx = Transaction(await self.network.get_transaction(funding_txid))
