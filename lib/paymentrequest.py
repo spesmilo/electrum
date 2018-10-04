@@ -283,6 +283,12 @@ class PaymentRequest:
                 print(e)
                 return False, "Payment Message/PaymentACK Failed"
         if r.status_code != 200:
+            # Propagate 'Bad request' (HTTP 400) messages to the user since they
+            # contain valuable information.
+            if r.status_code == 400:
+                return False, (r.reason + ": " + r.content.decode('UTF-8'))
+            # Some other errors might display an entire HTML document.
+            # Hide those and just display the name of the error code.
             return False, r.reason
         try:
             paymntack = pb2.PaymentACK()
