@@ -265,10 +265,9 @@ class LNWatcher(PrintError):
         ctn = extract_ctn_from_tx_and_chan(ctx, chan)
         latest_ctn_on_channel = chan.local_state.ctn if ours else chan.remote_state.ctn
         last_ctn_watcher_saw = self._get_last_ctn_for_processed_ctx(funding_address, ours)
-        # TODO make it work when we are not initiator
-        if chan.constraints.is_initiator and latest_ctn_on_channel + 1 != ctn:
+        if latest_ctn_on_channel + 1 != ctn:
             raise Exception('unexpected ctn {}. latest is {}. our ctx: {}'.format(ctn, latest_ctn_on_channel, ours))
-        if chan.constraints.is_initiator and last_ctn_watcher_saw + 1 != ctn:
+        if last_ctn_watcher_saw + 1 != ctn:
             raise Exception('watcher skipping ctns!! ctn {}. last seen {}. our ctx: {}'.format(ctn, last_ctn_watcher_saw, ours))
         #self.print_error("process_new_offchain_ctx. funding {}, ours {}, ctn {}, ctx {}"
         #      .format(chan.funding_outpoint.to_str(), ours, ctn, ctx.txid()))
@@ -291,9 +290,9 @@ class LNWatcher(PrintError):
         ctn = extract_ctn_from_tx_and_chan(ctx, chan)
         latest_ctn_on_channel = chan.remote_state.ctn
         last_ctn_watcher_saw = self._get_last_ctn_for_revoked_secret(funding_address)
-        if chan.constraints.is_initiator and latest_ctn_on_channel != ctn:
+        if latest_ctn_on_channel != ctn:
             raise Exception('unexpected ctn {}. latest is {}'.format(ctn, latest_ctn_on_channel))
-        if chan.constraints.is_initiator and last_ctn_watcher_saw + 1 != ctn:
+        if last_ctn_watcher_saw + 1 != ctn:
             raise Exception('watcher skipping ctns!! ctn {}. last seen {}'.format(ctn, last_ctn_watcher_saw))
         sweep_address = self._get_sweep_address_for_chan(chan)
         encumbered_sweeptx = maybe_create_sweeptx_for_their_ctx_to_local(chan, ctx, per_commitment_secret, sweep_address)
