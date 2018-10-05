@@ -403,11 +403,6 @@ class LNWorker(PrintError):
         while True:
             await asyncio.sleep(1)
             now = time.time()
-            for node_id, peer in list(self.peers.items()):
-                if peer.exception:
-                    self.print_error("removing peer", peer.host)
-                    peer.close_and_cleanup()
-                    self.peers.pop(node_id)
             self.reestablish_peers_and_channels()
             if len(self.peers) >= NUM_PEERS_TARGET:
                 continue
