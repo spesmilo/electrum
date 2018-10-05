@@ -12,6 +12,9 @@ import dns.resolver
 import dns.exception
 
 from . import constants
+from . import keystore
+from . import bitcoin
+from .keystore import BIP32_KeyStore
 from .bitcoin import sha256, COIN
 from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address
 from .lnbase import Peer, privkey_to_pubkey, aiosafe
@@ -20,7 +23,8 @@ from .ecc import der_sig_from_sig_string
 from .lnhtlc import HTLCStateMachine
 from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
-                     PaymentFailure, split_host_port, ConnStringFormatError)
+                     PaymentFailure, split_host_port, ConnStringFormatError,
+                     generate_keypair, LnKeyFamily)
 from electrum.lnaddr import lndecode
 from .i18n import _
 
@@ -41,13 +45,8 @@ class LNWorker(PrintError):
         self.network = network
         self.channel_db = self.network.channel_db
         self.lock = threading.RLock()
-        pk = wallet.storage.get('lightning_privkey')
-        if pk is None:
-            pk = bh2u(os.urandom(32))
-            wallet.storage.put('lightning_privkey', pk)
-            wallet.storage.write()
-        self.privkey = bfh(pk)
-        self.pubkey = privkey_to_pubkey(self.privkey)
+        self.ln_keystore = self._read_ln_keystore()
+        self.node_keypair = generate_keypair(self.ln_keystore, LnKeyFamily.NODE_KEY, 0)
         self.config = network.config
         self.peers = {}  # pubkey -> Peer
         self.channels = {x.channel_id: x for x in map(HTLCStateMachine, wallet.storage.get("channels", []))}
@@ -61,6 +60,25 @@ class LNWorker(PrintError):
         # wait until we see confirmations
         self.network.register_callback(self.on_network_update, ['network_updated', 'verified', 'fee'])  # thread safe
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
+
+    def _read_ln_keystore(self) -> BIP32_KeyStore:
+        xprv = self.wallet.storage.get('lightning_privkey')
+        if xprv is None:
+            # TODO derive this deterministically from wallet.keystore at keystore generation time
+            # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
+            seed = os.urandom(32)
+            xprv, xpub = bitcoin.bip32_root(seed, xtype='standard')
+            self.wallet.storage.put('lightning_privkey', xprv)
+            self.wallet.storage.write()
+        return keystore.from_xprv(xprv)
+
+    def get_and_inc_counter_for_channel_keys(self):
+        with self.lock:
+            ctr = self.wallet.storage.get('lightning_channel_key_der_ctr', -1)
+            ctr += 1
+            self.wallet.storage.put('lightning_channel_key_der_ctr', ctr)
+            self.wallet.storage.write()
+            return ctr
 
     def _add_peers_from_config(self):
         peer_list = self.config.get('lightning_peers', [])
@@ -217,7 +235,7 @@ class LNWorker(PrintError):
         if amount_sat is None:
             raise InvoiceError(_("Missing amount"))
         amount_msat = int(amount_sat * 1000)
-        path = self.network.path_finder.find_path_for_payment(self.pubkey, invoice_pubkey, amount_msat)
+        path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat)
         if path is None:
             raise PaymentFailure(_("No path found"))
         node_id, short_channel_id = path[0]
@@ -236,7 +254,7 @@ class LNWorker(PrintError):
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
         amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
-        pay_req = lnencode(LnAddr(RHASH, amount_btc, tags=[('d', message)]), self.privkey)
+        pay_req = lnencode(LnAddr(RHASH, amount_btc, tags=[('d', message)]), self.node_keypair.privkey)
         self.invoices[bh2u(payment_preimage)] = pay_req
         self.wallet.storage.put('lightning_invoices', self.invoices)
         self.wallet.storage.write()

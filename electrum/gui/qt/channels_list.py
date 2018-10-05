@@ -82,7 +82,7 @@ class ChannelsList(MyTreeWidget):
         vbox = QVBoxLayout(d)
         h = QGridLayout()
         local_nodeid = QLineEdit()
-        local_nodeid.setText(bh2u(lnworker.pubkey))
+        local_nodeid.setText(bh2u(lnworker.node_keypair.pubkey))
         local_nodeid.setReadOnly(True)
         local_nodeid.setCursorPosition(0)
         remote_nodeid = QLineEdit()

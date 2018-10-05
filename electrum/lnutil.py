@@ -1,4 +1,4 @@
-from enum import IntFlag
+from enum import IntFlag, IntEnum
 import json
 from collections import namedtuple
 from typing import NamedTuple, List, Tuple
@@ -14,6 +14,7 @@ from .bitcoin import push_script
 from . import segwit_addr
 from .i18n import _
 from .lnaddr import lndecode
+from .keystore import BIP32_KeyStore
 
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
@@ -526,3 +527,19 @@ def extract_nodeid(connect_contents: str) -> Tuple[bytes, str]:
     except:
         raise ConnStringFormatError(_('Invalid node ID, must be 33 bytes and hexadecimal'))
     return node_id, rest
+
+
+# key derivation
+# see lnd/keychain/derivation.go
+class LnKeyFamily(IntEnum):
+    MULTISIG = 0
+    REVOCATION_BASE = 1
+    HTLC_BASE = 2
+    PAYMENT_BASE = 3
+    DELAY_BASE = 4
+    REVOCATION_ROOT = 5
+    NODE_KEY = 6
+
+
+def generate_keypair(ln_keystore: BIP32_KeyStore, key_family: LnKeyFamily, index: int) -> Keypair:
+    return Keypair(*ln_keystore.get_keypair([key_family, 0, index], None))
