@@ -267,7 +267,6 @@ def create_ephemeral_key() -> (bytes, bytes):
 class Peer(PrintError):
 
     def __init__(self, lnworker, host, port, pubkey, request_initial_sync=False):
-        self.exception = None # set by aiosafe
         self.host = host
         self.port = port
         self.pubkey = pubkey
@@ -461,9 +460,25 @@ class Peer(PrintError):
         self.process_message(msg)
         self.initialized.set_result(True)
 
+    def handle_disconnect(func):
+        async def wrapper_func(self, *args, **kwargs):
+            try:
+                return await func(self, *args, **kwargs)
+            except LightningPeerConnectionClosed as e:
+                self.print_error("disconnecting gracefully. {}".format(e))
+            finally:
+                self.close_and_cleanup()
+                self.lnworker.peers.pop(self.pubkey)
+        return wrapper_func
+
     @aiosafe
+    @handle_disconnect
     async def main_loop(self):
-        await asyncio.wait_for(self.initialize(), 5)
+        try:
+            await asyncio.wait_for(self.initialize(), 10)
+        except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
+            self.print_error('disconnecting due to: {}'.format(repr(e)))
+            return
         self.channel_db.add_recent_peer(self.peer_addr)
         # loop
         while True:
