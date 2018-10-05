@@ -4,38 +4,34 @@
   Derived from https://gist.github.com/AdamISZ/046d05c156aaeb56cc897f85eecb3eb8
 """
 
-from collections import namedtuple, defaultdict, OrderedDict, defaultdict
-from .lnutil import Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore
-from .lnutil import sign_and_get_sig_string, funding_output_script, get_ecdh, get_per_commitment_secret_from_seed
-from .lnutil import secret_to_pubkey, LNPeerAddr, PaymentFailure
-from .lnutil import LOCAL, REMOTE, HTLCOwner
-from .bitcoin import COIN
-
-from ecdsa.util import sigdecode_der, sigencode_string_canonize, sigdecode_string
-import queue
+from collections import OrderedDict, defaultdict
 import json
 import asyncio
-from concurrent.futures import FIRST_COMPLETED
 import os
 import time
-import binascii
 import hashlib
 import hmac
+from functools import partial
+
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 import aiorpcx
-from functools import partial
 
 from . import bitcoin
 from . import ecc
-from . import crypto
+from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string
 from .crypto import sha256
 from . import constants
-from . import transaction
 from .util import PrintError, bh2u, print_error, bfh, aiosafe
-from .transaction import opcodes, Transaction, TxOutput
+from .transaction import Transaction, TxOutput
 from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error, ONION_FAILURE_CODE_MAP
 from .lnaddr import lndecode
 from .lnhtlc import HTLCStateMachine, RevokeAndAck
+from .lnutil import (Outpoint, ChannelConfig, LocalState,
+                     RemoteState, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
+                     funding_output_script, get_ecdh, get_per_commitment_secret_from_seed,
+                     secret_to_pubkey, LNPeerAddr, PaymentFailure,
+                     LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily)
+
 
 def channel_id_from_funding_tx(funding_txid, funding_index):
     funding_txid_bytes = bytes.fromhex(funding_txid)[::-1]
@@ -277,7 +273,7 @@ class Peer(PrintError):
         self.pubkey = pubkey
         self.peer_addr = LNPeerAddr(host, port, pubkey)
         self.lnworker = lnworker
-        self.privkey = lnworker.privkey
+        self.privkey = lnworker.node_keypair.privkey
         self.network = lnworker.network
         self.lnwatcher = lnworker.network.lnwatcher
         self.channel_db = lnworker.network.channel_db
@@ -484,50 +480,37 @@ class Peer(PrintError):
             chan.set_state('DISCONNECTED')
             self.network.trigger_callback('channel', chan)
 
-    def make_local_config(self, funding_sat, push_msat, initiator: HTLCOwner, password):
-        # see lnd/keychain/derivation.go
-        keyfamilymultisig = 0
-        keyfamilyrevocationbase = 1
-        keyfamilyhtlcbase = 2
-        keyfamilypaymentbase = 3
-        keyfamilydelaybase = 4
-        keyfamilyrevocationroot = 5
-        keyfamilynodekey = 6 # TODO currently unused
+    def make_local_config(self, funding_sat, push_msat, initiator: HTLCOwner):
         # key derivation
-        keypair_generator = lambda family, i: Keypair(*self.lnworker.wallet.keystore.get_keypair([family, i], password))
+        channel_counter = self.lnworker.get_and_inc_counter_for_channel_keys()
+        keypair_generator = lambda family: generate_keypair(self.lnworker.ln_keystore, family, channel_counter)
         if initiator == LOCAL:
             initial_msat = funding_sat * 1000 - push_msat
         else:
             initial_msat = push_msat
         local_config=ChannelConfig(
-            payment_basepoint=keypair_generator(keyfamilypaymentbase, 0),
-            multisig_key=keypair_generator(keyfamilymultisig, 0),
-            htlc_basepoint=keypair_generator(keyfamilyhtlcbase, 0),
-            delayed_basepoint=keypair_generator(keyfamilydelaybase, 0),
-            revocation_basepoint=keypair_generator(keyfamilyrevocationbase, 0),
+            payment_basepoint=keypair_generator(LnKeyFamily.PAYMENT_BASE),
+            multisig_key=keypair_generator(LnKeyFamily.MULTISIG),
+            htlc_basepoint=keypair_generator(LnKeyFamily.HTLC_BASE),
+            delayed_basepoint=keypair_generator(LnKeyFamily.DELAY_BASE),
+            revocation_basepoint=keypair_generator(LnKeyFamily.REVOCATION_BASE),
             to_self_delay=143,
             dust_limit_sat=546,
             max_htlc_value_in_flight_msat=0xffffffffffffffff,
             max_accepted_htlcs=5,
             initial_msat=initial_msat,
         )
-        return local_config
-
-    def make_per_commitment_secret_seed(self):
-        # TODO
-        return 0x1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100.to_bytes(32, 'big')
+        per_commitment_secret_seed = keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey
+        return local_config, per_commitment_secret_seed
 
     @aiosafe
     async def channel_establishment_flow(self, password, funding_sat, push_msat, temp_channel_id, sweep_address):
         await self.initialized
-        local_config = self.make_local_config(funding_sat, push_msat, LOCAL, password)
+        local_config, per_commitment_secret_seed = self.make_local_config(funding_sat, push_msat, LOCAL)
         # amounts
         local_feerate = self.current_feerate_per_kw()
-        # TODO derive this?
-        per_commitment_secret_seed = self.make_per_commitment_secret_seed()
-        per_commitment_secret_index = RevocationStore.START_INDEX
         # for the first commitment transaction
-        per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index)
+        per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, RevocationStore.START_INDEX)
         per_commitment_point_first = secret_to_pubkey(int.from_bytes(per_commitment_secret_first, 'big'))
         msg = gen_msg(
             "open_channel",
@@ -656,13 +639,10 @@ class Peer(PrintError):
             initial_msat=funding_sat * 1000 - push_msat,
         )
         temp_chan_id = payload['temporary_channel_id']
-        password = None # TODO
-        local_config = self.make_local_config(funding_sat * 1000, push_msat, REMOTE, password)
+        local_config, per_commitment_secret_seed = self.make_local_config(funding_sat * 1000, push_msat, REMOTE)
 
-        per_commitment_secret_seed = self.make_per_commitment_secret_seed()
-        per_commitment_secret_index = RevocationStore.START_INDEX
         # for the first commitment transaction
-        per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, per_commitment_secret_index)
+        per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, RevocationStore.START_INDEX)
         per_commitment_point_first = secret_to_pubkey(int.from_bytes(per_commitment_secret_first, 'big'))
 
         min_depth = 3
@@ -884,7 +864,7 @@ class Peer(PrintError):
         chan.set_state("OPEN")
         self.network.trigger_callback('channel', chan)
         # add channel to database
-        node_ids = [self.pubkey, self.lnworker.pubkey]
+        node_ids = [self.pubkey, self.lnworker.node_keypair.pubkey]
         bitcoin_keys = [chan.local_config.multisig_key.pubkey, chan.remote_config.multisig_key.pubkey]
         sorted_node_ids = list(sorted(node_ids))
         if sorted_node_ids != node_ids:
@@ -931,8 +911,8 @@ class Peer(PrintError):
         )
         to_hash = chan_ann[256+2:]
         h = bitcoin.Hash(to_hash)
-        bitcoin_signature = ecc.ECPrivkey(chan.local_config.multisig_key.privkey).sign(h, sigencode_string_canonize, sigdecode_string)
-        node_signature = ecc.ECPrivkey(self.privkey).sign(h, sigencode_string_canonize, sigdecode_string)
+        bitcoin_signature = ecc.ECPrivkey(chan.local_config.multisig_key.privkey).sign(h, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
+        node_signature = ecc.ECPrivkey(self.privkey).sign(h, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
         self.send_message(gen_msg("announcement_signatures",
             channel_id=chan.channel_id,
             short_channel_id=chan.short_channel_id,
@@ -991,7 +971,7 @@ class Peer(PrintError):
         assert chan.get_state() == "OPEN", chan.get_state()
         assert amount_msat > 0, "amount_msat is not greater zero"
         height = self.network.get_local_height()
-        route = self.network.path_finder.create_route_from_path(path, self.lnworker.pubkey)
+        route = self.network.path_finder.create_route_from_path(path, self.lnworker.node_keypair.pubkey)
         hops_data = []
         sum_of_deltas = sum(route_edge.channel_policy.cltv_expiry_delta for route_edge in route[1:])
         total_fee = 0
