@@ -62,13 +62,13 @@ class LNWorker(PrintError):
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
 
     def _read_ln_keystore(self) -> BIP32_KeyStore:
-        xprv = self.wallet.storage.get('lightning_privkey')
+        xprv = self.wallet.storage.get('lightning_privkey2')
         if xprv is None:
             # TODO derive this deterministically from wallet.keystore at keystore generation time
             # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
             seed = os.urandom(32)
             xprv, xpub = bitcoin.bip32_root(seed, xtype='standard')
-            self.wallet.storage.put('lightning_privkey', xprv)
+            self.wallet.storage.put('lightning_privkey2', xprv)
             self.wallet.storage.write()
         return keystore.from_xprv(xprv)
 
