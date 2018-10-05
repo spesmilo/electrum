@@ -543,3 +543,20 @@ class LnKeyFamily(IntEnum):
 
 def generate_keypair(ln_keystore: BIP32_KeyStore, key_family: LnKeyFamily, index: int) -> Keypair:
     return Keypair(*ln_keystore.get_keypair([key_family, 0, index], None))
+
+
+from typing import Optional
+
+class EncumberedTransaction(NamedTuple("EncumberedTransaction", [('tx', Transaction),
+                                                                 ('csv_delay', Optional[int])])):
+    def to_json(self) -> dict:
+        return {
+            'tx': str(self.tx),
+            'csv_delay': self.csv_delay,
+        }
+
+    @classmethod
+    def from_json(cls, d: dict):
+        d2 = dict(d)
+        d2['tx'] = Transaction(d['tx'])
+        return EncumberedTransaction(**d2)
