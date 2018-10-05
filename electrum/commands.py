@@ -787,7 +787,7 @@ class Commands:
 
     @command('wn')
     def nodeid(self):
-        return bh2u(self.wallet.lnworker.pubkey)
+        return bh2u(self.wallet.lnworker.node_keypair.pubkey)
 
     @command('wn')
     def listchannels(self):
