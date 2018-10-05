@@ -1,5 +1,5 @@
 #
-# Coldcard Electrum plugin main code.
+# Coldcard Electrum-GRS plugin main code.
 #
 #
 from struct import pack, unpack
@@ -64,7 +64,7 @@ except ImportError:
 CKCC_SIMULATED_PID = CKCC_PID ^ 0x55aa
 
 def my_var_int(l):
-    # Bitcoin serialization of integers... directly into binary!
+    # Groestlcoin serialization of integers... directly into binary!
     if l < 253:
         return pack("B", l)
     elif l < 0x10000:
@@ -118,7 +118,7 @@ class CKCCClient:
             # all is as expected
             return
 
-        if ( (self._expected_device is not None) 
+        if ( (self._expected_device is not None)
                 or (self.dev.master_fingerprint != expected_xfp)
                 or (self.dev.master_xpub != expected_xpub)):
             # probably indicating programing error, not hacking
@@ -163,7 +163,7 @@ class CKCCClient:
         else:
             lab = 'Coldcard 0x%08x' % self.dev.master_fingerprint
 
-        # Hack zone: during initial setup I need the xfp and master xpub but 
+        # Hack zone: during initial setup I need the xfp and master xpub but
         # very few objects are passed between the various steps of base_wizard.
         # Solution: return a string with some hidden metadata
         # - see <https://stackoverflow.com/questions/7172772/abc-for-string>
@@ -203,7 +203,7 @@ class CKCCClient:
     def ping_check(self):
         # check connection is working
         assert self.dev.session_key, 'not encrypted?'
-        req = b'1234 Electrum Plugin 4321'      # free up to 59 bytes
+        req = b'1234 Electrum-GRS Plugin 4321'      # free up to 59 bytes
         try:
             echo = self.dev.send_recv(CCProtocolPacker.ping(req))
             assert echo == req
@@ -249,7 +249,7 @@ class CKCCClient:
         # get a file
         return self.dev.download_file(length, checksum, file_number=file_number)
 
-        
+
 
 class Coldcard_KeyStore(Hardware_KeyStore):
     hw_type = 'coldcard'
@@ -266,7 +266,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         # Seems like only the derivation path and resulting **derived** xpub is stored in
         # the wallet file... however, we need to know at least the fingerprint of the master
         # xpub to verify against MiTM, and also so we can put the right value into the subkey paths
-        # of PSBT files that might be generated offline. 
+        # of PSBT files that might be generated offline.
         # - save the fingerprint of the master xpub, as "xfp"
         # - it's a LE32 int, but hex more natural way to see it
         # - device reports these value during encryption setup process
@@ -334,7 +334,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         except (UnicodeError, AssertionError):
             # there are other restrictions on message content,
             # but let the device enforce and report those
-            self.handler.show_error('Only short (%d max) ASCII messages can be signed.' 
+            self.handler.show_error('Only short (%d max) ASCII messages can be signed.'
                                             % MSG_SIGNING_MAX_LENGTH)
             return b''
 
@@ -361,7 +361,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             assert len(resp) == 2
             addr, raw_sig = resp
 
-            # already encoded in Bitcoin fashion, binary.
+            # already encoded in Groestlcoin fashion, binary.
             assert 40 < len(raw_sig) <= 65
 
             return raw_sig
@@ -380,7 +380,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
     def build_psbt(self, tx, wallet=None, xfp=None):
         # Render a PSBT file, for upload to Coldcard.
-        # 
+        #
         if xfp is None:
             # need fingerprint of MASTER xpub, not the derived key
             xfp = self.ckcc_xfp
@@ -420,7 +420,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             assert 0 <= bb < 0x80000000
 
             subkeys[bfh(pubkey)] = base_path + pack('<II', aa, bb)
-            
+
         for txin in inputs:
             if txin['type'] == 'coinbase':
                 self.give_error("Coinbase not supported")     # but why not?
@@ -532,7 +532,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
                         break
 
                 rlen, rsha = resp
-            
+
                 # download the resulting txn.
                 new_raw = client.download_file(rlen, rsha)
 
@@ -553,7 +553,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
     @staticmethod
     def _encode_txin_type(txin_type):
-        # Map from Electrum code names to our code numbers.
+        # Map from Electrum-GRS code names to our code numbers.
         return {'standard': AF_CLASSIC, 'p2pkh': AF_CLASSIC,
                 'p2sh': AF_P2SH,
                 'p2wpkh-p2sh': AF_P2WPKH_P2SH,
@@ -623,7 +623,7 @@ class ColdcardPlugin(HW_PluginBase):
             return [Device(fn, -1, fn, (COINKITE_VID, CKCC_SIMULATED_PID), 0)]
 
         return []
-        
+
 
     def create_client(self, device, handler):
         if handler:

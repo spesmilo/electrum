@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------------------
-# Electrum plugin for the Digital Bitbox hardware wallet by Shift Devices AG
+# Electrum-GRS plugin for the Digital Bitbox hardware wallet by Shift Devices AG
 # digitalbitbox.com
 #
 
@@ -191,7 +191,7 @@ class DigitalBitbox_Client():
 
         # Initialize device if not yet initialized
         if not self.setupRunning:
-            self.isInitialized = True # Wallet exists. Electrum code later checks if the device matches the wallet
+            self.isInitialized = True # Wallet exists. Electrum-GRS code later checks if the device matches the wallet
         elif not self.isInitialized:
             reply = self.hid_send_encrypt(b'{"device":"info"}')
             if reply['device']['id'] != "":

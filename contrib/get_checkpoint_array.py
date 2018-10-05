@@ -43,7 +43,7 @@ def rpc(method, params):
 
     return loads(json_response)
 
-# Electrum checkpoints are blocks 2015, 2015 + 2016, 2015 + 2016*2, ...
+# Electrum-GRS checkpoints are blocks 2015, 2015 + 2016, 2015 + 2016*2, ...
 i = 2015
 INTERVAL = 2016
 

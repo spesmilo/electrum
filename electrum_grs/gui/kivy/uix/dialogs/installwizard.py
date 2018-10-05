@@ -72,7 +72,7 @@ Builder.load_string('''
             size: Window.size
 
     crcontent: crcontent
-    # add electrum icon
+    # add electrum-grs icon
     BoxLayout:
         orientation: 'vertical' if self.width < self.height else 'horizontal'
         padding:

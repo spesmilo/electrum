@@ -93,7 +93,7 @@ class TestUtil(SequentialTestCase):
 
     def test_parse_URI_multiple_args(self):
         self._do_test_parse_URI('groestlcoin:FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9?amount=0.00004&label=electrum-test&message=electrum%20test&test=none&r=http://domain.tld/page',
-                                {'address': 'FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9', 'amount': 4000, 'label': 'electrum-grs-test', 'message': u'electrum-grs test', 'memo': u'electrum test', 'r': 'http://domain.tld/page', 'test': 'none'})
+                                {'address': 'FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9', 'amount': 4000, 'label': 'electrum-grs-test', 'message': u'electrum-grs test', 'memo': u'electrum-grs test', 'r': 'http://domain.tld/page', 'test': 'none'})
 
     def test_parse_URI_no_address_request_url(self):
         self._do_test_parse_URI('groestlcoin:?r=http://domain.tld/page?h%3D2a8628fc2fbe',

@@ -42,9 +42,9 @@ from .keystore import bip44_derivation
 
 # seed_version is now used for the version of the wallet file
 
-OLD_SEED_VERSION = 4        # electrum versions < 2.0
-NEW_SEED_VERSION = 11       # electrum versions >= 2.0
-FINAL_SEED_VERSION = 18     # electrum >= 2.7 will set this to prevent
+OLD_SEED_VERSION = 4        # electrum-grs versions < 2.0
+NEW_SEED_VERSION = 11       # electrum-grs versions >= 2.0
+FINAL_SEED_VERSION = 18     # electrum-grs >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
@@ -665,6 +665,6 @@ class WalletStorage(JsonDB):
                 # pbkdf2 (at that time an additional dependency) was not included with the binaries, and wallet creation aborted.
                 msg += "\nIt does not contain any keys, and can safely be removed."
             else:
-                # creation was complete if electrum was run from source
+                # creation was complete if electrum-grs was run from source
                 msg += "\nPlease open this file with Electrum-GRS 1.9.8, and move your coins to a new wallet."
         raise WalletFileException(msg)

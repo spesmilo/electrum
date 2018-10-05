@@ -8,7 +8,7 @@ echo $version
 here=$(dirname "$0")
 cd $here/../dist
 
-sftp -oBatchMode=no -b - thomasv@download.electrum.org << !
+sftp -oBatchMode=no -b - jackie@groestlcoin.org << !
    cd electrum-downloads
    mkdir $version
    cd $version

@@ -16,7 +16,7 @@ install:
 cache:
   - pip: true
   - directories:
-    - /tmp/electrum-build
+    - /tmp/electrum-grs-build
 script:
     - tox
 after_success:
@@ -33,9 +33,9 @@ jobs:
       services:
         - docker
       install:
-        - sudo docker build  --no-cache -t electrum-wine-builder-img ./contrib/build-wine/docker/
+        - sudo docker build  --no-cache -t electrum-grs-wine-builder-img ./contrib/build-wine/docker/
       script:
-        - sudo docker run --name electrum-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum --rm --workdir /opt/wine64/drive_c/electrum/contrib/build-wine electrum-wine-builder-img ./build.sh
+        - sudo docker run --name electrum-grs-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum-grs --rm --workdir /opt/wine64/drive_c/electrum-grs/contrib/build-wine electrum-grs-wine-builder-img ./build.sh
       after_success: true
     - os: osx
       language: c

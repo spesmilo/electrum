@@ -9,7 +9,7 @@ theming:
 prepare:
 	# running pre build setup
 	@cp tools/buildozer.spec ../../../buildozer.spec
-	# copy electrum to main.py
+	# copy electrum_grs to main.py
 	@cp ../../../run_electrum_grs ../../../main.py
 	@-if [ ! -d "../../.buildozer" ];then \
 		cd ../../..; buildozer android debug;\

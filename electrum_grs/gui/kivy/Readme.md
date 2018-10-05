@@ -1,12 +1,12 @@
 # Kivy GUI
 
-The Kivy GUI is used with Electrum on Android devices. To generate an APK file, follow these instructions.
+The Kivy GUI is used with Electrum-GRS on Android devices. To generate an APK file, follow these instructions.
 
 ## 1. Preliminaries
 
 Make sure the current user can write `/opt` (e.g. `sudo chown username: /opt`).
 
-We assume that you already got Electrum to run from source on this machine,
+We assume that you already got Electrum-GRS to run from source on this machine,
 hence have e.g. `git`, `python3-pip` and `python3-setuptools`.
 
 ## 2. Install kivy
@@ -20,8 +20,8 @@ sudo apt-get install python3-kivy
 
 
 ## 3. Install python-for-android (p4a)
-p4a is used to package Electrum, Python, SDL and a bootstrap Java app into an APK file. 
-We patched p4a to add some functionality we need for Electrum. Until those changes are
+p4a is used to package Electrum-GRS, Python, SDL and a bootstrap Java app into an APK file.
+We patched p4a to add some functionality we need for Electrum-GRS. Until those changes are
 merged into p4a, you need to merge them locally (into the master branch):
 
 3.1 [kivy/python-for-android#1217](https://github.com/kivy/python-for-android/pull/1217)
@@ -68,9 +68,9 @@ Extract into `/opt/crystax-ndk-10.3.2`
 
 
 ## 5. Create the UI Atlas
-In the `gui/kivy` directory of Electrum, run `make theming`.
+In the `gui/kivy` directory of electrum_grs, run `make theming`.
 
-## 6. Download Electrum dependencies
+## 6. Download Electrum-GRS dependencies
 ```sh
 sudo contrib/make_packages
 ```
@@ -89,16 +89,16 @@ e.g. those needed in the next step.
 ### Method 1: Using the GUI
 
   Start the Android SDK manager in GUI mode:
-  
+
     ~/.buildozer/android/platform/android-sdk-20/tools/android
 
   Check the latest SDK available and install it
   ("Android SDK Tools" and "Android SDK Platform-tools").
   Close the SDK manager. Repeat until there is no newer version.
-  
+
   Reopen the SDK manager, and install the latest build tools
   ("Android SDK Build-tools"), 27.0.3 at the time of writing.
-  
+
   Install "Android Support Repository" from the SDK manager (under "Extras").
 
 ### Method 2: Using the command line:

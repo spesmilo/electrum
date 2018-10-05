@@ -99,7 +99,7 @@ exe_standalone = EXE(
     upx=False,
     icon=home+'icons/electrum-grs.ico',
     console=False)
-    # console=True makes an annoying black box pop up, but it does make Electrum output command line commands, with this turned off no output will be given but commands can still be used
+    # console=True makes an annoying black box pop up, but it does make Electrum-GRS output command line commands, with this turned off no output will be given but commands can still be used
 
 exe_portable = EXE(
     pyz,

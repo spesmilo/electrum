@@ -7,8 +7,8 @@ Exec=sh -c "PATH=\"\\$HOME/.local/bin:\\$PATH\" electrum-grs %u"
 GenericName[en_US]=Electrum-GRS
 GenericName=Electrum-GRS
 Icon=electrum-grs
-Name[en_US]=Electrum Groestlcoin Wallet
-Name=Electrum Groestlcoin Wallet
+Name[en_US]=Electrum-GRS Groestlcoin Wallet
+Name=Electrum-GRS Groestlcoin Wallet
 Categories=Finance;Network;
 StartupNotify=false
 Terminal=false

@@ -102,4 +102,3 @@ app = BUNDLE(exe,
                 'NSSupportsAutomaticGraphicsSwitching': 'True'
              }
 )
->>>>>>> 3.2.3
