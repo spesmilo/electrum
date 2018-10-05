@@ -519,7 +519,7 @@ class Peer(PrintError):
         return local_config, per_commitment_secret_seed
 
     @aiosafe
-    async def channel_establishment_flow(self, password, funding_sat, push_msat, temp_channel_id, sweep_address):
+    async def channel_establishment_flow(self, password, funding_sat, push_msat, temp_channel_id):
         await self.initialized
         local_config, per_commitment_secret_seed = self.make_local_config(funding_sat, push_msat, LOCAL)
         # amounts
@@ -613,7 +613,7 @@ class Peer(PrintError):
         }
         m = HTLCStateMachine(chan)
         m.lnwatcher = self.lnwatcher
-        m.sweep_address = sweep_address
+        m.sweep_address = self.lnworker.sweep_address
         sig_64, _ = m.sign_next_commitment()
         self.send_message(gen_msg("funding_created",
             temporary_channel_id=temp_channel_id,
@@ -715,7 +715,7 @@ class Peer(PrintError):
         }
         m = HTLCStateMachine(chan)
         m.lnwatcher = self.lnwatcher
-        m.sweep_address = self.lnworker.wallet.get_unused_address()
+        m.sweep_address = self.lnworker.sweep_address
         remote_sig = funding_created['signature']
         m.receive_new_commitment(remote_sig, [])
         sig_64, _ = m.sign_next_commitment()
@@ -728,7 +728,7 @@ class Peer(PrintError):
         m.remote_state = m.remote_state._replace(ctn=0)
         m.local_state = m.local_state._replace(ctn=0, current_commitment_signature=remote_sig)
         self.lnworker.save_channel(m)
-        self.lnwatcher.watch_channel(m, m.sweep_address, partial(self.lnworker.on_channel_utxos, m))
+        self.lnwatcher.watch_channel(m, partial(self.lnworker.on_channel_utxos, m))
         self.lnworker.on_channels_updated()
         while True:
             try:

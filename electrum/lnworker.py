@@ -52,9 +52,10 @@ class LNWorker(PrintError):
         self.channels = {x.channel_id: x for x in map(HTLCStateMachine, wallet.storage.get("channels", []))}
         for c in self.channels.values():
             c.lnwatcher = network.lnwatcher
+            c.sweep_address = self.sweep_address
         self.invoices = wallet.storage.get('lightning_invoices', {})
         for chan_id, chan in self.channels.items():
-            self.network.lnwatcher.watch_channel(chan, self.sweep_address, partial(self.on_channel_utxos, chan))
+            self.network.lnwatcher.watch_channel(chan, partial(self.on_channel_utxos, chan))
         self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
         # wait until we see confirmations
@@ -184,13 +185,12 @@ class LNWorker(PrintError):
         openingchannel = await peer.channel_establishment_flow(password,
                                                                funding_sat=local_amount_sat + push_sat,
                                                                push_msat=push_sat * 1000,
-                                                               temp_channel_id=os.urandom(32),
-                                                               sweep_address=self.sweep_address)
+                                                               temp_channel_id=os.urandom(32))
         if not openingchannel:
             self.print_error("Channel_establishment_flow returned None")
             return
         self.save_channel(openingchannel)
-        self.network.lnwatcher.watch_channel(openingchannel, self.sweep_address, partial(self.on_channel_utxos, openingchannel))
+        self.network.lnwatcher.watch_channel(openingchannel, partial(self.on_channel_utxos, openingchannel))
         self.on_channels_updated()
 
     def on_channels_updated(self):
