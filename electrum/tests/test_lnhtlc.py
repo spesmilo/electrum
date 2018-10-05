@@ -89,10 +89,10 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     remote_amount = remote if remote is not None else (funding_sat * 1000 // 2)
     alice_raw = [ bip32("m/" + str(i)) for i in range(5) ]
     bob_raw = [ bip32("m/" + str(i)) for i in range(5,11) ]
-    alice_privkeys = [lnbase.Keypair(lnbase.privkey_to_pubkey(x), x) for x in alice_raw]
-    bob_privkeys = [lnbase.Keypair(lnbase.privkey_to_pubkey(x), x) for x in bob_raw]
-    alice_pubkeys = [lnbase.OnlyPubkeyKeypair(x.pubkey) for x in alice_privkeys]
-    bob_pubkeys = [lnbase.OnlyPubkeyKeypair(x.pubkey) for x in bob_privkeys]
+    alice_privkeys = [lnutil.Keypair(lnbase.privkey_to_pubkey(x), x) for x in alice_raw]
+    bob_privkeys = [lnutil.Keypair(lnbase.privkey_to_pubkey(x), x) for x in bob_raw]
+    alice_pubkeys = [lnutil.OnlyPubkeyKeypair(x.pubkey) for x in alice_privkeys]
+    bob_pubkeys = [lnutil.OnlyPubkeyKeypair(x.pubkey) for x in bob_privkeys]
 
     alice_seed = os.urandom(32)
     bob_seed = os.urandom(32)
