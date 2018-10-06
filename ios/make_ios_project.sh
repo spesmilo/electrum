@@ -237,6 +237,14 @@ else
 	echo "** WARNING: Failed to modify main.m to include PYTHONIOENCODING=UTF-8"
 fi
 
+echo ""
+echo "Copying google protobuf paymentrequests.proto to app lib dir..."
+echo ""
+cp -fva ElectronCash/electroncash/*.proto iOS/app/ElectronCash/electroncash
+if [ "$?" != "0" ]; then
+	echo "** WARNING: Failed to copy google protobuf .proto file to app lib dir!"
+fi
+
 echo ''
 echo '**************************************************************************'
 echo '*                                                                        *'
