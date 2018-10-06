@@ -297,7 +297,7 @@ def run_offline_command(config, config_options):
 
 def init_plugins(config, gui_name):
     from electroncash.plugins import Plugins
-    return Plugins(config, is_local, gui_name)
+    return Plugins(config, gui_name)
 
 
 if __name__ == '__main__':
