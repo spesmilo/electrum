@@ -1,10 +1,10 @@
 import shutil
 import tempfile
 
-from lib.storage import WalletStorage
-from lib.wallet import Wallet
+from ..storage import WalletStorage
+from ..wallet import Wallet
 
-from lib.tests.test_wallet import WalletTestCase
+from ..tests.test_wallet import WalletTestCase
 
 
 # TODO add other wallet types: xpub-only
@@ -256,15 +256,15 @@ class TestStorageUpgrade(WalletTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        from lib.plugins import Plugins
-        from lib.simple_config import SimpleConfig
+        from ..plugins import Plugins
+        from ..simple_config import SimpleConfig
 
         cls.electron_cash_path = tempfile.mkdtemp()
         config = SimpleConfig({'electron_cash_path': cls.electron_cash_path})
 
         gui_name = 'cmdline'
         # TODO it's probably wasteful to load all plugins... only need Trezor
-        Plugins(config, True, gui_name)
+        Plugins(config, gui_name)
 
     @classmethod
     def tearDownClass(cls):

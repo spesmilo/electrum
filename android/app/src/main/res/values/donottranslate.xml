@@ -1,0 +1,5 @@
+<!-- The following strings are the same in all languages. -->
+<resources>
+    <string name="app_name">Electron Cash</string>
+    <string name="bch">BCH</string>
+</resources>

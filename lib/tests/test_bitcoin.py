@@ -3,8 +3,8 @@ import unittest
 import sys
 from ecdsa.util import number_to_string
 
-from lib.address import Address
-from lib.bitcoin import (
+from ..address import Address
+from ..bitcoin import (
     generator_secp256k1, point_to_ser, public_key_to_p2pkh, EC_KEY,
     bip32_root, bip32_public_derivation, bip32_private_derivation, pw_encode,
     pw_decode, Hash, public_key_from_private_key, address_from_private_key,
@@ -13,8 +13,8 @@ from lib.bitcoin import (
     verify_message, deserialize_privkey, serialize_privkey,
     is_minikey, is_compressed, is_xpub,
     xpub_type, is_xprv, is_bip32_derivation, seed_type)
-from lib.networks import NetworkConstants
-from lib.util import bfh
+from ..networks import NetworkConstants
+from ..util import bfh
 
 try:
     import ecdsa

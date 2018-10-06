@@ -28,4 +28,4 @@ bin/
 icons/.DS_Store/
 
 # IntelliJ Pycharm IDE
-.idea
+/.idea

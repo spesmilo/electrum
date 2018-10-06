@@ -26,7 +26,7 @@
 import binascii
 import unittest
 import random
-from lib import cashaddr
+from .. import cashaddr
 
 
 BCH_PREFIX = "bitcoincash"

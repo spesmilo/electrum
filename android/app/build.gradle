@@ -1,0 +1,128 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply plugin: 'kotlin-android-extensions'
+apply plugin: 'kotlin-kapt'
+apply plugin: 'com.chaquo.python'
+
+def REPO_ROOT = "../.."
+
+android {
+    compileOptions {
+        // Required by ACRA.
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    compileSdkVersion 27
+
+    defaultConfig {
+        applicationId "org.electroncash.electroncash3"
+        minSdkVersion 15
+        targetSdkVersion 26
+
+        def ecVersion = null
+        file("$REPO_ROOT/lib/version.py").eachLine {
+            def matcher = it =~ /PACKAGE_VERSION = '(.+)'.*/
+            if (matcher.matches()) {
+                ecVersion = matcher.group(1)
+            }
+        }
+        if (ecVersion == null) {
+            throw new GradleException("Couldn't find version number")
+        }
+        def BUILD_NUM = 3
+        versionName "$ecVersion-$BUILD_NUM"
+        def verParsed = ecVersion.split(/\./).collect { Integer.parseInt(it) }
+        versionCode((verParsed[0] * 1000000) + (verParsed[1] * 10000) + (verParsed[2] * 100) +
+                    BUILD_NUM)
+
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+        python {
+            version "3.6.5"
+            pip {
+                install "-r", "$REPO_ROOT/contrib/deterministic-build/requirements.txt"
+            }
+            extractPackages "electroncash"
+        }
+        ndk {
+            abiFilters "x86", "armeabi-v7a"
+        }
+    }
+
+    dataBinding.enabled = true
+
+    sourceSets {
+        main {
+            python {
+                srcDir REPO_ROOT
+                include "lib/**"                               // In ../.. (renamed below)
+                include("chaquopy/**", "electroncash_gui/**",  // In src/main/python
+                        "electroncash_plugins/**")             //
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "electroncash-${variant.versionName}.apk"
+        }
+    }
+}
+
+// Rearrange source code slightly.
+afterEvaluate {
+    for (variant in android.applicationVariants) {
+        def task = project.tasks.getByName("merge${variant.name.capitalize()}PythonSources")
+        def dstDir = task.destinationDir
+
+        // Rename directory to match package name, like package_dir does in setup.py.
+        task.doLast {
+            def src = "$dstDir/lib"
+            def dst = "$dstDir/electroncash"
+            if (! file(src).renameTo(dst)) {
+                throw new GradleException("Failed to rename $src to $dst")
+            }
+        }
+
+        // Include command line script.
+        def mainFile = file("$REPO_ROOT/electron-cash")
+        task.inputs.file(mainFile)
+        task.doLast {
+            copy {
+                from mainFile.parent
+                include mainFile.name
+                into "$dstDir/electroncash"
+                rename { "main.py" }
+            }
+        }
+    }
+}
+
+dependencies {
+    kapt "com.android.databinding:compiler:$androidPluginVersion"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlinVersion"
+
+    def supportVersion = "27.1.1"
+    implementation "com.android.support:appcompat-v7:$supportVersion"
+    implementation 'com.android.support.constraint:constraint-layout:1.1.2'
+    implementation "com.android.support:design:$supportVersion"
+    implementation "com.android.support:support-v4:$supportVersion"
+
+    implementation "android.arch.lifecycle:extensions:1.1.1"
+
+    def acraVersion = "5.2.0"
+    implementation "ch.acra:acra-core:$acraVersion"
+    implementation "ch.acra:acra-dialog:$acraVersion"
+    implementation "ch.acra:acra-http:$acraVersion"
+
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'com.android.support.test:runner:1.0.2'
+    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+}

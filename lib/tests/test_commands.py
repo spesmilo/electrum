@@ -1,7 +1,7 @@
 import unittest
 from decimal import Decimal
 
-from lib.commands import Commands
+from ..commands import Commands
 
 
 class TestCommands(unittest.TestCase):

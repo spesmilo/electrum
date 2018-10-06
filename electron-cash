@@ -57,7 +57,7 @@ is_android = 'ANDROID_DATA' in os.environ
 # move this back to gui/kivy/__init.py once plugins are moved
 os.environ['KIVY_DATA_DIR'] = os.path.abspath(os.path.dirname(__file__)) + '/gui/kivy/data/'
 
-if is_local or is_android:
+if is_local:
     sys.path.insert(0, os.path.join(script_dir, 'packages'))
 
 
@@ -83,11 +83,11 @@ def check_imports():
     assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
 
 
-if not is_android:
+if not is_android:  # Avoid unnecessarily slowing down app startup.
     check_imports()
 
 # load local module as electrum
-if is_local or is_android:
+if is_local:
     import imp
     imp.load_module('electroncash', *imp.find_module('lib'))
     imp.load_module('electroncash_gui', *imp.find_module('gui'))
@@ -297,7 +297,7 @@ def run_offline_command(config, config_options):
 
 def init_plugins(config, gui_name):
     from electroncash.plugins import Plugins
-    return Plugins(config, is_local or is_android, gui_name)
+    return Plugins(config, gui_name)
 
 
 if __name__ == '__main__':
@@ -329,25 +329,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # config is an object passed to the various constructors (wallet, interface, gui)
-    if is_android:
-        if 'ANDROID_NATIVE_UI' in os.environ:
-            config_options = {
-                'verbose': True,
-                'cmd': 'daemon',
-            }
-        else:
-            config_options = {
-                'verbose': True,
-                'cmd': 'gui',
-                'gui': 'kivy',
-            }
-    else:
-        config_options = args.__dict__
-        f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
-        config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
-        if config_options.get('server'):
-            config_options['auto_connect'] = False
-
+    config_options = args.__dict__
+    f = lambda key: config_options[key] is not None and key not in config_variables.get(args.cmd, {}).keys()
+    config_options = {key: config_options[key] for key in filter(f, config_options.keys())}
+    if config_options.get('server'):
+        config_options['auto_connect'] = False
     config_options['cwd'] = os.getcwd()
 
     # fixme: this can probably be achieved with a runtime hook (pyinstaller)

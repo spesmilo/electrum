@@ -69,6 +69,15 @@ class Command:
             self.options = []
             self.defaults = []
 
+    def __repr__(self):
+        return "<Command {}>".format(self)
+
+    def __str__(self):
+        return "{}({})".format(
+            self.name,
+            ", ".join(self.params + ["{}={!r}".format(name, self.defaults[i])
+                                     for i, name in enumerate(self.options)]))
+
 
 def command(s):
     def decorator(func):
@@ -79,10 +88,14 @@ def command(s):
         def func_wrapper(*args, **kwargs):
             c = known_commands[func.__name__]
             wallet = args[0].wallet
+            network = args[0].network
             password = kwargs.get('password')
+            if c.requires_network and network is None:
+                raise BaseException("Daemon offline")  # Same wording as in daemon.py.
             if c.requires_wallet and wallet is None:
-                raise BaseException("wallet not loaded. Use 'electron-cash daemon load_wallet'")
-            if c.requires_password and password is None and wallet.storage.get('use_encryption'):
+                raise BaseException("Wallet not loaded. Use 'electron-cash daemon load_wallet'")
+            if c.requires_password and password is None and wallet.storage.get('use_encryption') \
+               and not kwargs.get("unsigned"):
                 return {'error': 'Password required' }
             return func(*args, **kwargs)
         return func_wrapper
@@ -97,7 +110,7 @@ class Commands:
         self.network = network
         self._callback = callback
 
-    def _run(self, method, args, password_getter):
+    def _run(self, method, *args, password_getter=None, **kwargs):
         # this wrapper is called from the python console
         cmd = known_commands[method]
         if cmd.requires_password and self.wallet.has_password():
@@ -109,9 +122,8 @@ class Commands:
 
         f = getattr(self, method)
         if cmd.requires_password:
-            result = f(*args, **{'password':password})
-        else:
-            result = f(*args)
+            kwargs.update(password=password)
+        result = f(*args, **kwargs)
 
         if self._callback:
             self._callback()
@@ -442,7 +454,8 @@ class Commands:
         message = util.to_bytes(message)
         return bitcoin.verify_message(address, sig, message)
 
-    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, password, locktime=None):
+    def _mktx(self, outputs, fee=None, change_addr=None, domain=None, nocheck=False,
+              unsigned=False, password=None, locktime=None):
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr)
         domain = None if domain is None else map(self._resolver, domain)

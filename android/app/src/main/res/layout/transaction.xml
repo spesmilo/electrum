@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".WalletsFragment">
+    <data>
+        <variable
+            name="model"
+            type="org.electroncash.electroncash3.TransactionModel"/>
+    </data>
+
+    <android.support.constraint.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <ImageView
+            android:id="@+id/ivIcon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:layout_marginLeft="16dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:src="@{model.value.charAt(0) == '+' ? @drawable/ic_receive_black_24dp : @drawable/ic_send_black_24dp}"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:src="@drawable/ic_receive_black_24dp"/>
+
+        <TextView
+            android:id="@+id/textView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/balance"
+            app:layout_constraintBaseline_toBaselineOf="@+id/tvBalance"
+            app:layout_constraintStart_toStartOf="@+id/textView2"/>
+
+        <TextView
+            android:id="@+id/textView2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="8dp"
+            android:layout_marginStart="8dp"
+            android:text="@string/amount"
+            app:layout_constraintBaseline_toBaselineOf="@+id/tvValue"
+            app:layout_constraintStart_toEndOf="@+id/ivIcon"/>
+
+        <TextView
+            android:id="@+id/tvValue"
+            style="@style/Value.Small"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginLeft="8dp"
+            android:layout_marginRight="8dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="4dp"
+            android:text="@{model.value.substring(1)}"
+            app:layout_constraintEnd_toStartOf="@+id/tvTimestamp"
+            app:layout_constraintStart_toEndOf="@+id/barrier2"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="0.12345678"/>
+
+        <TextView
+            android:id="@+id/tvBalance"
+            style="@style/Value.Small"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="@{model.balance}"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="@+id/tvValue"
+            app:layout_constraintStart_toStartOf="@+id/tvValue"
+            app:layout_constraintTop_toBottomOf="@+id/tvValue"
+            tools:text="0.98765432"/>
+
+        <TextView
+            android:id="@+id/tvTimestamp"
+            style="@style/Timestamp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:layout_marginRight="16dp"
+            android:text="@{model.date}"
+            app:layout_constraintBaseline_toBaselineOf="@+id/tvValue"
+            app:layout_constraintEnd_toEndOf="parent"
+            tools:text="2018.04.01 16:20"/>
+
+        <android.support.constraint.Barrier
+            android:id="@+id/barrier2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:barrierDirection="right"
+            app:constraint_referenced_ids="textView,textView2"/>
+
+    </android.support.constraint.ConstraintLayout>
+</layout>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#388CFF</color>
+
+    <!-- Used for top status bar -->
+    <color name="colorPrimaryDark">#3077D9</color>
+
+    <!-- Used for some widgets like RadioButton and EditText, and AlertDialog buttons. -->
+    <color name="colorAccent">@color/colorPrimary</color>
+</resources>

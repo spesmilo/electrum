@@ -6,7 +6,7 @@ import tempfile
 import shutil
 
 from io import StringIO
-from lib.simple_config import (SimpleConfig, read_user_config)
+from ..simple_config import (SimpleConfig, read_user_config)
 
 
 class Test_SimpleConfig(unittest.TestCase):

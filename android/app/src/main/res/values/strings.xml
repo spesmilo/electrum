@@ -1,0 +1,79 @@
+<!-- TODO: generate these from the gettext files and add translations. Call to make_seed should
+    also be localized. -->
+<resources>
+    <string name="console">Console</string>
+
+    <string name="wallets">Wallets</string>
+    <string name="offline">Offline</string>
+    <string name="cannot_send">Cannot send/receive new transactions</string>
+    <string name="online">Online</string>
+    <string name="height">Height</string>
+    <string name="close_wallet">Close wallet</string>
+    <string name="no_wallet">No wallet is open</string>
+    <string name="amount">Amount</string>
+    <string name="balance">Balance</string>
+    <string name="receive">Receive</string>
+
+    <string name="new_wallet">New wallet</string>
+    <string name="wallet_name">Wallet name</string>
+    <string name="do_you">Do you want to create a new seed, or to restore a wallet using an
+        existing seed?</string>
+    <string name="create">Create</string>
+    <string name="restore">Restore</string>
+    <string name="name_is">Name is empty</string>
+    <string name="invalid_name">Invalid name, please try again.</string>
+    <string name="a_wallet">A wallet with that name already exists, please try again.</string>
+    <string name="wallet_passwords">Wallet passwords do not match. Please confirm the password
+        you wish to set for your wallet by entering the same password twice.</string>
+
+    <string name="show_seed">Show seed</string>
+    <string name="wallet_seed">Wallet seed</string>
+    <string name="please_save">Please save these %d words on paper (order is important).</string>
+    <string name="this_seed">This seed will allow you to recover your wallet in case of computer
+        failure.</string>
+    <string name="never_disclose">Never disclose your seed.</string>
+    <string name="please_enter">Please enter your seed phrase in order to restore your
+        wallet.</string>
+    <string name="the_seed">The seed you entered does not appear to be a valid wallet seed.</string>
+
+    <string name="delete_wallet">Delete wallet</string>
+    <string name="you_are">You are about to delete the wallet \'%s\'. Unless you have other
+        copies of this wallet or you wrote its seed down, you may lose funds!</string>
+
+    <string name="password_required">Password required</string>
+    <string name="password">Password</string>
+    <string name="confirm_password">Confirm password</string>
+    <string name="password_incorrect">Password incorrect</string>
+
+    <string name="send">Send</string>
+    <string name="pay_to">Pay to</string>
+    <string name="mining_fee">Mining fee</string>
+    <string name="enter_or">Enter or pick address</string>
+    <string name="invalid_address">Invalid address</string>
+    <string name="enter_amount">Enter amount</string>
+    <string name="invalid_amount">Invalid amount</string>
+    <string name="insufficient_funds">Insufficient funds</string>
+    <string name="error">Error</string>
+    <string name="payment_sent">Payment sent</string>
+
+    <string name="addresses">Addresses</string>
+    <string name="toggle_format">Toggle format</string>
+    <string name="default_">Default</string>
+    <string name="receiving">Receiving</string>
+    <string name="change">Change</string>
+    <string-array name="address_type">  <!-- See addresses.py -->
+        <item>@string/default_</item>
+        <item>@string/receiving</item>
+        <item>@string/change</item>
+    </string-array>
+    <string name="address_copied">Address copied to clipboard</string>
+
+    <string name="sorry">Sorry!</string>
+    <string name="something_went">Something went wrong running Electron Cash.</string>
+    <string name="to_help">To help us diagnose and fix the problem, you can send us a bug report that contains useful debug information:</string>
+    <string name="please_briefly">Please briefly describe what led to the error (optional):</string>
+    <string name="synchronizing">Synchronizing</string>
+    <string name="please_wait">Please wait</string>
+    <string name="not_connected">Not connected</string>
+    <string name="generating_your">Generating your addresses...</string>
+</resources>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="top">Top</string>
+    <string name="bottom">Bottom</string>
+
+    <color name="console_error">#b53f3f</color>
+    <color name="console_meta">#304ffe</color>
+
+    <style name="Code">
+        <item name="android:textSize">14sp</item>
+        <item name="android:typeface">monospace</item>
+    </style>
+
+    <style name="ConsoleOutput" parent="Code">
+        <item name="android:layout_marginLeft">8dp</item>
+        <item name="android:layout_marginRight">8dp</item>
+        <item name="android:textIsSelectable">true</item>
+        <item name="android:freezesText">true</item>
+    </style>
+
+</resources>

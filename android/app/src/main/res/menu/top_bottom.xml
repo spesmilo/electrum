@@ -1,0 +1,14 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item android:id="@+id/menu_top"
+        android:title="@string/top"
+        android:icon="@drawable/ic_vertical_align_top"
+        app:showAsAction="ifRoom"/>
+
+    <item android:id="@+id/menu_bottom"
+        android:title="@string/bottom"
+        android:icon="@drawable/ic_vertical_align_bottom"
+        app:showAsAction="ifRoom"/>
+
+</menu>

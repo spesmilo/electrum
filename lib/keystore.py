@@ -342,6 +342,11 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
     def check_password(self, password):
         xprv = pw_decode(self.xprv, password)
+        try:
+            assert DecodeBase58Check(xprv) is not None
+        except Exception:
+            # Password was None but key was encrypted.
+            raise InvalidPassword()
         if deserialize_xprv(xprv)[4] != deserialize_xpub(self.xpub)[4]:
             raise InvalidPassword()
 
@@ -752,8 +757,11 @@ def from_seed(seed, passphrase, is_p2sh):
         xtype = 'standard'
         keystore.add_xprv_from_seed(bip32_seed, xtype, der)
     else:
-        raise BaseException(t)
+        raise InvalidSeed()
     return keystore
+
+class InvalidSeed(Exception):
+    pass
 
 def from_private_key_list(text):
     keystore = Imported_KeyStore({})

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- In API level 21 only, the default sans-serif fontFamily takes priority over the `typeface`
+         attribute (https://stackoverflow.com/q/29076599/220765). -->
+    <style name="Code">
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">monospace</item>
+    </style>
+
+</resources>
