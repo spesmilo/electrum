@@ -11,7 +11,7 @@ class TestUtil(unittest.TestCase):
 
     def test_format_satoshis_zero(self):
         result = format_satoshis(0)
-        expected = "0.0"
+        expected = "0."
         self.assertEqual(expected, result)
 
     def test_format_satoshis_negative(self):
