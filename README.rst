@@ -51,8 +51,8 @@ Development version
 
 Check out the code from Github::
 
-    git clone git://github.com/fyookball/electrum.git
-    cd electrum
+    git clone https://github.com/Electron-Cash/Electron-Cash
+    cd Electron-Cash
 
 Run install (this should install dependencies)::
 

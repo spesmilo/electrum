@@ -48,9 +48,7 @@ class ContactList(MyTreeWidget):
         # openalias items shouldn't be editable
         return item.text(1) != "openalias"
 
-    def on_edited(self, item, column, prior):
-        if column == 0:  # Remove old contact if renamed
-            self.parent.contacts.pop(prior)
+    def on_edited(self, item, column, prior_value):
         self.parent.set_contact(item.text(0), item.text(1))
 
     def import_contacts(self):

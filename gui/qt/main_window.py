@@ -597,7 +597,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def show_report_bug(self):
         msg = ' '.join([
             _("Please report any bugs as issues on github:<br/>"),
-            "<a href=\"https://github.com/fyookball/electrum/issues\">https://github.com/fyookball/electrum/issues</a><br/><br/>",
+            "<a href=\"https://github.com/Electron-Cash/Electron-Cash/issues\">https://github.com/Electron-Cash/Electron-Cash/issues</a><br/><br/>",
             _("Before reporting a bug, upgrade to the most recent version of Electron Cash (latest release or git HEAD), and include the version number in your report."),
             _("Try to explain not only what the bug is, but how it occurs.")
          ])
@@ -1579,19 +1579,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         def broadcast_thread():
             # non-GUI thread
+            status = False
+            msg = "Failed"
             pr = self.payment_request
             if pr and pr.has_expired():
                 self.payment_request = None
                 return False, _("Payment request has expired")
-            status, msg =  self.network.broadcast_transaction(tx)
-            if pr and status is True:
-                self.invoices.set_paid(pr, tx.txid())
-                self.invoices.save()
-                self.payment_request = None
+            if pr:
                 refund_address = self.wallet.get_receiving_addresses()[0]
-                ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
+                ack_status, ack_msg = pr.send_payment(str(tx), refund_address)
+                msg = ack_msg
                 if ack_status:
-                    msg = ack_msg
+                    self.invoices.set_paid(pr, tx.txid())
+                    self.invoices.save()
+                    self.payment_request = None
+                    status = True
+            else:
+                status, msg =  self.network.broadcast_transaction(tx)
             return status, msg
 
         # Capture current TL window; override might be removed on return
@@ -1862,23 +1866,33 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('Invalid Address'))
             self.contact_list.update()  # Displays original unchanged value
             return False
+        old_entry = self.contacts.get(address, None)
         self.contacts[address] = ('address', label)
         self.contact_list.update()
         self.history_list.update()
         self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
         self.update_completions()
+
+        # The contact has changed, update any addresses that are displayed with the old information.
+        run_hook('update_contact', address, self.contacts[address], old_entry)
         return True
 
-    def delete_contacts(self, labels):
+    def delete_contacts(self, addresses):
         if not self.question(_("Remove {} from your list of contacts?")
-                             .format(" + ".join(labels))):
+                             .format(" + ".join(addresses))):
             return
-        for label in labels:
-            self.contacts.pop(label)
+        removed_entries = []
+        for address in addresses:
+            if address in self.contacts.keys():
+                removed_entries.append((address, self.contacts[address]))
+            self.contacts.pop(address)
+
         self.history_list.update()
         self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
         self.contact_list.update()
         self.update_completions()
+
+        run_hook('delete_contacts', removed_entries)
 
     def show_invoice(self, key):
         pr = self.invoices.get(key)

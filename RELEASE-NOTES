@@ -182,7 +182,7 @@ and there is no warning message.
 
 # Release 3.3
 
-* Add external plugins feature.  Please see https://github.com/fyookball/electrum/blob/master/plugins/README.rst  and pay special attention to the risks involved with running external plugins.
+* Add external plugins feature.  Please see https://github.com/Electron-Cash/Electron-Cash/blob/master/plugins/README.rst  and pay special attention to the risks involved with running external plugins.
 * Various bugfixes and improvements
 
 # Release 3.3.1

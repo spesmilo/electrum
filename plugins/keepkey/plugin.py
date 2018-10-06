@@ -255,7 +255,7 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
                             if is_xpubkey(x_pubkey):
                                 xpub, s = parse_xpubkey(x_pubkey)
                             else:
-                                xpub = xpub_from_pubkey(0, bfh(x_pubkey))
+                                xpub = xpub_from_pubkey('standard', bfh(x_pubkey))
                                 s = []
                             node = self.ckd_public.deserialize(xpub)
                             return self.types.HDNodePathType(node=node, address_n=s)
@@ -335,11 +335,8 @@ class KeepKeyCompatiblePlugin(HW_PluginBase):
                     txoutputtype.script_type = self.types.PAYTOOPRETURN
                     txoutputtype.op_return_data = address.to_script()[2:]
                 elif _type == TYPE_ADDRESS:
-                    if address.kind == address.ADDR_P2PKH:
-                        txoutputtype.script_type = self.types.PAYTOADDRESS
-                    else:
-                        txoutputtype.script_type = self.types.PAYTOSCRIPTHASH
-                    txoutputtype.address = address.to_string(address.FMT_LEGACY)
+                    txoutputtype.script_type = self.types.PAYTOADDRESS
+                    txoutputtype.address = address.to_full_ui_string()
 
             outputs.append(txoutputtype)
 

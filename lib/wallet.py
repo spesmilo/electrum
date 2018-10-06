@@ -79,8 +79,9 @@ def relayfee(network):
 
 def dust_threshold(network):
     # Change < dust threshold is added to the tx fee
-    #return 182 * 3 * relayfee(network) / 1000
-    return 1
+    #return 182 * 3 * relayfee(network) / 1000 # original Electrum logic
+    #return 1 # <-- was this value until late Sept. 2018
+    return 546 # hard-coded Bitcoin Cash dust threshold. Was changed to this as of Sept. 2018
 
 
 def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):

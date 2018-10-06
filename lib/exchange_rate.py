@@ -211,6 +211,26 @@ class WEX(ExchangeBase):
                 'DSH': Decimal(json_dsh['bch_dsh']['last'])}
 
 
+class CoinCap(ExchangeBase):
+
+    def get_rates(self, ccy):
+        json = self.get_json('api.coincap.io', '/v2/rates/bitcoin-cash/')
+        return {'USD': Decimal(json['data']['rateUsd'])}
+
+    def history_ccys(self):
+        return ['USD']
+
+    def request_history(self, ccy):
+        from datetime import datetime as dt
+        # Currently 2000 days is the maximum in 1 API call which needs to be fixed
+        # sometime before the year 2023...
+        history = self.get_json('api.coincap.io',
+                               "/v2/assets/bitcoin-cash/history?interval=d1&limit=2000")
+        return dict([(dt.utcfromtimestamp(h['time']/1000).strftime('%Y-%m-%d'),
+                        h['priceUsd'])
+                     for h in history['data']])
+
+
 def dictinvert(d):
     inv = {}
     for k, vlist in d.items():

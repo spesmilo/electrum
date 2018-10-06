@@ -47,8 +47,8 @@ from . import rsakey
 
 from .bitcoin import TYPE_ADDRESS
 
-REQUEST_HEADERS = {'Accept': 'application/bitcoincash-paymentrequest', 'User-Agent': 'Electrum'}
-ACK_HEADERS = {'Content-Type':'application/bitcoincash-payment','Accept':'application/bitcoincash-paymentack','User-Agent':'Electrum'}
+REQUEST_HEADERS = {'Accept': 'application/bitcoincash-paymentrequest', 'User-Agent': 'Electron-Cash'}
+ACK_HEADERS = {'Content-Type':'application/bitcoincash-payment','Accept':'application/bitcoincash-paymentack','User-Agent':'Electron-Cash'}
 
 ca_path = requests.certs.where()
 ca_list = None
@@ -261,7 +261,7 @@ class PaymentRequest:
     def get_outputs(self):
         return self.outputs[:]
 
-    def send_ack(self, raw_tx, refund_addr):
+    def send_payment(self, raw_tx, refund_addr):
         pay_det = self.details
         if not self.details.payment_url:
             return False, "no url"
@@ -270,7 +270,7 @@ class PaymentRequest:
         paymnt.transactions.append(bfh(raw_tx))
         ref_out = paymnt.refund_to.add()
         ref_out.script = bfh(transaction.Transaction.pay_script(refund_addr))
-        paymnt.memo = "Paid using Electrum"
+        paymnt.memo = "Paid using Electron Cash"
         pm = paymnt.SerializeToString()
         payurl = urllib.parse.urlparse(pay_det.payment_url)
         try:
@@ -282,7 +282,13 @@ class PaymentRequest:
             except Exception as e:
                 print(e)
                 return False, "Payment Message/PaymentACK Failed"
-        if r.status_code >= 500:
+        if r.status_code != 200:
+            # Propagate 'Bad request' (HTTP 400) messages to the user since they
+            # contain valuable information.
+            if r.status_code == 400:
+                return False, (r.reason + ": " + r.content.decode('UTF-8'))
+            # Some other errors might display an entire HTML document.
+            # Hide those and just display the name of the error code.
             return False, r.reason
         try:
             paymntack = pb2.PaymentACK()
@@ -511,6 +517,11 @@ class InvoiceStore(object):
         return key
 
     def remove(self, key):
+        paid_list = self.paid.items()
+        for p in paid_list:
+            if p[1] == key:
+                self.paid.pop(p[0])
+                break
         self.invoices.pop(key)
         self.save()
 

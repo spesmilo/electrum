@@ -67,7 +67,7 @@ echo ""
 echo "Building Briefcase-Based iOS Project..."
 echo ""
 
-python3.5 setup.py ios 
+python3 setup.py ios
 if [ "$?" != 0 ]; then
 	echo "An error occurred running setup.py"
 	exit 4
@@ -235,6 +235,14 @@ if cat $main_m | sed -e '1 s/putenv/putenv("PYTHONIOENCODING=UTF-8"); putenv/; t
 	mv -fv ${main_m}.new $main_m
 else
 	echo "** WARNING: Failed to modify main.m to include PYTHONIOENCODING=UTF-8"
+fi
+
+echo ""
+echo "Copying google protobuf paymentrequests.proto to app lib dir..."
+echo ""
+cp -fva ElectronCash/electroncash/*.proto iOS/app/ElectronCash/electroncash
+if [ "$?" != "0" ]; then
+	echo "** WARNING: Failed to copy google protobuf .proto file to app lib dir!"
 fi
 
 echo ''
