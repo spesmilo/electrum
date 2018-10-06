@@ -1969,7 +1969,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return lambda *args, **kwargs: f(method, *args, password_getter=self.password_dialog,
                                              **kwargs)
         for m in dir(c):
-            if m[0]=='_' or m in ['network','wallet']: continue
+            if m[0]=='_' or m in ['network','wallet','config']: continue
             methods[m] = mkfunc(c._run, m)
 
         console.updateNamespace(methods)
