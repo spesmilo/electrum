@@ -1,6 +1,6 @@
 import unittest
-from lib.util import format_satoshis
-from lib.web import parse_URI
+from ..util import format_satoshis
+from ..web import parse_URI
 
 class TestUtil(unittest.TestCase):
 

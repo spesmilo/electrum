@@ -1,6 +1,6 @@
 import unittest
 
-from lib import interface
+from .. import interface
 
 
 class TestInterface(unittest.TestCase):

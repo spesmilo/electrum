@@ -2,9 +2,10 @@ from __future__ import absolute_import, division, print_function
 
 from code import InteractiveConsole
 import os
-from os.path import exists, join
+from os.path import dirname, exists, join
+import unittest
 
-from electroncash import commands, daemon, keystore, util, version
+from electroncash import commands, daemon, keystore, tests, util, version
 from electroncash import main  # electron-cash script, renamed by build.gradle.
 from electroncash.simple_config import SimpleConfig
 from electroncash.storage import WalletStorage
@@ -170,6 +171,15 @@ class AllCommands(commands.Commands):
         if self.wallet and (path == self.wallet.storage.path):
             self.close_wallet()
         os.remove(path)
+
+    def unit_test(self):
+        """Run all unit tests. Expect failures with functionality not present on Android,
+        such as Trezor.
+        """
+        tests_dir = dirname(tests.__file__)
+        suite = unittest.defaultTestLoader.discover(tests_dir,
+                                                    top_level_dir=tests_dir + "/../..")
+        unittest.TextTestRunner(verbosity=2).run(suite)
 
     # END commands which only exist here.
 

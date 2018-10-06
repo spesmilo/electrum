@@ -6,8 +6,8 @@ import os
 import json
 
 from io import StringIO
-from lib.storage import WalletStorage, FINAL_SEED_VERSION
-import lib.wallet as wallet
+from ..storage import WalletStorage, FINAL_SEED_VERSION
+from .. import wallet
 
 
 class FakeSynchronizer(object):

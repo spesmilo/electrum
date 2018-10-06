@@ -1,11 +1,11 @@
 import unittest
 from unittest import mock
 
-from lib.address import Address
-import lib.bitcoin as bitcoin
-import lib.keystore as keystore
-import lib.storage as storage
-import lib.wallet as wallet
+from ..address import Address
+from .. import bitcoin
+from .. import keystore
+from .. import storage
+from .. import wallet
 
 
 class TestWalletKeystoreAddressIntegrity(unittest.TestCase):

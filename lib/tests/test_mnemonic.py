@@ -1,8 +1,8 @@
 import unittest
-from lib import keystore
-from lib import mnemonic
-from lib import old_mnemonic
-from lib.util import bh2u
+from .. import keystore
+from .. import mnemonic
+from .. import old_mnemonic
+from ..util import bh2u
 
 
 class Test_NewMnemonic(unittest.TestCase):

@@ -1,5 +1,5 @@
 import unittest
-import lib.blockchain as bc
+from .. import blockchain as bc
 
 
 class MyBlockchain(bc.Blockchain):
