@@ -181,16 +181,13 @@ class LNWorker(PrintError):
     async def _open_channel_coroutine(self, peer, local_amount_sat, push_sat, password):
         # peer might just have been connected to
         await asyncio.wait_for(peer.initialized, 5)
-
-        openingchannel = await peer.channel_establishment_flow(password,
-                                                               funding_sat=local_amount_sat + push_sat,
-                                                               push_msat=push_sat * 1000,
-                                                               temp_channel_id=os.urandom(32))
-        if not openingchannel:
-            self.print_error("Channel_establishment_flow returned None")
-            return
-        self.save_channel(openingchannel)
-        self.network.lnwatcher.watch_channel(openingchannel, partial(self.on_channel_utxos, openingchannel))
+        chan = await peer.channel_establishment_flow(
+            password,
+            funding_sat=local_amount_sat + push_sat,
+            push_msat=push_sat * 1000,
+            temp_channel_id=os.urandom(32))
+        self.save_channel(chan)
+        self.network.lnwatcher.watch_channel(chan, partial(self.on_channel_utxos, chan))
         self.on_channels_updated()
 
     def on_channels_updated(self):
@@ -206,9 +203,8 @@ class LNWorker(PrintError):
         # TODO maybe filter out onion if not on tor?
         return random.choice(addr_list)
 
-    def open_channel(self, connect_contents, local_amt_sat, push_amt_sat, pw):
+    def open_channel(self, connect_contents, local_amt_sat, push_amt_sat, pw, timeout=5):
         node_id, rest = extract_nodeid(connect_contents)
-
         peer = self.peers.get(node_id)
         if not peer:
             all_nodes = self.network.channel_db.nodes
@@ -225,7 +221,8 @@ class LNWorker(PrintError):
                 raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
             peer = self.add_peer(host, port, node_id)
         coro = self._open_channel_coroutine(peer, local_amt_sat, push_amt_sat, None if pw == "" else pw)
-        return asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+        f = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+        return f.result(timeout)
 
     def pay(self, invoice, amount_sat=None):
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
