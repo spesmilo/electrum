@@ -517,7 +517,9 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
         decimal_format = '+' + decimal_format
     # initial result
     scale_factor = pow(10, decimal_point)
-    result = ("{:" + decimal_format + "f}").format(Decimal(x) / scale_factor)
+    if not isinstance(x, Decimal):
+        x = Decimal(x).quantize(Decimal('1E-8'))
+    result = ("{:" + decimal_format + "f}").format(x / scale_factor)
     if "." not in result: result += "."
     result = result.rstrip('0')
     # extra decimal places
