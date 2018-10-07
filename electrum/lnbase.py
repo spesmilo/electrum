@@ -406,6 +406,12 @@ class Peer(PrintError):
 
     def on_error(self, payload):
         self.print_error("error", payload["data"].decode("ascii"))
+        chan_id = payload.get("channel_id")
+        for d in [ self.channel_accepted, self.channel_reestablished, self.funding_signed,
+                   self.funding_created, self.revoke_and_ack, self.commitment_signed,
+                   self.announcement_signatures, self.closing_signed ]:
+            if chan_id in d:
+                self.channel_accepted[chan_id].put_nowait({'error':payload['data']})
 
     def on_ping(self, payload):
         l = int.from_bytes(payload['num_pong_bytes'], 'big')
@@ -518,7 +524,6 @@ class Peer(PrintError):
         per_commitment_secret_seed = keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey
         return local_config, per_commitment_secret_seed
 
-    @aiosafe
     async def channel_establishment_flow(self, password, funding_sat, push_msat, temp_channel_id):
         await self.initialized
         local_config, per_commitment_secret_seed = self.make_local_config(funding_sat, push_msat, LOCAL)
@@ -549,6 +554,8 @@ class Peer(PrintError):
         )
         self.send_message(msg)
         payload = await self.channel_accepted[temp_channel_id].get()
+        if payload.get('error'):
+            raise Exception(payload.get('error'))
         remote_per_commitment_point = payload['first_per_commitment_point']
         remote_config=ChannelConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
@@ -1094,7 +1101,7 @@ class Peer(PrintError):
         self.payment_preimages[sha256(preimage)].put_nowait(preimage)
 
     def on_update_fail_malformed_htlc(self, payload):
-        self.on_error(payload)
+        self.print_error("error", payload["data"].decode("ascii"))
 
     def on_update_add_htlc(self, payload):
         # no onion routing for the moment: we assume we are the end node

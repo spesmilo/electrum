@@ -110,11 +110,12 @@ class ChannelsList(MyTreeWidget):
         local_amt = local_amt_inp.get_amount()
         push_amt = push_amt_inp.get_amount()
         connect_contents = str(remote_nodeid.text()).strip()
-
-        try:
-            self.main_window.protect(self.open_channel, (connect_contents, local_amt, push_amt))
-        except ConnStringFormatError as e:
-            self.parent.show_error(str(e))
+        self.main_window.protect(self.open_channel, (connect_contents, local_amt, push_amt))
 
     def open_channel(self, *args, **kwargs):
-        self.parent.wallet.lnworker.open_channel(*args, **kwargs)
+        import traceback, sys
+        try:
+            self.parent.wallet.lnworker.open_channel(*args, **kwargs)
+        except Exception as e:
+            traceback.print_exc(file=sys.stderr)
+            self.parent.show_error('Cannot open channel: %s' % str(e))
