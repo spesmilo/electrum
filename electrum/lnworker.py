@@ -259,9 +259,14 @@ class LNWorker(PrintError):
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice
         route = None  # type: List[RouteEdge]
-        for tag_type, data in decoded_invoice.tags:
-            if tag_type != 'r': continue
-            private_route = data
+        # only want 'r' tags
+        r_tags = list(filter(lambda x: x[0] == 'r', decoded_invoice.tags))
+        # strip the tag type, it's implicitly 'r' now
+        r_tags = list(map(lambda x: x[1], r_tags))
+        # if there are multiple hints, we will use the first one that works,
+        # from a random permutation
+        random.shuffle(r_tags)
+        for private_route in r_tags:
             if len(private_route) == 0: continue
             border_node_pubkey = private_route[0][0]
             path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat)
