@@ -13,33 +13,6 @@ from .address_synchronizer import AddressSynchronizer
 TX_MINED_STATUS_DEEP, TX_MINED_STATUS_SHALLOW, TX_MINED_STATUS_MEMPOOL, TX_MINED_STATUS_FREE = range(0, 4)
 
 
-
-
-class ChannelWatchInfo(NamedTuple("ChannelWatchInfo", [('outpoint', Outpoint),
-                                                       ('local_pubkey', bytes),
-                                                       ('remote_pubkey', bytes),
-                                                       ('last_ctn_our_ctx', int),
-                                                       ('last_ctn_their_ctx', int),
-                                                       ('last_ctn_revoked_pcs', int)])):
-    def to_json(self) -> dict:
-        return {
-            'outpoint': self.outpoint,
-            'local_pubkey': bh2u(self.local_pubkey),
-            'remote_pubkey': bh2u(self.remote_pubkey),
-            'last_ctn_our_ctx': self.last_ctn_our_ctx,
-            'last_ctn_their_ctx': self.last_ctn_their_ctx,
-            'last_ctn_revoked_pcs': self.last_ctn_revoked_pcs,
-        }
-
-    @classmethod
-    def from_json(cls, d: dict):
-        d2 = dict(d)
-        d2['outpoint'] = Outpoint(*d['outpoint'])
-        d2['local_pubkey'] = bfh(d['local_pubkey'])
-        d2['remote_pubkey'] = bfh(d['remote_pubkey'])
-        return ChannelWatchInfo(**d2)
-
-
 class LNWatcher(PrintError):
     # TODO if verifier gets an incorrect merkle proof, that tx will never verify!!
     # similarly, what if server ignores request for merkle proof?
@@ -55,8 +28,7 @@ class LNWatcher(PrintError):
         self.lock = threading.RLock()
         self.watched_addresses = set()
 
-        self.channel_info = {k: ChannelWatchInfo.from_json(v)
-                             for k,v in storage.get('channel_info', {}).items()}  # access with 'lock'
+        self.channel_info = storage.get('channel_info', {})  # access with 'lock'
         self.funding_txo_spent_callback = {}  # funding_outpoint -> callback
 
         # TODO structure will need to change when we handle HTLCs......
@@ -76,9 +48,7 @@ class LNWatcher(PrintError):
         # FIXME: json => every update takes linear instead of constant disk write
         with self.lock:
             storage = self.addr_sync.storage
-            # self.channel_info
-            channel_info = {k: v.to_json() for k,v in self.channel_info.items()}
-            storage.put('channel_info', channel_info)
+            storage.put('channel_info', self.channel_info)
             # self.sweepstore
             sweepstore = {}
             for funding_outpoint, ctxs in self.sweepstore.items():
@@ -88,18 +58,12 @@ class LNWatcher(PrintError):
             storage.put('sweepstore', sweepstore)
         storage.write()
 
-    def watch_channel(self, chan, callback_funding_txo_spent):
-        address = chan.get_funding_address()
+    def watch_channel(self, address, outpoint, callback_funding_txo_spent):
         self.watch_address(address)
         with self.lock:
             if address not in self.channel_info:
-                self.channel_info[address] = ChannelWatchInfo(outpoint=chan.funding_outpoint,
-                                                              local_pubkey=chan.local_config.payment_basepoint.pubkey,
-                                                              remote_pubkey=chan.remote_config.payment_basepoint.pubkey,
-                                                              last_ctn_our_ctx=0,
-                                                              last_ctn_their_ctx=0,
-                                                              last_ctn_revoked_pcs=-1)
-            self.funding_txo_spent_callback[chan.funding_outpoint] = callback_funding_txo_spent
+                self.channel_info[address] = outpoint
+            self.funding_txo_spent_callback[outpoint] = callback_funding_txo_spent
             self.write_to_disk()
 
     @aiosafe
@@ -115,8 +79,8 @@ class LNWatcher(PrintError):
             return
         with self.lock:
             channel_info_items = list(self.channel_info.items())
-        for address, info in channel_info_items:
-            await self.check_onchain_situation(info.outpoint)
+        for address, outpoint in channel_info_items:
+            await self.check_onchain_situation(outpoint)
 
     def watch_address(self, addr):
         with self.lock:
@@ -124,7 +88,8 @@ class LNWatcher(PrintError):
             self.addr_sync.add_address(addr)
 
     async def check_onchain_situation(self, funding_outpoint):
-        ctx_candidate_txid = self.addr_sync.spent_outpoints[funding_outpoint.txid].get(funding_outpoint.output_index)
+        txid, index = funding_outpoint.split(':')
+        ctx_candidate_txid = self.addr_sync.spent_outpoints[txid].get(int(index))
         # call funding_txo_spent_callback if there is one
         is_funding_txo_spent = ctx_candidate_txid is not None
         cb = self.funding_txo_spent_callback.get(funding_outpoint)
@@ -162,7 +127,7 @@ class LNWatcher(PrintError):
         # get all possible responses we have
         ctx_txid = ctx.txid()
         with self.lock:
-            encumbered_sweep_txns = self.sweepstore[funding_outpoint.to_str()][ctx_txid]
+            encumbered_sweep_txns = self.sweepstore[funding_outpoint][ctx_txid]
         if len(encumbered_sweep_txns) == 0:
             # no useful response for this channel close..
             if self.get_tx_mined_status(ctx_txid) == TX_MINED_STATUS_DEEP:
@@ -180,70 +145,19 @@ class LNWatcher(PrintError):
                 tx_height = self.addr_sync.get_tx_height(ctx_txid).height
                 num_conf = local_height - tx_height + 1
                 if num_conf >= e_tx.csv_delay:
-                    result = await self.network.broadcast_transaction(e_tx.tx)
-                    self.print_tx_broadcast_result(result)
+                    success, msg = await self.network.broadcast_transaction(e_tx.tx)
+                    self.print_error('broadcast: {}, {}'.format('success' if success else 'failure', msg))
                 else:
                     self.print_error('waiting for CSV ({} < {}) for funding outpoint {} and ctx {}'
                                      .format(num_conf, e_tx.csv_delay, funding_outpoint, ctx.txid()))
         return keep_watching_this
 
-    def _get_last_ctn_for_processed_ctx(self, funding_address: str, ours: bool) -> int:
-        try:
-            ci = self.channel_info[funding_address]
-        except KeyError:
-            return -1
-        if ours:
-            return ci.last_ctn_our_ctx
-        else:
-            return ci.last_ctn_their_ctx
-
-    def _inc_last_ctn_for_processed_ctx(self, funding_address: str, ours: bool) -> None:
-        try:
-            ci = self.channel_info[funding_address]
-        except KeyError:
-            return
-        if ours:
-            ci = ci._replace(last_ctn_our_ctx=ci.last_ctn_our_ctx + 1)
-        else:
-            ci = ci._replace(last_ctn_their_ctx=ci.last_ctn_their_ctx + 1)
-        self.channel_info[funding_address] = ci
-
-    def _get_last_ctn_for_revoked_secret(self, funding_address: str) -> int:
-        try:
-            ci = self.channel_info[funding_address]
-        except KeyError:
-            return -1
-        return ci.last_ctn_revoked_pcs
-
-    def _inc_last_ctn_for_revoked_secret(self, funding_address: str) -> None:
-        try:
-            ci = self.channel_info[funding_address]
-        except KeyError:
-            return
-        ci = ci._replace(last_ctn_revoked_pcs=ci.last_ctn_revoked_pcs + 1)
-        self.channel_info[funding_address] = ci
-
-    def add_offchain_ctx(self, ctn, funding_address, ours, outpoint, ctx_id, encumbered_sweeptx):
-        last_ctn_watcher_saw = self._get_last_ctn_for_processed_ctx(funding_address, ours)
-        if last_ctn_watcher_saw + 1 != ctn:
-            raise Exception('watcher skipping ctns!! ctn {}. last seen {}. our ctx: {}'.format(ctn, last_ctn_watcher_saw, ours))
-        self.add_to_sweepstore(outpoint, ctx_id, encumbered_sweeptx)
-        self._inc_last_ctn_for_processed_ctx(funding_address, ours)
-        self.write_to_disk()
-
-    def add_revocation_secret(self, ctn, funding_address, outpoint, ctx_id, encumbered_sweeptx):
-        last_ctn_watcher_saw = self._get_last_ctn_for_revoked_secret(funding_address)
-        if last_ctn_watcher_saw + 1 != ctn:
-            raise Exception('watcher skipping ctns!! ctn {}. last seen {}'.format(ctn, last_ctn_watcher_saw))
-        self.add_to_sweepstore(outpoint, ctx_id, encumbered_sweeptx)
-        self._inc_last_ctn_for_revoked_secret(funding_address)
-        self.write_to_disk()
-
-    def add_to_sweepstore(self, funding_outpoint: str, ctx_txid: str, encumbered_sweeptx: EncumberedTransaction):
+    def add_sweep_tx(self, funding_outpoint: str, ctx_txid: str, encumbered_sweeptx: EncumberedTransaction):
         if encumbered_sweeptx is None:
             return
         with self.lock:
             self.sweepstore[funding_outpoint][ctx_txid].add(encumbered_sweeptx)
+        self.write_to_disk()
 
     def get_tx_mined_status(self, txid: str):
         if not txid:
@@ -269,8 +183,3 @@ class LNWatcher(PrintError):
             return TX_MINED_STATUS_FREE
         # note: using "min" as lower status values are deeper
         return min(map(self.get_tx_mined_status, set_of_txids))
-
-
-    def print_tx_broadcast_result(self, res):
-        success, msg = res
-        self.print_error('broadcast: {}, {}'.format('success' if success else 'failure', msg))

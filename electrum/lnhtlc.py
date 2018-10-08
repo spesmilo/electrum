@@ -373,10 +373,9 @@ class HTLCStateMachine(PrintError):
     # TODO batch sweeps
     # TODO sweep HTLC outputs
     def process_new_offchain_ctx(self, ctx, ours: bool):
-        funding_address = self.get_funding_address()
         outpoint = self.funding_outpoint.to_str()
-        ctn = (self.local_state.ctn if ours else self.remote_state.ctn) + 1
         if ours:
+            ctn = self.local_state.ctn + 1
             our_per_commitment_secret = get_per_commitment_secret_from_seed(
                 self.local_state.per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
             our_cur_pcp = ecc.ECPrivkey(our_per_commitment_secret).get_public_key_bytes(compressed=True)
@@ -384,15 +383,13 @@ class HTLCStateMachine(PrintError):
         else:
             their_cur_pcp = self.remote_state.next_per_commitment_point
             encumbered_sweeptx = maybe_create_sweeptx_for_their_ctx_to_remote(self, ctx, their_cur_pcp, self.sweep_address)
-        self.lnwatcher.add_offchain_ctx(ctn, funding_address, ours, outpoint, ctx.txid(), encumbered_sweeptx)
+        self.lnwatcher.add_sweep_tx(outpoint, ctx.txid(), encumbered_sweeptx)
 
     def process_new_revocation_secret(self, per_commitment_secret: bytes):
-        funding_address = self.get_funding_address()
         outpoint = self.funding_outpoint.to_str()
         ctx = self.remote_commitment_to_be_revoked
-        ctn = self.remote_state.ctn
         encumbered_sweeptx = maybe_create_sweeptx_for_their_ctx_to_local(self, ctx, per_commitment_secret, self.sweep_address)
-        self.lnwatcher.add_revocation_secret(ctn, funding_address, outpoint, ctx.txid(), encumbered_sweeptx)
+        self.lnwatcher.add_sweep_tx(outpoint, ctx.txid(), encumbered_sweeptx)
 
     def receive_revocation(self, revocation):
         """
