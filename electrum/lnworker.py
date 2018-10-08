@@ -25,7 +25,8 @@ from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
                      generate_keypair, LnKeyFamily)
-from electrum.lnaddr import lndecode
+from .lnutil import LOCAL, REMOTE
+from .lnaddr import lndecode
 from .i18n import _
 
 
@@ -268,7 +269,15 @@ class LNWorker(PrintError):
     def list_channels(self):
         with self.lock:
             # we output the funding_outpoint instead of the channel_id because lnd uses channel_point (funding outpoint) to identify channels
-            return [(chan.funding_outpoint.to_str(), chan.get_state()) for channel_id, chan in self.channels.items()]
+            for channel_id, chan in self.channels.items():
+                yield {
+                    'channel_id': bh2u(chan.short_channel_id),
+                    'channel_point': chan.funding_outpoint.to_str(),
+                    'state': chan.get_state(),
+                    'remote_pubkey': bh2u(chan.node_id),
+                    'local_balance': chan.balance(LOCAL)//1000,
+                    'remote_balance': chan.balance(REMOTE)//1000,
+                }
 
     async def close_channel(self, chan_id):
         chan = self.channels[chan_id]
