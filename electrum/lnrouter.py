@@ -28,7 +28,7 @@ import os
 import json
 import threading
 from collections import namedtuple, defaultdict
-from typing import Sequence, Union, Tuple, Optional
+from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple
 import binascii
 import base64
 import asyncio
@@ -478,14 +478,13 @@ class ChannelDB(JsonDB):
                                    direction))
 
 
-class RouteEdge:
-
-    def __init__(self, node_id: bytes, short_channel_id: bytes,
-                 channel_policy: ChannelInfoDirectedPolicy):
-        # "if you travel through short_channel_id, you will reach node_id"
-        self.node_id = node_id
-        self.short_channel_id = short_channel_id
-        self.channel_policy = channel_policy
+class RouteEdge(NamedTuple("RouteEdge", [('node_id', bytes),
+                                         ('short_channel_id', bytes),
+                                         ('fee_base_msat', int),
+                                         ('fee_proportional_millionths', int),
+                                         ('cltv_expiry_delta', int)])):
+    """if you travel through short_channel_id, you will reach node_id"""
+    pass
 
 
 class LNPathFinder(PrintError):
@@ -578,7 +577,7 @@ class LNPathFinder(PrintError):
         path.reverse()
         return path
 
-    def create_route_from_path(self, path, from_node_id: bytes) -> Sequence[RouteEdge]:
+    def create_route_from_path(self, path, from_node_id: bytes) -> List[RouteEdge]:
         assert type(from_node_id) is bytes
         if path is None:
             raise Exception('cannot create route from None path')
@@ -591,6 +590,10 @@ class LNPathFinder(PrintError):
             channel_policy = channel_info.get_policy_for_node(prev_node_id)
             if channel_policy is None:
                 raise Exception('cannot find channel policy for short_channel_id: {}'.format(bh2u(short_channel_id)))
-            route.append(RouteEdge(node_id, short_channel_id, channel_policy))
+            route.append(RouteEdge(node_id,
+                                   short_channel_id,
+                                   channel_policy.fee_base_msat,
+                                   channel_policy.fee_proportional_millionths,
+                                   channel_policy.cltv_expiry_delta))
             prev_node_id = node_id
         return route

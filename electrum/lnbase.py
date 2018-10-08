@@ -1018,19 +1018,18 @@ class Peer(PrintError):
         await self.receive_commitment(chan)
         self.revoke(chan)
 
-    async def pay(self, path, chan, amount_msat, payment_hash, pubkey_in_invoice, min_final_cltv_expiry):
+    async def pay(self, route: List[RouteEdge], chan, amount_msat, payment_hash, min_final_cltv_expiry):
         assert chan.get_state() == "OPEN", chan.get_state()
         assert amount_msat > 0, "amount_msat is not greater zero"
         height = self.network.get_local_height()
-        route = self.network.path_finder.create_route_from_path(path, self.lnworker.node_keypair.pubkey)
         hops_data = []
-        sum_of_deltas = sum(route_edge.channel_policy.cltv_expiry_delta for route_edge in route[1:])
+        sum_of_deltas = sum(route_edge.cltv_expiry_delta for route_edge in route[1:])
         total_fee = 0
         final_cltv_expiry_without_deltas = (height + min_final_cltv_expiry)
         final_cltv_expiry_with_deltas = final_cltv_expiry_without_deltas + sum_of_deltas
         for idx, route_edge in enumerate(route[1:]):
             hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id, amount_msat.to_bytes(8, "big"), final_cltv_expiry_without_deltas.to_bytes(4, "big")))]
-            total_fee += route_edge.channel_policy.fee_base_msat + ( amount_msat * route_edge.channel_policy.fee_proportional_millionths // 1000000 )
+            total_fee += route_edge.fee_base_msat + ( amount_msat * route_edge.fee_proportional_millionths // 1000000 )
         associated_data = payment_hash
         secret_key = os.urandom(32)
         hops_data += [OnionHopsDataSingle(OnionPerHop(b"\x00"*8, amount_msat.to_bytes(8, "big"), (final_cltv_expiry_without_deltas).to_bytes(4, "big")))]
