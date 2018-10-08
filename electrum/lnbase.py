@@ -736,7 +736,7 @@ class Peer(PrintError):
         m.remote_state = m.remote_state._replace(ctn=0)
         m.local_state = m.local_state._replace(ctn=0, current_commitment_signature=remote_sig)
         self.lnworker.save_channel(m)
-        self.lnwatcher.watch_channel(m.get_funding_address(), m.funding_outpoint.to_str(), partial(self.lnworker.on_channel_utxos, m))
+        self.lnwatcher.watch_channel(m.get_funding_address(), m.funding_outpoint.to_str())
         self.lnworker.on_channels_updated()
         while True:
             try:
