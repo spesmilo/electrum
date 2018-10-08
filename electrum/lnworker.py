@@ -56,7 +56,7 @@ class LNWorker(PrintError):
             c.sweep_address = self.sweep_address
         self.invoices = wallet.storage.get('lightning_invoices', {})
         for chan_id, chan in self.channels.items():
-            self.network.lnwatcher.watch_channel(chan, partial(self.on_channel_utxos, chan))
+            self.network.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str(), partial(self.on_channel_utxos, chan))
         self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
         # wait until we see confirmations
@@ -188,7 +188,7 @@ class LNWorker(PrintError):
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
         self.save_channel(chan)
-        self.network.lnwatcher.watch_channel(chan, partial(self.on_channel_utxos, chan))
+        self.network.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str(), partial(self.on_channel_utxos, chan))
         self.on_channels_updated()
 
     def on_channels_updated(self):
