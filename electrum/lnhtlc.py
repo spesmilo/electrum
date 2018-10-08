@@ -143,6 +143,7 @@ class HTLCStateMachine(PrintError):
         self.funding_outpoint = Outpoint(**decodeAll(state["funding_outpoint"])) if type(state["funding_outpoint"]) is not Outpoint else state["funding_outpoint"]
         self.node_id = maybeDecode("node_id", state["node_id"]) if type(state["node_id"]) is not bytes else state["node_id"]
         self.short_channel_id = maybeDecode("short_channel_id", state["short_channel_id"]) if type(state["short_channel_id"]) is not bytes else state["short_channel_id"]
+        self.short_channel_id_predicted = self.short_channel_id
         self.onion_keys = {int(k): bfh(v) for k,v in state['onion_keys'].items()} if 'onion_keys' in state else {}
 
         # FIXME this is a tx serialised in the custom electrum partial tx format.

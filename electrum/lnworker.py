@@ -48,8 +48,8 @@ class LNWorker(PrintError):
         self.ln_keystore = self._read_ln_keystore()
         self.node_keypair = generate_keypair(self.ln_keystore, LnKeyFamily.NODE_KEY, 0)
         self.config = network.config
-        self.peers = {}  # pubkey -> Peer
-        self.channels = {x.channel_id: x for x in map(HTLCStateMachine, wallet.storage.get("channels", []))}
+        self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
+        self.channels = {x.channel_id: x for x in map(HTLCStateMachine, wallet.storage.get("channels", []))}  # type: Dict[bytes, HTLCStateMachine]
         for c in self.channels.values():
             c.lnwatcher = network.lnwatcher
             c.sweep_address = self.sweep_address
@@ -126,21 +126,19 @@ class LNWorker(PrintError):
 
     def save_short_chan_id(self, chan):
         """
-        Checks if the Funding TX has been mined. If it has save the short channel ID to disk and return the new OpenChannel.
-
-        If the Funding TX has not been mined, return None
+        Checks if Funding TX has been mined. If it has, save the short channel ID in chan;
+        if it's also deep enough, also save to disk.
+        Returns tuple (mined_deep_enough, num_confirmations).
         """
         assert chan.get_state() in ["OPEN", "OPENING"]
-        peer = self.peers[chan.node_id]
         addr_sync = self.network.lnwatcher.addr_sync
         conf = addr_sync.get_tx_height(chan.funding_outpoint.txid).conf
-        if conf >= chan.constraints.funding_txn_minimum_depth:
+        if conf > 0:
             block_height, tx_pos = addr_sync.get_txpos(chan.funding_outpoint.txid)
-            if tx_pos == -1:
-                self.print_error('funding tx is not yet SPV verified.. but there are '
-                                 'already enough confirmations (currently {})'.format(conf))
-                return False, conf
-            chan.short_channel_id = calc_short_channel_id(block_height, tx_pos, chan.funding_outpoint.output_index)
+            assert tx_pos >= 0
+            chan.short_channel_id_predicted = calc_short_channel_id(block_height, tx_pos, chan.funding_outpoint.output_index)
+        if conf >= chan.constraints.funding_txn_minimum_depth > 0:
+            chan.short_channel_id = chan.short_channel_id_predicted
             self.save_channel(chan)
             return True, conf
         return False, conf
@@ -244,6 +242,7 @@ class LNWorker(PrintError):
         if amount_sat is None:
             raise InvoiceError(_("Missing amount"))
         amount_msat = int(amount_sat * 1000)
+        # TODO use 'r' field from invoice
         path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat)
         if path is None:
             raise PaymentFailure(_("No path found"))
@@ -263,11 +262,38 @@ class LNWorker(PrintError):
         payment_preimage = os.urandom(32)
         RHASH = sha256(payment_preimage)
         amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
-        pay_req = lnencode(LnAddr(RHASH, amount_btc, tags=[('d', message)]), self.node_keypair.privkey)
+        routing_hints = self._calc_routing_hints_for_invoice(amount_sat)
+        pay_req = lnencode(LnAddr(RHASH, amount_btc, tags=[('d', message)]+routing_hints),
+                           self.node_keypair.privkey)
         self.invoices[bh2u(payment_preimage)] = pay_req
         self.wallet.storage.put('lightning_invoices', self.invoices)
         self.wallet.storage.write()
         return pay_req
+
+    def _calc_routing_hints_for_invoice(self, amount_sat):
+        """calculate routing hints (BOLT-11 'r' field)"""
+        routing_hints = []
+        with self.lock:
+            channels = list(self.channels.values())
+        # note: currently we add *all* our channels; but this might be a privacy leak?
+        for chan in channels:
+            # check channel is open
+            if chan.get_state() != "OPEN": continue
+            # check channel has sufficient balance
+            # FIXME because of on-chain fees of ctx, this check is insufficient
+            if amount_sat and chan.balance(REMOTE) // 1000 < amount_sat: continue
+            chan_id = chan.short_channel_id
+            assert type(chan_id) is bytes, chan_id
+            channel_info = self.channel_db.get_channel_info(chan_id)
+            if not channel_info: continue
+            policy = channel_info.get_policy_for_node(chan.node_id)
+            if not policy: continue
+            routing_hints.append(('r', [(chan.node_id,
+                                         chan_id,
+                                         policy.fee_base_msat,
+                                         policy.fee_proportional_millionths,
+                                         policy.cltv_expiry_delta)]))
+        return routing_hints
 
     def delete_invoice(self, payreq_key):
         try:
