@@ -153,7 +153,14 @@ class TxDialog(QDialog, MessageBoxMixin):
             event.ignore()
         else:
             event.accept()
-            dialogs.remove(self)
+            try:
+                dialogs.remove(self)
+            except ValueError:  # wasn't in list
+                pass
+
+    def reject(self):
+        # Override escape-key to close normally (and invoke closeEvent)
+        self.close()
 
     def show_qr(self):
         text = bfh(str(self.tx))
