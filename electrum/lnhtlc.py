@@ -373,6 +373,8 @@ class HTLCStateMachine(PrintError):
     # TODO batch sweeps
     # TODO sweep HTLC outputs
     def process_new_offchain_ctx(self, ctx, ours: bool):
+        if not self.lnwatcher:
+            return
         outpoint = self.funding_outpoint.to_str()
         if ours:
             ctn = self.local_state.ctn + 1
@@ -386,6 +388,8 @@ class HTLCStateMachine(PrintError):
         self.lnwatcher.add_sweep_tx(outpoint, ctx.txid(), encumbered_sweeptx)
 
     def process_new_revocation_secret(self, per_commitment_secret: bytes):
+        if not self.lnwatcher:
+            return
         outpoint = self.funding_outpoint.to_str()
         ctx = self.remote_commitment_to_be_revoked
         encumbered_sweeptx = maybe_create_sweeptx_for_their_ctx_to_local(self, ctx, per_commitment_secret, self.sweep_address)
