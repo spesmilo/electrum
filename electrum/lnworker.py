@@ -27,6 +27,7 @@ from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
 from .lnutil import LOCAL, REMOTE
 from .lnaddr import lndecode
 from .i18n import _
+from .lnrouter import RouteEdge
 
 
 NUM_PEERS_TARGET = 4
@@ -237,16 +238,12 @@ class LNWorker(PrintError):
     def pay(self, invoice, amount_sat=None):
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         payment_hash = addr.paymenthash
-        invoice_pubkey = addr.pubkey.serialize()
         amount_sat = (addr.amount * COIN) if addr.amount else amount_sat
         if amount_sat is None:
             raise InvoiceError(_("Missing amount"))
         amount_msat = int(amount_sat * 1000)
-        # TODO use 'r' field from invoice
-        path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat)
-        if path is None:
-            raise PaymentFailure(_("No path found"))
-        node_id, short_channel_id = path[0]
+        route = self._create_route_from_invoice(decoded_invoice=addr, amount_msat=amount_msat)
+        node_id, short_channel_id = route[0].node_id, route[0].short_channel_id
         peer = self.peers[node_id]
         with self.lock:
             channels = list(self.channels.values())
@@ -255,8 +252,36 @@ class LNWorker(PrintError):
                 break
         else:
             raise Exception("ChannelDB returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
-        coro = peer.pay(path, chan, amount_msat, payment_hash, invoice_pubkey, addr.min_final_cltv_expiry)
+        coro = peer.pay(route, chan, amount_msat, payment_hash, addr.min_final_cltv_expiry)
         return addr, peer, asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+
+    def _create_route_from_invoice(self, decoded_invoice, amount_msat) -> List[RouteEdge]:
+        invoice_pubkey = decoded_invoice.pubkey.serialize()
+        # use 'r' field from invoice
+        route = None  # type: List[RouteEdge]
+        for tag_type, data in decoded_invoice.tags:
+            if tag_type != 'r': continue
+            private_route = data
+            if len(private_route) == 0: continue
+            border_node_pubkey = private_route[0][0]
+            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat)
+            if path is None: continue
+            route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey)
+            # we need to shift the node pubkey by one towards the destination:
+            private_route_nodes = [edge[0] for edge in private_route][1:] + [invoice_pubkey]
+            private_route_rest = [edge[1:] for edge in private_route]
+            for node_pubkey, edge_rest in zip(private_route_nodes, private_route_rest):
+                short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = edge_rest
+                route.append(RouteEdge(node_pubkey, short_channel_id, fee_base_msat, fee_proportional_millionths,
+                                       cltv_expiry_delta))
+            break
+        # if could not find route using any hint; try without hint now
+        if route is None:
+            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat)
+            if path is None:
+                raise PaymentFailure(_("No path found"))
+            route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey)
+        return route
 
     def add_invoice(self, amount_sat, message):
         payment_preimage = os.urandom(32)
