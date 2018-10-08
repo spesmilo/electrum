@@ -24,6 +24,7 @@ class LNWatcher(PrintError):
         path = os.path.join(network.config.path, "watcher_db")
         storage = WalletStorage(path)
         self.addr_sync = AddressSynchronizer(storage)
+        self.addr_sync.diagnostic_name = lambda: 'LnWatcherAS'
         self.addr_sync.start_network(network)
         self.lock = threading.RLock()
         self.watched_addresses = set()
