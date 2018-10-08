@@ -27,10 +27,7 @@ class LNWatcher(PrintError):
         self.addr_sync.start_network(network)
         self.lock = threading.RLock()
         self.watched_addresses = set()
-
         self.channel_info = storage.get('channel_info', {})  # access with 'lock'
-        self.funding_txo_spent_callback = {}  # funding_outpoint -> callback
-
         # TODO structure will need to change when we handle HTLCs......
         # [funding_outpoint_str][ctx_txid] -> set of EncumberedTransaction
         # access with 'lock'
@@ -58,12 +55,11 @@ class LNWatcher(PrintError):
             storage.put('sweepstore', sweepstore)
         storage.write()
 
-    def watch_channel(self, address, outpoint, callback_funding_txo_spent):
+    def watch_channel(self, address, outpoint):
         self.watch_address(address)
         with self.lock:
             if address not in self.channel_info:
                 self.channel_info[address] = outpoint
-            self.funding_txo_spent_callback[outpoint] = callback_funding_txo_spent
             self.write_to_disk()
 
     @aiosafe
@@ -90,11 +86,9 @@ class LNWatcher(PrintError):
     async def check_onchain_situation(self, funding_outpoint):
         txid, index = funding_outpoint.split(':')
         ctx_candidate_txid = self.addr_sync.spent_outpoints[txid].get(int(index))
-        # call funding_txo_spent_callback if there is one
-        is_funding_txo_spent = ctx_candidate_txid is not None
-        cb = self.funding_txo_spent_callback.get(funding_outpoint)
-        if cb: cb(is_funding_txo_spent)
-        if not is_funding_txo_spent:
+        is_spent = ctx_candidate_txid is not None
+        self.network.trigger_callback('channel_txo', funding_outpoint, is_spent)
+        if not is_spent:
             return
         ctx_candidate = self.addr_sync.transactions.get(ctx_candidate_txid)
         if ctx_candidate is None:

@@ -56,11 +56,12 @@ class LNWorker(PrintError):
             c.sweep_address = self.sweep_address
         self.invoices = wallet.storage.get('lightning_invoices', {})
         for chan_id, chan in self.channels.items():
-            self.network.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str(), partial(self.on_channel_utxos, chan))
+            self.network.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
         self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
         # wait until we see confirmations
         self.network.register_callback(self.on_network_update, ['network_updated', 'verified', 'fee'])  # thread safe
+        self.network.register_callback(self.on_channel_txo, ['channel_txo'])
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
 
     def _read_ln_keystore(self) -> BIP32_KeyStore:
@@ -145,9 +146,16 @@ class LNWorker(PrintError):
             return True, conf
         return False, conf
 
-    def on_channel_utxos(self, chan, is_funding_txo_spent: bool):
-        chan.set_funding_txo_spentness(is_funding_txo_spent)
-        if is_funding_txo_spent:
+    def on_channel_txo(self, event, txo, is_spent: bool):
+        with self.lock:
+            channels = list(self.channels.values())
+        for chan in channels:
+            if chan.funding_outpoint.to_str() == txo:
+                break
+        else:
+            return
+        chan.set_funding_txo_spentness(is_spent)
+        if is_spent:
             chan.set_state("CLOSED")
             self.channel_db.remove_channel(chan.short_channel_id)
         self.network.trigger_callback('channel', chan)
@@ -188,7 +196,7 @@ class LNWorker(PrintError):
             push_msat=push_sat * 1000,
             temp_channel_id=os.urandom(32))
         self.save_channel(chan)
-        self.network.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str(), partial(self.on_channel_utxos, chan))
+        self.network.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
         self.on_channels_updated()
 
     def on_channels_updated(self):
