@@ -21,7 +21,7 @@ from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string
 from .crypto import sha256
 from . import constants
-from .util import PrintError, bh2u, print_error, bfh, aiosafe
+from .util import PrintError, bh2u, print_error, bfh, log_exceptions
 from .transaction import Transaction, TxOutput
 from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error, ONION_FAILURE_CODE_MAP
 from .lnaddr import lndecode
@@ -524,6 +524,7 @@ class Peer(PrintError):
         per_commitment_secret_seed = keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey
         return local_config, per_commitment_secret_seed
 
+    @log_exceptions
     async def channel_establishment_flow(self, password, funding_sat, push_msat, temp_channel_id):
         await self.initialized
         local_config, per_commitment_secret_seed = self.make_local_config(funding_sat, push_msat, LOCAL)
