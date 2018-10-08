@@ -1,17 +1,18 @@
 #! /usr/bin/env python3
 # This was forked from https://github.com/rustyrussell/lightning-payencode/tree/acc16ec13a3fa1dc16c07af6ec67c261bd8aff23
 
-from .bitcoin import hash160_to_b58_address, b58_address_to_hash160
-from hashlib import sha256
-from .segwit_addr import bech32_encode, bech32_decode, CHARSET
-from binascii import hexlify
-from decimal import Decimal
-from . import constants
-
-from . import ecc
-import bitstring
 import re
 import time
+from hashlib import sha256
+from binascii import hexlify
+from decimal import Decimal
+
+import bitstring
+
+from .bitcoin import hash160_to_b58_address, b58_address_to_hash160
+from .segwit_addr import bech32_encode, bech32_decode, CHARSET
+from . import constants
+from . import ecc
 
 
 # BOLT #11:
