@@ -3,9 +3,8 @@ import os
 from decimal import Decimal
 import random
 import time
-from typing import Optional, Sequence, Tuple, List
+from typing import Optional, Sequence, Tuple, List, Dict
 import threading
-from functools import partial
 import socket
 
 import dns.resolver
@@ -17,7 +16,7 @@ from . import bitcoin
 from .keystore import BIP32_KeyStore
 from .bitcoin import sha256, COIN
 from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address
-from .lnbase import Peer, privkey_to_pubkey, aiosafe
+from .lnbase import Peer, aiosafe
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .lnhtlc import HTLCStateMachine
@@ -60,7 +59,7 @@ class LNWorker(PrintError):
         self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
         # wait until we see confirmations
-        self.network.register_callback(self.on_network_update, ['network_updated', 'verified', 'fee'])  # thread safe
+        self.network.register_callback(self.on_network_update, ['wallet_updated', 'network_updated', 'verified', 'fee'])  # thread safe
         self.network.register_callback(self.on_channel_txo, ['channel_txo'])
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
 
@@ -168,6 +167,10 @@ class LNWorker(PrintError):
         with self.lock:
             channels = list(self.channels.values())
         addr_sync = self.network.lnwatcher.addr_sync
+        if event in ('verified', 'wallet_updated'):
+            wallet = args[0]
+            if wallet != addr_sync:
+                return
         for chan in channels:
             if chan.get_state() == "OPENING":
                 res, depth = self.save_short_chan_id(chan)
