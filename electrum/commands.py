@@ -790,7 +790,7 @@ class Commands:
 
     @command('wn')
     def listchannels(self):
-        return self.wallet.lnworker.list_channels()
+        return list(self.wallet.lnworker.list_channels())
 
     @command('wn')
     def dumpgraph(self):
