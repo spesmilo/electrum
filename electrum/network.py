@@ -357,8 +357,9 @@ class Network(PrintError):
         self.notify('fee_histogram')
         for i, task in fee_tasks:
             fee = int(task.result() * COIN)
-            self.config.update_fee_estimates(i, fee)
             self.print_error("fee_estimates[%d]" % i, fee)
+            if fee < 0: continue
+            self.config.update_fee_estimates(i, fee)
         self.notify('fee')
 
     def get_status_value(self, key):

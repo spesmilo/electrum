@@ -77,7 +77,9 @@ def base_unit_name_to_decimal_point(unit_name: str) -> int:
         raise UnknownBaseUnit(unit_name) from None
 
 
-class NotEnoughFunds(Exception): pass
+class NotEnoughFunds(Exception):
+    def __str__(self):
+        return _("Insufficient funds")
 
 
 class NoDynamicFeeEstimates(Exception):
