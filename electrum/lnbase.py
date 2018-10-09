@@ -816,6 +816,7 @@ class Peer(PrintError):
         per_commitment_secret_index = RevocationStore.START_INDEX - 1
         per_commitment_point_second = secret_to_pubkey(int.from_bytes(
             get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, per_commitment_secret_index), 'big'))
+        # note: if funding_locked was not yet received, we might send it multiple times
         self.send_message(gen_msg("funding_locked", channel_id=channel_id, next_per_commitment_point=per_commitment_point_second))
         if chan.local_state.funding_locked_received:
             self.mark_open(chan)
