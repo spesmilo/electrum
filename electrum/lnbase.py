@@ -1014,7 +1014,6 @@ class Peer(PrintError):
     @aiosafe
     async def on_update_fail_htlc(self, payload):
         channel_id = payload["channel_id"]
-        chan = self.channels[channel_id]
         htlc_id = int.from_bytes(payload["id"], "big")
         key = (channel_id, htlc_id)
         try:
@@ -1024,18 +1023,7 @@ class Peer(PrintError):
             # attempted_route is not persisted, so we will get here then
             self.print_error("UPDATE_FAIL_HTLC. cannot decode! attempted route is MISSING. {}".format(key))
         else:
-            failure_msg, sender_idx = decode_onion_error(payload["reason"], [x.node_id for x in route], chan.onion_keys[htlc_id])
-            code = OnionFailureCode(failure_msg.code)
-            data = failure_msg.data
-            self.print_error("UPDATE_FAIL_HTLC", repr(code), data)
-            try:
-                short_chan_id = route[sender_idx + 1].short_channel_id
-            except IndexError:
-                self.print_error("payment destination reported error")
-            else:
-                # TODO this should depend on the error
-                # also, we need finer blacklisting (directed edges; nodes)
-                self.network.path_finder.blacklist.add(short_chan_id)
+            await self._handle_error_code_from_failed_htlc(payload["reason"], route, channel_id, htlc_id)
         # process update_fail_htlc on channel
         chan = self.channels[channel_id]
         chan.receive_fail_htlc(htlc_id)
@@ -1044,6 +1032,50 @@ class Peer(PrintError):
         self.send_commitment(chan)  # htlc will be removed
         await self.receive_revoke(chan)
         self.lnworker.save_channel(chan)
+
+    async def _handle_error_code_from_failed_htlc(self, error_reason, route, channel_id, htlc_id):
+        chan = self.channels[channel_id]
+        failure_msg, sender_idx = decode_onion_error(error_reason,
+                                                     [x.node_id for x in route],
+                                                     chan.onion_keys[htlc_id])
+        code = OnionFailureCode(failure_msg.code)
+        data = failure_msg.data
+        self.print_error("UPDATE_FAIL_HTLC", repr(code), data)
+        # handle some specific error codes
+        if code == OnionFailureCode.TEMPORARY_CHANNEL_FAILURE:
+            channel_update = (258).to_bytes(length=2, byteorder="big") + data[2:]
+            message_type, payload = decode_msg(channel_update)
+            self.on_channel_update(payload)
+        elif code == OnionFailureCode.AMOUNT_BELOW_MINIMUM:
+            channel_update = (258).to_bytes(length=2, byteorder="big") + data[10:]
+            message_type, payload = decode_msg(channel_update)
+            self.on_channel_update(payload)
+        elif code == OnionFailureCode.FEE_INSUFFICIENT:
+            channel_update = (258).to_bytes(length=2, byteorder="big") + data[10:]
+            message_type, payload = decode_msg(channel_update)
+            self.on_channel_update(payload)
+        elif code == OnionFailureCode.INCORRECT_CLTV_EXPIRY:
+            channel_update = (258).to_bytes(length=2, byteorder="big") + data[6:]
+            message_type, payload = decode_msg(channel_update)
+            self.on_channel_update(payload)
+        elif code == OnionFailureCode.EXPIRY_TOO_SOON:
+            channel_update = (258).to_bytes(length=2, byteorder="big") + data[2:]
+            message_type, payload = decode_msg(channel_update)
+            self.on_channel_update(payload)
+        elif code == OnionFailureCode.CHANNEL_DISABLED:
+            channel_update = (258).to_bytes(length=2, byteorder="big") + data[4:]
+            message_type, payload = decode_msg(channel_update)
+            self.on_channel_update(payload)
+        else:
+            # blacklist channel after reporter node
+            # TODO this should depend on the error (even more granularity)
+            # also, we need finer blacklisting (directed edges; nodes)
+            try:
+                short_chan_id = route[sender_idx + 1].short_channel_id
+            except IndexError:
+                self.print_error("payment destination reported error")
+            else:
+                self.network.path_finder.blacklist.add(short_chan_id)
 
     def send_commitment(self, chan):
         sig_64, htlc_sigs = chan.sign_next_commitment()
