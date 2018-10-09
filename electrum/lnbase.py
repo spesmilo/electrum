@@ -1014,22 +1014,28 @@ class Peer(PrintError):
         chan = self.channels[channel_id]
         htlc_id = int.from_bytes(payload["id"], "big")
         key = (channel_id, htlc_id)
-        route = self.attempted_route[key]
-        failure_msg, sender_idx = decode_onion_error(payload["reason"], [x.node_id for x in route], chan.onion_keys[htlc_id])
-        code = failure_msg.code
-        code_name = ONION_FAILURE_CODE_MAP.get(code, 'unknown_error!!')
-        data = failure_msg.data
-        self.print_error("UPDATE_FAIL_HTLC", code_name, code, data)
         try:
-            short_chan_id = route[sender_idx + 1].short_channel_id
-        except IndexError:
-            self.print_error("payment destination reported error")
+            route = self.attempted_route[key]
+        except KeyError:
+            # the remote might try to fail an htlc after we restarted...
+            # attempted_route is not persisted, so we will get here then
+            self.print_error("UPDATE_FAIL_HTLC. cannot decode! attempted route is MISSING. {}".format(key))
         else:
-            # TODO this should depend on the error
-            # also, we need finer blacklisting (directed edges; nodes)
-            self.network.path_finder.blacklist.add(short_chan_id)
-
-        self.print_error("HTLC failure with code {} ({})".format(code, code_name))
+            failure_msg, sender_idx = decode_onion_error(payload["reason"], [x.node_id for x in route], chan.onion_keys[htlc_id])
+            code = failure_msg.code
+            code_name = ONION_FAILURE_CODE_MAP.get(code, 'unknown_error??')
+            data = failure_msg.data
+            self.print_error("UPDATE_FAIL_HTLC", code_name, code, data)
+            try:
+                short_chan_id = route[sender_idx + 1].short_channel_id
+            except IndexError:
+                self.print_error("payment destination reported error")
+            else:
+                # TODO this should depend on the error
+                # also, we need finer blacklisting (directed edges; nodes)
+                self.network.path_finder.blacklist.add(short_chan_id)
+            self.print_error("HTLC failure with code {} ({})".format(code, code_name))
+        # process update_fail_htlc on channel
         chan = self.channels[channel_id]
         chan.receive_fail_htlc(htlc_id)
         await self.receive_commitment(chan)
