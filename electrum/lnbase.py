@@ -792,23 +792,42 @@ class Peer(PrintError):
         if not chan:
             print("Warning: received unknown channel_reestablish", bh2u(chan_id))
             return
+
+        def try_to_get_remote_to_force_close_with_their_latest():
+            self.print_error("trying to get remote to force close", bh2u(chan_id))
+            self.send_message(gen_msg("channel_reestablish",
+                                      channel_id=chan_id,
+                                      next_local_commitment_number=0,
+                                      next_remote_revocation_number=0
+                                      ))
+
         channel_reestablish_msg = payload
+        # compare remote ctns
         remote_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
         if remote_ctn != chan.remote_state.ctn + 1:
-            raise Exception("expected remote ctn {}, got {}".format(chan.remote_state.ctn + 1, remote_ctn))
+            self.print_error("expected remote ctn {}, got {}".format(chan.remote_state.ctn + 1, remote_ctn))
+            # TODO iff their ctn is lower than ours, we should force close instead
+            try_to_get_remote_to_force_close_with_their_latest()
+            return
+        # compare local ctns
         local_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
         if local_ctn != chan.local_state.ctn:
-            raise Exception("expected local ctn {}, got {}".format(chan.local_state.ctn, local_ctn))
-        try:
-            their = channel_reestablish_msg["my_current_per_commitment_point"]
-        except KeyError: # no data_protect option
-            self.channel_reestablished[chan_id].set_result(True)
+            self.print_error("expected local ctn {}, got {}".format(chan.local_state.ctn, local_ctn))
+            # TODO iff their ctn is lower than ours, we should force close instead
+            try_to_get_remote_to_force_close_with_their_latest()
             return
-        our = chan.remote_state.current_per_commitment_point
-        if our is None:
-            our = chan.remote_state.next_per_commitment_point
-        if our != their:
-            raise Exception("Remote PCP mismatch: {} {}".format(bh2u(our), bh2u(their)))
+        # compare per commitment points (needs data_protect option)
+        their_pcp = channel_reestablish_msg.get("my_current_per_commitment_point", None)
+        if their_pcp is not None:
+            our_pcp = chan.remote_state.current_per_commitment_point
+            if our_pcp is None:
+                our_pcp = chan.remote_state.next_per_commitment_point
+            if our_pcp != their_pcp:
+                self.print_error("Remote PCP mismatch: {} {}".format(bh2u(our_pcp), bh2u(their_pcp)))
+                # FIXME ...what now?
+                try_to_get_remote_to_force_close_with_their_latest()
+                return
+        # checks done
         self.channel_reestablished[chan_id].set_result(True)
 
     def funding_locked(self, chan):
