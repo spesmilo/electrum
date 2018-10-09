@@ -39,7 +39,7 @@ from .storage import JsonDB
 from .lnchannelverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .crypto import Hash
 from . import ecc
-from .lnutil import LN_GLOBAL_FEATURE_BITS, LNPeerAddr
+from .lnutil import LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr
 
 
 class UnknownEvenFeatureBits(Exception): pass
@@ -55,7 +55,7 @@ class ChannelInfo(PrintError):
         self.features = channel_announcement_payload['features']
         enabled_features = list_enabled_bits(int.from_bytes(self.features, "big"))
         for fbit in enabled_features:
-            if fbit not in LN_GLOBAL_FEATURE_BITS and fbit % 2 == 0:
+            if (1 << fbit) not in LN_GLOBAL_FEATURES_KNOWN_SET and fbit % 2 == 0:
                 raise UnknownEvenFeatureBits()
 
         self.channel_id = channel_announcement_payload['short_channel_id']
@@ -191,7 +191,7 @@ class NodeInfo(PrintError):
         self.features = node_announcement_payload['features']
         enabled_features = list_enabled_bits(int.from_bytes(self.features, "big"))
         for fbit in enabled_features:
-            if fbit not in LN_GLOBAL_FEATURE_BITS and fbit % 2 == 0:
+            if (1 << fbit) not in LN_GLOBAL_FEATURES_KNOWN_SET and fbit % 2 == 0:
                 raise UnknownEvenFeatureBits()
         if not addresses_already_parsed:
             self.addresses = self.parse_addresses_field(node_announcement_payload['addresses'])

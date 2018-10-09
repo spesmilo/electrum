@@ -17,6 +17,7 @@ from typing import List
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 import aiorpcx
 
+from .util import list_enabled_bits
 from . import bitcoin
 from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string
@@ -30,8 +31,9 @@ from .lnhtlc import HTLCStateMachine, RevokeAndAck
 from .lnutil import (Outpoint, ChannelConfig, LocalState,
                      RemoteState, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_ecdh, get_per_commitment_secret_from_seed,
-                     secret_to_pubkey, LNPeerAddr, PaymentFailure,
-                     LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily)
+                     secret_to_pubkey, LNPeerAddr, PaymentFailure, LnLocalFeatures,
+                     LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily,
+                     get_ln_flag_pair_of_bit)
 from .lnrouter import NotFoundChanAnnouncementForUpdate, RouteEdge
 
 
@@ -290,7 +292,10 @@ class Peer(PrintError):
         self.announcement_signatures = defaultdict(asyncio.Queue)
         self.closing_signed = defaultdict(asyncio.Queue)
         self.payment_preimages = defaultdict(asyncio.Queue)
-        self.localfeatures = (0x08 if request_initial_sync else 0)
+        self.localfeatures = LnLocalFeatures(0)
+        if request_initial_sync:
+            self.localfeatures |= LnLocalFeatures.INITIAL_ROUTING_SYNC
+        self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.invoices = lnworker.invoices
         self.attempted_route = {}
 
@@ -442,7 +447,17 @@ class Peer(PrintError):
         self.network.trigger_callback('ln_status')
 
     def on_init(self, payload):
-        pass
+        # if they required some even flag we don't have, they will close themselves
+        # but if we require an even flag they don't have, we close
+        our_flags = set(list_enabled_bits(self.localfeatures))
+        their_flags = set(list_enabled_bits(int.from_bytes(payload['localfeatures'], byteorder="big")))
+        for flag in our_flags:
+            if flag not in their_flags and get_ln_flag_pair_of_bit(flag) not in their_flags:
+                # they don't have this feature we wanted :(
+                if flag % 2 == 0:  # even flags are compulsory
+                    raise LightningPeerConnectionClosed("remote does not have even flag {}"
+                                                        .format(str(LnLocalFeatures(1 << flag))))
+                self.localfeatures ^= 1 << flag  # disable flag
 
     def on_channel_update(self, payload):
         try:
