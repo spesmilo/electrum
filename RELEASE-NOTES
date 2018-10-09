@@ -223,7 +223,7 @@ issue #3374. Users should upgrade to 3.0.5.
   * Qt GUI: sweeping now uses the Send tab, allowing fees to be set
   * Windows: if using the installer binary, there is now a separate shortcut
     for "Electrum Testnet"
-  * Digital Bitbox: added suport for p2sh-segwit
+  * Digital Bitbox: added support for p2sh-segwit
   * OS notifications for incoming transactions
   * better transaction size estimation:
     - fees for segwit txns were somewhat underestimated (#3347)
@@ -451,7 +451,7 @@ issue #3374. Users should upgrade to 3.0.5.
 
 # Release 2.7.7
   * Fix utf8 encoding bug with old wallet seeds (issue #1967)
-  * Fix delete request from menu (isue #1968)
+  * Fix delete request from menu (issue #1968)
 
 # Release 2.7.6
  * Fixes a critical bug with imported private keys (issue #1966). Keys
@@ -814,7 +814,7 @@ issue #3374. Users should upgrade to 3.0.5.
  * New 'Receive' tab in the GUI:
    - create and manage payment requests, with QR Codes
    - the former 'Receive' tab was renamed to 'Addresses'
-   - the former Point of Sale plugin is replaced by a resizeable
+   - the former Point of Sale plugin is replaced by a resizable
      window that pops up if you click on the QR code
 
  * The 'Send' tab in the Qt GUI supports transactions with multiple
@@ -837,7 +837,7 @@ issue #3374. Users should upgrade to 3.0.5.
 
  * The client accepts servers with a CA-signed SSL certificate.
 
- * ECIES encrypt/decrypt methods, availabe in the GUI and using
+ * ECIES encrypt/decrypt methods, available in the GUI and using
    the command line:
       encrypt <pubkey> <message>
       decrypt <pubkey> <message>
@@ -910,7 +910,7 @@ bugfixes: connection problems, transactions staying unverified
 
 # Release 1.8.1
 
-* Notification option when receiving new tranactions
+* Notification option when receiving new transactions
 * Confirm dialogue before sending large amounts
 * Alternative datafile location for non-windows systems
 * Fix offline wallet creation
