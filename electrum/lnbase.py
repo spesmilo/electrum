@@ -25,7 +25,7 @@ from .crypto import sha256
 from . import constants
 from .util import PrintError, bh2u, print_error, bfh, log_exceptions
 from .transaction import Transaction, TxOutput
-from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error, ONION_FAILURE_CODE_MAP
+from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error, OnionFailureCode
 from .lnaddr import lndecode
 from .lnhtlc import HTLCStateMachine, RevokeAndAck
 from .lnutil import (Outpoint, ChannelConfig, LocalState,
@@ -467,9 +467,12 @@ class Peer(PrintError):
             # Note that this is prone to a race.. we might not have a short_channel_id
             # associated with the channel in some cases
             short_channel_id = payload['short_channel_id']
+            self.print_error("not found channel announce for channel update in db", bh2u(short_channel_id))
             for chan in self.channels.values():
                 if chan.short_channel_id_predicted == short_channel_id:
                     chan.pending_channel_update_message = payload
+                    self.print_error("channel update is for our own private channel", bh2u(short_channel_id))
+                    break
 
     def on_channel_announcement(self, payload):
         self.channel_db.on_channel_announcement(payload)
@@ -1022,10 +1025,9 @@ class Peer(PrintError):
             self.print_error("UPDATE_FAIL_HTLC. cannot decode! attempted route is MISSING. {}".format(key))
         else:
             failure_msg, sender_idx = decode_onion_error(payload["reason"], [x.node_id for x in route], chan.onion_keys[htlc_id])
-            code = failure_msg.code
-            code_name = ONION_FAILURE_CODE_MAP.get(code, 'unknown_error??')
+            code = OnionFailureCode(failure_msg.code)
             data = failure_msg.data
-            self.print_error("UPDATE_FAIL_HTLC", code_name, code, data)
+            self.print_error("UPDATE_FAIL_HTLC", repr(code), data)
             try:
                 short_chan_id = route[sender_idx + 1].short_channel_id
             except IndexError:
@@ -1034,7 +1036,6 @@ class Peer(PrintError):
                 # TODO this should depend on the error
                 # also, we need finer blacklisting (directed edges; nodes)
                 self.network.path_finder.blacklist.add(short_chan_id)
-            self.print_error("HTLC failure with code {} ({})".format(code, code_name))
         # process update_fail_htlc on channel
         chan = self.channels[channel_id]
         chan.receive_fail_htlc(htlc_id)
