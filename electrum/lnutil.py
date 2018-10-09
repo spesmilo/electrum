@@ -426,19 +426,36 @@ def get_ecdh(priv: bytes, pub: bytes) -> bytes:
     return sha256(pt.get_public_key_bytes())
 
 
-LN_LOCAL_FEATURE_BITS = {
-    0: 'option_data_loss_protect_req',
-    1: 'option_data_loss_protect_opt',
-    3: 'initial_routing_sync',
-    4: 'option_upfront_shutdown_script_req',
-    5: 'option_upfront_shutdown_script_opt',
-    6: 'gossip_queries_req',
-    7: 'gossip_queries_opt',
-}
-LN_LOCAL_FEATURE_BITS_INV = inv_dict(LN_LOCAL_FEATURE_BITS)
+class LnLocalFeatures(IntFlag):
+    OPTION_DATA_LOSS_PROTECT_REQ = 1 << 0
+    OPTION_DATA_LOSS_PROTECT_OPT = 1 << 1
+    INITIAL_ROUTING_SYNC = 1 << 3
+    OPTION_UPFRONT_SHUTDOWN_SCRIPT_REQ = 1 << 4
+    OPTION_UPFRONT_SHUTDOWN_SCRIPT_OPT = 1 << 5
+    GOSSIP_QUERIES_REQ = 1 << 6
+    GOSSIP_QUERIES_OPT = 1 << 7
 
-LN_GLOBAL_FEATURE_BITS = {}
-LN_GLOBAL_FEATURE_BITS_INV = inv_dict(LN_GLOBAL_FEATURE_BITS)
+# note that these are powers of two, not the bits themselves
+LN_LOCAL_FEATURES_KNOWN_SET = set(LnLocalFeatures)
+
+
+def get_ln_flag_pair_of_bit(flag_bit: int):
+    """Ln Feature flags are assigned in pairs, one even, one odd. See BOLT-09.
+    Return the other flag from the pair.
+    e.g. 6 -> 7
+    e.g. 7 -> 6
+    """
+    if flag_bit % 2 == 0:
+        return flag_bit + 1
+    else:
+        return flag_bit - 1
+
+
+class LnGlobalFeatures(IntFlag):
+    pass
+
+# note that these are powers of two, not the bits themselves
+LN_GLOBAL_FEATURES_KNOWN_SET = set(LnGlobalFeatures)
 
 
 class LNPeerAddr(namedtuple('LNPeerAddr', ['host', 'port', 'pubkey'])):
