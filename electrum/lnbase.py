@@ -985,24 +985,22 @@ class Peer(PrintError):
         code = failure_msg.code
         code_name = ONION_FAILURE_CODE_MAP.get(code, 'unknown_error!!')
         data = failure_msg.data
-        print("UPDATE_FAIL_HTLC", code_name, code, data)
+        self.print_error("UPDATE_FAIL_HTLC", code_name, code, data)
         try:
             short_chan_id = route[sender_idx + 1].short_channel_id
         except IndexError:
-            print("payment destination reported error")
+            self.print_error("payment destination reported error")
         else:
             # TODO this should depend on the error
             # also, we need finer blacklisting (directed edges; nodes)
             self.network.path_finder.blacklist.add(short_chan_id)
 
-        print("HTLC failure with code {} ({})".format(code, code_name))
+        self.print_error("HTLC failure with code {} ({})".format(code, code_name))
         chan = self.channels[channel_id]
-        self.send_commitment(chan)
-        await self.receive_revoke(chan)
         chan.receive_fail_htlc(htlc_id)
         await self.receive_commitment(chan)
         self.revoke(chan)
-        self.send_commitment(chan) # htlc will be removed
+        self.send_commitment(chan)  # htlc will be removed
         await self.receive_revoke(chan)
         self.lnworker.save_channel(chan)
 
