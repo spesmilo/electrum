@@ -393,14 +393,10 @@ class ChannelDB(JsonDB):
         short_channel_id = msg_payload['short_channel_id']
         if constants.net.rev_genesis_bytes() != msg_payload['chain_hash']:
             return
-        # try finding channel in verified db
-        channel_info = self._id_to_channel_info.get(short_channel_id, None)
+        # try finding channel in pending db
+        channel_info = self.ca_verifier.get_pending_channel_info(short_channel_id)
         if channel_info is None:
-            # try finding channel in pending db
-            channel_info = self.ca_verifier.get_pending_channel_info(short_channel_id)
-        if channel_info is None:
-            # try finding channel in verified db, again
-            # (maybe this is redundant but this should prevent a race..)
+            # try finding channel in verified db
             channel_info = self._id_to_channel_info.get(short_channel_id, None)
         if channel_info is None:
             self.print_error("could not find", short_channel_id)
