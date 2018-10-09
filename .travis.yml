@@ -27,7 +27,8 @@ after_success:
     - coveralls
 jobs:
   include:
-    - stage: binary builds
+    - if: branch = master  # don't build binaries on lightning branch
+      stage: binary builds
       name: "Windows build"
       sudo: true
       language: c
@@ -41,7 +42,8 @@ jobs:
       script:
         - sudo docker run --name electrum-wine-builder-cont -v $PWD:/opt/wine64/drive_c/electrum --rm --workdir /opt/wine64/drive_c/electrum/contrib/build-wine electrum-wine-builder-img ./build.sh
       after_success: true
-    - name: "Android build"
+    - if: branch = master  # don't build binaries on lightning branch
+      name: "Android build"
       language: python
       python: 3.7
       services:
@@ -59,7 +61,8 @@ jobs:
         - ls -la bin
         - if [ $(ls bin | grep -c Electrum-*) -eq 0 ]; then exit 1; fi
       after_success: true
-    - name: "MacOS build"
+    - if: branch = master  # don't build binaries on lightning branch
+      name: "MacOS build"
       os: osx
       language: c
       env:
