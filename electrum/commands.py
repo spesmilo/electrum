@@ -40,7 +40,7 @@ from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
 from .transaction import Transaction, multisig_script, TxOutput
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
-from .plugin import run_hook
+from .synchronizer import Notifier
 
 known_commands = {}
 
@@ -635,21 +635,11 @@ class Commands:
             self.wallet.remove_payment_request(k, self.config)
 
     @command('n')
-    def notify(self, address, URL):
+    def notify(self, address: str, URL: str):
         """Watch an address. Every time the address changes, a http POST is sent to the URL."""
-        raise NotImplementedError()  # TODO this method is currently broken
-        def callback(x):
-            import urllib.request
-            headers = {'content-type':'application/json'}
-            data = {'address':address, 'status':x.get('result')}
-            serialized_data = util.to_bytes(json.dumps(data))
-            try:
-                req = urllib.request.Request(URL, serialized_data, headers)
-                response_stream = urllib.request.urlopen(req, timeout=5)
-                util.print_error('Got Response for %s' % address)
-            except BaseException as e:
-                util.print_error(str(e))
-        self.network.subscribe_to_addresses([address], callback)
+        if not hasattr(self, "_notifier"):
+            self._notifier = Notifier(self.network)
+        self.network.run_from_another_thread(self._notifier.start_watching_queue.put((address, URL)))
         return True
 
     @command('wn')
