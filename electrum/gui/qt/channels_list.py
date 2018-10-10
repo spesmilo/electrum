@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import asyncio
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtWidgets import *
 
@@ -116,4 +117,5 @@ class ChannelsList(MyTreeWidget):
         try:
             self.parent.wallet.lnworker.open_channel(*args, **kwargs)
         except Exception as e:
-            self.parent.show_error('Cannot open channel: %s' % str(e))
+            # don't use str(e) because str(asyncio.TimeoutError()) (and many others) is ''
+            self.parent.show_error('Cannot open channel: %s' % repr(e))
