@@ -887,9 +887,14 @@ class ElectrumWindow(App):
         Clock.schedule_once(lambda dt: on_success(tx))
 
     def _broadcast_thread(self, tx, on_complete):
-        ok, txid = self.network.run_from_another_thread(
-            self.network.broadcast_transaction(tx))
-        Clock.schedule_once(lambda dt: on_complete(ok, txid))
+
+        try:
+            self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+        except Exception as e:
+            ok, msg = False, repr(e)
+        else:
+            ok, msg = True, tx.txid()
+        Clock.schedule_once(lambda dt: on_complete(ok, msg))
 
     def broadcast(self, tx, pr=None):
         def on_complete(ok, msg):

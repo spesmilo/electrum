@@ -1639,8 +1639,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if pr and pr.has_expired():
                 self.payment_request = None
                 return False, _("Payment request has expired")
-            status, msg = self.network.run_from_another_thread(
-                self.network.broadcast_transaction(tx))
+            try:
+                self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+            except Exception as e:
+                status, msg = False, repr(e)
+            else:
+                status, msg = True, tx.txid()
             if pr and status is True:
                 self.invoices.set_paid(pr, tx.txid())
                 self.invoices.save()
