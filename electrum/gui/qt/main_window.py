@@ -768,7 +768,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if not self.network.proxy:
                     icon = QIcon(":icons/status_connected%s.png"%fork_str)
                 else:
-                    icon = QIcon(":icons/status_connected_proxy%s.png%fork_str")
+                    icon = QIcon(":icons/status_connected_proxy%s.png"%fork_str)
         else:
             if self.network.proxy:
                 text = "{} ({})".format(_("Not connected"), _("proxy enabled"))
