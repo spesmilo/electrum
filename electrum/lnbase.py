@@ -1178,7 +1178,6 @@ class Peer(PrintError):
         chan = self.channels[update_fulfill_htlc_msg["channel_id"]]
         preimage = update_fulfill_htlc_msg["payment_preimage"]
         htlc_id = int.from_bytes(update_fulfill_htlc_msg["id"], "big")
-        htlc = chan.lookup_htlc(chan.log[LOCAL], htlc_id)
         chan.receive_htlc_settle(preimage, htlc_id)
         await self.receive_commitment(chan)
         self.revoke(chan)

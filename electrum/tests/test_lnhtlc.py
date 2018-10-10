@@ -147,7 +147,7 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         self.aliceHtlcIndex = self.alice_channel.add_htlc(self.htlc)
 
         self.bobHtlcIndex = self.bob_channel.receive_htlc(self.htlc)
-        self.htlc = self.bob_channel.log[lnutil.REMOTE][0]
+        self.htlc = self.bob_channel.log[lnutil.REMOTE]['adds'][0]
 
     def test_SimpleAddSettleWorkflow(self):
         alice_channel, bob_channel = self.alice_channel, self.bob_channel
