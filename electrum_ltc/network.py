@@ -676,16 +676,10 @@ class Network(PrintError):
 
     @best_effort_reliable
     async def broadcast_transaction(self, tx, timeout=10):
-        try:
-            out = await self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)], timeout=timeout)
-        except RequestTimedOut as e:
-            return False, "error: operation timed out"
-        except Exception as e:
-            return False, "error: " + str(e)
-
+        out = await self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)], timeout=timeout)
         if out != tx.txid():
-            return False, "error: " + out
-        return True, out
+            raise Exception(out)
+        return out  # txid
 
     @best_effort_reliable
     async def request_chunk(self, height, tip=None, *, can_return_early=False):

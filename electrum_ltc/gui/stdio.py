@@ -203,15 +203,14 @@ class ElectrumGui:
             self.wallet.labels[tx.txid()] = self.str_description
 
         print(_("Please wait..."))
-        status, msg = self.network.run_from_another_thread(
-            self.network.broadcast_transaction(tx))
-
-        if status:
+        try:
+            self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+        except Exception as e:
+            print(repr(e))
+        else:
             print(_('Payment sent.'))
             #self.do_clear()
             #self.update_contacts_tab()
-        else:
-            print(_('Error'))
 
     def network_dialog(self):
         print("use 'electrum-ltc setconfig server/proxy' to change your network settings")
