@@ -27,9 +27,9 @@ from .util import PrintError, bh2u, print_error, bfh, log_exceptions
 from .transaction import Transaction, TxOutput
 from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error, OnionFailureCode
 from .lnaddr import lndecode
-from .lnhtlc import HTLCStateMachine, RevokeAndAck
-from .lnutil import (Outpoint, ChannelConfig, LocalState,
-                     RemoteState, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
+from .lnhtlc import HTLCStateMachine, RevokeAndAck, htlcsum
+from .lnutil import (Outpoint, LocalConfig, ChannelConfig,
+                     RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_ecdh, get_per_commitment_secret_from_seed,
                      secret_to_pubkey, LNPeerAddr, PaymentFailure, LnLocalFeatures,
                      LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily,
@@ -480,7 +480,7 @@ class Peer(PrintError):
     def on_announcement_signatures(self, payload):
         channel_id = payload['channel_id']
         chan = self.channels[payload['channel_id']]
-        if chan.local_state.was_announced:
+        if chan.config[LOCAL].was_announced:
             h, local_node_sig, local_bitcoin_sig = self.send_announcement_signatures(chan)
         else:
             self.announcement_signatures[channel_id].put_nowait(payload)
@@ -530,7 +530,7 @@ class Peer(PrintError):
             chan.set_state('DISCONNECTED')
             self.network.trigger_callback('channel', chan)
 
-    def make_local_config(self, funding_sat, push_msat, initiator: HTLCOwner):
+    def make_local_config(self, funding_sat, push_msat, initiator: HTLCOwner, feerate):
         # key derivation
         channel_counter = self.lnworker.get_and_inc_counter_for_channel_keys()
         keypair_generator = lambda family: generate_keypair(self.lnworker.ln_keystore, family, channel_counter)
@@ -549,6 +549,10 @@ class Peer(PrintError):
             max_htlc_value_in_flight_msat=0xffffffffffffffff,
             max_accepted_htlcs=5,
             initial_msat=initial_msat,
+            ctn=-1,
+            next_htlc_id=0,
+            amount_msat=initial_msat,
+            feerate=feerate,
         )
         per_commitment_secret_seed = keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey
         return local_config, per_commitment_secret_seed
@@ -556,9 +560,8 @@ class Peer(PrintError):
     @log_exceptions
     async def channel_establishment_flow(self, password, funding_sat, push_msat, temp_channel_id):
         await self.initialized
-        local_config, per_commitment_secret_seed = self.make_local_config(funding_sat, push_msat, LOCAL)
-        # amounts
-        local_feerate = self.current_feerate_per_kw()
+        feerate = self.current_feerate_per_kw()
+        local_config, per_commitment_secret_seed = self.make_local_config(funding_sat, push_msat, LOCAL, feerate)
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, RevocationStore.START_INDEX)
         per_commitment_point_first = secret_to_pubkey(int.from_bytes(per_commitment_secret_first, 'big'))
@@ -569,7 +572,7 @@ class Peer(PrintError):
             funding_satoshis=funding_sat,
             push_msat=push_msat,
             dust_limit_satoshis=local_config.dust_limit_sat,
-            feerate_per_kw=local_feerate,
+            feerate_per_kw=feerate,
             max_accepted_htlcs=local_config.max_accepted_htlcs,
             funding_pubkey=local_config.multisig_key.pubkey,
             revocation_basepoint=local_config.revocation_basepoint.pubkey,
@@ -587,24 +590,33 @@ class Peer(PrintError):
         if payload.get('error'):
             raise Exception(payload.get('error'))
         remote_per_commitment_point = payload['first_per_commitment_point']
-        remote_config=ChannelConfig(
+        funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], 'big')
+        remote_dust_limit_sat = int.from_bytes(payload['dust_limit_satoshis'], byteorder='big')
+        assert remote_dust_limit_sat < 600, remote_dust_limit_sat
+        assert int.from_bytes(payload['htlc_minimum_msat'], 'big') < 600 * 1000
+        remote_max = int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big')
+        assert remote_max >= 198 * 1000 * 1000, remote_max
+        their_revocation_store = RevocationStore()
+        remote_config = RemoteConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
             multisig_key=OnlyPubkeyKeypair(payload["funding_pubkey"]),
             htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
             delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
             revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
             to_self_delay=int.from_bytes(payload['to_self_delay'], byteorder='big'),
-            dust_limit_sat=int.from_bytes(payload['dust_limit_satoshis'], byteorder='big'),
-            max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'),
+            dust_limit_sat=remote_dust_limit_sat,
+            max_htlc_value_in_flight_msat=remote_max,
             max_accepted_htlcs=int.from_bytes(payload["max_accepted_htlcs"], 'big'),
-            initial_msat=push_msat
+            initial_msat=push_msat,
+            ctn = -1,
+            amount_msat=push_msat,
+            next_htlc_id = 0,
+            feerate=feerate,
+
+            next_per_commitment_point=remote_per_commitment_point,
+            current_per_commitment_point=None,
+            revocation_store=their_revocation_store,
         )
-        funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], 'big')
-        assert remote_config.dust_limit_sat < 600
-        assert int.from_bytes(payload['htlc_minimum_msat'], 'big') < 600 * 1000
-        assert remote_config.max_htlc_value_in_flight_msat >= 198 * 1000 * 1000, remote_config.max_htlc_value_in_flight_msat
-        self.print_error('remote delay', remote_config.to_self_delay)
-        self.print_error('funding_txn_minimum_depth', funding_txn_minimum_depth)
         # create funding tx
         redeem_script = funding_output_script(local_config, remote_config)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
@@ -612,38 +624,21 @@ class Peer(PrintError):
         funding_tx = self.lnworker.wallet.mktx([funding_output], password, self.lnworker.config, 1000)
         funding_txid = funding_tx.txid()
         funding_index = funding_tx.outputs().index(funding_output)
-        # compute amounts
-        local_amount = funding_sat*1000 - push_msat
-        remote_amount = push_msat
         # remote commitment transaction
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_index)
-        their_revocation_store = RevocationStore()
         chan = {
                 "node_id": self.pubkey,
                 "channel_id": channel_id,
                 "short_channel_id": None,
                 "funding_outpoint": Outpoint(funding_txid, funding_index),
-                "local_config": local_config,
                 "remote_config": remote_config,
-                "remote_state": RemoteState(
-                    ctn = -1,
-                    next_per_commitment_point=remote_per_commitment_point,
-                    current_per_commitment_point=None,
-                    amount_msat=remote_amount,
-                    revocation_store=their_revocation_store,
-                    next_htlc_id = 0,
-                    feerate=local_feerate
-                ),
-                "local_state": LocalState(
-                    ctn = -1,
+                "local_config": LocalConfig(
+                    **local_config._asdict(),
                     per_commitment_secret_seed=per_commitment_secret_seed,
-                    amount_msat=local_amount,
-                    next_htlc_id = 0,
                     funding_locked_received = False,
                     was_announced = False,
                     current_commitment_signature = None,
                     current_htlc_signatures = None,
-                    feerate=local_feerate
                 ),
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth),
                 "remote_commitment_to_be_revoked": None,
@@ -665,8 +660,8 @@ class Peer(PrintError):
         success, _txid = await self.network.broadcast_transaction(funding_tx)
         assert success, success
         m.remote_commitment_to_be_revoked = m.pending_remote_commitment
-        m.remote_state = m.remote_state._replace(ctn=0)
-        m.local_state = m.local_state._replace(ctn=0, current_commitment_signature=remote_sig)
+        m.config[REMOTE] = m.config[REMOTE]._replace(ctn=0)
+        m.config[LOCAL] = m.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
         m.set_state('OPENING')
         return m
 
@@ -677,21 +672,10 @@ class Peer(PrintError):
             raise Exception('wrong chain_hash')
         funding_sat = int.from_bytes(payload['funding_satoshis'], 'big')
         push_msat = int.from_bytes(payload['push_msat'], 'big')
+        feerate = int.from_bytes(payload['feerate_per_kw'], 'big')
 
-        remote_config = ChannelConfig(
-            payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
-            multisig_key=OnlyPubkeyKeypair(payload['funding_pubkey']),
-            htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
-            delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
-            revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
-            to_self_delay=int.from_bytes(payload['to_self_delay'], 'big'),
-            dust_limit_sat=int.from_bytes(payload['dust_limit_satoshis'], 'big'),
-            max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'),
-            max_accepted_htlcs=int.from_bytes(payload['max_accepted_htlcs'], 'big'),
-            initial_msat=funding_sat * 1000 - push_msat,
-        )
         temp_chan_id = payload['temporary_channel_id']
-        local_config, per_commitment_secret_seed = self.make_local_config(funding_sat * 1000, push_msat, REMOTE)
+        local_config, per_commitment_secret_seed = self.make_local_config(funding_sat * 1000, push_msat, REMOTE, feerate)
 
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, RevocationStore.START_INDEX)
@@ -719,33 +703,39 @@ class Peer(PrintError):
         funding_txid = bh2u(funding_created['funding_txid'][::-1])
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_idx)
         their_revocation_store = RevocationStore()
-        local_feerate = int.from_bytes(payload['feerate_per_kw'], 'big')
+        remote_balance_sat = funding_sat * 1000 - push_msat
         chan = {
                 "node_id": self.pubkey,
                 "channel_id": channel_id,
                 "short_channel_id": None,
                 "funding_outpoint": Outpoint(funding_txid, funding_idx),
-                "local_config": local_config,
-                "remote_config": remote_config,
-                "remote_state": RemoteState(
+                "remote_config": RemoteConfig(
+                    payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
+                    multisig_key=OnlyPubkeyKeypair(payload['funding_pubkey']),
+                    htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
+                    delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
+                    revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
+                    to_self_delay=int.from_bytes(payload['to_self_delay'], 'big'),
+                    dust_limit_sat=int.from_bytes(payload['dust_limit_satoshis'], 'big'),
+                    max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'),
+                    max_accepted_htlcs=int.from_bytes(payload['max_accepted_htlcs'], 'big'),
+                    initial_msat=remote_balance_sat,
                     ctn = -1,
+                    amount_msat=remote_balance_sat,
+                    next_htlc_id = 0,
+                    feerate=feerate,
+
                     next_per_commitment_point=payload['first_per_commitment_point'],
                     current_per_commitment_point=None,
-                    amount_msat=remote_config.initial_msat,
                     revocation_store=their_revocation_store,
-                    next_htlc_id = 0,
-                    feerate=local_feerate
                 ),
-                "local_state": LocalState(
-                    ctn = -1,
+                "local_config": LocalConfig(
+                    **local_config._asdict(),
                     per_commitment_secret_seed=per_commitment_secret_seed,
-                    amount_msat=local_config.initial_msat,
-                    next_htlc_id = 0,
                     funding_locked_received = False,
                     was_announced = False,
                     current_commitment_signature = None,
                     current_htlc_signatures = None,
-                    feerate=local_feerate
                 ),
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth),
                 "remote_commitment_to_be_revoked": None,
@@ -762,8 +752,8 @@ class Peer(PrintError):
         ))
         m.set_state('OPENING')
         m.remote_commitment_to_be_revoked = m.pending_remote_commitment
-        m.remote_state = m.remote_state._replace(ctn=0)
-        m.local_state = m.local_state._replace(ctn=0, current_commitment_signature=remote_sig)
+        m.config[REMOTE] = m.config[REMOTE]._replace(ctn=0)
+        m.config[LOCAL] = m.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
         self.lnworker.save_channel(m)
         self.lnwatcher.watch_channel(m.get_funding_address(), m.funding_outpoint.to_str())
         self.lnworker.on_channels_updated()
@@ -776,7 +766,7 @@ class Peer(PrintError):
             else:
                 break
         outp = funding_tx.outputs()[funding_idx]
-        redeem_script = funding_output_script(remote_config, local_config)
+        redeem_script = funding_output_script(m.config[REMOTE], m.config[LOCAL])
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         if outp != TxOutput(bitcoin.TYPE_ADDRESS, funding_address, funding_sat):
             m.set_state('DISCONNECTED')
@@ -794,12 +784,12 @@ class Peer(PrintError):
         self.network.trigger_callback('channel', chan)
         self.send_message(gen_msg("channel_reestablish",
             channel_id=chan_id,
-            next_local_commitment_number=chan.local_state.ctn+1,
-            next_remote_revocation_number=chan.remote_state.ctn
+            next_local_commitment_number=chan.config[LOCAL].ctn+1,
+            next_remote_revocation_number=chan.config[REMOTE].ctn
         ))
         await self.channel_reestablished[chan_id]
         chan.set_state('OPENING')
-        if chan.local_state.funding_locked_received and chan.short_channel_id:
+        if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
             self.mark_open(chan)
         self.network.trigger_callback('channel', chan)
 
@@ -822,24 +812,24 @@ class Peer(PrintError):
         channel_reestablish_msg = payload
         # compare remote ctns
         remote_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
-        if remote_ctn != chan.remote_state.ctn + 1:
-            self.print_error("expected remote ctn {}, got {}".format(chan.remote_state.ctn + 1, remote_ctn))
+        if remote_ctn != chan.config[REMOTE].ctn + 1:
+            self.print_error("expected remote ctn {}, got {}".format(chan.config[REMOTE].ctn + 1, remote_ctn))
             # TODO iff their ctn is lower than ours, we should force close instead
             try_to_get_remote_to_force_close_with_their_latest()
             return
         # compare local ctns
         local_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
-        if local_ctn != chan.local_state.ctn:
-            self.print_error("expected local ctn {}, got {}".format(chan.local_state.ctn, local_ctn))
+        if local_ctn != chan.config[LOCAL].ctn:
+            self.print_error("expected local ctn {}, got {}".format(chan.config[LOCAL].ctn, local_ctn))
             # TODO iff their ctn is lower than ours, we should force close instead
             try_to_get_remote_to_force_close_with_their_latest()
             return
         # compare per commitment points (needs data_protect option)
         their_pcp = channel_reestablish_msg.get("my_current_per_commitment_point", None)
         if their_pcp is not None:
-            our_pcp = chan.remote_state.current_per_commitment_point
+            our_pcp = chan.config[REMOTE].current_per_commitment_point
             if our_pcp is None:
-                our_pcp = chan.remote_state.next_per_commitment_point
+                our_pcp = chan.config[REMOTE].next_per_commitment_point
             if our_pcp != their_pcp:
                 self.print_error("Remote PCP mismatch: {} {}".format(bh2u(our_pcp), bh2u(their_pcp)))
                 # FIXME ...what now?
@@ -852,10 +842,10 @@ class Peer(PrintError):
         channel_id = chan.channel_id
         per_commitment_secret_index = RevocationStore.START_INDEX - 1
         per_commitment_point_second = secret_to_pubkey(int.from_bytes(
-            get_per_commitment_secret_from_seed(chan.local_state.per_commitment_secret_seed, per_commitment_secret_index), 'big'))
+            get_per_commitment_secret_from_seed(chan.config[LOCAL].per_commitment_secret_seed, per_commitment_secret_index), 'big'))
         # note: if funding_locked was not yet received, we might send it multiple times
         self.send_message(gen_msg("funding_locked", channel_id=channel_id, next_per_commitment_point=per_commitment_point_second))
-        if chan.local_state.funding_locked_received:
+        if chan.config[LOCAL].funding_locked_received:
             self.mark_open(chan)
 
     def on_funding_locked(self, payload):
@@ -864,13 +854,13 @@ class Peer(PrintError):
         if not chan:
             print(self.channels)
             raise Exception("Got unknown funding_locked", channel_id)
-        if not chan.local_state.funding_locked_received:
-            our_next_point = chan.remote_state.next_per_commitment_point
+        if not chan.config[LOCAL].funding_locked_received:
+            our_next_point = chan.config[REMOTE].next_per_commitment_point
             their_next_point = payload["next_per_commitment_point"]
-            new_remote_state = chan.remote_state._replace(next_per_commitment_point=their_next_point, current_per_commitment_point=our_next_point)
-            new_local_state = chan.local_state._replace(funding_locked_received = True)
-            chan.remote_state=new_remote_state
-            chan.local_state=new_local_state
+            new_remote_state = chan.config[REMOTE]._replace(next_per_commitment_point=their_next_point, current_per_commitment_point=our_next_point)
+            new_local_state = chan.config[LOCAL]._replace(funding_locked_received = True)
+            chan.config[REMOTE]=new_remote_state
+            chan.config[LOCAL]=new_local_state
             self.lnworker.save_channel(chan)
         if chan.short_channel_id:
             self.mark_open(chan)
@@ -881,11 +871,11 @@ class Peer(PrintError):
 
         Runs on the Network thread.
         """
-        if not chan.local_state.was_announced and funding_tx_depth >= 6:
+        if not chan.config[LOCAL].was_announced and funding_tx_depth >= 6:
             # don't announce our channels
             # FIXME should this be a field in chan.local_state maybe?
             return
-            chan.local_state=chan.local_state._replace(was_announced=True)
+            chan.config[LOCAL]=chan.config[LOCAL]._replace(was_announced=True)
             coro = self.handle_announcements(chan)
             self.lnworker.save_channel(chan)
             asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
@@ -896,7 +886,7 @@ class Peer(PrintError):
         announcement_signatures_msg = await self.announcement_signatures[chan.channel_id].get()
         remote_node_sig = announcement_signatures_msg["node_signature"]
         remote_bitcoin_sig = announcement_signatures_msg["bitcoin_signature"]
-        if not ecc.verify_signature(chan.remote_config.multisig_key.pubkey, remote_bitcoin_sig, h):
+        if not ecc.verify_signature(chan.config[REMOTE].multisig_key.pubkey, remote_bitcoin_sig, h):
             raise Exception("bitcoin_sig invalid in announcement_signatures")
         if not ecc.verify_signature(self.pubkey, remote_node_sig, h):
             raise Exception("node_sig invalid in announcement_signatures")
@@ -904,7 +894,7 @@ class Peer(PrintError):
         node_sigs = [local_node_sig, remote_node_sig]
         bitcoin_sigs = [local_bitcoin_sig, remote_bitcoin_sig]
         node_ids = [privkey_to_pubkey(self.privkey), self.pubkey]
-        bitcoin_keys = [chan.local_config.multisig_key.pubkey, chan.remote_config.multisig_key.pubkey]
+        bitcoin_keys = [chan.config[LOCAL].multisig_key.pubkey, chan.config[REMOTE].multisig_key.pubkey]
 
         if node_ids[0] > node_ids[1]:
             node_sigs.reverse()
@@ -935,14 +925,14 @@ class Peer(PrintError):
         if chan.get_state() == "OPEN":
             return
         # NOTE: even closed channels will be temporarily marked "OPEN"
-        assert chan.local_state.funding_locked_received
+        assert chan.config[LOCAL].funding_locked_received
         chan.set_state("OPEN")
         self.network.trigger_callback('channel', chan)
         # add channel to database
         pubkey_ours = self.lnworker.node_keypair.pubkey
         pubkey_theirs = self.pubkey
         node_ids = [pubkey_theirs, pubkey_ours]
-        bitcoin_keys = [chan.local_config.multisig_key.pubkey, chan.remote_config.multisig_key.pubkey]
+        bitcoin_keys = [chan.config[LOCAL].multisig_key.pubkey, chan.config[REMOTE].multisig_key.pubkey]
         sorted_node_ids = list(sorted(node_ids))
         if sorted_node_ids != node_ids:
             node_ids = sorted_node_ids
@@ -977,8 +967,8 @@ class Peer(PrintError):
 
     def send_announcement_signatures(self, chan):
 
-        bitcoin_keys = [chan.local_config.multisig_key.pubkey,
-                        chan.remote_config.multisig_key.pubkey]
+        bitcoin_keys = [chan.config[LOCAL].multisig_key.pubkey,
+                        chan.config[REMOTE].multisig_key.pubkey]
 
         node_ids = [privkey_to_pubkey(self.privkey),
                     self.pubkey]
@@ -1000,7 +990,7 @@ class Peer(PrintError):
         )
         to_hash = chan_ann[256+2:]
         h = bitcoin.Hash(to_hash)
-        bitcoin_signature = ecc.ECPrivkey(chan.local_config.multisig_key.privkey).sign(h, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
+        bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).sign(h, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
         node_signature = ecc.ECPrivkey(self.privkey).sign(h, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
         self.send_message(gen_msg("announcement_signatures",
             channel_id=chan.channel_id,
@@ -1105,10 +1095,10 @@ class Peer(PrintError):
         # then no other payment can use this channel either.
         # we need finer blacklisting -- e.g. a blacklist for just this "payment session"?
         # or blacklist entries could store an msat value and also expire
-        if len(chan.htlcs_in_local) + 1 > chan.remote_config.max_accepted_htlcs:
+        if len(chan.htlcs(LOCAL, only_pending=True)) + 1 > chan.config[REMOTE].max_accepted_htlcs:
             raise PaymentFailure('too many HTLCs already in channel')
-        if chan.htlcsum(chan.htlcs_in_local) + amount_msat > chan.remote_config.max_htlc_value_in_flight_msat:
-            raise PaymentFailure('HTLC value sum would exceed max allowed: {} msat'.format(chan.remote_config.max_htlc_value_in_flight_msat))
+        if htlcsum(chan.htlcs(LOCAL, only_pending=True)) + amount_msat > chan.config[REMOTE].max_htlc_value_in_flight_msat:
+            raise PaymentFailure('HTLC value sum would exceed max allowed: {} msat'.format(chan.config[REMOTE].max_htlc_value_in_flight_msat))
         if msat_local < 0:
             # FIXME what about channel_reserve_satoshis? will the remote fail the channel if we go below? test.
             raise PaymentFailure('not enough local balance')
@@ -1144,7 +1134,7 @@ class Peer(PrintError):
         channel_id = chan.channel_id
         expected_received_msat = int(decoded.amount * bitcoin.COIN * 1000)
         htlc_id = int.from_bytes(htlc["id"], 'big')
-        assert htlc_id == chan.remote_state.next_htlc_id, (htlc_id, chan.remote_state.next_htlc_id)
+        assert htlc_id == chan.config[REMOTE].next_htlc_id, (htlc_id, chan.config[REMOTE].next_htlc_id)
         assert chan.get_state() == "OPEN"
         cltv_expiry = int.from_bytes(htlc["cltv_expiry"], 'big')
         # TODO verify sanity of their cltv expiry
@@ -1166,7 +1156,7 @@ class Peer(PrintError):
         self.print_error("commitment_signed", payload)
         channel_id = payload['channel_id']
         chan = self.channels[channel_id]
-        chan.local_state=chan.local_state._replace(
+        chan.config[LOCAL]=chan.config[LOCAL]._replace(
             current_commitment_signature=payload['signature'],
             current_htlc_signatures=payload['htlc_signature'])
         self.lnworker.save_channel(chan)
