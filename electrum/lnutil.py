@@ -20,14 +20,36 @@ HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
 
 Keypair = namedtuple("Keypair", ["pubkey", "privkey"])
-ChannelConfig = namedtuple("ChannelConfig", [
-    "payment_basepoint", "multisig_key", "htlc_basepoint", "delayed_basepoint", "revocation_basepoint",
-    "to_self_delay", "dust_limit_sat", "max_htlc_value_in_flight_msat", "max_accepted_htlcs", "initial_msat"])
 OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
-RemoteState = namedtuple("RemoteState", ["ctn", "next_per_commitment_point", "amount_msat", "revocation_store", "current_per_commitment_point", "next_htlc_id", "feerate"])
-LocalState = namedtuple("LocalState", ["ctn", "per_commitment_secret_seed", "amount_msat", "next_htlc_id", "funding_locked_received", "was_announced", "current_commitment_signature", "current_htlc_signatures", "feerate"])
+
+common = [
+    ('ctn' , int),
+    ('amount_msat' , int),
+    ('next_htlc_id' , int),
+    ('feerate' , int),
+    ('payment_basepoint' , Keypair),
+    ('multisig_key' , Keypair),
+    ('htlc_basepoint' , Keypair),
+    ('delayed_basepoint' , Keypair),
+    ('revocation_basepoint' , Keypair),
+    ('to_self_delay' , int),
+    ('dust_limit_sat' , int),
+    ('max_htlc_value_in_flight_msat' , int),
+    ('max_accepted_htlcs' , int),
+    ('initial_msat' , int),
+]
+
+ChannelConfig = NamedTuple('ChannelConfig', common)
+
+LocalConfig = NamedTuple('LocalConfig', common + [
+    ('per_commitment_secret_seed', bytes),
+    ('funding_locked_received', bool),
+    ('was_announced', bool),
+    ('current_commitment_signature', bytes),
+    ('current_htlc_signatures', List[bytes]),
+])
+
 ChannelConstraints = namedtuple("ChannelConstraints", ["capacity", "is_initiator", "funding_txn_minimum_depth"])
-#OpenChannel = namedtuple("OpenChannel", ["channel_id", "short_channel_id", "funding_outpoint", "local_config", "remote_config", "remote_state", "local_state", "constraints", "node_id"])
 
 ScriptHtlc = namedtuple('ScriptHtlc', ['redeem_script', 'htlc'])
 
@@ -87,6 +109,12 @@ class RevocationStore:
 
     def __hash__(self):
         return hash(json.dumps(self.serialize(), sort_keys=True))
+
+RemoteConfig = NamedTuple('RemoteConfig', common + [
+    ('next_per_commitment_point' , bytes),
+    ('revocation_store' , RevocationStore),
+    ('current_per_commitment_point' , bytes),
+])
 
 def count_trailing_zeros(index):
     """ BOLT-03 (where_to_put_secret) """
@@ -243,8 +271,8 @@ def make_received_htlc(revocation_pubkey, remote_htlcpubkey, local_htlcpubkey, p
 
 def make_htlc_tx_with_open_channel(chan, pcp, for_us, we_receive, commit, htlc):
     amount_msat, cltv_expiry, payment_hash = htlc.amount_msat, htlc.cltv_expiry, htlc.payment_hash
-    conf = chan.local_config if for_us else chan.remote_config
-    other_conf = chan.local_config if not for_us else chan.remote_config
+    conf =       chan.config[LOCAL] if     for_us else chan.config[REMOTE]
+    other_conf = chan.config[LOCAL] if not for_us else chan.config[REMOTE]
 
     revocation_pubkey = derive_blinded_pubkey(other_conf.revocation_basepoint.pubkey, pcp)
     delayedpubkey = derive_pubkey(conf.delayed_basepoint.pubkey, pcp)
@@ -412,8 +440,8 @@ def extract_ctn_from_tx(tx, txin_index: int, funder_payment_basepoint: bytes,
     return get_obscured_ctn(obs, funder_payment_basepoint, fundee_payment_basepoint)
 
 def extract_ctn_from_tx_and_chan(tx, chan) -> int:
-    funder_conf = chan.local_config if     chan.constraints.is_initiator else chan.remote_config
-    fundee_conf = chan.local_config if not chan.constraints.is_initiator else chan.remote_config
+    funder_conf = chan.config[LOCAL] if     chan.constraints.is_initiator else chan.config[REMOTE]
+    fundee_conf = chan.config[LOCAL] if not chan.constraints.is_initiator else chan.config[REMOTE]
     return extract_ctn_from_tx(tx, txin_index=0,
                                funder_payment_basepoint=funder_conf.payment_basepoint.pubkey,
                                fundee_payment_basepoint=fundee_conf.payment_basepoint.pubkey)

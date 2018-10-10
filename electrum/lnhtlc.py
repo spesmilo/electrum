@@ -10,7 +10,7 @@ from .bitcoin import Hash, TYPE_SCRIPT, TYPE_ADDRESS
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256
 from . import ecc
-from .lnutil import Outpoint, ChannelConfig, LocalState, RemoteState, Keypair, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore, EncumberedTransaction
+from .lnutil import Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore, EncumberedTransaction
 from .lnutil import get_per_commitment_secret_from_seed
 from .lnutil import make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script
 from .lnutil import secret_to_pubkey, derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey
@@ -75,59 +75,50 @@ class UpdateAddHtlc(namedtuple('UpdateAddHtlc', ['amount_msat', 'payment_hash', 
         if 'locked_in' not in kwargs:
             kwargs['locked_in'] = {LOCAL: None, REMOTE: None}
         else:
-            kwargs['locked_in'] = {HTLCOwner(int(x)): y for x,y in kwargs['locked_in']}
+            kwargs['locked_in'] = {HTLCOwner(int(x)): y for x,y in kwargs['locked_in'].items()}
         return super().__new__(cls, **kwargs)
 
-is_key = lambda k: k.endswith("_basepoint") or k.endswith("_key")
-
-def maybeDecode(k, v):
-    assert type(v) is not list
-    if k in ["node_id", "channel_id", "short_channel_id", "pubkey", "privkey", "current_per_commitment_point", "next_per_commitment_point", "per_commitment_secret_seed", "current_commitment_signature", "current_htlc_signatures"] and v is not None:
-        return binascii.unhexlify(v)
-    return v
-
-def decodeAll(v):
-    return {i: maybeDecode(i, j) for i, j in v.items()} if isinstance(v, dict) else v
-
-def typeWrap(k, v, local):
-    if is_key(k):
-        if local:
-            return Keypair(**v)
+def decodeAll(d, local):
+    for k, v in d.items():
+        if k == 'revocation_store':
+            yield (k, RevocationStore.from_json_obj(v))
+        elif k.endswith("_basepoint") or k.endswith("_key"):
+            if local:
+                yield (k, Keypair(**dict(decodeAll(v, local))))
+            else:
+                yield (k, OnlyPubkeyKeypair(**dict(decodeAll(v, local))))
+        elif k in ["node_id", "channel_id", "short_channel_id", "pubkey", "privkey", "current_per_commitment_point", "next_per_commitment_point", "per_commitment_secret_seed", "current_commitment_signature", "current_htlc_signatures"] and v is not None:
+            yield (k, binascii.unhexlify(v))
         else:
-            return OnlyPubkeyKeypair(**v)
-    return v
+            yield (k, v)
+
+def htlcsum(htlcs):
+    return sum([x.amount_msat for x in htlcs])
 
 class HTLCStateMachine(PrintError):
     def diagnostic_name(self):
         return str(self.name)
 
     def __init__(self, state, name = None):
-        self.local_config = state["local_config"]
-        if type(self.local_config) is not ChannelConfig:
-            new_local_config = {k: typeWrap(k, decodeAll(v), True) for k, v in self.local_config.items()}
-            self.local_config = ChannelConfig(**new_local_config)
+        assert 'local_state' not in state
+        self.config = {}
+        self.config[LOCAL] = state["local_config"]
+        if type(self.config[LOCAL]) is not LocalConfig:
+            conf = dict(decodeAll(self.config[LOCAL], True))
+            self.config[LOCAL] = LocalConfig(**conf)
+        assert type(self.config[LOCAL].htlc_basepoint.privkey) is bytes
 
-        self.remote_config = state["remote_config"]
-        if type(self.remote_config) is not ChannelConfig:
-            new_remote_config = {k: typeWrap(k, decodeAll(v), False) for k, v in self.remote_config.items()}
-            self.remote_config = ChannelConfig(**new_remote_config)
+        self.config[REMOTE] = state["remote_config"]
+        if type(self.config[REMOTE]) is not RemoteConfig:
+            conf = dict(decodeAll(self.config[REMOTE], False))
+            self.config[REMOTE] = RemoteConfig(**conf)
+        assert type(self.config[REMOTE].htlc_basepoint.pubkey) is bytes
 
-        self.local_state = state["local_state"]
-        if type(self.local_state) is not LocalState:
-            self.local_state = LocalState(**decodeAll(self.local_state))
-
-        self.remote_state = state["remote_state"]
-        if type(self.remote_state) is not RemoteState:
-            self.remote_state = RemoteState(**decodeAll(self.remote_state))
-
-        if type(self.remote_state.revocation_store) is not RevocationStore:
-            self.remote_state = self.remote_state._replace(revocation_store = RevocationStore.from_json_obj(self.remote_state.revocation_store))
-
-        self.channel_id = maybeDecode("channel_id", state["channel_id"]) if type(state["channel_id"]) is not bytes else state["channel_id"]
-        self.constraints = ChannelConstraints(**decodeAll(state["constraints"])) if type(state["constraints"]) is not ChannelConstraints else state["constraints"]
-        self.funding_outpoint = Outpoint(**decodeAll(state["funding_outpoint"])) if type(state["funding_outpoint"]) is not Outpoint else state["funding_outpoint"]
-        self.node_id = maybeDecode("node_id", state["node_id"]) if type(state["node_id"]) is not bytes else state["node_id"]
-        self.short_channel_id = maybeDecode("short_channel_id", state["short_channel_id"]) if type(state["short_channel_id"]) is not bytes else state["short_channel_id"]
+        self.channel_id = bfh(state["channel_id"]) if type(state["channel_id"]) not in (bytes, type(None)) else state["channel_id"]
+        self.constraints = ChannelConstraints(**state["constraints"]) if type(state["constraints"]) is not ChannelConstraints else state["constraints"]
+        self.funding_outpoint = Outpoint(**dict(decodeAll(state["funding_outpoint"], False))) if type(state["funding_outpoint"]) is not Outpoint else state["funding_outpoint"]
+        self.node_id = bfh(state["node_id"]) if type(state["node_id"]) not in (bytes, type(None)) else state["node_id"]
+        self.short_channel_id = bfh(state["short_channel_id"]) if type(state["short_channel_id"]) not in (bytes, type(None)) else state["short_channel_id"]
         self.short_channel_id_predicted = self.short_channel_id
         self.onion_keys = {int(k): bfh(v) for k,v in state['onion_keys'].items()} if 'onion_keys' in state else {}
 
@@ -141,7 +132,7 @@ class HTLCStateMachine(PrintError):
         for strname, subject in [('remote_log', REMOTE), ('local_log', LOCAL)]:
             if strname not in state: continue
             for y in state[strname]:
-                htlc = UpdateAddHtlc(*decodeAll(y))
+                htlc = UpdateAddHtlc(**y)
                 self.log[subject]['adds'][htlc.htlc_id] = htlc
 
         self.name = name
@@ -172,7 +163,7 @@ class HTLCStateMachine(PrintError):
         return self._is_funding_txo_spent is False and self._state == 'DISCONNECTED'
 
     def get_funding_address(self):
-        script = funding_output_script(self.local_config, self.remote_config)
+        script = funding_output_script(self.config[LOCAL], self.config[REMOTE])
         return redeem_script_to_address('p2wsh', script)
 
     def add_htlc(self, htlc):
@@ -181,10 +172,10 @@ class HTLCStateMachine(PrintError):
         should be called when preparing to send an outgoing HTLC.
         """
         assert type(htlc) is dict
-        htlc = UpdateAddHtlc(**htlc, htlc_id=self.local_state.next_htlc_id)
+        htlc = UpdateAddHtlc(**htlc, htlc_id=self.config[LOCAL].next_htlc_id)
         self.log[LOCAL]['adds'][htlc.htlc_id] = htlc
         self.print_error("add_htlc")
-        self.local_state=self.local_state._replace(next_htlc_id=htlc.htlc_id + 1)
+        self.config[LOCAL]=self.config[LOCAL]._replace(next_htlc_id=htlc.htlc_id + 1)
         return htlc.htlc_id
 
     def receive_htlc(self, htlc):
@@ -194,10 +185,10 @@ class HTLCStateMachine(PrintError):
         party.
         """
         assert type(htlc) is dict
-        htlc = UpdateAddHtlc(**htlc, htlc_id = self.remote_state.next_htlc_id)
+        htlc = UpdateAddHtlc(**htlc, htlc_id = self.config[REMOTE].next_htlc_id)
         self.log[REMOTE]['adds'][htlc.htlc_id] = htlc
         self.print_error("receive_htlc")
-        self.remote_state=self.remote_state._replace(next_htlc_id=htlc.htlc_id + 1)
+        self.config[REMOTE]=self.config[REMOTE]._replace(next_htlc_id=htlc.htlc_id + 1)
         return htlc.htlc_id
 
     def sign_next_commitment(self):
@@ -215,15 +206,15 @@ class HTLCStateMachine(PrintError):
         """
         for htlc in self.log[LOCAL]['adds'].values():
             if htlc.locked_in[LOCAL] is None:
-                htlc.locked_in[LOCAL] = self.local_state.ctn
+                htlc.locked_in[LOCAL] = self.config[LOCAL].ctn
         self.print_error("sign_next_commitment")
 
         pending_remote_commitment = self.pending_remote_commitment
-        sig_64 = sign_and_get_sig_string(pending_remote_commitment, self.local_config, self.remote_config)
+        sig_64 = sign_and_get_sig_string(pending_remote_commitment, self.config[LOCAL], self.config[REMOTE])
 
         their_remote_htlc_privkey_number = derive_privkey(
-            int.from_bytes(self.local_config.htlc_basepoint.privkey, 'big'),
-            self.remote_state.next_per_commitment_point)
+            int.from_bytes(self.config[LOCAL].htlc_basepoint.privkey, 'big'),
+            self.config[REMOTE].next_per_commitment_point)
         their_remote_htlc_privkey = their_remote_htlc_privkey_number.to_bytes(32, 'big')
 
         for_us = False
@@ -231,7 +222,7 @@ class HTLCStateMachine(PrintError):
         htlcsigs = []
         for we_receive, htlcs in zip([True, False], [self.included_htlcs(REMOTE, REMOTE), self.included_htlcs(REMOTE, LOCAL)]):
             for htlc in htlcs:
-                args = [self.remote_state.next_per_commitment_point, for_us, we_receive, pending_remote_commitment, htlc]
+                args = [self.config[REMOTE].next_per_commitment_point, for_us, we_receive, pending_remote_commitment, htlc]
                 htlc_tx = make_htlc_tx_with_open_channel(self, *args)
                 sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
                 htlc_sig = ecc.sig_string_from_der_sig(sig[:-1])
@@ -265,13 +256,13 @@ class HTLCStateMachine(PrintError):
         self.print_error("receive_new_commitment")
         for htlc in self.log[REMOTE]['adds'].values():
             if htlc.locked_in[REMOTE] is None:
-                htlc.locked_in[REMOTE] = self.remote_state.ctn
+                htlc.locked_in[REMOTE] = self.config[REMOTE].ctn
         assert len(htlc_sigs) == 0 or type(htlc_sigs[0]) is bytes
 
         pending_local_commitment = self.pending_local_commitment
         preimage_hex = pending_local_commitment.serialize_preimage(0)
         pre_hash = Hash(bfh(preimage_hex))
-        if not ecc.verify_signature(self.remote_config.multisig_key.pubkey, sig, pre_hash):
+        if not ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, sig, pre_hash):
             raise Exception('failed verifying signature of our updated commitment transaction: ' + bh2u(sig) + ' preimage is ' + preimage_hex)
 
         _, this_point, _ = self.points
@@ -280,7 +271,7 @@ class HTLCStateMachine(PrintError):
             for htlc in htlcs:
                 htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, pending_local_commitment, htlc)
                 pre_hash = Hash(bfh(htlc_tx.serialize_preimage(0)))
-                remote_htlc_pubkey = derive_pubkey(self.remote_config.htlc_basepoint.pubkey, this_point)
+                remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, this_point)
                 for idx, sig in enumerate(htlc_sigs):
                     if ecc.verify_signature(remote_htlc_pubkey, sig, pre_hash):
                         del htlc_sigs[idx]
@@ -314,8 +305,8 @@ class HTLCStateMachine(PrintError):
 
         last_secret, this_point, next_point = self.points
 
-        new_local_feerate = self.local_state.feerate
-        new_remote_feerate = self.remote_state.feerate
+        new_local_feerate = self.config[LOCAL].feerate
+        new_remote_feerate = self.config[REMOTE].feerate
 
         for pending_fee in self.fee_mgr[:]:
             if not self.constraints.is_initiator and pending_fee.had(FUNDEE_SIGNED):
@@ -327,11 +318,11 @@ class HTLCStateMachine(PrintError):
                 self.fee_mgr.remove(pending_fee)
                 print("FEERATE CHANGE COMPLETE (initiator)")
 
-        self.local_state=self.local_state._replace(
-            ctn=self.local_state.ctn + 1,
+        self.config[LOCAL]=self.config[LOCAL]._replace(
+            ctn=self.config[LOCAL].ctn + 1,
             feerate=new_local_feerate
         )
-        self.remote_state=self.remote_state._replace(
+        self.config[REMOTE]=self.config[REMOTE]._replace(
             feerate=new_remote_feerate
         )
 
@@ -341,13 +332,13 @@ class HTLCStateMachine(PrintError):
 
     @property
     def points(self):
-        last_small_num = self.local_state.ctn
+        last_small_num = self.config[LOCAL].ctn
         this_small_num = last_small_num + 1
         next_small_num = last_small_num + 2
-        last_secret = get_per_commitment_secret_from_seed(self.local_state.per_commitment_secret_seed, RevocationStore.START_INDEX - last_small_num)
-        this_secret = get_per_commitment_secret_from_seed(self.local_state.per_commitment_secret_seed, RevocationStore.START_INDEX - this_small_num)
+        last_secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - last_small_num)
+        this_secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - this_small_num)
         this_point = secret_to_pubkey(int.from_bytes(this_secret, 'big'))
-        next_secret = get_per_commitment_secret_from_seed(self.local_state.per_commitment_secret_seed, RevocationStore.START_INDEX - next_small_num)
+        next_secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - next_small_num)
         next_point = secret_to_pubkey(int.from_bytes(next_secret, 'big'))
         return last_secret, this_point, next_point
 
@@ -358,13 +349,13 @@ class HTLCStateMachine(PrintError):
             return
         outpoint = self.funding_outpoint.to_str()
         if ours:
-            ctn = self.local_state.ctn + 1
+            ctn = self.config[LOCAL].ctn + 1
             our_per_commitment_secret = get_per_commitment_secret_from_seed(
-                self.local_state.per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
+                self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
             our_cur_pcp = ecc.ECPrivkey(our_per_commitment_secret).get_public_key_bytes(compressed=True)
             encumbered_sweeptx = maybe_create_sweeptx_for_our_ctx_to_local(self, ctx, our_cur_pcp, self.sweep_address)
         else:
-            their_cur_pcp = self.remote_state.next_per_commitment_point
+            their_cur_pcp = self.config[REMOTE].next_per_commitment_point
             encumbered_sweeptx = maybe_create_sweeptx_for_their_ctx_to_remote(self, ctx, their_cur_pcp, self.sweep_address)
         self.lnwatcher.add_sweep_tx(outpoint, ctx.txid(), encumbered_sweeptx)
 
@@ -390,7 +381,7 @@ class HTLCStateMachine(PrintError):
         """
         self.print_error("receive_revocation")
 
-        cur_point = self.remote_state.current_per_commitment_point
+        cur_point = self.config[REMOTE].current_per_commitment_point
         derived_point = ecc.ECPrivkey(revocation.per_commitment_secret).get_public_key_bytes(compressed=True)
         if cur_point != derived_point:
             raise Exception('revoked secret not for current point')
@@ -400,14 +391,14 @@ class HTLCStateMachine(PrintError):
         # this might break
         prev_remote_commitment = self.pending_remote_commitment
 
-        self.remote_state.revocation_store.add_next_entry(revocation.per_commitment_secret)
+        self.config[REMOTE].revocation_store.add_next_entry(revocation.per_commitment_secret)
         self.process_new_revocation_secret(revocation.per_commitment_secret)
 
         def mark_settled(subject):
             """
             find pending settlements for subject (LOCAL or REMOTE) and mark them settled, return value of settled htlcs
             """
-            old_amount = self.htlcsum(self.gen_htlc_indices(subject, False))
+            old_amount = htlcsum(self.htlcs(subject, False))
 
             for htlc_id in self.log[-subject]['settles']:
                 adds = self.log[subject]['adds']
@@ -415,23 +406,23 @@ class HTLCStateMachine(PrintError):
                 self.settled[subject].append(htlc.amount_msat)
             self.log[-subject]['settles'].clear()
 
-            return old_amount - self.htlcsum(self.gen_htlc_indices(subject, False))
+            return old_amount - htlcsum(self.htlcs(subject, False))
 
         sent_this_batch = mark_settled(LOCAL)
         received_this_batch = mark_settled(REMOTE)
 
-        next_point = self.remote_state.next_per_commitment_point
+        next_point = self.config[REMOTE].next_per_commitment_point
 
         print("RECEIVED", received_this_batch)
         print("SENT", sent_this_batch)
-        self.remote_state=self.remote_state._replace(
-            ctn=self.remote_state.ctn + 1,
+        self.config[REMOTE]=self.config[REMOTE]._replace(
+            ctn=self.config[REMOTE].ctn + 1,
             current_per_commitment_point=next_point,
             next_per_commitment_point=revocation.next_per_commitment_point,
-            amount_msat=self.remote_state.amount_msat + (sent_this_batch - received_this_batch)
+            amount_msat=self.config[REMOTE].amount_msat + (sent_this_batch - received_this_batch)
         )
-        self.local_state=self.local_state._replace(
-            amount_msat = self.local_state.amount_msat + (received_this_batch - sent_this_batch)
+        self.config[LOCAL]=self.config[LOCAL]._replace(
+            amount_msat = self.config[LOCAL].amount_msat + (received_this_batch - sent_this_batch)
         )
 
         for pending_fee in self.fee_mgr:
@@ -444,43 +435,39 @@ class HTLCStateMachine(PrintError):
         return received_this_batch, sent_this_batch
 
     def balance(self, subject):
-        initial = self.local_config.initial_msat if subject == LOCAL else self.remote_config.initial_msat
+        initial = self.config[subject].initial_msat
 
         initial -= sum(self.settled[subject])
         initial += sum(self.settled[-subject])
 
-        assert initial == (self.local_state.amount_msat if subject == LOCAL else self.remote_state.amount_msat)
+        assert initial == self.config[subject].amount_msat
         return initial
 
-    @staticmethod
-    def htlcsum(htlcs):
-        amount_unsettled = 0
-        for x in htlcs:
-            amount_unsettled += x.amount_msat
-        return amount_unsettled
-
     def amounts(self):
-        remote_settled= self.htlcsum(self.gen_htlc_indices(REMOTE, False))
-        local_settled= self.htlcsum(self.gen_htlc_indices(LOCAL, False))
-        unsettled_local = self.htlcsum(self.gen_htlc_indices(LOCAL, True))
-        unsettled_remote = self.htlcsum(self.gen_htlc_indices(REMOTE, True))
-        remote_msat = self.remote_state.amount_msat -\
+        remote_settled= htlcsum(self.htlcs(REMOTE, False))
+        local_settled= htlcsum(self.htlcs(LOCAL, False))
+        unsettled_local = htlcsum(self.htlcs(LOCAL, True))
+        unsettled_remote = htlcsum(self.htlcs(REMOTE, True))
+        remote_msat = self.config[REMOTE].amount_msat -\
           unsettled_remote + local_settled - remote_settled
-        local_msat = self.local_state.amount_msat -\
+        local_msat = self.config[LOCAL].amount_msat -\
           unsettled_local + remote_settled - local_settled
         return remote_msat, local_msat
 
     def included_htlcs(self, subject, htlc_initiator):
+        """
+        return filter of non-dust htlcs for subjects commitment transaction, initiated by given party
+        """
         feerate = self.pending_feerate(subject)
-        conf = self.remote_config if subject == REMOTE else self.local_config
+        conf = self.config[subject]
         weight = HTLC_SUCCESS_WEIGHT if subject != htlc_initiator else HTLC_TIMEOUT_WEIGHT
-        htlcs = self.htlcs_in_local if htlc_initiator == LOCAL else self.htlcs_in_remote
+        htlcs = self.htlcs(htlc_initiator, only_pending=True)
         fee_for_htlc = lambda htlc: htlc.amount_msat // 1000 - (weight * feerate // 1000)
         return filter(lambda htlc: fee_for_htlc(htlc) >= conf.dust_limit_sat, htlcs)
 
     @property
     def pending_remote_commitment(self):
-        this_point = self.remote_state.next_per_commitment_point
+        this_point = self.config[REMOTE].next_per_commitment_point
         return self.make_commitment(REMOTE, this_point)
 
     def pending_feerate(self, subject):
@@ -495,7 +482,7 @@ class HTLCStateMachine(PrintError):
 
     @property
     def _committed_feerate(self):
-        return {LOCAL: self.local_state.feerate, REMOTE: self.remote_state.feerate}
+        return {LOCAL: self.config[LOCAL].feerate, REMOTE: self.config[REMOTE].feerate}
 
     @property
     def pending_local_commitment(self):
@@ -505,10 +492,9 @@ class HTLCStateMachine(PrintError):
     def total_msat(self, sub):
         return sum(self.settled[sub])
 
-    def gen_htlc_indices(self, subject, only_pending):
+    def htlcs(self, subject, only_pending):
         """
         only_pending: require the htlc's settlement to be pending (needs additional signatures/acks)
-        include_settled: include settled (totally done with) htlcs
         """
         update_log = self.log[subject]
         other_log = self.log[-subject]
@@ -520,16 +506,6 @@ class HTLCStateMachine(PrintError):
                 continue
             res.append(htlc)
         return res
-
-    @property
-    def htlcs_in_local(self):
-        """in the local log. 'offered by us'"""
-        return self.gen_htlc_indices(LOCAL, True)
-
-    @property
-    def htlcs_in_remote(self):
-        """in the remote log. 'offered by them'"""
-        return self.gen_htlc_indices(REMOTE, True)
 
     def settle_htlc(self, preimage, htlc_id):
         """
@@ -552,7 +528,7 @@ class HTLCStateMachine(PrintError):
 
     @property
     def current_height(self):
-        return {LOCAL: self.local_state.ctn, REMOTE: self.remote_state.ctn}
+        return {LOCAL: self.config[LOCAL].ctn, REMOTE: self.config[REMOTE].ctn}
 
     @property
     def pending_local_fee(self):
@@ -581,7 +557,7 @@ class HTLCStateMachine(PrintError):
         for i in self.log[subject]['adds'].values():
             locked_in = i.locked_in[LOCAL] is not None or i.locked_in[REMOTE] is not None
             if locked_in:
-                htlcs.append(i)
+                htlcs.append(i._asdict())
             else:
                 removed.append(i.htlc_id)
         return htlcs, removed
@@ -593,10 +569,8 @@ class HTLCStateMachine(PrintError):
         remote_filtered, remote_removed = self.remove_uncommitted_htlcs_from_log(REMOTE)
         local_filtered, local_removed = self.remove_uncommitted_htlcs_from_log(LOCAL)
         to_save = {
-                "local_config": self.local_config,
-                "remote_config": self.remote_config,
-                "local_state": self.local_state,
-                "remote_state": self.remote_state,
+                "local_config": self.config[LOCAL],
+                "remote_config": self.config[REMOTE],
                 "channel_id": self.channel_id,
                 "short_channel_id": self.short_channel_id,
                 "constraints": self.constraints,
@@ -613,12 +587,12 @@ class HTLCStateMachine(PrintError):
         # htlcs number must be monotonically increasing,
         # so we have to decrease the counter
         if len(remote_removed) != 0:
-            assert min(remote_removed) < to_save['remote_state'].next_htlc_id
-            to_save['remote_state'] = to_save['remote_state']._replace(next_htlc_id = min(remote_removed))
+            assert min(remote_removed) < to_save['remote_config'].next_htlc_id
+            to_save['remote_config'] = to_save['remote_config']._replace(next_htlc_id = min(remote_removed))
 
         if len(local_removed) != 0:
-            assert min(local_removed) < to_save['local_state'].next_htlc_id
-            to_save['local_state'] = to_save['local_state']._replace(next_htlc_id = min(local_removed))
+            assert min(local_removed) < to_save['local_config'].next_htlc_id
+            to_save['local_config'] = to_save['local_config']._replace(next_htlc_id = min(local_removed))
 
         return to_save
 
@@ -652,8 +626,8 @@ class HTLCStateMachine(PrintError):
         remote_msat, local_msat = self.amounts()
         assert local_msat >= 0
         assert remote_msat >= 0
-        this_config = self.remote_config if subject != LOCAL else self.local_config
-        other_config = self.remote_config if subject == LOCAL else self.local_config
+        this_config = self.config[subject]
+        other_config = self.config[-subject]
         other_htlc_pubkey = derive_pubkey(other_config.htlc_basepoint.pubkey, this_point)
         this_htlc_pubkey = derive_pubkey(this_config.htlc_basepoint.pubkey, this_point)
         other_revocation_pubkey = derive_blinded_pubkey(other_config.revocation_basepoint.pubkey, this_point)
@@ -676,12 +650,12 @@ class HTLCStateMachine(PrintError):
             remote_msat, local_msat = local_msat, remote_msat
         payment_pubkey = derive_pubkey(other_config.payment_basepoint.pubkey, this_point)
         return make_commitment(
-            (self.local_state.ctn if subject == LOCAL else self.remote_state.ctn) + 1,
+            self.config[subject].ctn + 1,
             this_config.multisig_key.pubkey,
             other_config.multisig_key.pubkey,
             payment_pubkey,
-            self.local_config.payment_basepoint.pubkey,
-            self.remote_config.payment_basepoint.pubkey,
+            self.config[LOCAL].payment_basepoint.pubkey,
+            self.config[REMOTE].payment_basepoint.pubkey,
             other_revocation_pubkey,
             derive_pubkey(this_config.delayed_basepoint.pubkey, this_point),
             other_config.to_self_delay,
@@ -700,28 +674,28 @@ class HTLCStateMachine(PrintError):
             fee_sat = self.pending_local_fee
 
         _, outputs = make_outputs(fee_sat * 1000, True,
-                self.local_state.amount_msat,
-                self.remote_state.amount_msat,
+                self.config[LOCAL].amount_msat,
+                self.config[REMOTE].amount_msat,
                 (TYPE_SCRIPT, bh2u(local_script)),
                 (TYPE_SCRIPT, bh2u(remote_script)),
-                [], self.local_config.dust_limit_sat)
+                [], self.config[LOCAL].dust_limit_sat)
 
-        closing_tx = make_closing_tx(self.local_config.multisig_key.pubkey,
-                self.remote_config.multisig_key.pubkey,
-                self.local_config.payment_basepoint.pubkey,
-                self.remote_config.payment_basepoint.pubkey,
+        closing_tx = make_closing_tx(self.config[LOCAL].multisig_key.pubkey,
+                self.config[REMOTE].multisig_key.pubkey,
+                self.config[LOCAL].payment_basepoint.pubkey,
+                self.config[REMOTE].payment_basepoint.pubkey,
                 # TODO hardcoded we_are_initiator:
                 True, *self.funding_outpoint, self.constraints.capacity,
                 outputs)
 
-        der_sig = bfh(closing_tx.sign_txin(0, self.local_config.multisig_key.privkey))
+        der_sig = bfh(closing_tx.sign_txin(0, self.config[LOCAL].multisig_key.privkey))
         sig = ecc.sig_string_from_der_sig(der_sig[:-1])
         return sig, fee_sat
 
 def maybe_create_sweeptx_for_their_ctx_to_remote(chan, ctx, their_pcp: bytes,
                                                  sweep_address) -> Optional[EncumberedTransaction]:
     assert isinstance(their_pcp, bytes)
-    payment_bp_privkey = ecc.ECPrivkey(chan.local_config.payment_basepoint.privkey)
+    payment_bp_privkey = ecc.ECPrivkey(chan.config[LOCAL].payment_basepoint.privkey)
     our_payment_privkey = derive_privkey(payment_bp_privkey.secret_scalar, their_pcp)
     our_payment_privkey = ecc.ECPrivkey.from_secret_scalar(our_payment_privkey)
     our_payment_pubkey = our_payment_privkey.get_public_key_bytes(compressed=True)
@@ -742,11 +716,11 @@ def maybe_create_sweeptx_for_their_ctx_to_local(chan, ctx, per_commitment_secret
                                                 sweep_address) -> Optional[EncumberedTransaction]:
     assert isinstance(per_commitment_secret, bytes)
     per_commitment_point = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
-    revocation_privkey = derive_blinded_privkey(chan.local_config.revocation_basepoint.privkey,
+    revocation_privkey = derive_blinded_privkey(chan.config[LOCAL].revocation_basepoint.privkey,
                                                 per_commitment_secret)
     revocation_pubkey = ecc.ECPrivkey(revocation_privkey).get_public_key_bytes(compressed=True)
-    to_self_delay = chan.local_config.to_self_delay
-    delayed_pubkey = derive_pubkey(chan.remote_config.delayed_basepoint.pubkey,
+    to_self_delay = chan.config[LOCAL].to_self_delay
+    delayed_pubkey = derive_pubkey(chan.config[REMOTE].delayed_basepoint.pubkey,
                                    per_commitment_point)
     witness_script = bh2u(make_commitment_output_to_local_witness_script(
         revocation_pubkey, to_self_delay, delayed_pubkey))
@@ -768,13 +742,13 @@ def maybe_create_sweeptx_for_their_ctx_to_local(chan, ctx, per_commitment_secret
 def maybe_create_sweeptx_for_our_ctx_to_local(chan, ctx, our_pcp: bytes,
                                               sweep_address) -> Optional[EncumberedTransaction]:
     assert isinstance(our_pcp, bytes)
-    delayed_bp_privkey = ecc.ECPrivkey(chan.local_config.delayed_basepoint.privkey)
+    delayed_bp_privkey = ecc.ECPrivkey(chan.config[LOCAL].delayed_basepoint.privkey)
     our_localdelayed_privkey = derive_privkey(delayed_bp_privkey.secret_scalar, our_pcp)
     our_localdelayed_privkey = ecc.ECPrivkey.from_secret_scalar(our_localdelayed_privkey)
     our_localdelayed_pubkey = our_localdelayed_privkey.get_public_key_bytes(compressed=True)
-    revocation_pubkey = derive_blinded_pubkey(chan.remote_config.revocation_basepoint.pubkey,
+    revocation_pubkey = derive_blinded_pubkey(chan.config[REMOTE].revocation_basepoint.pubkey,
                                               our_pcp)
-    to_self_delay = chan.remote_config.to_self_delay
+    to_self_delay = chan.config[REMOTE].to_self_delay
     witness_script = bh2u(make_commitment_output_to_local_witness_script(
         revocation_pubkey, to_self_delay, our_localdelayed_pubkey))
     to_local_address = redeem_script_to_address('p2wsh', witness_script)
