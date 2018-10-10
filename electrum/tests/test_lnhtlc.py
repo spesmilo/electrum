@@ -201,10 +201,10 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         aliceSent = 0
         bobSent = 0
 
-        self.assertEqual(alice_channel.total_msat[SENT], aliceSent, "alice has incorrect milli-satoshis sent")
-        self.assertEqual(alice_channel.total_msat[RECEIVED], bobSent, "alice has incorrect milli-satoshis received")
-        self.assertEqual(bob_channel.total_msat[SENT], bobSent, "bob has incorrect milli-satoshis sent")
-        self.assertEqual(bob_channel.total_msat[RECEIVED], aliceSent, "bob has incorrect milli-satoshis received")
+        self.assertEqual(alice_channel.total_msat(SENT), aliceSent, "alice has incorrect milli-satoshis sent")
+        self.assertEqual(alice_channel.total_msat(RECEIVED), bobSent, "alice has incorrect milli-satoshis received")
+        self.assertEqual(bob_channel.total_msat(SENT), bobSent, "bob has incorrect milli-satoshis sent")
+        self.assertEqual(bob_channel.total_msat(RECEIVED), aliceSent, "bob has incorrect milli-satoshis received")
         self.assertEqual(bob_channel.local_state.ctn, 1, "bob has incorrect commitment height")
         self.assertEqual(alice_channel.local_state.ctn, 1, "alice has incorrect commitment height")
 
@@ -242,10 +242,10 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         # should show 1 BTC received. They should also be at commitment height
         # two, with the revocation window extended by 1 (5).
         mSatTransferred = one_bitcoin_in_msat
-        self.assertEqual(alice_channel.total_msat[SENT], mSatTransferred, "alice satoshis sent incorrect")
-        self.assertEqual(alice_channel.total_msat[RECEIVED], 0, "alice satoshis received incorrect")
-        self.assertEqual(bob_channel.total_msat[RECEIVED], mSatTransferred, "bob satoshis received incorrect")
-        self.assertEqual(bob_channel.total_msat[SENT], 0, "bob satoshis sent incorrect")
+        self.assertEqual(alice_channel.total_msat(SENT), mSatTransferred, "alice satoshis sent incorrect")
+        self.assertEqual(alice_channel.total_msat(RECEIVED), 0, "alice satoshis received incorrect")
+        self.assertEqual(bob_channel.total_msat(RECEIVED), mSatTransferred, "bob satoshis received incorrect")
+        self.assertEqual(bob_channel.total_msat(SENT), 0, "bob satoshis sent incorrect")
         self.assertEqual(bob_channel.current_height[LOCAL], 2, "bob has incorrect commitment height")
         self.assertEqual(alice_channel.current_height[LOCAL], 2, "alice has incorrect commitment height")
 
@@ -348,7 +348,7 @@ class TestLNHTLCDust(unittest.TestCase):
         alice_channel.receive_htlc_settle(paymentPreimage, aliceHtlcIndex)
         force_state_transition(bob_channel, alice_channel)
         self.assertEqual(len(alice_channel.local_commitment.outputs()), 2)
-        self.assertEqual(alice_channel.total_msat[SENT] // 1000, htlcAmt)
+        self.assertEqual(alice_channel.total_msat(SENT) // 1000, htlcAmt)
 
 def force_state_transition(chanA, chanB):
     chanB.receive_new_commitment(*chanA.sign_next_commitment())
