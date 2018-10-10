@@ -860,6 +860,7 @@ def get_parser():
         add_global_options(p)
         if cmdname == 'restore':
             p.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
+            p.add_argument("--password", dest="password", default=None, help="Set password for wallet")
         for optname, default in zip(cmd.options, cmd.defaults):
             a, help = command_options[optname]
             b = '--' + optname
