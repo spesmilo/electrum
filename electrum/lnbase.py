@@ -1042,28 +1042,17 @@ class Peer(PrintError):
         data = failure_msg.data
         self.print_error("UPDATE_FAIL_HTLC", repr(code), data)
         # handle some specific error codes
-        if code == OnionFailureCode.TEMPORARY_CHANNEL_FAILURE:
-            channel_update = (258).to_bytes(length=2, byteorder="big") + data[2:]
-            message_type, payload = decode_msg(channel_update)
-            self.on_channel_update(payload)
-        elif code == OnionFailureCode.AMOUNT_BELOW_MINIMUM:
-            channel_update = (258).to_bytes(length=2, byteorder="big") + data[10:]
-            message_type, payload = decode_msg(channel_update)
-            self.on_channel_update(payload)
-        elif code == OnionFailureCode.FEE_INSUFFICIENT:
-            channel_update = (258).to_bytes(length=2, byteorder="big") + data[10:]
-            message_type, payload = decode_msg(channel_update)
-            self.on_channel_update(payload)
-        elif code == OnionFailureCode.INCORRECT_CLTV_EXPIRY:
-            channel_update = (258).to_bytes(length=2, byteorder="big") + data[6:]
-            message_type, payload = decode_msg(channel_update)
-            self.on_channel_update(payload)
-        elif code == OnionFailureCode.EXPIRY_TOO_SOON:
-            channel_update = (258).to_bytes(length=2, byteorder="big") + data[2:]
-            message_type, payload = decode_msg(channel_update)
-            self.on_channel_update(payload)
-        elif code == OnionFailureCode.CHANNEL_DISABLED:
-            channel_update = (258).to_bytes(length=2, byteorder="big") + data[4:]
+        failure_codes = {
+            OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 2
+            OnionFailureCode.AMOUNT_BELOW_MINIMUM: 10
+            OnionFailureCode.FEE_INSUFFICIENT: 10
+            OnionFailureCode.INCORRECT_CLTV_EXPIRY: 6
+            OnionFailureCode.EXPIRY_TOO_SOON: 2
+            OnionFailureCode.CHANNEL_DISABLED: 4
+        }
+        offset = failure_codes.get(code)
+        if offset:
+            channel_update = (258).to_bytes(length=2, byteorder="big") + data[offset:]
             message_type, payload = decode_msg(channel_update)
             self.on_channel_update(payload)
         else:
