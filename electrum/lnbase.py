@@ -1043,12 +1043,12 @@ class Peer(PrintError):
         self.print_error("UPDATE_FAIL_HTLC", repr(code), data)
         # handle some specific error codes
         failure_codes = {
-            OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 2
-            OnionFailureCode.AMOUNT_BELOW_MINIMUM: 10
-            OnionFailureCode.FEE_INSUFFICIENT: 10
-            OnionFailureCode.INCORRECT_CLTV_EXPIRY: 6
-            OnionFailureCode.EXPIRY_TOO_SOON: 2
-            OnionFailureCode.CHANNEL_DISABLED: 4
+            OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 2,
+            OnionFailureCode.AMOUNT_BELOW_MINIMUM: 10,
+            OnionFailureCode.FEE_INSUFFICIENT: 10,
+            OnionFailureCode.INCORRECT_CLTV_EXPIRY: 6,
+            OnionFailureCode.EXPIRY_TOO_SOON: 2,
+            OnionFailureCode.CHANNEL_DISABLED: 4,
         }
         offset = failure_codes.get(code)
         if offset:
