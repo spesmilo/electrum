@@ -16,56 +16,52 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
     assert remote_amount > 0
     channel_id, _ = lnbase.channel_id_from_funding_tx(funding_txid, funding_index)
     their_revocation_store = lnbase.RevocationStore()
-    local_config=lnbase.ChannelConfig(
-        payment_basepoint=privkeys[0],
-        multisig_key=privkeys[1],
-        htlc_basepoint=privkeys[2],
-        delayed_basepoint=privkeys[3],
-        revocation_basepoint=privkeys[4],
-        to_self_delay=l_csv,
-        dust_limit_sat=l_dust,
-        max_htlc_value_in_flight_msat=500000 * 1000,
-        max_accepted_htlcs=5,
-        initial_msat=local_amount,
-    )
-    remote_config=lnbase.ChannelConfig(
-        payment_basepoint=other_pubkeys[0],
-        multisig_key=other_pubkeys[1],
-        htlc_basepoint=other_pubkeys[2],
-        delayed_basepoint=other_pubkeys[3],
-        revocation_basepoint=other_pubkeys[4],
-        to_self_delay=r_csv,
-        dust_limit_sat=r_dust,
-        max_htlc_value_in_flight_msat=500000 * 1000,
-        max_accepted_htlcs=5,
-        initial_msat=remote_amount,
-    )
 
     return {
             "channel_id":channel_id,
             "short_channel_id":channel_id[:8],
             "funding_outpoint":lnbase.Outpoint(funding_txid, funding_index),
-            "local_config":local_config,
-            "remote_config":remote_config,
-            "remote_state":lnbase.RemoteState(
+            "remote_config":lnbase.RemoteConfig(
+                payment_basepoint=other_pubkeys[0],
+                multisig_key=other_pubkeys[1],
+                htlc_basepoint=other_pubkeys[2],
+                delayed_basepoint=other_pubkeys[3],
+                revocation_basepoint=other_pubkeys[4],
+                to_self_delay=r_csv,
+                dust_limit_sat=r_dust,
+                max_htlc_value_in_flight_msat=500000 * 1000,
+                max_accepted_htlcs=5,
+                initial_msat=remote_amount,
                 ctn = 0,
+                next_htlc_id = 0,
+                feerate=local_feerate,
+                amount_msat=remote_amount,
+
                 next_per_commitment_point=nex,
                 current_per_commitment_point=cur,
-                amount_msat=remote_amount,
                 revocation_store=their_revocation_store,
-                next_htlc_id = 0,
-                feerate=local_feerate
             ),
-            "local_state":lnbase.LocalState(
+            "local_config":lnbase.LocalConfig(
+                payment_basepoint=privkeys[0],
+                multisig_key=privkeys[1],
+                htlc_basepoint=privkeys[2],
+                delayed_basepoint=privkeys[3],
+                revocation_basepoint=privkeys[4],
+                to_self_delay=l_csv,
+                dust_limit_sat=l_dust,
+                max_htlc_value_in_flight_msat=500000 * 1000,
+                max_accepted_htlcs=5,
+                initial_msat=local_amount,
                 ctn = 0,
-                per_commitment_secret_seed=seed,
-                amount_msat=local_amount,
                 next_htlc_id = 0,
+                feerate=local_feerate,
+                amount_msat=local_amount,
+
+                per_commitment_secret_seed=seed,
                 funding_locked_received=True,
                 was_announced=False,
                 current_commitment_signature=None,
                 current_htlc_signatures=None,
-                feerate=local_feerate
             ),
             "constraints":lnbase.ChannelConstraints(capacity=funding_sat, is_initiator=is_initiator, funding_txn_minimum_depth=3),
             "node_id":other_node_id,
@@ -205,8 +201,8 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         self.assertEqual(alice_channel.total_msat(RECEIVED), bobSent, "alice has incorrect milli-satoshis received")
         self.assertEqual(bob_channel.total_msat(SENT), bobSent, "bob has incorrect milli-satoshis sent")
         self.assertEqual(bob_channel.total_msat(RECEIVED), aliceSent, "bob has incorrect milli-satoshis received")
-        self.assertEqual(bob_channel.local_state.ctn, 1, "bob has incorrect commitment height")
-        self.assertEqual(alice_channel.local_state.ctn, 1, "alice has incorrect commitment height")
+        self.assertEqual(bob_channel.config[LOCAL].ctn, 1, "bob has incorrect commitment height")
+        self.assertEqual(alice_channel.config[LOCAL].ctn, 1, "alice has incorrect commitment height")
 
         # Both commitment transactions should have three outputs, and one of
         # them should be exactly the amount of the HTLC.
@@ -275,20 +271,20 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
 
         bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
 
-        self.assertNotEqual(fee, bob_channel.local_state.feerate)
+        self.assertNotEqual(fee, bob_channel.config[LOCAL].feerate)
         rev, _ = bob_channel.revoke_current_commitment()
-        self.assertEqual(fee, bob_channel.local_state.feerate)
+        self.assertEqual(fee, bob_channel.config[LOCAL].feerate)
 
         bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
         alice_channel.receive_revocation(rev)
         alice_channel.receive_new_commitment(bob_sig, bob_htlc_sigs)
 
-        self.assertNotEqual(fee, alice_channel.local_state.feerate)
+        self.assertNotEqual(fee, alice_channel.config[LOCAL].feerate)
         rev, _ = alice_channel.revoke_current_commitment()
-        self.assertEqual(fee, alice_channel.local_state.feerate)
+        self.assertEqual(fee, alice_channel.config[LOCAL].feerate)
 
         bob_channel.receive_revocation(rev)
-        self.assertEqual(fee, bob_channel.remote_state.feerate)
+        self.assertEqual(fee, bob_channel.config[REMOTE].feerate)
 
 
     def test_UpdateFeeReceiverCommits(self):
@@ -304,20 +300,20 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
         bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
 
-        self.assertNotEqual(fee, bob_channel.local_state.feerate)
+        self.assertNotEqual(fee, bob_channel.config[LOCAL].feerate)
         bob_revocation, _ = bob_channel.revoke_current_commitment()
-        self.assertEqual(fee, bob_channel.local_state.feerate)
+        self.assertEqual(fee, bob_channel.config[LOCAL].feerate)
 
         bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
         alice_channel.receive_revocation(bob_revocation)
         alice_channel.receive_new_commitment(bob_sig, bob_htlc_sigs)
 
-        self.assertNotEqual(fee, alice_channel.local_state.feerate)
+        self.assertNotEqual(fee, alice_channel.config[LOCAL].feerate)
         alice_revocation, _ = alice_channel.revoke_current_commitment()
-        self.assertEqual(fee, alice_channel.local_state.feerate)
+        self.assertEqual(fee, alice_channel.config[LOCAL].feerate)
 
         bob_channel.receive_revocation(alice_revocation)
-        self.assertEqual(fee, bob_channel.remote_state.feerate)
+        self.assertEqual(fee, bob_channel.config[REMOTE].feerate)
 
 
 
@@ -327,7 +323,7 @@ class TestLNHTLCDust(unittest.TestCase):
 
         paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(paymentPreimage)
-        fee_per_kw = alice_channel.local_state.feerate
+        fee_per_kw = alice_channel.config[LOCAL].feerate
         self.assertEqual(fee_per_kw, 6000)
         htlcAmt = 500 + lnutil.HTLC_TIMEOUT_WEIGHT * (fee_per_kw // 1000)
         self.assertEqual(htlcAmt, 4478)

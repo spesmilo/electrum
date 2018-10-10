@@ -116,7 +116,7 @@ class LNWorker(PrintError):
 
     def save_channel(self, openchannel):
         assert type(openchannel) is HTLCStateMachine
-        if openchannel.remote_state.next_per_commitment_point == openchannel.remote_state.current_per_commitment_point:
+        if openchannel.config[REMOTE].next_per_commitment_point == openchannel.config[REMOTE].current_per_commitment_point:
             raise Exception("Tried to save channel with next_point == current_point, this should not happen")
         with self.lock:
             self.channels[openchannel.channel_id] = openchannel
@@ -350,12 +350,12 @@ class LNWorker(PrintError):
         chan = self.channels[chan_id]
         # local_commitment always gives back the next expected local_commitment,
         # but in this case, we want the current one. So substract one ctn number
-        old_local_state = chan.local_state
-        chan.local_state=chan.local_state._replace(ctn=chan.local_state.ctn - 1)
+        old_local_state = chan.config[LOCAL]
+        chan.config[LOCAL]=chan.config[LOCAL]._replace(ctn=chan.config[LOCAL].ctn - 1)
         tx = chan.pending_local_commitment
-        chan.local_state = old_local_state
-        tx.sign({bh2u(chan.local_config.multisig_key.pubkey): (chan.local_config.multisig_key.privkey, True)})
-        remote_sig = chan.local_state.current_commitment_signature
+        chan.config[LOCAL] = old_local_state
+        tx.sign({bh2u(chan.config[LOCAL].multisig_key.pubkey): (chan.config[LOCAL].multisig_key.privkey, True)})
+        remote_sig = chan.config[LOCAL].current_commitment_signature
         remote_sig = der_sig_from_sig_string(remote_sig) + b"\x01"
         none_idx = tx._inputs[0]["signatures"].index(None)
         tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
