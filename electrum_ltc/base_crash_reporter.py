@@ -28,10 +28,10 @@ import sys
 import os
 
 from .version import ELECTRUM_VERSION
-from .import constants
+from . import constants
 from .i18n import _
-
 from .util import make_aiohttp_session
+
 
 class BaseCrashReporter:
     report_server = "https://crashhub.electrum-ltc.org"

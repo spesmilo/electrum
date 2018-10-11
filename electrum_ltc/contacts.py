@@ -21,11 +21,9 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import re
+
 import dns
 from dns.exception import DNSException
-import json
-import traceback
-import sys
 
 from . import bitcoin
 from . import dnssec

@@ -57,6 +57,7 @@ from electrum_ltc.util import (format_time, format_satoshis, format_fee_satoshis
 from electrum_ltc.transaction import Transaction, TxOutput
 from electrum_ltc.address_synchronizer import AddTransactionException
 from electrum_ltc.wallet import Multisig_Wallet, CannotBumpFee
+from electrum_ltc.version import ELECTRUM_VERSION
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
@@ -399,7 +400,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def watching_only_changed(self):
         name = "Electrum-LTC Testnet" if constants.net.TESTNET else "Electrum-LTC"
-        title = '%s %s  -  %s' % (name, self.wallet.electrum_version,
+        title = '%s %s  -  %s' % (name, ELECTRUM_VERSION,
                                         self.wallet.basename())
         extra = [self.wallet.storage.get('wallet_type', '?')]
         if self.wallet.is_watching_only():
@@ -584,7 +585,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def show_about(self):
         QMessageBox.about(self, "Electrum-LTC",
-                          (_("Version")+" %s" % self.wallet.electrum_version + "\n\n" +
+                          (_("Version")+" %s" % ELECTRUM_VERSION + "\n\n" +
                            _("Electrum's focus is speed, with low resource usage and simplifying Litecoin.") + " " +
                            _("You do not need to perform regular backups, because your wallet can be "
                               "recovered from a secret phrase that you can memorize or write on paper.") + " " +
@@ -743,6 +744,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         elif self.network.is_connected():
             server_height = self.network.get_server_height()
             server_lag = self.network.get_local_height() - server_height
+            fork_str = "_fork" if len(self.network.get_blockchains())>1 else ""
             # Server height can be 0 after switching to a new server
             # until we get a headers subscription request response.
             # Display the synchronizing message in that case.
@@ -751,7 +753,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 icon = QIcon(":icons/status_waiting.png")
             elif server_lag > 1:
                 text = _("Server is lagging ({} blocks)").format(server_lag)
-                icon = QIcon(":icons/status_lagging.png")
+                icon = QIcon(":icons/status_lagging%s.png"%fork_str)
             else:
                 c, u, x = self.wallet.get_balance()
                 text =  _("Balance" ) + ": %s "%(self.format_amount_and_units(c))
@@ -765,9 +767,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     text += self.fx.get_fiat_status_text(c + u + x,
                         self.base_unit(), self.get_decimal_point()) or ''
                 if not self.network.proxy:
-                    icon = QIcon(":icons/status_connected.png")
+                    icon = QIcon(":icons/status_connected%s.png"%fork_str)
                 else:
-                    icon = QIcon(":icons/status_connected_proxy.png")
+                    icon = QIcon(":icons/status_connected_proxy%s.png"%fork_str)
         else:
             if self.network.proxy:
                 text = "{} ({})".format(_("Not connected"), _("proxy enabled"))
