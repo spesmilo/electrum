@@ -1850,6 +1850,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)
 
+    @protected
+    def open_channel(self, *args, **kwargs):
+        def task():
+            return self.wallet.lnworker.open_channel(*args, **kwargs)
+        def on_success(result):
+            print(result)
+            self.show_message(_('Channel open'))
+        WaitingDialog(self, _('Opening channel...'), task, on_success, self.on_error)
+
     def query_choice(self, msg, choices):
         # Needed by QtHandler for hardware wallets
         dialog = WindowModalDialog(self.top_level_window())

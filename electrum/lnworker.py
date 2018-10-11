@@ -214,7 +214,7 @@ class LNWorker(PrintError):
         # TODO maybe filter out onion if not on tor?
         return random.choice(addr_list)
 
-    def open_channel(self, connect_contents, local_amt_sat, push_amt_sat, pw, timeout=5):
+    def open_channel(self, connect_contents, local_amt_sat, push_amt_sat, password=None, timeout=5):
         node_id, rest = extract_nodeid(connect_contents)
         peer = self.peers.get(node_id)
         if not peer:
@@ -231,7 +231,7 @@ class LNWorker(PrintError):
             except socket.gaierror:
                 raise ConnStringFormatError(_('Hostname does not resolve (getaddrinfo failed)'))
             peer = self.add_peer(host, port, node_id)
-        coro = self._open_channel_coroutine(peer, local_amt_sat, push_amt_sat, None if pw == "" else pw)
+        coro = self._open_channel_coroutine(peer, local_amt_sat, push_amt_sat, password)
         f = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         return f.result(timeout)
 

@@ -111,11 +111,4 @@ class ChannelsList(MyTreeWidget):
         local_amt = local_amt_inp.get_amount()
         push_amt = push_amt_inp.get_amount()
         connect_contents = str(remote_nodeid.text()).strip()
-        self.main_window.protect(self.open_channel, (connect_contents, local_amt, push_amt))
-
-    def open_channel(self, *args, **kwargs):
-        try:
-            self.parent.wallet.lnworker.open_channel(*args, **kwargs)
-        except Exception as e:
-            # don't use str(e) because str(asyncio.TimeoutError()) (and many others) is ''
-            self.parent.show_error('Cannot open channel: %s' % repr(e))
+        self.parent.open_channel(connect_contents, local_amt, push_amt)
