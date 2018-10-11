@@ -34,7 +34,6 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 initial_msat=remote_amount,
                 ctn = 0,
                 next_htlc_id = 0,
-                feerate=local_feerate,
                 amount_msat=remote_amount,
 
                 next_per_commitment_point=nex,
@@ -54,7 +53,6 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 initial_msat=local_amount,
                 ctn = 0,
                 next_htlc_id = 0,
-                feerate=local_feerate,
                 amount_msat=local_amount,
 
                 per_commitment_secret_seed=seed,
@@ -63,7 +61,12 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 current_commitment_signature=None,
                 current_htlc_signatures=None,
             ),
-            "constraints":lnbase.ChannelConstraints(capacity=funding_sat, is_initiator=is_initiator, funding_txn_minimum_depth=3),
+            "constraints":lnbase.ChannelConstraints(
+                capacity=funding_sat,
+                is_initiator=is_initiator,
+                funding_txn_minimum_depth=3,
+                feerate=local_feerate,
+            ),
             "node_id":other_node_id,
             "remote_commitment_to_be_revoked": None,
             'onion_keys': {},
@@ -271,20 +274,20 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
 
         bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
 
-        self.assertNotEqual(fee, bob_channel.config[LOCAL].feerate)
+        self.assertNotEqual(fee, bob_channel.constraints.feerate)
         rev, _ = bob_channel.revoke_current_commitment()
-        self.assertEqual(fee, bob_channel.config[LOCAL].feerate)
+        self.assertEqual(fee, bob_channel.constraints.feerate)
 
         bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
         alice_channel.receive_revocation(rev)
         alice_channel.receive_new_commitment(bob_sig, bob_htlc_sigs)
 
-        self.assertNotEqual(fee, alice_channel.config[LOCAL].feerate)
+        self.assertNotEqual(fee, alice_channel.constraints.feerate)
         rev, _ = alice_channel.revoke_current_commitment()
-        self.assertEqual(fee, alice_channel.config[LOCAL].feerate)
+        self.assertEqual(fee, alice_channel.constraints.feerate)
 
         bob_channel.receive_revocation(rev)
-        self.assertEqual(fee, bob_channel.config[REMOTE].feerate)
+        self.assertEqual(fee, bob_channel.constraints.feerate)
 
 
     def test_UpdateFeeReceiverCommits(self):
@@ -300,20 +303,20 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
         alice_sig, alice_htlc_sigs = alice_channel.sign_next_commitment()
         bob_channel.receive_new_commitment(alice_sig, alice_htlc_sigs)
 
-        self.assertNotEqual(fee, bob_channel.config[LOCAL].feerate)
+        self.assertNotEqual(fee, bob_channel.constraints.feerate)
         bob_revocation, _ = bob_channel.revoke_current_commitment()
-        self.assertEqual(fee, bob_channel.config[LOCAL].feerate)
+        self.assertEqual(fee, bob_channel.constraints.feerate)
 
         bob_sig, bob_htlc_sigs = bob_channel.sign_next_commitment()
         alice_channel.receive_revocation(bob_revocation)
         alice_channel.receive_new_commitment(bob_sig, bob_htlc_sigs)
 
-        self.assertNotEqual(fee, alice_channel.config[LOCAL].feerate)
+        self.assertNotEqual(fee, alice_channel.constraints.feerate)
         alice_revocation, _ = alice_channel.revoke_current_commitment()
-        self.assertEqual(fee, alice_channel.config[LOCAL].feerate)
+        self.assertEqual(fee, alice_channel.constraints.feerate)
 
         bob_channel.receive_revocation(alice_revocation)
-        self.assertEqual(fee, bob_channel.config[REMOTE].feerate)
+        self.assertEqual(fee, bob_channel.constraints.feerate)
 
 
 
@@ -323,7 +326,7 @@ class TestLNHTLCDust(unittest.TestCase):
 
         paymentPreimage = b"\x01" * 32
         paymentHash = bitcoin.sha256(paymentPreimage)
-        fee_per_kw = alice_channel.config[LOCAL].feerate
+        fee_per_kw = alice_channel.constraints.feerate
         self.assertEqual(fee_per_kw, 6000)
         htlcAmt = 500 + lnutil.HTLC_TIMEOUT_WEIGHT * (fee_per_kw // 1000)
         self.assertEqual(htlcAmt, 4478)
