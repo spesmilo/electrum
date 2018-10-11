@@ -3,7 +3,7 @@
 import unittest
 import electrum.bitcoin as bitcoin
 import electrum.lnbase as lnbase
-import electrum.lnhtlc as lnhtlc
+import electrum.lnchan as lnchan
 import electrum.lnutil as lnutil
 import electrum.util as util
 import os
@@ -102,9 +102,9 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     bob_next = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, lnutil.RevocationStore.START_INDEX - 1), "big"))
 
     return \
-        lnhtlc.HTLCStateMachine(
+        lnchan.Channel(
             create_channel_state(funding_txid, funding_index, funding_sat, feerate, True, local_amount, remote_amount, alice_privkeys, bob_pubkeys, alice_seed, bob_cur, bob_next, b"\x02"*33, l_dust=200, r_dust=1300, l_csv=5, r_csv=4), "alice"), \
-        lnhtlc.HTLCStateMachine(
+        lnchan.Channel(
             create_channel_state(funding_txid, funding_index, funding_sat, feerate, False, remote_amount, local_amount, bob_privkeys, alice_pubkeys, bob_seed, alice_cur, alice_next, b"\x01"*33, l_dust=1300, r_dust=200, l_csv=4, r_csv=5), "bob")
 
 one_bitcoin_in_msat = bitcoin.COIN * 1000
@@ -118,7 +118,7 @@ class TestFee(unittest.TestCase):
         alice_channel, bob_channel = create_test_channels(253, 10000000000, 5000000000)
         self.assertIn(9999817, [x[2] for x in alice_channel.local_commitment.outputs()])
 
-class TestLNBaseHTLCStateMachine(unittest.TestCase):
+class TestChannel(unittest.TestCase):
     def assertOutputExistsByValue(self, tx, amt_sat):
         for typ, scr, val in tx.outputs():
             if val == amt_sat:
@@ -320,8 +320,8 @@ class TestLNBaseHTLCStateMachine(unittest.TestCase):
 
 
 
-class TestLNHTLCDust(unittest.TestCase):
-    def test_HTLCDustLimit(self):
+class TestDust(unittest.TestCase):
+    def test_DustLimit(self):
         alice_channel, bob_channel = create_test_channels()
 
         paymentPreimage = b"\x01" * 32
