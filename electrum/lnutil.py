@@ -26,7 +26,6 @@ common = [
     ('ctn' , int),
     ('amount_msat' , int),
     ('next_htlc_id' , int),
-    ('feerate' , int),
     ('payment_basepoint' , Keypair),
     ('multisig_key' , Keypair),
     ('htlc_basepoint' , Keypair),
@@ -49,7 +48,7 @@ LocalConfig = NamedTuple('LocalConfig', common + [
     ('current_htlc_signatures', List[bytes]),
 ])
 
-ChannelConstraints = namedtuple("ChannelConstraints", ["capacity", "is_initiator", "funding_txn_minimum_depth"])
+ChannelConstraints = namedtuple("ChannelConstraints", ["capacity", "is_initiator", "funding_txn_minimum_depth", "feerate"])
 
 ScriptHtlc = namedtuple('ScriptHtlc', ['redeem_script', 'htlc'])
 

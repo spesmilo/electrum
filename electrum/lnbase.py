@@ -530,7 +530,7 @@ class Peer(PrintError):
             chan.set_state('DISCONNECTED')
             self.network.trigger_callback('channel', chan)
 
-    def make_local_config(self, funding_sat, push_msat, initiator: HTLCOwner, feerate):
+    def make_local_config(self, funding_sat, push_msat, initiator: HTLCOwner):
         # key derivation
         channel_counter = self.lnworker.get_and_inc_counter_for_channel_keys()
         keypair_generator = lambda family: generate_keypair(self.lnworker.ln_keystore, family, channel_counter)
@@ -552,7 +552,6 @@ class Peer(PrintError):
             ctn=-1,
             next_htlc_id=0,
             amount_msat=initial_msat,
-            feerate=feerate,
         )
         per_commitment_secret_seed = keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey
         return local_config, per_commitment_secret_seed
@@ -561,7 +560,7 @@ class Peer(PrintError):
     async def channel_establishment_flow(self, password, funding_sat, push_msat, temp_channel_id):
         await self.initialized
         feerate = self.current_feerate_per_kw()
-        local_config, per_commitment_secret_seed = self.make_local_config(funding_sat, push_msat, LOCAL, feerate)
+        local_config, per_commitment_secret_seed = self.make_local_config(funding_sat, push_msat, LOCAL)
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, RevocationStore.START_INDEX)
         per_commitment_point_first = secret_to_pubkey(int.from_bytes(per_commitment_secret_first, 'big'))
@@ -611,7 +610,6 @@ class Peer(PrintError):
             ctn = -1,
             amount_msat=push_msat,
             next_htlc_id = 0,
-            feerate=feerate,
 
             next_per_commitment_point=remote_per_commitment_point,
             current_per_commitment_point=None,
@@ -640,7 +638,7 @@ class Peer(PrintError):
                     current_commitment_signature = None,
                     current_htlc_signatures = None,
                 ),
-                "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth),
+                "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth, feerate=feerate),
                 "remote_commitment_to_be_revoked": None,
         }
         m = HTLCStateMachine(chan)
@@ -675,7 +673,7 @@ class Peer(PrintError):
         feerate = int.from_bytes(payload['feerate_per_kw'], 'big')
 
         temp_chan_id = payload['temporary_channel_id']
-        local_config, per_commitment_secret_seed = self.make_local_config(funding_sat * 1000, push_msat, REMOTE, feerate)
+        local_config, per_commitment_secret_seed = self.make_local_config(funding_sat * 1000, push_msat, REMOTE)
 
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, RevocationStore.START_INDEX)
@@ -723,7 +721,6 @@ class Peer(PrintError):
                     ctn = -1,
                     amount_msat=remote_balance_sat,
                     next_htlc_id = 0,
-                    feerate=feerate,
 
                     next_per_commitment_point=payload['first_per_commitment_point'],
                     current_per_commitment_point=None,
@@ -737,7 +734,7 @@ class Peer(PrintError):
                     current_commitment_signature = None,
                     current_htlc_signatures = None,
                 ),
-                "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth),
+                "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth, feerate=feerate),
                 "remote_commitment_to_be_revoked": None,
         }
         m = HTLCStateMachine(chan)
