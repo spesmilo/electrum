@@ -586,7 +586,7 @@ def time_difference(distance_in_time, include_seconds):
 mainnet_block_explorers = {
     'cryptoID.info': ('https://chainz.cryptoid.info/grs/',
                         {'tx': 'tx.dws?', 'addr': 'address.dws?'}),
-    'groestlsight': ('http://groestlsight.groestlcoin.org/',
+    'groestlsight': ('https://groestlsight.groestlcoin.org/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain://00000ac5927c594d49cc0bdb81759d0da8297eb614683d3acb62f0703b639023/',
                         {'tx': 'tx/', 'addr': 'address/'}),

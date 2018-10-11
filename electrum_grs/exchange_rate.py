@@ -140,7 +140,7 @@ class Bittrex(ExchangeBase):
 
 class GRSTicker(ExchangeBase):
     def get_rates(self, ccy):
-        url = 'http://groestlcoin.org/grsticker.php'
+        url = 'https://groestlcoin.org/grsticker.php'
         response = requests.request('GET', url,
                                     headers={'User-Agent' : 'Electrum-GRS'})
 

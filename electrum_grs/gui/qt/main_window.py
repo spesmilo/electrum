@@ -545,9 +545,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         help_menu = menubar.addMenu(_("&Help"))
         help_menu.addAction(_("&About"), self.show_about)
-        help_menu.addAction(_("&Official website"), lambda: webbrowser.open("http://groestlcoin.org"))
+        help_menu.addAction(_("&Official website"), lambda: webbrowser.open("https://www.groestlcoin.org"))
         help_menu.addSeparator()
-        help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("http://groestlcoin.org/forum/")).setShortcut(QKeySequence.HelpContents)
+        help_menu.addAction(_("&Documentation"), lambda: webbrowser.open("https://www.groestlcoin.org/forum/")).setShortcut(QKeySequence.HelpContents)
         help_menu.addAction(_("&Report Bug"), self.show_report_bug)
         help_menu.addSeparator()
         help_menu.addAction(_("&Donate to server"), self.donate_to_server)
@@ -2257,8 +2257,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             public_key = ecc.ECPubkey(bfh(pubkey_e.text()))
         except BaseException as e:
-            traceback.print_exc(file=sys.stdout)            
-            self.show_warning(_('Invalid Public key')) 
+            traceback.print_exc(file=sys.stdout)
+            self.show_warning(_('Invalid Public key'))
             return
         encrypted = public_key.encrypt_message(message)
         encrypted_e.setText(encrypted.decode('ascii'))
