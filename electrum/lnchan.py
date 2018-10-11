@@ -83,7 +83,7 @@ def decodeAll(d, local):
 def htlcsum(htlcs):
     return sum([x.amount_msat for x in htlcs])
 
-class HTLCStateMachine(PrintError):
+class Channel(PrintError):
     def diagnostic_name(self):
         return str(self.name)
 
@@ -589,7 +589,7 @@ class HTLCStateMachine(PrintError):
                 return super(MyJsonEncoder, self)
         dumped = MyJsonEncoder().encode(serialized_channel)
         roundtripped = json.loads(dumped)
-        reconstructed = HTLCStateMachine(roundtripped)
+        reconstructed = Channel(roundtripped)
         if reconstructed.to_save() != self.to_save():
             from pprint import pformat
             try:
