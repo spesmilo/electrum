@@ -156,7 +156,7 @@ class SPV(NetworkJobOnDefaultServer):
 
     async def _maybe_undo_verifications(self):
         def undo_verifications():
-            height = self.blockchain.get_forkpoint()
+            height = self.blockchain.get_max_forkpoint()
             self.print_error("undoing verifications back to height {}".format(height))
             tx_hashes = self.wallet.undo_verifications(self.blockchain, height)
             for tx_hash in tx_hashes:

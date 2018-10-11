@@ -22,7 +22,7 @@
 # SOFTWARE.
 import os
 import threading
-from typing import Optional
+from typing import Optional, Dict
 
 from . import util
 from .bitcoin import Hash, hash_encode, int_to_hex, rev_hex
@@ -73,7 +73,7 @@ def hash_header(header: dict) -> str:
     return hash_encode(Hash(bfh(serialize_header(header))))
 
 
-blockchains = {}
+blockchains = {}  # type: Dict[int, Blockchain]
 blockchains_lock = threading.Lock()
 
 
@@ -100,7 +100,7 @@ class Blockchain(util.PrintError):
     Manages blockchain headers and their verification
     """
 
-    def __init__(self, config, forkpoint: int, parent_id: int):
+    def __init__(self, config, forkpoint: int, parent_id: Optional[int]):
         self.config = config
         self.forkpoint = forkpoint
         self.checkpoints = constants.net.CHECKPOINTS
@@ -124,22 +124,32 @@ class Blockchain(util.PrintError):
         children = list(filter(lambda y: y.parent_id==self.forkpoint, chains))
         return max([x.forkpoint for x in children]) if children else None
 
-    def get_forkpoint(self) -> int:
+    def get_max_forkpoint(self) -> int:
+        """Returns the max height where there is a fork
+        related to this chain.
+        """
         mc = self.get_max_child()
         return mc if mc is not None else self.forkpoint
 
     def get_branch_size(self) -> int:
-        return self.height() - self.get_forkpoint() + 1
+        return self.height() - self.get_max_forkpoint() + 1
 
     def get_name(self) -> str:
-        return self.get_hash(self.get_forkpoint()).lstrip('00')[0:10]
+        return self.get_hash(self.get_max_forkpoint()).lstrip('00')[0:10]
 
     def check_header(self, header: dict) -> bool:
         header_hash = hash_header(header)
         height = header.get('block_height')
+        return self.check_hash(height, header_hash)
+
+    def check_hash(self, height: int, header_hash: str) -> bool:
+        """Returns whether the hash of the block at given height
+        is the given hash.
+        """
+        assert isinstance(header_hash, str) and len(header_hash) == 64, header_hash  # hex
         try:
             return header_hash == self.get_hash(height)
-        except MissingHeader:
+        except Exception:
             return False
 
     def fork(parent, header: dict) -> 'Blockchain':
