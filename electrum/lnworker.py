@@ -200,6 +200,7 @@ class LNWorker(PrintError):
         self.save_channel(chan)
         self.network.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
         self.on_channels_updated()
+        return chan
 
     def on_channels_updated(self):
         self.network.trigger_callback('channels')
