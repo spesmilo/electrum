@@ -27,7 +27,7 @@ import os
 import json
 from collections import defaultdict
 import asyncio
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import traceback
 import sys
 
@@ -64,7 +64,7 @@ class BalanceMonitor(SynchronizerBase):
     def __init__(self, config, network):
         SynchronizerBase.__init__(self, network)
         self.config = config
-        self.expected_payments = defaultdict(list)  # type: Dict[str, List[WebSocket, int]]
+        self.expected_payments = defaultdict(list)  # type: Dict[str, List[Tuple[WebSocket, int]]]
 
     def make_request(self, request_id):
         # read json file
