@@ -1854,9 +1854,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def open_channel(self, *args, **kwargs):
         def task():
             return self.wallet.lnworker.open_channel(*args, **kwargs)
-        def on_success(result):
-            print(result)
-            self.show_message(_('Channel open'))
+        def on_success(chan):
+            self.show_message('\n'.join([
+                _('Channel established.'),
+                _('Remote peer ID') + ':' + bh2u(chan.node_id),
+                _('This channel will be usable after 3 confirmations')
+            ]))
         WaitingDialog(self, _('Opening channel...'), task, on_success, self.on_error)
 
     def query_choice(self, msg, choices):
