@@ -27,7 +27,7 @@ from .util import PrintError, bh2u, print_error, bfh, log_exceptions
 from .transaction import Transaction, TxOutput
 from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error, OnionFailureCode
 from .lnaddr import lndecode
-from .lnhtlc import HTLCStateMachine, RevokeAndAck, htlcsum
+from .lnchan import Channel, RevokeAndAck, htlcsum
 from .lnutil import (Outpoint, LocalConfig, ChannelConfig,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_ecdh, get_per_commitment_secret_from_seed,
@@ -641,7 +641,7 @@ class Peer(PrintError):
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth, feerate=feerate),
                 "remote_commitment_to_be_revoked": None,
         }
-        m = HTLCStateMachine(chan)
+        m = Channel(chan)
         m.lnwatcher = self.lnwatcher
         m.sweep_address = self.lnworker.sweep_address
         sig_64, _ = m.sign_next_commitment()
@@ -737,7 +737,7 @@ class Peer(PrintError):
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth, feerate=feerate),
                 "remote_commitment_to_be_revoked": None,
         }
-        m = HTLCStateMachine(chan)
+        m = Channel(chan)
         m.lnwatcher = self.lnwatcher
         m.sweep_address = self.lnworker.sweep_address
         remote_sig = funding_created['signature']
