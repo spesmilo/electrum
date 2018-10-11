@@ -7,7 +7,7 @@ from electrum.lnutil import (RevocationStore, get_per_commitment_secret_from_see
                              derive_pubkey, make_htlc_tx, extract_ctn_from_tx, UnableToDeriveSecret,
                              get_compressed_pubkey_from_bech32, split_host_port, ConnStringFormatError,
                              ScriptHtlc, extract_nodeid)
-from electrum import lnhtlc
+from electrum import lnchan
 from electrum.util import bh2u, bfh
 from electrum.transaction import Transaction
 
@@ -496,7 +496,7 @@ class TestLNUtil(unittest.TestCase):
             (1, 2000 * 1000),
             (3, 3000 * 1000),
             (4, 4000 * 1000)]:
-            htlc_obj[num] = lnhtlc.UpdateAddHtlc(amount_msat=msat, payment_hash=bitcoin.sha256(htlc_payment_preimage[num]), cltv_expiry=None, htlc_id=None)
+            htlc_obj[num] = lnchan.UpdateAddHtlc(amount_msat=msat, payment_hash=bitcoin.sha256(htlc_payment_preimage[num]), cltv_expiry=None, htlc_id=None)
         htlcs = [ScriptHtlc(htlc[x], htlc_obj[x]) for x in range(5)]
 
         our_commit_tx = make_commitment(

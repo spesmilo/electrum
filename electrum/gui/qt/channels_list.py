@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import *
 
 from electrum.util import inv_dict, bh2u, bfh
 from electrum.i18n import _
-from electrum.lnhtlc import HTLCStateMachine
+from electrum.lnchan import Channel
 from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError
 
 from .util import MyTreeWidget, SortableTreeWidgetItem, WindowModalDialog, Buttons, OkButton, CancelButton
@@ -13,7 +13,7 @@ from .amountedit import BTCAmountEdit
 
 class ChannelsList(MyTreeWidget):
     update_rows = QtCore.pyqtSignal()
-    update_single_row = QtCore.pyqtSignal(HTLCStateMachine)
+    update_single_row = QtCore.pyqtSignal(Channel)
 
     def __init__(self, parent):
         MyTreeWidget.__init__(self, parent, self.create_menu, [_('Node ID'), _('Balance'), _('Remote'), _('Status')], 0)
@@ -43,7 +43,7 @@ class ChannelsList(MyTreeWidget):
         menu.addAction(_("Force-close channel"), close)
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    @QtCore.pyqtSlot(HTLCStateMachine)
+    @QtCore.pyqtSlot(Channel)
     def do_update_single_row(self, chan):
         for i in range(self.topLevelItemCount()):
             item = self.topLevelItem(i)

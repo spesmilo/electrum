@@ -19,7 +19,7 @@ from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_ad
 from .lnbase import Peer, aiosafe
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
-from .lnhtlc import HTLCStateMachine
+from .lnchan import Channel
 from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
@@ -50,7 +50,7 @@ class LNWorker(PrintError):
         self.node_keypair = generate_keypair(self.ln_keystore, LnKeyFamily.NODE_KEY, 0)
         self.config = network.config
         self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
-        self.channels = {x.channel_id: x for x in map(HTLCStateMachine, wallet.storage.get("channels", []))}  # type: Dict[bytes, HTLCStateMachine]
+        self.channels = {x.channel_id: x for x in map(Channel, wallet.storage.get("channels", []))}  # type: Dict[bytes, HTLCStateMachine]
         for c in self.channels.values():
             c.lnwatcher = network.lnwatcher
             c.sweep_address = self.sweep_address
@@ -115,7 +115,7 @@ class LNWorker(PrintError):
         return peer
 
     def save_channel(self, openchannel):
-        assert type(openchannel) is HTLCStateMachine
+        assert type(openchannel) is Channel
         if openchannel.config[REMOTE].next_per_commitment_point == openchannel.config[REMOTE].current_per_commitment_point:
             raise Exception("Tried to save channel with next_point == current_point, this should not happen")
         with self.lock:
