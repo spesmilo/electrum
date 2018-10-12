@@ -2,6 +2,8 @@ import threading
 from typing import NamedTuple, Iterable
 import os
 from collections import defaultdict
+import asyncio
+import jsonrpclib
 
 from .util import PrintError, bh2u, bfh, NoDynamicFeeEstimates, aiosafe
 from .lnutil import EncumberedTransaction, Outpoint
@@ -20,7 +22,7 @@ class LNWatcher(PrintError):
 
     def __init__(self, network):
         self.network = network
-
+        self.config = network.config
         path = os.path.join(network.config.path, "watcher_db")
         storage = WalletStorage(path)
         self.addr_sync = AddressSynchronizer(storage)
@@ -41,6 +43,25 @@ class LNWatcher(PrintError):
 
         self.network.register_callback(self.on_network_update,
                                        ['network_updated', 'blockchain_updated', 'verified', 'wallet_updated'])
+        # remote watchtower
+        watchtower_url = self.config.get('watchtower_url')
+        self.watchtower = jsonrpclib.Server(watchtower_url) if watchtower_url else None
+        self.watchtower_queue = asyncio.Queue()
+        asyncio.run_coroutine_threadsafe(self.watchtower_task(), self.network.asyncio_loop)
+
+    def with_watchtower(func):
+        def wrapper(self, *args, **kwargs):
+            if self.watchtower:
+                self.watchtower_queue.put_nowait((func.__name__, args, kwargs))
+            return func(self, *args, **kwargs)
+        return wrapper
+
+    async def watchtower_task(self):
+        while True:
+            name, args, kwargs = await self.watchtower_queue.get()
+            self.print_error('sending to watchtower', name, args)
+            func = getattr(self.watchtower, name)
+            func(*args, **kwargs)
 
     def write_to_disk(self):
         # FIXME: json => every update takes linear instead of constant disk write
@@ -151,6 +172,7 @@ class LNWatcher(PrintError):
                                      .format(num_conf, e_tx.csv_delay, funding_outpoint, ctx.txid()))
         return keep_watching_this
 
+    @with_watchtower
     def add_sweep_tx(self, funding_outpoint: str, ctx_txid: str, encumbered_sweeptx: EncumberedTransaction):
         if encumbered_sweeptx is None:
             return
