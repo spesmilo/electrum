@@ -846,29 +846,36 @@ def make_dir(path, allow_symlink=True):
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
 
-class AIOSafeSilentException(Exception): pass
-
-
-def aiosafe(f):
-    # save exception in object.
-    # f must be a method of a PrintError instance.
-    # aiosafe calls should not be nested
-    async def f2(*args, **kwargs):
-        self = args[0]
+def log_exceptions(func):
+    """Decorator to log AND re-raise exceptions."""
+    assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    async def wrapper(*args, **kwargs):
+        self = args[0] if len(args) > 0 else None
         try:
-            return await f(*args, **kwargs)
-        except AIOSafeSilentException as e:
-            self.exception = e
+            return await func(*args, **kwargs)
         except asyncio.CancelledError as e:
-            self.exception = e
+            raise
         except BaseException as e:
-            self.exception = e
-            self.print_error("Exception in", f.__name__, ":", e.__class__.__name__, str(e))
+            print_ = self.print_error if hasattr(self, 'print_error') else print_error
+            print_("Exception in", func.__name__, ":", e.__class__.__name__, repr(e))
             try:
                 traceback.print_exc(file=sys.stderr)
             except BaseException as e2:
-                self.print_error("aiosafe:traceback.print_exc raised: {}... original exc: {}".format(e2, e))
-    return f2
+                print_error("traceback.print_exc raised: {}...".format(e2))
+            raise
+    return wrapper
+
+
+def ignore_exceptions(func):
+    """Decorator to silently swallow all exceptions."""
+    assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except BaseException as e:
+            pass
+    return wrapper
+
 
 TxMinedStatus = NamedTuple("TxMinedStatus", [("height", int),
                                              ("conf", int),
@@ -941,7 +948,7 @@ class NetworkJobOnDefaultServer(PrintError):
     async def stop(self):
         await self.group.cancel_remaining()
 
-    @aiosafe
+    @log_exceptions
     async def _restart(self, *args):
         interface = self.network.interface
         if interface is None:
