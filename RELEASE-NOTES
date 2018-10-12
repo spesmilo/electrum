@@ -1,3 +1,21 @@
+# Release 3.2.3 - (September 3, 2018)
+
+ * hardware wallet: the Safe-T mini from Archos is now supported.
+ * hardware wallet: the Coldcard from Coinkite is now supported.
+ * BIP39 seeds: if a seed extension (aka passphrase) contained
+   multiple consecutive whitespaces or leading/trailing whitespaces
+   then the derived addresses were not following spec. This has been
+   fixed, and affected should move their coins. The wizard will show a
+   warning in this case. (#4566)
+ * Revealer: the PRNG used has been changed (#4649)
+ * fix Linux distributables: 'typing' was not bundled, needed for python 3.4
+ * fix #4626: fix spending from segwit multisig wallets involving a Trezor
+   cosigner when using a custom derivation path
+ * fix #4491: on Android, if user had set "uBTC" as base unit, app crashed
+ * fix #4497: on Android, paying bip70 invoices from cold start did not work
+ * Several other minor bugfixes and usability improvements.
+
+
 # Release 3.2.2 - (July 2nd, 2018)
 
  * Fix DNS resolution on Windows
@@ -109,10 +127,10 @@
 
  * Memory-pool based fee estimation. Dynamic fees can target a desired
    depth in the memory pool. This feature is optional, and ETA-based
-   estimates from Bitcoin Core are still available. Note that miners
+   estimates from Groestlcoin Core are still available. Note that miners
    could exploit this feature, if they conspired and filled the memory
    pool with expensive transactions that never get mined. However,
-   since the Electrum client already trusts an Electrum server with
+   since the Electrum-GRS client already trusts an Electrum-GRS server with
    fee estimates, activating this feature does not introduce any new
    vulnerability. In addition, the client uses a hard threshold to
    protect itself from servers sending excessive fee estimates. In
@@ -171,9 +189,9 @@
    More details and exact version bytes are specified at:
    https://github.com/spesmilo/electrum-docs/blob/master/xpub_version_bytes.rst
    Note that due to this change, testnet wallet files created with previous
-   versions of Electrum must be considered broken, and they need to be
+   versions of Electrum-GRS must be considered broken, and they need to be
    recreated from seed words.
- * A new version of the Electrum protocol is required by the client
+ * A new version of the Electrum-GRS protocol is required by the client
    (version 1.2). Servers using older versions of the protocol will
    not be displayed in the GUI.
 
@@ -194,7 +212,7 @@ issue #3374. Users should upgrade to 3.0.5.
 # Release 3.0.4 : (Security update)
 
  * Fix a vulnerability caused by Cross-Origin Resource Sharing (CORS)
-   in the JSONRPC interface. Previous versions of Electrum are
+   in the JSONRPC interface. Previous versions of Electrum-GRS are
    vulnerable to port scanning and deanonimization attacks from
    malicious websites. Wallets that are not password-protected are
    vulnerable to theft.
@@ -204,7 +222,7 @@ issue #3374. Users should upgrade to 3.0.5.
 # Release 3.0.3
   * Qt GUI: sweeping now uses the Send tab, allowing fees to be set
   * Windows: if using the installer binary, there is now a separate shortcut
-    for "Electrum Testnet"
+    for "Electrum-GRS Testnet"
   * Digital Bitbox: added suport for p2sh-segwit
   * OS notifications for incoming transactions
   * better transaction size estimation:
@@ -236,7 +254,7 @@ issue #3374. Users should upgrade to 3.0.5.
     run "python3 setup.py install" in order to install the new
     dependencies.
 
-  * Segwit support: 
+  * Segwit support:
 
     - Native segwit scripts are supported using a new type of
       seed. The version number for segwit seeds is 0x100. The install
@@ -247,11 +265,11 @@ issue #3374. Users should upgrade to 3.0.5.
       following BIP173. Please note that BIP173 is still in draft
       status, and that other wallets/websites may not support
       it. Thus, you should keep a non-segwit wallet in order to be
-      able to receive bitcoins during the transition period. If BIP173
+      able to receive groestlcoins during the transition period. If BIP173
       ends up being rejected or substantially modified, your wallet
       may have to be restored from seed. This will not affect funds
       sent to bech32 addresses, and it will not affect the capacity of
-      Electrum to spend these funds.
+      Electrum-GRS to spend these funds.
 
     - Segwit scripts embedded in p2sh are supported with hardware
       wallets or bip39 seeds. To create a segwit-in-p2sh wallet,
@@ -285,7 +303,7 @@ issue #3374. Users should upgrade to 3.0.5.
       it is not possible to import a p2sh private key and associate it
       to a p2pkh address.
 
-  * A new version of the Electrum protocol is required by the client
+  * A new version of the Electrum-GRS protocol is required by the client
     (version 1.1). Servers using older versions of the protocol will
     not be displayed in the GUI.
 
@@ -309,9 +327,9 @@ issue #3374. Users should upgrade to 3.0.5.
   * command-line option for locktime
 
 # Release 2.9 - Independence (July 27th, 2017)
-  * Multiple Chain Validation: Electrum will download and validate
+  * Multiple Chain Validation: Electrum-GRS will download and validate
     block headers sent by servers that may follow different branches
-    of a fork in the Bitcoin blockchain. Instead of a linear sequence,
+    of a fork in the Groestlcoin blockchain. Instead of a linear sequence,
     block headers are organized in a tree structure. Branching points
     are located efficiently using binary search. The purpose of MCV is
     to detect and handle blockchain forks that are invisible to the
@@ -437,8 +455,8 @@ issue #3374. Users should upgrade to 3.0.5.
 
 # Release 2.7.6
  * Fixes a critical bug with imported private keys (issue #1966). Keys
-   imported in Electrum 2.7.x were not encrypted, even if the wallet
-   had a password. If you imported private keys using Electrum 2.7.x,
+   imported in Electrum-GRS 2.7.x were not encrypted, even if the wallet
+   had a password. If you imported private keys using Electrum-GRS 2.7.x,
    you will need to import those keys again. If you imported keys in
    2.6 and converted with 2.7.x, you don't need to do anything, but
    you still need to upgrade in order to be able to spend.
@@ -481,7 +499,7 @@ issue #3374. Users should upgrade to 3.0.5.
    wallet that has several accounts. Make sure that you have saved
    your seed phrase before you upgrade Electrum.
  * This version introduces a separation between wallets types and
-   keystores types. 'Wallet type' defines the type of Bitcoin contract
+   keystores types. 'Wallet type' defines the type of Groestlcoin contract
    used in the wallet, while 'keystore type' refers to the method used
    to store private keys. Therefore, so-called 'hardware wallets' will
    be referred to as 'hardware keystores'.
@@ -589,8 +607,8 @@ issue #3374. Users should upgrade to 3.0.5.
  * Low-S values are used in signatures (BIP 62).
  * The Kivy GUI has been merged into master.
  * The Qt GUI supports multiple windows in the same process. When a
-   new Electrum instance is started, it checks for an already running
-   Electrum process, and connects to it.
+   new Electrum-GRS instance is started, it checks for an already running
+   Electrum-GRS process, and connects to it.
  * The network layer uses select(), so all server communication is
    handled by a single thread. Moreover, the synchronizer, verifier,
    and exchange rate plugin now run as separate jobs within the
@@ -618,17 +636,17 @@ issue #3374. Users should upgrade to 3.0.5.
  * Various GUI improvements
 
 # Release 2.4
- * Payment to DNS names storing a Bitcoin addresses (OpenAlias) is
+ * Payment to DNS names storing a Groestlcoin addresses (OpenAlias) is
    supported directly, without activating a plugin. The verification
    uses DNSSEC.
  * The DNSSEC verification code was rewritten. The previous code,
    which was part of the OpenAlias plugin, is vulnerable and should
-   not be trusted (Electrum 2.0 to 2.3).
- * Payment requests can be signed using Bitcoin addresses stored
+   not be trusted (Electrum-GRS 2.0 to 2.3).
+ * Payment requests can be signed using Groestlcoin addresses stored
    in DNS (OpenAlias). The identity of the requestor is verified using
    DNSSEC.
  * Payment requests signed with OpenAlias keys can be shared as
-   bitcoin: URIs, if they are simple (a single address-type
+   groestlcoin: URIs, if they are simple (a single address-type
    output). The BIP21 URI scheme is extended with 'name', 'sig',
    'time', 'exp'.
  * Arbitrary m-of-n multisig wallets are supported (n<=15).
@@ -661,13 +679,13 @@ issue #3374. Users should upgrade to 3.0.5.
    minimize the number of transaction inputs.
  * Plugins are loaded independently of the GUI. As a result, Openalias,
    TrustedCoin and TREZOR wallets can be used with the command
-   line. Example: 'electrum payto <openalias> <amount>'
+   line. Example: 'electrum-grs payto <openalias> <amount>'
  * The command line has been refactored:
   - Arguments are parsed with argparse.
   - The inline help includes a description of options.
   - Some commands have been renamed. Notably, 'mktx' and 'payto' have
     been merged into a single command, with a --broadcast option.
-   Type 'electrum --help' for a complete overview.
+   Type 'electrum-grs --help' for a complete overview.
  * The command line accepts the '!' syntax to send the maximum
    amount available. It can be combined with the '--from' option.
    Example: 'payto <destination> ! --from <from_address>'
@@ -677,7 +695,7 @@ issue #3374. Users should upgrade to 3.0.5.
    following commands: 'addrequest', 'rmrequest', 'listrequests'.
    Payment requests can be signed with a SSL certificate, and published
    as bip70 files in a public web directory. To see the relevant
-   configuration variables, type 'electrum addrequest --help'
+   configuration variables, type 'electrum-grs addrequest --help'
  * Commands can be called with jsonrpc, using the 'jsonrpc' gui. The
    jsonrpc interface may be called by php.
 
@@ -702,7 +720,7 @@ issue #3374. Users should upgrade to 3.0.5.
  * A Search Box is available in the GUI (Ctrl-S)
  * Payment requests have an expiration date and can be exported to
    BIP70 files.
- * file: scheme support in BIP72 URIs: "bitcoin:?r=file:///..."
+ * file: scheme support in BIP72 URIs: "groestlcoin:?r=file:///..."
  * Own addresses are shown in green in the Transaction dialog.
  * Address History dialog.
  * The OpenAlias plugin was improved.
@@ -722,10 +740,10 @@ issue #3374. Users should upgrade to 3.0.5.
  * The network daemon must be started explicitly before using commands
    that require a connection
    Example:
-     electrum daemon start
-     electrum getaddressunspent <addr>
-     electrum daemon status
-     electrum daemon stop
+     electrum-grs daemon start
+     electrum-grs getaddressunspent <addr>
+     electrum-grs daemon status
+     electrum-grs daemon stop
    If a daemon is running, the GUI will use it.
 
 # Release 2.0.3 - bugfixes and minor GUI improvements
@@ -761,7 +779,7 @@ issue #3374. Users should upgrade to 3.0.5.
    phrase includes a version number, that refers to the wallet
    structure. The version number also serves as a checksum, and it
    will prevent the import of seeds from incompatible wallets. Old
-   Electrum seeds are still supported.
+   Electrum-GRS seeds are still supported.
 
  * New address derivation (BIP32). Standard wallets are single account
    and use a gap limit of 20.
@@ -791,7 +809,7 @@ issue #3374. Users should upgrade to 3.0.5.
 
  * Audio Modem plugin: send and receive transactions by sound.
 
- * OpenAlias plugin: send bitcoins to aliases verified using DNSSEC.
+ * OpenAlias plugin: send groestlcoins to aliases verified using DNSSEC.
 
  * New 'Receive' tab in the GUI:
    - create and manage payment requests, with QR Codes
@@ -802,7 +820,7 @@ issue #3374. Users should upgrade to 3.0.5.
  * The 'Send' tab in the Qt GUI supports transactions with multiple
    outputs, and raw hexadecimal scripts.
 
- * The GUI can connect to the Electrum daemon: "electrum -d" will
+ * The GUI can connect to the Electrum-GRS daemon: "electrum-grs -d" will
    start the daemon if it is not already running, and the GUI will
    connect to it. The daemon can serve several clients. It times out
    if no client uses if for more than 5 minutes.
@@ -832,7 +850,7 @@ issue #3374. Users should upgrade to 3.0.5.
 
 # Release 1.9.8
 
-* Electrum servers were upgraded to version 0.9. The new server stores
+* Electrum-GRS servers were upgraded to version 0.9. The new server stores
   a Patrica tree of all UTXOs, an idea proposed by Alan Reiner in the
   bitcointalk forum. This property allows the client to directly
   request the balance of any address. The new commands are:
@@ -844,7 +862,7 @@ issue #3374. Users should upgrade to 3.0.5.
   a daemon, that remains connected and handles subsequent
   commands. The daemon terminates itself if it remains unused for more
   than one minute. The purpose of this is to make scripting more
-  efficient. For example, a bash script using many electrum commands
+  efficient. For example, a bash script using many electrum-grs commands
   will open only one connection.
 
 # Release 1.9.7
@@ -940,23 +958,23 @@ bugfixes: connection problems, transactions staying unverified
 # Release 1.7
 
 * The Classic GUI can be extended with plugins. Developers who want to
-add new features or third-party services to Electrum are invited to
+add new features or third-party services to Electrum-GRS are invited to
 write plugins. Some previously existing and non-essential features of
-Electrum (point-of-sale mode, qrcode scanner) were removed from the
+Electrum-GRS (point-of-sale mode, qrcode scanner) were removed from the
 core and are now available as plugins.
 
 * The wallet waits for 2 confirmations before creating new
 addresses. This makes recovery from seed more robust. Note that it
-might create unwanted gaps if you use Electrum 1.7 together with older
+might create unwanted gaps if you use Electrum-GRS 1.7 together with older
 versions of Electrum.
 
 * An interactive Python console replaces the 'Wall' tab. The provided
 python environment gives users access to the wallet and gui. Most
-electrum commands are available as python function in the
+electrum-grs commands are available as python function in the
 console. Custom scripts an be loaded with a "run(filename)"
 command. Tab-completions are available.
 
-* The location of the Electrum folder in Windows changed from
+* The location of the Electrum-GRS folder in Windows changed from
 LOCALAPPDATA to APPDATA. Discussion on this topic can be found here:
 https://bitcointalk.org/index.php?topic=144575.0
 
@@ -967,7 +985,7 @@ https://bitcointalk.org/index.php?topic=144575.0
 * It is possible to create, sign and redeem multisig transaction using the
 command line interface.  This is made possible by the following new commands:
     dumpprivkey, listunspent, createmultisig, createrawtransaction, decoderawtransaction, signrawtransaction
-The syntax of these commands is similar to their bitcoind counterpart.
+The syntax of these commands is similar to their groestlcoind counterpart.
 For an example, see Gavin's tutorial: https://gist.github.com/gavinandresen/3966071
 
 * Offline wallets now work in a way similar to Armory:
@@ -976,7 +994,7 @@ For an example, see Gavin's tutorial: https://gist.github.com/gavinandresen/3966
   3. signed transaction is copied to the online computer, broadcasted by the online client.
   4. All these steps can be done via the command line interface or the classic GUI.
 
-* Many command line commands have been renamed in order to make the syntax consistent with bitcoind.
+* Many command line commands have been renamed in order to make the syntax consistent with groestlcoind.
 
 # Release 1.6.2
 
@@ -991,7 +1009,7 @@ For an example, see Gavin's tutorial: https://gist.github.com/gavinandresen/3966
 
 == Classic GUI
 * Seed and MPK help dialogs were rewritten
-* Point of Sale: requested amounts can be expressed in other currencies and are converted to bitcoin.
+* Point of Sale: requested amounts can be expressed in other currencies and are converted to groestlcoin.
 
 == Lite GUI
 * The receiving button was removed in favor of a menu item to keep it consistent with the history toggle.

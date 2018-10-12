@@ -19,29 +19,13 @@ set -e
 mkdir -p tmp
 cd tmp
 
-if [ -d ./electrum-grs ]; then
-  rm ./electrum-grs -rf
-fi
-
-git clone https://github.com/Groestlcoin/electrum-grs -b master
-
-pushd electrum-grs
-if [ ! -z "$1" ]; then
-    # a commit/tag/branch was specified
-    if ! git cat-file -e "$1" 2> /dev/null
-    then  # can't find target
-        # try pull requests
-        git config --local --add remote.origin.fetch '+refs/pull/*/merge:refs/remotes/origin/pr/*'
-        git fetch --all
-    fi
-    git checkout $1
-fi
+pushd $WINEPREFIX/drive_c/electrum-grs
 
 # Load electrum-grs-icons and electrum-grs-locale for this release
 git submodule init
 git submodule update
 
-VERSION=`git describe --tags --dirty`
+VERSION=`git describe --tags --dirty || printf 'custom'`
 echo "Last commit: $VERSION"
 
 pushd ./contrib/deterministic-build/electrum-grs-locale
@@ -59,11 +43,9 @@ popd
 find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
-rm -rf $WINEPREFIX/drive_c/electrum-grs
-cp -r electrum-grs $WINEPREFIX/drive_c/electrum-grs
-cp electrum-grs/LICENCE .
-cp -r ./electrum-grs/contrib/deterministic-build/electrum-grs-locale/locale $WINEPREFIX/drive_c/electrum-grs/lib/
-cp ./electrum-grs/contrib/deterministic-build/electrum-grs-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-grs/gui/qt/
+cp $WINEPREFIX/drive_c/electrum-grs/LICENCE .
+cp -r $WINEPREFIX/drive_c/electrum-grs/contrib/deterministic-build/electrum-grs-locale/locale $WINEPREFIX/drive_c/electrum-grs/electrum_grs/
+cp $WINEPREFIX/drive_c/electrum-grs/contrib/deterministic-build/electrum-grs-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-grs/electrum_grs/gui/qt/
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt
@@ -87,8 +69,8 @@ find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 # build NSIS installer
-# $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script itself.
-wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrum.nsi
+# $VERSION could be passed to the electrum-grs.nsi script, but this would require some rewriting in the script itself.
+wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrum-grs.nsi
 
 cd dist
 mv electrum-grs-setup.exe $NAME_ROOT-$VERSION-setup.exe

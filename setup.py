@@ -2,12 +2,15 @@
 
 # python setup.py sdist --format=zip,gztar
 
-from setuptools import setup
 import os
 import sys
 import platform
 import imp
 import argparse
+import subprocess
+
+from setuptools import setup, find_packages
+from setuptools.command.install import install
 
 with open('contrib/requirements/requirements.txt') as f:
     requirements = f.read().splitlines()
@@ -15,7 +18,7 @@ with open('contrib/requirements/requirements.txt') as f:
 with open('contrib/requirements/requirements-hw.txt') as f:
     requirements_hw = f.read().splitlines()
 
-version = imp.load_source('version', 'lib/version.py')
+version = imp.load_source('version', 'electrum_grs/version.py')
 
 if sys.version_info[:3] < (3, 4, 0):
     sys.exit("Error: Electrum-GRS requires Python version >= 3.4.0...")
@@ -43,9 +46,26 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
 extras_require = {
     'hardware': requirements_hw,
     'fast': ['pycryptodomex'],
-    ':python_version < "3.5"': ['typing>=3.0.0'],
+    'gui': ['pyqt5'],
 }
-extras_require['full'] = extras_require['hardware'] + extras_require['fast']
+extras_require['full'] = [pkg for sublist in list(extras_require.values()) for pkg in sublist]
+
+
+class CustomInstallCommand(install):
+    def run(self):
+        install.run(self)
+        # potentially build Qt icons file
+        try:
+            import PyQt5
+        except ImportError:
+            pass
+        else:
+            try:
+                path = os.path.join(self.install_lib, "electrum_grs/gui/qt/icons_rc.py")
+                if not os.path.exists(path):
+                    subprocess.call(["pyrcc5", "icons.qrc", "-o", path])
+            except Exception as e:
+                print('Warning: building icons file failed with {}'.format(e))
 
 
 setup(
@@ -55,27 +75,12 @@ setup(
     extras_require=extras_require,
     packages=[
         'electrum_grs',
-        'electrum_grs_gui',
-        'electrum_grs_gui.qt',
-        'electrum_grs_plugins',
-        'electrum_grs_plugins.audio_modem',
-        'electrum_grs_plugins.cosigner_pool',
-        'electrum_grs_plugins.email_requests',
-        'electrum_grs_plugins.greenaddress_instant',
-        'electrum_grs_plugins.hw_wallet',
-        'electrum_grs_plugins.keepkey',
-        'electrum_grs_plugins.labels',
-        'electrum_grs_plugins.ledger',
-        'electrum_grs_plugins.revealer',
-        'electrum_grs_plugins.trezor',
-        'electrum_grs_plugins.digitalbitbox',
-        'electrum_grs_plugins.trustedcoin',
-        'electrum_grs_plugins.virtualkeyboard',
-    ],
+        'electrum_grs.gui',
+        'electrum_grs.gui.qt',
+        'electrum_grs.plugins',
+    ] + [('electrum_grs.plugins.'+pkg) for pkg in find_packages('electrum_grs/plugins')],
     package_dir={
-        'electrum_grs': 'lib',
-        'electrum_grs_gui': 'gui',
-        'electrum_grs_plugins': 'plugins',
+        'electrum_grs': 'electrum_grs'
     },
     package_data={
         '': ['*.txt', '*.json', '*.ttf', '*.otf'],
@@ -84,12 +89,15 @@ setup(
             'locale/*/LC_MESSAGES/electrum.mo',
         ],
     },
-    scripts=['electrum-grs'],
+    scripts=['electrum_grs/electrum-grs'],
     data_files=data_files,
     description="Lightweight Groestlcoin Wallet",
     author="Groestlcoin Developers",
     author_email="groestlcoin@gmail.com",
     license="MIT Licence",
     url="https://groestlcoin.org",
-    long_description="""Lightweight Groestlcoin Wallet"""
+    long_description="""Lightweight Groestlcoin Wallet""",
+    cmdclass={
+        'install': CustomInstallCommand,
+    },
 )

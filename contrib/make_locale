@@ -8,8 +8,7 @@ import requests
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 os.chdir('..')
 
-code_directories = 'gui plugins lib'
-cmd = "find {} -type f -name '*.py' -o -name '*.kv'".format(code_directories)
+cmd = "find electrum_grs -type f -name '*.py' -o -name '*.kv'"
 
 files = subprocess.check_output(cmd, shell=True)
 
@@ -19,13 +18,13 @@ with open("app.fil", "wb") as f:
 print("Found {} files to translate".format(len(files.splitlines())))
 
 # Generate fresh translation template
-if not os.path.exists('lib/locale'):
-    os.mkdir('lib/locale')
-cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=lib/locale/messages.pot'
+if not os.path.exists('electrum_grs/locale'):
+    os.mkdir('electrum_grs/locale')
+cmd = 'xgettext -s --from-code UTF-8 --language Python --no-wrap -f app.fil --output=electrum_grs/locale/messages.pot'
 print('Generate template')
 os.system(cmd)
 
-os.chdir('lib')
+os.chdir('electrum_grs')
 
 crowdin_identifier = 'electrum'
 crowdin_file_name = 'files[electrum-client/messages.pot]'
@@ -55,7 +54,7 @@ if crowdin_api_key:
 
 # Download & unzip
 print('Download translations')
-s = requests.request('GET', 'https://crowdin.com/download/project/' + crowdin_identifier + '.zip').content
+s = requests.request('GET', 'https://crowdin.com/backend/download/project/' + crowdin_identifier + '.zip').content
 zfobj = zipfile.ZipFile(io.BytesIO(s))
 
 print('Unzip translations')

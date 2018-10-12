@@ -15,6 +15,7 @@ if ! which osslsigncode > /dev/null 2>&1; then
     echo "Please install osslsigncode"
 fi
 
+rm -rf signed
 mkdir -p signed >/dev/null 2>&1
 
 cd dist
@@ -24,8 +25,8 @@ for f in $(ls *.exe); do
     osslsigncode sign \
       -certs "$CERT_FILE" \
       -key "$KEY_FILE" \
-      -n "Electrum" \
-      -i "https://electrum.org/" \
+      -n "Electrum-GRS" \
+      -i "https://groestlcoin.org/" \
       -t "http://timestamp.digicert.com/" \
       -in "$f" \
       -out "../signed/$f"

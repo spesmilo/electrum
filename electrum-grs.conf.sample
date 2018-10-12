@@ -1,10 +1,10 @@
-# Configuration file for the Electrum client
+# Configuration file for the Electrum-GRS client
 # Settings defined here are shared across wallets
 #
-# copy this file to /etc/electrum.conf if you want read-only settings
+# copy this file to /etc/electrum-grs.conf if you want read-only settings
 
 [client]
-server = electrum.novit.ro:50001:t
+server = electrum1.groestlcoin.org:50001:t
 proxy = None
 gap_limit = 5
 # booleans use python syntax

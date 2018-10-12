@@ -8,6 +8,5 @@ if [ $? -ne 0 ] ; then echo "Install pip3" ; exit ; fi
 
 rm "$contrib"/../packages/ -r
 
-#Install pure python modules in electrum directory
+#Install pure python modules in electrum-grs directory
 pip3 install -r $contrib/deterministic-build/requirements.txt -t $contrib/../packages
-
