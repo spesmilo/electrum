@@ -112,9 +112,10 @@ filenames = {
 }
 
 
-
+# FIXME every time we instantiate this class, we read the wordlist from disk
+# and store a new copy of it in memory
 class Mnemonic(object):
-    # Seed derivation no longer follows BIP39
+    # Seed derivation does not follow BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
     def __init__(self, lang=None):
@@ -128,6 +129,7 @@ class Mnemonic(object):
     def mnemonic_to_seed(self, mnemonic, passphrase):
         PBKDF2_ROUNDS = 2048
         mnemonic = normalize_text(mnemonic)
+        passphrase = passphrase or ''
         passphrase = normalize_text(passphrase)
         return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'), b'electrum' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 

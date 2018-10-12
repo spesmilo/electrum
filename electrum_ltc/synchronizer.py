@@ -30,9 +30,8 @@ from collections import defaultdict
 from aiorpcx import TaskGroup, run_in_thread
 
 from .transaction import Transaction
-from .util import bh2u, make_aiohttp_session
+from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer
 from .bitcoin import address_to_scripthash
-from .network import NetworkJobOnDefaultServer
 
 
 def history_status(h):

@@ -120,7 +120,7 @@ class ElectrumWindow(App):
             with blockchain.blockchains_lock: blockchain_items = list(blockchain.blockchains.items())
             for index, b in blockchain_items:
                 if name == b.get_name():
-                    self.network.run_from_another_thread(self.network.follow_chain(index))
+                    self.network.run_from_another_thread(self.network.follow_chain_given_id(index))
         names = [blockchain.blockchains[b].get_name() for b in chains]
         if len(names) > 1:
             cur_chain = self.network.blockchain().get_name()
@@ -664,7 +664,7 @@ class ElectrumWindow(App):
         self.num_nodes = len(self.network.get_interfaces())
         self.num_chains = len(self.network.get_blockchains())
         chain = self.network.blockchain()
-        self.blockchain_forkpoint = chain.get_forkpoint()
+        self.blockchain_forkpoint = chain.get_max_forkpoint()
         self.blockchain_name = chain.get_name()
         interface = self.network.interface
         if interface:

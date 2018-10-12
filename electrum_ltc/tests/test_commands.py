@@ -1,7 +1,7 @@
 import unittest
 from decimal import Decimal
 
-from electrum_ltc.commands import Commands
+from electrum_ltc.commands import Commands, eval_bool
 
 
 class TestCommands(unittest.TestCase):
@@ -31,3 +31,11 @@ class TestCommands(unittest.TestCase):
         self.assertEqual("2asd", Commands._setconfig_normalize_value('rpcpassword', '2asd'))
         self.assertEqual("['file:///var/www/','https://electrum.org']",
             Commands._setconfig_normalize_value('rpcpassword', "['file:///var/www/','https://electrum.org']"))
+
+    def test_eval_bool(self):
+        self.assertFalse(eval_bool("False"))
+        self.assertFalse(eval_bool("false"))
+        self.assertFalse(eval_bool("0"))
+        self.assertTrue(eval_bool("True"))
+        self.assertTrue(eval_bool("true"))
+        self.assertTrue(eval_bool("1"))

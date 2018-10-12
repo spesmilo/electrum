@@ -26,13 +26,12 @@ from typing import Sequence, Optional
 
 import aiorpcx
 
-from .util import bh2u, VerifiedTxInfo
+from .util import bh2u, VerifiedTxInfo, NetworkJobOnDefaultServer
 from .bitcoin import Hash, hash_decode, hash_encode
 from .transaction import Transaction
 from .blockchain import hash_header
 from .interface import GracefulDisconnect
 from . import constants
-from .network import NetworkJobOnDefaultServer
 
 
 class MerkleVerificationFailure(Exception): pass
@@ -156,7 +155,7 @@ class SPV(NetworkJobOnDefaultServer):
 
     async def _maybe_undo_verifications(self):
         def undo_verifications():
-            height = self.blockchain.get_forkpoint()
+            height = self.blockchain.get_max_forkpoint()
             self.print_error("undoing verifications back to height {}".format(height))
             tx_hashes = self.wallet.undo_verifications(self.blockchain, height)
             for tx_hash in tx_hashes:
