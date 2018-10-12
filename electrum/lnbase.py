@@ -816,10 +816,24 @@ class Peer(PrintError):
         # compare local ctns
         local_ctn = int.from_bytes(channel_reestablish_msg["next_remote_revocation_number"], 'big')
         if local_ctn != chan.config[LOCAL].ctn:
-            self.print_error("expected local ctn {}, got {}".format(chan.config[LOCAL].ctn, local_ctn))
-            # TODO iff their ctn is lower than ours, we should force close instead
-            try_to_get_remote_to_force_close_with_their_latest()
-            return
+            if remote_ctn == chan.config[LOCAL].ctn + 1:
+                # A node:
+                #    if next_remote_revocation_number is equal to the
+                #    commitment number of the last revoke_and_ack
+                #    the receiving node sent, AND the receiving node
+                #    hasn't already received a closing_signed:
+                #        MUST re-send the revoke_and_ack.
+                self.config[LOCAL]=self.config[LOCAL]._replace(
+                    ctn=remote_ctn,
+                )
+                self.revoke(chan)
+                self.channel_reestablished[chan_id].set_result(True)
+                return
+            else:
+                self.print_error("expected local ctn {}, got {}".format(chan.config[LOCAL].ctn, local_ctn))
+                # TODO iff their ctn is lower than ours, we should force close instead
+                try_to_get_remote_to_force_close_with_their_latest()
+                return
         # compare per commitment points (needs data_protect option)
         their_pcp = channel_reestablish_msg.get("my_current_per_commitment_point", None)
         if their_pcp is not None:
