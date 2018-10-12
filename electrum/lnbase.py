@@ -17,13 +17,12 @@ from typing import List
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 import aiorpcx
 
-from .util import list_enabled_bits
 from . import bitcoin
 from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string
 from .crypto import sha256
 from . import constants
-from .util import PrintError, bh2u, print_error, bfh, log_exceptions
+from .util import PrintError, bh2u, print_error, bfh, log_exceptions, list_enabled_bits, ignore_exceptions
 from .transaction import Transaction, TxOutput
 from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error, OnionFailureCode
 from .lnaddr import lndecode
@@ -506,7 +505,8 @@ class Peer(PrintError):
                 self.lnworker.peers.pop(self.pubkey)
         return wrapper_func
 
-    @aiosafe
+    @ignore_exceptions  # do not kill main_taskgroup
+    @log_exceptions
     @handle_disconnect
     async def main_loop(self):
         try:
@@ -768,7 +768,7 @@ class Peer(PrintError):
             m.set_state('DISCONNECTED')
             raise Exception('funding outpoint mismatch')
 
-    @aiosafe
+    @log_exceptions
     async def reestablish_channel(self, chan):
         await self.initialized
         chan_id = chan.channel_id
@@ -890,7 +890,7 @@ class Peer(PrintError):
             self.lnworker.save_channel(chan)
             asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
-    @aiosafe
+    @log_exceptions
     async def handle_announcements(self, chan):
         h, local_node_sig, local_bitcoin_sig = self.send_announcement_signatures(chan)
         announcement_signatures_msg = await self.announcement_signatures[chan.channel_id].get()
@@ -1011,7 +1011,7 @@ class Peer(PrintError):
 
         return h, node_signature, bitcoin_signature
 
-    @aiosafe
+    @log_exceptions
     async def on_update_fail_htlc(self, payload):
         channel_id = payload["channel_id"]
         htlc_id = int.from_bytes(payload["id"], "big")
@@ -1138,7 +1138,7 @@ class Peer(PrintError):
         m.receive_new_commitment(commitment_signed_msg["signature"], htlc_sigs)
         return len(htlc_sigs)
 
-    @aiosafe
+    @log_exceptions
     async def receive_commitment_revoke_ack(self, htlc, decoded, payment_preimage):
         chan = self.channels[htlc['channel_id']]
         channel_id = chan.channel_id
@@ -1172,7 +1172,7 @@ class Peer(PrintError):
         self.lnworker.save_channel(chan)
         self.commitment_signed[channel_id].put_nowait(payload)
 
-    @aiosafe
+    @log_exceptions
     async def on_update_fulfill_htlc(self, update_fulfill_htlc_msg):
         self.print_error("update_fulfill")
         chan = self.channels[update_fulfill_htlc_msg["channel_id"]]
@@ -1251,7 +1251,7 @@ class Peer(PrintError):
         if chan_id not in self.closing_signed: raise Exception("Got unknown closing_signed")
         self.closing_signed[chan_id].put_nowait(payload)
 
-    @aiosafe
+    @log_exceptions
     async def on_shutdown(self, payload):
         # length of scripts allowed in BOLT-02
         if int.from_bytes(payload['len'], 'big') not in (3+20+2, 2+20+1, 2+20, 2+32):
