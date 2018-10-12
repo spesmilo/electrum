@@ -1,9 +1,9 @@
 import unittest
 import tempfile
 import shutil
+import asyncio
 
 from electrum.util import bh2u, bfh
-from electrum.lnbase import Peer
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet, OnionPerHop,
                               process_onion_packet, _decode_onion_error)
 from electrum import bitcoin, lnrouter
@@ -41,8 +41,9 @@ class Test_LNRouter(TestCaseForTestnet):
     def test_find_path_for_payment(self):
         class fake_network:
             config = self.config
-            add_jobs = lambda *args: None
+            asyncio_loop = asyncio.get_event_loop()
             trigger_callback = lambda *args: None
+            async def add_job(self, *args): return None
         fake_network.channel_db = lnrouter.ChannelDB(fake_network())
         cdb = fake_network.channel_db
         path_finder = lnrouter.LNPathFinder(cdb)
