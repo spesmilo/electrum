@@ -37,9 +37,10 @@ class ChannelsList(MyTreeWidget):
         def close():
             netw = self.parent.network
             coro = self.parent.wallet.lnworker.close_channel(channel_id)
-            suc, msg = netw.run_from_another_thread(coro)
-            if not suc:
-                self.main_window.show_error('Force-close failed:\n{}'.format(msg))
+            try:
+                _txid = netw.run_from_another_thread(coro)
+            except Exception as e:
+                self.main_window.show_error('Force-close failed:\n{}'.format(repr(e)))
         menu.addAction(_("Force-close channel"), close)
         menu.exec_(self.viewport().mapToGlobal(position))
 
