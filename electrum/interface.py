@@ -384,6 +384,7 @@ class Interface(PrintError):
             self.mark_ready()
             await self._process_header_at_tip()
             self.network.trigger_callback('network_updated')
+            await self.network.switch_unwanted_fork_interface()
             await self.network.switch_lagging_interface()
 
     async def _process_header_at_tip(self):
