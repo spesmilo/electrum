@@ -15,8 +15,8 @@ from . import keystore
 from . import bitcoin
 from .keystore import BIP32_KeyStore
 from .bitcoin import sha256, COIN
-from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address
-from .lnbase import Peer, aiosafe
+from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
+from .lnbase import Peer
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .lnchan import Channel
@@ -158,7 +158,7 @@ class LNWorker(PrintError):
             self.channel_db.remove_channel(chan.short_channel_id)
         self.network.trigger_callback('channel', chan)
 
-    @aiosafe
+    @log_exceptions
     async def on_network_update(self, event, *args):
         # TODO
         # Race discovered in save_channel (assertion failing):
