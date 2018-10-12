@@ -28,7 +28,7 @@ from collections import defaultdict
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
-from .util import PrintError, profiler, bfh, VerifiedTxInfo, TxMinedStatus, aiosafe, SilentTaskGroup
+from .util import PrintError, profiler, bfh, VerifiedTxInfo, TxMinedStatus
 from .transaction import Transaction, TxOutput
 from .synchronizer import Synchronizer
 from .verifier import SPV

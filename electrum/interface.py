@@ -34,7 +34,7 @@ from collections import defaultdict
 import aiorpcx
 from aiorpcx import ClientSession, Notification
 
-from .util import PrintError, aiosafe, bfh, AIOSafeSilentException, SilentTaskGroup
+from .util import PrintError, ignore_exceptions, log_exceptions, bfh, SilentTaskGroup
 from . import util
 from . import x509
 from . import pem
@@ -146,9 +146,6 @@ class Interface(PrintError):
         self.tip_header = None
         self.tip = 0
 
-        # note that an interface dying MUST NOT kill the whole network,
-        # hence exceptions raised by "run" need to be caught not to kill
-        # main_taskgroup! the aiosafe decorator does this.
         asyncio.run_coroutine_threadsafe(
             self.network.main_taskgroup.spawn(self.run()), self.network.asyncio_loop)
         self.group = SilentTaskGroup()
@@ -249,7 +246,8 @@ class Interface(PrintError):
                 self.got_disconnected.set_result(1)
         return wrapper_func
 
-    @aiosafe
+    @ignore_exceptions  # do not kill main_taskgroup
+    @log_exceptions
     @handle_disconnect
     async def run(self):
         try:

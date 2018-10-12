@@ -40,7 +40,7 @@ import dns.resolver
 from aiorpcx import TaskGroup
 
 from . import util
-from .util import PrintError, print_error, aiosafe, bfh, SilentTaskGroup
+from .util import PrintError, print_error, log_exceptions, ignore_exceptions, bfh, SilentTaskGroup
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
@@ -478,7 +478,7 @@ class Network(PrintError):
             addr = host
         return socket._getaddrinfo(addr, *args, **kwargs)
 
-    @aiosafe
+    @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
         proxy = net_params.proxy
         proxy_str = serialize_proxy(proxy)
@@ -619,7 +619,8 @@ class Network(PrintError):
             await self._close_interface(interface)
             self.trigger_callback('network_updated')
 
-    @aiosafe
+    @ignore_exceptions  # do not kill main_taskgroup
+    @log_exceptions
     async def _run_new_interface(self, server):
         interface = Interface(self, server, self.config.path, self.proxy)
         timeout = 10 if not self.proxy else 20
