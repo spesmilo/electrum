@@ -25,7 +25,7 @@ pushd $WINEPREFIX/drive_c/electrum-grs
 git submodule init
 git submodule update
 
-VERSION=`git describe --tags --dirty || printf 'custom'`
+VERSION=3.2.3
 echo "Last commit: $VERSION"
 
 pushd ./contrib/deterministic-build/electrum-grs-locale
