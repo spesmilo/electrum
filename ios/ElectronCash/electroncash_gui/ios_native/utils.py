@@ -393,6 +393,7 @@ def show_please_wait(vc : ObjCInstance, message : str, animated : bool = True, c
     if not pw:
         return show_alert(vc, title = _("Please wait"), message = message, actions = [], animated = animated, completion = completion)
     pw.message.text = message
+    pw.pleaseWait.text = _("Please wait")
     vc.presentViewController_animated_completion_(pw, animated, completion)
     return pw
 
