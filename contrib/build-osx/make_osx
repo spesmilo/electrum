@@ -13,7 +13,7 @@ src_dir=$(dirname "$0")
 cd $src_dir/../..
 
 export PYTHONHASHSEED=22
-VERSION=`git describe --tags --dirty`
+VERSION=3.2.3
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
 
