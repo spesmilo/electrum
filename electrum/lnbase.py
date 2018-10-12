@@ -655,8 +655,7 @@ class Peer(PrintError):
         remote_sig = payload['signature']
         m.receive_new_commitment(remote_sig, [])
         # broadcast funding tx
-        success, _txid = await self.network.broadcast_transaction(funding_tx)
-        assert success, success
+        await self.network.broadcast_transaction(funding_tx)
         m.remote_commitment_to_be_revoked = m.pending_remote_commitment
         m.config[REMOTE] = m.config[REMOTE]._replace(ctn=0)
         m.config[LOCAL] = m.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
