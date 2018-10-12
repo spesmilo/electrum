@@ -1225,6 +1225,8 @@ class Peer(PrintError):
         await self.update_channel(chan, update)
 
     def current_feerate_per_kw(self):
+        if constants.net is constants.BitcoinRegtest:
+            return 45000
         from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE
         feerate_per_kvbyte = self.network.config.eta_target_to_fee(FEE_LN_ETA_TARGET)
         if feerate_per_kvbyte is None:
