@@ -17,7 +17,7 @@ if [ -e ./env/bin/activate ]; then
 else
     virtualenv env -p `which python3`
     source ./env/bin/activate
-    python3 setup.py install
+    python3 -m pip install .[fast]
 fi
 
 export PYTHONPATH="/usr/local/lib/python${PYTHON_VER}/site-packages:$PYTHONPATH"
