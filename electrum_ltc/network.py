@@ -40,7 +40,7 @@ import dns.resolver
 from aiorpcx import TaskGroup
 
 from . import util
-from .util import PrintError, print_error, aiosafe, bfh, SilentTaskGroup
+from .util import PrintError, print_error, log_exceptions, ignore_exceptions, bfh, SilentTaskGroup
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
@@ -188,7 +188,6 @@ class Network(PrintError):
             self.default_server = pick_random_server()
 
         self.main_taskgroup = None
-        self._jobs = []
 
         # locks
         self.restart_lock = asyncio.Lock()
@@ -478,7 +477,7 @@ class Network(PrintError):
             addr = host
         return socket._getaddrinfo(addr, *args, **kwargs)
 
-    @aiosafe
+    @log_exceptions
     async def set_parameters(self, net_params: NetworkParameters):
         proxy = net_params.proxy
         proxy_str = serialize_proxy(proxy)
@@ -619,7 +618,8 @@ class Network(PrintError):
             await self._close_interface(interface)
             self.trigger_callback('network_updated')
 
-    @aiosafe
+    @ignore_exceptions  # do not kill main_taskgroup
+    @log_exceptions
     async def _run_new_interface(self, server):
         interface = Interface(self, server, self.config.path, self.proxy)
         timeout = 10 if not self.proxy else 20
@@ -790,9 +790,7 @@ class Network(PrintError):
         with open(path, 'w', encoding='utf-8') as f:
             f.write(json.dumps(cp, indent=4))
 
-    async def _start(self, jobs=None):
-        if jobs is None: jobs = self._jobs
-        self._jobs = jobs
+    async def _start(self):
         assert not self.main_taskgroup
         self.main_taskgroup = SilentTaskGroup()
 
@@ -801,7 +799,7 @@ class Network(PrintError):
                 await self._init_headers_file()
                 async with self.main_taskgroup as group:
                     await group.spawn(self._maintain_sessions())
-                    [await group.spawn(job) for job in jobs]
+                    [await group.spawn(job) for job in self._jobs]
             except Exception as e:
                 traceback.print_exc(file=sys.stderr)
                 raise e
@@ -817,8 +815,14 @@ class Network(PrintError):
         self._start_interface(self.default_server)
         self.trigger_callback('network_updated')
 
-    def start(self, jobs=None):
-        asyncio.run_coroutine_threadsafe(self._start(jobs=jobs), self.asyncio_loop)
+    def start(self, jobs: List=None):
+        self._jobs = jobs or []
+        asyncio.run_coroutine_threadsafe(self._start(), self.asyncio_loop)
+
+    async def add_job(self, job):
+        async with self.restart_lock:
+            self._jobs.append(job)
+            await self.main_taskgroup.spawn(job)
 
     async def _stop(self, full_shutdown=False):
         self.print_error("stopping network")
