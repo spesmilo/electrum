@@ -5,8 +5,8 @@ from collections import defaultdict
 import asyncio
 import jsonrpclib
 
-from .util import PrintError, bh2u, bfh, NoDynamicFeeEstimates, aiosafe
-from .lnutil import EncumberedTransaction, Outpoint
+from .util import PrintError, bh2u, bfh, log_exceptions, ignore_exceptions
+from .lnutil import EncumberedTransaction
 from . import wallet
 from .storage import WalletStorage
 from .address_synchronizer import AddressSynchronizer
@@ -47,7 +47,7 @@ class LNWatcher(PrintError):
         watchtower_url = self.config.get('watchtower_url')
         self.watchtower = jsonrpclib.Server(watchtower_url) if watchtower_url else None
         self.watchtower_queue = asyncio.Queue()
-        self.network.start([self.watchtower_task])
+        asyncio.run_coroutine_threadsafe(self.network.add_job(self.watchtower_task), self.network.asyncio_loop)
 
     def with_watchtower(func):
         def wrapper(self, *args, **kwargs):
@@ -56,7 +56,8 @@ class LNWatcher(PrintError):
             return func(self, *args, **kwargs)
         return wrapper
 
-    @aiosafe
+    @ignore_exceptions
+    @log_exceptions
     async def watchtower_task(self):
         while True:
             name, args, kwargs = await self.watchtower_queue.get()
@@ -89,7 +90,7 @@ class LNWatcher(PrintError):
                 self.channel_info[address] = outpoint
             self.write_to_disk()
 
-    @aiosafe
+    @log_exceptions
     async def on_network_update(self, event, *args):
         if event in ('verified', 'wallet_updated'):
             wallet = args[0]
