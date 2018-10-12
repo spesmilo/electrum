@@ -170,7 +170,7 @@ class Daemon(DaemonThread):
         return True
 
     def run_daemon(self, config_options):
-        asyncio.set_event_loop(self.network.asyncio_loop)
+        asyncio.set_event_loop(self.network.asyncio_loop)  # FIXME what if self.network is None?
         config = SimpleConfig(config_options)
         sub = config.get('subcommand')
         assert sub in [None, 'start', 'stop', 'status', 'load_wallet', 'close_wallet']
@@ -264,6 +264,7 @@ class Daemon(DaemonThread):
         wallet.stop_threads()
 
     def run_cmdline(self, config_options):
+        asyncio.set_event_loop(self.network.asyncio_loop)  # FIXME what if self.network is None?
         password = config_options.get('password')
         new_password = config_options.get('new_password')
         config = SimpleConfig(config_options)

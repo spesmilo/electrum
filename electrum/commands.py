@@ -41,6 +41,10 @@ from .i18n import _
 from .transaction import Transaction, multisig_script, TxOutput
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
+from .storage import WalletStorage
+from . import keystore
+from .wallet import Wallet, Imported_Wallet
+from .mnemonic import Mnemonic
 
 known_commands = {}
 
@@ -123,17 +127,73 @@ class Commands:
         return ' '.join(sorted(known_commands.keys()))
 
     @command('')
-    def create(self, segwit=False):
+    def create(self, passphrase=None, password=None, encrypt_file=True, segwit=False):
         """Create a new wallet"""
-        raise Exception('Not a JSON-RPC command')
+        storage = WalletStorage(self.config.get_wallet_path())
+        if storage.file_exists():
+            raise Exception("Remove the existing wallet first!")
 
-    @command('wn')
-    def restore(self, text):
+        seed_type = 'segwit' if segwit else 'standard'
+        seed = Mnemonic('en').make_seed(seed_type)
+        k = keystore.from_seed(seed, passphrase)
+        storage.put('keystore', k.dump())
+        storage.put('wallet_type', 'standard')
+        wallet = Wallet(storage)
+        wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
+        wallet.synchronize()
+        msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
+
+        wallet.storage.write()
+        return {'seed': seed, 'path': wallet.storage.path, 'msg': msg}
+
+    @command('')
+    def restore(self, text, passphrase=None, password=None, encrypt_file=True):
         """Restore a wallet from text. Text can be a seed phrase, a master
         public key, a master private key, a list of bitcoin addresses
         or bitcoin private keys. If you want to be prompted for your
         seed, type '?' or ':' (concealed) """
-        raise Exception('Not a JSON-RPC command')
+        storage = WalletStorage(self.config.get_wallet_path())
+        if storage.file_exists():
+            raise Exception("Remove the existing wallet first!")
+
+        text = text.strip()
+        if keystore.is_address_list(text):
+            wallet = Imported_Wallet(storage)
+            for x in text.split():
+                wallet.import_address(x)
+        elif keystore.is_private_key_list(text, allow_spaces_inside_key=False):
+            k = keystore.Imported_KeyStore({})
+            storage.put('keystore', k.dump())
+            wallet = Imported_Wallet(storage)
+            for x in text.split():
+                wallet.import_private_key(x, password)
+        else:
+            if keystore.is_seed(text):
+                k = keystore.from_seed(text, passphrase)
+            elif keystore.is_master_key(text):
+                k = keystore.from_master_key(text)
+            else:
+                raise Exception("Seed or key not recognized")
+            storage.put('keystore', k.dump())
+            storage.put('wallet_type', 'standard')
+            wallet = Wallet(storage)
+
+        wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
+        wallet.synchronize()
+
+        if self.network:
+            wallet.start_network(self.network)
+            print_error("Recovering wallet...")
+            wallet.wait_until_synchronized()
+            wallet.stop_threads()
+            # note: we don't wait for SPV
+            msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
+        else:
+            msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
+                   "Start a daemon (not offline) to sync history.")
+
+        wallet.storage.write()
+        return {'path': wallet.storage.path, 'msg': msg}
 
     @command('wp')
     def password(self, password=None, new_password=None):
@@ -419,7 +479,7 @@ class Commands:
 
         coins = self.wallet.get_spendable_coins(domain, self.config)
         tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
-        if locktime != None: 
+        if locktime != None:
             tx.locktime = locktime
         if rbf is None:
             rbf = self.config.get('use_rbf', True)
@@ -671,6 +731,16 @@ class Commands:
         # for the python console
         return sorted(known_commands.keys())
 
+
+def eval_bool(x: str) -> bool:
+    if x == 'false': return False
+    if x == 'true': return True
+    try:
+        return bool(ast.literal_eval(x))
+    except:
+        return bool(x)
+
+
 param_descriptions = {
     'privkey': 'Private key. Type \'?\' to get a prompt.',
     'destination': 'Bitcoin address, contact or alias',
@@ -693,6 +763,7 @@ param_descriptions = {
 command_options = {
     'password':    ("-W", "Password"),
     'new_password':(None, "New Password"),
+    'encrypt_file':(None, "Whether the file on disk should be encrypted with the provided password"),
     'receiving':   (None, "Show only receiving addresses"),
     'change':      (None, "Show only change addresses"),
     'frozen':      (None, "Show only frozen addresses"),
@@ -708,6 +779,7 @@ command_options = {
     'nbits':       (None, "Number of bits of entropy"),
     'segwit':      (None, "Create segwit seed"),
     'language':    ("-L", "Default language for wordlist"),
+    'passphrase':  (None, "Seed extension"),
     'privkey':     (None, "Private key. Set to '?' to get a prompt."),
     'unsigned':    ("-u", "Do not sign transaction"),
     'rbf':         (None, "Replace-by-fee transaction"),
@@ -746,6 +818,7 @@ arg_types = {
     'locktime': int,
     'fee_method': str,
     'fee_level': json_loads,
+    'encrypt_file': eval_bool,
 }
 
 config_variables = {
@@ -858,12 +931,10 @@ def get_parser():
         cmd = known_commands[cmdname]
         p = subparsers.add_parser(cmdname, help=cmd.help, description=cmd.description)
         add_global_options(p)
-        if cmdname == 'restore':
-            p.add_argument("-o", "--offline", action="store_true", dest="offline", default=False, help="Run offline")
         for optname, default in zip(cmd.options, cmd.defaults):
             a, help = command_options[optname]
             b = '--' + optname
-            action = "store_true" if type(default) is bool else 'store'
+            action = "store_true" if default is False else 'store'
             args = (a, b) if a else (b,)
             if action == 'store':
                 _type = arg_types.get(optname, str)
