@@ -390,7 +390,7 @@ if __name__ == '__main__':
     config = SimpleConfig(config_options)
 
     if not config.get('contract_hash'):
-        print_stderr("Contract Hash not set. Move the `terms-and-conditions.txt` file to `{}`".format(config.electrum_path()))
+        print_stderr("Contract Hash not set. Move the `contract` file to `{}`".format(config.electrum_path()))
         sys.exit(1)
 
     cmdname = config.get('cmd')

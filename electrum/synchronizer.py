@@ -124,11 +124,15 @@ class Synchronizer(ThreadJob):
         # tx_fees
         tx_fees = [(item['tx_hash'], item.get('fee')) for item in result]
         tx_fees = dict(filter(lambda x:x[1] is not None, tx_fees))
+
+        # Commenting out this as with multiple asset ids it is possible to
+        # have duplicate txids where a single address holds multiple assets
         # Check that txids are unique
-        if len(hashes) != len(result):
-            self.print_error("error: server history has non-unique txids: %s"% addr)
+        #if len(hashes) != len(result):
+        #    self.print_error("error: server history has non-unique txids: %s"% addr)
+
         # Check that the status corresponds to what was announced
-        elif self.get_status(hist) != server_status:
+        if self.get_status(hist) != server_status:
             self.print_error("error: status mismatch: %s" % addr)
         else:
             # Store received history
