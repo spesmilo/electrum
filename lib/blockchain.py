@@ -325,6 +325,7 @@ class Blockchain(util.PrintError):
 
 
     def get_next_target_require(self,height,is_pos):
+        bak_height = height
         first,height = self.get_last_block_header(height,is_pos)
         if first == None:
             return util.ub_default_diffculty(is_pos)
@@ -334,6 +335,8 @@ class Blockchain(util.PrintError):
         tempBits = set()
         tNbits.append(first)
         tempBits.add(first["bits"])
+        if is_pos and bak_height>=util.ForkData.fourth_fork_height and height<util.ForkData.fourth_fork_height:
+            return util.ub_default_diffculty(is_pos)
         for i in range(9):
             last_header,height = self.get_last_block_header(height-1,is_pos)
 

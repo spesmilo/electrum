@@ -225,6 +225,8 @@ class ForkData:
     MINING_TYPE_POW = 0x02000000
     MINING_TYPE_POS = 0x01000000
 
+    fourth_fork_height = 572000
+
 
 
 

@@ -34,7 +34,7 @@ import pyaes
 
 from .util import bfh, bh2u, to_string
 from . import version
-from .util import print_error, InvalidPassword, assert_bytes, to_bytes, inv_dict
+from .util import print_error, InvalidPassword, assert_bytes, to_bytes, inv_dict,ForkData
 from . import segwit_addr
 
 def read_json(filename, default):
@@ -107,10 +107,14 @@ FEE_TARGETS = [25, 10, 5, 2]
 COINBASE_MATURITY = 100
 NEW_COINBASE_MATURITY = 200
 def get_coinbase_maturity(height):
-    if height < 506400:
+    if height < ForkData.second_fork_height:
         return COINBASE_MATURITY
-    else:
+    elif height<ForkData.third_fork_height:
         return NEW_COINBASE_MATURITY
+    elif height <ForkData.fourth_fork_height:
+        return 7200
+    else:
+        return 1440
 COIN = 100000000
 
 # supported types of transction outputs
