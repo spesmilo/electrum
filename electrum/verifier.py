@@ -26,13 +26,12 @@ from typing import Sequence, Optional
 
 import aiorpcx
 
-from .util import bh2u, VerifiedTxInfo
+from .util import bh2u, VerifiedTxInfo, NetworkJobOnDefaultServer
 from .bitcoin import Hash, hash_decode, hash_encode
 from .transaction import Transaction
 from .blockchain import hash_header
 from .interface import GracefulDisconnect
 from . import constants
-from .network import NetworkJobOnDefaultServer
 
 
 class MerkleVerificationFailure(Exception): pass
