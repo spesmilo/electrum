@@ -47,7 +47,7 @@ class LNWatcher(PrintError):
         watchtower_url = self.config.get('watchtower_url')
         self.watchtower = jsonrpclib.Server(watchtower_url) if watchtower_url else None
         self.watchtower_queue = asyncio.Queue()
-        asyncio.run_coroutine_threadsafe(self.watchtower_task(), self.network.asyncio_loop)
+        self.network.start([self.watchtower_task])
 
     def with_watchtower(func):
         def wrapper(self, *args, **kwargs):
@@ -56,12 +56,17 @@ class LNWatcher(PrintError):
             return func(self, *args, **kwargs)
         return wrapper
 
+    @aiosafe
     async def watchtower_task(self):
         while True:
             name, args, kwargs = await self.watchtower_queue.get()
-            self.print_error('sending to watchtower', name, args)
             func = getattr(self.watchtower, name)
-            func(*args, **kwargs)
+            try:
+                func(*args, **kwargs)
+            except:
+                self.print_error('could not reach watchtower, will retry in 5s', name, args)
+                await asyncio.sleep(5)
+                await self.watchtower_queue.put((name, args, kwargs))
 
     def write_to_disk(self):
         # FIXME: json => every update takes linear instead of constant disk write
