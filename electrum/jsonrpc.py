@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 #
 # Electrum - lightweight Bitcoin client
@@ -47,13 +48,9 @@ class RPCAuthUnsupportedType(Exception):
 
 
 # based on http://acooke.org/cute/BasicHTTPA0.html by andrew cooke
-class VerifyingJSONRPCServer(SimpleJSONRPCServer):
+class AuthenticatedJSONRPCServer(SimpleJSONRPCServer):
 
-    def __init__(self, *args, rpc_user, rpc_password, **kargs):
-
-        self.rpc_user = rpc_user
-        self.rpc_password = rpc_password
-
+    def __init__(self, *args, **kargs):
         class VerifyingRequestHandler(SimpleJSONRPCRequestHandler):
             def parse_request(myself):
                 # first, call the original implementation which returns
@@ -73,9 +70,19 @@ class VerifyingJSONRPCServer(SimpleJSONRPCServer):
                         traceback.print_exc(file=sys.stderr)
                         myself.send_error(500, str(e))
                 return False
-
         SimpleJSONRPCServer.__init__(
             self, requestHandler=VerifyingRequestHandler, *args, **kargs)
+
+    def authenticate(self, headers):
+        raise Exception('undefined')
+
+
+class PasswordProtectedJSONRPCServer(AuthenticatedJSONRPCServer):
+
+    def __init__(self, *args, rpc_user, rpc_password, **kargs):
+        self.rpc_user = rpc_user
+        self.rpc_password = rpc_password
+        AuthenticatedJSONRPCServer.__init__(self, *args, **kargs)
 
     def authenticate(self, headers):
         if self.rpc_password == '':
@@ -97,3 +104,21 @@ class VerifyingJSONRPCServer(SimpleJSONRPCServer):
                 and util.constant_time_compare(password, self.rpc_password)):
             time.sleep(0.050)
             raise RPCAuthCredentialsInvalid()
+
+
+class AccountsJSONRPCServer(AuthenticatedJSONRPCServer):
+    """ user accounts """
+
+    def __init__(self, *args, **kargs):
+        self.users = {}
+        AuthenticatedJSONRPCServer.__init__(self, *args, **kargs)
+        self.register_function(self.add_user, 'add_user')
+
+    def authenticate(self, headers):
+        # todo: verify signature
+        return
+
+    def add_user(self, pubkey):
+        user_id = len(self.users)
+        self.users[user_id] = pubkey
+        return user_id
