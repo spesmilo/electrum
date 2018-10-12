@@ -13,7 +13,7 @@ LIBUSB_FILENAME=libusb-1.0.22.7z
 LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-1.0.22/$LIBUSB_FILENAME?download
 LIBUSB_SHA256=671f1a420757b4480e7fadc8313d6fb3cbb75ca00934c417c1efa6e77fb8779b
 
-PYTHON_VERSION=3.6.6
+PYTHON_VERSION=3.5.4
 
 ## These settings probably don't need change
 export WINEPREFIX=/opt/wine64
@@ -24,28 +24,28 @@ PYTHON="wine $PYHOME/python.exe -OO -B"
 
 
 # based on https://superuser.com/questions/497940/script-to-verify-a-signature-with-gpg
-#verify_signature() {
-#    local file=$1 keyring=$2 out=
-#    if out=$(gpg --no-default-keyring --keyring "$keyring" --status-fd 1 --verify "$file" 2>/dev/null) &&
-#       echo "$out" | grep -qs "^\[GNUPG:\] VALIDSIG "; then
-#        return 0
-#    else
-#        echo "$out" >&2
-#        exit 1
-#    fi
-#}
+verify_signature() {
+    local file=$1 keyring=$2 out=
+    if out=$(gpg --no-default-keyring --keyring "$keyring" --status-fd 1 --verify "$file" 2>/dev/null) &&
+       echo "$out" | grep -qs "^\[GNUPG:\] VALIDSIG "; then
+        return 0
+    else
+        echo "$out" >&2
+        exit 1
+    fi
+}
 
-#verify_hash() {
-#    local file=$1 expected_hash=$2
-#    actual_hash=$(sha256sum $file | awk '{print $1}')
-#    if [ "$actual_hash" == "$expected_hash" ]; then
-#        return 0
-#    else
-#        echo "$file $actual_hash (unexpected hash)" >&2
-#        rm "$file"
-#        exit 1
-#    fi
-#}
+verify_hash() {
+    local file=$1 expected_hash=$2
+    actual_hash=$(sha256sum $file | awk '{print $1}')
+    if [ "$actual_hash" == "$expected_hash" ]; then
+        return 0
+    else
+        echo "$file $actual_hash (unexpected hash)" >&2
+        rm "$file"
+        exit 1
+    fi
+}
 
 download_if_not_exist() {
     local file_name=$1 url=$2
@@ -83,8 +83,8 @@ wine 'wineboot'
 
 # HACK to work around https://bugs.winehq.org/show_bug.cgi?id=42474#c22
 # needed for python 3.6+
-rm -f /opt/wine-stable/lib/wine/fakedlls/api-ms-win-core-path-l1-1-0.dll
-rm -f /opt/wine-stable/lib/wine/api-ms-win-core-path-l1-1-0.dll.so
+#rm -f /opt/wine-stable/lib/wine/fakedlls/api-ms-win-core-path-l1-1-0.dll
+#rm -f /opt/wine-stable/lib/wine/api-ms-win-core-path-l1-1-0.dll.so
 
 cd /tmp/electrum-grs-build
 
@@ -124,7 +124,7 @@ $PYTHON -m pip install https://github.com/ecdsa/pyinstaller/archive/fix_2952.zip
 
 # Install ZBar
 download_if_not_exist $ZBAR_FILENAME "$ZBAR_URL"
-#verify_hash $ZBAR_FILENAME "$ZBAR_SHA256"
+verify_hash $ZBAR_FILENAME "$ZBAR_SHA256"
 wine "$PWD/$ZBAR_FILENAME" /S
 
 # Upgrade setuptools (so Electrum-GRS can be installed later)
@@ -132,11 +132,11 @@ $PYTHON -m pip install setuptools --upgrade
 
 # Install NSIS installer
 download_if_not_exist $NSIS_FILENAME "$NSIS_URL"
-#verify_hash $NSIS_FILENAME "$NSIS_SHA256"
+verify_hash $NSIS_FILENAME "$NSIS_SHA256"
 wine "$PWD/$NSIS_FILENAME" /S
 
 download_if_not_exist $LIBUSB_FILENAME "$LIBUSB_URL"
-#verify_hash $LIBUSB_FILENAME "$LIBUSB_SHA256"
+verify_hash $LIBUSB_FILENAME "$LIBUSB_SHA256"
 7z x -olibusb $LIBUSB_FILENAME -aoa
 
 cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
