@@ -140,8 +140,12 @@ class LNWatcher(PrintError):
                 tx_height = self.addr_sync.get_tx_height(ctx_txid).height
                 num_conf = local_height - tx_height + 1
                 if num_conf >= e_tx.csv_delay:
-                    success, msg = await self.network.broadcast_transaction(e_tx.tx)
-                    self.print_error('broadcast: {}, {}'.format('success' if success else 'failure', msg))
+                    try:
+                        await self.network.broadcast_transaction(e_tx.tx)
+                    except Exception as e:
+                        self.print_error('broadcast: {}, {}'.format('failure', repr(e)))
+                    else:
+                        self.print_error('broadcast: {}'.format('success'))
                 else:
                     self.print_error('waiting for CSV ({} < {}) for funding outpoint {} and ctx {}'
                                      .format(num_conf, e_tx.csv_delay, funding_outpoint, ctx.txid()))

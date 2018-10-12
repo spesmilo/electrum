@@ -601,7 +601,7 @@ class Channel(PrintError):
         return roundtripped
 
     def __str__(self):
-        return self.serialize()
+        return str(self.serialize())
 
     def make_commitment(self, subject, this_point) -> Transaction:
         remote_msat, local_msat = self.amounts()
