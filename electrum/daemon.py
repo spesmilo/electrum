@@ -33,7 +33,7 @@ from typing import Dict, Optional, Tuple
 
 import jsonrpclib
 
-from .jsonrpc import VerifyingJSONRPCServer
+from .jsonrpc import SimpleJSONRPCServer, PasswordProtectedJSONRPCServer
 from .version import ELECTRUM_VERSION
 from .network import Network
 from .util import (json_decode, DaemonThread, to_string,
@@ -147,6 +147,8 @@ class Daemon(DaemonThread):
         self.server = None
         if listen_jsonrpc:
             self.init_server(config, fd)
+        if config.get('watchtower_host'):
+            self.init_watchtower()
         self.start()
 
     def init_server(self, config: SimpleConfig, fd):
@@ -154,8 +156,9 @@ class Daemon(DaemonThread):
         port = config.get('rpcport', 0)
         rpc_user, rpc_password = get_rpc_credentials(config)
         try:
-            server = VerifyingJSONRPCServer((host, port), logRequests=False,
-                                            rpc_user=rpc_user, rpc_password=rpc_password)
+            server = PasswordProtectedJSONRPCServer(
+                (host, port), logRequests=False,
+                rpc_user=rpc_user, rpc_password=rpc_password)
         except Exception as e:
             self.logger.error(f'cannot initialize RPC server on host {host}: {repr(e)}')
             self.server = None
@@ -172,6 +175,12 @@ class Daemon(DaemonThread):
         for cmdname in known_commands:
             server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
         server.register_function(self.run_cmdline, 'run_cmdline')
+
+    def init_watchtower(self):
+        host = self.config.get('watchtower_host')
+        port = self.config.get('watchtower_port', 12345)
+        server = SimpleJSONRPCServer((host, port), logRequests=False)
+        server.register_function(self.network.lnwatcher, 'add_sweep_tx')
 
     def ping(self):
         return True
