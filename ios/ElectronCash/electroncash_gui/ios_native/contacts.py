@@ -135,8 +135,14 @@ class ContactsVC(ContactsVCBase):
         ats.addAttribute_value_range_(NSFontAttributeName,UIFont.italicSystemFontOfSize_(14.0),r)
         ats.addAttribute_value_range_(NSKernAttributeName,-0.5,r)
         self.noContactsLabel.attributedText = ats
+        utils.uilabel_replace_attributed_text(lbl = self.noContactsLabel,
+                                              # translate text for i18n
+                                              text = _("You don't have any contacts yet. Create a new contact now!"),
+                                              template = self.noContactsLabel.attributedText)
         # /end workaround
-        self.butBottom.text = _('New contact')
+        for state in UIControlState_ALL_RELEVANT_TUPLE:
+            # translate text
+            self.butBottom.setTitle_forState_(_('New contact'), state)
         # Can't set this property from IB, so we do it here programmatically to create the stroke around the New contact bottom button
         self.butBottom.layer.borderColor = self.butBottom.titleColorForState_(UIControlStateNormal).CGColor
 
@@ -564,7 +570,7 @@ class NewContactVC(NewContactBase):
         self.addressTit.text = _("Address")
         self.nameTit.text = _("Name")
         self.name.placeholder = _("Satoshi Nakamoto")
-        self.address.placeholdeer = _("Paste an address or use QR")
+        self.address.placeholder = _("Paste an address or use QR")
 
         tfwts = { self.name : 0, self.address : 1 }
         for tf in tfwts:

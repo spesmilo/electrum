@@ -18,6 +18,22 @@ import electroncash.bitcoin as bitcoin
 import electroncash.keystore as keystore
 from electroncash.address import Address, PublicKey
 
+if False:
+    # this is here for translate i18n to pick up these strings
+    __DUMMY_FOR_TRANSLATION = (
+        _("My Wallet"), _("Tap to enter a password"), _("Enter the same password again"),
+        _("Wallet Password"), _("Confirm Wallet Password"),
+        _("Please write your seed phrase down, as it's the only way to recover your funds if you forget your password or your device is stolen."),
+        _("Reenter your seed phrase"),
+        # On-Boarding text...
+        _("Welcome to"), _("Electron Cash is an SPV wallet for Bitcoin Cash"),
+        _("Control your own private keys"), _("Easily back up your wallet with a mnemonic seed phrase."),
+        _("Enjoy high security"), _("without downloading the blockchain or running a full node."),
+        _("Get Started"),
+        _("Cancel"), _("Seed"), _("Next"), _("Back"),
+        _("Import"), _("Master Key"), _("Save Wallet"),
+    )
+
 
 #################################################################################################
 #    Use the below 2 functions to call up either the On-Boarding or the "New Wallet" wizards    #
@@ -56,6 +72,17 @@ class NewWalletNav(NewWalletNavBase):
     def dealloc(self) -> None:
         utils.nspy_pop(self)
         send_super(__class__, self, 'dealloc')
+
+    @objc_method
+    def pushViewController_animated_(self, vc : ObjCInstance, animated : bool) -> None:
+        ''' This is here as a cheap hack to translate the top nav buttons to the native language '''
+        send_super(__class__, self, 'pushViewController:animated:', vc.ptr, animated, argtypes=[objc_id, c_bool])
+        if vc.navigationItem:
+            if vc.navigationItem.backBarButtonItem:
+                vc.navigationItem.backBarButtonItem.title = _(vc.navigationItem.backBarButtonItem.title or "Back")
+            if vc.navigationItem.leftBarButtonItem:
+                vc.navigationItem.leftBarButtonItem.title = _(vc.navigationItem.leftBarButtonItem.title or "Cancel")
+
 
 class NewWalletVC(NewWalletVCBase):
     origPlaceholders = objc_property()
@@ -133,6 +160,11 @@ class NewWalletVC(NewWalletVCBase):
 
     @objc_method
     def translateUI(self) -> None:
+        self.title = _("Standard Wallet")
+
+        for state in UIControlState_ALL_RELEVANT_TUPLE:
+            self.nextBut.setTitle_forState_(_("Next"), state)
+
         lbls = [ self.walletNameTit, self.walletPw1Tit, self.walletPw2Tit, self.touchIdTit ]
         if not self.origLabelTxts:
             self.origLabelTxts = { lbl.ptr.value : lbl.text for lbl in lbls }
@@ -227,6 +259,15 @@ class NewWalletVC(NewWalletVCBase):
         # pass along wallet name, password, etc..
         self.saveVars()
 
+class NewWalletVCAtEnd(NewWalletVC):
+    @objc_method
+    def translateUI(self) -> None:
+        send_super(__class__, self, 'translateUI')
+        self.title = _("Save Wallet")
+        for state in UIControlState_ALL_RELEVANT_TUPLE:
+            self.nextBut.setTitle_forState_(_("Save"), state)
+
+
 class NewWalletSeed1(NewWalletSeedBase):
     origLabelTxts = objc_property()
     seed = objc_property()
@@ -245,6 +286,9 @@ class NewWalletSeed1(NewWalletSeedBase):
 
     @objc_method
     def translateUI(self) -> None:
+        self.title = _("Seed")
+        for state in UIControlState_ALL_RELEVANT_TUPLE:
+            self.nextBut.setTitle_forState_(_("Next"), state)
         lbls = [ self.seedTit, self.info ]
         if not self.origLabelTxts:
             self.origLabelTxts = { lbl.ptr.value : lbl.text for lbl in lbls }
@@ -342,6 +386,9 @@ class NewWalletSeed2(NewWalletSeedBase):
 
     @objc_method
     def translateUI(self) -> None:
+        self.title = _("Seed Entry")
+        for state in UIControlState_ALL_RELEVANT_TUPLE:
+            self.nextBut.setTitle_forState_(_("Next"), state)
         lbls = [ self.seedTit, self.info ]
         if self.seedExtTit: lbls.append(self.seedExtTit)
         if self.bip39Tit: lbls.append(self.bip39Tit)
@@ -688,7 +735,7 @@ def _AddKeystore(vc, k) -> bool:
     _SetParam(vc, 'keystores', keystores)
     return True
 
-class RestoreWallet2(NewWalletVC):
+class RestoreWallet2(NewWalletVCAtEnd):
 
     @objc_method
     def onRestoreModeSave(self) -> None:
@@ -735,6 +782,11 @@ class NewWalletMenu(NewWalletMenuBase):
     @objc_method
     def viewDidLoad(self) -> None:
         send_super(__class__, self, 'viewDidLoad')
+        if self.navigationItem:
+            if self.navigationItem.leftBarButtonItem:
+                self.navigationItem.leftBarButtonItem.title = _(self.navigationItem.leftBarButtonItem.title)
+            if self.navigationItem.backBarButtonItem:
+                self.navigationItem.backBarButtonItem.title = _(self.navigationItem.backBarButtonItem.title)
 
     @objc_method
     def viewWillAppear_(self, animated : bool) -> None:
@@ -753,6 +805,16 @@ class NewWalletMenu(NewWalletMenuBase):
             self.lineHider.backgroundColor = navBar.barTintColor
             self.lineHider.autoresizingMask = (1<<6)-1
             navBar.addSubview_(self.lineHider)
+        # translate UI
+        self.navigationItem.title = _("New Wallet")
+        utils.uilabel_replace_attributed_text(lbl = self.blurb,
+                                              text = _("You can have as many wallets as you like! Choose from one of the options below:"),
+                                              template = self.blurb.attributedText)
+        for state in UIControlState_ALL_RELEVANT_TUPLE:
+            self.std.setTitle_forState_(_("Create New Standard Wallet"), state)
+            self.restore.setTitle_forState_(_("Restore from Seed"), state)
+            self.imp.setTitle_forState_(_("Import Addresses or Private Keys"), state)
+            self.master.setTitle_forState_(_("Use a Master Key"), state)
 
     @objc_method
     def viewWillDisappear_(self, animated : bool) -> None:
@@ -766,6 +828,8 @@ class Import1(Import1Base):
     @objc_method
     def viewDidLoad(self) -> None:
         send_super(__class__, self, 'viewDidLoad')
+        for state in UIControlState_ALL_RELEVANT_TUPLE:
+            self.nextBut.setTitle_forState_(_("Next"), state)
         self.tvDel.placeholderText = _("Tap to add text...")
         self.tvDel.placeholderFont = UIFont.italicSystemFontOfSize_(14.0)
         self.tvDel.font = UIFont.systemFontOfSize_weight_(14.0, UIFontWeightMedium)
@@ -778,12 +842,14 @@ class Import1(Import1Base):
                 self.infoView.setHidden_(False)
         self.tvDel.didChange = Block(hideErrBox)
         if self.masterKeyMode:
+            self.title = _("Master Key")
             titText = _("Create a wallet using a Master Key")
             infoText =  (_("Specify a master key to re-create a deterministic wallet.")
                          + " " + _("To create a watching-only wallet, please enter your master public key (xpub/ypub/zpub).")
                          + " " + _("To create a spending wallet, please enter a master private key (xprv/yprv/zprv).") )
 
         else:
+            self.title = _("Import")
             titText = _("Import Bitcoin Cash Addresses or Private Keys")
             infoText = _("Enter a list of private keys to create a regular spending wallet. " +
                          "Alternatively, you can create a 'watching-only' wallet by " +
@@ -900,6 +966,10 @@ class Import2(Import2Base):
     @objc_method
     def viewDidLoad(self) -> None:
         send_super(__class__, self, 'viewDidLoad')
+        if self.title:
+            self.title = _(self.title)
+        for state in UIControlState_ALL_RELEVANT_TUPLE:
+            self.nextBut.setTitle_forState_(_("Import"), state)
         utils.uilabel_replace_attributed_text(lbl=self.info, font = UIFont.italicSystemFontOfSize_(14.0),
                                               text = _("..."))
         utils.uilabel_replace_attributed_text(lbl=self.errMsg, font = UIFont.italicSystemFontOfSize_(14.0), text = "...")
@@ -1174,7 +1244,7 @@ class Import2(Import2Base):
         else:
             _SetParam(self, 'imported_keystore_type', 1 if _Params(self)['keystore'].is_watching_only() else 2)
 
-class ImportSaveWallet(NewWalletVC):
+class ImportSaveWallet(NewWalletVCAtEnd):
 
     @objc_method
     def viewDidLoad(self) -> None:
@@ -1419,20 +1489,57 @@ class OnBoardingWizard(OnBoardingWizardBase):
 
 
 class OnBoardingPage(OnBoardingPageBase):
+    didTranslate = objc_property()
+
+    @objc_method
+    def dealloc(self) -> None:
+        self.didTranslate = None
+        send_super(__class__, self, 'dealloc')
+
     @objc_method
     def viewDidAppear_(self, animated : bool) -> None:
         send_super(__class__, self, 'viewDidAppear:', animated, argtypes=[c_bool])
         if self.parent: self.parent.currentPageIndex = self.pageIndex
 
     @objc_method
+    def viewWillAppear_(self, animated : bool) -> None:
+        send_super(__class__, self, 'viewWillAppear:', animated, argtypes=[c_bool])
+        # translate UI
+        if not self.didTranslate:
+            self.tit.text = _(self.tit.text)
+            s = self.blurb.attributedText.string
+            utils.uilabel_replace_attributed_text(lbl = self.blurb,
+                                                  text = _(s),
+                                                  template = self.blurb.attributedText)
+            s = _(self.nextBut.currentTitle)
+            for state in UIControlState_ALL_RELEVANT_TUPLE:
+                self.nextBut.setTitle_forState_(s, state)
+            self.didTranslate = True
+
+    @objc_method
     def onNext(self) -> None:
         if self.parent: self.parent.onNextButton_(self.pageIndex)
+
 
 class OnBoardingMenu(OnBoardingMenuBase):
     @objc_method
     def viewDidAppear_(self, animated : bool) -> None:
         send_super(__class__, self, 'viewDidAppear:', animated, argtypes=[c_bool])
         if self.parent: self.parent.currentPageIndex = self.pageIndex
+
+    @objc_method
+    def viewWillAppear_(self, animated : bool) -> None:
+        send_super(__class__, self, 'viewWillAppear:', animated, argtypes=[c_bool])
+        # translate UI
+        self.tit.text = _("Get started now")
+        utils.uilabel_replace_attributed_text(lbl = self.blurb,
+                                              text = _("and create your standard wallet or restore an existing one with any of the methods below"),
+                                              template = self.blurb.attributedText)
+        for state in UIControlState_ALL_RELEVANT_TUPLE:
+            self.std.setTitle_forState_(_("Create New Standard Wallet"), state)
+            self.restore.setTitle_forState_(_("Restore from Seed"), state)
+            self.imp.setTitle_forState_(_("Import Addresses or Private Keys"), state)
+            self.master.setTitle_forState_(_("Use a Master Key"), state)
 
     @objc_method
     def jumpToMenu_(self, vcToPushIdentifier) -> None:

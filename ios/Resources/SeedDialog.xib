@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14113" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" colorMatched="YES">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14313.18" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" colorMatched="YES">
     <device id="retina4_7" orientation="portrait">
         <adaptation id="fullscreen"/>
     </device>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14088"/>
-        <capability name="Alignment constraints to the first baseline" minToolsVersion="6.0"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14283.14"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <objects>
@@ -129,6 +128,9 @@
                     <subviews>
                         <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="shield.png" translatesAutoresizingMaskIntoConstraints="NO" id="rKy-48-59m">
                             <rect key="frame" x="234" y="10" width="71" height="103"/>
+                            <constraints>
+                                <constraint firstAttribute="width" secondItem="rKy-48-59m" secondAttribute="height" multiplier="71:103" id="x2A-35-P4q"/>
+                            </constraints>
                         </imageView>
                         <imageView tag="20" contentMode="scaleAspectFit" horizontalCompressionResistancePriority="1000" verticalCompressionResistancePriority="1000" image="bang_red.png" translatesAutoresizingMaskIntoConstraints="NO" id="hdg-M4-yMf">
                             <rect key="frame" x="15" y="14" width="18" height="18"/>
@@ -144,7 +146,7 @@
                             <color key="textColor" red="1" green="0.3803921569" blue="0.3803921569" alpha="1" colorSpace="deviceRGB"/>
                             <nil key="highlightedColor"/>
                         </label>
-                        <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Never disclose your seed." textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="f5a-cd-ycH">
+                        <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Never disclose your seed." textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="f5a-cd-ycH">
                             <rect key="frame" x="43" y="38.5" width="167" height="18"/>
                             <constraints>
                                 <constraint firstAttribute="height" constant="18" id="6YB-V1-dHk"/>
@@ -153,8 +155,8 @@
                             <color key="textColor" red="0.25490196079999999" green="0.25490196079999999" blue="0.25490196079999999" alpha="1" colorSpace="deviceRGB"/>
                             <nil key="highlightedColor"/>
                         </label>
-                        <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Never type it on a website." textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="mpc-fm-FNT">
-                            <rect key="frame" x="43" y="64.5" width="172" height="18"/>
+                        <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Never type it on a website." textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="mpc-fm-FNT">
+                            <rect key="frame" x="43" y="64.5" width="182" height="18"/>
                             <constraints>
                                 <constraint firstAttribute="height" constant="18" id="Izy-H3-XX0"/>
                             </constraints>
@@ -162,7 +164,7 @@
                             <color key="textColor" red="0.25490196079999999" green="0.25490196079999999" blue="0.25490196079999999" alpha="1" colorSpace="deviceRGB"/>
                             <nil key="highlightedColor"/>
                         </label>
-                        <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Do not store it electronically." textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="XyV-jv-Dg7">
+                        <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Do not store it electronically." textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="XyV-jv-Dg7">
                             <rect key="frame" x="43" y="90.5" width="185" height="18"/>
                             <constraints>
                                 <constraint firstAttribute="height" constant="18" id="rL1-gI-hIU"/>
@@ -175,6 +177,7 @@
                     <color key="backgroundColor" red="0.96470588239999999" green="0.96470588239999999" blue="0.96470588239999999" alpha="1" colorSpace="deviceRGB"/>
                     <constraints>
                         <constraint firstItem="f5a-cd-ycH" firstAttribute="top" secondItem="O2r-lM-cbu" secondAttribute="bottom" constant="8" id="1vw-Xw-8ih"/>
+                        <constraint firstItem="rKy-48-59m" firstAttribute="leading" secondItem="mpc-fm-FNT" secondAttribute="trailing" constant="9" id="3Zn-eC-QYs"/>
                         <constraint firstAttribute="height" constant="123" id="65W-jK-6SK"/>
                         <constraint firstItem="O2r-lM-cbu" firstAttribute="leading" secondItem="hdg-M4-yMf" secondAttribute="trailing" constant="10" id="6Ec-1c-HRm"/>
                         <constraint firstItem="hdg-M4-yMf" firstAttribute="top" secondItem="GyF-QJ-t7w" secondAttribute="top" constant="14" id="GGc-dn-RfP"/>

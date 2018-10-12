@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="14113" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="14313.18" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
     <device id="retina4_7" orientation="portrait">
         <adaptation id="fullscreen"/>
     </device>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14088"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14283.14"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -192,7 +192,7 @@
                     <toolbarItems/>
                     <navigationItem key="navigationItem" title="New Wallet" id="AK7-te-kDT">
                         <barButtonItem key="backBarButtonItem" title="Back" id="peK-l6-TH8"/>
-                        <barButtonItem key="leftBarButtonItem" systemItem="cancel" id="qep-u2-iEO">
+                        <barButtonItem key="leftBarButtonItem" title="Cancel" id="qep-u2-iEO">
                             <connections>
                                 <action selector="dismiss" destination="XMg-nT-La3" id="w0h-Nl-zTm"/>
                             </connections>
@@ -329,7 +329,7 @@
                                         </connections>
                                     </textField>
                                     <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="zuV-JL-yit">
-                                        <rect key="frame" x="16" y="528" width="344" height="50"/>
+                                        <rect key="frame" x="15" y="528" width="345" height="50"/>
                                         <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                         <constraints>
                                             <constraint firstAttribute="width" priority="999" constant="345" id="kgB-Eq-Rq4"/>
@@ -362,7 +362,7 @@
                                                 <color key="onTintColor" red="0.73333333329999995" green="1" blue="0.23137254900000001" alpha="1" colorSpace="deviceRGB"/>
                                             </switch>
                                             <label opaque="NO" userInteractionEnabled="NO" tag="600" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Use Touch/Face ID" textAlignment="right" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="23K-Fc-RlZ">
-                                                <rect key="frame" x="175" y="7" width="106" height="18"/>
+                                                <rect key="frame" x="175" y="6.5" width="106" height="18"/>
                                                 <constraints>
                                                     <constraint firstAttribute="height" constant="18" id="Em3-Qm-JZf"/>
                                                 </constraints>
@@ -982,7 +982,7 @@
                                 <rect key="frame" x="0.0" y="260.5" width="375" height="161.5"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" usesAttributedText="YES" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="IK0-Xv-mIB">
-                                        <rect key="frame" x="32" y="59.5" width="310" height="42"/>
+                                        <rect key="frame" x="32.5" y="60" width="310" height="42"/>
                                         <constraints>
                                             <constraint firstAttribute="width" constant="310" id="uub-dP-sY1"/>
                                         </constraints>
@@ -1193,7 +1193,9 @@
                         <viewLayoutGuide key="safeArea" id="IiT-1r-Rlw"/>
                     </view>
                     <connections>
+                        <outlet property="blurb" destination="t1Y-o1-Z3K" id="Zkz-ru-Nqb"/>
                         <outlet property="nextBut" destination="AuA-tQ-rO8" id="a7h-IC-3Ls"/>
+                        <outlet property="tit" destination="omj-Bk-8vK" id="AuX-Xu-RsF"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="nL0-4n-9ov" userLabel="First Responder" sceneMemberID="firstResponder"/>
@@ -1339,11 +1341,11 @@
                                 </connections>
                             </containerView>
                             <switch opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" contentHorizontalAlignment="center" contentVerticalAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="6Hl-mN-Tmf">
-                                <rect key="frame" x="311" y="213" width="51" height="31"/>
+                                <rect key="frame" x="311" y="213.5" width="51" height="31"/>
                                 <color key="onTintColor" red="0.73333333329999995" green="1" blue="0.23137254900000001" alpha="1" colorSpace="deviceRGB"/>
                             </switch>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="BIP39 Seed" textAlignment="right" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="y3j-Ht-6ua">
-                                <rect key="frame" x="224" y="219.5" width="80" height="18"/>
+                                <rect key="frame" x="224" y="220" width="80" height="18"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="18" id="2ea-bG-y5r"/>
                                     <constraint firstAttribute="width" constant="80" id="6lG-qF-Q5Z"/>
@@ -1363,7 +1365,7 @@
                                 <nil key="highlightedColor"/>
                             </label>
                             <textField opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" placeholder="  Optional" textAlignment="natural" minimumFontSize="12" clearButtonMode="whileEditing" translatesAutoresizingMaskIntoConstraints="NO" id="4Re-Yd-tAJ">
-                                <rect key="frame" x="75" y="213" width="144" height="31"/>
+                                <rect key="frame" x="75" y="213.5" width="144" height="31"/>
                                 <color key="backgroundColor" red="0.96470588239999999" green="0.96470588239999999" blue="0.96470588239999999" alpha="1" colorSpace="deviceRGB"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="31" id="WTk-EP-7pM"/>
@@ -1533,7 +1535,7 @@
                                         </connections>
                                     </textField>
                                     <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="bv0-MA-mXh">
-                                        <rect key="frame" x="16" y="528" width="344" height="50"/>
+                                        <rect key="frame" x="15" y="528" width="345" height="50"/>
                                         <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                         <constraints>
                                             <constraint firstAttribute="height" constant="50" id="Wye-TO-dJL">
@@ -1566,7 +1568,7 @@
                                                 <color key="onTintColor" red="0.73333333329999995" green="1" blue="0.23137254900000001" alpha="1" colorSpace="deviceRGB"/>
                                             </switch>
                                             <label opaque="NO" userInteractionEnabled="NO" tag="600" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Use Touch/Face ID" textAlignment="right" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="iPZ-3Y-LCp">
-                                                <rect key="frame" x="175" y="7" width="106" height="18"/>
+                                                <rect key="frame" x="175" y="6.5" width="106" height="18"/>
                                                 <constraints>
                                                     <constraint firstAttribute="height" constant="18" id="T7R-U7-hR1"/>
                                                 </constraints>
@@ -2160,7 +2162,7 @@
                                         </connections>
                                     </textField>
                                     <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="Jbr-fh-FVD">
-                                        <rect key="frame" x="16" y="528" width="344" height="50"/>
+                                        <rect key="frame" x="15" y="528" width="345" height="50"/>
                                         <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                         <constraints>
                                             <constraint firstAttribute="height" constant="50" id="3bk-XI-Auw">
@@ -2193,7 +2195,7 @@
                                                 <color key="onTintColor" red="0.73333333329999995" green="1" blue="0.23137254900000001" alpha="1" colorSpace="deviceRGB"/>
                                             </switch>
                                             <label opaque="NO" userInteractionEnabled="NO" tag="600" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Use Touch/Face ID" textAlignment="right" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="wZb-wu-4lr">
-                                                <rect key="frame" x="175" y="7" width="106" height="18"/>
+                                                <rect key="frame" x="175" y="6.5" width="106" height="18"/>
                                                 <constraints>
                                                     <constraint firstAttribute="height" constant="18" id="qr8-3H-lUH"/>
                                                 </constraints>
@@ -2791,7 +2793,7 @@
                                         </connections>
                                     </textField>
                                     <button opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" reversesTitleShadowWhenHighlighted="YES" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="FlG-uc-1Zl">
-                                        <rect key="frame" x="16" y="528" width="344" height="50"/>
+                                        <rect key="frame" x="15" y="528" width="345" height="50"/>
                                         <color key="backgroundColor" red="0.33333333329999998" green="0.5450980392" blue="1" alpha="1" colorSpace="deviceRGB"/>
                                         <constraints>
                                             <constraint firstAttribute="height" constant="50" id="F3p-LT-o28">
@@ -2824,7 +2826,7 @@
                                                 <color key="onTintColor" red="0.73333333329999995" green="1" blue="0.23137254900000001" alpha="1" colorSpace="deviceRGB"/>
                                             </switch>
                                             <label opaque="NO" userInteractionEnabled="NO" tag="600" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Use Touch/Face ID" textAlignment="right" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="FN2-h9-1pN">
-                                                <rect key="frame" x="175" y="7" width="106" height="18"/>
+                                                <rect key="frame" x="175" y="6.5" width="106" height="18"/>
                                                 <constraints>
                                                     <constraint firstAttribute="height" constant="18" id="ZEk-Gh-O6u"/>
                                                 </constraints>
@@ -2999,7 +3001,7 @@
                                 <rect key="frame" x="28" y="115" width="306" height="316"/>
                             </imageView>
                             <imageView opaque="NO" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="OnBoardingLock.png" translatesAutoresizingMaskIntoConstraints="NO" id="Dob-Qg-7wJ">
-                                <rect key="frame" x="47" y="180" width="280.5" height="195"/>
+                                <rect key="frame" x="47.5" y="180" width="280" height="195"/>
                             </imageView>
                             <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Control your own private keys" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="c6o-vS-XDJ">
                                 <rect key="frame" x="15" y="100" width="345" height="25"/>
@@ -3084,7 +3086,9 @@
                         <viewLayoutGuide key="safeArea" id="8Q0-2y-pgz"/>
                     </view>
                     <connections>
+                        <outlet property="blurb" destination="KEs-iU-tfk" id="wzY-hc-1do"/>
                         <outlet property="nextBut" destination="Hz6-iI-sFf" id="DLp-VG-brM"/>
+                        <outlet property="tit" destination="c6o-vS-XDJ" id="XlI-ik-e5u"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="tlZ-c2-gxH" userLabel="First Responder" sceneMemberID="firstResponder"/>
@@ -3188,7 +3192,9 @@
                         <viewLayoutGuide key="safeArea" id="KWv-be-VJJ"/>
                     </view>
                     <connections>
+                        <outlet property="blurb" destination="ipm-y1-nXa" id="ZnR-w1-EYh"/>
                         <outlet property="nextBut" destination="EKK-y8-ktC" id="awn-Ym-0ew"/>
+                        <outlet property="tit" destination="Zel-6V-tEV" id="snz-yY-XBC"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="BCJ-fT-BCj" userLabel="First Responder" sceneMemberID="firstResponder"/>

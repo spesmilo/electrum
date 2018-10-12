@@ -195,6 +195,7 @@ class WalletsVC(WalletsVCBase):
             #vc.units.attributedText = self.walletUnits.attributedText
             vc.units.text = self.walletUnits.text
             vc.name.text = self.walletName.text
+            vc.addNewWalletLabel.text = _("Add new wallet") # set here again for i18n
             semiclear = vc.view.backgroundColor.copy()
             vc.view.backgroundColor = UIColor.clearColor
             def compl() -> None:
@@ -587,7 +588,7 @@ def _ShowOptionsForWalletAtIndex(index : int, vc : UIViewController, ipadAnchor 
             prefill = ''
             if tf:
                 txt = str(tf.text).lower().strip()
-                if txt == 'delete':
+                if txt == 'delete' or txt == _("delete"): # support i18n
                     try:
                         os.remove(info.full_path)
                         parent.set_wallet_use_touchid(info.name, None, clear_asked = True) # clear cached password if any

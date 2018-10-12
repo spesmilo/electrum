@@ -154,6 +154,7 @@
 @end
 
 @interface WalletsNavBase : UINavigationController
+@property (nonatomic, weak) IBOutlet UITabBarItem *tabBarItem; // contains the 'Wallets' title
 @end
 
 typedef NS_ENUM(NSInteger, WalletsStatusMode) {
@@ -190,6 +191,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 @property (nonatomic, weak) IBOutlet UIView *noReqsView; ///< displays a message and shows an image when the reqstv table is empty
 @property (nonatomic, weak) IBOutlet UIButton *sendBut;
 @property (nonatomic, weak) IBOutlet UIButton *receiveBut;
+@property (nonatomic, weak) IBOutlet UILabel *noTXsLabel, *noReqsLabel; ///< here for i18n
 @end
 
 // stub to represent python -- implemented in python wallets.py
@@ -212,6 +214,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 @property (nonatomic, weak) IBOutlet NSLayoutConstraint *drawerHeight;
 @property (nonatomic, weak) IBOutlet UITableView *tv;
 @property (nonatomic, strong) IBOutlet UIView *tableHeader, *tableFooter;
+@property (nonatomic, weak) IBOutlet UILabel *addNewWalletLabel; // a pointer to the "Add new Wallet" label inside tableFooter. Here so we can translate it in the UI.
 @property (nonatomic, assign) BOOL isOpen;
 -(void)openAnimated:(BOOL)animated;
 -(void)closeAnimated:(BOOL)animated;
@@ -415,11 +418,14 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 // implemented in python newwallet.py..
 - (IBAction) toggleShowHidePW;
 @end
-@interface RestoreWallet2 : NewWalletVC
+@interface NewWalletVCAtEnd : NewWalletVC
+// implemented in python newwallet.py..
+@end
+@interface RestoreWallet2 : NewWalletVCAtEnd
 // implemented in python newwallet.py
 - (IBAction) onRestoreModeSave;
 @end
-@interface ImportSaveWallet : NewWalletVC
+@interface ImportSaveWallet : NewWalletVCAtEnd
 // implemented in python newwallet.py
 - (IBAction) onSave;
 @end
@@ -515,6 +521,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 @end
 @interface OnBoardingPageBase : UIViewController
 @property (nonatomic, weak) IBOutlet UIButton *nextBut;
+@property (nonatomic, weak) IBOutlet UILabel *tit, *blurb;
 @property (nonatomic, weak) OnBoardingWizard *parent;
 @property (nonatomic) NSInteger pageIndex;
 @end

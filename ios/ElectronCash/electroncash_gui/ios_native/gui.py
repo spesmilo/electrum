@@ -298,6 +298,19 @@ class ElectrumGui(PrintError):
                 self.walletsNav = nav1 = obj
                 self.walletsVC = self.walletsNav.topViewController
                 self.walletsVC.reqstv.refreshControl = self.helper.createAndBindRefreshControl()
+
+                # translate text hardcoded in .nib
+                self.walletsNav.tabBarItem.title = _("Wallets")
+                for state in UIControlState_ALL_RELEVANT_TUPLE:
+                    self.walletsVC.sendBut.setTitle_forState_(_("Send"), state)
+                    self.walletsVC.receiveBut.setTitle_forState_(_("Receive"), state)
+                utils.uilabel_replace_attributed_text(lbl = self.walletsVC.noTXsLabel,
+                                                      text = _("There are no transactions for this wallet on the blockchain."),
+                                                      template = self.walletsVC.noTXsLabel.attributedText)
+                utils.uilabel_replace_attributed_text(lbl = self.walletsVC.noReqsLabel,
+                                                      text = _("No payment requests found. Feel free to create one."),
+                                                      template = self.walletsVC.noReqsLabel.attributedText)
+
                 break
         if not self.walletsNav:
             raise Exception('Wallets Nav is None!')

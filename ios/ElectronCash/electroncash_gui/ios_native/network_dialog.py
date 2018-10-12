@@ -504,4 +504,4 @@ def showHelpForButton(oid : objc_id) -> None:
             _("If it is disabled, you have to choose a server you want to use. Electron Cash will warn you if your server is lagging.")
         ])
     msg = msg.replace("Electrum","Electron Cash")
-    parent().show_message(msg)
+    parent().show_message(msg, title = _("Information"))

@@ -19,6 +19,9 @@ import electroncash.web as web
 SECTION_TITLES = [ 'Tools', 'Fees', 'Transactions', 'Appearance', 'Fiat',
                   #'Identity'
                   ]
+if False:
+    # This is here to get picked up by i18n stuff for messages.pot
+    __DUMMY_FOR_TRANSLATION = (_("Tools"), _("Fees"), _("Transactions"), _("Appearance"), _("Fiat"),)
 
 TAG_MULTIPLE_CHANGE_CELL = 12345
 TAG_CONTENTVIEW = 100

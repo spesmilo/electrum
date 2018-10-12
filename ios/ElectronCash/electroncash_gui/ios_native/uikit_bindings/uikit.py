@@ -151,6 +151,7 @@ UIControlStateNormal = 0
 UIControlStateHighlighted = 1 << 0
 UIControlStateDisabled = 1 << 1
 UIControlStateSelected = 1 << 2
+UIControlState_ALL_RELEVANT_TUPLE = (UIControlStateNormal, UIControlStateHighlighted, UIControlStateDisabled, UIControlStateSelected)
 UIControlStateApplication = 0x00FF0000
 UIControlStateReserved = 0xFF000000
 

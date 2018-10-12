@@ -282,7 +282,13 @@ class CoinsTableVC(UITableViewController):
         if objs:
             self.noCoins = objs[0]
             lbl = self.noCoins.viewWithTag_(6061)
-            if lbl: lbl.attributedText = utils.ats_replace_font(lbl.attributedText, UIFont.italicSystemFontOfSize_(14.0))
+            if lbl:
+                lbl.attributedText = utils.ats_replace_font(lbl.attributedText, UIFont.italicSystemFontOfSize_(14.0))
+                utils.uilabel_replace_attributed_text(lbl = lbl,
+                                                      # translate text for i18n
+                                                      text = _("This wallet has no unspent outputs (coins) to display."),
+                                                      template = lbl.attributedText)
+
         else: NSLog("WARNING: Could not find the 'no coins' view in Misc.xib!")
         nib = UINib.nibWithNibName_bundle_(_CellIdentifier[0], None)
         self.tableView.registerNib_forCellReuseIdentifier_(nib, _CellIdentifier[0])

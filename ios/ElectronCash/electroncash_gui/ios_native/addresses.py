@@ -25,6 +25,10 @@ _TYPES = ("Any","Receiving","Change")
 _STATUSES = ("All", "Funded", "Unused", "Used")
 _TYPES_BY_NAME = dict()
 _STATUSES_BY_NAME = dict()
+if False:
+    # this is here simply to get picked up by i18n messages.pot, etc.
+    __DUMMY_FOR_TRANSLATION = ( _("Any"), _("All"), _("Funded"), _("Unused"),
+                               _("Used"), _("Receiving"), _("Change") )
 
 for i,k in enumerate(_TYPES):
     _TYPES_BY_NAME[k] = i

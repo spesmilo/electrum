@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14113" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="14313.18" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
     <device id="retina4_7" orientation="portrait">
         <adaptation id="fullscreen"/>
     </device>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14088"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14283.14"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -57,7 +57,7 @@
                                 <rect key="frame" x="89.5" y="223.5" width="196" height="107"/>
                                 <subviews>
                                     <imageView userInteractionEnabled="NO" tag="4040" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="empty_table_icon.png" translatesAutoresizingMaskIntoConstraints="NO" id="mu2-Qr-shs">
-                                        <rect key="frame" x="66.5" y="0.0" width="62" height="36"/>
+                                        <rect key="frame" x="67" y="0.0" width="62" height="36"/>
                                         <constraints>
                                             <constraint firstAttribute="width" constant="62" id="7CE-tr-Bk7"/>
                                             <constraint firstAttribute="height" constant="36" id="yx7-yH-AHw"/>
@@ -99,7 +99,7 @@
                                 <rect key="frame" x="89.5" y="223.5" width="196" height="107"/>
                                 <subviews>
                                     <imageView userInteractionEnabled="NO" tag="4040" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="empty_table_icon.png" translatesAutoresizingMaskIntoConstraints="NO" id="dNj-eP-Aky">
-                                        <rect key="frame" x="66.5" y="0.0" width="62" height="36"/>
+                                        <rect key="frame" x="67" y="0.0" width="62" height="36"/>
                                         <constraints>
                                             <constraint firstAttribute="width" constant="62" id="c9Q-dY-cYJ"/>
                                             <constraint firstAttribute="height" constant="36" id="tGO-7i-gbm"/>
@@ -229,7 +229,7 @@
                                         <nil key="highlightedColor"/>
                                     </label>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="mBCH" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="WuM-H7-ckL">
-                                        <rect key="frame" x="160" y="35.5" width="185" height="17"/>
+                                        <rect key="frame" x="160" y="35.5" width="185" height="17.5"/>
                                         <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                         <color key="textColor" red="0.25490196079999999" green="0.25490196079999999" blue="0.25490196079999999" alpha="1" colorSpace="deviceRGB"/>
                                         <nil key="highlightedColor"/>
@@ -339,7 +339,7 @@
                                     </constraints>
                                 </view>
                                 <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="All set and good to go." lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="atn-VB-xdN">
-                                    <rect key="frame" x="113.5" y="5.5" width="130.5" height="14.5"/>
+                                    <rect key="frame" x="113" y="5" width="130.5" height="14.5"/>
                                     <constraints>
                                         <constraint firstAttribute="height" relation="greaterThanOrEqual" id="g8f-J8-rnC"/>
                                         <constraint firstAttribute="width" relation="greaterThanOrEqual" id="hhM-W6-Wj1"/>
@@ -349,7 +349,7 @@
                                     <nil key="highlightedColor"/>
                                 </label>
                                 <label opaque="NO" clipsSubviews="YES" contentMode="left" verticalHuggingPriority="251" horizontalCompressionResistancePriority="1000" text="Online" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumFontSize="12" translatesAutoresizingMaskIntoConstraints="NO" id="lYw-Ew-yYB">
-                                    <rect key="frame" x="60.5" y="2" width="42.5" height="21"/>
+                                    <rect key="frame" x="60.5" y="1.5" width="42.5" height="21"/>
                                     <color key="backgroundColor" red="0.73333333333333328" green="1" blue="0.23137254901960785" alpha="1" colorSpace="deviceRGB"/>
                                     <constraints>
                                         <constraint firstAttribute="height" constant="21" id="Fuy-HI-CWn"/>
@@ -365,7 +365,7 @@
                                     </userDefinedRuntimeAttributes>
                                 </label>
                                 <view contentMode="scaleToFill" horizontalCompressionResistancePriority="749" translatesAutoresizingMaskIntoConstraints="NO" id="s5a-Kp-FHa" userLabel="RSpacer">
-                                    <rect key="frame" x="244" y="0.0" width="60.5" height="24"/>
+                                    <rect key="frame" x="243.5" y="0.0" width="60.5" height="24"/>
                                     <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="calibratedWhite"/>
                                 </view>
                             </subviews>
@@ -392,7 +392,9 @@
                     <connections>
                         <outlet property="blueBarTop" destination="xTn-fY-y6D" id="oB1-hK-q52"/>
                         <outlet property="navBar" destination="6um-IK-2g2" id="vNX-hi-luK"/>
+                        <outlet property="noReqsLabel" destination="7So-wv-xx5" id="LIw-bs-DEo"/>
                         <outlet property="noReqsView" destination="Mg4-cl-SaW" id="YTK-dF-hbx"/>
+                        <outlet property="noTXsLabel" destination="UUc-Pe-p1u" id="hJT-oE-aLG"/>
                         <outlet property="noTXsView" destination="heh-Ue-jMi" id="DRv-wf-VM4"/>
                         <outlet property="receiveBut" destination="Ncr-lp-w8U" id="r2U-zk-0bh"/>
                         <outlet property="reqTVD" destination="vtb-qn-tmr" id="PNS-8q-LXd"/>
@@ -413,6 +415,9 @@
                 <rect key="frame" x="0.0" y="-64" width="0.0" height="0.0"/>
                 <autoresizingMask key="autoresizingMask"/>
             </toolbar>
+            <connections>
+                <outlet property="tabBarItem" destination="mSo-HW-HDn" id="8hc-2U-BGJ"/>
+            </connections>
             <point key="canvasLocation" x="28.5" y="59.5"/>
         </navigationController>
         <tapGestureRecognizer id="pa5-zC-5FB" userLabel="Drawer Tap Gesture Recognizer">
