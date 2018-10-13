@@ -151,15 +151,17 @@ class Daemon(DaemonThread):
             self.network = Network(config)
             self.network._loop_thread = self._loop_thread
         self.fx = FxThread(config, self.network)
-        if self.network:
-            self.network.start([self.fx.run])
         self.gui = None
         self.wallets = {}  # type: Dict[str, Abstract_Wallet]
         # Setup JSONRPC server
         self.server = None
         if listen_jsonrpc:
             self.init_server(config, fd)
+        # server-side watchtower
         self.watchtower = WatchTower(self.config, self.network.lnwatcher) if self.config.get('watchtower_host') else None
+        # client-side
+        if self.network:
+            self.network.start([self.fx.run, self.network.lnwatcher.watchtower_task])
         self.start()
 
     def init_server(self, config: SimpleConfig, fd):
