@@ -343,7 +343,8 @@ class Channel(PrintError):
         else:
             their_cur_pcp = self.config[REMOTE].next_per_commitment_point
             encumbered_sweeptx = maybe_create_sweeptx_for_their_ctx_to_remote(self, ctx, their_cur_pcp, self.sweep_address)
-        self.lnwatcher.add_sweep_tx(outpoint, ctx.txid(), encumbered_sweeptx.to_json())
+        if encumbered_sweeptx:
+            self.lnwatcher.add_sweep_tx(outpoint, ctx.txid(), encumbered_sweeptx.to_json())
 
     def process_new_revocation_secret(self, per_commitment_secret: bytes):
         if not self.lnwatcher:
@@ -351,7 +352,8 @@ class Channel(PrintError):
         outpoint = self.funding_outpoint.to_str()
         ctx = self.remote_commitment_to_be_revoked
         encumbered_sweeptx = maybe_create_sweeptx_for_their_ctx_to_local(self, ctx, per_commitment_secret, self.sweep_address)
-        self.lnwatcher.add_sweep_tx(outpoint, ctx.txid(), encumbered_sweeptx.to_json())
+        if encumbered_sweeptx:
+            self.lnwatcher.add_sweep_tx(outpoint, ctx.txid(), encumbered_sweeptx.to_json())
 
     def receive_revocation(self, revocation):
         """
