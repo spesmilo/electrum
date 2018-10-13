@@ -3,6 +3,7 @@ import os
 import sys
 import threading
 import traceback
+from typing import Tuple
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -506,7 +507,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     @wizard_dialog
     def choice_and_line_dialog(self, title, message1, choices, message2,
-                               test_text, run_next) -> (str, str):
+                               test_text, run_next) -> Tuple[str, str]:
         vbox = QVBoxLayout()
 
         c_values = [x[0] for x in choices]

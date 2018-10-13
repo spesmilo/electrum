@@ -514,7 +514,7 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
     if precision is None:
         precision = decimal_point
     # format string
-    decimal_format = ".0" + str(precision) if precision > 0 else ""
+    decimal_format = "." + str(precision) if precision > 0 else ""
     if is_diff:
         decimal_format = '+' + decimal_format
     # initial result
@@ -540,8 +540,11 @@ FEERATE_PRECISION = 1  # num fractional decimal places for sat/byte fee rates
 _feerate_quanta = Decimal(10) ** (-FEERATE_PRECISION)
 
 
-def format_fee_satoshis(fee, num_zeros=0):
-    return format_satoshis(fee, num_zeros, 0, precision=FEERATE_PRECISION)
+def format_fee_satoshis(fee, *, num_zeros=0, precision=None):
+    if precision is None:
+        precision = FEERATE_PRECISION
+    num_zeros = min(num_zeros, FEERATE_PRECISION)  # no more zeroes than available prec
+    return format_satoshis(fee, num_zeros=num_zeros, decimal_point=0, precision=precision)
 
 
 def quantize_feerate(fee):

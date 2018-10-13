@@ -24,7 +24,7 @@
 # SOFTWARE.
 
 import hashlib
-from typing import List
+from typing import List, Tuple
 
 from .util import bfh, bh2u, BitcoinException, print_error, assert_bytes, to_bytes, inv_dict
 from . import version
@@ -433,7 +433,7 @@ def serialize_privkey(secret: bytes, compressed: bool, txin_type: str,
         return '{}:{}'.format(txin_type, base58_wif)
 
 
-def deserialize_privkey(key: str) -> (str, bytes, bool):
+def deserialize_privkey(key: str) -> Tuple[str, bytes, bool]:
     if is_minikey(key):
         return 'p2pkh', minikey_to_private_key(key), False
 
