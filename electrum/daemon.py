@@ -122,6 +122,23 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     return rpc_user, rpc_password
 
 
+class WatchTower(DaemonThread):
+
+    def __init__(self, config, lnwatcher):
+        DaemonThread.__init__(self)
+        self.config = config
+        self.lnwatcher = lnwatcher
+        self.start()
+
+    def run(self):
+        host = self.config.get('watchtower_host')
+        port = self.config.get('watchtower_port', 12345)
+        server = SimpleJSONRPCServer((host, port), logRequests=True)
+        server.register_function(self.lnwatcher.add_sweep_tx, 'add_sweep_tx')
+        server.timeout = 0.1
+        while self.is_running():
+            server.handle_request()
+
 class Daemon(DaemonThread):
 
     @profiler
@@ -147,8 +164,7 @@ class Daemon(DaemonThread):
         self.server = None
         if listen_jsonrpc:
             self.init_server(config, fd)
-        if config.get('watchtower_host'):
-            self.init_watchtower()
+        self.watchtower = WatchTower(self.config, self.network.lnwatcher) if self.config.get('watchtower_host') else None
         self.start()
 
     def init_server(self, config: SimpleConfig, fd):
@@ -175,12 +191,6 @@ class Daemon(DaemonThread):
         for cmdname in known_commands:
             server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
         server.register_function(self.run_cmdline, 'run_cmdline')
-
-    def init_watchtower(self):
-        host = self.config.get('watchtower_host')
-        port = self.config.get('watchtower_port', 12345)
-        server = SimpleJSONRPCServer((host, port), logRequests=False)
-        server.register_function(self.network.lnwatcher, 'add_sweep_tx')
 
     def ping(self):
         return True

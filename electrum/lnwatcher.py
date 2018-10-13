@@ -63,7 +63,8 @@ class LNWatcher(PrintError):
             name, args, kwargs = await self.watchtower_queue.get()
             func = getattr(self.watchtower, name)
             try:
-                func(*args, **kwargs)
+                r = func(*args, **kwargs)
+                self.print_error("watchtower answer", r)
             except:
                 self.print_error('could not reach watchtower, will retry in 5s', name, args)
                 await asyncio.sleep(5)
@@ -179,7 +180,8 @@ class LNWatcher(PrintError):
         return keep_watching_this
 
     @with_watchtower
-    def add_sweep_tx(self, funding_outpoint: str, ctx_txid: str, encumbered_sweeptx: EncumberedTransaction):
+    def add_sweep_tx(self, funding_outpoint: str, ctx_txid: str, sweeptx):
+        encumbered_sweeptx = EncumberedTransaction.from_json(sweeptx)
         if encumbered_sweeptx is None:
             return
         with self.lock:
