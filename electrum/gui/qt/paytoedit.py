@@ -24,6 +24,8 @@
 # SOFTWARE.
 
 import re
+import json
+import requests
 from decimal import Decimal
 
 from PyQt5.QtGui import *
@@ -35,6 +37,7 @@ from electrum.transaction import TxOutput
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 from . import util
+from opencap import *
 
 RE_ALIAS = '(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 
@@ -82,7 +85,30 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit):
         amount = self.parse_amount(y)
         return TxOutput(out_type, out, amount)
 
+    def parse_opencap(self, x):
+        username, domain = opencap.validateAlias(x)
+        if username == "" or domain == "":
+            return x
+
+        host, dnssec = opencap.getHost(domain)
+        if host == "":
+            return x
+
+        if not dnssec:
+            # maybe warn here
+            pass
+
+        response = requests.get(
+            "https://" + host + "/v1/addresses?alias="+username+"$"+domain)
+        json_data = json.loads(response.text)
+        for addressObject in json_data:
+            if addressObject["address_type"] == 100 or 101:
+                return addressObject["address"]
+
+        return x
+
     def parse_output(self, x):
+        x = self.parse_opencap(x)
         try:
             address = self.parse_address(x)
             return bitcoin.TYPE_ADDRESS, address
