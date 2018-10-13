@@ -21,6 +21,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import re
+import json
+import requests
 
 import dns
 from dns.exception import DNSException
@@ -28,6 +30,7 @@ from dns.exception import DNSException
 from . import bitcoin
 from . import dnssec
 from .util import export_meta, import_meta, print_error, to_string
+from . import opencap
 
 
 class Contacts(dict):
@@ -81,6 +84,15 @@ class Contacts(dict):
                     'address': addr,
                     'type': 'contact'
                 }
+        opencap_alias = self.resolve_opencap(k)
+        if opencap_alias:
+            address, name, validated = out
+            return {
+                'address': address,
+                'name': name,
+                'type': 'opencap',
+                'validated': validated,
+            }
         out = self.resolve_openalias(k)
         if out:
             address, name, validated = out
@@ -111,6 +123,32 @@ class Contacts(dict):
                 if not address:
                     continue
                 return address, name, validated
+
+        def resolve_opencap(self, alias):
+            username, domain = opencap.validateAlias(alias)
+            if username == "" or domain == "":
+                return None
+
+            try:
+                records, validated = dnssec.query(
+                    "_opencap._tcp."+domain, dns.rdatatype.SRV)
+            except Exception as e:
+                print_error('Error resolving opencap: ', str(e))
+                return None
+
+            if len(records) < 1:
+                return None
+
+            host = str(records[0].target).rstrip('.')
+
+            response = requests.get(
+                "https://" + host + "/v1/addresses?alias="+username+"$"+domain)
+            json_data = json.loads(response.text)
+            for addressObject in json_data:
+                if addressObject["address_type"] == 100 or addressObject["address_type"] == 101:
+                    return addressObject["address"], username, validated
+
+            return None
 
     def find_regex(self, haystack, needle):
         regex = re.compile(needle)

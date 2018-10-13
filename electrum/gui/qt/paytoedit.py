@@ -240,11 +240,14 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
         self.previous_payto = new_url
 
         #if self.win.config.get('openalias_autoadd') == 'checked':
-        self.win.contacts[key] = ('openalias', name)
+        if data.get('type') == 'openalias':
+            self.win.contacts[key] = ('openalias', name)
+        elif data.get('type') == 'opencap':
+            self.win.contacts[key] = ('opencap', name)
         self.win.contact_list.update()
 
         self.setFrozen(True)
-        if data.get('type') == 'openalias':
+        if data.get('type') == 'openalias' or data.get('type') == 'opencap':
             self.validated = data.get('validated')
             if self.validated:
                 self.setGreen()
