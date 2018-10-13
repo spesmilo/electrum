@@ -19,6 +19,7 @@ class LNWatcher(PrintError):
     # TODO if verifier gets an incorrect merkle proof, that tx will never verify!!
     # similarly, what if server ignores request for merkle proof?
     # maybe we should disconnect from server in these cases
+    verbosity_filter = 'W'
 
     def __init__(self, network):
         self.network = network
@@ -47,7 +48,6 @@ class LNWatcher(PrintError):
         watchtower_url = self.config.get('watchtower_url')
         self.watchtower = jsonrpclib.Server(watchtower_url) if watchtower_url else None
         self.watchtower_queue = asyncio.Queue()
-        asyncio.run_coroutine_threadsafe(self.network.add_job(self.watchtower_task), self.network.asyncio_loop)
 
     def with_watchtower(func):
         def wrapper(self, *args, **kwargs):
@@ -59,8 +59,11 @@ class LNWatcher(PrintError):
     @ignore_exceptions
     @log_exceptions
     async def watchtower_task(self):
+        self.print_error('watchtower task started')
         while True:
             name, args, kwargs = await self.watchtower_queue.get()
+            if self.watchtower is None:
+                continue
             func = getattr(self.watchtower, name)
             try:
                 r = func(*args, **kwargs)
