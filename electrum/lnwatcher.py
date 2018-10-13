@@ -185,8 +185,6 @@ class LNWatcher(PrintError):
     @with_watchtower
     def add_sweep_tx(self, funding_outpoint: str, ctx_txid: str, sweeptx):
         encumbered_sweeptx = EncumberedTransaction.from_json(sweeptx)
-        if encumbered_sweeptx is None:
-            return
         with self.lock:
             self.sweepstore[funding_outpoint][ctx_txid].add(encumbered_sweeptx)
         self.write_to_disk()
