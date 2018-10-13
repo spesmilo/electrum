@@ -143,20 +143,19 @@ class Daemon(DaemonThread):
         if fd is None and listen_jsonrpc:
             fd, server = get_fd_or_server(config)
             if fd is None: raise Exception('failed to lock daemon; already running?')
-        if config.get('offline'):
-            self.network = None
-        else:
-            self.network = Network(config)
+        self.network = None if config.get('offline') else Network(config)
         self.fx = FxThread(config, self.network)
-        if self.network:
-            self.network.start([self.fx.run])
         self.gui = None
         self.wallets = {}  # type: Dict[str, Abstract_Wallet]
         # Setup JSONRPC server
         self.server = None
         if listen_jsonrpc:
             self.init_server(config, fd)
+        # server-side watchtower
         self.watchtower = WatchTower(self.config, self.network.lnwatcher) if self.config.get('watchtower_host') else None
+        # client-side
+        if self.network:
+            self.network.start([self.fx.run, self.network.lnwatcher.watchtower_task])
         self.start()
 
     def init_server(self, config, fd):

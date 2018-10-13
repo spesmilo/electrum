@@ -128,6 +128,7 @@ def serialize_server(host: str, port: Union[str, int], protocol: str) -> str:
 
 
 class Interface(PrintError):
+    verbosity_filter = 'i'
 
     def __init__(self, network, server, config_path, proxy):
         self.ready = asyncio.Future()
