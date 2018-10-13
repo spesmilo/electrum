@@ -514,7 +514,7 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
     if precision is None:
         precision = decimal_point
     # format string
-    decimal_format = ".0" + str(precision) if precision > 0 else ""
+    decimal_format = "." + str(precision) if precision > 0 else ""
     if is_diff:
         decimal_format = '+' + decimal_format
     # initial result

@@ -13,8 +13,11 @@ class TestUtil(SequentialTestCase):
     def test_format_satoshis_negative(self):
         self.assertEqual("-0.00001234", format_satoshis(-1234))
 
-    def test_format_fee(self):
+    def test_format_fee_float(self):
         self.assertEqual("1.7", format_fee_satoshis(1700/1000))
+
+    def test_format_fee_decimal(self):
+        self.assertEqual("1.7", format_fee_satoshis(Decimal("1.7")))
 
     def test_format_fee_precision(self):
         self.assertEqual("1.666",
