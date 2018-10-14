@@ -116,8 +116,7 @@ class SPV(NetworkJobOnDefaultServer):
         try:
             verify_tx_is_in_block(tx_hash, merkle_branch, pos, header, tx_height)
         except MerkleVerificationFailure as e:
-            self.print_error(str(e))
-            raise GracefulDisconnect(e)
+            raise GracefulDisconnect(e) from e
         # we passed all the tests
         self.merkle_roots[tx_hash] = header.get('merkle_root')
         try: self.requested_merkle.remove(tx_hash)
