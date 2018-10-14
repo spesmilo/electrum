@@ -281,8 +281,6 @@ class ChannelDB(JsonDB):
         self._last_good_address = {}  # node_id -> LNPeerAddr
 
         self.ca_verifier = LNChannelVerifier(network, self)
-        # FIXME if the channel verifier raises, it kills network.main_taskgroup
-        asyncio.run_coroutine_threadsafe(self.network.add_job(self.ca_verifier.main), network.asyncio_loop)
 
         self.load_data()
 

@@ -830,11 +830,6 @@ class Network(PrintError):
         self._jobs = jobs or []
         asyncio.run_coroutine_threadsafe(self._start(), self.asyncio_loop)
 
-    async def add_job(self, job):
-        async with self.restart_lock:
-            self._jobs.append(job)
-            await self.main_taskgroup.spawn(job)
-
     async def _stop(self, full_shutdown=False):
         self.print_error("stopping network")
         try:
