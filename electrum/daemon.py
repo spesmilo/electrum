@@ -169,7 +169,6 @@ class Daemon(DaemonThread):
             self.network.start([
                 self.fx.run,
                 self.network.lnwatcher.watchtower_task,
-                self.network.channel_db.ca_verifier.main
             ])
         self.start()
 
