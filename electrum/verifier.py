@@ -120,7 +120,7 @@ class SPV(NetworkJobOnDefaultServer):
                 self.print_error("skipping merkle proof check %s" % tx_hash)
             else:
                 self.print_error(str(e))
-                raise GracefulDisconnect(e)
+                raise GracefulDisconnect(e) from e
         # we passed all the tests
         self.merkle_roots[tx_hash] = header.get('merkle_root')
         try: self.requested_merkle.remove(tx_hash)
