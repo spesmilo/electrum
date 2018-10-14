@@ -158,15 +158,18 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
         if expected_address != actual_output.address:
             # FIXME what now? best would be to ban the originating ln peer.
             self.print_error(f"funding output script mismatch for {bh2u(short_channel_id)}")
-            self.started_verifying_channel.remove(short_channel_id)
+            self._remove_channel_from_unverified_db(short_channel_id)
             return
         # put channel into channel DB
         channel_info.set_capacity(actual_output.value)
         self.channel_db.add_verified_channel_info(short_channel_id, channel_info)
-        # remove channel from unverified
+        self._remove_channel_from_unverified_db(short_channel_id)
+
+    def _remove_channel_from_unverified_db(self, short_channel_id: bytes):
         with self.lock:
             self.unverified_channel_info.pop(short_channel_id, None)
-        self.started_verifying_channel.remove(short_channel_id)
+        try: self.started_verifying_channel.remove(short_channel_id)
+        except KeyError: pass
 
     def _blacklist_short_channel_id(self, short_channel_id: bytes) -> None:
         self.blacklist.add(short_channel_id)
