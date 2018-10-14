@@ -166,7 +166,11 @@ class Daemon(DaemonThread):
         self.watchtower = WatchTower(self.config, self.network.lnwatcher) if self.config.get('watchtower_host') else None
         # client-side
         if self.network:
-            self.network.start([self.fx.run, self.network.lnwatcher.watchtower_task])
+            self.network.start([
+                self.fx.run,
+                self.network.lnwatcher.watchtower_task,
+                self.network.channel_db.ca_verifier.main
+            ])
         self.start()
 
     def init_server(self, config: SimpleConfig, fd):
