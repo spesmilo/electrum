@@ -330,7 +330,7 @@ if __name__ == '__main__':
         constants.set_regtest()
     elif config.get('simnet'):
         constants.set_simnet()
-    else:
+    elif not config.get('reckless'):
         raise Exception('lightning branch not available on mainnet')
 
     if cmdname == 'gui':
