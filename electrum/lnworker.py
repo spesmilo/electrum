@@ -34,8 +34,12 @@ NUM_PEERS_TARGET = 4
 PEER_RETRY_INTERVAL = 600  # seconds
 PEER_RETRY_INTERVAL_FOR_CHANNELS = 30  # seconds
 
-FALLBACK_NODE_LIST = (
+FALLBACK_NODE_LIST_TESTNET = (
     LNPeerAddr('ecdsa.net', 9735, bfh('038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff')),
+)
+FALLBACK_NODE_LIST_MAINNET = (
+    LNPeerAddr('104.198.32.198', 9735, bfh('02f6725f9c1c40333b67faea92fd211c183050f28df32cac3f9d69685fe9665432')), # Blockstream
+    LNPeerAddr('13.80.67.162', 9735, bfh('02c0ac82c33971de096d87ce5ed9b022c2de678f08002dc37fdb1b6886d12234b5')),   # Stampery
 )
 
 class LNWorker(PrintError):
@@ -398,7 +402,9 @@ class LNWorker(PrintError):
         # TODO remove this. For some reason the dns seeds seem to ignore the realm byte
         # and only return mainnet nodes. so for the time being dns seeding is disabled:
         if constants.net in (constants.BitcoinTestnet, ):
-            return [random.choice(FALLBACK_NODE_LIST)]
+            return [random.choice(FALLBACK_NODE_LIST_TESTNET)]
+        elif constants.net in (constants.BitcoinMainnet, ):
+            return [random.choice(FALLBACK_NODE_LIST_MAINNET)]
         else:
             return []
 
