@@ -43,6 +43,7 @@ class Test_LNRouter(TestCaseForTestnet):
             config = self.config
             asyncio_loop = asyncio.get_event_loop()
             trigger_callback = lambda *args: None
+            register_callback = lambda *args: None
             async def add_job(self, *args): return None
         fake_network.channel_db = lnrouter.ChannelDB(fake_network())
         cdb = fake_network.channel_db
