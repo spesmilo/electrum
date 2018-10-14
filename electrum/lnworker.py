@@ -16,7 +16,7 @@ from . import bitcoin
 from .keystore import BIP32_KeyStore
 from .bitcoin import sha256, COIN
 from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
-from .lnbase import Peer
+from .lnbase import Peer, InitiatorSession
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .lnchan import Channel
@@ -112,8 +112,14 @@ class LNWorker(PrintError):
             return
         self._last_tried_peer[peer_addr] = time.time()
         self.print_error("adding peer", peer_addr)
-        peer = Peer(self, host, port, node_id, request_initial_sync=self.config.get("request_initial_sync", True))
-        asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(peer.main_loop()), self.network.asyncio_loop)
+        fut = asyncio.ensure_future(asyncio.open_connection(peer_addr.host, peer_addr.port))
+        def cb(fut):
+            reader, writer = fut.result()
+            transport = InitiatorSession(self.node_keypair.privkey, node_id, reader, writer)
+            peer.transport = transport
+            asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(peer.main_loop()), self.network.asyncio_loop)
+        fut.add_done_callback(cb)
+        peer = Peer(self, peer_addr, request_initial_sync=self.config.get("request_initial_sync", True))
         self.peers[node_id] = peer
         self.network.trigger_callback('ln_status')
         return peer
@@ -238,7 +244,8 @@ class LNWorker(PrintError):
             peer = self.add_peer(host, port, node_id)
         coro = self._open_channel_coroutine(peer, local_amt_sat, push_amt_sat, password)
         f = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
-        return f.result(timeout)
+        chan = f.result(timeout)
+        return bh2u(chan.node_id)
 
     def pay(self, invoice, amount_sat=None):
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
