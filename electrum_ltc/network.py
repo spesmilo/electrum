@@ -533,13 +533,15 @@ class Network(PrintError):
         """If auto_connect and main interface is not on preferred fork,
         try to switch to preferred fork.
         """
-        if not self.auto_connect:
+        if not self.auto_connect or not self.interface:
             return
         with self.interfaces_lock: interfaces = list(self.interfaces.values())
         # try to switch to preferred fork
         if self._blockchain_preferred_block:
             pref_height = self._blockchain_preferred_block['height']
             pref_hash   = self._blockchain_preferred_block['hash']
+            if self.interface.blockchain.check_hash(pref_height, pref_hash):
+                return  # already on preferred fork
             filtered = list(filter(lambda iface: iface.blockchain.check_hash(pref_height, pref_hash),
                                    interfaces))
             if filtered:
