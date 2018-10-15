@@ -112,13 +112,12 @@ class LNWorker(PrintError):
             return
         self._last_tried_peer[peer_addr] = time.time()
         self.print_error("adding peer", peer_addr)
-        fut = asyncio.ensure_future(asyncio.open_connection(peer_addr.host, peer_addr.port))
-        def cb(fut):
-            reader, writer = fut.result()
+        async def _init_peer():
+            reader, writer = await asyncio.open_connection(peer_addr.host, peer_addr.port)
             transport = InitiatorSession(self.node_keypair.privkey, node_id, reader, writer)
             peer.transport = transport
-            asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(peer.main_loop()), self.network.asyncio_loop)
-        fut.add_done_callback(cb)
+            await self.network.main_taskgroup.spawn(peer.main_loop())
+        asyncio.ensure_future(_init_peer())
         peer = Peer(self, peer_addr, request_initial_sync=self.config.get("request_initial_sync", True))
         self.peers[node_id] = peer
         self.network.trigger_callback('ln_status')
