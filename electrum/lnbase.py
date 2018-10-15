@@ -14,6 +14,7 @@ from typing import List
 
 import aiorpcx
 
+from .crypto import sha256
 from . import bitcoin
 from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string
@@ -921,22 +922,8 @@ class Peer(PrintError):
         hops_data += [OnionHopsDataSingle(OnionPerHop(b"\x00"*8, amount_msat.to_bytes(8, "big"), (final_cltv_expiry_without_deltas).to_bytes(4, "big")))]
         onion = new_onion_packet([x.node_id for x in route], secret_key, hops_data, associated_data)
         amount_msat += total_fee
-        # FIXME this below will probably break with multiple HTLCs
-        msat_local = chan.balance(LOCAL) - amount_msat
-        msat_remote = chan.balance(REMOTE) + amount_msat
+        chan.check_can_pay(amount_msat)
         htlc = {'amount_msat':amount_msat, 'payment_hash':payment_hash, 'cltv_expiry':final_cltv_expiry_with_deltas}
-        # FIXME if we raise here, this channel will not get blacklisted, and the payment can never succeed,
-        # as we will just keep retrying this same path. using the current blacklisting is not a solution as
-        # then no other payment can use this channel either.
-        # we need finer blacklisting -- e.g. a blacklist for just this "payment session"?
-        # or blacklist entries could store an msat value and also expire
-        if len(chan.htlcs(LOCAL, only_pending=True)) + 1 > chan.config[REMOTE].max_accepted_htlcs:
-            raise PaymentFailure('too many HTLCs already in channel')
-        if htlcsum(chan.htlcs(LOCAL, only_pending=True)) + amount_msat > chan.config[REMOTE].max_htlc_value_in_flight_msat:
-            raise PaymentFailure('HTLC value sum would exceed max allowed: {} msat'.format(chan.config[REMOTE].max_htlc_value_in_flight_msat))
-        if msat_local < 0:
-            # FIXME what about channel_reserve_satoshis? will the remote fail the channel if we go below? test.
-            raise PaymentFailure('not enough local balance')
         htlc_id = chan.add_htlc(htlc)
         chan.onion_keys[htlc_id] = secret_key
         self.attempted_route[(chan.channel_id, htlc_id)] = route

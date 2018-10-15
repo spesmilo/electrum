@@ -143,6 +143,25 @@ class Channel(PrintError):
     def get_state(self):
         return self._state
 
+    def check_can_pay(self, amount_msat):
+        # FIXME what about channel_reserve_satoshis? will the remote fail the channel if we go below? test.
+        # FIXME what about tx fees
+        if self.get_state() != 'OPEN':
+            raise PaymentFailure('Channel not open')
+        if self.balance(LOCAL) < amount_msat:
+            raise PaymentFailure('Not enough local balance')
+        if len(self.htlcs(LOCAL, only_pending=True)) + 1 > self.config[REMOTE].max_accepted_htlcs:
+            raise PaymentFailure('Too many HTLCs already in channel')
+        if htlcsum(self.htlcs(LOCAL, only_pending=True)) + amount_msat > self.config[REMOTE].max_htlc_value_in_flight_msat:
+            raise PaymentFailure('HTLC value sum would exceed max allowed: {} msat'.format(chan.config[REMOTE].max_htlc_value_in_flight_msat))
+
+    def can_pay(self, amount_msat):
+        try:
+            self.check_can_pay(amount_msat)
+        except:
+            return False
+        return True
+
     def set_funding_txo_spentness(self, is_spent: bool):
         assert isinstance(is_spent, bool)
         self._is_funding_txo_spent = is_spent
