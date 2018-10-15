@@ -3,7 +3,7 @@ import hashlib
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 
 from .crypto import sha256
-from .lnutil import get_ecdh
+from .lnutil import get_ecdh, privkey_to_pubkey
 from .lnutil import LightningPeerConnectionClosed, HandshakeFailed
 from . import ecc
 
@@ -71,8 +71,6 @@ def act1_initiator_message(hs, epriv, epub):
     assert len(msg) == 50
     return msg
 
-def privkey_to_pubkey(priv: bytes) -> bytes:
-    return ecc.ECPrivkey(priv[:32]).get_public_key_bytes()
 
 def create_ephemeral_key() -> (bytes, bytes):
     privkey = ecc.ECPrivkey.generate_random_key()

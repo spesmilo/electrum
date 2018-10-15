@@ -28,7 +28,7 @@ from .lnutil import (Outpoint, LocalConfig, ChannelConfig,
                      funding_output_script, get_per_commitment_secret_from_seed,
                      secret_to_pubkey, LNPeerAddr, PaymentFailure, LnLocalFeatures,
                      LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily,
-                     get_ln_flag_pair_of_bit)
+                     get_ln_flag_pair_of_bit, privkey_to_pubkey)
 from .lnutil import LightningPeerConnectionClosed, HandshakeFailed
 from .lnrouter import NotFoundChanAnnouncementForUpdate, RouteEdge
 

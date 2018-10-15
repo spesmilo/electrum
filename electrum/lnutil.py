@@ -162,6 +162,9 @@ def secret_to_pubkey(secret: int) -> bytes:
     assert type(secret) is int
     return ecc.ECPrivkey.from_secret_scalar(secret).get_public_key_bytes(compressed=True)
 
+def privkey_to_pubkey(priv: bytes) -> bytes:
+    return ecc.ECPrivkey(priv[:32]).get_public_key_bytes()
+
 def derive_pubkey(basepoint: bytes, per_commitment_point: bytes) -> bytes:
     p = ecc.ECPubkey(basepoint) + ecc.generator() * ecc.string_to_number(sha256(per_commitment_point + basepoint))
     return p.get_public_key_bytes()
