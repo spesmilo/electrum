@@ -54,7 +54,7 @@ class LNWorker(PrintError):
         self.node_keypair = generate_keypair(self.ln_keystore, LnKeyFamily.NODE_KEY, 0)
         self.config = network.config
         self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
-        self.channels = {x.channel_id: x for x in map(Channel, wallet.storage.get("channels", []))}  # type: Dict[bytes, HTLCStateMachine]
+        self.channels = {x.channel_id: x for x in map(Channel, wallet.storage.get("channels", []))}  # type: Dict[bytes, Channel]
         for c in self.channels.values():
             c.lnwatcher = network.lnwatcher
             c.sweep_address = self.sweep_address
@@ -277,11 +277,13 @@ class LNWorker(PrintError):
         # if there are multiple hints, we will use the first one that works,
         # from a random permutation
         random.shuffle(r_tags)
+        with self.lock:
+            channels = list(self.channels.values())
         for private_route in r_tags:
             if len(private_route) == 0: continue
             border_node_pubkey = private_route[0][0]
-            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat, self.channels)
-            if path is None: continue
+            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat, channels)
+            if not path: continue
             route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey)
             # we need to shift the node pubkey by one towards the destination:
             private_route_nodes = [edge[0] for edge in private_route][1:] + [invoice_pubkey]
@@ -293,8 +295,8 @@ class LNWorker(PrintError):
             break
         # if could not find route using any hint; try without hint now
         if route is None:
-            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat, self.channels)
-            if path is None:
+            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat, channels)
+            if not path:
                 raise PaymentFailure(_("No path found"))
             route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey)
         return route

@@ -519,7 +519,7 @@ class LNPathFinder(PrintError):
 
     @profiler
     def find_path_for_payment(self, from_node_id: bytes, to_node_id: bytes,
-                              amount_msat: int=None, my_channels: dict={}) -> Sequence[Tuple[bytes, bytes]]:
+                              amount_msat: int=None, my_channels: List=None) -> Sequence[Tuple[bytes, bytes]]:
         """Return a path between from_node_id and to_node_id.
 
         Returns a list of (node_id, short_channel_id) representing a path.
@@ -527,7 +527,8 @@ class LNPathFinder(PrintError):
         i.e. an element reads as, "to get to node_id, travel through short_channel_id"
         """
         if amount_msat is not None: assert type(amount_msat) is int
-        unable_channels = set(map(lambda x: x.short_channel_id, filter(lambda x: not x.can_pay(amount_msat), my_channels.values())))
+        if my_channels is None: my_channels = []
+        unable_channels = set(map(lambda x: x.short_channel_id, filter(lambda x: not x.can_pay(amount_msat), my_channels)))
 
         # TODO find multiple paths??
 
