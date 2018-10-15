@@ -303,7 +303,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         tx = self.wallet.transactions.get(tx_hash)
         if not tx:
             return
-        label = self.wallet.get_label(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field is missing)
+        label = self.wallet.get_label(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
         self.parent.show_transaction(tx, label)
 
     def update_labels(self):
