@@ -280,7 +280,7 @@ class LNWorker(PrintError):
         for private_route in r_tags:
             if len(private_route) == 0: continue
             border_node_pubkey = private_route[0][0]
-            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat)
+            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat, self.channels)
             if path is None: continue
             route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey)
             # we need to shift the node pubkey by one towards the destination:
@@ -293,7 +293,7 @@ class LNWorker(PrintError):
             break
         # if could not find route using any hint; try without hint now
         if route is None:
-            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat)
+            path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, invoice_pubkey, amount_msat, self.channels)
             if path is None:
                 raise PaymentFailure(_("No path found"))
             route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey)
