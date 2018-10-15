@@ -189,7 +189,7 @@ class AddressList(MyTreeWidget):
         if not all(self.wallet.is_frozen(addr) for addr in addrs):
             menu.addAction(_("Freeze"), partial(freeze, addrs, True))
 
-        coins = self.wallet.get_utxos(addrs)
+        coins = self.wallet.get_spendable_coins(domain = addrs, config = self.config)
         if coins:
             menu.addAction(_("Spend from"),
                            partial(self.parent.spend_coins, coins))
