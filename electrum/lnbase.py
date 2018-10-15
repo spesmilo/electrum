@@ -10,7 +10,7 @@ import asyncio
 import os
 import time
 from functools import partial
-from typing import List
+from typing import List, Tuple
 
 import aiorpcx
 
@@ -139,7 +139,7 @@ for k in structured:
 
 assert message_types[b"\x00\x10"].__name__ == "init_handler"
 
-def decode_msg(data):
+def decode_msg(data: bytes) -> Tuple[str, dict]:
     """
     Decode Lightning message by reading the first
     two bytes to determine message type.
@@ -150,7 +150,7 @@ def decode_msg(data):
     k, parsed = message_types[typ](data[2:])
     return k, parsed
 
-def gen_msg(msg_type, **kwargs):
+def gen_msg(msg_type: str, **kwargs) -> bytes:
     """
     Encode kwargs into a Lightning message (bytes)
     of the type given in the msg_type string
@@ -651,7 +651,7 @@ class Peer(PrintError):
                 #    the receiving node sent, AND the receiving node
                 #    hasn't already received a closing_signed:
                 #        MUST re-send the revoke_and_ack.
-                self.config[LOCAL]=self.config[LOCAL]._replace(
+                chan.config[LOCAL]=chan.config[LOCAL]._replace(
                     ctn=remote_ctn,
                 )
                 self.revoke(chan)
