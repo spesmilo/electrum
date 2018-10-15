@@ -57,17 +57,12 @@ class Outpoint(NamedTuple("Outpoint", [('txid', str), ('output_index', int)])):
         return "{}:{}".format(self.txid, self.output_index)
 
 
-class LightningError(Exception):
-    pass
-
-class LightningPeerConnectionClosed(LightningError):
-    pass
-
-class UnableToDeriveSecret(LightningError):
-    pass
-
-class HandshakeFailed(LightningError):
-    pass
+class LightningError(Exception): pass
+class LightningPeerConnectionClosed(LightningError): pass
+class UnableToDeriveSecret(LightningError): pass
+class HandshakeFailed(LightningError): pass
+class PaymentFailure(LightningError): pass
+class ConnStringFormatError(LightningError):  pass
 
 
 class RevocationStore:
@@ -516,8 +511,6 @@ def get_compressed_pubkey_from_bech32(bech32_pubkey: str) -> bytes:
     return bytes(data_8bits)
 
 
-class PaymentFailure(Exception): pass
-
 class HTLCOwner(IntFlag):
     LOCAL = 1
     REMOTE = -LOCAL
@@ -540,8 +533,6 @@ def make_closing_tx(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
     tx = Transaction.from_io([c_input], outputs, locktime=0, version=2)
     return tx
 
-class ConnStringFormatError(Exception):
-    pass
 
 def split_host_port(host_port: str) -> Tuple[str, str]: # port returned as string
     ipv6  = re.compile(r'\[(?P<host>[:0-9]+)\](?P<port>:\d+)?$')
