@@ -18,7 +18,7 @@ from .lnutil import sign_and_get_sig_string
 from .lnutil import make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc
 from .lnutil import HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT
 from .lnutil import funding_output_script, LOCAL, REMOTE, HTLCOwner, make_closing_tx, make_outputs
-from .lnutil import ScriptHtlc, SENT, RECEIVED, PaymentFailure
+from .lnutil import ScriptHtlc, SENT, RECEIVED, PaymentFailure, calc_onchain_fees
 from .transaction import Transaction, TxOutput, construct_witness
 from .simple_config import SimpleConfig, FEERATE_FALLBACK_STATIC_FEE
 
@@ -656,8 +656,8 @@ class Channel(PrintError):
             this_config.multisig_key.pubkey,
             other_config.multisig_key.pubkey,
             payment_pubkey,
-            self.config[LOCAL].payment_basepoint.pubkey,
-            self.config[REMOTE].payment_basepoint.pubkey,
+            self.config[LOCAL if     self.constraints.is_initiator else REMOTE].payment_basepoint.pubkey,
+            self.config[LOCAL if not self.constraints.is_initiator else REMOTE].payment_basepoint.pubkey,
             other_revocation_pubkey,
             derive_pubkey(this_config.delayed_basepoint.pubkey, this_point),
             other_config.to_self_delay,
@@ -666,9 +666,12 @@ class Channel(PrintError):
             local_msat,
             remote_msat,
             this_config.dust_limit_sat,
-            self.pending_feerate(subject),
-            subject == LOCAL,
-            self.constraints.is_initiator,
+            calc_onchain_fees(
+                len(htlcs),
+                self.pending_feerate(subject),
+                subject == LOCAL,
+                self.constraints.is_initiator,
+            ),
             htlcs=htlcs)
 
     def make_closing_tx(self, local_script: bytes, remote_script: bytes, fee_sat: Optional[int] = None) -> (bytes, int):
