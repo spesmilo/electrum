@@ -16,7 +16,8 @@ from . import bitcoin
 from .keystore import BIP32_KeyStore
 from .bitcoin import sha256, COIN
 from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
-from .lnbase import Peer, InitiatorSession
+from .lntransport import LNTransport
+from .lnbase import Peer
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
 from .lnchan import Channel
@@ -28,7 +29,6 @@ from .lnutil import LOCAL, REMOTE
 from .lnaddr import lndecode
 from .i18n import _
 from .lnrouter import RouteEdge
-
 
 NUM_PEERS_TARGET = 4
 PEER_RETRY_INTERVAL = 600  # seconds
@@ -114,7 +114,7 @@ class LNWorker(PrintError):
         self.print_error("adding peer", peer_addr)
         async def _init_peer():
             reader, writer = await asyncio.open_connection(peer_addr.host, peer_addr.port)
-            transport = InitiatorSession(self.node_keypair.privkey, node_id, reader, writer)
+            transport = LNTransport(self.node_keypair.privkey, node_id, reader, writer)
             peer.transport = transport
             await self.network.main_taskgroup.spawn(peer.main_loop())
         asyncio.ensure_future(_init_peer())

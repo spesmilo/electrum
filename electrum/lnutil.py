@@ -57,7 +57,17 @@ class Outpoint(NamedTuple("Outpoint", [('txid', str), ('output_index', int)])):
         return "{}:{}".format(self.txid, self.output_index)
 
 
-class UnableToDeriveSecret(Exception): pass
+class LightningError(Exception):
+    pass
+
+class LightningPeerConnectionClosed(LightningError):
+    pass
+
+class UnableToDeriveSecret(LightningError):
+    pass
+
+class HandshakeFailed(LightningError):
+    pass
 
 
 class RevocationStore:
