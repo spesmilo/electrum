@@ -18,7 +18,7 @@ from .lnutil import sign_and_get_sig_string
 from .lnutil import make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc
 from .lnutil import HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT
 from .lnutil import funding_output_script, LOCAL, REMOTE, HTLCOwner, make_closing_tx, make_outputs
-from .lnutil import ScriptHtlc, SENT, RECEIVED
+from .lnutil import ScriptHtlc, SENT, RECEIVED, PaymentFailure
 from .transaction import Transaction, TxOutput, construct_witness
 from .simple_config import SimpleConfig, FEERATE_FALLBACK_STATIC_FEE
 
@@ -153,7 +153,7 @@ class Channel(PrintError):
         if len(self.htlcs(LOCAL, only_pending=True)) + 1 > self.config[REMOTE].max_accepted_htlcs:
             raise PaymentFailure('Too many HTLCs already in channel')
         if htlcsum(self.htlcs(LOCAL, only_pending=True)) + amount_msat > self.config[REMOTE].max_htlc_value_in_flight_msat:
-            raise PaymentFailure('HTLC value sum would exceed max allowed: {} msat'.format(chan.config[REMOTE].max_htlc_value_in_flight_msat))
+            raise PaymentFailure('HTLC value sum would exceed max allowed: {} msat'.format(self.config[REMOTE].max_htlc_value_in_flight_msat))
 
     def can_pay(self, amount_msat):
         try:
