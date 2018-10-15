@@ -519,7 +519,7 @@ class LNPathFinder(PrintError):
 
     @profiler
     def find_path_for_payment(self, from_node_id: bytes, to_node_id: bytes,
-                              amount_msat: int=None) -> Sequence[Tuple[bytes, bytes]]:
+                              amount_msat: int=None, my_channels: dict={}) -> Sequence[Tuple[bytes, bytes]]:
         """Return a path between from_node_id and to_node_id.
 
         Returns a list of (node_id, short_channel_id) representing a path.
@@ -527,6 +527,8 @@ class LNPathFinder(PrintError):
         i.e. an element reads as, "to get to node_id, travel through short_channel_id"
         """
         if amount_msat is not None: assert type(amount_msat) is int
+        unable_channels = set(map(lambda x: x.short_channel_id, filter(lambda x: not x.can_pay(amount_msat), my_channels.values())))
+
         # TODO find multiple paths??
 
         # run Dijkstra
@@ -546,7 +548,8 @@ class LNPathFinder(PrintError):
                 # so there are duplicates in the queue, that we discard now:
                 continue
             for edge_channel_id in self.channel_db.get_channels_for_node(cur_node):
-                if edge_channel_id in self.blacklist: continue
+                if edge_channel_id in self.blacklist or edge_channel_id in unable_channels:
+                    continue
                 channel_info = self.channel_db.get_channel_info(edge_channel_id)
                 node1, node2 = channel_info.node_id_1, channel_info.node_id_2
                 neighbour = node2 if node1 == cur_node else node1
