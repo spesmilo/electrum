@@ -150,7 +150,7 @@ class ChannelInfoDirectedPolicy:
         fee_proportional_millionths = channel_update_payload['fee_proportional_millionths']
         channel_flags               = channel_update_payload['channel_flags']
         timestamp                   = channel_update_payload['timestamp']
-        htlc_maximum_msat           = channel_update_payload.get('htlc_maximum_msat') # optional
+        htlc_maximum_msat           = channel_update_payload.get('htlc_maximum_msat')  # optional
 
         self.cltv_expiry_delta           = int.from_bytes(cltv_expiry_delta, "big")
         self.htlc_minimum_msat           = int.from_bytes(htlc_minimum_msat, "big")
@@ -497,7 +497,7 @@ class LNPathFinder(PrintError):
         """Heuristic cost of going through a channel.
         direction: 0 or 1. --- 0 means node_id_1 -> node_id_2
         """
-        channel_info = self.channel_db.get_channel_info(short_channel_id)
+        channel_info = self.channel_db.get_channel_info(short_channel_id)  # type: ChannelInfo
         if channel_info is None:
             return float('inf')
 
@@ -514,8 +514,11 @@ class LNPathFinder(PrintError):
             if channel_info.capacity_sat is not None and \
                     payment_amt_msat // 1000 > channel_info.capacity_sat:
                 return float('inf')  # payment amount too large
+            if channel_policy.htlc_maximum_msat is not None and \
+                    payment_amt_msat > channel_policy.htlc_maximum_msat:
+                return float('inf')  # payment amount too large
         amt = payment_amt_msat or 50000 * 1000  # guess for typical payment amount
-        fee_msat = fee_base_msat + amt * fee_proportional_millionths / 1000000
+        fee_msat = fee_base_msat + amt * fee_proportional_millionths / 1_000_000
         # TODO revise
         # paying 10 more satoshis ~ waiting one more block
         fee_cost = fee_msat / 1000 / 10
