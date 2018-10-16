@@ -11,6 +11,8 @@ import os
 import time
 from functools import partial
 from typing import List, Tuple
+import traceback
+import sys
 
 import aiorpcx
 
@@ -848,7 +850,12 @@ class Peer(PrintError):
             # attempted_route is not persisted, so we will get here then
             self.print_error("UPDATE_FAIL_HTLC. cannot decode! attempted route is MISSING. {}".format(key))
         else:
-            await self._handle_error_code_from_failed_htlc(payload["reason"], route, channel_id, htlc_id)
+            try:
+                await self._handle_error_code_from_failed_htlc(payload["reason"], route, channel_id, htlc_id)
+            except Exception:
+                # exceptions are suppressed as failing to handle an error code
+                # should not block us from removing the htlc
+                traceback.print_exc(file=sys.stderr)
         # process update_fail_htlc on channel
         chan = self.channels[channel_id]
         chan.receive_fail_htlc(htlc_id)
@@ -858,7 +865,7 @@ class Peer(PrintError):
         await self.receive_revoke(chan)
         self.lnworker.save_channel(chan)
 
-    async def _handle_error_code_from_failed_htlc(self, error_reason, route, channel_id, htlc_id):
+    async def _handle_error_code_from_failed_htlc(self, error_reason, route: List[RouteEdge], channel_id, htlc_id):
         chan = self.channels[channel_id]
         failure_msg, sender_idx = decode_onion_error(error_reason,
                                                      [x.node_id for x in route],
@@ -879,7 +886,12 @@ class Peer(PrintError):
         if offset:
             channel_update = (258).to_bytes(length=2, byteorder="big") + data[offset:]
             message_type, payload = decode_msg(channel_update)
-            self.on_channel_update(payload)
+            try:
+                self.channel_db.on_channel_update(payload)
+            except NotFoundChanAnnouncementForUpdate:
+                # maybe it is a private channel (and data in invoice was outdated)
+                start_node_id = route[sender_idx].node_id
+                self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
         else:
             # blacklist channel after reporter node
             # TODO this should depend on the error (even more granularity)
