@@ -785,9 +785,9 @@ class Peer(PrintError):
                                                  'bitcoin_key_1': bitcoin_keys[0], 'bitcoin_key_2': bitcoin_keys[1]},
                                                 trusted=True)
         # only inject outgoing direction:
-        flags = b'\x00' if node_ids[0] == pubkey_ours else b'\x01'
+        channel_flags = b'\x00' if node_ids[0] == pubkey_ours else b'\x01'
         now = int(time.time()).to_bytes(4, byteorder="big")
-        self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'flags': flags, 'cltv_expiry_delta': b'\x90',
+        self.channel_db.on_channel_update({"short_channel_id": chan.short_channel_id, 'channel_flags': channel_flags, 'cltv_expiry_delta': b'\x90',
                                            'htlc_minimum_msat': b'\x03\xe8', 'fee_base_msat': b'\x03\xe8', 'fee_proportional_millionths': b'\x01',
                                            'chain_hash': constants.net.rev_genesis_bytes(), 'timestamp': now},
                                           trusted=True)
