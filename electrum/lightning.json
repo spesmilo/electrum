@@ -795,6 +795,11 @@
    "fee_proportional_millionths": {
     "position": "124",
     "length": "4"
+   },
+   "htlc_maximum_msat": {
+    "position": "128",
+    "length": "8",
+    "feature": "option_upfront_shutdown_script"
    }
   }
  },
