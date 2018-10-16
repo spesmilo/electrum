@@ -220,7 +220,6 @@ class Peer(PrintError):
         self.transport.send_bytes(gen_msg(message_name, **kwargs))
 
     async def initialize(self):
-        await self.transport.handshake()
         self.send_message("init", gflen=0, lflen=1, localfeatures=self.localfeatures)
         self.initialized.set_result(True)
 
@@ -342,7 +341,7 @@ class Peer(PrintError):
         try:
             await asyncio.wait_for(self.initialize(), 10)
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
-            self.print_error('disconnecting due to: {}'.format(repr(e)))
+            self.print_error('initialize failed, disconnecting: {}'.format(repr(e)))
             return
         self.channel_db.add_recent_peer(self.peer_addr)
         # loop
@@ -530,7 +529,7 @@ class Peer(PrintError):
         their_revocation_store = RevocationStore()
         remote_balance_sat = funding_sat * 1000 - push_msat
         chan = {
-                "node_id": self.pubkey,
+                "node_id": self.peer_addr.pubkey,
                 "channel_id": channel_id,
                 "short_channel_id": None,
                 "funding_outpoint": Outpoint(funding_txid, funding_idx),
@@ -726,7 +725,7 @@ class Peer(PrintError):
         remote_bitcoin_sig = announcement_signatures_msg["bitcoin_signature"]
         if not ecc.verify_signature(chan.config[REMOTE].multisig_key.pubkey, remote_bitcoin_sig, h):
             raise Exception("bitcoin_sig invalid in announcement_signatures")
-        if not ecc.verify_signature(self.pubkey, remote_node_sig, h):
+        if not ecc.verify_signature(self.peer_addr.pubkey, remote_node_sig, h):
             raise Exception("node_sig invalid in announcement_signatures")
 
         node_sigs = [local_node_sig, remote_node_sig]

@@ -16,7 +16,7 @@ from . import bitcoin
 from .keystore import BIP32_KeyStore
 from .bitcoin import sha256, COIN
 from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
-from .lntransport import LNTransport
+from .lntransport import LNTransport, LNResponderTransport
 from .lnbase import Peer
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
@@ -119,6 +119,7 @@ class LNWorker(PrintError):
         async def _init_peer():
             reader, writer = await asyncio.open_connection(peer_addr.host, peer_addr.port)
             transport = LNTransport(self.node_keypair.privkey, node_id, reader, writer)
+            await transport.handshake()
             peer.transport = transport
             await self.network.main_taskgroup.spawn(peer.main_loop())
         asyncio.ensure_future(_init_peer())
@@ -493,6 +494,22 @@ class LNWorker(PrintError):
     async def main_loop(self):
         await self.on_network_update('network_updated')  # shortcut (don't block) if funding tx locked and verified
         await self.network.lnwatcher.on_network_update('network_updated')  # ping watcher to check our channels
+        listen_addr = self.config.get('lightning_listen')
+        if listen_addr:
+            adr, colon, port = listen_addr.rpartition(':')
+            if adr[0] == '[':
+                # ipv6
+                adr = adr[1:-1]
+            async def cb(reader, writer):
+                t = LNResponderTransport(self.node_keypair.privkey, reader, writer)
+                node_id = await t.handshake()
+                peer = Peer(self, LNPeerAddr("bogus", 1337, node_id), request_initial_sync=self.config.get("request_initial_sync", True))
+                peer.transport = t
+                self.peers[node_id] = peer
+                await self.network.main_taskgroup.spawn(peer.main_loop())
+                self.network.trigger_callback('ln_status')
+
+            await asyncio.start_server(cb, adr, int(port))
         while True:
             await asyncio.sleep(1)
             now = time.time()
