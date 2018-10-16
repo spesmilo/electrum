@@ -110,7 +110,7 @@ class ChannelInfo(PrintError):
 
     def on_channel_update(self, msg_payload, trusted=False):
         assert self.channel_id == msg_payload['short_channel_id']
-        flags = int.from_bytes(msg_payload['flags'], 'big')
+        flags = int.from_bytes(msg_payload['channel_flags'], 'big')
         direction = flags & ChannelInfoDirectedPolicy.FLAG_DIRECTION
         new_policy = ChannelInfoDirectedPolicy(msg_payload)
         if direction == 0:
@@ -148,17 +148,19 @@ class ChannelInfoDirectedPolicy:
         htlc_minimum_msat           = channel_update_payload['htlc_minimum_msat']
         fee_base_msat               = channel_update_payload['fee_base_msat']
         fee_proportional_millionths = channel_update_payload['fee_proportional_millionths']
-        flags                       = channel_update_payload['flags']
+        channel_flags               = channel_update_payload['channel_flags']
         timestamp                   = channel_update_payload['timestamp']
+        htlc_maximum_msat           = channel_update_payload.get('htlc_maximum_msat') # optional
 
         self.cltv_expiry_delta           = int.from_bytes(cltv_expiry_delta, "big")
         self.htlc_minimum_msat           = int.from_bytes(htlc_minimum_msat, "big")
+        self.htlc_maximum_msat           = int.from_bytes(htlc_maximum_msat, "big") if htlc_maximum_msat else None
         self.fee_base_msat               = int.from_bytes(fee_base_msat, "big")
         self.fee_proportional_millionths = int.from_bytes(fee_proportional_millionths, "big")
-        self.flags                       = int.from_bytes(flags, "big")
+        self.channel_flags               = int.from_bytes(channel_flags, "big")
         self.timestamp                   = int.from_bytes(timestamp, "big")
 
-        self.disabled = self.flags & self.FLAG_DISABLE
+        self.disabled = self.channel_flags & self.FLAG_DISABLE
 
     def to_json(self) -> dict:
         d = {}
@@ -166,8 +168,10 @@ class ChannelInfoDirectedPolicy:
         d['htlc_minimum_msat'] = self.htlc_minimum_msat
         d['fee_base_msat'] = self.fee_base_msat
         d['fee_proportional_millionths'] = self.fee_proportional_millionths
-        d['flags'] = self.flags
+        d['channel_flags'] = self.channel_flags
         d['timestamp'] = self.timestamp
+        if self.htlc_maximum_msat:
+            d['htlc_maximum_msat'] = self.htlc_maximum_msat
         return d
 
     @classmethod
@@ -176,9 +180,10 @@ class ChannelInfoDirectedPolicy:
         d2 = {}
         d2['cltv_expiry_delta'] = d['cltv_expiry_delta'].to_bytes(2, "big")
         d2['htlc_minimum_msat'] = d['htlc_minimum_msat'].to_bytes(8, "big")
+        d2['htlc_maximum_msat'] = d['htlc_maximum_msat'].to_bytes(8, "big") if d.get('htlc_maximum_msat') else None
         d2['fee_base_msat'] = d['fee_base_msat'].to_bytes(4, "big")
         d2['fee_proportional_millionths'] = d['fee_proportional_millionths'].to_bytes(4, "big")
-        d2['flags'] = d['flags'].to_bytes(2, "big")
+        d2['channel_flags'] = d['channel_flags'].to_bytes(1, "big")
         d2['timestamp'] = d['timestamp'].to_bytes(4, "big")
         return ChannelInfoDirectedPolicy(d2)
 

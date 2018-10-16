@@ -776,9 +776,13 @@
     "position": "104",
     "length": "4"
    },
-   "flags": {
+   "message_flags": {
     "position": "108",
-    "length": "2"
+    "length": "1"
+   },
+   "channel_flags": {
+    "position": "109",
+    "length": "1"
    },
    "cltv_expiry_delta": {
     "position": "110",
@@ -799,7 +803,7 @@
    "htlc_maximum_msat": {
     "position": "128",
     "length": "8",
-    "feature": "option_upfront_shutdown_script"
+    "feature": "option_channel_htlc_max"
    }
   }
  },
