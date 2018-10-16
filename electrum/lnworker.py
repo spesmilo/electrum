@@ -294,10 +294,19 @@ class LNWorker(PrintError):
             # we need to shift the node pubkey by one towards the destination:
             private_route_nodes = [edge[0] for edge in private_route][1:] + [invoice_pubkey]
             private_route_rest = [edge[1:] for edge in private_route]
+            prev_node_id = border_node_pubkey
             for node_pubkey, edge_rest in zip(private_route_nodes, private_route_rest):
                 short_channel_id, fee_base_msat, fee_proportional_millionths, cltv_expiry_delta = edge_rest
+                # if we have a routing policy for this edge in the db, that takes precedence,
+                # as it is likely from a previous failure
+                channel_policy = self.channel_db.get_routing_policy_for_channel(prev_node_id, short_channel_id)
+                if channel_policy:
+                    fee_base_msat = channel_policy.fee_base_msat
+                    fee_proportional_millionths = channel_policy.fee_proportional_millionths
+                    cltv_expiry_delta = channel_policy.cltv_expiry_delta
                 route.append(RouteEdge(node_pubkey, short_channel_id, fee_base_msat, fee_proportional_millionths,
                                        cltv_expiry_delta))
+                prev_node_id = node_pubkey
             break
         # if could not find route using any hint; try without hint now
         if route is None:
