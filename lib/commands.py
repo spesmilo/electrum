@@ -265,12 +265,10 @@ class Commands:
              
             if num_outputs_standard_bitcoin > 2 or num_outputs_standard_deci_bitcoin > 2 or num_outputs_standard_centi_bitcoin > 2 or num_outputs_standard_milli_bitcoin > 2 or num_outputs_standard_hectomicro_bitcoin >2:
                 if value == 100000000 or value == 10000000 or value == 1000000 or value == 100000 or value == 10000:
-                    shuffled_coins = self.wallet.storage.get('shuffled_coins')
-                    if shuffled_coins is None:
-                        shuffled_coins = []
+                    shuffled_coins = set(self.wallet.storage.get('shuffled_coins',[]))
                     coinstring=txid+":"+str(prevout_n)
-                    shuffled_coins.append(coinstring)
-                    self.wallet.storage.put('shuffled_coins', shuffled_coins)
+                    shuffled_coins.add(coinstring)
+                    self.wallet.storage.put('shuffled_coins', list(shuffled_coins))
                     self.wallet.storage.write()       
         return wallet_utxos
 
