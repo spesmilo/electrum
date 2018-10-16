@@ -231,6 +231,49 @@ class Commands:
             i["value"] = str(Decimal(v)/COIN) if v is not None else None
             i["address"] = i["address"].to_ui_string()
         return l
+    
+    @command('w')
+    def cashshuffle_build_shuffled_utxo_list(self):
+    
+        wallet_utxos = self.wallet.get_utxos(exclude_frozen=False)
+        for wallet_utxo in wallet_utxos: 
+            txid=wallet_utxo.get("prevout_hash")
+            prevout_n=wallet_utxo.get("prevout_n")
+            value=wallet_utxo.get("value") 
+            raw_tx = self.network.synchronous_get(('blockchain.transaction.get',[txid]))
+            tx = Transaction(raw_tx)
+            outputs = tx.outputs()
+
+            num_outputs_standard_bitcoin = 0
+            num_outputs_standard_deci_bitcoin = 0
+            num_outputs_standard_centi_bitcoin = 0
+            num_outputs_standard_milli_bitcoin = 0
+            num_outputs_standard_hectomicro_bitcoin = 0
+
+            for output in outputs:
+                amount = output[2]
+                if amount==100000000:
+                    num_outputs_standard_bitcoin+=1
+                if amount==10000000:
+                    num_outputs_standard_deci_bitcoin+=1
+                if amount==1000000:
+                    num_outputs_standard_centi_bitcoin+=1
+                if amount==100000:
+                    num_outputs_standard_milli_bitcoin+=1
+                if amount==10000:
+                    num_outputs_standard_hectomicro_bitcoin+=1
+             
+            if num_outputs_standard_bitcoin > 2 or num_outputs_standard_deci_bitcoin > 2 or num_outputs_standard_centi_bitcoin > 2 or num_outputs_standard_milli_bitcoin > 2 or num_outputs_standard_hectomicro_bitcoin >2:
+                if value == 100000000 or value == 10000000 or value == 1000000 or value == 100000 or value == 10000:
+                    shuffled_coins = self.wallet.storage.get('shuffled_coins')
+                    if shuffled_coins is None:
+                        shuffled_coins = []
+                    coinstring=txid+":"+str(prevout_n)
+                    shuffled_coins.append(coinstring)
+                    self.wallet.storage.put('shuffled_coins', shuffled_coins)
+                    self.wallet.storage.write()       
+        return wallet_utxos
+
 
     @command('n')
     def getaddressunspent(self, address):
