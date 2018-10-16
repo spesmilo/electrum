@@ -6,6 +6,7 @@ from .crypto import sha256
 from .lnutil import get_ecdh, privkey_to_pubkey
 from .lnutil import LightningPeerConnectionClosed, HandshakeFailed
 from . import ecc
+from .util import bh2u
 
 class HandshakeState(object):
     prologue = b"lightning"
@@ -203,7 +204,7 @@ class LNTransport(LNTransportBase):
         self.writer.write(msg)
         rspns = await self.reader.read(2**10)
         if len(rspns) != 50:
-            raise HandshakeFailed("Lightning handshake act 1 response has bad length, are you sure this is the right pubkey? " + str(bh2u(self.pubkey)))
+            raise HandshakeFailed(f"Lightning handshake act 1 response has bad length, are you sure this is the right pubkey? {bh2u(self.remote_pubkey)}")
         hver, alice_epub, tag = rspns[0], rspns[1:34], rspns[34:]
         if bytes([hver]) != hs.handshake_version:
             raise HandshakeFailed("unexpected handshake version: {}".format(hver))
