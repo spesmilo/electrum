@@ -16,7 +16,7 @@ from . import bitcoin
 from .keystore import BIP32_KeyStore
 from .bitcoin import sha256, COIN
 from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
-from .lntransport import LNTransport, LNResponderTransport
+from .lntransport import LNResponderTransport
 from .lnbase import Peer
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
@@ -116,13 +116,7 @@ class LNWorker(PrintError):
         self._last_tried_peer[peer_addr] = time.time()
         self.print_error("adding peer", peer_addr)
         peer = Peer(self, peer_addr, request_initial_sync=self.config.get("request_initial_sync", True))
-        async def _init_peer():
-            reader, writer = await asyncio.open_connection(peer_addr.host, peer_addr.port)
-            transport = LNTransport(self.node_keypair.privkey, node_id, reader, writer)
-            await transport.handshake()
-            peer.transport = transport
-            await self.network.main_taskgroup.spawn(peer.main_loop())
-        asyncio.ensure_future(_init_peer())
+        await self.network.main_taskgroup.spawn(peer.main_loop())
         self.peers[node_id] = peer
         self.network.trigger_callback('ln_status')
         return peer
@@ -525,8 +519,10 @@ class LNWorker(PrintError):
             async def cb(reader, writer):
                 t = LNResponderTransport(self.node_keypair.privkey, reader, writer)
                 node_id = await t.handshake()
-                peer = Peer(self, LNPeerAddr("bogus", 1337, node_id), request_initial_sync=self.config.get("request_initial_sync", True))
-                peer.transport = t
+                # FIXME extract host and port from transport
+                peer = Peer(self, LNPeerAddr("bogus", 1337, node_id),
+                            request_initial_sync=self.config.get("request_initial_sync", True),
+                            transport=t)
                 self.peers[node_id] = peer
                 await self.network.main_taskgroup.spawn(peer.main_loop())
                 self.network.trigger_callback('ln_status')

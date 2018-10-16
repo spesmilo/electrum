@@ -34,6 +34,7 @@ from .lnutil import (Outpoint, LocalConfig, ChannelConfig,
                      get_ln_flag_pair_of_bit, privkey_to_pubkey)
 from .lnutil import LightningPeerConnectionClosed, HandshakeFailed
 from .lnrouter import NotFoundChanAnnouncementForUpdate, RouteEdge
+from .lntransport import LNTransport
 
 
 def channel_id_from_funding_tx(funding_txid, funding_index):
@@ -190,9 +191,9 @@ def gen_msg(msg_type: str, **kwargs) -> bytes:
 
 class Peer(PrintError):
 
-    def __init__(self, lnworker, peer_addr, request_initial_sync=False):
+    def __init__(self, lnworker, peer_addr, request_initial_sync=False, transport=None):
         self.initialized = asyncio.Future()
-        self.transport = None
+        self.transport = transport
         self.peer_addr = peer_addr
         self.lnworker = lnworker
         self.privkey = lnworker.node_keypair.privkey
@@ -222,6 +223,11 @@ class Peer(PrintError):
         self.transport.send_bytes(gen_msg(message_name, **kwargs))
 
     async def initialize(self):
+        if not self.transport:
+            reader, writer = await asyncio.open_connection(self.peer_addr.host, self.peer_addr.port)
+            transport = LNTransport(self.privkey, self.peer_addr.pubkey, reader, writer)
+            await transport.handshake()
+            self.transport = transport
         self.send_message("init", gflen=0, lflen=1, localfeatures=self.localfeatures)
         self.initialized.set_result(True)
 
