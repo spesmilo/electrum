@@ -27,7 +27,6 @@ for repo in Electron-Cash; do
 	cd ..
     else
 	URL=https://github.com/clifordsymack/$repo
-	# URL=https://github.com/Electron-Cash/$repo
 	git clone -b master $URL electrum # rest of script assumes the dir is called 'electrum'
     fi
 done
@@ -40,8 +39,7 @@ for repo in electrum-locale electrum-icons; do
 	git checkout master
 	cd ..
     else
-	URL=https://github.com/clifordsymack/$repo
-	# URL=https://github.com/Electron-Cash/$repo
+	URL=https://github.com/Electron-Cash/$repo
 	git clone -b master $URL $repo
     fi
 done
