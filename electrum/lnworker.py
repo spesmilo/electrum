@@ -343,14 +343,27 @@ class LNWorker(PrintError):
             chan_id = chan.short_channel_id
             assert type(chan_id) is bytes, chan_id
             channel_info = self.channel_db.get_channel_info(chan_id)
-            if not channel_info: continue
-            policy = channel_info.get_policy_for_node(chan.node_id)
-            if not policy: continue
+            # note: as a fallback, if we don't have a channel update for the
+            # incoming direction of our private channel, we fill the invoice with zeroes.
+            # the sender should still be able to pay us, but will incur an extra round trip
+            # (they will get the channel update from the onion error)
+            fee_base_msat = fee_proportional_millionths = cltv_expiry_delta = 0
+            missing_info = True
+            if channel_info:
+                policy = channel_info.get_policy_for_node(chan.node_id)
+                if policy:
+                    fee_base_msat = policy.fee_base_msat
+                    fee_proportional_millionths = policy.fee_proportional_millionths
+                    cltv_expiry_delta = policy.cltv_expiry_delta
+                    missing_info = False
+            if missing_info:
+                self.print_error(f"Warning. Missing channel update for our channel {bh2u(chan_id)}; "
+                                 f"filling invoice with incorrect data.")
             routing_hints.append(('r', [(chan.node_id,
                                          chan_id,
-                                         policy.fee_base_msat,
-                                         policy.fee_proportional_millionths,
-                                         policy.cltv_expiry_delta)]))
+                                         fee_base_msat,
+                                         fee_proportional_millionths,
+                                         cltv_expiry_delta)]))
         return routing_hints
 
     def delete_invoice(self, payreq_key):
