@@ -315,6 +315,9 @@ class LNWorker(PrintError):
         RHASH = sha256(payment_preimage)
         amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
         routing_hints = self._calc_routing_hints_for_invoice(amount_sat)
+        if not routing_hints:
+            self.print_error("Warning. No routing hints added to invoice. "
+                             "Other clients will likely not be able to send to us.")
         pay_req = lnencode(LnAddr(RHASH, amount_btc, tags=[('d', message)]+routing_hints),
                            self.node_keypair.privkey)
         self.invoices[bh2u(payment_preimage)] = pay_req
