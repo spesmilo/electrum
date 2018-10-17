@@ -570,6 +570,20 @@ def get_shuffled_coins(wallet):
     transactions = wallet.storage.get("transactions")
     return [utxo for utxo in utxos if wallet.is_coin_shuffled(utxo)]
 
+def on_utxo_list_update(utxo_list):
+    utxo_list.on_update_backup()
+    utxo_labels = {}
+    for utxo in utxo_list.utxos:
+        name = utxo_list.get_name(utxo)
+        utxo_labels[name[0:10] + '...' + name[-2:]] = utxo_list.wallet.is_coin_shuffled(utxo)
+    shuffle_icon = QIcon(":shuffle_tab_ico.png")
+    for index in range(utxo_list.topLevelItemCount()):
+        item = utxo_list.topLevelItem(index)
+        label = item.data(4, Qt.DisplayRole)
+        if utxo_labels[label]:
+            item.setIcon(0,  shuffle_icon)
+
+
 class Plugin(BasePlugin):
 
     def fullname(self):
@@ -599,6 +613,8 @@ class Plugin(BasePlugin):
         self.update(window)
         window.utxo_list.customContextMenuRequested.disconnect()
         window.utxo_list.customContextMenuRequested.connect(lambda x: create_coins_menu(window.utxo_list, x))
+        window.utxo_list.on_update_backup = window.utxo_list.on_update
+        window.utxo_list.on_update = lambda: on_utxo_list_update(window.utxo_list)
         window.wallet.is_coin_shuffled = lambda coin: is_coin_shuffled(window.wallet, coin)
         window.wallet.get_shuffled_coins = lambda: get_shuffled_coins(window.wallet)
 
@@ -618,6 +634,8 @@ class Plugin(BasePlugin):
                 delattr(window.wallet, "get_shuffled_coins")
             window.utxo_list.customContextMenuRequested.disconnect()
             window.utxo_list.customContextMenuRequested.connect(self.utxo_list_menu_backup)
+            window.utxo_list.on_update = window.utxo_list.on_update_backup
+            delattr(window.utxo_list, "on_update_backup")
 
 
     def update(self, window):
