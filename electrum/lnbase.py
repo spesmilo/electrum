@@ -23,7 +23,7 @@ from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string
 from . import constants
 from .util import PrintError, bh2u, print_error, bfh, log_exceptions, list_enabled_bits, ignore_exceptions
 from .transaction import Transaction, TxOutput
-from .lnonion import new_onion_packet, OnionHopsDataSingle, OnionPerHop, decode_onion_error, OnionFailureCode
+from .lnonion import new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment
 from .lnaddr import lndecode
 from .lnchan import Channel, RevokeAndAck, htlcsum
 from .lnutil import (Outpoint, LocalConfig, ChannelConfig,
@@ -927,33 +927,14 @@ class Peer(PrintError):
         await self.receive_commitment(chan)
         self.revoke(chan)
 
-    def calc_hops_data_for_payment(self, route: List[RouteEdge], amount_msat: int, min_final_cltv_expiry: int):
-        """Returns the hops_data to be used for constructing an onion packet,
-        and the amount_msat and cltv to be used on our immediate channel.
-        """
-        amt = amount_msat
-        height = self.network.get_local_height()
-        cltv = height + min_final_cltv_expiry
-        hops_data = [OnionHopsDataSingle(OnionPerHop(b"\x00" * 8,
-                                                     amt.to_bytes(8, "big"),
-                                                     cltv.to_bytes(4, "big")))]
-        for route_edge in reversed(route[1:]):
-            hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id,
-                                                          amt.to_bytes(8, "big"),
-                                                          cltv.to_bytes(4, "big")))]
-            amt += route_edge.fee_for_edge(amt)
-            cltv += route_edge.cltv_expiry_delta
-        hops_data.reverse()
-        return hops_data, amt, cltv
-
     async def pay(self, route: List[RouteEdge], chan, amount_msat, payment_hash, min_final_cltv_expiry):
         assert chan.get_state() == "OPEN", chan.get_state()
         assert amount_msat > 0, "amount_msat is not greater zero"
         # create onion packet
-        hops_data, amount_msat, cltv = self.calc_hops_data_for_payment(route, amount_msat, min_final_cltv_expiry)
-        associated_data = payment_hash
+        final_cltv = self.network.get_local_height() + min_final_cltv_expiry
+        hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv)
         secret_key = os.urandom(32)
-        onion = new_onion_packet([x.node_id for x in route], secret_key, hops_data, associated_data)
+        onion = new_onion_packet([x.node_id for x in route], secret_key, hops_data, associated_data=payment_hash)
         chan.check_can_pay(amount_msat)
         # create htlc
         htlc = {'amount_msat':amount_msat, 'payment_hash':payment_hash, 'cltv_expiry':cltv}
