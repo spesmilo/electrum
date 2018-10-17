@@ -359,7 +359,8 @@ class Peer(PrintError):
 
     def close_and_cleanup(self):
         try:
-            self.writer.close()
+            if self.transport:
+                self.transport.writer.close()
         except:
             pass
         for chan in self.channels.values():
