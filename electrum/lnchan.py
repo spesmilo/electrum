@@ -83,6 +83,14 @@ def decodeAll(d, local):
 def htlcsum(htlcs):
     return sum([x.amount_msat for x in htlcs])
 
+# following two functions are used because json
+# doesn't store int keys and byte string values
+def str_bytes_dict_from_save(x):
+    return {int(k): bfh(v) for k,v in x.items()}
+
+def str_bytes_dict_to_save(x):
+    return {str(k): bh2u(v) for k, v in x.items()}
+
 class Channel(PrintError):
     def diagnostic_name(self):
         return str(self.name)
@@ -108,14 +116,17 @@ class Channel(PrintError):
         self.node_id = bfh(state["node_id"]) if type(state["node_id"]) not in (bytes, type(None)) else state["node_id"]
         self.short_channel_id = bfh(state["short_channel_id"]) if type(state["short_channel_id"]) not in (bytes, type(None)) else state["short_channel_id"]
         self.short_channel_id_predicted = self.short_channel_id
-        self.onion_keys = {int(k): bfh(v) for k,v in state['onion_keys'].items()} if 'onion_keys' in state else {}
+        self.onion_keys = str_bytes_dict_from_save(state.get('onion_keys', {}))
 
         # FIXME this is a tx serialised in the custom electrum partial tx format.
         # we should not persist txns in this format. we should persist htlcs, and be able to derive
         # any past commitment transaction and use that instead; until then...
         self.remote_commitment_to_be_revoked = Transaction(state["remote_commitment_to_be_revoked"])
 
-        template = lambda: {'adds': {}, 'settles': []}
+        template = lambda: {
+            'adds': {}, # type: Mapping[HTLC_ID, UpdateAddHtlc]
+            'settles': [], # type: List[HTLC_ID]
+        }
         self.log = {LOCAL: template(), REMOTE: template()}
         for strname, subject in [('remote_log', REMOTE), ('local_log', LOCAL)]:
             if strname not in state: continue
@@ -517,12 +528,14 @@ class Channel(PrintError):
         htlc = self.log[REMOTE]['adds'][htlc_id]
         assert htlc.payment_hash == sha256(preimage)
         self.log[LOCAL]['settles'].append(htlc_id)
+        # not saving preimage because it's already saved in LNWorker.invoices
 
     def receive_htlc_settle(self, preimage, htlc_index):
         self.print_error("receive_htlc_settle")
         htlc = self.log[LOCAL]['adds'][htlc_index]
         assert htlc.payment_hash == sha256(preimage)
         self.log[REMOTE]['settles'].append(htlc_index)
+        # we don't save the preimage because we don't need to forward it anyway
 
     def receive_fail_htlc(self, htlc_id):
         self.print_error("receive_fail_htlc")
@@ -581,7 +594,7 @@ class Channel(PrintError):
                 "remote_commitment_to_be_revoked": str(self.remote_commitment_to_be_revoked),
                 "remote_log": remote_filtered,
                 "local_log": local_filtered,
-                "onion_keys": {str(k): bh2u(v) for k, v in self.onion_keys.items()},
+                "onion_keys": str_bytes_dict_to_save(self.onion_keys),
                 "settled_local": self.settled[LOCAL],
                 "settled_remote": self.settled[REMOTE],
         }
