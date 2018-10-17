@@ -26,7 +26,7 @@
 import hashlib
 import hmac
 from collections import namedtuple
-from typing import Sequence
+from typing import Sequence, List, Tuple
 from enum import IntEnum, IntFlag
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
@@ -36,6 +36,7 @@ from . import ecc
 from .crypto import sha256
 from .util import bh2u, profiler, xor_bytes, bfh
 from .lnutil import get_ecdh
+from .lnrouter import RouteEdge
 
 
 NUM_MAX_HOPS_IN_PATH = 20
@@ -186,6 +187,26 @@ def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
         public_key=ecc.ECPrivkey(session_key).get_public_key_bytes(),
         hops_data=mix_header,
         hmac=next_hmac)
+
+
+def calc_hops_data_for_payment(route: List[RouteEdge], amount_msat: int, final_cltv: int) \
+        -> Tuple[List[OnionHopsDataSingle], int, int]:
+    """Returns the hops_data to be used for constructing an onion packet,
+    and the amount_msat and cltv to be used on our immediate channel.
+    """
+    amt = amount_msat
+    cltv = final_cltv
+    hops_data = [OnionHopsDataSingle(OnionPerHop(b"\x00" * 8,
+                                                 amt.to_bytes(8, "big"),
+                                                 cltv.to_bytes(4, "big")))]
+    for route_edge in reversed(route[1:]):
+        hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id,
+                                                      amt.to_bytes(8, "big"),
+                                                      cltv.to_bytes(4, "big")))]
+        amt += route_edge.fee_for_edge(amt)
+        cltv += route_edge.cltv_expiry_delta
+    hops_data.reverse()
+    return hops_data, amt, cltv
 
 
 def generate_filler(key_type: bytes, num_hops: int, hop_size: int,
