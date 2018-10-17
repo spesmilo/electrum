@@ -501,7 +501,10 @@ class RouteEdge(NamedTuple("RouteEdge", [('node_id', bytes),
                                          ('fee_proportional_millionths', int),
                                          ('cltv_expiry_delta', int)])):
     """if you travel through short_channel_id, you will reach node_id"""
-    pass
+
+    def fee_for_edge(self, amount_msat):
+        return self.fee_base_msat \
+               + (amount_msat * self.fee_proportional_millionths // 1_000_000)
 
 
 class LNPathFinder(PrintError):

@@ -880,6 +880,7 @@ class Peer(PrintError):
         code = OnionFailureCode(failure_msg.code)
         data = failure_msg.data
         self.print_error("UPDATE_FAIL_HTLC", repr(code), data)
+        self.print_error(f"error reported by {bh2u(route[sender_idx].node_id)}")
         # handle some specific error codes
         failure_codes = {
             OnionFailureCode.TEMPORARY_CHANNEL_FAILURE: 2,
@@ -894,9 +895,12 @@ class Peer(PrintError):
             channel_update = (258).to_bytes(length=2, byteorder="big") + data[offset:]
             message_type, payload = decode_msg(channel_update)
             try:
+                self.print_error("trying to apply channel update on our db", payload)
                 self.channel_db.on_channel_update(payload)
+                self.print_error("successfully applied channel update on our db")
             except NotFoundChanAnnouncementForUpdate:
                 # maybe it is a private channel (and data in invoice was outdated)
+                self.print_error("maybe channel update is for private channel?")
                 start_node_id = route[sender_idx].node_id
                 self.channel_db.add_channel_update_for_private_channel(payload, start_node_id)
         else:
@@ -923,29 +927,41 @@ class Peer(PrintError):
         await self.receive_commitment(chan)
         self.revoke(chan)
 
+    def calc_hops_data_for_payment(self, route: List[RouteEdge], amount_msat: int, min_final_cltv_expiry: int):
+        """Returns the hops_data to be used for constructing an onion packet,
+        and the amount_msat and cltv to be used on our immediate channel.
+        """
+        amt = amount_msat
+        height = self.network.get_local_height()
+        cltv = height + min_final_cltv_expiry
+        hops_data = [OnionHopsDataSingle(OnionPerHop(b"\x00" * 8,
+                                                     amt.to_bytes(8, "big"),
+                                                     cltv.to_bytes(4, "big")))]
+        for route_edge in reversed(route[1:]):
+            hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id,
+                                                          amt.to_bytes(8, "big"),
+                                                          cltv.to_bytes(4, "big")))]
+            amt += route_edge.fee_for_edge(amt)
+            cltv += route_edge.cltv_expiry_delta
+        hops_data.reverse()
+        return hops_data, amt, cltv
+
     async def pay(self, route: List[RouteEdge], chan, amount_msat, payment_hash, min_final_cltv_expiry):
         assert chan.get_state() == "OPEN", chan.get_state()
         assert amount_msat > 0, "amount_msat is not greater zero"
-        height = self.network.get_local_height()
-        hops_data = []
-        sum_of_deltas = sum(route_edge.cltv_expiry_delta for route_edge in route[1:])
-        total_fee = 0
-        final_cltv_expiry_without_deltas = (height + min_final_cltv_expiry)
-        final_cltv_expiry_with_deltas = final_cltv_expiry_without_deltas + sum_of_deltas
-        for idx, route_edge in enumerate(route[1:]):
-            hops_data += [OnionHopsDataSingle(OnionPerHop(route_edge.short_channel_id, amount_msat.to_bytes(8, "big"), final_cltv_expiry_without_deltas.to_bytes(4, "big")))]
-            total_fee += route_edge.fee_base_msat + ( amount_msat * route_edge.fee_proportional_millionths // 1000000 )
+        # create onion packet
+        hops_data, amount_msat, cltv = self.calc_hops_data_for_payment(route, amount_msat, min_final_cltv_expiry)
         associated_data = payment_hash
         secret_key = os.urandom(32)
-        hops_data += [OnionHopsDataSingle(OnionPerHop(b"\x00"*8, amount_msat.to_bytes(8, "big"), (final_cltv_expiry_without_deltas).to_bytes(4, "big")))]
         onion = new_onion_packet([x.node_id for x in route], secret_key, hops_data, associated_data)
-        amount_msat += total_fee
         chan.check_can_pay(amount_msat)
-        htlc = {'amount_msat':amount_msat, 'payment_hash':payment_hash, 'cltv_expiry':final_cltv_expiry_with_deltas}
+        # create htlc
+        htlc = {'amount_msat':amount_msat, 'payment_hash':payment_hash, 'cltv_expiry':cltv}
         htlc_id = chan.add_htlc(htlc)
         chan.onion_keys[htlc_id] = secret_key
         self.attempted_route[(chan.channel_id, htlc_id)] = route
-        await self.update_channel(chan, "update_add_htlc", channel_id=chan.channel_id, id=htlc_id, cltv_expiry=final_cltv_expiry_with_deltas, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes())
+        self.print_error(f"starting payment. route: {route}")
+        await self.update_channel(chan, "update_add_htlc", channel_id=chan.channel_id, id=htlc_id, cltv_expiry=cltv, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes())
 
     async def receive_revoke(self, m):
         revoke_and_ack_msg = await self.revoke_and_ack[m.channel_id].get()
