@@ -205,6 +205,12 @@ def lnencode(addr, privkey):
             data += tagged_bytes('h', sha256(v.encode('utf-8')).digest())
         elif k == 'n':
             data += tagged_bytes('n', v)
+        elif k == 'c':
+            # Get minimal length by trimming leading 5 bits at a time.
+            finalcltvbits = bitstring.pack('intbe:64', v)[4:64]
+            while finalcltvbits.startswith('0b00000'):
+                finalcltvbits = finalcltvbits[5:]
+            data += tagged('c', finalcltvbits)
         else:
             # FIXME: Support unknown tags?
             raise ValueError("Unknown tag {}".format(k))
@@ -240,7 +246,7 @@ class LnAddr(object):
         self.pubkey = None
         self.currency = constants.net.SEGWIT_HRP if currency is None else currency
         self.amount = amount
-        self.min_final_cltv_expiry = 9
+        self._min_final_cltv_expiry = 9
 
     def __str__(self):
         return "LnAddr[{}, amount={}{} tags=[{}]]".format(
@@ -248,6 +254,10 @@ class LnAddr(object):
             self.amount, self.currency,
             ", ".join([k + '=' + str(v) for k, v in self.tags])
         )
+
+    def get_min_final_cltv_expiry(self) -> int:
+        return self._min_final_cltv_expiry
+
 
 def lndecode(a, verbose=False, expected_hrp=None):
     if expected_hrp is None:
@@ -354,7 +364,7 @@ def lndecode(a, verbose=False, expected_hrp=None):
             pubkeybytes = trim_to_bytes(tagdata)
             addr.pubkey = pubkeybytes
         elif tag == 'c':
-            addr.min_final_cltv_expiry = tagdata.int
+            addr._min_final_cltv_expiry = tagdata.int
         else:
             addr.unknown_tags.append((tag, tagdata))
 
