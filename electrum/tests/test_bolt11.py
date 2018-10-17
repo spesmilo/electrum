@@ -57,8 +57,7 @@ class TestBolt11(unittest.TestCase):
 
         tests = [
             LnAddr(RHASH, tags=[('d', '')]),
-            LnAddr(RHASH, amount=Decimal('0.001'),
-                   tags=[('d', '1 cup coffee'), ('x', 60)]),
+            LnAddr(RHASH, amount=Decimal('0.001'), tags=[('d', '1 cup coffee'), ('x', 60)]),
             LnAddr(RHASH, amount=Decimal('1'), tags=[('h', longdescription)]),
             LnAddr(RHASH, currency='tb', tags=[('f', 'mk2QpYatsKicvFVuTAQLBryyccRXMUaGHP'), ('h', longdescription)]),
             LnAddr(RHASH, amount=24, tags=[
@@ -93,5 +92,10 @@ class TestBolt11(unittest.TestCase):
         lnaddr = lndecode(bech32_encode(hrp, bitarray_to_u5(databits)), True)
         assert lnaddr.pubkey.serialize() == PUBKEY
 
-    def test_min_final_cltv_expiry(self):
-        self.assertEquals(lndecode("lnsb500u1pdsgyf3pp5nmrqejdsdgs4n9ukgxcp2kcq265yhrxd4k5dyue58rxtp5y83s3qdqqcqzystrggccm9yvkr5yqx83jxll0qjpmgfg9ywmcd8g33msfgmqgyfyvqhku80qmqm8q6v35zvck2y5ccxsz5avtrauz8hgjj3uahppyq20qp6dvwxe", expected_hrp="sb").min_final_cltv_expiry, 144)
+    def test_min_final_cltv_expiry_decoding(self):
+        self.assertEquals(144, lndecode("lnsb500u1pdsgyf3pp5nmrqejdsdgs4n9ukgxcp2kcq265yhrxd4k5dyue58rxtp5y83s3qdqqcqzystrggccm9yvkr5yqx83jxll0qjpmgfg9ywmcd8g33msfgmqgyfyvqhku80qmqm8q6v35zvck2y5ccxsz5avtrauz8hgjj3uahppyq20qp6dvwxe", expected_hrp="sb").get_min_final_cltv_expiry())
+
+    def test_min_final_cltv_expiry_roundtrip(self):
+        lnaddr = LnAddr(RHASH, amount=Decimal('0.001'), tags=[('d', '1 cup coffee'), ('x', 60), ('c', 150)])
+        invoice = lnencode(lnaddr, PRIVKEY)
+        self.assertEquals(150, lndecode(invoice).get_min_final_cltv_expiry())

@@ -263,7 +263,7 @@ class LNWorker(PrintError):
                 break
         else:
             raise Exception("ChannelDB returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
-        coro = peer.pay(route, chan, amount_msat, payment_hash, addr.min_final_cltv_expiry)
+        coro = peer.pay(route, chan, amount_msat, payment_hash, addr.get_min_final_cltv_expiry())
         return addr, peer, asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
     def _create_route_from_invoice(self, decoded_invoice, amount_msat) -> List[RouteEdge]:
