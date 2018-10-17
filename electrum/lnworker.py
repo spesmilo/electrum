@@ -97,9 +97,9 @@ class LNWorker(PrintError):
 
     def suggest_peer(self):
         for node_id, peer in self.peers.items():
-            if len(peer.channels) > 0:
-                continue
             if not(peer.initialized.done()):
+                continue
+            if not all([chan.get_state() in ['CLOSED'] for chan in peer.channels.values()]):
                 continue
             return node_id
 
@@ -373,6 +373,7 @@ class LNWorker(PrintError):
             # we output the funding_outpoint instead of the channel_id because lnd uses channel_point (funding outpoint) to identify channels
             for channel_id, chan in self.channels.items():
                 yield {
+                    'htlcs': chan.log[LOCAL],
                     'channel_id': bh2u(chan.short_channel_id),
                     'channel_point': chan.funding_outpoint.to_str(),
                     'state': chan.get_state(),
