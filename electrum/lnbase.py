@@ -454,7 +454,7 @@ class Peer(PrintError):
         redeem_script = funding_output_script(local_config, remote_config)
         funding_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         funding_output = TxOutput(bitcoin.TYPE_ADDRESS, funding_address, funding_sat)
-        funding_tx = self.lnworker.wallet.mktx([funding_output], password, self.lnworker.config, 1000)
+        funding_tx = self.lnworker.wallet.mktx([funding_output], password, self.lnworker.config, rbf=True)
         funding_txid = funding_tx.txid()
         funding_index = funding_tx.outputs().index(funding_output)
         # remote commitment transaction
