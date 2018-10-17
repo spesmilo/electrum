@@ -265,11 +265,6 @@ class CoinChooserBase(PrintError):
         tx.add_inputs([coin for b in buckets for coin in b.coins])
         tx_size = base_size + sum(bucket.size for bucket in buckets)
 
-        for bucket in buckets:
-            print ("FYOOK size is ",bucket.size, "type is ",type(bucket))
-
-        print ("tx_size is ",tx_size," base size is ",base_size)
-
         # This takes a count of change outputs and returns a tx fee;
         # each pay-to-bitcoin-address output serializes as 34 bytes
         fee = lambda count: fee_estimator(tx_size + count * 34)
