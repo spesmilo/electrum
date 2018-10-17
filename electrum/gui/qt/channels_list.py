@@ -23,10 +23,19 @@ class ChannelsList(MyTreeWidget):
         self.status = QLabel('')
 
     def format_fields(self, chan):
+        labels = {}
+        for subject in (REMOTE, LOCAL):
+            available = chan.available_to_spend(subject)//1000
+            label = self.parent.format_amount(available)
+            bal_other = chan.balance(-subject)//1000
+            available_other = chan.available_to_spend(-subject)//1000
+            if bal_other != available_other:
+                label += ' (+' + self.parent.format_amount(bal_other - available_other) + ')'
+            labels[subject] = label
         return [
             bh2u(chan.node_id),
-            self.parent.format_amount(chan.balance(LOCAL)//1000),
-            self.parent.format_amount(chan.balance(REMOTE)//1000),
+            labels[LOCAL],
+            labels[REMOTE],
             chan.get_state()
         ]
 

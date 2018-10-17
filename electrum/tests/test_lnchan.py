@@ -339,6 +339,7 @@ class TestDust(unittest.TestCase):
         aliceHtlcIndex = alice_channel.add_htlc(htlc)
         bobHtlcIndex = bob_channel.receive_htlc(htlc)
         force_state_transition(alice_channel, bob_channel)
+        self.assertEqual(alice_channel.available_to_spend(LOCAL), alice_channel.balance(LOCAL) - htlc['amount_msat'])
         self.assertEqual(len(alice_channel.local_commitment.outputs()), 3)
         self.assertEqual(len(bob_channel.local_commitment.outputs()), 2)
         default_fee = calc_static_fee(0)
