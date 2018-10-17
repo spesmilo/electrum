@@ -42,6 +42,7 @@ from electroncash.i18n import _
 from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton
 from electroncash_gui.qt.util import OkButton, WindowModalDialog
 from electroncash.address import Address
+from electroncash.transaction import Transaction
 from .shuffle import ChangeAdressWidget, OutputAdressWidget, ConsoleOutput, AmountSelect, ServersList, ExternalOutput, ConsoleLogger, InputAddressesWidget
 from .client import bot_job, BotThread
 from .coin import Coin
@@ -541,6 +542,34 @@ def create_coins_menu(win, position):
 
     menu.exec_(win.viewport().mapToGlobal(position))
 
+def is_coin_shuffled(wallet, coin):
+    txs = wallet.storage.get("transactions", {})
+    coin_out_n = coin['prevout_n']
+    if coin['prevout_hash'] in txs:
+        tx = Transaction(txs[coin['prevout_hash']])
+        outputs = tx.outputs()
+        inputs_len = len(tx.inputs())
+        outputs_groups = {}
+        for out_n, output in enumerate(outputs):
+            amount = output[2]
+            if outputs_groups.get(amount):
+                outputs_groups[amount].append(out_n)
+            else:
+                outputs_groups[amount] = [out_n]
+        for amount in outputs_groups:
+            group_len = len(outputs_groups[amount])
+            if group_len > 2 and amount in [1e7, 1e6, 1e5, 1e4]:
+                if coin_out_n in outputs_groups[amount] and inputs_len >= group_len:
+                    return True
+        return False
+    else:
+        return None
+
+def get_shuffled_coins(wallet):
+    utxos = wallet.get_utxos()
+    transactions = wallet.storage.get("transactions")
+    return [utxo for utxo in utxos if wallet.is_coin_shuffled(utxo)]
+
 class Plugin(BasePlugin):
 
     def fullname(self):
@@ -570,6 +599,8 @@ class Plugin(BasePlugin):
         self.update(window)
         window.utxo_list.customContextMenuRequested.disconnect()
         window.utxo_list.customContextMenuRequested.connect(lambda x: create_coins_menu(window.utxo_list, x))
+        window.wallet.is_coin_shuffled = lambda coin: is_coin_shuffled(window.wallet, coin)
+        window.wallet.get_shuffled_coins = lambda: get_shuffled_coins(window.wallet)
 
     @hook
     def on_close_window(self, window):
@@ -579,9 +610,15 @@ class Plugin(BasePlugin):
         for window in self.windows:
             tabIndex= window.tabs.indexOf(window.cs_tab)
             window.tabs.removeTab(tabIndex)
-            del window.cs_tab
+            if getattr(window, "cs_tab", None):
+                delattr(window, "cs_tab")
+            if getattr(window.wallet, "is_coin_shuffled", None):
+                delattr(window.wallet, "is_coin_shuffled")
+            if getattr(window.wallet, "get_shuffled_coins", None):
+                delattr(window.wallet, "get_shuffled_coins")
             window.utxo_list.customContextMenuRequested.disconnect()
             window.utxo_list.customContextMenuRequested.connect(self.utxo_list_menu_backup)
+
 
     def update(self, window):
         window.cs_tab = ShuffleWidget(window)
