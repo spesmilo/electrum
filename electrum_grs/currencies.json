@@ -65,5 +65,14 @@
         "SEK",
         "USD",
         "BTC"
+    ],
+    "Binance": [
+        "BTC"
+    ],
+    "Huobi": [
+        "BTC"
+    ],
+    "Upbit": [
+        "BTC"
     ]
 }

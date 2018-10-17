@@ -166,6 +166,28 @@ class CryptoCompare(ExchangeBase):
         result = result.get('Data', [])
         return dict((datetime.fromtimestamp(i['time']).strftime('%Y-%m-%d'), float(i['close'])) for i in result)
 
+class Huobi(ExchangeBase):
+    def get_rates(self, ccy):
+        json = self.get_json('api.huobi.pro', '/market/trade?symbol=grsbtc')
+        return {'BTC': Decimal(json['tick']['data'][0]['price'])}
+
+class Upbit(ExchangeBase):
+    def get_rates(self, ccy):
+        json = self.get_json('api.upbit.com', '/v1/ticker?markets=BTC-GRS')
+        return {'BTC': Decimal(json[0]['trade_price'])}
+
+class Binance(ExchangeBase):
+    def get_rates(self, ccy):
+        json = self.get_json('binance.com', '/api/v3/ticker/price?symbol=GRSBTC')
+        return {'BTC': Decimal(json['price'])}
+
+    def history_ccys(self):
+        return ['BTC']
+
+    def request_history(self, ccy):
+        json = self.get_json('binance.com', '/api/v1/klines?symbol=GRSBTC&interval=1d')
+        return dict((datetime.fromtimestamp(i[0] / 1000.0).strftime('%Y-%m-%d'), float(i[4])) for i in json)
+
 
 def dictinvert(d):
     inv = {}
