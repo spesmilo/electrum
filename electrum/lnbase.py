@@ -264,7 +264,7 @@ class Peer(PrintError):
                    self.funding_created, self.revoke_and_ack, self.commitment_signed,
                    self.announcement_signatures, self.closing_signed ]:
             if chan_id in d:
-                self.channel_accepted[chan_id].put_nowait({'error':payload['data']})
+                d[chan_id].put_nowait({'error':payload['data']})
 
     def on_ping(self, payload):
         l = int.from_bytes(payload['num_pong_bytes'], 'big')
