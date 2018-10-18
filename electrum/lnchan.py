@@ -533,12 +533,16 @@ class Channel(PrintError):
         self.log[LOCAL]['settles'].append(htlc_id)
         # not saving preimage because it's already saved in LNWorker.invoices
 
-    def receive_htlc_settle(self, preimage, htlc_index):
+    def receive_htlc_settle(self, preimage, htlc_id):
         self.print_error("receive_htlc_settle")
-        htlc = self.log[LOCAL]['adds'][htlc_index]
+        htlc = self.log[LOCAL]['adds'][htlc_id]
         assert htlc.payment_hash == sha256(preimage)
-        self.log[REMOTE]['settles'].append(htlc_index)
+        self.log[REMOTE]['settles'].append(htlc_id)
         # we don't save the preimage because we don't need to forward it anyway
+
+    def fail_htlc(self, htlc_id):
+        self.print_error("fail_htlc")
+        self.log[REMOTE]['adds'].pop(htlc_id)
 
     def receive_fail_htlc(self, htlc_id):
         self.print_error("receive_fail_htlc")
