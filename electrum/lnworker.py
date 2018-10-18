@@ -24,8 +24,8 @@ from .lnchan import Channel
 from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
-                     generate_keypair, LnKeyFamily)
-from .lnutil import LOCAL, REMOTE
+                     generate_keypair, LnKeyFamily, LOCAL, REMOTE,
+                     UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE)
 from .lnaddr import lndecode
 from .i18n import _
 from .lnrouter import RouteEdge
@@ -318,20 +318,23 @@ class LNWorker(PrintError):
         if not routing_hints:
             self.print_error("Warning. No routing hints added to invoice. "
                              "Other clients will likely not be able to send to us.")
-        pay_req = lnencode(LnAddr(RHASH, amount_btc, tags=[('d', message)]+routing_hints),
+        pay_req = lnencode(LnAddr(RHASH, amount_btc,
+                                  tags=[('d', message),
+                                        ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE)]
+                                       + routing_hints),
                            self.node_keypair.privkey)
         self.invoices[bh2u(payment_preimage)] = pay_req
         self.wallet.storage.put('lightning_invoices', self.invoices)
         self.wallet.storage.write()
         return pay_req
 
-    def get_invoice(self, payment_hash):
+    def get_invoice(self, payment_hash: bytes) -> Tuple[bytes, LnAddr]:
         for k in self.invoices.keys():
             preimage = bfh(k)
             if sha256(preimage) == payment_hash:
                 return preimage, lndecode(self.invoices[k], expected_hrp=constants.net.SEGWIT_HRP)
         else:
-            raise Exception('unknown payment hash')
+            raise UnknownPaymentHash()
 
     def _calc_routing_hints_for_invoice(self, amount_sat):
         """calculate routing hints (BOLT-11 'r' field)"""
