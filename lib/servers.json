@@ -1,27 +1,15 @@
 {
-    "abc.vom-stausee.de": {
-        "pruning": "-",
-        "version": "1.1",
-        "t": "52001",
-        "s": "52002"
-    },
     "abc1.hsmiths.com": {
         "pruning": "-",
         "version": "1.1",
         "t": "60001",
         "s": "60002"
     },
-    "bch.arihanc.com": {
-        "pruning": "-",
-        "version": "1.1",
-        "t":"52001",
-        "s":"52002"
-    },
     "electroncash.checksum0.com": {
         "pruning": "-",
         "version": "1.1",
         "t": "50001"
-    },        
+    },
     "35.157.238.5": {
         "pruning": "-",
         "version": "1.1",
@@ -39,18 +27,6 @@
         "version": "1.1",
         "t": "60001",
         "s": "60002"
-    },
-    "mash.1209k.com": {
-        "pruning": "-",
-        "version": "1.1",
-        "t":"51001",
-        "s":"51002"
-    },
-    "electroncash.bitcoinplug.com": {
-        "pruning": "-",
-        "version": "1.1",
-        "t":"51001",
-        "s":"51002"
     },
     "bch.curalle.ovh": {
         "pruning": "-",
@@ -74,12 +50,6 @@
         "pruning": "-",
         "version": "1.1",
         "s": "50002"
-    },
-    "abc.nyaa.in": {
-        "pruning": "-",
-        "version": "1.1",
-        "t":"50001",
-        "s":"50002"
     },
     "electrum.imaginary.cash": {
         "pruning": "-",
