@@ -964,29 +964,6 @@ class Peer(PrintError):
         m.receive_new_commitment(commitment_signed_msg["signature"], htlc_sigs)
         return len(htlc_sigs)
 
-    @log_exceptions
-    async def receive_commitment_revoke_ack(self, htlc, decoded, payment_preimage):
-        chan = self.channels[htlc['channel_id']]
-        channel_id = chan.channel_id
-        expected_received_msat = int(decoded.amount * bitcoin.COIN * 1000)
-        htlc_id = int.from_bytes(htlc["id"], 'big')
-        assert htlc_id == chan.config[REMOTE].next_htlc_id, (htlc_id, chan.config[REMOTE].next_htlc_id)
-        assert chan.get_state() == "OPEN"
-        cltv_expiry = int.from_bytes(htlc["cltv_expiry"], 'big')
-        # TODO verify sanity of their cltv expiry
-        amount_msat = int.from_bytes(htlc["amount_msat"], 'big')
-        assert amount_msat == expected_received_msat
-        payment_hash = htlc["payment_hash"]
-        htlc = {'amount_msat': amount_msat, 'payment_hash':payment_hash, 'cltv_expiry':cltv_expiry}
-        chan.receive_htlc(htlc)
-        assert (await self.receive_commitment(chan)) <= 1
-        self.revoke(chan)
-        self.send_commitment(chan)
-        await self.receive_revoke(chan)
-        chan.settle_htlc(payment_preimage, htlc_id)
-        await self.update_channel(chan, "update_fulfill_htlc", channel_id=channel_id, id=htlc_id, payment_preimage=payment_preimage)
-        self.lnworker.save_channel(chan)
-
     def on_commitment_signed(self, payload):
         self.print_error("commitment_signed", payload)
         channel_id = payload['channel_id']
@@ -1016,7 +993,8 @@ class Peer(PrintError):
     def on_update_fail_malformed_htlc(self, payload):
         self.print_error("error", payload["data"].decode("ascii"))
 
-    def on_update_add_htlc(self, payload):
+    @log_exceptions
+    async def on_update_add_htlc(self, payload):
         # no onion routing for the moment: we assume we are the end node
         self.print_error('on_update_add_htlc', payload)
         # check if this in our list of requests
@@ -1024,13 +1002,29 @@ class Peer(PrintError):
         for k in self.invoices.keys():
             preimage = bfh(k)
             if sha256(preimage) == payment_hash:
-                req = self.invoices[k]
-                decoded = lndecode(req, expected_hrp=constants.net.SEGWIT_HRP)
-                coro = self.receive_commitment_revoke_ack(payload, decoded, preimage)
-                asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
                 break
         else:
-            assert False
+            raise Exception('unknown payment hash')
+        request = lndecode(self.invoices[k], expected_hrp=constants.net.SEGWIT_HRP)
+        channel_id = payload['channel_id']
+        htlc_id = int.from_bytes(payload["id"], 'big')
+        cltv_expiry = int.from_bytes(payload["cltv_expiry"], 'big')
+        amount_msat = int.from_bytes(payload["amount_msat"], 'big')
+        chan = self.channels[channel_id]
+        assert htlc_id == chan.config[REMOTE].next_htlc_id, (htlc_id, chan.config[REMOTE].next_htlc_id)
+        assert chan.get_state() == "OPEN"
+        # TODO verify sanity of their cltv expiry
+        expected_received_msat = int(request.amount * bitcoin.COIN * 1000)
+        assert amount_msat == expected_received_msat
+        htlc = {'amount_msat': amount_msat, 'payment_hash':payment_hash, 'cltv_expiry':cltv_expiry}
+        chan.receive_htlc(htlc)
+        assert (await self.receive_commitment(chan)) <= 1
+        self.revoke(chan)
+        self.send_commitment(chan)
+        await self.receive_revoke(chan)
+        chan.settle_htlc(preimage, htlc_id)
+        await self.update_channel(chan, "update_fulfill_htlc", channel_id=channel_id, id=htlc_id, payment_preimage=preimage)
+        self.lnworker.save_channel(chan)
 
     def on_revoke_and_ack(self, payload):
         print("got revoke_and_ack")
