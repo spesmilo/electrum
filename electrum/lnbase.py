@@ -870,6 +870,7 @@ class Peer(PrintError):
         self.send_commitment(chan)  # htlc will be removed
         await self.receive_revoke(chan)
         self.lnworker.save_channel(chan)
+        self.network.trigger_callback('ln_message', self.lnworker, 'Payment failed')
 
     async def _handle_error_code_from_failed_htlc(self, error_reason, route: List[RouteEdge], channel_id, htlc_id):
         chan = self.channels[channel_id]
@@ -985,6 +986,7 @@ class Peer(PrintError):
         self.send_commitment(chan) # htlc will be removed
         await self.receive_revoke(chan)
         self.lnworker.save_channel(chan)
+        self.network.trigger_callback('ln_message', self.lnworker, 'Payment sent')
 
         # used in lightning-integration
         self.payment_preimages[sha256(preimage)].put_nowait(preimage)
@@ -1018,6 +1020,7 @@ class Peer(PrintError):
         chan.settle_htlc(preimage, htlc_id)
         await self.update_channel(chan, "update_fulfill_htlc", channel_id=channel_id, id=htlc_id, payment_preimage=preimage)
         self.lnworker.save_channel(chan)
+        self.network.trigger_callback('ln_message', self.lnworker, 'Payment received')
 
     def on_revoke_and_ack(self, payload):
         print("got revoke_and_ack")
