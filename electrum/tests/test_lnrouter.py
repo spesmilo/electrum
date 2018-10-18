@@ -5,7 +5,8 @@ import asyncio
 
 from electrum.util import bh2u, bfh
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet, OnionPerHop,
-                              process_onion_packet, _decode_onion_error)
+                              process_onion_packet, _decode_onion_error, decode_onion_error,
+                              OnionFailureCode)
 from electrum import bitcoin, lnrouter
 from electrum.simple_config import SimpleConfig
 
@@ -182,7 +183,13 @@ class Test_LNRouter(TestCaseForTestnet):
         ]
         session_key = bfh('4141414141414141414141414141414141414141414141414141414141414141')
         error_packet_for_node_0 = bfh('9c5add3963fc7f6ed7f148623c84134b5647e1306419dbe2174e523fa9e2fbed3a06a19f899145610741c83ad40b7712aefaddec8c6baf7325d92ea4ca4d1df8bce517f7e54554608bf2bd8071a4f52a7a2f7ffbb1413edad81eeea5785aa9d990f2865dc23b4bc3c301a94eec4eabebca66be5cf638f693ec256aec514620cc28ee4a94bd9565bc4d4962b9d3641d4278fb319ed2b84de5b665f307a2db0f7fbb757366067d88c50f7e829138fde4f78d39b5b5802f1b92a8a820865af5cc79f9f30bc3f461c66af95d13e5e1f0381c184572a91dee1c849048a647a1158cf884064deddbf1b0b88dfe2f791428d0ba0f6fb2f04e14081f69165ae66d9297c118f0907705c9c4954a199bae0bb96fad763d690e7daa6cfda59ba7f2c8d11448b604d12d')
+
         decoded_error, index_of_sender = _decode_onion_error(error_packet_for_node_0, payment_path_pubkeys, session_key)
         self.assertEqual(bfh('4c2fc8bc08510334b6833ad9c3e79cd1b52ae59dfe5c2a4b23ead50f09f7ee0b0002200200fe0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'),
                              decoded_error)
         self.assertEqual(4, index_of_sender)
+
+        failure_msg, index_of_sender = decode_onion_error(error_packet_for_node_0, payment_path_pubkeys, session_key)
+        self.assertEqual(4, index_of_sender)
+        self.assertEqual(OnionFailureCode.TEMPORARY_NODE_FAILURE, failure_msg.code)
+        self.assertEqual(b'', failure_msg.data)
