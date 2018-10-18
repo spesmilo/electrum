@@ -231,6 +231,29 @@ class CoinCap(ExchangeBase):
                      for h in history['data']])
 
 
+class CoinGecko(ExchangeBase):
+
+    def get_rates(self, ccy):
+        json = self.get_json('api.coingecko.com', '/api/v3/coins/bitcoin-cash?localization=False&sparkline=false')
+        prices = json["market_data"]["current_price"]
+        return dict([(a[0].upper(),Decimal(a[1])) for a in prices.items()])
+
+    def history_ccys(self):
+        return ['AED', 'ARS', 'AUD', 'BTD', 'BHD', 'BMD', 'BRL', 'BTC',
+                'CAD', 'CHF', 'CLP', 'CNY', 'CZK', 'DKK', 'ETH', 'EUR',
+                'GBP', 'HKD', 'HUF', 'IDR', 'ILS', 'INR', 'JPY', 'KRW',
+                'KWD', 'LKR', 'LTC', 'MMK', 'MXH', 'MYR', 'NOK', 'NZD',
+                'PHP', 'PKR', 'PLN', 'RUB', 'SAR', 'SEK', 'SGD', 'THB',
+                'TRY', 'TWD', 'USD', 'VEF', 'XAG', 'XAU', 'XDR', 'ZAR']
+
+    def request_history(self, ccy):
+        history = self.get_json('api.coingecko.com', '/api/v3/coins/bitcoin-cash/market_chart?vs_currency=%s&days=max' % ccy)
+
+        from datetime import datetime as dt
+        return dict([(dt.utcfromtimestamp(h[0]/1000).strftime('%Y-%m-%d'), h[1])
+                     for h in history['prices']])
+
+
 def dictinvert(d):
     inv = {}
     for k, vlist in d.items():
