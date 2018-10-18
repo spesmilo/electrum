@@ -3001,6 +3001,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         opret_cb.stateChanged.connect(on_opret)
         tx_widgets.append((opret_cb,None))
 
+        def on_cashshuffle(x):
+            self.config.set_key('enable_cashshuffle', bool(x)) 
+
+        enable_cashshuffle = bool(self.config.get('enable_cashshuffle'))
+        cashshuffle_cb = QCheckBox(_('Enable CashShuffle fungibility'))
+        cashshuffle_cb.setToolTip(_('Enable CashShuffle fungibility.'))
+        cashshuffle_cb.setChecked(enable_cashshuffle)
+        cashshuffle_cb.stateChanged.connect(on_cashshuffle)
+        tx_widgets.append((cashshuffle_cb,None))
+
         def update_currencies():
             if not self.fx: return
             currencies = sorted(self.fx.get_currencies(self.fx.get_history_config()))
