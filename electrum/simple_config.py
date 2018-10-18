@@ -10,6 +10,7 @@ from numbers import Real
 from copy import deepcopy
 
 from . import util
+from . import constants
 from .util import (user_dir, print_error, PrintError, make_dir,
                    NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate)
 from .i18n import _
@@ -501,6 +502,8 @@ class SimpleConfig(PrintError):
 
         fee_level: float between 0.0 and 1.0, representing fee slider position
         """
+        if constants.net is constants.BitcoinRegtest:
+            return 45000
         if dyn is None:
             dyn = self.is_dynfee()
         if mempool is None:
