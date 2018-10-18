@@ -214,7 +214,6 @@ class Peer(PrintError):
         if request_initial_sync:
             self.localfeatures |= LnLocalFeatures.INITIAL_ROUTING_SYNC
         self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
-        self.invoices = lnworker.invoices
         self.attempted_route = {}
 
     def send_message(self, message_name, **kwargs):
@@ -996,16 +995,11 @@ class Peer(PrintError):
     @log_exceptions
     async def on_update_add_htlc(self, payload):
         # no onion routing for the moment: we assume we are the end node
-        self.print_error('on_update_add_htlc', payload)
+        self.print_error('on_update_add_htlc')
         # check if this in our list of requests
         payment_hash = payload["payment_hash"]
-        for k in self.invoices.keys():
-            preimage = bfh(k)
-            if sha256(preimage) == payment_hash:
-                break
-        else:
-            raise Exception('unknown payment hash')
-        request = lndecode(self.invoices[k], expected_hrp=constants.net.SEGWIT_HRP)
+        preimage, invoice = self.lnworker.get_invoice(payment_hash)
+        expected_received_msat = int(invoice.amount * bitcoin.COIN * 1000)
         channel_id = payload['channel_id']
         htlc_id = int.from_bytes(payload["id"], 'big')
         cltv_expiry = int.from_bytes(payload["cltv_expiry"], 'big')
@@ -1014,7 +1008,6 @@ class Peer(PrintError):
         assert htlc_id == chan.config[REMOTE].next_htlc_id, (htlc_id, chan.config[REMOTE].next_htlc_id)
         assert chan.get_state() == "OPEN"
         # TODO verify sanity of their cltv expiry
-        expected_received_msat = int(request.amount * bitcoin.COIN * 1000)
         assert amount_msat == expected_received_msat
         htlc = {'amount_msat': amount_msat, 'payment_hash':payment_hash, 'cltv_expiry':cltv_expiry}
         chan.receive_htlc(htlc)
