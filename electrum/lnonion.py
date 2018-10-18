@@ -33,7 +33,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
 from cryptography.hazmat.backends import default_backend
 
 from . import ecc
-from .crypto import sha256
+from .crypto import sha256, hmac_oneshot
 from .util import bh2u, profiler, xor_bytes, bfh
 from .lnutil import get_ecdh
 from .lnrouter import RouteEdge
@@ -139,7 +139,7 @@ class OnionPacket:
 def get_bolt04_onion_key(key_type: bytes, secret: bytes) -> bytes:
     if key_type not in (b'rho', b'mu', b'um', b'ammag'):
         raise Exception('invalid key_type {}'.format(key_type))
-    key = hmac.new(key_type, msg=secret, digestmod=hashlib.sha256).digest()
+    key = hmac_oneshot(key_type, msg=secret, digest=hashlib.sha256)
     return key
 
 
@@ -181,7 +181,7 @@ def new_onion_packet(payment_path_pubkeys: Sequence[bytes], session_key: bytes,
         if i == num_hops - 1 and len(filler) != 0:
             mix_header = mix_header[:-len(filler)] + filler
         packet = mix_header + associated_data
-        next_hmac = hmac.new(mu_key, msg=packet, digestmod=hashlib.sha256).digest()
+        next_hmac = hmac_oneshot(mu_key, msg=packet, digest=hashlib.sha256)
 
     return OnionPacket(
         public_key=ecc.ECPrivkey(session_key).get_public_key_bytes(),
@@ -241,8 +241,8 @@ def process_onion_packet(onion_packet: OnionPacket, associated_data: bytes,
 
     # check message integrity
     mu_key = get_bolt04_onion_key(b'mu', shared_secret)
-    calculated_mac = hmac.new(mu_key, msg=onion_packet.hops_data+associated_data,
-                              digestmod=hashlib.sha256).digest()
+    calculated_mac = hmac_oneshot(mu_key, msg=onion_packet.hops_data+associated_data,
+                                  digest=hashlib.sha256)
     if onion_packet.hmac != calculated_mac:
         raise InvalidOnionMac()
 
@@ -285,6 +285,35 @@ class OnionRoutingFailureMessage:
     def __repr__(self):
         return repr((self.code, self.data))
 
+    def to_bytes(self) -> bytes:
+        ret = self.code.to_bytes(2, byteorder="big")
+        ret += self.data
+        return ret
+
+
+def construct_onion_error(reason: OnionRoutingFailureMessage,
+                          onion_packet: OnionPacket,
+                          our_onion_private_key: bytes) -> bytes:
+    # create payload
+    failure_msg = reason.to_bytes()
+    failure_len = len(failure_msg)
+    pad_len = 256 - failure_len
+    assert pad_len >= 0
+    error_packet =  failure_len.to_bytes(2, byteorder="big")
+    error_packet += failure_msg
+    error_packet += pad_len.to_bytes(2, byteorder="big")
+    error_packet += bytes(pad_len)
+    # add hmac
+    shared_secret = get_ecdh(our_onion_private_key, onion_packet.public_key)
+    um_key = get_bolt04_onion_key(b'um', shared_secret)
+    hmac_ = hmac_oneshot(um_key, msg=error_packet, digest=hashlib.sha256)
+    error_packet = hmac_ + error_packet
+    # obfuscate
+    ammag_key = get_bolt04_onion_key(b'ammag', shared_secret)
+    stream_bytes = generate_cipher_stream(ammag_key, len(error_packet))
+    error_packet = xor_bytes(error_packet, stream_bytes)
+    return error_packet
+
 
 def _decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[bytes],
                         session_key: bytes) -> (bytes, int):
@@ -296,7 +325,7 @@ def _decode_onion_error(error_packet: bytes, payment_path_pubkeys: Sequence[byte
         um_key = get_bolt04_onion_key(b'um', hop_shared_secrets[i])
         stream_bytes = generate_cipher_stream(ammag_key, len(error_packet))
         error_packet = xor_bytes(error_packet, stream_bytes)
-        hmac_computed = hmac.new(um_key, msg=error_packet[32:], digestmod=hashlib.sha256).digest()
+        hmac_computed = hmac_oneshot(um_key, msg=error_packet[32:], digest=hashlib.sha256)
         hmac_found = error_packet[:32]
         if hmac_computed == hmac_found:
             return error_packet, i
@@ -317,6 +346,7 @@ def get_failure_msg_from_onion_error(decrypted_error_packet: bytes) -> OnionRout
     failure_msg = decrypted_error_packet[34:34+failure_len]
     # create failure message object
     failure_code = int.from_bytes(failure_msg[:2], byteorder='big')
+    failure_code = OnionFailureCode(failure_code)
     failure_data = failure_msg[2:]
     return OnionRoutingFailureMessage(failure_code, failure_data)
 
