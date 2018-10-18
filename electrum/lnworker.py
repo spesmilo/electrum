@@ -325,6 +325,14 @@ class LNWorker(PrintError):
         self.wallet.storage.write()
         return pay_req
 
+    def get_invoice(self, payment_hash):
+        for k in self.invoices.keys():
+            preimage = bfh(k)
+            if sha256(preimage) == payment_hash:
+                return preimage, lndecode(self.invoices[k], expected_hrp=constants.net.SEGWIT_HRP)
+        else:
+            raise Exception('unknown payment hash')
+
     def _calc_routing_hints_for_invoice(self, amount_sat):
         """calculate routing hints (BOLT-11 'r' field)"""
         routing_hints = []
