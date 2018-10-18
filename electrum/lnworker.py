@@ -349,10 +349,12 @@ class LNWorker(PrintError):
             assert type(chan_id) is bytes, chan_id
             channel_info = self.channel_db.get_channel_info(chan_id)
             # note: as a fallback, if we don't have a channel update for the
-            # incoming direction of our private channel, we fill the invoice with zeroes.
+            # incoming direction of our private channel, we fill the invoice with garbage.
             # the sender should still be able to pay us, but will incur an extra round trip
             # (they will get the channel update from the onion error)
-            fee_base_msat = fee_proportional_millionths = cltv_expiry_delta = 0
+            # at least, that's the theory. https://github.com/lightningnetwork/lnd/issues/2066
+            fee_base_msat = fee_proportional_millionths = 0
+            cltv_expiry_delta = 1  # lnd won't even try with zero
             missing_info = True
             if channel_info:
                 policy = channel_info.get_policy_for_node(chan.node_id)
