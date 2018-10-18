@@ -28,6 +28,7 @@ FEERATE_FALLBACK_STATIC_FEE = 150000
 FEERATE_DEFAULT_RELAY = 1000
 FEERATE_STATIC_VALUES = [1000, 2000, 5000, 10000, 20000, 30000,
                          50000, 70000, 100000, 150000, 200000, 300000]
+FEERATE_REGTEST_HARDCODED = 180000  # for eclair compat
 
 
 config = None
@@ -511,7 +512,7 @@ class SimpleConfig(Logger):
         fee_level: float between 0.0 and 1.0, representing fee slider position
         """
         if constants.net is constants.BitcoinRegtest:
-            return 45000
+            return FEERATE_REGTEST_HARDCODED
         if dyn is None:
             dyn = self.is_dynfee()
         if mempool is None:
