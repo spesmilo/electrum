@@ -62,7 +62,13 @@ class LightningPeerConnectionClosed(LightningError): pass
 class UnableToDeriveSecret(LightningError): pass
 class HandshakeFailed(LightningError): pass
 class PaymentFailure(LightningError): pass
-class ConnStringFormatError(LightningError):  pass
+class ConnStringFormatError(LightningError): pass
+class UnknownPaymentHash(LightningError): pass
+
+
+# TODO make configurable?
+MIN_FINAL_CLTV_EXPIRY_ACCEPTED = 144
+MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE = MIN_FINAL_CLTV_EXPIRY_ACCEPTED + 1
 
 
 class RevocationStore:

@@ -24,9 +24,7 @@
 # SOFTWARE.
 
 import hashlib
-import hmac
-from collections import namedtuple
-from typing import Sequence, List, Tuple
+from typing import Sequence, List, Tuple, NamedTuple
 from enum import IntEnum, IntFlag
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
@@ -231,7 +229,9 @@ def generate_cipher_stream(stream_key: bytes, num_bytes: int) -> bytes:
     return encryptor.update(bytes(num_bytes))
 
 
-ProcessedOnionPacket = namedtuple("ProcessedOnionPacket", ["are_we_final", "hop_data", "next_packet"])
+ProcessedOnionPacket = NamedTuple("ProcessedOnionPacket", [("are_we_final", bool),
+                                                           ("hop_data", OnionHopsDataSingle),
+                                                           ("next_packet", OnionPacket)])
 
 
 # TODO replay protection
