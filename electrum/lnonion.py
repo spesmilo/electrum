@@ -33,11 +33,10 @@ from cryptography.hazmat.backends import default_backend
 from . import ecc
 from .crypto import sha256, hmac_oneshot
 from .util import bh2u, profiler, xor_bytes, bfh
-from .lnutil import get_ecdh
+from .lnutil import get_ecdh, PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH
 from .lnrouter import RouteEdge
 
 
-NUM_MAX_HOPS_IN_PATH = 20
 HOPS_DATA_SIZE = 1300      # also sometimes called routingInfoSize in bolt-04
 PER_HOP_FULL_SIZE = 65     # HOPS_DATA_SIZE / 20
 NUM_STREAM_BYTES = HOPS_DATA_SIZE + PER_HOP_FULL_SIZE
@@ -192,6 +191,9 @@ def calc_hops_data_for_payment(route: List[RouteEdge], amount_msat: int, final_c
     """Returns the hops_data to be used for constructing an onion packet,
     and the amount_msat and cltv to be used on our immediate channel.
     """
+    if len(route) > NUM_MAX_HOPS_IN_PAYMENT_PATH:
+        raise PaymentFailure(f"too long route ({len(route)} hops)")
+
     amt = amount_msat
     cltv = final_cltv
     hops_data = [OnionHopsDataSingle(OnionPerHop(b"\x00" * 8,
@@ -209,7 +211,7 @@ def calc_hops_data_for_payment(route: List[RouteEdge], amount_msat: int, final_c
 
 def generate_filler(key_type: bytes, num_hops: int, hop_size: int,
                     shared_secrets: Sequence[bytes]) -> bytes:
-    filler_size = (NUM_MAX_HOPS_IN_PATH + 1) * hop_size
+    filler_size = (NUM_MAX_HOPS_IN_PAYMENT_PATH + 1) * hop_size
     filler = bytearray(filler_size)
 
     for i in range(0, num_hops-1):  # -1, as last hop does not obfuscate
@@ -219,7 +221,7 @@ def generate_filler(key_type: bytes, num_hops: int, hop_size: int,
         stream_bytes = generate_cipher_stream(stream_key, filler_size)
         filler = xor_bytes(filler, stream_bytes)
 
-    return filler[(NUM_MAX_HOPS_IN_PATH-num_hops+2)*hop_size:]
+    return filler[(NUM_MAX_HOPS_IN_PAYMENT_PATH-num_hops+2)*hop_size:]
 
 
 def generate_cipher_stream(stream_key: bytes, num_bytes: int) -> bytes:

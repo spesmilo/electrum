@@ -1,7 +1,7 @@
 from enum import IntFlag, IntEnum
 import json
 from collections import namedtuple
-from typing import NamedTuple, List, Tuple, Mapping
+from typing import NamedTuple, List, Tuple, Mapping, Optional
 import re
 
 from .util import bfh, bh2u, inv_dict
@@ -15,6 +15,7 @@ from . import segwit_addr
 from .i18n import _
 from .lnaddr import lndecode
 from .keystore import BIP32_KeyStore
+
 
 HTLC_TIMEOUT_WEIGHT = 663
 HTLC_SUCCESS_WEIGHT = 703
@@ -597,8 +598,6 @@ def generate_keypair(ln_keystore: BIP32_KeyStore, key_family: LnKeyFamily, index
     return Keypair(*ln_keystore.get_keypair([key_family, 0, index], None))
 
 
-from typing import Optional
-
 class EncumberedTransaction(NamedTuple("EncumberedTransaction", [('tx', Transaction),
                                                                  ('csv_delay', Optional[int])])):
     def to_json(self) -> dict:
@@ -612,3 +611,7 @@ class EncumberedTransaction(NamedTuple("EncumberedTransaction", [('tx', Transact
         d2 = dict(d)
         d2['tx'] = Transaction(d['tx'])
         return EncumberedTransaction(**d2)
+
+
+NUM_MAX_HOPS_IN_PAYMENT_PATH = 20
+
