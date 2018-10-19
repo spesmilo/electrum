@@ -48,8 +48,8 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     Every time a status changes, run a coroutine provided by the subclass.
     """
     def __init__(self, network):
-        NetworkJobOnDefaultServer.__init__(self, network)
         self.asyncio_loop = network.asyncio_loop
+        NetworkJobOnDefaultServer.__init__(self, network)
 
     def _reset(self):
         super()._reset()

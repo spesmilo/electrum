@@ -44,8 +44,8 @@ class SPV(NetworkJobOnDefaultServer):
     """ Simple Payment Verification """
 
     def __init__(self, network, wallet):
-        NetworkJobOnDefaultServer.__init__(self, network)
         self.wallet = wallet
+        NetworkJobOnDefaultServer.__init__(self, network)
 
     def _reset(self):
         super()._reset()

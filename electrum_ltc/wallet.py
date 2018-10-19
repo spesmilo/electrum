@@ -363,9 +363,13 @@ class Abstract_Wallet(AddressSynchronizer):
 
         return tx_hash, status, label, can_broadcast, can_bump, amount, fee, height, conf, timestamp, exp_n
 
-    def get_spendable_coins(self, domain, config):
+    def get_spendable_coins(self, domain, config, *, nonlocal_only=False):
         confirmed_only = config.get('confirmed_only', False)
-        return self.get_utxos(domain, excluded=self.frozen_addresses, mature=True, confirmed_only=confirmed_only)
+        return self.get_utxos(domain,
+                              excluded=self.frozen_addresses,
+                              mature=True,
+                              confirmed_only=confirmed_only,
+                              nonlocal_only=nonlocal_only)
 
     def dummy_address(self):
         return self.get_receiving_addresses()[0]
@@ -612,9 +616,11 @@ class Abstract_Wallet(AddressSynchronizer):
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
-    def mktx(self, outputs, password, config, fee=None, change_addr=None, domain=None):
-        coins = self.get_spendable_coins(domain, config)
+    def mktx(self, outputs, password, config, fee=None, change_addr=None,
+             domain=None, rbf=False, nonlocal_only=False):
+        coins = self.get_spendable_coins(domain, config, nonlocal_only=nonlocal_only)
         tx = self.make_unsigned_transaction(coins, outputs, config, fee, change_addr)
+        tx.set_rbf(rbf)
         self.sign_transaction(tx, password)
         return tx
 
