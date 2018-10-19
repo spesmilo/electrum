@@ -239,7 +239,8 @@ class CoinChooserBase(PrintError):
                         fee = lambda count: fee_estimator(tx_size + count * 34)
                         change, dust = self.change_outputs(tx, change_addrs, fee, dust_threshold)
                         total_output_adjusted=total_output  
-                        total_output_adjusted=total_output_adjusted+my_estimated_fee 
+                        total_output_adjusted=total_output_adjusted+my_estimated_fee  
+                        tx.warning_message="You are using unshuffled UTXO."
                 if total_input>=total_output_adjusted:
                     inputs_chosen_done=1
                 else:           
@@ -257,9 +258,8 @@ class CoinChooserBase(PrintError):
                             fee = lambda count: fee_estimator(tx_size + count * 34) 
                             change, dust = self.change_outputs(tx, change_addrs, fee, dust_threshold) 
                             total_output_adjusted=total_output
-                            total_output_adjusted=total_output_adjusted+my_estimated_fee  
-          
-             
+                            total_output_adjusted=total_output_adjusted+my_estimated_fee   
+                            tx.warning_message="You are using both shuffled and unshuffled UTXO."
             if total_input>=total_output_adjusted:
                     inputs_chosen_done=1
                     tx.add_outputs(change)
