@@ -31,7 +31,7 @@ try:
     from ckcc.constants import (
         PSBT_GLOBAL_UNSIGNED_TX, PSBT_IN_NON_WITNESS_UTXO, PSBT_IN_WITNESS_UTXO,
         PSBT_IN_SIGHASH_TYPE, PSBT_IN_REDEEM_SCRIPT, PSBT_IN_WITNESS_SCRIPT,
-        PSBT_IN_BIP32_DERIVATION, PSBT_OUT_BIP32_DERIVATION)
+        PSBT_IN_BIP32_DERIVATION, PSBT_OUT_BIP32_DERIVATION, PSBT_OUT_REDEEM_SCRIPT)
 
     from ckcc.client import ColdcardDevice, COINKITE_VID, CKCC_PID, CKCC_SIMULATOR_PATH
 
@@ -423,13 +423,10 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             
         for txin in inputs:
             if txin['type'] == 'coinbase':
-                self.give_error("Coinbase not supported")     # but why not?
+                self.give_error("Coinbase not supported")
 
-            if txin['type'] in ['p2sh']:
-                self.give_error('Not ready for multisig transactions yet')
-
-            #if txin['type'] in ['p2wpkh-p2sh', 'p2wsh-p2sh']:
-            #if txin['type'] in ['p2wpkh', 'p2wsh']:
+            if txin['type'] in ['p2sh', 'p2wsh-p2sh', 'p2wsh']:
+                self.give_error('No support yet for inputs of type: ' + txin['type'])
 
         # Construct PSBT from start to finish.
         out_fd = io.BytesIO()
@@ -452,6 +449,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             @classmethod
             def input_script(cls, txin, estimate_size=False):
                 return ''
+
         unsigned = bfh(CustomTXSerialization(tx.serialize()).serialize_to_network(witness=False))
         write_kv(PSBT_GLOBAL_UNSIGNED_TX, unsigned)
 
@@ -470,6 +468,12 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
             for k in pubkeys:
                 write_kv(PSBT_IN_BIP32_DERIVATION, subkeys[k], k)
+
+                if txin['type'] == 'p2wpkh-p2sh':
+                    assert len(pubkeys) == 1, 'can be only one redeem script per input'
+                    pa = hash_160(k)
+                    assert len(pa) == 20
+                    write_kv(PSBT_IN_REDEEM_SCRIPT, b'\x00\x14'+pa)
 
             out_fd.write(b'\x00')
 
@@ -493,9 +497,14 @@ class Coldcard_KeyStore(Hardware_KeyStore):
                     assert 0 <= bb < 0x80000000
 
                     deriv = base_path + pack('<II', aa, bb)
-                    pubkey = self.get_pubkey_from_xpub(xpubkey, index)
+                    pubkey = bfh(self.get_pubkey_from_xpub(xpubkey, index))
 
-                    write_kv(PSBT_OUT_BIP32_DERIVATION, deriv, bfh(pubkey))
+                    write_kv(PSBT_OUT_BIP32_DERIVATION, deriv, pubkey)
+
+                    if output_info.script_type == 'p2wpkh-p2sh':
+                        pa = hash_160(pubkey)
+                        assert len(pa) == 20
+                        write_kv(PSBT_OUT_REDEEM_SCRIPT, b'\x00\x14' + pa)
 
             out_fd.write(b'\x00')
 
@@ -595,7 +604,7 @@ class ColdcardPlugin(HW_PluginBase):
     ]
 
     #SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
-    SUPPORTED_XTYPES = ('standard', 'p2wpkh')
+    SUPPORTED_XTYPES = ('standard', 'p2wpkh', 'p2wpkh-p2sh')
 
     def __init__(self, parent, config, name):
         HW_PluginBase.__init__(self, parent, config, name)
