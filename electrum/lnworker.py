@@ -25,10 +25,11 @@ from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
                      generate_keypair, LnKeyFamily, LOCAL, REMOTE,
-                     UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE)
+                     UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
+                     NUM_MAX_HOPS_IN_PAYMENT_PATH)
 from .lnaddr import lndecode
 from .i18n import _
-from .lnrouter import RouteEdge
+from .lnrouter import RouteEdge, is_route_sane_to_use
 
 NUM_PEERS_TARGET = 4
 PEER_RETRY_INTERVAL = 600  # seconds
@@ -253,6 +254,10 @@ class LNWorker(PrintError):
         if amount_sat is None:
             raise InvoiceError(_("Missing amount"))
         amount_msat = int(amount_sat * 1000)
+        if addr.get_min_final_cltv_expiry() > 60 * 144:
+            raise InvoiceError("{}\n{}".format(
+                _("Invoice wants us to risk locking funds for unreasonably long."),
+                f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
         route = self._create_route_from_invoice(decoded_invoice=addr, amount_msat=amount_msat)
         node_id, short_channel_id = route[0].node_id, route[0].short_channel_id
         peer = self.peers[node_id]
@@ -281,6 +286,7 @@ class LNWorker(PrintError):
             channels = list(self.channels.values())
         for private_route in r_tags:
             if len(private_route) == 0: continue
+            if len(private_route) > NUM_MAX_HOPS_IN_PAYMENT_PATH: continue
             border_node_pubkey = private_route[0][0]
             path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat, channels)
             if not path: continue
@@ -301,6 +307,11 @@ class LNWorker(PrintError):
                 route.append(RouteEdge(node_pubkey, short_channel_id, fee_base_msat, fee_proportional_millionths,
                                        cltv_expiry_delta))
                 prev_node_id = node_pubkey
+            # test sanity
+            if not is_route_sane_to_use(route, amount_msat, decoded_invoice.get_min_final_cltv_expiry()):
+                self.print_error(f"rejecting insane route {route}")
+                route = None
+                continue
             break
         # if could not find route using any hint; try without hint now
         if route is None:
@@ -308,6 +319,9 @@ class LNWorker(PrintError):
             if not path:
                 raise PaymentFailure(_("No path found"))
             route = self.network.path_finder.create_route_from_path(path, self.node_keypair.pubkey)
+            if not is_route_sane_to_use(route, amount_msat, decoded_invoice.get_min_final_cltv_expiry()):
+                self.print_error(f"rejecting insane route {route}")
+                raise PaymentFailure(_("No path found"))
         return route
 
     def add_invoice(self, amount_sat, message):
