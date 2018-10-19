@@ -31,7 +31,7 @@ try:
     from ckcc.constants import (
         PSBT_GLOBAL_UNSIGNED_TX, PSBT_IN_NON_WITNESS_UTXO, PSBT_IN_WITNESS_UTXO,
         PSBT_IN_SIGHASH_TYPE, PSBT_IN_REDEEM_SCRIPT, PSBT_IN_WITNESS_SCRIPT,
-        PSBT_IN_BIP32_DERIVATION, PSBT_OUT_BIP32_DERIVATION)
+        PSBT_IN_BIP32_DERIVATION, PSBT_OUT_BIP32_DERIVATION, PSBT_OUT_REDEEM_SCRIPT)
 
     from ckcc.client import ColdcardDevice, COINKITE_VID, CKCC_PID, CKCC_SIMULATOR_PATH
 
@@ -497,9 +497,14 @@ class Coldcard_KeyStore(Hardware_KeyStore):
                     assert 0 <= bb < 0x80000000
 
                     deriv = base_path + pack('<II', aa, bb)
-                    pubkey = self.get_pubkey_from_xpub(xpubkey, index)
+                    pubkey = bfh(self.get_pubkey_from_xpub(xpubkey, index))
 
-                    write_kv(PSBT_OUT_BIP32_DERIVATION, deriv, bfh(pubkey))
+                    write_kv(PSBT_OUT_BIP32_DERIVATION, deriv, pubkey)
+
+                    if output_info.script_type == 'p2wpkh-p2sh':
+                        pa = hash_160(pubkey)
+                        assert len(pa) == 20
+                        write_kv(PSBT_OUT_REDEEM_SCRIPT, b'\x00\x14' + pa)
 
             out_fd.write(b'\x00')
 
