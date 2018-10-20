@@ -606,8 +606,7 @@ class LNPathFinder(PrintError):
         """
         assert type(invoice_amount_msat) is int
         if my_channels is None: my_channels = []
-        unable_channels = set(map(lambda x: x.short_channel_id,
-                                  filter(lambda x: not x.can_pay(invoice_amount_msat), my_channels)))
+        my_channels = {chan.short_channel_id: chan for chan in my_channels}
 
         # FIXME paths cannot be longer than 21 edges (onion packet)...
 
@@ -620,42 +619,51 @@ class LNPathFinder(PrintError):
         nodes_to_explore = queue.PriorityQueue()
         nodes_to_explore.put((0, invoice_amount_msat, nodeB))  # order of fields (in tuple) matters!
 
+        def inspect_edge():
+            if edge_channel_id in my_channels:
+                if edge_startnode == nodeA:  # payment outgoing, on our channel
+                    if not my_channels[edge_channel_id].can_pay(amount_msat):
+                        return
+                else:  # payment incoming, on our channel. (funny business, cycle weirdness)
+                    assert edge_endnode == nodeA, (bh2u(edge_startnode), bh2u(edge_endnode))
+                    pass  # TODO?
+            edge_cost, fee_for_edge_msat = self._edge_cost(edge_channel_id,
+                                                           start_node=edge_startnode,
+                                                           end_node=edge_endnode,
+                                                           payment_amt_msat=amount_msat,
+                                                           ignore_costs=(edge_startnode == nodeA))
+            alt_dist_to_neighbour = distance_from_start[edge_endnode] + edge_cost
+            if alt_dist_to_neighbour < distance_from_start[edge_startnode]:
+                distance_from_start[edge_startnode] = alt_dist_to_neighbour
+                prev_node[edge_startnode] = edge_endnode, edge_channel_id
+                amount_to_forward_msat = amount_msat + fee_for_edge_msat
+                nodes_to_explore.put((alt_dist_to_neighbour, amount_to_forward_msat, edge_startnode))
+
+        # main loop of search
         while nodes_to_explore.qsize() > 0:
-            dist_to_cur_node, amount_msat, cur_node = nodes_to_explore.get()
-            if cur_node == nodeA:
+            dist_to_edge_endnode, amount_msat, edge_endnode = nodes_to_explore.get()
+            if edge_endnode == nodeA:
                 break
-            if dist_to_cur_node != distance_from_start[cur_node]:
+            if dist_to_edge_endnode != distance_from_start[edge_endnode]:
                 # queue.PriorityQueue does not implement decrease_priority,
                 # so instead of decreasing priorities, we add items again into the queue.
                 # so there are duplicates in the queue, that we discard now:
                 continue
-            for edge_channel_id in self.channel_db.get_channels_for_node(cur_node):
-                if edge_channel_id in self.blacklist or edge_channel_id in unable_channels:
-                    continue
+            for edge_channel_id in self.channel_db.get_channels_for_node(edge_endnode):
+                if edge_channel_id in self.blacklist: continue
                 channel_info = self.channel_db.get_channel_info(edge_channel_id)
-                neighbour = channel_info.node_id_2 if channel_info.node_id_1 == cur_node else channel_info.node_id_1
-                ignore_costs = neighbour == nodeA  # no fees when using our own channel
-                edge_cost, fee_for_edge_msat = self._edge_cost(edge_channel_id,
-                                                               start_node=neighbour,
-                                                               end_node=cur_node,
-                                                               payment_amt_msat=amount_msat,
-                                                               ignore_costs=ignore_costs)
-                alt_dist_to_neighbour = distance_from_start[cur_node] + edge_cost
-                if alt_dist_to_neighbour < distance_from_start[neighbour]:
-                    distance_from_start[neighbour] = alt_dist_to_neighbour
-                    prev_node[neighbour] = cur_node, edge_channel_id
-                    amount_to_forward_msat = amount_msat + fee_for_edge_msat
-                    nodes_to_explore.put((alt_dist_to_neighbour, amount_to_forward_msat, neighbour))
+                edge_startnode = channel_info.node_id_2 if channel_info.node_id_1 == edge_endnode else channel_info.node_id_1
+                inspect_edge()
         else:
             return None  # no path found
 
         # backtrack from search_end (nodeA) to search_start (nodeB)
-        cur_node = nodeA
+        edge_startnode = nodeA
         path = []
-        while cur_node != nodeB:
-            prev_node_id, edge_taken = prev_node[cur_node]
-            path += [(prev_node_id, edge_taken)]
-            cur_node = prev_node_id
+        while edge_startnode != nodeB:
+            edge_endnode, edge_taken = prev_node[edge_startnode]
+            path += [(edge_endnode, edge_taken)]
+            edge_startnode = edge_endnode
         return path
 
     def create_route_from_path(self, path, from_node_id: bytes) -> List[RouteEdge]:
