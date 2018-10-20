@@ -33,7 +33,7 @@ from cryptography.hazmat.backends import default_backend
 from . import ecc
 from .crypto import sha256, hmac_oneshot
 from .util import bh2u, profiler, xor_bytes, bfh
-from .lnutil import get_ecdh, PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH
+from .lnutil import get_ecdh, PaymentFailure, NUM_MAX_HOPS_IN_PAYMENT_PATH, NUM_MAX_EDGES_IN_PAYMENT_PATH
 from .lnrouter import RouteEdge
 
 
@@ -191,8 +191,8 @@ def calc_hops_data_for_payment(route: List[RouteEdge], amount_msat: int, final_c
     """Returns the hops_data to be used for constructing an onion packet,
     and the amount_msat and cltv to be used on our immediate channel.
     """
-    if len(route) > NUM_MAX_HOPS_IN_PAYMENT_PATH:
-        raise PaymentFailure(f"too long route ({len(route)} hops)")
+    if len(route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
+        raise PaymentFailure(f"too long route ({len(route)} edges)")
 
     amt = amount_msat
     cltv = final_cltv
