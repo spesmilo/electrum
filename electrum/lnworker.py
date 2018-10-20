@@ -260,14 +260,14 @@ class LNWorker(PrintError):
                 f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
         route = self._create_route_from_invoice(decoded_invoice=addr, amount_msat=amount_msat)
         node_id, short_channel_id = route[0].node_id, route[0].short_channel_id
-        peer = self.peers[node_id]
         with self.lock:
             channels = list(self.channels.values())
         for chan in channels:
             if chan.short_channel_id == short_channel_id:
                 break
         else:
-            raise Exception("ChannelDB returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
+            raise Exception("PathFinder returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
+        peer = self.peers[node_id]
         coro = peer.pay(route, chan, amount_msat, payment_hash, addr.get_min_final_cltv_expiry())
         return addr, peer, asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
 
