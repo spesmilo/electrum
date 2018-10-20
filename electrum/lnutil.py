@@ -614,4 +614,5 @@ class EncumberedTransaction(NamedTuple("EncumberedTransaction", [('tx', Transact
 
 
 NUM_MAX_HOPS_IN_PAYMENT_PATH = 20
+NUM_MAX_EDGES_IN_PAYMENT_PATH = NUM_MAX_HOPS_IN_PAYMENT_PATH + 1
 

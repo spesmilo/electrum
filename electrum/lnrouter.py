@@ -39,7 +39,7 @@ from .storage import JsonDB
 from .lnchannelverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .crypto import Hash
 from . import ecc
-from .lnutil import LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr, NUM_MAX_HOPS_IN_PAYMENT_PATH
+from .lnutil import LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr, NUM_MAX_EDGES_IN_PAYMENT_PATH
 
 
 class UnknownEvenFeatureBits(Exception): pass
@@ -535,7 +535,7 @@ def is_route_sane_to_use(route: List[RouteEdge], invoice_amount_msat: int, min_f
     """Run some sanity checks on the whole route, before attempting to use it.
     called when we are paying; so e.g. lower cltv is better
     """
-    if len(route) > NUM_MAX_HOPS_IN_PAYMENT_PATH:
+    if len(route) > NUM_MAX_EDGES_IN_PAYMENT_PATH:
         return False
     amt = invoice_amount_msat
     cltv = min_final_cltv_expiry
@@ -606,7 +606,7 @@ class LNPathFinder(PrintError):
         unable_channels = set(map(lambda x: x.short_channel_id, filter(lambda x: not x.can_pay(amount_msat), my_channels)))
 
         # TODO find multiple paths??
-        # FIXME paths cannot be longer than 20 (onion packet)...
+        # FIXME paths cannot be longer than 21 edges (onion packet)...
 
         # run Dijkstra
         distance_from_start = defaultdict(lambda: float('inf'))
