@@ -26,7 +26,7 @@ from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      PaymentFailure, split_host_port, ConnStringFormatError,
                      generate_keypair, LnKeyFamily, LOCAL, REMOTE,
                      UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
-                     NUM_MAX_HOPS_IN_PAYMENT_PATH)
+                     NUM_MAX_EDGES_IN_PAYMENT_PATH)
 from .lnaddr import lndecode
 from .i18n import _
 from .lnrouter import RouteEdge, is_route_sane_to_use
@@ -286,7 +286,7 @@ class LNWorker(PrintError):
             channels = list(self.channels.values())
         for private_route in r_tags:
             if len(private_route) == 0: continue
-            if len(private_route) > NUM_MAX_HOPS_IN_PAYMENT_PATH: continue
+            if len(private_route) > NUM_MAX_EDGES_IN_PAYMENT_PATH: continue
             border_node_pubkey = private_route[0][0]
             path = self.network.path_finder.find_path_for_payment(self.node_keypair.pubkey, border_node_pubkey, amount_msat, channels)
             if not path: continue
