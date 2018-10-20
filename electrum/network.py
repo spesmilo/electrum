@@ -829,7 +829,7 @@ class Network(PrintError):
     async def _stop(self, full_shutdown=False):
         self.print_error("stopping network")
         try:
-            asyncio.wait_for(await self.main_taskgroup.cancel_remaining(), timeout=2)
+            await asyncio.wait_for(self.main_taskgroup.cancel_remaining(), timeout=2)
         except asyncio.TimeoutError: pass
         self.main_taskgroup = None
 
