@@ -221,6 +221,7 @@ class Network(PrintError):
         self.proxy = None
 
         self.asyncio_loop = asyncio.get_event_loop()
+        self.asyncio_loop.set_exception_handler(self.on_event_loop_exception)
         #self.asyncio_loop.set_debug(1)
         self._run_forever = asyncio.Future()
         self._thread = threading.Thread(target=self.asyncio_loop.run_until_complete,
@@ -236,6 +237,15 @@ class Network(PrintError):
     @staticmethod
     def get_instance():
         return INSTANCE
+
+    def on_event_loop_exception(self, loop, context):
+        """Suppress spurious messages it appears we cannot control."""
+        SUPPRESS_MESSAGE_REGEX = re.compile('SSL handshake|Fatal read error on|'
+                                            'SSL error in data received')
+        message = context.get('message')
+        if message and SUPPRESS_MESSAGE_REGEX.match(message):
+            return
+        loop.default_exception_handler(context)
 
     def with_recent_servers_lock(func):
         def func_wrapper(self, *args, **kwargs):
@@ -829,7 +839,7 @@ class Network(PrintError):
     async def _stop(self, full_shutdown=False):
         self.print_error("stopping network")
         try:
-            asyncio.wait_for(await self.main_taskgroup.cancel_remaining(), timeout=2)
+            await asyncio.wait_for(self.main_taskgroup.cancel_remaining(), timeout=2)
         except asyncio.TimeoutError: pass
         self.main_taskgroup = None
 
