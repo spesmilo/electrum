@@ -754,11 +754,11 @@ class Abstract_Wallet(PrintError):
 
         if num_outputs_standard_bitcoin > 2 or num_outputs_standard_deci_bitcoin > 2 or num_outputs_standard_centi_bitcoin > 2 or num_outputs_standard_milli_bitcoin > 2 or num_outputs_standard_hectomicro_bitcoin >2:
             if value == 100000000 or value == 10000000 or value == 1000000 or value == 100000 or value == 10000:
-                shuffled_coins = set(self.wallet.storage.get('shuffled_coins',[]))
+                shuffled_coins = set(self.storage.get('shuffled_coins',[]))
                 coinstring=txid+":"+str(prevout_n)
                 shuffled_coins.add(coinstring)
-                self.wallet.storage.put('shuffled_coins', list(shuffled_coins))
-                self.wallet.storage.write()
+                self.storage.put('shuffled_coins', list(shuffled_coins))
+                self.storage.write()
         return True
 
     def add_transaction(self, tx_hash, tx):
@@ -789,6 +789,7 @@ class Abstract_Wallet(PrintError):
             for n, txo in enumerate(tx.outputs()):
                 ser = tx_hash + ':%d'%n
                 _type, addr, v = txo
+                self.cashshuffle_add_utxo_to_list(prevout_hash,prevout_n,v, tx.outputs())
                 if self.is_mine(addr):
                     if not addr in d:
                         d[addr] = []
@@ -802,7 +803,6 @@ class Abstract_Wallet(PrintError):
                         dd[addr] = []
                     dd[addr].append((ser, v))
             # save
-            self.cashshuffle_add_utxo_to_list(prevout_hash,prevout_n,v, tx.outputs())
             self.transactions[tx_hash] = tx
 
 
