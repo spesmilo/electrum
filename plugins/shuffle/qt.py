@@ -44,7 +44,7 @@ from electroncash_gui.qt.util import OkButton, WindowModalDialog
 from electroncash.address import Address
 from electroncash.transaction import Transaction
 from .shuffle import ChangeAdressWidget, OutputAdressWidget, ConsoleOutput, AmountSelect, ServersList, ExternalOutput, ConsoleLogger, InputAddressesWidget
-from .client import bot_job, BotThread
+from .client import bot_job, BotThread, BackgroundShufflingThread
 from .coin import Coin
 
 class SimpleLogger(object):
@@ -583,6 +583,27 @@ def on_utxo_list_update(utxo_list):
         if utxo_labels[label]:
             item.setIcon(0,  shuffle_icon)
 
+class electrum_console_logger(QObject):
+
+    gotMessage = pyqtSignal(str)
+
+    def __init__(self, name, parent=None):
+        super(QObject, self).__init(parent)
+        self.name = name
+
+    def send(self, msg):
+        self.gotMessage.emit("from {}: {}".format(self.name, msg))
+
+
+def start_background_shuffling(window, network_settings, period = 1, password=None):
+    logger = electrum_console_logger()
+    logger.gotMessage.connect(lambda msg: window.console.showMessage(msg))
+    # logger.send = lambda msg: window.console.showMessage(msg)
+    window.background_process = BackgroundShufflingThread(window.wallet, network_settings,
+                                                          logger=logger,
+                                                          period=period,
+                                                          password=password)
+    window.background_process.start()
 
 class Plugin(BasePlugin):
 
@@ -600,7 +621,12 @@ class Plugin(BasePlugin):
         self.windows = []
 
     @hook
+    def password_dialog(self, pw, grid, x):
+        print(pw)
+
+    @hook
     def init_qt(self, gui):
+        print(gui)
         for window in gui.windows:
             tab_names = [window.tabs.tabText(i) for i in range(window.tabs.count())]
             if "Shuffle" not in tab_names:
@@ -611,12 +637,18 @@ class Plugin(BasePlugin):
         self.utxo_list_menu_backup = window.utxo_list.create_menu
         window.cs_tab = None
         self.update(window)
+        # utxo_list_modification
         window.utxo_list.customContextMenuRequested.disconnect()
         window.utxo_list.customContextMenuRequested.connect(lambda x: create_coins_menu(window.utxo_list, x))
         window.utxo_list.on_update_backup = window.utxo_list.on_update
         window.utxo_list.on_update = lambda: on_utxo_list_update(window.utxo_list)
+        # wallet modification
         window.wallet.is_coin_shuffled = lambda coin: is_coin_shuffled(window.wallet, coin)
         window.wallet.get_shuffled_coins = lambda: get_shuffled_coins(window.wallet)
+        # console modification
+        window.console.updateNamespace({"start_background_shuffling": lambda *args, **kwargs: start_background_shuffling(window, *args, **kwargs)})
+
+        window.utxo_list.on_update()
 
     @hook
     def on_close_window(self, window):
@@ -636,6 +668,10 @@ class Plugin(BasePlugin):
             window.utxo_list.customContextMenuRequested.connect(self.utxo_list_menu_backup)
             window.utxo_list.on_update = window.utxo_list.on_update_backup
             delattr(window.utxo_list, "on_update_backup")
+            if window.console.namespace.get("start_background_shuffling", None):
+                del window.console.namespace["start_background_shuffling"]
+
+            window.utxo_list.on_update()
 
 
     def update(self, window):
