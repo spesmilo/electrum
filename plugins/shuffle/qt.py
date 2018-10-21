@@ -83,7 +83,7 @@ class ShuffleWidget(QWidget):
         self.bot_limit_value = 1
         self.bot_maximum_value = 3
         self.bot_period_value = 1
-        self.bot_stopper = False
+        self.bot_stopper = False  
         # This is for debug
         # self.coinshuffle_fee_constant = 10
         #
@@ -652,5 +652,36 @@ class Plugin(BasePlugin):
         window.tabs.addTab(window.cs_tab, icon, description.replace("&", ""))
         self.windows.append(window)
 
+    def settings_dialog(self, window):
+
+        d = WindowModalDialog(window, _("CashShuffle settings"))
+        d.setMinimumSize(500, 200)
+
+        vbox = QVBoxLayout(d)
+        vbox.addWidget(QLabel(_('CashShuffle Servers List')))
+        grid = QGridLayout()
+        vbox.addLayout(grid)
+
+        serverList=ServersList(parent=d)
+        serverList.setItems()
+
+
+        grid.addWidget(QLabel('Servers'), 0, 0)
+        grid.addWidget(serverList, 0, 1)
+       
+        
+        vbox.addStretch()
+        vbox.addLayout(Buttons(CloseButton(d), OkButton(d)))
+
+        if not d.exec_():
+            return
+
+        server = str(server_e.text())
+        self.config.set_key('email_server', server)
+ 
+
+    def settings_widget(self, window):
+        return EnterButton(_('Settings'), partial(self.settings_dialog, window))
+
     def requires_settings(self):
-        return False
+        return True
