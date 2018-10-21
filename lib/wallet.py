@@ -62,7 +62,6 @@ from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .paymentrequest import InvoiceStore
 from .contacts import Contacts
 
-from .commands import *
 
 TX_STATUS = [
     _('Unconfirmed parent'),
