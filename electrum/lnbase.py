@@ -215,6 +215,7 @@ class Peer(PrintError):
             self.localfeatures |= LnLocalFeatures.INITIAL_ROUTING_SYNC
         self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_OPT
         self.attempted_route = {}
+        self.orphan_channel_updates = OrderedDict()
 
     def send_message(self, message_name, **kwargs):
         assert type(message_name) is str
@@ -308,16 +309,13 @@ class Peer(PrintError):
         try:
             self.channel_db.on_channel_update(payload)
         except NotFoundChanAnnouncementForUpdate:
-            # If it's for a direct channel with this peer, save it in chan.
-            # Note that this is prone to a race.. we might not have a short_channel_id
-            # associated with the channel in some cases
+            # If it's for a direct channel with this peer, save it for later, as it might be
+            # for our own channel (and we might not yet know the short channel id for that)
             short_channel_id = payload['short_channel_id']
             self.print_error("not found channel announce for channel update in db", bh2u(short_channel_id))
-            for chan in self.channels.values():
-                if chan.short_channel_id_predicted == short_channel_id:
-                    chan.pending_channel_update_message = payload
-                    self.print_error("channel update is for our own private channel", bh2u(short_channel_id))
-                    break
+            self.orphan_channel_updates[short_channel_id] = payload
+            while len(self.orphan_channel_updates) > 10:
+                self.orphan_channel_updates.popitem(last=False)
 
     def on_channel_announcement(self, payload):
         self.channel_db.on_channel_announcement(payload)
@@ -807,8 +805,9 @@ class Peer(PrintError):
         # see https://github.com/lightningnetwork/lnd/issues/1347
         #self.send_message("query_short_channel_ids", chain_hash=constants.net.rev_genesis_bytes(),
         #                          len=9, encoded_short_ids=b'\x00'+chan.short_channel_id)
-        if hasattr(chan, 'pending_channel_update_message'):
-            self.on_channel_update(chan.pending_channel_update_message)
+        pending_channel_update = self.orphan_channel_updates.get(chan.short_channel_id)
+        if pending_channel_update:
+            self.channel_db.on_channel_update(pending_channel_update)
 
         self.print_error("CHANNEL OPENING COMPLETED")
 
