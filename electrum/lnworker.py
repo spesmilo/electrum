@@ -3,7 +3,7 @@ import os
 from decimal import Decimal
 import random
 import time
-from typing import Optional, Sequence, Tuple, List, Dict
+from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING
 import threading
 import socket
 
@@ -31,6 +31,11 @@ from .lnaddr import lndecode
 from .i18n import _
 from .lnrouter import RouteEdge, is_route_sane_to_use
 
+if TYPE_CHECKING:
+    from .network import Network
+    from .wallet import Abstract_Wallet
+
+
 NUM_PEERS_TARGET = 4
 PEER_RETRY_INTERVAL = 600  # seconds
 PEER_RETRY_INTERVAL_FOR_CHANNELS = 30  # seconds
@@ -45,7 +50,7 @@ FALLBACK_NODE_LIST_MAINNET = (
 
 class LNWorker(PrintError):
 
-    def __init__(self, wallet, network):
+    def __init__(self, wallet: 'Abstract_Wallet', network: 'Network'):
         self.wallet = wallet
         self.sweep_address = wallet.get_receiving_address()
         self.network = network

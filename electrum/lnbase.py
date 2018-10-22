@@ -10,7 +10,7 @@ import asyncio
 import os
 import time
 from functools import partial
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, TYPE_CHECKING
 import traceback
 import sys
 
@@ -31,10 +31,13 @@ from .lnutil import (Outpoint, LocalConfig, ChannelConfig,
                      funding_output_script, get_per_commitment_secret_from_seed,
                      secret_to_pubkey, LNPeerAddr, PaymentFailure, LnLocalFeatures,
                      LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily,
-                     get_ln_flag_pair_of_bit, privkey_to_pubkey, UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_ACCEPTED)
-from .lnutil import LightningPeerConnectionClosed, HandshakeFailed
+                     get_ln_flag_pair_of_bit, privkey_to_pubkey, UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
+                     LightningPeerConnectionClosed, HandshakeFailed, LNPeerAddr)
 from .lnrouter import NotFoundChanAnnouncementForUpdate, RouteEdge
-from .lntransport import LNTransport
+from .lntransport import LNTransport, LNTransportBase
+
+if TYPE_CHECKING:
+    from .lnworker import LNWorker
 
 
 def channel_id_from_funding_tx(funding_txid, funding_index):
@@ -191,7 +194,8 @@ def gen_msg(msg_type: str, **kwargs) -> bytes:
 
 class Peer(PrintError):
 
-    def __init__(self, lnworker, peer_addr, request_initial_sync=False, transport=None):
+    def __init__(self, lnworker: 'LNWorker', peer_addr: LNPeerAddr,
+                 request_initial_sync=False, transport: LNTransportBase=None):
         self.initialized = asyncio.Future()
         self.transport = transport
         self.peer_addr = peer_addr
@@ -357,7 +361,7 @@ class Peer(PrintError):
     def close_and_cleanup(self):
         try:
             if self.transport:
-                self.transport.writer.close()
+                self.transport.close()
         except:
             pass
         for chan in self.channels.values():
