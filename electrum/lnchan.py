@@ -93,7 +93,12 @@ def str_bytes_dict_to_save(x):
 
 class Channel(PrintError):
     def diagnostic_name(self):
-        return str(self.name)
+        if self.name:
+            return str(self.name)
+        try:
+            return f"lnchan_{bh2u(self.channel_id[-4:])}"
+        except:
+            return super().diagnostic_name()
 
     def __init__(self, state, name = None):
         assert 'local_state' not in state
