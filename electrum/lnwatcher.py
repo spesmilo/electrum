@@ -35,15 +35,15 @@ class LNWatcher(PrintError):
         self.lock = threading.RLock()
         self.watched_addresses = set()
         self.channel_info = storage.get('channel_info', {})  # access with 'lock'
-        # TODO structure will need to change when we handle HTLCs......
-        # [funding_outpoint_str][ctx_txid] -> set of EncumberedTransaction
+        # [funding_outpoint_str][prev_txid] -> set of EncumberedTransaction
+        # prev_txid is the txid of a tx that is watched for confirmations
         # access with 'lock'
         self.sweepstore = defaultdict(lambda: defaultdict(set))
         for funding_outpoint, ctxs in storage.get('sweepstore', {}).items():
-            for ctx_txid, set_of_txns in ctxs.items():
+            for txid, set_of_txns in ctxs.items():
                 for e_tx in set_of_txns:
                     e_tx2 = EncumberedTransaction.from_json(e_tx)
-                    self.sweepstore[funding_outpoint][ctx_txid].add(e_tx2)
+                    self.sweepstore[funding_outpoint][txid].add(e_tx2)
 
         self.network.register_callback(self.on_network_update,
                                        ['network_updated', 'blockchain_updated', 'verified', 'wallet_updated'])
@@ -85,8 +85,8 @@ class LNWatcher(PrintError):
             sweepstore = {}
             for funding_outpoint, ctxs in self.sweepstore.items():
                 sweepstore[funding_outpoint] = {}
-                for ctx_txid, set_of_txns in ctxs.items():
-                    sweepstore[funding_outpoint][ctx_txid] = [e_tx.to_json() for e_tx in set_of_txns]
+                for prev_txid, set_of_txns in ctxs.items():
+                    sweepstore[funding_outpoint][prev_txid] = [e_tx.to_json() for e_tx in set_of_txns]
             storage.put('sweepstore', sweepstore)
         storage.write()
 
@@ -134,7 +134,7 @@ class LNWatcher(PrintError):
         # only care about confirmed and verified ctxs. TODO is this necessary?
         if conf == 0:
             return
-        keep_watching_this = await self.inspect_ctx_candidate(funding_outpoint, ctx_candidate)
+        keep_watching_this = await self.inspect_tx_candidate(funding_outpoint, ctx_candidate)
         if not keep_watching_this:
             self.stop_and_delete(funding_outpoint)
 
@@ -142,55 +142,77 @@ class LNWatcher(PrintError):
         # TODO delete channel from watcher_db
         pass
 
-    async def inspect_ctx_candidate(self, funding_outpoint, ctx):
+    async def inspect_tx_candidate(self, funding_outpoint, prev_tx):
         """Returns True iff found any not-deeply-spent outputs that we could
         potentially sweep at some point."""
-        # make sure we are subscribed to all outputs of ctx
+        # make sure we are subscribed to all outputs of tx
         not_yet_watching = False
-        for o in ctx.outputs():
+        for o in prev_tx.outputs():
             if o.address not in self.watched_addresses:
                 self.watch_address(o.address)
                 not_yet_watching = True
         if not_yet_watching:
             return True
         # get all possible responses we have
-        ctx_txid = ctx.txid()
+        prev_txid = prev_tx.txid()
         with self.lock:
-            encumbered_sweep_txns = self.sweepstore[funding_outpoint][ctx_txid]
+            encumbered_sweep_txns = self.sweepstore[funding_outpoint][prev_txid]
         if len(encumbered_sweep_txns) == 0:
-            # no useful response for this channel close..
-            if self.get_tx_mined_status(ctx_txid) == TX_MINED_STATUS_DEEP:
-                self.print_error("channel close detected for {}. but can't sweep anything :(".format(funding_outpoint))
+            if self.get_tx_mined_status(prev_txid) == TX_MINED_STATUS_DEEP:
                 return False
         # check if any response applies
         keep_watching_this = False
         local_height = self.network.get_local_height()
-        for e_tx in encumbered_sweep_txns:
+        txs_to_add = []
+        for e_tx in list(encumbered_sweep_txns):
             conflicts = self.addr_sync.get_conflicting_transactions(e_tx.tx.txid(), e_tx.tx, include_self=True)
             conflict_mined_status = self.get_deepest_tx_mined_status_for_txids(conflicts)
             if conflict_mined_status != TX_MINED_STATUS_DEEP:
                 keep_watching_this = True
             if conflict_mined_status == TX_MINED_STATUS_FREE:
-                tx_height = self.addr_sync.get_tx_height(ctx_txid).height
+                tx_height = self.addr_sync.get_tx_height(prev_txid).height
                 num_conf = local_height - tx_height + 1
-                if num_conf >= e_tx.csv_delay:
-                    try:
-                        await self.network.broadcast_transaction(e_tx.tx)
-                    except Exception as e:
-                        self.print_error('broadcast: {}, {}'.format('failure', repr(e)))
+                broadcast = True
+                if e_tx.cltv_expiry:
+                    if local_height > e_tx.cltv_expiry:
+                        self.print_error('CLTV ({} > {}) fulfilled'.format(local_height, e_tx.cltv_expiry))
                     else:
-                        self.print_error('broadcast: {}'.format('success'))
-                else:
-                    self.print_error('waiting for CSV ({} < {}) for funding outpoint {} and ctx {}'
-                                     .format(num_conf, e_tx.csv_delay, funding_outpoint, ctx.txid()))
+                        self.print_error('waiting for CLTV ({} > {}) for funding outpoint {} and tx {}'
+                                         .format(local_height, e_tx.cltv_expiry, funding_outpoint, prev_tx.txid()))
+                        broadcast = False
+                if e_tx.csv_delay:
+                    if num_conf < e_tx.csv_delay:
+                        self.print_error('waiting for CSV ({} >= {}) for funding outpoint {} and tx {}'
+                                         .format(num_conf, e_tx.csv_delay, funding_outpoint, prev_tx.txid()))
+                        broadcast = False
+                if broadcast:
+                    await self.broadcast_or_log(e_tx)
+            else:
+                # not mined or in mempool
+                keep_watching_this |= await self.inspect_tx_candidate(funding_outpoint, e_tx.tx)
+
         return keep_watching_this
 
+    async def broadcast_or_log(self, e_tx):
+        try:
+            txid = await self.network.broadcast_transaction(e_tx.tx)
+        except Exception as e:
+            self.print_error(f'broadcast: {e_tx.name}: failure: {repr(e)}')
+        else:
+            self.print_error(f'broadcast: {e_tx.name}: success. txid: {txid}')
+            return True
+        return False
+
     @with_watchtower
-    def add_sweep_tx(self, funding_outpoint: str, ctx_txid: str, sweeptx):
+    def add_sweep_tx(self, funding_outpoint: str, prev_txid: str, sweeptx):
         encumbered_sweeptx = EncumberedTransaction.from_json(sweeptx)
         with self.lock:
-            self.sweepstore[funding_outpoint][ctx_txid].add(encumbered_sweeptx)
+            tx_set = self.sweepstore[funding_outpoint][prev_txid]
+            if encumbered_sweeptx in tx_set:
+                return False
+            tx_set.add(encumbered_sweeptx)
         self.write_to_disk()
+        return True
 
     def get_tx_mined_status(self, txid: str):
         if not txid:

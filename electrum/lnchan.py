@@ -3,7 +3,7 @@ from collections import namedtuple, defaultdict
 import binascii
 import json
 from enum import Enum, auto
-from typing import Optional, Mapping, List
+from typing import Optional, Dict, List, Tuple
 
 from .util import bfh, PrintError, bh2u
 from .bitcoin import Hash, TYPE_SCRIPT, TYPE_ADDRESS
@@ -14,7 +14,7 @@ from .lnutil import Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeyp
 from .lnutil import get_per_commitment_secret_from_seed
 from .lnutil import make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script
 from .lnutil import secret_to_pubkey, derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey
-from .lnutil import sign_and_get_sig_string
+from .lnutil import sign_and_get_sig_string, privkey_to_pubkey, make_htlc_tx_witness
 from .lnutil import make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc
 from .lnutil import HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT
 from .lnutil import funding_output_script, LOCAL, REMOTE, HTLCOwner, make_closing_tx, make_outputs
@@ -129,8 +129,8 @@ class Channel(PrintError):
         self.remote_commitment_to_be_revoked = Transaction(state["remote_commitment_to_be_revoked"])
 
         template = lambda: {
-            'adds': {}, # type: Mapping[HTLC_ID, UpdateAddHtlc]
-            'settles': [], # type: List[HTLC_ID]
+            'adds': {}, # Dict[HTLC_ID, UpdateAddHtlc]
+            'settles': [], # List[HTLC_ID]
         }
         self.log = {LOCAL: template(), REMOTE: template()}
         for strname, subject in [('remote_log', REMOTE), ('local_log', LOCAL)]:
@@ -244,7 +244,7 @@ class Channel(PrintError):
         for we_receive, htlcs in zip([True, False], [self.included_htlcs(REMOTE, REMOTE), self.included_htlcs(REMOTE, LOCAL)]):
             for htlc in htlcs:
                 args = [self.config[REMOTE].next_per_commitment_point, for_us, we_receive, pending_remote_commitment, htlc]
-                htlc_tx = make_htlc_tx_with_open_channel(self, *args)
+                _script, htlc_tx = make_htlc_tx_with_open_channel(self, *args)
                 sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
                 htlc_sig = ecc.sig_string_from_der_sig(sig[:-1])
                 htlcsigs.append((pending_remote_commitment.htlc_output_indices[htlc.payment_hash], htlc_sig))
@@ -286,21 +286,19 @@ class Channel(PrintError):
         if not ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, sig, pre_hash):
             raise Exception('failed verifying signature of our updated commitment transaction: ' + bh2u(sig) + ' preimage is ' + preimage_hex)
 
-        _, this_point, _ = self.points
+        htlc_sigs_string = b''.join(htlc_sigs)
 
+        htlc_sigs = htlc_sigs[:] # copy cause we will delete now
         for htlcs, we_receive in [(self.included_htlcs(LOCAL, REMOTE), True), (self.included_htlcs(LOCAL, LOCAL), False)]:
             for htlc in htlcs:
-                htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, pending_local_commitment, htlc)
-                pre_hash = Hash(bfh(htlc_tx.serialize_preimage(0)))
-                remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, this_point)
-                for idx, sig in enumerate(htlc_sigs):
-                    if ecc.verify_signature(remote_htlc_pubkey, sig, pre_hash):
-                        del htlc_sigs[idx]
-                        break
-                else:
-                    raise Exception(f'failed verifying HTLC signatures: {htlc}')
+                idx = self.verify_htlc(htlc, htlc_sigs, we_receive)
+                del htlc_sigs[idx]
         if len(htlc_sigs) != 0: # all sigs should have been popped above
             raise Exception('failed verifying HTLC signatures: invalid amount of correct signatures')
+
+        self.config[LOCAL]=self.config[LOCAL]._replace(
+            current_commitment_signature=sig,
+            current_htlc_signatures=htlc_sigs_string)
 
         for pending_fee in self.fee_mgr:
             if not self.constraints.is_initiator:
@@ -310,6 +308,16 @@ class Channel(PrintError):
 
         self.process_new_offchain_ctx(pending_local_commitment, ours=True)
 
+    def verify_htlc(self, htlc, htlc_sigs, we_receive):
+        _, this_point, _ = self.points
+        _script, htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, self.pending_local_commitment, htlc)
+        pre_hash = Hash(bfh(htlc_tx.serialize_preimage(0)))
+        remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, this_point)
+        for idx, sig in enumerate(htlc_sigs):
+            if ecc.verify_signature(remote_htlc_pubkey, sig, pre_hash):
+                return idx
+        else:
+            raise Exception(f'failed verifying HTLC signatures: {htlc}')
 
     def revoke_current_commitment(self):
         """
@@ -372,12 +380,14 @@ class Channel(PrintError):
             our_per_commitment_secret = get_per_commitment_secret_from_seed(
                 self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
             our_cur_pcp = ecc.ECPrivkey(our_per_commitment_secret).get_public_key_bytes(compressed=True)
-            encumbered_sweeptx = maybe_create_sweeptx_for_our_ctx_to_local(self, ctx, our_cur_pcp, self.sweep_address)
+            encumbered_sweeptxs = create_sweeptxs_for_our_ctx(self, ctx, our_cur_pcp, self.sweep_address)
         else:
             their_cur_pcp = self.config[REMOTE].next_per_commitment_point
-            encumbered_sweeptx = maybe_create_sweeptx_for_their_ctx_to_remote(self, ctx, their_cur_pcp, self.sweep_address)
-        if encumbered_sweeptx:
-            self.lnwatcher.add_sweep_tx(outpoint, ctx.txid(), encumbered_sweeptx.to_json())
+            encumbered_sweeptxs = [(None, maybe_create_sweeptx_for_their_ctx_to_remote(self, ctx, their_cur_pcp, self.sweep_address))]
+        for prev_txid, encumbered_tx in encumbered_sweeptxs:
+            if prev_txid is None:
+                prev_txid = ctx.txid()
+            self.lnwatcher.add_sweep_tx(outpoint, prev_txid, encumbered_tx.to_json())
 
     def process_new_revocation_secret(self, per_commitment_secret: bytes):
         if not self.lnwatcher:
@@ -739,7 +749,7 @@ def maybe_create_sweeptx_for_their_ctx_to_remote(chan, ctx, their_pcp: bytes,
                                                   ctx=ctx,
                                                   output_idx=output_idx,
                                                   our_payment_privkey=our_payment_privkey)
-    return EncumberedTransaction(sweep_tx, csv_delay=0)
+    return EncumberedTransaction('their_ctx_to_remote', sweep_tx, csv_delay=0, cltv_expiry=0)
 
 
 def maybe_create_sweeptx_for_their_ctx_to_local(chan, ctx, per_commitment_secret: bytes,
@@ -766,11 +776,11 @@ def maybe_create_sweeptx_for_their_ctx_to_local(chan, ctx, per_commitment_secret
                                            witness_script=witness_script,
                                            privkey=revocation_privkey,
                                            is_revocation=True)
-    return EncumberedTransaction(sweep_tx, csv_delay=0)
+    return EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)
 
 
-def maybe_create_sweeptx_for_our_ctx_to_local(chan, ctx, our_pcp: bytes,
-                                              sweep_address) -> Optional[EncumberedTransaction]:
+def create_sweeptxs_for_our_ctx(chan, ctx, our_pcp: bytes, sweep_address) \
+                                                        -> List[Tuple[Optional[str],EncumberedTransaction]]:
     assert isinstance(our_pcp, bytes)
     delayed_bp_privkey = ecc.ECPrivkey(chan.config[LOCAL].delayed_basepoint.privkey)
     our_localdelayed_privkey = derive_privkey(delayed_bp_privkey.secret_scalar, our_pcp)
@@ -782,21 +792,77 @@ def maybe_create_sweeptx_for_our_ctx_to_local(chan, ctx, our_pcp: bytes,
     witness_script = bh2u(make_commitment_output_to_local_witness_script(
         revocation_pubkey, to_self_delay, our_localdelayed_pubkey))
     to_local_address = redeem_script_to_address('p2wsh', witness_script)
+    txs = []
     for output_idx, o in enumerate(ctx.outputs()):
         if o.type == TYPE_ADDRESS and o.address == to_local_address:
+            sweep_tx = create_sweeptx_ctx_to_local(address=sweep_address,
+                                                   ctx=ctx,
+                                                   output_idx=output_idx,
+                                                   witness_script=witness_script,
+                                                   privkey=our_localdelayed_privkey.get_secret_bytes(),
+                                                   is_revocation=False,
+                                                   to_self_delay=to_self_delay)
+
+            txs.append((None, EncumberedTransaction('our_ctx_to_local', sweep_tx, csv_delay=to_self_delay, cltv_expiry=0)))
             break
-    else:
-        return None
-    sweep_tx = create_sweeptx_ctx_to_local(address=sweep_address,
-                                           ctx=ctx,
-                                           output_idx=output_idx,
-                                           witness_script=witness_script,
-                                           privkey=our_localdelayed_privkey.get_secret_bytes(),
-                                           is_revocation=False,
-                                           to_self_delay=to_self_delay)
 
-    return EncumberedTransaction(sweep_tx, csv_delay=to_self_delay)
+    # TODO htlc successes
+    htlcs = list(chan.included_htlcs(LOCAL, LOCAL)) # timeouts
+    for htlc in htlcs:
+        witness_script, htlc_tx = make_htlc_tx_with_open_channel(
+            chan,
+            our_pcp,
+            True, # for_us
+            False, # we_receive
+            ctx, htlc)
 
+        data = chan.config[LOCAL].current_htlc_signatures
+        htlc_sigs = [data[i:i+64] for i in range(0, len(data), 64)]
+        idx = chan.verify_htlc(htlc, htlc_sigs, False)
+        remote_htlc_sig = ecc.der_sig_from_sig_string(htlc_sigs[idx]) + b'\x01'
+
+        remote_revocation_pubkey = derive_blinded_pubkey(chan.config[REMOTE].revocation_basepoint.pubkey, our_pcp)
+        remote_htlc_pubkey = derive_pubkey(chan.config[REMOTE].htlc_basepoint.pubkey, our_pcp)
+        local_htlc_key = derive_privkey(
+            int.from_bytes(chan.config[LOCAL].htlc_basepoint.privkey, 'big'),
+            our_pcp).to_bytes(32, 'big')
+        program = make_offered_htlc(remote_revocation_pubkey, remote_htlc_pubkey, privkey_to_pubkey(local_htlc_key), htlc.payment_hash)
+        local_htlc_sig = bfh(htlc_tx.sign_txin(0, local_htlc_key))
+
+        htlc_tx.inputs()[0]['witness'] = bh2u(make_htlc_tx_witness(remote_htlc_sig, local_htlc_sig, b'', program))
+
+        tx_size_bytes = 999  # TODO
+        fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
+        fee = SimpleConfig.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
+        second_stage_outputs = [TxOutput(TYPE_ADDRESS, chan.sweep_address, htlc.amount_msat // 1000 - fee)]
+        assert to_self_delay is not None
+        second_stage_inputs = [{
+            'scriptSig': '',
+            'type': 'p2wsh',
+            'signatures': [],
+            'num_sig': 0,
+            'prevout_n': 0,
+            'prevout_hash': htlc_tx.txid(),
+            'value': htlc_tx.outputs()[0].value,
+            'coinbase': False,
+            'preimage_script': bh2u(witness_script),
+            'sequence': to_self_delay,
+        }]
+        tx = Transaction.from_io(second_stage_inputs, second_stage_outputs, version=2)
+
+        local_delaykey = derive_privkey(
+            int.from_bytes(chan.config[LOCAL].delayed_basepoint.privkey, 'big'),
+            our_pcp).to_bytes(32, 'big')
+        assert local_delaykey == our_localdelayed_privkey.get_secret_bytes()
+
+        witness = construct_witness([bfh(tx.sign_txin(0, local_delaykey)), 0, witness_script])
+        tx.inputs()[0]['witness'] = witness
+        assert tx.is_complete()
+
+        txs.append((htlc_tx.txid(), EncumberedTransaction(f'second_stage_to_wallet_{bh2u(htlc.payment_hash)}', tx, csv_delay=to_self_delay, cltv_expiry=0)))
+        txs.append((ctx.txid(), EncumberedTransaction(f'our_ctx_htlc_tx_{bh2u(htlc.payment_hash)}', htlc_tx, csv_delay=0, cltv_expiry=htlc.cltv_expiry)))
+
+    return txs
 
 def create_sweeptx_their_ctx_to_remote(address, ctx, output_idx: int, our_payment_privkey: ecc.ECPrivkey,
                                        fee_per_kb: int=None) -> Transaction:

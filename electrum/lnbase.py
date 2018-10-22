@@ -939,6 +939,7 @@ class Peer(PrintError):
         # create onion packet
         final_cltv = self.network.get_local_height() + min_final_cltv_expiry
         hops_data, amount_msat, cltv = calc_hops_data_for_payment(route, amount_msat, final_cltv)
+        assert final_cltv <= cltv, (final_cltv, cltv)
         secret_key = os.urandom(32)
         onion = new_onion_packet([x.node_id for x in route], secret_key, hops_data, associated_data=payment_hash)
         chan.check_can_pay(amount_msat)
@@ -973,11 +974,6 @@ class Peer(PrintError):
     def on_commitment_signed(self, payload):
         self.print_error("commitment_signed", payload)
         channel_id = payload['channel_id']
-        chan = self.channels[channel_id]
-        chan.config[LOCAL]=chan.config[LOCAL]._replace(
-            current_commitment_signature=payload['signature'],
-            current_htlc_signatures=payload['htlc_signature'])
-        self.lnworker.save_channel(chan)
         self.commitment_signed[channel_id].put_nowait(payload)
 
     @log_exceptions
