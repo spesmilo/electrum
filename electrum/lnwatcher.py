@@ -163,7 +163,6 @@ class LNWatcher(PrintError):
         # check if any response applies
         keep_watching_this = False
         local_height = self.network.get_local_height()
-        txs_to_add = []
         for e_tx in list(encumbered_sweep_txns):
             conflicts = self.addr_sync.get_conflicting_transactions(e_tx.tx.txid(), e_tx.tx, include_self=True)
             conflict_mined_status = self.get_deepest_tx_mined_status_for_txids(conflicts)
@@ -177,16 +176,17 @@ class LNWatcher(PrintError):
                     if local_height > e_tx.cltv_expiry:
                         self.print_error('CLTV ({} > {}) fulfilled'.format(local_height, e_tx.cltv_expiry))
                     else:
-                        self.print_error('waiting for CLTV ({} > {}) for funding outpoint {} and tx {}'
-                                         .format(local_height, e_tx.cltv_expiry, funding_outpoint, prev_tx.txid()))
+                        self.print_error('waiting for {}: CLTV ({} > {}), funding outpoint {} and tx {}'
+                                .format(e_tx.name, local_height, e_tx.cltv_expiry, funding_outpoint[:8], prev_tx.txid()[:8]))
                         broadcast = False
                 if e_tx.csv_delay:
                     if num_conf < e_tx.csv_delay:
-                        self.print_error('waiting for CSV ({} >= {}) for funding outpoint {} and tx {}'
-                                         .format(num_conf, e_tx.csv_delay, funding_outpoint, prev_tx.txid()))
+                        self.print_error('waiting for {}: CSV ({} >= {}), funding outpoint {} and tx {}'
+                                .format(e_tx.name, num_conf, e_tx.csv_delay, funding_outpoint[:8], prev_tx.txid()[:8]))
                         broadcast = False
                 if broadcast:
-                    await self.broadcast_or_log(e_tx)
+                    if not await self.broadcast_or_log(e_tx):
+                        self.print_error(f'encumbered tx: {str(e_tx)}, prev_txid: {prev_txid}')
             else:
                 # not mined or in mempool
                 keep_watching_this |= await self.inspect_tx_candidate(funding_outpoint, e_tx.tx)
@@ -200,19 +200,13 @@ class LNWatcher(PrintError):
             self.print_error(f'broadcast: {e_tx.name}: failure: {repr(e)}')
         else:
             self.print_error(f'broadcast: {e_tx.name}: success. txid: {txid}')
-            return True
-        return False
 
     @with_watchtower
     def add_sweep_tx(self, funding_outpoint: str, prev_txid: str, sweeptx):
         encumbered_sweeptx = EncumberedTransaction.from_json(sweeptx)
         with self.lock:
-            tx_set = self.sweepstore[funding_outpoint][prev_txid]
-            if encumbered_sweeptx in tx_set:
-                return False
-            tx_set.add(encumbered_sweeptx)
+            self.sweepstore[funding_outpoint][prev_txid].add(encumbered_sweeptx)
         self.write_to_disk()
-        return True
 
     def get_tx_mined_status(self, txid: str):
         if not txid:

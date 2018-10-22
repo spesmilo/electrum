@@ -542,7 +542,7 @@ class TestLNUtil(unittest.TestCase):
                 our_commit_tx))
 
     def htlc_tx(self, htlc, htlc_output_index, amount_msat, htlc_payment_preimage, remote_htlc_sig, success, cltv_timeout, local_feerate_per_kw, our_commit_tx):
-        our_htlc_tx_output = make_htlc_tx_output(
+        _script, our_htlc_tx_output = make_htlc_tx_output(
             amount_msat=amount_msat,
             local_feerate=local_feerate_per_kw,
             revocationpubkey=local_revocation_pubkey,
