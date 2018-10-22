@@ -347,7 +347,7 @@ RECEIVED = HTLCOwner.RECEIVED
 LOCAL = HTLCOwner.LOCAL
 REMOTE = HTLCOwner.REMOTE
 
-def make_outputs(fees_per_participant: Mapping[HTLCOwner, int], local_amount: int, remote_amount: int,
+def make_commitment_outputs(fees_per_participant: Mapping[HTLCOwner, int], local_amount: int, remote_amount: int,
         local_tupl, remote_tupl, htlcs: List[ScriptHtlc], dust_limit_sat: int) -> Tuple[List[TxOutput], List[TxOutput]]:
     to_local_amt = local_amount - fees_per_participant[LOCAL]
     to_local = TxOutput(*local_tupl, to_local_amt // 1000)
@@ -392,7 +392,7 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
     remote_address = make_commitment_output_to_remote_address(remote_payment_pubkey)
     # TODO trim htlc outputs here while also considering 2nd stage htlc transactions
 
-    htlc_outputs, c_outputs_filtered = make_outputs(fees_per_participant, local_amount, remote_amount,
+    htlc_outputs, c_outputs_filtered = make_commitment_outputs(fees_per_participant, local_amount, remote_amount,
         (bitcoin.TYPE_ADDRESS, local_address), (bitcoin.TYPE_ADDRESS, remote_address), htlcs, dust_limit_sat)
 
     assert sum(x.value for x in c_outputs_filtered) <= funding_sat
