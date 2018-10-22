@@ -1,10 +1,11 @@
-import hmac
 import hashlib
+from asyncio import StreamReader, StreamWriter
+
 import cryptography.hazmat.primitives.ciphers.aead as AEAD
 
-from .crypto import sha256
-from .lnutil import get_ecdh, privkey_to_pubkey
-from .lnutil import LightningPeerConnectionClosed, HandshakeFailed
+from .crypto import sha256, hmac_oneshot
+from .lnutil import (get_ecdh, privkey_to_pubkey, LightningPeerConnectionClosed,
+                     HandshakeFailed)
 from . import ecc
 from .util import bh2u
 
@@ -49,13 +50,13 @@ def get_bolt8_hkdf(salt, ikm):
     Return as two 32 byte fields.
     """
     #Extract
-    prk = hmac.new(salt, msg=ikm, digestmod=hashlib.sha256).digest()
+    prk = hmac_oneshot(salt, msg=ikm, digest=hashlib.sha256)
     assert len(prk) == 32
     #Expand
     info = b""
     T0 = b""
-    T1 = hmac.new(prk, T0 + info + b"\x01", digestmod=hashlib.sha256).digest()
-    T2 = hmac.new(prk, T1 + info + b"\x02", digestmod=hashlib.sha256).digest()
+    T1 = hmac_oneshot(prk, T0 + info + b"\x01", digest=hashlib.sha256)
+    T2 = hmac_oneshot(prk, T1 + info + b"\x02", digest=hashlib.sha256)
     assert len(T1 + T2) == 64
     return T1, T2
 
@@ -76,6 +77,11 @@ def create_ephemeral_key() -> (bytes, bytes):
     return privkey.get_secret_bytes(), privkey.get_public_key_bytes()
 
 class LNTransportBase:
+
+    def __init__(self, reader: StreamReader, writer: StreamWriter):
+        self.reader = reader
+        self.writer = writer
+
     def send_bytes(self, msg):
         l = len(msg).to_bytes(2, 'big')
         lc = aead_encrypt(self.sk, self.sn(), b'', l)
@@ -132,11 +138,14 @@ class LNTransportBase:
         self.r_ck = ck
         self.s_ck = ck
 
+    def close(self):
+        self.writer.close()
+
+
 class LNResponderTransport(LNTransportBase):
-    def __init__(self, privkey, reader, writer):
+    def __init__(self, privkey: bytes, reader: StreamReader, writer: StreamWriter):
+        LNTransportBase.__init__(self, reader, writer)
         self.privkey = privkey
-        self.reader = reader
-        self.writer = writer
 
     async def handshake(self, **kwargs):
         hs = HandshakeState(privkey_to_pubkey(self.privkey))
@@ -187,12 +196,12 @@ class LNResponderTransport(LNTransportBase):
         return rs
 
 class LNTransport(LNTransportBase):
-    def __init__(self, privkey, remote_pubkey, reader, writer):
+    def __init__(self, privkey: bytes, remote_pubkey: bytes,
+                 reader: StreamReader, writer: StreamWriter):
+        LNTransportBase.__init__(self, reader, writer)
         assert type(privkey) is bytes and len(privkey) == 32
         self.privkey = privkey
         self.remote_pubkey = remote_pubkey
-        self.reader = reader
-        self.writer = writer
 
     async def handshake(self):
         hs = HandshakeState(self.remote_pubkey)

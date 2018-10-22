@@ -27,8 +27,8 @@ import queue
 import os
 import json
 import threading
-from collections import namedtuple, defaultdict
-from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple
+from collections import defaultdict
+from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECKING
 import binascii
 import base64
 import asyncio
@@ -40,6 +40,10 @@ from .lnchannelverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .crypto import Hash
 from . import ecc
 from .lnutil import LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr, NUM_MAX_EDGES_IN_PAYMENT_PATH
+
+if TYPE_CHECKING:
+    from .lnchan import Channel
+    from .network import Network
 
 
 class UnknownEvenFeatureBits(Exception): pass
@@ -272,7 +276,7 @@ class ChannelDB(JsonDB):
 
     NUM_MAX_RECENT_PEERS = 20
 
-    def __init__(self, network):
+    def __init__(self, network: 'Network'):
         self.network = network
 
         path = os.path.join(get_headers_dir(network.config), 'channel_db')
@@ -597,7 +601,7 @@ class LNPathFinder(PrintError):
     @profiler
     def find_path_for_payment(self, nodeA: bytes, nodeB: bytes,
                               invoice_amount_msat: int,
-                              my_channels: List=None) -> Sequence[Tuple[bytes, bytes]]:
+                              my_channels: List['Channel']=None) -> Sequence[Tuple[bytes, bytes]]:
         """Return a path from nodeA to nodeB.
 
         Returns a list of (node_id, short_channel_id) representing a path.
