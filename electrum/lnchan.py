@@ -17,7 +17,7 @@ from .lnutil import secret_to_pubkey, derive_privkey, derive_pubkey, derive_blin
 from .lnutil import sign_and_get_sig_string, privkey_to_pubkey, make_htlc_tx_witness
 from .lnutil import make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc
 from .lnutil import HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT
-from .lnutil import funding_output_script, LOCAL, REMOTE, HTLCOwner, make_closing_tx, make_outputs
+from .lnutil import funding_output_script, LOCAL, REMOTE, HTLCOwner, make_closing_tx, make_commitment_outputs
 from .lnutil import ScriptHtlc, SENT, RECEIVED, PaymentFailure, calc_onchain_fees
 from .transaction import Transaction, TxOutput, construct_witness
 from .simple_config import SimpleConfig, FEERATE_FALLBACK_STATIC_FEE
@@ -390,7 +390,8 @@ class Channel(PrintError):
         for prev_txid, encumbered_tx in encumbered_sweeptxs:
             if prev_txid is None:
                 prev_txid = ctx.txid()
-            self.lnwatcher.add_sweep_tx(outpoint, prev_txid, encumbered_tx.to_json())
+            if encumbered_tx is not None:
+                self.lnwatcher.add_sweep_tx(outpoint, prev_txid, encumbered_tx.to_json())
 
     def process_new_revocation_secret(self, per_commitment_secret: bytes):
         if not self.lnwatcher:
@@ -716,7 +717,10 @@ class Channel(PrintError):
         if fee_sat is None:
             fee_sat = self.pending_local_fee
 
-        _, outputs = make_outputs(fee_sat * 1000, True,
+        _, outputs = make_commitment_outputs({
+                    LOCAL:  fee_sat * 1000 if     self.constraints.is_initiator else 0,
+                    REMOTE: fee_sat * 1000 if not self.constraints.is_initiator else 0,
+                },
                 self.config[LOCAL].amount_msat,
                 self.config[REMOTE].amount_msat,
                 (TYPE_SCRIPT, bh2u(local_script)),
@@ -724,10 +728,11 @@ class Channel(PrintError):
                 [], self.config[LOCAL].dust_limit_sat)
 
         closing_tx = make_closing_tx(self.config[LOCAL].multisig_key.pubkey,
-                self.config[REMOTE].multisig_key.pubkey,
-                # TODO hardcoded we_are_initiator:
-                True, *self.funding_outpoint, self.constraints.capacity,
-                outputs)
+                                     self.config[REMOTE].multisig_key.pubkey,
+                                     funding_txid=self.funding_outpoint.txid,
+                                     funding_pos=self.funding_outpoint.output_index,
+                                     funding_sat=self.constraints.capacity,
+                                     outputs=outputs)
 
         der_sig = bfh(closing_tx.sign_txin(0, self.config[LOCAL].multisig_key.privkey))
         sig = ecc.sig_string_from_der_sig(der_sig[:-1])
