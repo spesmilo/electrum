@@ -1016,7 +1016,7 @@ class Transaction:
         if inputs:
             self._inputs.sort(key = lambda i: (i['prevout_hash'], i['prevout_n']))
         if outputs:
-            self._outputs.sort(key = lambda o: (o[2], self.pay_script(o[0], o[1])))
+            self._outputs.sort(key = lambda o: (o.value, self.pay_script(o.type, o.address)))
 
     def serialize_output(self, output):
         output_type, addr, amount = output

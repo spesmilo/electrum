@@ -34,6 +34,9 @@ from .synchronizer import Synchronizer
 from .verifier import SPV
 from .blockchain import hash_header
 from .i18n import _
+from .storage import WalletStorage
+from .network import Network
+
 
 TX_HEIGHT_LOCAL = -2
 TX_HEIGHT_UNCONF_PARENT = -1
@@ -53,9 +56,9 @@ class AddressSynchronizer(PrintError):
     inherited by wallet
     """
 
-    def __init__(self, storage):
+    def __init__(self, storage: WalletStorage):
         self.storage = storage
-        self.network = None
+        self.network = None  # type: Network
         # verifier (SPV) and synchronizer are started in start_network
         self.synchronizer = None  # type: Synchronizer
         self.verifier = None  # type: SPV
@@ -807,3 +810,6 @@ class AddressSynchronizer(PrintError):
     def is_empty(self, address):
         c, u, x = self.get_addr_balance(address)
         return c+u+x == 0
+
+    def synchronize(self):
+        pass

@@ -27,7 +27,7 @@ import os
 import json
 from collections import defaultdict
 import asyncio
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, TYPE_CHECKING
 import traceback
 import sys
 
@@ -39,6 +39,11 @@ except ImportError:
 from .util import PrintError
 from . import bitcoin
 from .synchronizer import SynchronizerBase
+
+if TYPE_CHECKING:
+    from .network import Network
+    from .simple_config import SimpleConfig
+
 
 request_queue = asyncio.Queue()
 
@@ -61,7 +66,7 @@ class ElectrumWebSocket(WebSocket, PrintError):
 
 class BalanceMonitor(SynchronizerBase):
 
-    def __init__(self, config, network):
+    def __init__(self, config: 'SimpleConfig', network: 'Network'):
         SynchronizerBase.__init__(self, network)
         self.config = config
         self.expected_payments = defaultdict(list)  # type: Dict[str, List[Tuple[WebSocket, int]]]
@@ -104,7 +109,7 @@ class BalanceMonitor(SynchronizerBase):
 
 class WebSocketServer(threading.Thread):
 
-    def __init__(self, config, network):
+    def __init__(self, config: 'SimpleConfig', network: 'Network'):
         threading.Thread.__init__(self)
         self.config = config
         self.network = network

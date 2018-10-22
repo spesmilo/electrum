@@ -28,7 +28,7 @@ import ssl
 import sys
 import traceback
 import asyncio
-from typing import Tuple, Union, List
+from typing import Tuple, Union, List, TYPE_CHECKING
 from collections import defaultdict
 
 import aiorpcx
@@ -42,6 +42,9 @@ from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from . import blockchain
 from .blockchain import Blockchain
 from . import constants
+
+if TYPE_CHECKING:
+    from .network import Network
 
 
 class NotificationSession(ClientSession):
@@ -129,7 +132,7 @@ def serialize_server(host: str, port: Union[str, int], protocol: str) -> str:
 
 class Interface(PrintError):
 
-    def __init__(self, network, server, config_path, proxy):
+    def __init__(self, network: 'Network', server: str, config_path, proxy: dict):
         self.ready = asyncio.Future()
         self.got_disconnected = asyncio.Future()
         self.server = server

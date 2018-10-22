@@ -30,11 +30,13 @@ import pkgutil
 import time
 import threading
 
-from .util import print_error
 from .i18n import _
-from .util import profiler, PrintError, DaemonThread, UserCancelled, ThreadJob
+from .util import (profiler, PrintError, DaemonThread, UserCancelled,
+                   ThreadJob, print_error)
 from . import bitcoin
 from . import plugins
+from .simple_config import SimpleConfig
+
 
 plugin_loaders = {}
 hook_names = set()
@@ -45,7 +47,7 @@ class Plugins(DaemonThread):
     verbosity_filter = 'p'
 
     @profiler
-    def __init__(self, config, is_local, gui_name):
+    def __init__(self, config: SimpleConfig, gui_name):
         DaemonThread.__init__(self)
         self.setName('Plugins')
         self.pkgpath = os.path.dirname(plugins.__file__)

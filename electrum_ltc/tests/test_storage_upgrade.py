@@ -264,7 +264,7 @@ class TestStorageUpgrade(WalletTestCase):
 
         gui_name = 'cmdline'
         # TODO it's probably wasteful to load all plugins... only need Trezor
-        Plugins(config, True, gui_name)
+        Plugins(config, gui_name)
 
     @classmethod
     def tearDownClass(cls):
