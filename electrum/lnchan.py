@@ -159,7 +159,8 @@ class Channel(PrintError):
     def get_state(self):
         return self._state
 
-    def check_can_pay(self, amount_msat):
+    def check_can_pay(self, amount_msat: int) -> None:
+        # FIXME channel reserve
         if self.get_state() != 'OPEN':
             raise PaymentFailure('Channel not open')
         if self.available_to_spend(LOCAL) < amount_msat:
@@ -168,6 +169,8 @@ class Channel(PrintError):
             raise PaymentFailure('Too many HTLCs already in channel')
         if htlcsum(self.htlcs(LOCAL, only_pending=True)) + amount_msat > self.config[REMOTE].max_htlc_value_in_flight_msat:
             raise PaymentFailure('HTLC value sum would exceed max allowed: {} msat'.format(self.config[REMOTE].max_htlc_value_in_flight_msat))
+        if amount_msat <= 0:  # FIXME htlc_minimum_msat
+            raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
 
     def can_pay(self, amount_msat):
         try:
@@ -722,8 +725,6 @@ class Channel(PrintError):
 
         closing_tx = make_closing_tx(self.config[LOCAL].multisig_key.pubkey,
                 self.config[REMOTE].multisig_key.pubkey,
-                self.config[LOCAL].payment_basepoint.pubkey,
-                self.config[REMOTE].payment_basepoint.pubkey,
                 # TODO hardcoded we_are_initiator:
                 True, *self.funding_outpoint, self.constraints.capacity,
                 outputs)
