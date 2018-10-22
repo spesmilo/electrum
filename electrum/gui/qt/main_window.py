@@ -56,8 +56,11 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            UnknownBaseUnit, DECIMAL_POINT_DEFAULT)
 from electrum.transaction import Transaction, TxOutput
 from electrum.address_synchronizer import AddTransactionException
-from electrum.wallet import Multisig_Wallet, CannotBumpFee
+from electrum.wallet import Multisig_Wallet, CannotBumpFee, Abstract_Wallet
 from electrum.version import ELECTRUM_VERSION
+from electrum.network import Network
+from electrum.exchange_rate import FxThread
+from electrum.simple_config import SimpleConfig
 
 from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
@@ -102,17 +105,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
 
-    def __init__(self, gui_object, wallet):
+    def __init__(self, gui_object, wallet: Abstract_Wallet):
         QMainWindow.__init__(self)
 
         self.gui_object = gui_object
-        self.config = config = gui_object.config
+        self.config = config = gui_object.config  # type: SimpleConfig
 
         self.setup_exception_hook()
 
-        self.network = gui_object.daemon.network
+        self.network = gui_object.daemon.network  # type: Network
         self.wallet = wallet
-        self.fx = gui_object.daemon.fx
+        self.fx = gui_object.daemon.fx  # type: FxThread
         self.invoices = wallet.invoices
         self.contacts = wallet.contacts
         self.tray = gui_object.tray
@@ -2079,6 +2082,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         mpk_list = self.wallet.get_master_public_keys()
         vbox = QVBoxLayout()
         wallet_type = self.wallet.storage.get('wallet_type', '')
+        if self.wallet.is_watching_only():
+            wallet_type += ' [{}]'.format(_('watching-only'))
+        seed_available = _('True') if self.wallet.has_seed() else _('False')
         grid = QGridLayout()
         basename = os.path.basename(self.wallet.storage.path)
         grid.addWidget(QLabel(_("Wallet name")+ ':'), 0, 0)
@@ -2087,6 +2093,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(QLabel(wallet_type), 1, 1)
         grid.addWidget(QLabel(_("Script type")+ ':'), 2, 0)
         grid.addWidget(QLabel(self.wallet.txin_type), 2, 1)
+        grid.addWidget(QLabel(_("Seed available") + ':'), 3, 0)
+        grid.addWidget(QLabel(str(seed_available)), 3, 1)
         vbox.addLayout(grid)
         if self.wallet.is_deterministic():
             mpk_text = ShowQRTextEdit()
