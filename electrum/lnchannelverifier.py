@@ -25,6 +25,7 @@
 
 import asyncio
 import threading
+from typing import TYPE_CHECKING
 
 import aiorpcx
 
@@ -38,6 +39,10 @@ from .verifier import verify_tx_is_in_block, MerkleVerificationFailure
 from .transaction import Transaction
 from .interface import GracefulDisconnect
 
+if TYPE_CHECKING:
+    from .network import Network
+    from .lnrouter import ChannelDB
+
 
 class LNChannelVerifier(NetworkJobOnDefaultServer):
     """ Verify channel announcements for the Channel DB """
@@ -46,7 +51,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
     # will start throttling us, making it even slower. one option would be to
     # spread it over multiple servers.
 
-    def __init__(self, network, channel_db):
+    def __init__(self, network: 'Network', channel_db: 'ChannelDB'):
         NetworkJobOnDefaultServer.__init__(self, network)
         self.channel_db = channel_db
         self.lock = threading.Lock()
@@ -105,7 +110,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             await self.group.spawn(self.verify_channel(block_height, tx_pos, short_channel_id))
             #self.print_error('requested short_channel_id', bh2u(short_channel_id))
 
-    async def verify_channel(self, block_height, tx_pos, short_channel_id):
+    async def verify_channel(self, block_height: int, tx_pos: int, short_channel_id: bytes):
         # we are verifying channel announcements as they are from untrusted ln peers.
         # we use electrum servers to do this. however we don't trust electrum servers either...
         try:

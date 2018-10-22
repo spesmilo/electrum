@@ -3,7 +3,7 @@ from collections import namedtuple, defaultdict
 import binascii
 import json
 from enum import Enum, auto
-from typing import Optional
+from typing import Optional, Mapping, List
 
 from .util import bfh, PrintError, bh2u
 from .bitcoin import Hash, TYPE_SCRIPT, TYPE_ADDRESS

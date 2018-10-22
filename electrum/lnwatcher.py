@@ -1,5 +1,5 @@
 import threading
-from typing import NamedTuple, Iterable
+from typing import NamedTuple, Iterable, TYPE_CHECKING
 import os
 from collections import defaultdict
 import asyncio
@@ -11,6 +11,9 @@ from . import wallet
 from .storage import WalletStorage
 from .address_synchronizer import AddressSynchronizer
 
+if TYPE_CHECKING:
+    from .network import Network
+
 
 TX_MINED_STATUS_DEEP, TX_MINED_STATUS_SHALLOW, TX_MINED_STATUS_MEMPOOL, TX_MINED_STATUS_FREE = range(0, 4)
 
@@ -21,7 +24,7 @@ class LNWatcher(PrintError):
     # maybe we should disconnect from server in these cases
     verbosity_filter = 'W'
 
-    def __init__(self, network):
+    def __init__(self, network: 'Network'):
         self.network = network
         self.config = network.config
         path = os.path.join(network.config.path, "watcher_db")
