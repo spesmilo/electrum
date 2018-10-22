@@ -173,8 +173,8 @@ def derive_pubkey(basepoint: bytes, per_commitment_point: bytes) -> bytes:
 
 def derive_privkey(secret: int, per_commitment_point: bytes) -> int:
     assert type(secret) is int
-    basepoint = secret_to_pubkey(secret)
-    basepoint = secret + ecc.string_to_number(sha256(per_commitment_point + basepoint))
+    basepoint_bytes = secret_to_pubkey(secret)
+    basepoint = secret + ecc.string_to_number(sha256(per_commitment_point + basepoint_bytes))
     basepoint %= CURVE_ORDER
     return basepoint
 
@@ -212,7 +212,7 @@ def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_dela
     final_amount_sat = (amount_msat - fee) // 1000
     assert final_amount_sat > 0, final_amount_sat
     output = TxOutput(bitcoin.TYPE_ADDRESS, p2wsh, final_amount_sat)
-    return output
+    return script, output
 
 def make_htlc_tx_witness(remotehtlcsig, localhtlcsig, payment_preimage, witness_script):
     assert type(remotehtlcsig) is bytes
@@ -296,7 +296,7 @@ def make_htlc_tx_with_open_channel(chan, pcp, for_us, we_receive, commit, htlc):
     # HTLC-success for the HTLC spending from a received HTLC output
     # if we do not receive, and the commitment tx is not for us, they receive, so it is also an HTLC-success
     is_htlc_success = for_us == we_receive
-    htlc_tx_output = make_htlc_tx_output(
+    script, htlc_tx_output = make_htlc_tx_output(
         amount_msat = amount_msat,
         local_feerate = chan.pending_feerate(LOCAL if for_us else REMOTE),
         revocationpubkey=revocation_pubkey,
@@ -317,7 +317,7 @@ def make_htlc_tx_with_open_channel(chan, pcp, for_us, we_receive, commit, htlc):
     if is_htlc_success:
         cltv_expiry = 0
     htlc_tx = make_htlc_tx(cltv_expiry, inputs=htlc_tx_inputs, output=htlc_tx_output)
-    return htlc_tx
+    return script, htlc_tx
 
 def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
         payment_basepoint: bytes, remote_payment_basepoint: bytes,
@@ -598,12 +598,16 @@ def generate_keypair(ln_keystore: BIP32_KeyStore, key_family: LnKeyFamily, index
     return Keypair(*ln_keystore.get_keypair([key_family, 0, index], None))
 
 
-class EncumberedTransaction(NamedTuple("EncumberedTransaction", [('tx', Transaction),
-                                                                 ('csv_delay', Optional[int])])):
+class EncumberedTransaction(NamedTuple("EncumberedTransaction", [('name', str),
+                                                                 ('tx', Transaction),
+                                                                 ('csv_delay', int),
+                                                                 ('cltv_expiry', int),])):
     def to_json(self) -> dict:
         return {
+            'name': self.name,
             'tx': str(self.tx),
             'csv_delay': self.csv_delay,
+            'cltv_expiry': self.cltv_expiry,
         }
 
     @classmethod
