@@ -320,10 +320,8 @@ def make_htlc_tx_with_open_channel(chan, pcp, for_us, we_receive, commit, htlc):
     return script, htlc_tx
 
 def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
-        payment_basepoint: bytes, remote_payment_basepoint: bytes,
         funding_pos: int, funding_txid: bytes, funding_sat: int):
     pubkeys = sorted([bh2u(local_funding_pubkey), bh2u(remote_funding_pubkey)])
-    payments = [payment_basepoint, remote_payment_basepoint]
     # commitment tx input
     c_input = {
         'type': 'p2wsh',
@@ -335,7 +333,7 @@ def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes
         'value': funding_sat,
         'coinbase': False,
     }
-    return c_input, payments
+    return c_input
 
 class HTLCOwner(IntFlag):
     LOCAL = 1
@@ -374,16 +372,15 @@ def calc_onchain_fees(num_htlcs, feerate, for_us, we_are_initiator):
     return {LOCAL: fee if we_pay_fee else 0, REMOTE: fee if not we_pay_fee else 0}
 
 def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
-                    remote_payment_pubkey, payment_basepoint,
-                    remote_payment_basepoint, revocation_pubkey,
+                    remote_payment_pubkey, funder_payment_basepoint,
+                    fundee_payment_basepoint, revocation_pubkey,
                     delayed_pubkey, to_self_delay, funding_txid,
                     funding_pos, funding_sat, local_amount, remote_amount,
                     dust_limit_sat, fees_per_participant,
                     htlcs):
-    c_input, payments = make_funding_input(local_funding_pubkey, remote_funding_pubkey,
-        payment_basepoint, remote_payment_basepoint, funding_pos,
-        funding_txid, funding_sat)
-    obs = get_obscured_ctn(ctn, *payments)
+    c_input = make_funding_input(local_funding_pubkey, remote_funding_pubkey,
+                                 funding_pos, funding_txid, funding_sat)
+    obs = get_obscured_ctn(ctn, funder_payment_basepoint, fundee_payment_basepoint)
     locktime = (0x20 << 24) + (obs & 0xffffff)
     sequence = (0x80 << 24) + (obs >> 24)
     c_input['sequence'] = sequence
@@ -529,11 +526,9 @@ def get_compressed_pubkey_from_bech32(bech32_pubkey: str) -> bytes:
 
 
 def make_closing_tx(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
-        payment_basepoint: bytes, remote_payment_basepoint: bytes,
         funding_txid: bytes, funding_pos: int, funding_sat: int, outputs: List[TxOutput]):
-    c_input, payments = make_funding_input(local_funding_pubkey, remote_funding_pubkey,
-        payment_basepoint, remote_payment_basepoint, funding_pos,
-        funding_txid, funding_sat)
+    c_input = make_funding_input(local_funding_pubkey, remote_funding_pubkey,
+        funding_pos, funding_txid, funding_sat)
     c_input['sequence'] = 0xFFFF_FFFF
     tx = Transaction.from_io([c_input], outputs, locktime=0, version=2)
     return tx
