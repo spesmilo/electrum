@@ -24,7 +24,7 @@
 # SOFTWARE.
 import asyncio
 import hashlib
-from typing import Dict, List
+from typing import Dict, List, TYPE_CHECKING
 from collections import defaultdict
 
 from aiorpcx import TaskGroup, run_in_thread
@@ -32,6 +32,10 @@ from aiorpcx import TaskGroup, run_in_thread
 from .transaction import Transaction
 from .util import bh2u, make_aiohttp_session, NetworkJobOnDefaultServer
 from .bitcoin import address_to_scripthash
+
+if TYPE_CHECKING:
+    from .network import Network
+    from .address_synchronizer import AddressSynchronizer
 
 
 def history_status(h):
@@ -47,7 +51,7 @@ class SynchronizerBase(NetworkJobOnDefaultServer):
     """Subscribe over the network to a set of addresses, and monitor their statuses.
     Every time a status changes, run a coroutine provided by the subclass.
     """
-    def __init__(self, network):
+    def __init__(self, network: 'Network'):
         self.asyncio_loop = network.asyncio_loop
         NetworkJobOnDefaultServer.__init__(self, network)
 
@@ -112,7 +116,7 @@ class Synchronizer(SynchronizerBase):
     we don't have the full history of, and requests binary transaction
     data of any transactions the wallet doesn't have.
     '''
-    def __init__(self, wallet):
+    def __init__(self, wallet: 'AddressSynchronizer'):
         self.wallet = wallet
         SynchronizerBase.__init__(self, wallet.network)
 

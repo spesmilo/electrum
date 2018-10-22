@@ -29,7 +29,7 @@ import time
 import traceback
 import sys
 import threading
-from typing import Dict
+from typing import Dict, Optional, Tuple
 
 import jsonrpclib
 
@@ -46,7 +46,7 @@ from .exchange_rate import FxThread
 from .plugin import run_hook
 
 
-def get_lockfile(config):
+def get_lockfile(config: SimpleConfig):
     return os.path.join(config.path, 'daemon')
 
 
@@ -54,7 +54,7 @@ def remove_lockfile(lockfile):
     os.unlink(lockfile)
 
 
-def get_fd_or_server(config):
+def get_fd_or_server(config: SimpleConfig):
     '''Tries to create the lockfile, using O_EXCL to
     prevent races.  If it succeeds it returns the FD.
     Otherwise try and connect to the server specified in the lockfile.
@@ -73,7 +73,7 @@ def get_fd_or_server(config):
         remove_lockfile(lockfile)
 
 
-def get_server(config):
+def get_server(config: SimpleConfig) -> Optional[jsonrpclib.Server]:
     lockfile = get_lockfile(config)
     while True:
         create_time = None
@@ -99,7 +99,7 @@ def get_server(config):
         time.sleep(1.0)
 
 
-def get_rpc_credentials(config):
+def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     rpc_user = config.get('rpcuser', None)
     rpc_password = config.get('rpcpassword', None)
     if rpc_user is None or rpc_password is None:
@@ -121,7 +121,7 @@ def get_rpc_credentials(config):
 
 class Daemon(DaemonThread):
 
-    def __init__(self, config, fd=None, *, listen_jsonrpc=True):
+    def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
         DaemonThread.__init__(self)
         self.config = config
         if fd is None and listen_jsonrpc:
@@ -142,7 +142,7 @@ class Daemon(DaemonThread):
             self.init_server(config, fd)
         self.start()
 
-    def init_server(self, config, fd):
+    def init_server(self, config: SimpleConfig, fd):
         host = config.get('rpchost', '127.0.0.1')
         port = config.get('rpcport', 0)
         rpc_user, rpc_password = get_rpc_credentials(config)
@@ -230,7 +230,7 @@ class Daemon(DaemonThread):
             response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
         return response
 
-    def load_wallet(self, path, password):
+    def load_wallet(self, path, password) -> Optional[Abstract_Wallet]:
         # wizard will be launched if we return
         if path in self.wallets:
             wallet = self.wallets[path]
@@ -251,7 +251,7 @@ class Daemon(DaemonThread):
         self.wallets[path] = wallet
         return wallet
 
-    def add_wallet(self, wallet):
+    def add_wallet(self, wallet: Abstract_Wallet):
         path = wallet.storage.path
         self.wallets[path] = wallet
 

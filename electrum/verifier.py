@@ -22,7 +22,7 @@
 # SOFTWARE.
 
 import asyncio
-from typing import Sequence, Optional
+from typing import Sequence, Optional, TYPE_CHECKING
 
 import aiorpcx
 
@@ -32,6 +32,10 @@ from .transaction import Transaction
 from .blockchain import hash_header
 from .interface import GracefulDisconnect
 from . import constants
+
+if TYPE_CHECKING:
+    from .network import Network
+    from .address_synchronizer import AddressSynchronizer
 
 
 class MerkleVerificationFailure(Exception): pass
@@ -43,7 +47,7 @@ class InnerNodeOfSpvProofIsValidTx(MerkleVerificationFailure): pass
 class SPV(NetworkJobOnDefaultServer):
     """ Simple Payment Verification """
 
-    def __init__(self, network, wallet):
+    def __init__(self, network: 'Network', wallet: 'AddressSynchronizer'):
         self.wallet = wallet
         NetworkJobOnDefaultServer.__init__(self, network)
 

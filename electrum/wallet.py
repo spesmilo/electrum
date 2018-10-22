@@ -48,7 +48,7 @@ from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
 from .bitcoin import *
 from .version import *
 from .keystore import load_keystore, Hardware_KeyStore
-from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW
+from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW, WalletStorage
 from . import transaction, bitcoin, coinchooser, paymentrequest, contacts
 from .transaction import Transaction, TxOutput, TxOutputHwInfo
 from .plugin import run_hook
@@ -57,6 +57,9 @@ from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .paymentrequest import InvoiceStore
 from .contacts import Contacts
+from .network import Network
+from .simple_config import SimpleConfig
+
 
 TX_STATUS = [
     _('Unconfirmed'),
@@ -67,18 +70,18 @@ TX_STATUS = [
 
 
 
-def relayfee(network):
+def relayfee(network: Network):
     from .simple_config import FEERATE_DEFAULT_RELAY
     MAX_RELAY_FEE = 50000
     f = network.relay_fee if network and network.relay_fee else FEERATE_DEFAULT_RELAY
     return min(f, MAX_RELAY_FEE)
 
-def dust_threshold(network):
+def dust_threshold(network: Network):
     # Change <= dust threshold is added to the tx fee
     return 182 * 3 * relayfee(network) / 1000
 
 
-def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
+def append_utxos_to_inputs(inputs, network: Network, pubkey, txin_type, imax):
     if txin_type != 'p2pk':
         address = bitcoin.pubkey_to_address(txin_type, pubkey)
         scripthash = bitcoin.address_to_scripthash(address)
@@ -101,7 +104,7 @@ def append_utxos_to_inputs(inputs, network, pubkey, txin_type, imax):
         item['num_sig'] = 1
         inputs.append(item)
 
-def sweep_preparations(privkeys, network, imax=100):
+def sweep_preparations(privkeys, network: Network, imax=100):
 
     def find_utxos_for_privkey(txin_type, privkey, compressed):
         pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
@@ -127,7 +130,7 @@ def sweep_preparations(privkeys, network, imax=100):
     return inputs, keypairs
 
 
-def sweep(privkeys, network, config, recipient, fee=None, imax=100):
+def sweep(privkeys, network: Network, config: SimpleConfig, recipient, fee=None, imax=100):
     inputs, keypairs = sweep_preparations(privkeys, network, imax)
     total = sum(i.get('value') for i in inputs)
     if fee is None:
@@ -164,7 +167,7 @@ class Abstract_Wallet(AddressSynchronizer):
     gap_limit_for_change = 6
     verbosity_filter = 'w'
 
-    def __init__(self, storage):
+    def __init__(self, storage: WalletStorage):
         AddressSynchronizer.__init__(self, storage)
 
         # saved fields
@@ -219,9 +222,6 @@ class Abstract_Wallet(AddressSynchronizer):
         if len(addrs) > 0:
             if not bitcoin.is_address(addrs[0]):
                 raise WalletFileException('The addresses in this wallet are not bitcoin addresses.')
-
-    def synchronize(self):
-        pass
 
     def calc_unused_change_addresses(self):
         with self.lock:

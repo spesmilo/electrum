@@ -23,7 +23,7 @@
 import binascii
 import os, sys, re, json
 from collections import defaultdict
-from typing import NamedTuple, Union
+from typing import NamedTuple, Union, TYPE_CHECKING
 from datetime import datetime
 import decimal
 from decimal import Decimal
@@ -45,6 +45,10 @@ from aiohttp_socks import SocksConnector, SocksVer
 from aiorpcx import TaskGroup
 
 from .i18n import _
+
+if TYPE_CHECKING:
+    from .network import Network
+    from .interface import Interface
 
 
 def inv_dict(d):
@@ -923,10 +927,10 @@ class NetworkJobOnDefaultServer(PrintError):
     interface. Every time the main interface changes, the job is
     restarted, and some of its internals are reset.
     """
-    def __init__(self, network):
+    def __init__(self, network: 'Network'):
         asyncio.set_event_loop(network.asyncio_loop)
         self.network = network
-        self.interface = None
+        self.interface = None  # type: Interface
         self._restart_lock = asyncio.Lock()
         self._reset()
         asyncio.run_coroutine_threadsafe(self._restart(), network.asyncio_loop)
@@ -938,7 +942,7 @@ class NetworkJobOnDefaultServer(PrintError):
         """
         self.group = SilentTaskGroup()
 
-    async def _start(self, interface):
+    async def _start(self, interface: 'Interface'):
         self.interface = interface
         await interface.group.spawn(self._start_tasks)
 

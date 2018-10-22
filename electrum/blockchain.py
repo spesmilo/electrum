@@ -28,6 +28,7 @@ from . import util
 from .bitcoin import Hash, hash_encode, int_to_hex, rev_hex
 from . import constants
 from .util import bfh, bh2u
+from .simple_config import SimpleConfig
 
 
 HEADER_SIZE = 80  # bytes
@@ -77,7 +78,7 @@ blockchains = {}  # type: Dict[int, Blockchain]
 blockchains_lock = threading.Lock()
 
 
-def read_blockchains(config):
+def read_blockchains(config: 'SimpleConfig') -> Dict[int, 'Blockchain']:
     blockchains[0] = Blockchain(config, 0, None)
     fdir = os.path.join(util.get_headers_dir(config), 'forks')
     util.make_dir(fdir)
@@ -100,7 +101,7 @@ class Blockchain(util.PrintError):
     Manages blockchain headers and their verification
     """
 
-    def __init__(self, config, forkpoint: int, parent_id: Optional[int]):
+    def __init__(self, config: SimpleConfig, forkpoint: int, parent_id: Optional[int]):
         self.config = config
         self.forkpoint = forkpoint
         self.checkpoints = constants.net.CHECKPOINTS
