@@ -47,7 +47,7 @@ class Plugins(DaemonThread):
     verbosity_filter = 'p'
 
     @profiler
-    def __init__(self, config: SimpleConfig, is_local, gui_name):
+    def __init__(self, config: SimpleConfig, gui_name):
         DaemonThread.__init__(self)
         self.setName('Plugins')
         self.pkgpath = os.path.dirname(plugins.__file__)

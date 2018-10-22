@@ -245,7 +245,7 @@ def run_offline_command(config, config_options, plugins):
 
 def init_plugins(config, gui_name):
     from electrum.plugin import Plugins
-    return Plugins(config, is_local or is_android, gui_name)
+    return Plugins(config, gui_name)
 
 
 if __name__ == '__main__':
