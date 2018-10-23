@@ -1142,6 +1142,9 @@ class Abstract_Wallet(AddressSynchronizer):
         # overloaded for TrustedCoin wallets
         return False
 
+    def is_watching_only(self) -> bool:
+        raise NotImplementedError()
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
@@ -1602,7 +1605,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         return self.keystore.has_seed()
 
     def is_watching_only(self):
-        return not any([not k.is_watching_only() for k in self.get_keystores()])
+        return all([k.is_watching_only() for k in self.get_keystores()])
 
     def get_master_public_key(self):
         return self.keystore.get_master_public_key()
