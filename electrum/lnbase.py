@@ -390,6 +390,7 @@ class Peer(PrintError):
             ctn=-1,
             next_htlc_id=0,
             amount_msat=initial_msat,
+            reserve_sat=546,
         )
         per_commitment_secret_seed = keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey
         return local_config, per_commitment_secret_seed
@@ -451,6 +452,7 @@ class Peer(PrintError):
             ctn = -1,
             amount_msat=push_msat,
             next_htlc_id = 0,
+            reserve_sat = int.from_bytes(payload["channel_reserve_satoshis"], 'big'),
 
             next_per_commitment_point=remote_per_commitment_point,
             current_per_commitment_point=None,
@@ -561,6 +563,7 @@ class Peer(PrintError):
                     ctn = -1,
                     amount_msat=remote_balance_sat,
                     next_htlc_id = 0,
+                    reserve_sat = int.from_bytes(payload['channel_reserve_satoshis'], 'big'),
 
                     next_per_commitment_point=payload['first_per_commitment_point'],
                     current_per_commitment_point=None,
@@ -941,7 +944,6 @@ class Peer(PrintError):
         assert final_cltv <= cltv, (final_cltv, cltv)
         secret_key = os.urandom(32)
         onion = new_onion_packet([x.node_id for x in route], secret_key, hops_data, associated_data=payment_hash)
-        chan.check_can_pay(amount_msat)
         # create htlc
         htlc = {'amount_msat':amount_msat, 'payment_hash':payment_hash, 'cltv_expiry':cltv}
         htlc_id = chan.add_htlc(htlc)
