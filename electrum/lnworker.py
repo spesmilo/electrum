@@ -64,7 +64,7 @@ class LNWorker(PrintError):
         for c in self.channels.values():
             c.lnwatcher = network.lnwatcher
             c.sweep_address = self.sweep_address
-        self.invoices = wallet.storage.get('lightning_invoices', {})
+        self.invoices = wallet.storage.get('lightning_invoices', {})  # type: Dict[str, Tuple[str,str]]  # RHASH -> (preimage, invoice)
         for chan_id, chan in self.channels.items():
             self.network.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
         self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
@@ -342,18 +342,19 @@ class LNWorker(PrintError):
                                         ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE)]
                                        + routing_hints),
                            self.node_keypair.privkey)
-        self.invoices[bh2u(payment_preimage)] = pay_req
+        self.invoices[bh2u(RHASH)] = (bh2u(payment_preimage), pay_req)
         self.wallet.storage.put('lightning_invoices', self.invoices)
         self.wallet.storage.write()
         return pay_req
 
     def get_invoice(self, payment_hash: bytes) -> Tuple[bytes, LnAddr]:
-        for k in self.invoices.keys():
-            preimage = bfh(k)
-            if sha256(preimage) == payment_hash:
-                return preimage, lndecode(self.invoices[k], expected_hrp=constants.net.SEGWIT_HRP)
-        else:
-            raise UnknownPaymentHash()
+        try:
+            preimage_hex, pay_req = self.invoices[bh2u(payment_hash)]
+            preimage = bfh(preimage_hex)
+            assert sha256(preimage) == payment_hash
+            return preimage, lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
+        except KeyError as e:
+            raise UnknownPaymentHash(payment_hash) from e
 
     def _calc_routing_hints_for_invoice(self, amount_sat):
         """calculate routing hints (BOLT-11 'r' field)"""
@@ -395,9 +396,9 @@ class LNWorker(PrintError):
                                          cltv_expiry_delta)]))
         return routing_hints
 
-    def delete_invoice(self, payreq_key):
+    def delete_invoice(self, payment_hash_hex: str):
         try:
-            del self.invoices[payreq_key]
+            del self.invoices[payment_hash_hex]
         except KeyError:
             return
         self.wallet.storage.put('lightning_invoices', self.invoices)

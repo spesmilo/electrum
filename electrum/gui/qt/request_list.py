@@ -84,7 +84,7 @@ class RequestList(MyTreeView):
         if request_type == REQUEST_TYPE_BITCOIN:
             req = self.parent.get_request_URI(key)
         elif request_type == REQUEST_TYPE_LN:
-            req = self.wallet.lnworker.invoices.get(key)
+            preimage, req = self.wallet.lnworker.invoices.get(key)
         self.parent.receive_address_e.setText(req)
 
     def update(self):
@@ -140,18 +140,17 @@ class RequestList(MyTreeView):
             items[0].setData(address, Qt.UserRole+1)
         self.filter()
         # lightning
-        for payreq_key, r in self.wallet.lnworker.invoices.items():
+        for payreq_key, (preimage_hex, invoice) in self.wallet.lnworker.invoices.items():
             from electrum.lnaddr import lndecode
             import electrum.constants as constants
-            lnaddr = lndecode(r, expected_hrp=constants.net.SEGWIT_HRP)
+            lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
             amount_sat = lnaddr.amount*COIN if lnaddr.amount else None
             amount_str = self.parent.format_amount(amount_sat) if amount_sat else ''
+            description = ''
             for k,v in lnaddr.tags:
                 if k == 'd':
                     description = v
                     break
-                else:
-                    description = ''
             date = format_time(lnaddr.date)
             labels = [date, r, '', description, amount_str, '']
             items = [QStandardItem(e) for e in labels]
@@ -197,7 +196,7 @@ class RequestList(MyTreeView):
         return menu
 
     def create_menu_ln_payreq(self, idx, payreq_key):
-        req = self.wallet.lnworker.invoices.get(payreq_key)
+        preimage, req = self.wallet.lnworker.invoices.get(payreq_key)
         if req is None:
             self.update()
             return
