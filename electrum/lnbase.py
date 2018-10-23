@@ -876,7 +876,6 @@ class Peer(PrintError):
         self.revoke(chan)
         self.send_commitment(chan)  # htlc will be removed
         await self.receive_revoke(chan)
-        self.lnworker.save_channel(chan)
         self.network.trigger_callback('ln_message', self.lnworker, 'Payment failed')
 
     async def _handle_error_code_from_failed_htlc(self, error_reason, route: List[RouteEdge], channel_id, htlc_id):
@@ -954,6 +953,7 @@ class Peer(PrintError):
     async def receive_revoke(self, m):
         revoke_and_ack_msg = await self.revoke_and_ack[m.channel_id].get()
         m.receive_revocation(RevokeAndAck(revoke_and_ack_msg["per_commitment_secret"], revoke_and_ack_msg["next_per_commitment_point"]))
+        self.lnworker.save_channel(chan)
 
     def revoke(self, m):
         rev, _ = m.revoke_current_commitment()
@@ -987,7 +987,6 @@ class Peer(PrintError):
         self.revoke(chan)
         self.send_commitment(chan) # htlc will be removed
         await self.receive_revoke(chan)
-        self.lnworker.save_channel(chan)
         self.network.trigger_callback('ln_message', self.lnworker, 'Payment sent')
 
         # used in lightning-integration
@@ -1064,7 +1063,6 @@ class Peer(PrintError):
                                   channel_id=chan.channel_id,
                                   id=htlc_id,
                                   payment_preimage=preimage)
-        self.lnworker.save_channel(chan)
         self.network.trigger_callback('ln_message', self.lnworker, 'Payment received')
 
     async def fail_htlc(self, chan: Channel, htlc_id: int, onion_packet: OnionPacket,
@@ -1077,7 +1075,6 @@ class Peer(PrintError):
                                   id=htlc_id,
                                   len=len(error_packet),
                                   reason=error_packet)
-        self.lnworker.save_channel(chan)
 
     def on_revoke_and_ack(self, payload):
         self.print_error("got revoke_and_ack")
