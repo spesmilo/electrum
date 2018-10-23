@@ -531,6 +531,8 @@ class LNWorker(PrintError):
         return routing_hints
 
     def delete_invoice(self, payment_hash_hex: str):
+        # FIXME we will now LOSE the preimage!! is this feature a good idea?
+        # maybe instead of deleting, we could have a feature to "hide" invoices (e.g. for GUI)
         try:
             del self.invoices[payment_hash_hex]
         except KeyError:

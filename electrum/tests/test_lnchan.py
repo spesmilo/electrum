@@ -199,10 +199,10 @@ class TestChannel(unittest.TestCase):
         alice_channel, bob_channel = self.alice_channel, self.bob_channel
         htlc = self.htlc
 
-        ctn_to_htlcs = alice_channel.included_htlcs_in_latest_ctxs()
-        self.assertEqual(list(ctn_to_htlcs.keys()), [0,1])
-        self.assertEqual(ctn_to_htlcs[0], [])
-        self.assertEqual(ctn_to_htlcs[1], [htlc])
+        self.assertEqual({0: [], 1: [htlc]}, alice_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
+        self.assertEqual({0: [], 1: []}, bob_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
+        self.assertEqual({0: [], 1: []}, alice_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
+        self.assertEqual({0: [], 1: []}, bob_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
 
         # Next alice commits this change by sending a signature message. Since
         # we expect the messages to be ordered, Bob will receive the HTLC we
@@ -216,6 +216,11 @@ class TestChannel(unittest.TestCase):
         # state he has in his remote log. This includes the HTLC just sent
         # from Alice.
         bob_channel.receive_new_commitment(aliceSig, aliceHtlcSigs)
+
+        self.assertEqual({0: [], 1: [htlc]}, alice_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
+        self.assertEqual({0: [], 1: [htlc]}, bob_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
+        self.assertEqual({0: [], 1: []}, alice_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
+        self.assertEqual({0: [], 1: []}, bob_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
 
         # Bob revokes his prior commitment given to him by Alice, since he now
         # has a valid signature for a newer commitment.
@@ -279,10 +284,10 @@ class TestChannel(unittest.TestCase):
 
         bobSig2, bobHtlcSigs2 = bob_channel.sign_next_commitment()
 
-        ctn_to_htlcs = bob_channel.included_htlcs_in_latest_ctxs()
-        self.assertEqual(list(ctn_to_htlcs.keys()), [1,2])
-        self.assertEqual(len(ctn_to_htlcs[1]), 1)
-        self.assertEqual(len(ctn_to_htlcs[2]), 0)
+        self.assertEqual({1: [htlc], 2: []}, alice_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
+        self.assertEqual({1: [htlc], 2: []}, bob_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
+        self.assertEqual({1: [], 2: []}, alice_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
+        self.assertEqual({1: [], 2: []}, bob_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
 
         alice_channel.receive_new_commitment(bobSig2, bobHtlcSigs2)
 

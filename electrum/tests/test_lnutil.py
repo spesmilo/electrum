@@ -552,8 +552,6 @@ class TestLNUtil(unittest.TestCase):
         our_htlc_tx_inputs = make_htlc_tx_inputs(
             htlc_output_txid=our_commit_tx.txid(),
             htlc_output_index=htlc_output_index,
-            revocationpubkey=local_revocation_pubkey,
-            local_delayedpubkey=local_delayedpubkey,
             amount_msat=amount_msat,
             witness_script=bh2u(htlc))
         our_htlc_tx = make_htlc_tx(cltv_timeout,

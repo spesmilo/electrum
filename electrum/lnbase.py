@@ -500,6 +500,7 @@ class Peer(PrintError):
         chan = Channel(chan_dict, payment_completed=self.lnworker.payment_completed)
         chan.lnwatcher = self.lnwatcher
         chan.sweep_address = self.lnworker.sweep_address
+        chan.get_preimage_and_invoice = self.lnworker.get_invoice  # FIXME hack.
         sig_64, _ = chan.sign_next_commitment()
         self.send_message("funding_created",
             temporary_channel_id=temp_channel_id,
@@ -590,6 +591,7 @@ class Peer(PrintError):
         chan = Channel(chan_dict, payment_completed=self.lnworker.payment_completed)
         chan.lnwatcher = self.lnwatcher
         chan.sweep_address = self.lnworker.sweep_address
+        chan.get_preimage_and_invoice = self.lnworker.get_invoice  # FIXME hack.
         remote_sig = funding_created['signature']
         chan.receive_new_commitment(remote_sig, [])
         sig_64, _ = chan.sign_next_commitment()

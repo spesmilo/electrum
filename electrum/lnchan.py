@@ -26,7 +26,7 @@ from collections import namedtuple, defaultdict
 import binascii
 import json
 from enum import Enum, auto
-from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Iterable
+from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Iterable, Sequence
 from copy import deepcopy
 
 from .util import bfh, PrintError, bh2u
@@ -34,17 +34,18 @@ from .bitcoin import TYPE_SCRIPT, TYPE_ADDRESS
 from .bitcoin import redeem_script_to_address
 from .crypto import sha256, sha256d
 from . import ecc
-from .lnutil import Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore, EncumberedTransaction
+from .lnutil import Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore
 from .lnutil import get_per_commitment_secret_from_seed
-from .lnutil import make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script
-from .lnutil import secret_to_pubkey, derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey
-from .lnutil import sign_and_get_sig_string, privkey_to_pubkey, make_htlc_tx_witness
+from .lnutil import secret_to_pubkey, derive_privkey, derive_pubkey, derive_blinded_pubkey
+from .lnutil import sign_and_get_sig_string
 from .lnutil import make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc
 from .lnutil import HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT
 from .lnutil import funding_output_script, LOCAL, REMOTE, HTLCOwner, make_closing_tx, make_commitment_outputs
-from .lnutil import ScriptHtlc, SENT, RECEIVED, PaymentFailure, calc_onchain_fees, RemoteMisbehaving
-from .transaction import Transaction, TxOutput, construct_witness
-from .simple_config import SimpleConfig, FEERATE_FALLBACK_STATIC_FEE
+from .lnutil import ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script
+from .transaction import Transaction
+from .lnsweep import (create_sweeptxs_for_our_latest_ctx, create_sweeptxs_for_their_latest_ctx,
+                      create_sweeptxs_for_their_just_revoked_ctx)
+
 
 class ChannelJsonEncoder(json.JSONEncoder):
     def default(self, o):
@@ -309,13 +310,16 @@ class Channel(PrintError):
         htlcsigs = []
         for we_receive, htlcs in zip([True, False], [self.included_htlcs(REMOTE, REMOTE), self.included_htlcs(REMOTE, LOCAL)]):
             for htlc in htlcs:
-                args = [self.config[REMOTE].next_per_commitment_point, for_us, we_receive, pending_remote_commitment, htlc]
-                _script, htlc_tx = make_htlc_tx_with_open_channel(self, *args)
+                _script, htlc_tx = make_htlc_tx_with_open_channel(chan=self,
+                                                                  pcp=self.config[REMOTE].next_per_commitment_point,
+                                                                  for_us=for_us,
+                                                                  we_receive=we_receive,
+                                                                  commit=pending_remote_commitment,
+                                                                  htlc=htlc)
                 sig = bfh(htlc_tx.sign_txin(0, their_remote_htlc_privkey))
                 htlc_sig = ecc.sig_string_from_der_sig(sig[:-1])
-                htlcsigs.append((pending_remote_commitment.htlc_output_indices[htlc.payment_hash], htlc_sig))
-
-        self.process_new_offchain_ctx(pending_remote_commitment, ours=False)
+                htlc_output_idx = htlc_tx.inputs()[0]['prevout_n']
+                htlcsigs.append((htlc_output_idx, htlc_sig))
 
         htlcsigs.sort()
         htlcsigs = [x[1] for x in htlcsigs]
@@ -383,11 +387,14 @@ class Channel(PrintError):
             if self.constraints.is_initiator and self.pending_fee[FUNDEE_ACKED]:
                 self.pending_fee[FUNDER_SIGNED] = True
 
-        self.process_new_offchain_ctx(pending_local_commitment, ours=True)
-
-    def verify_htlc(self, htlc, htlc_sigs, we_receive):
-        _, this_point, _ = self.points()
-        _script, htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, self.pending_commitment(LOCAL), htlc)
+    def verify_htlc(self, htlc: UpdateAddHtlc, htlc_sigs: Sequence[bytes], we_receive: bool) -> int:
+        _, this_point, _ = self.points
+        _script, htlc_tx = make_htlc_tx_with_open_channel(chan=self,
+                                                          pcp=this_point,
+                                                          for_us=True,
+                                                          we_receive=we_receive,
+                                                          commit=self.pending_commitment(LOCAL),
+                                                          htlc=htlc)
         pre_hash = sha256d(bfh(htlc_tx.serialize_preimage(0)))
         remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, this_point)
         for idx, sig in enumerate(htlc_sigs):
@@ -395,6 +402,13 @@ class Channel(PrintError):
                 return idx
         else:
             raise Exception(f'failed verifying HTLC signatures: {htlc}')
+
+    def get_remote_htlc_sig_for_htlc(self, htlc: UpdateAddHtlc, we_receive: bool) -> bytes:
+        data = self.config[LOCAL].current_htlc_signatures
+        htlc_sigs = [data[i:i + 64] for i in range(0, len(data), 64)]
+        idx = self.verify_htlc(htlc, htlc_sigs, we_receive=we_receive)
+        remote_htlc_sig = ecc.der_sig_from_sig_string(htlc_sigs[idx]) + b'\x01'
+        return remote_htlc_sig
 
     def revoke_current_commitment(self):
         self.print_error("revoke_current_commitment")
@@ -435,35 +449,17 @@ class Channel(PrintError):
         next_point = secret_to_pubkey(int.from_bytes(next_secret, 'big'))
         return last_secret, this_point, next_point
 
-    # TODO batch sweeps
-    # TODO sweep HTLC outputs
-    def process_new_offchain_ctx(self, ctx, ours: bool):
+    def process_new_revocation_secret(self, per_commitment_secret: bytes):
         if not self.lnwatcher:
             return
         outpoint = self.funding_outpoint.to_str()
-        if ours:
-            ctn = self.config[LOCAL].ctn + 1
-            our_per_commitment_secret = get_per_commitment_secret_from_seed(
-                self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
-            our_cur_pcp = ecc.ECPrivkey(our_per_commitment_secret).get_public_key_bytes(compressed=True)
-            encumbered_sweeptxs = create_sweeptxs_for_our_ctx(self, ctx, our_cur_pcp, self.sweep_address)
-        else:
-            their_cur_pcp = self.config[REMOTE].next_per_commitment_point
-            encumbered_sweeptxs = [(None, maybe_create_sweeptx_for_their_ctx_to_remote(self, ctx, their_cur_pcp, self.sweep_address))]
+        ctx = self.remote_commitment_to_be_revoked  # FIXME can't we just reconstruct it?
+        encumbered_sweeptxs = create_sweeptxs_for_their_just_revoked_ctx(self, ctx, per_commitment_secret, self.sweep_address)
         for prev_txid, encumbered_tx in encumbered_sweeptxs:
             if prev_txid is None:
                 prev_txid = ctx.txid()
             if encumbered_tx is not None:
                 self.lnwatcher.add_sweep_tx(outpoint, prev_txid, encumbered_tx.to_json())
-
-    def process_new_revocation_secret(self, per_commitment_secret: bytes):
-        if not self.lnwatcher:
-            return
-        outpoint = self.funding_outpoint.to_str()
-        ctx = self.remote_commitment_to_be_revoked
-        encumbered_sweeptx = maybe_create_sweeptx_for_their_ctx_to_local(self, ctx, per_commitment_secret, self.sweep_address)
-        if encumbered_sweeptx:
-            self.lnwatcher.add_sweep_tx(outpoint, ctx.txid(), encumbered_sweeptx.to_json())
 
     def receive_revocation(self, revocation) -> Tuple[int, int]:
         self.print_error("receive_revocation")
@@ -476,12 +472,6 @@ class Channel(PrintError):
             self.log = old_logs
             raise Exception('revoked secret not for current point')
 
-        if self.pending_fee is not None:
-            if not self.constraints.is_initiator:
-                self.pending_fee[FUNDEE_SIGNED] = True
-            if self.constraints.is_initiator and self.pending_fee[FUNDEE_ACKED]:
-                self.pending_fee[FUNDER_SIGNED] = True
-
         # FIXME not sure this is correct... but it seems to work
         # if there are update_add_htlc msgs between commitment_signed and rev_ack,
         # this might break
@@ -489,6 +479,14 @@ class Channel(PrintError):
 
         self.config[REMOTE].revocation_store.add_next_entry(revocation.per_commitment_secret)
         self.process_new_revocation_secret(revocation.per_commitment_secret)
+
+        ##### start applying fee/htlc changes
+
+        if self.pending_fee is not None:
+            if not self.constraints.is_initiator:
+                self.pending_fee[FUNDEE_SIGNED] = True
+            if self.constraints.is_initiator and self.pending_fee[FUNDEE_ACKED]:
+                self.pending_fee[FUNDER_SIGNED] = True
 
         def mark_settled(subject):
             """
@@ -768,21 +766,19 @@ class Channel(PrintError):
         other_htlc_pubkey = derive_pubkey(other_config.htlc_basepoint.pubkey, this_point)
         this_htlc_pubkey = derive_pubkey(this_config.htlc_basepoint.pubkey, this_point)
         other_revocation_pubkey = derive_blinded_pubkey(other_config.revocation_basepoint.pubkey, this_point)
-        htlcs = []
+        htlcs = []  # type: List[ScriptHtlc]
+        def append_htlc(htlc: UpdateAddHtlc, is_received_htlc: bool):
+            htlcs.append(ScriptHtlc(make_htlc_output_witness_script(
+                is_received_htlc=is_received_htlc,
+                remote_revocation_pubkey=other_revocation_pubkey,
+                remote_htlc_pubkey=other_htlc_pubkey,
+                local_htlc_pubkey=this_htlc_pubkey,
+                payment_hash=htlc.payment_hash,
+                cltv_expiry=htlc.cltv_expiry), htlc))
         for htlc in self.included_htlcs(subject, -subject):
-            htlcs.append( ScriptHtlc( make_received_htlc(
-                other_revocation_pubkey,
-                other_htlc_pubkey,
-                this_htlc_pubkey,
-                htlc.payment_hash,
-                htlc.cltv_expiry), htlc))
+            append_htlc(htlc, is_received_htlc=True)
         for htlc in self.included_htlcs(subject, subject):
-            htlcs.append(
-                ScriptHtlc( make_offered_htlc(
-                    other_revocation_pubkey,
-                    other_htlc_pubkey,
-                    this_htlc_pubkey,
-                    htlc.payment_hash), htlc))
+            append_htlc(htlc, is_received_htlc=False)
         if subject != LOCAL:
             remote_msat, local_msat = local_msat, remote_msat
         payment_pubkey = derive_pubkey(other_config.payment_basepoint.pubkey, this_point)
@@ -851,209 +847,15 @@ class Channel(PrintError):
         assert tx.is_complete()
         return tx
 
-    def included_htlcs_in_latest_ctxs(self):
+    def included_htlcs_in_their_latest_ctxs(self, htlc_initiator) -> Dict[int, List[UpdateAddHtlc]]:
         """ A map from commitment number to list of HTLCs in
             their latest two commitment transactions.
             The oldest might have been revoked.  """
-        old_htlcs = list(self.included_htlcs(REMOTE, REMOTE, only_pending=False)) \
-                  + list(self.included_htlcs(REMOTE, LOCAL,  only_pending=False))
+        old_htlcs = list(self.included_htlcs(REMOTE, htlc_initiator, only_pending=False))
 
         old_logs = dict(self.lock_in_htlc_changes(LOCAL))
-        new_htlcs = list(self.included_htlcs(REMOTE, REMOTE)) \
-                  + list(self.included_htlcs(REMOTE, LOCAL))
+        new_htlcs = list(self.included_htlcs(REMOTE, htlc_initiator))
         self.log = old_logs
 
         return {self.config[REMOTE].ctn:   old_htlcs,
                 self.config[REMOTE].ctn+1: new_htlcs, }
-
-def maybe_create_sweeptx_for_their_ctx_to_remote(chan, ctx, their_pcp: bytes,
-                                                 sweep_address) -> Optional[EncumberedTransaction]:
-    assert isinstance(their_pcp, bytes)
-    payment_bp_privkey = ecc.ECPrivkey(chan.config[LOCAL].payment_basepoint.privkey)
-    our_payment_privkey = derive_privkey(payment_bp_privkey.secret_scalar, their_pcp)
-    our_payment_privkey = ecc.ECPrivkey.from_secret_scalar(our_payment_privkey)
-    our_payment_pubkey = our_payment_privkey.get_public_key_bytes(compressed=True)
-    to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
-    for output_idx, (type_, addr, val) in enumerate(ctx.outputs()):
-        if type_ == TYPE_ADDRESS and addr == to_remote_address:
-            break
-    else:
-        return None
-    sweep_tx = create_sweeptx_their_ctx_to_remote(address=sweep_address,
-                                                  ctx=ctx,
-                                                  output_idx=output_idx,
-                                                  our_payment_privkey=our_payment_privkey)
-    return EncumberedTransaction('their_ctx_to_remote', sweep_tx, csv_delay=0, cltv_expiry=0)
-
-
-def maybe_create_sweeptx_for_their_ctx_to_local(chan, ctx, per_commitment_secret: bytes,
-                                                sweep_address) -> Optional[EncumberedTransaction]:
-    assert isinstance(per_commitment_secret, bytes)
-    per_commitment_point = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
-    revocation_privkey = derive_blinded_privkey(chan.config[LOCAL].revocation_basepoint.privkey,
-                                                per_commitment_secret)
-    revocation_pubkey = ecc.ECPrivkey(revocation_privkey).get_public_key_bytes(compressed=True)
-    to_self_delay = chan.config[LOCAL].to_self_delay
-    delayed_pubkey = derive_pubkey(chan.config[REMOTE].delayed_basepoint.pubkey,
-                                   per_commitment_point)
-    witness_script = bh2u(make_commitment_output_to_local_witness_script(
-        revocation_pubkey, to_self_delay, delayed_pubkey))
-    to_local_address = redeem_script_to_address('p2wsh', witness_script)
-    for output_idx, o in enumerate(ctx.outputs()):
-        if o.type == TYPE_ADDRESS and o.address == to_local_address:
-            break
-    else:
-        return None
-    sweep_tx = create_sweeptx_ctx_to_local(address=sweep_address,
-                                           ctx=ctx,
-                                           output_idx=output_idx,
-                                           witness_script=witness_script,
-                                           privkey=revocation_privkey,
-                                           is_revocation=True)
-    return EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)
-
-
-def create_sweeptxs_for_our_ctx(chan, ctx, our_pcp: bytes, sweep_address) \
-                                                        -> List[Tuple[Optional[str],EncumberedTransaction]]:
-    assert isinstance(our_pcp, bytes)
-    delayed_bp_privkey = ecc.ECPrivkey(chan.config[LOCAL].delayed_basepoint.privkey)
-    our_localdelayed_privkey = derive_privkey(delayed_bp_privkey.secret_scalar, our_pcp)
-    our_localdelayed_privkey = ecc.ECPrivkey.from_secret_scalar(our_localdelayed_privkey)
-    our_localdelayed_pubkey = our_localdelayed_privkey.get_public_key_bytes(compressed=True)
-    revocation_pubkey = derive_blinded_pubkey(chan.config[REMOTE].revocation_basepoint.pubkey,
-                                              our_pcp)
-    to_self_delay = chan.config[REMOTE].to_self_delay
-    witness_script = bh2u(make_commitment_output_to_local_witness_script(
-        revocation_pubkey, to_self_delay, our_localdelayed_pubkey))
-    to_local_address = redeem_script_to_address('p2wsh', witness_script)
-    txs = []
-    for output_idx, o in enumerate(ctx.outputs()):
-        if o.type == TYPE_ADDRESS and o.address == to_local_address:
-            sweep_tx = create_sweeptx_ctx_to_local(address=sweep_address,
-                                                   ctx=ctx,
-                                                   output_idx=output_idx,
-                                                   witness_script=witness_script,
-                                                   privkey=our_localdelayed_privkey.get_secret_bytes(),
-                                                   is_revocation=False,
-                                                   to_self_delay=to_self_delay)
-
-            txs.append((None, EncumberedTransaction('our_ctx_to_local', sweep_tx, csv_delay=to_self_delay, cltv_expiry=0)))
-            break
-
-    # TODO htlc successes
-    htlcs = list(chan.included_htlcs(LOCAL, LOCAL)) # timeouts
-    for htlc in htlcs:
-        witness_script, htlc_tx = make_htlc_tx_with_open_channel(
-            chan,
-            our_pcp,
-            True, # for_us
-            False, # we_receive
-            ctx, htlc)
-
-        data = chan.config[LOCAL].current_htlc_signatures
-        htlc_sigs = [data[i:i+64] for i in range(0, len(data), 64)]
-        idx = chan.verify_htlc(htlc, htlc_sigs, False)
-        remote_htlc_sig = ecc.der_sig_from_sig_string(htlc_sigs[idx]) + b'\x01'
-
-        remote_revocation_pubkey = derive_blinded_pubkey(chan.config[REMOTE].revocation_basepoint.pubkey, our_pcp)
-        remote_htlc_pubkey = derive_pubkey(chan.config[REMOTE].htlc_basepoint.pubkey, our_pcp)
-        local_htlc_key = derive_privkey(
-            int.from_bytes(chan.config[LOCAL].htlc_basepoint.privkey, 'big'),
-            our_pcp).to_bytes(32, 'big')
-        program = make_offered_htlc(remote_revocation_pubkey, remote_htlc_pubkey, privkey_to_pubkey(local_htlc_key), htlc.payment_hash)
-        local_htlc_sig = bfh(htlc_tx.sign_txin(0, local_htlc_key))
-
-        htlc_tx.inputs()[0]['witness'] = bh2u(make_htlc_tx_witness(remote_htlc_sig, local_htlc_sig, b'', program))
-
-        tx_size_bytes = 999  # TODO
-        fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
-        fee = SimpleConfig.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
-        second_stage_outputs = [TxOutput(TYPE_ADDRESS, chan.sweep_address, htlc.amount_msat // 1000 - fee)]
-        assert to_self_delay is not None
-        second_stage_inputs = [{
-            'scriptSig': '',
-            'type': 'p2wsh',
-            'signatures': [],
-            'num_sig': 0,
-            'prevout_n': 0,
-            'prevout_hash': htlc_tx.txid(),
-            'value': htlc_tx.outputs()[0].value,
-            'coinbase': False,
-            'preimage_script': bh2u(witness_script),
-            'sequence': to_self_delay,
-        }]
-        tx = Transaction.from_io(second_stage_inputs, second_stage_outputs, version=2)
-
-        local_delaykey = derive_privkey(
-            int.from_bytes(chan.config[LOCAL].delayed_basepoint.privkey, 'big'),
-            our_pcp).to_bytes(32, 'big')
-        assert local_delaykey == our_localdelayed_privkey.get_secret_bytes()
-
-        witness = construct_witness([bfh(tx.sign_txin(0, local_delaykey)), 0, witness_script])
-        tx.inputs()[0]['witness'] = witness
-        assert tx.is_complete()
-
-        txs.append((htlc_tx.txid(), EncumberedTransaction(f'second_stage_to_wallet_{bh2u(htlc.payment_hash)}', tx, csv_delay=to_self_delay, cltv_expiry=0)))
-        txs.append((ctx.txid(), EncumberedTransaction(f'our_ctx_htlc_tx_{bh2u(htlc.payment_hash)}', htlc_tx, csv_delay=0, cltv_expiry=htlc.cltv_expiry)))
-
-    return txs
-
-def create_sweeptx_their_ctx_to_remote(address, ctx, output_idx: int, our_payment_privkey: ecc.ECPrivkey,
-                                       fee_per_kb: int=None) -> Transaction:
-    our_payment_pubkey = our_payment_privkey.get_public_key_hex(compressed=True)
-    val = ctx.outputs()[output_idx].value
-    sweep_inputs = [{
-        'type': 'p2wpkh',
-        'x_pubkeys': [our_payment_pubkey],
-        'num_sig': 1,
-        'prevout_n': output_idx,
-        'prevout_hash': ctx.txid(),
-        'value': val,
-        'coinbase': False,
-        'signatures': [None],
-    }]
-    tx_size_bytes = 110  # approx size of p2wpkh->p2wpkh
-    if fee_per_kb is None: fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
-    fee = SimpleConfig.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
-    sweep_outputs = [TxOutput(TYPE_ADDRESS, address, val-fee)]
-    sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs)
-    sweep_tx.set_rbf(True)
-    sweep_tx.sign({our_payment_pubkey: (our_payment_privkey.get_secret_bytes(), True)})
-    if not sweep_tx.is_complete():
-        raise Exception('channel close sweep tx is not complete')
-    return sweep_tx
-
-
-def create_sweeptx_ctx_to_local(address, ctx, output_idx: int, witness_script: str,
-                                privkey: bytes, is_revocation: bool,
-                                to_self_delay: int=None,
-                                fee_per_kb: int=None) -> Transaction:
-    """Create a txn that sweeps the 'to_local' output of a commitment
-    transaction into our wallet.
-
-    privkey: either revocation_privkey or localdelayed_privkey
-    is_revocation: tells us which ^
-    """
-    val = ctx.outputs()[output_idx].value
-    sweep_inputs = [{
-        'scriptSig': '',
-        'type': 'p2wsh',
-        'signatures': [],
-        'num_sig': 0,
-        'prevout_n': output_idx,
-        'prevout_hash': ctx.txid(),
-        'value': val,
-        'coinbase': False,
-        'preimage_script': witness_script,
-    }]
-    if to_self_delay is not None:
-        sweep_inputs[0]['sequence'] = to_self_delay
-    tx_size_bytes = 121  # approx size of to_local -> p2wpkh
-    if fee_per_kb is None: fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
-    fee = SimpleConfig.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
-    sweep_outputs = [TxOutput(TYPE_ADDRESS, address, val - fee)]
-    sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2)
-    sig = sweep_tx.sign_txin(0, privkey)
-    witness = construct_witness([sig, int(is_revocation), witness_script])
-    sweep_tx.inputs()[0]['witness'] = witness
-    return sweep_tx

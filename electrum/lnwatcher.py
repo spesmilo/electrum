@@ -36,9 +36,6 @@ class TxMinedDepth(IntEnum):
 
 
 class LNWatcher(AddressSynchronizer):
-    # TODO if verifier gets an incorrect merkle proof, that tx will never verify!!
-    # similarly, what if server ignores request for merkle proof?
-    # maybe we should disconnect from server in these cases
     verbosity_filter = 'W'
 
     def __init__(self, network: 'Network'):
@@ -181,6 +178,7 @@ class LNWatcher(AddressSynchronizer):
             if self.get_tx_mined_depth(prev_txid) == TxMinedDepth.DEEP:
                 self.print_error('have no follow-up transactions and prevtx', prev_txid, 'mined deep, returning')
                 return False
+            return True
         # check if any response applies
         keep_watching_this = False
         local_height = self.network.get_local_height()
@@ -241,7 +239,7 @@ class LNWatcher(AddressSynchronizer):
 
     def get_tx_mined_depth(self, txid: str):
         if not txid:
-            return TxMinedStatus.FREE
+            return TxMinedDepth.FREE
         tx_mined_depth = self.get_tx_height(txid)
         height, conf = tx_mined_depth.height, tx_mined_depth.conf
         if conf > 100:
