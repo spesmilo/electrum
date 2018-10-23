@@ -2111,7 +2111,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if len(mpk_list) > 1:
                 def label(key):
                     if isinstance(self.wallet, Multisig_Wallet):
-                        return f'{_("cosigner")} {key+1} ( keystore: {keystore_types[key]} )'
+                        return _("cosigner") + f' {key+1} ( keystore: {keystore_types[key]} )'
                     return ''
                 labels = [label(i) for i in range(len(mpk_list))]
                 on_click = lambda clayout: show_mpk(clayout.selected_index())
