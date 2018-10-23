@@ -47,6 +47,9 @@ class KeyStore(PrintError):
     def can_import(self):
         return False
 
+    def get_type_text(self) -> str:
+        return f'{self.type}'
+
     def may_have_password(self):
         """Returns whether the keystore can be encrypted with a password."""
         raise NotImplementedError()
@@ -117,6 +120,8 @@ class Software_KeyStore(KeyStore):
 class Imported_KeyStore(Software_KeyStore):
     # keystore for imported private keys
 
+    type = 'imported'
+
     def __init__(self, d):
         Software_KeyStore.__init__(self)
         self.keypairs = d.get('keypairs', {})
@@ -129,7 +134,7 @@ class Imported_KeyStore(Software_KeyStore):
 
     def dump(self):
         return {
-            'type': 'imported',
+            'type': self.type,
             'keypairs': self.keypairs,
         }
 
@@ -200,6 +205,7 @@ class Deterministic_KeyStore(Software_KeyStore):
             d['seed'] = self.seed
         if self.passphrase:
             d['passphrase'] = self.passphrase
+        d['type'] = self.type
         return d
 
     def has_seed(self):
@@ -282,6 +288,8 @@ class Xpub:
 
 class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
+    type = 'bip32'
+
     def __init__(self, d):
         Xpub.__init__(self)
         Deterministic_KeyStore.__init__(self, d)
@@ -293,7 +301,6 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
     def dump(self):
         d = Deterministic_KeyStore.dump(self)
-        d['type'] = 'bip32'
         d['xpub'] = self.xpub
         d['xprv'] = self.xprv
         return d
@@ -342,6 +349,8 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
 class Old_KeyStore(Deterministic_KeyStore):
 
+    type = 'old'
+
     def __init__(self, d):
         Deterministic_KeyStore.__init__(self, d)
         self.mpk = d.get('mpk')
@@ -352,7 +361,6 @@ class Old_KeyStore(Deterministic_KeyStore):
     def dump(self):
         d = Deterministic_KeyStore.dump(self)
         d['mpk'] = self.mpk
-        d['type'] = 'old'
         return d
 
     def add_seed(self, seedphrase):
@@ -481,7 +489,7 @@ class Hardware_KeyStore(KeyStore, Xpub):
     #   - DEVICE_IDS
     #   - wallet_type
 
-    #restore_wallet_class = BIP32_RD_Wallet
+    type = 'hardware'
     max_change_outputs = 1
 
     def __init__(self, d):
@@ -505,9 +513,12 @@ class Hardware_KeyStore(KeyStore, Xpub):
     def is_deterministic(self):
         return True
 
+    def get_type_text(self) -> str:
+        return f'hw[{self.hw_type}]'
+
     def dump(self):
         return {
-            'type': 'hardware',
+            'type': self.type,
             'hw_type': self.hw_type,
             'xpub': self.xpub,
             'derivation':self.derivation,
@@ -669,7 +680,8 @@ def hardware_keystore(d):
     if hw_type in hw_keystores:
         constructor = hw_keystores[hw_type]
         return constructor(d)
-    raise WalletFileException('unknown hardware type: {}. hw_keystores: {}'.format(hw_type, list(hw_keystores.keys())))
+    raise WalletFileException(f'unknown hardware type: {hw_type}. '
+                              f'hw_keystores: {list(hw_keystores)}')
 
 def load_keystore(storage, name):
     d = storage.get(name, {})
@@ -678,17 +690,13 @@ def load_keystore(storage, name):
         raise WalletFileException(
             'Wallet format requires update.\n'
             'Cannot find keystore for name {}'.format(name))
-    if t == 'old':
-        k = Old_KeyStore(d)
-    elif t == 'imported':
-        k = Imported_KeyStore(d)
-    elif t == 'bip32':
-        k = BIP32_KeyStore(d)
-    elif t == 'hardware':
-        k = hardware_keystore(d)
-    else:
-        raise WalletFileException(
-            'Unknown type {} for keystore named {}'.format(t, name))
+    keystore_constructors = {ks.type: ks for ks in [Old_KeyStore, Imported_KeyStore, BIP32_KeyStore]}
+    keystore_constructors['hardware'] = hardware_keystore
+    try:
+        ks_constructor = keystore_constructors[t]
+    except KeyError:
+        raise WalletFileException(f'Unknown type {t} for keystore named {name}')
+    k = ks_constructor(d)
     return k
 
 

@@ -2085,6 +2085,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.wallet.is_watching_only():
             wallet_type += ' [{}]'.format(_('watching-only'))
         seed_available = _('True') if self.wallet.has_seed() else _('False')
+        keystore_types = [k.get_type_text() for k in self.wallet.get_keystores()]
         grid = QGridLayout()
         basename = os.path.basename(self.wallet.storage.path)
         grid.addWidget(QLabel(_("Wallet name")+ ':'), 0, 0)
@@ -2095,6 +2096,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(QLabel(self.wallet.txin_type), 2, 1)
         grid.addWidget(QLabel(_("Seed available") + ':'), 3, 0)
         grid.addWidget(QLabel(str(seed_available)), 3, 1)
+        if len(keystore_types) <= 1:
+            grid.addWidget(QLabel(_("Keystore type") + ':'), 4, 0)
+            ks_type = str(keystore_types[0]) if keystore_types else _('No keystore')
+            grid.addWidget(QLabel(ks_type), 4, 1)
         vbox.addLayout(grid)
         if self.wallet.is_deterministic():
             mpk_text = ShowQRTextEdit()
@@ -2106,7 +2111,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if len(mpk_list) > 1:
                 def label(key):
                     if isinstance(self.wallet, Multisig_Wallet):
-                        return _("cosigner") + ' ' + str(key+1)
+                        return f'{_("cosigner")} {key+1} ( keystore: {keystore_types[key]} )'
                     return ''
                 labels = [label(i) for i in range(len(mpk_list))]
                 on_click = lambda clayout: show_mpk(clayout.selected_index())
