@@ -1254,6 +1254,28 @@ class Transaction:
         return (addr in (o.address for o in self.outputs())) \
                or (addr in (txin.get("address") for txin in self.inputs()))
 
+    def get_output_idx_from_scriptpubkey(self, script: str) -> Optional[int]:
+        """Returns the index of an output with given script.
+        If there are no such outputs, returns None;
+        if there are multiple, returns one of them.
+        """
+        assert isinstance(script, str)  # hex
+        # build cache if there isn't one yet
+        # note: can become stale and return incorrect data
+        #       if the tx is modified later; that's out of scope.
+        if not hasattr(self, '_script_to_output_idx'):
+            d = {}
+            for output_idx, o in enumerate(self.outputs()):
+                o_script = self.pay_script(o.type, o.address)
+                assert isinstance(o_script, str)
+                d[o_script] = output_idx
+            self._script_to_output_idx = d
+        return self._script_to_output_idx.get(script)
+
+    def get_output_idx_from_address(self, addr: str) -> Optional:
+        script = bitcoin.address_to_script(addr)
+        return self.get_output_idx_from_scriptpubkey(script)
+
     def as_dict(self):
         if self.raw is None:
             self.raw = self.serialize()
