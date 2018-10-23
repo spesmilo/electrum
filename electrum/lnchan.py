@@ -18,7 +18,7 @@ from .lnutil import sign_and_get_sig_string, privkey_to_pubkey, make_htlc_tx_wit
 from .lnutil import make_htlc_tx_with_open_channel, make_commitment, make_received_htlc, make_offered_htlc
 from .lnutil import HTLC_TIMEOUT_WEIGHT, HTLC_SUCCESS_WEIGHT
 from .lnutil import funding_output_script, LOCAL, REMOTE, HTLCOwner, make_closing_tx, make_commitment_outputs
-from .lnutil import ScriptHtlc, SENT, RECEIVED, PaymentFailure, calc_onchain_fees
+from .lnutil import ScriptHtlc, SENT, RECEIVED, PaymentFailure, calc_onchain_fees, RemoteMisbehaving
 from .transaction import Transaction, TxOutput, construct_witness
 from .simple_config import SimpleConfig, FEERATE_FALLBACK_STATIC_FEE
 
@@ -131,6 +131,7 @@ class Channel(PrintError):
         template = lambda: {
             'adds': {}, # Dict[HTLC_ID, UpdateAddHtlc]
             'settles': [], # List[HTLC_ID]
+            'fails': [], # List[HTLC_ID]
         }
         self.log = {LOCAL: template(), REMOTE: template()}
         for strname, subject in [('remote_log', REMOTE), ('local_log', LOCAL)]:
@@ -159,23 +160,23 @@ class Channel(PrintError):
     def get_state(self):
         return self._state
 
-    def check_can_pay(self, amount_msat: int) -> None:
-        # FIXME channel reserve
+    def _check_can_pay(self, amount_msat: int) -> None:
         if self.get_state() != 'OPEN':
             raise PaymentFailure('Channel not open')
         if self.available_to_spend(LOCAL) < amount_msat:
             raise PaymentFailure('Not enough local balance')
         if len(self.htlcs(LOCAL, only_pending=True)) + 1 > self.config[REMOTE].max_accepted_htlcs:
             raise PaymentFailure('Too many HTLCs already in channel')
-        if htlcsum(self.htlcs(LOCAL, only_pending=True)) + amount_msat > self.config[REMOTE].max_htlc_value_in_flight_msat:
-            raise PaymentFailure('HTLC value sum would exceed max allowed: {} msat'.format(self.config[REMOTE].max_htlc_value_in_flight_msat))
+        current_htlc_sum = htlcsum(self.htlcs(LOCAL, only_pending=True))
+        if current_htlc_sum + amount_msat > self.config[REMOTE].max_htlc_value_in_flight_msat:
+            raise PaymentFailure(f'HTLC value sum (sum of pending htlcs: {current_htlc_sum/1000} sat plus new htlc: {amount_msat/1000} sat) would exceed max allowed: {self.config[REMOTE].max_htlc_value_in_flight_msat/1000} sat')
         if amount_msat <= 0:  # FIXME htlc_minimum_msat
             raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
 
     def can_pay(self, amount_msat):
         try:
-            self.check_can_pay(amount_msat)
-        except:
+            self._check_can_pay(amount_msat)
+        except PaymentFailure:
             return False
         return True
 
@@ -196,6 +197,7 @@ class Channel(PrintError):
         should be called when preparing to send an outgoing HTLC.
         """
         assert type(htlc) is dict
+        self._check_can_pay(htlc['amount_msat'])
         htlc = UpdateAddHtlc(**htlc, htlc_id=self.config[LOCAL].next_htlc_id)
         self.log[LOCAL]['adds'][htlc.htlc_id] = htlc
         self.print_error("add_htlc")
@@ -210,7 +212,10 @@ class Channel(PrintError):
         """
         assert type(htlc) is dict
         htlc = UpdateAddHtlc(**htlc, htlc_id = self.config[REMOTE].next_htlc_id)
-        self.log[REMOTE]['adds'][htlc.htlc_id] = htlc
+        if self.available_to_spend(REMOTE) < htlc.amount_msat:
+            raise RemoteMisbehaving('Remote dipped below channel reserve')
+        adds = self.log[REMOTE]['adds']
+        adds[htlc.htlc_id] = htlc
         self.print_error("receive_htlc")
         self.config[REMOTE]=self.config[REMOTE]._replace(next_htlc_id=htlc.htlc_id + 1)
         return htlc.htlc_id
@@ -228,10 +233,8 @@ class Channel(PrintError):
         any). The HTLC signatures are sorted according to the BIP 69 order of the
         HTLC's on the commitment transaction.
         """
-        for htlc in self.log[LOCAL]['adds'].values():
-            if htlc.locked_in[LOCAL] is None:
-                htlc.locked_in[LOCAL] = self.config[LOCAL].ctn
         self.print_error("sign_next_commitment")
+        self.lock_in_htlc_changes(LOCAL)
 
         pending_remote_commitment = self.pending_remote_commitment
         sig_64 = sign_and_get_sig_string(pending_remote_commitment, self.config[LOCAL], self.config[REMOTE])
@@ -265,6 +268,17 @@ class Channel(PrintError):
 
         return sig_64, htlcsigs
 
+    def lock_in_htlc_changes(self, subject):
+        for sub in (LOCAL, REMOTE):
+            for htlc_id in self.log[-sub]['fails']:
+                adds = self.log[sub]['adds']
+                htlc = adds.pop(htlc_id)
+            self.log[-sub]['fails'].clear()
+
+        for htlc in self.log[subject]['adds'].values():
+            if htlc.locked_in[subject] is None:
+                htlc.locked_in[subject] = self.config[subject].ctn
+
     def receive_new_commitment(self, sig, htlc_sigs):
         """
         ReceiveNewCommitment process a signature for a new commitment state sent by
@@ -276,11 +290,8 @@ class Channel(PrintError):
         state, then this newly added commitment becomes our current accepted channel
         state.
         """
-
         self.print_error("receive_new_commitment")
-        for htlc in self.log[REMOTE]['adds'].values():
-            if htlc.locked_in[REMOTE] is None:
-                htlc.locked_in[REMOTE] = self.config[REMOTE].ctn
+        self.lock_in_htlc_changes(REMOTE)
         assert len(htlc_sigs) == 0 or type(htlc_sigs[0]) is bytes
 
         pending_local_commitment = self.pending_local_commitment
@@ -479,9 +490,16 @@ class Channel(PrintError):
         return initial
 
     def available_to_spend(self, subject):
-        # FIXME what about channel_reserve_satoshis? will the remote fail the channel if we go below? test.
-        # FIXME what about tx fees
-        return self.balance(subject) - htlcsum(self.htlcs(subject, only_pending=True))
+        return self.balance(subject)\
+                - htlcsum(self.log[subject]['adds'].values())\
+                - self.config[subject].reserve_sat * 1000\
+                - calc_onchain_fees(
+                      # TODO should we include a potential new htlc, when we are called from receive_htlc?
+                      len(list(self.included_htlcs(subject, LOCAL)) + list(self.included_htlcs(subject, REMOTE))),
+                      self.pending_feerate(subject),
+                      subject == LOCAL,
+                      self.constraints.is_initiator,
+                  )[subject]
 
     def amounts(self):
         remote_settled= htlcsum(self.htlcs(REMOTE, False))
@@ -536,8 +554,11 @@ class Channel(PrintError):
         res = []
         for htlc in update_log['adds'].values():
             locked_in = htlc.locked_in[subject]
-
-            if locked_in is None or only_pending == (htlc.htlc_id in other_log['settles']):
+            settled = htlc.htlc_id in other_log['settles']
+            failed =  htlc.htlc_id in other_log['fails']
+            if locked_in is None:
+                continue
+            if only_pending == (settled or failed):
                 continue
             res.append(htlc)
         return res
@@ -561,11 +582,11 @@ class Channel(PrintError):
 
     def fail_htlc(self, htlc_id):
         self.print_error("fail_htlc")
-        self.log[REMOTE]['adds'].pop(htlc_id)
+        self.log[LOCAL]['fails'].append(htlc_id)
 
     def receive_fail_htlc(self, htlc_id):
         self.print_error("receive_fail_htlc")
-        self.log[LOCAL]['adds'].pop(htlc_id)
+        self.log[REMOTE]['fails'].append(htlc_id)
 
     @property
     def current_height(self):
@@ -665,8 +686,8 @@ class Channel(PrintError):
 
     def make_commitment(self, subject, this_point) -> Transaction:
         remote_msat, local_msat = self.amounts()
-        assert local_msat >= 0
-        assert remote_msat >= 0
+        assert local_msat >= 0, local_msat
+        assert remote_msat >= 0, remote_msat
         this_config = self.config[subject]
         other_config = self.config[-subject]
         other_htlc_pubkey = derive_pubkey(other_config.htlc_basepoint.pubkey, this_point)

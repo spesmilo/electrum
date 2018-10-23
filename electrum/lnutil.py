@@ -37,6 +37,7 @@ common = [
     ('max_htlc_value_in_flight_msat' , int),
     ('max_accepted_htlcs' , int),
     ('initial_msat' , int),
+    ('reserve_sat', int),
 ]
 
 ChannelConfig = NamedTuple('ChannelConfig', common)
@@ -65,6 +66,7 @@ class HandshakeFailed(LightningError): pass
 class PaymentFailure(LightningError): pass
 class ConnStringFormatError(LightningError): pass
 class UnknownPaymentHash(LightningError): pass
+class RemoteMisbehaving(LightningError): pass
 
 
 # TODO make configurable?
