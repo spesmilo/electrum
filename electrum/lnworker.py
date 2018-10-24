@@ -6,6 +6,7 @@ import time
 from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING
 import threading
 import socket
+import json
 
 import dns.resolver
 import dns.exception
@@ -20,7 +21,7 @@ from .lntransport import LNResponderTransport
 from .lnbase import Peer
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
-from .lnchan import Channel
+from .lnchan import Channel, ChannelJsonEncoder
 from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
@@ -405,11 +406,13 @@ class LNWorker(PrintError):
         self.wallet.storage.write()
 
     def list_channels(self):
+        encoder = ChannelJsonEncoder()
         with self.lock:
             # we output the funding_outpoint instead of the channel_id because lnd uses channel_point (funding outpoint) to identify channels
             for channel_id, chan in self.channels.items():
                 yield {
-                    'htlcs': chan.log[LOCAL],
+                    'local_htlcs':  json.loads(encoder.encode(chan.log[LOCAL ])),
+                    'remote_htlcs': json.loads(encoder.encode(chan.log[REMOTE])),
                     'channel_id': bh2u(chan.short_channel_id),
                     'channel_point': chan.funding_outpoint.to_str(),
                     'state': chan.get_state(),
