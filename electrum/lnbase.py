@@ -956,7 +956,7 @@ class Peer(PrintError):
     async def receive_revoke(self, m):
         revoke_and_ack_msg = await self.revoke_and_ack[m.channel_id].get()
         m.receive_revocation(RevokeAndAck(revoke_and_ack_msg["per_commitment_secret"], revoke_and_ack_msg["next_per_commitment_point"]))
-        self.lnworker.save_channel(chan)
+        self.lnworker.save_channel(m)
 
     def revoke(self, m):
         rev, _ = m.revoke_current_commitment()
