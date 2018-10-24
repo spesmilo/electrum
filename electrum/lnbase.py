@@ -1029,7 +1029,7 @@ class Peer(PrintError):
         # add htlc
         htlc = {'amount_msat': amount_msat_htlc, 'payment_hash':payment_hash, 'cltv_expiry':cltv_expiry}
         chan.receive_htlc(htlc)
-        assert (await self.receive_commitment(chan)) <= 1
+        await self.receive_commitment(chan)
         self.revoke(chan)
         self.send_commitment(chan)
         await self.receive_revoke(chan)
