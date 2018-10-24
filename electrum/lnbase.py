@@ -1129,8 +1129,9 @@ class Peer(PrintError):
         self.shutdown_received[chan_id] = asyncio.Future()
         self.send_shutdown(chan)
         payload = await self.shutdown_received[chan_id]
-        await self._shutdown(chan, payload)
-        self.network.trigger_callback('ln_message', self.lnworker, 'Channel closed')
+        txid = await self._shutdown(chan, payload)
+        self.print_error('Channel closed', txid)
+        return txid
 
     @log_exceptions
     async def on_shutdown(self, payload):
@@ -1140,12 +1141,11 @@ class Peer(PrintError):
         chan_id = payload['channel_id']
         if chan_id in self.shutdown_received:
             self.shutdown_received[chan_id].set_result(payload)
-            self.print_error('Channel closed by us')
         else:
             chan = self.channels[chan_id]
             self.send_shutdown(chan)
-            await self._shutdown(chan, payload)
-            self.print_error('Channel closed by remote peer')
+            txid = await self._shutdown(chan, payload)
+            self.print_error('Channel closed by remote peer', txid)
 
     def send_shutdown(self, chan):
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
@@ -1154,7 +1154,7 @@ class Peer(PrintError):
     @log_exceptions
     async def _shutdown(self, chan, payload):
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
-        signature, fee = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'])
+        signature, fee, txid = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'])
         self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=fee, signature=signature)
         while chan.get_state() != 'CLOSED':
             try:
@@ -1163,5 +1163,6 @@ class Peer(PrintError):
                 pass
             else:
                 fee = int.from_bytes(closing_signed['fee_satoshis'], 'big')
-                signature, _ = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'], fee_sat=fee)
+                signature, _, txid = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'], fee_sat=fee)
                 self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=fee, signature=signature)
+        return txid
