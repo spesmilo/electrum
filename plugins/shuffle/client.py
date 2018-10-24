@@ -334,3 +334,116 @@ class BotThread(threading.Thread):
         self.stopper.set()
 
         threading.Thread.join(self)
+
+
+def get_coin_for_shuffling(wallet, scale, fee = 1000):
+    coins = wallet.get_utxos(exclude_frozen=True, confirmed_only=True )
+    unshuffled_coins = [coin for coin in coins if not wallet.is_coin_shuffled(coin)]
+    upper_amount = scale*10
+    lower_amount = scale + fee
+    unshuffled_coins_on_scale = [coin for coin in unshuffled_coins if coin['value'] < upper_amount and coin['value'] > lower_amount]
+    unshuffled_coins_on_scale.sort(key=lambda x: x['value']*10e8 + (10e8-x['height']))
+    if unshuffled_coins_on_scale:
+        return unshuffled_coins_on_scale[-1]
+    else:
+        return None
+
+
+class BackgroundShufflingThread(threading.Thread):
+
+    scales = [10e4, 10e5, 10e6, 10e7 ,10e8]
+
+    def __init__(self, wallet, network_settings,
+                 period = 1, logger = None, fee=1000, password=None):
+        threading.Thread.__init__(self)
+        self.period = period * 60 # Period goes in minutes
+        self.logger = logger
+        self.wallet = wallet
+        self.host = network_settings.get("host", None)
+        self.port = network_settings.get("port", None)
+        self.ssl = network_settings.get("ssl", None)
+        self.network = network_settings.get("network", None)
+        self.fee = fee
+        self.password = password
+        self.threads = {scale:None for scale in self.scales}
+        self.loggers = {scale:Channel(switch_timeout=4) for scale in self.scales}
+        self.stopper = threading.Event()
+
+    def run(self):
+        if self.logger:
+            self.logger.send("started", "MAINLOG")
+            self.logger.send(self.password, "MAINLOG")
+        while not self.stopper.is_set():
+            for scale in self.scales:
+                if self.threads[scale]:
+                    self.prosess_protocol_messages(scale)
+                else:
+                    coin = self.get_coin_for_shuffling(scale)
+                    if coin:
+                        self.make_prototocol_thread(coin, scale)
+                        self.threads[scale].start()
+
+    def get_coin_for_shuffling(self, scale):
+        coins = self.wallet.get_utxos(exclude_frozen=True, confirmed_only=True )
+        unshuffled_coins = [coin for coin in coins if not self.wallet.is_coin_shuffled(coin)]
+        upper_amount = scale*10
+        lower_amount = scale + self.fee
+        unshuffled_coins_on_scale = [coin for coin in unshuffled_coins if coin['value'] < upper_amount and coin['value'] > lower_amount]
+        unshuffled_coins_on_scale.sort(key=lambda x: x['value']*10e8 + (10e8-x['height']))
+        if unshuffled_coins_on_scale:
+            return unshuffled_coins_on_scale[-1]
+        else:
+            return None
+
+    def prosess_protocol_messages(self, scale):
+        try:
+            message = self.loggers[scale].recv()
+            vk = self.threads[scale].vk
+            sender = self.threads[scale].inputs[vk][0]
+            # print(self.threads[scale].inputs)
+            if message.startswith("Error"):
+                self.logger.send(message, sender)
+                self.threads[scale].join()
+                while self.threads[scale].is_alive():
+                    pass
+                self.threads[scale] = None
+            elif message.endswith("complete protocol"):
+                pass
+            elif message.startswith("Player"):
+                self.logger.send(message, sender)
+            elif message.startswith("Blame"):
+                if "insufficient" in message:
+                    pass
+                elif "wrong hash" in message:
+                    pass
+                else:
+                    self.logger.send(message, sender)
+                    self.threads[scale].join()
+                    while self.threads[scale].is_alive():
+                        pass
+                    self.threads[scale] = None
+        except Exception as e:
+            self.logger.send(str(e), "Protocol")
+            return None
+
+    def make_prototocol_thread(self, coin, scale):
+        inputs= {}
+        sks = {}
+        public_key = self.wallet.get_public_key(coin['address'])
+        private_key = self.wallet.export_private_key(coin['address'], self.password)
+        sk = regenerate_key(deserialize_privkey(private_key)[1])
+        inputs[public_key] = ["{}:{}".format(coin['prevout_hash'],coin['prevout_n'])]
+        sks[public_key] = sk
+        output = self.wallet.get_unused_addresses()[0].to_ui_string()
+        change = self.wallet.get_change_addresses()[0].to_ui_string()
+        self.threads[scale] = ProtocolThread(self.host, self.port, self.network,
+                                             scale, self.fee, sk, sks, inputs, public_key, output, change,
+                                             logger=self.loggers[scale], ssl=self.ssl)
+
+
+    def join(self):
+        self.stopper.set()
+        if self.logger:
+            self.logger.send("stopped", "MAINLOG")
+
+        threading.Thread.join(self)
