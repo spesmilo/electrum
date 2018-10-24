@@ -205,6 +205,7 @@ class Peer(PrintError):
         self.lnwatcher = lnworker.network.lnwatcher
         self.channel_db = lnworker.network.channel_db
         self.ping_time = 0
+        self.shutdown_received = defaultdict(asyncio.Future)
         self.channel_accepted = defaultdict(asyncio.Queue)
         self.channel_reestablished = defaultdict(asyncio.Future)
         self.funding_signed = defaultdict(asyncio.Queue)
@@ -1123,13 +1124,36 @@ class Peer(PrintError):
         self.closing_signed[chan_id].put_nowait(payload)
 
     @log_exceptions
+    async def close_channel(self, chan_id):
+        chan = self.channels[chan_id]
+        self.shutdown_received[chan_id] = asyncio.Future()
+        self.send_shutdown(chan)
+        payload = await self.shutdown_received[chan_id]
+        await self._shutdown(chan, payload)
+        self.network.trigger_callback('ln_message', self.lnworker, 'Channel closed')
+
+    @log_exceptions
     async def on_shutdown(self, payload):
         # length of scripts allowed in BOLT-02
         if int.from_bytes(payload['len'], 'big') not in (3+20+2, 2+20+1, 2+20, 2+32):
             raise Exception('scriptpubkey length in received shutdown message invalid: ' + str(payload['len']))
-        chan = self.channels[payload['channel_id']]
+        chan_id = payload['channel_id']
+        if chan_id in self.shutdown_received:
+            self.shutdown_received[chan_id].set_result(payload)
+            self.print_error('Channel closed by us')
+        else:
+            chan = self.channels[chan_id]
+            self.send_shutdown(chan)
+            await self._shutdown(chan, payload)
+            self.print_error('Channel closed by remote peer')
+
+    def send_shutdown(self, chan):
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
         self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
+
+    @log_exceptions
+    async def _shutdown(self, chan, payload):
+        scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
         signature, fee = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'])
         self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=fee, signature=signature)
         while chan.get_state() != 'CLOSED':
@@ -1141,4 +1165,3 @@ class Peer(PrintError):
                 fee = int.from_bytes(closing_signed['fee_satoshis'], 'big')
                 signature, _ = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'], fee_sat=fee)
                 self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=fee, signature=signature)
-        self.print_error('REMOTE PEER CLOSED CHANNEL')
