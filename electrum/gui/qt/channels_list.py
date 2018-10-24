@@ -25,12 +25,12 @@ class ChannelsList(MyTreeWidget):
     def format_fields(self, chan):
         labels = {}
         for subject in (REMOTE, LOCAL):
-            available = chan.available_to_spend(subject)//1000
-            label = self.parent.format_amount(available)
+            bal_minus_htlcs = chan.balance_minus_outgoing_htlcs(subject)//1000
+            label = self.parent.format_amount(bal_minus_htlcs)
             bal_other = chan.balance(-subject)//1000
-            available_other = chan.available_to_spend(-subject)//1000
-            if bal_other != available_other:
-                label += ' (+' + self.parent.format_amount(bal_other - available_other) + ')'
+            bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(-subject)//1000
+            if bal_other != bal_minus_htlcs_other:
+                label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other) + ')'
             labels[subject] = label
         return [
             bh2u(chan.node_id),

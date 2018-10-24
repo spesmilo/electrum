@@ -427,7 +427,7 @@ class Peer(PrintError):
             to_self_delay=local_config.to_self_delay,
             max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
             channel_flags=0x00,  # not willing to announce channel
-            channel_reserve_satoshis=546
+            channel_reserve_satoshis=local_config.reserve_sat,
         )
         payload = await self.channel_accepted[temp_channel_id].get()
         if payload.get('error'):
@@ -440,6 +440,7 @@ class Peer(PrintError):
         remote_max = int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big')
         assert remote_max >= 198 * 1000 * 1000, remote_max
         their_revocation_store = RevocationStore()
+        remote_reserve_sat = self.validate_remote_reserve(payload["channel_reserve_satoshis"], remote_dust_limit_sat, funding_sat)
         remote_config = RemoteConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
             multisig_key=OnlyPubkeyKeypair(payload["funding_pubkey"]),
@@ -454,7 +455,7 @@ class Peer(PrintError):
             ctn = -1,
             amount_msat=push_msat,
             next_htlc_id = 0,
-            reserve_sat = int.from_bytes(payload["channel_reserve_satoshis"], 'big'),
+            reserve_sat = remote_reserve_sat,
 
             next_per_commitment_point=remote_per_commitment_point,
             current_per_commitment_point=None,
@@ -528,7 +529,7 @@ class Peer(PrintError):
             temporary_channel_id=temp_chan_id,
             dust_limit_satoshis=local_config.dust_limit_sat,
             max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
-            channel_reserve_satoshis=546,
+            channel_reserve_satoshis=local_config.reserve_sat,
             htlc_minimum_msat=1000,
             minimum_depth=min_depth,
             to_self_delay=local_config.to_self_delay,
@@ -546,6 +547,7 @@ class Peer(PrintError):
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_idx)
         their_revocation_store = RevocationStore()
         remote_balance_sat = funding_sat * 1000 - push_msat
+        remote_reserve_sat = self.validate_remote_reserve(payload['channel_reserve_satoshis'], remote_dust_limit_sat, funding_sat)
         chan = {
                 "node_id": self.peer_addr.pubkey,
                 "channel_id": channel_id,
@@ -565,7 +567,7 @@ class Peer(PrintError):
                     ctn = -1,
                     amount_msat=remote_balance_sat,
                     next_htlc_id = 0,
-                    reserve_sat = int.from_bytes(payload['channel_reserve_satoshis'], 'big'),
+                    reserve_sat = remote_reserve_sat,
 
                     next_per_commitment_point=payload['first_per_commitment_point'],
                     current_per_commitment_point=None,
@@ -613,6 +615,14 @@ class Peer(PrintError):
         if outp != TxOutput(bitcoin.TYPE_ADDRESS, funding_address, funding_sat):
             m.set_state('DISCONNECTED')
             raise Exception('funding outpoint mismatch')
+
+    def validate_remote_reserve(self, payload_field, dust_limit, funding_sat):
+        remote_reserve_sat = int.from_bytes(payload_field, 'big')
+        if remote_reserve_sat < dust_limit:
+            raise Exception('protocol violation: reserve < dust_limit')
+        if remote_reserve_sat > funding_sat/100:
+            raise Exception(f'reserve too high: {remote_reserve_sat}, funding_sat: {funding_sat}')
+        return remote_reserve_sat
 
     @log_exceptions
     async def reestablish_channel(self, chan):

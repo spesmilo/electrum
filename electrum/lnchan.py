@@ -164,7 +164,7 @@ class Channel(PrintError):
         if self.get_state() != 'OPEN':
             raise PaymentFailure('Channel not open')
         if self.available_to_spend(LOCAL) < amount_msat:
-            raise PaymentFailure('Not enough local balance')
+            raise PaymentFailure(f'Not enough local balance. Have: {self.available_to_spend(LOCAL)}, Need: {amount_msat}')
         if len(self.htlcs(LOCAL, only_pending=True)) + 1 > self.config[REMOTE].max_accepted_htlcs:
             raise PaymentFailure('Too many HTLCs already in channel')
         current_htlc_sum = htlcsum(self.htlcs(LOCAL, only_pending=True))
@@ -213,7 +213,9 @@ class Channel(PrintError):
         assert type(htlc) is dict
         htlc = UpdateAddHtlc(**htlc, htlc_id = self.config[REMOTE].next_htlc_id)
         if self.available_to_spend(REMOTE) < htlc.amount_msat:
-            raise RemoteMisbehaving('Remote dipped below channel reserve')
+            raise RemoteMisbehaving('Remote dipped below channel reserve.' +\
+                    f' Available at remote: {self.available_to_spend(REMOTE)},' +\
+                    f' HTLC amount: {htlc.amount_msat}')
         adds = self.log[REMOTE]['adds']
         adds[htlc.htlc_id] = htlc
         self.print_error("receive_htlc")
@@ -481,6 +483,16 @@ class Channel(PrintError):
         return received_this_batch, sent_this_batch
 
     def balance(self, subject):
+        """
+        This balance in mSAT is not including reserve and fees.
+        So a node cannot actually use it's whole balance.
+        But this number is simple, since it is derived simply
+        from the initial balance, and the value of settled HTLCs.
+        Note that it does not decrease once an HTLC is added,
+        failed or fulfilled, since the balance change is only
+        commited to later when the respective commitment
+        transaction as been revoked.
+        """
         initial = self.config[subject].initial_msat
 
         initial -= sum(self.settled[subject])
@@ -489,15 +501,27 @@ class Channel(PrintError):
         assert initial == self.config[subject].amount_msat
         return initial
 
-    def available_to_spend(self, subject):
+    def balance_minus_outgoing_htlcs(self, subject):
+        """
+        This balance in mSAT, which includes the value of
+        pending outgoing HTLCs, is used in the UI.
+        """
         return self.balance(subject)\
+                - htlcsum(self.log[subject]['adds'].values())
+
+    def available_to_spend(self, subject):
+        """
+        This balance in mSAT, while technically correct, can
+        not be used in the UI cause it fluctuates (commit fee)
+        """
+        return self.balance_minus_outgoing_htlcs(subject)\
                 - htlcsum(self.log[subject]['adds'].values())\
-                - self.config[subject].reserve_sat * 1000\
+                - self.config[-subject].reserve_sat * 1000\
                 - calc_onchain_fees(
                       # TODO should we include a potential new htlc, when we are called from receive_htlc?
                       len(list(self.included_htlcs(subject, LOCAL)) + list(self.included_htlcs(subject, REMOTE))),
                       self.pending_feerate(subject),
-                      subject == LOCAL,
+                      True, # for_us
                       self.constraints.is_initiator,
                   )[subject]
 
