@@ -22,6 +22,13 @@ from .lnutil import ScriptHtlc, SENT, RECEIVED, PaymentFailure, calc_onchain_fee
 from .transaction import Transaction, TxOutput, construct_witness
 from .simple_config import SimpleConfig, FEERATE_FALLBACK_STATIC_FEE
 
+class ChannelJsonEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, bytes):
+            return binascii.hexlify(o).decode("ascii")
+        if isinstance(o, RevocationStore):
+            return o.serialize()
+        return super(ChannelJsonEncoder, self)
 
 RevokeAndAck = namedtuple("RevokeAndAck", ["per_commitment_secret", "next_per_commitment_point"])
 
@@ -685,14 +692,7 @@ class Channel(PrintError):
     def serialize(self):
         namedtuples_to_dict = lambda v: {i: j._asdict() if isinstance(j, tuple) else j for i, j in v._asdict().items()}
         serialized_channel = {k: namedtuples_to_dict(v) if isinstance(v, tuple) else v for k, v in self.to_save().items()}
-        class MyJsonEncoder(json.JSONEncoder):
-            def default(self, o):
-                if isinstance(o, bytes):
-                    return binascii.hexlify(o).decode("ascii")
-                if isinstance(o, RevocationStore):
-                    return o.serialize()
-                return super(MyJsonEncoder, self)
-        dumped = MyJsonEncoder().encode(serialized_channel)
+        dumped = ChannelJsonEncoder().encode(serialized_channel)
         roundtripped = json.loads(dumped)
         reconstructed = Channel(roundtripped)
         if reconstructed.to_save() != self.to_save():
