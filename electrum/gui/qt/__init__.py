@@ -237,9 +237,9 @@ class ElectrumGui(PrintError):
         try:
             for w in self.windows:
                 if w.wallet.storage.path == wallet.storage.path:
-                    w.bring_to_top()
-                    return
-            w = self.create_window_for_wallet(wallet)
+                    break
+            else:
+                w = self.create_window_for_wallet(wallet)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             d = QMessageBox(QMessageBox.Warning, _('Error'),
