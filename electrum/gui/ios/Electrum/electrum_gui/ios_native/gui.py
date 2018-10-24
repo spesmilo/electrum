@@ -307,7 +307,8 @@ class ElectrumGui(PrintError):
         if self.daemon.network:
             self.daemon.network.register_callback(self.on_history, ['on_history'])
             self.daemon.network.register_callback(self.on_quotes, ['on_quotes'])
-            interests = ['updated', 'new_transaction', 'status',
+            interests = ['wallet_updated', 'blockchain_updated', 'network_updated',
+                         'new_transaction', 'status',
                          'banner', 'verified', 'fee', 'interfaces']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
@@ -471,9 +472,7 @@ class ElectrumGui(PrintError):
             utils.NSLog("(Returning early.. daemon stopped)")
             return
         assert self.walletsVC is not None
-        if event == 'updated':
-            self.refresh_components('helper', 'network')
-        elif event == 'new_transaction':
+        if event == 'new_transaction':
             self.tx_notifications.append(args[0])
             self.refresh_components('history', 'addresses', 'helper')
         elif event == 'banner':
@@ -487,8 +486,8 @@ class ElectrumGui(PrintError):
         elif event == 'fee':
             # todo: handle fee stuff here
             pass
-        elif event in ['interfaces']:
-            self.refresh_components('network')
+        elif event in ['network_updated', 'wallet_updated', 'blockchain_updated']:
+            self.refresh_components('helper', 'network')
         else:
             self.print_error("unexpected network message:", event, args)
 
@@ -558,14 +557,14 @@ class ElectrumGui(PrintError):
         blockHeightChanged = False
         # icon = ""
 
-        if self.daemon.network is None or not self.daemon.network.is_running():
+        if self.daemon.network is None or not self.daemon.network.is_connected():
             text = _("Offline")
             networkStatusText = text
             walletUnitTxt = text
             # icon = "status_disconnected.png"
 
         elif self.daemon.network.is_connected():
-            lh, sh = self.daemon.network.get_status_value('updated')
+            lh, sh = self.daemon.network.get_local_height(), self.daemon.network.blockchain().height()
             # lh = local_height, sh = server_height
             if self.lastHeightSeen != lh:
                 self.lastHeightSeen = lh
@@ -1264,8 +1263,9 @@ class ElectrumGui(PrintError):
             self.config.set_key('use_exchange', 'BitcoinAverage')
             utils.NSLog("Forced default exchange to 'BitcoinAverage'")
         fd, server = ed.get_fd_or_server(self.config)
-        self.daemon = ed.Daemon(self.config, fd, True)
-        self.daemon.start()
+        self.daemon = ed.Daemon(self.config, fd, listen_jsonrpc=True)
+        if not self.daemon.running:
+            self.daemon.start()
         self.on_new_daemon()
 
     def daemon_is_running(self) -> bool:
@@ -1329,7 +1329,7 @@ class ElectrumGui(PrintError):
                     if has_xpub:
                         from electrum.bitcoin import xpub_type
                         t1 = xpub_type(k.xpub)
-                    if has_xpub and t1 not in ['standard']:
+                    if has_xpub and t1 not in ['standard', "p2wpkh"]:
                         def compl() -> None: onFailure(_('Wrong key type') + ": '%s'" % t1)
 
                         doDismiss(animated=False, compl=compl)
@@ -1452,7 +1452,7 @@ class ElectrumGui(PrintError):
                 return
             try:
                 wallet = Wallet(storage)
-                wallet.start_threads(self.daemon.network)
+                wallet.start_network(self.daemon.network)
                 if self.wallet:
                     self.daemon.stop_wallet(self.wallet.storage.path)
                 self.wallet = wallet
@@ -1770,20 +1770,13 @@ class ElectrumGui(PrintError):
             vc = self.get_presented_viewcontroller()
 
         def broadcast_thread():  # non-GUI thread
-            # pr = self.payment_request
-            # if pr and pr.has_expired():
-            #    self.payment_request = None
-            #    return False, _("Payment request has expired")
-            status, msg = self.daemon.network.broadcast_transaction(tx)
-            # if pr and status is True:
-            #    self.invoices.set_paid(pr, tx.txid())
-            #    self.invoices.save()
-            #    self.payment_request = None
-            #    refund_address = self.wallet.get_receiving_addresses()[0]
-            #    ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
-            #    if ack_status:
-            #        msg = ack_msg
-            return status, msg
+            try:
+                self.daemon.network.run_from_another_thread(self.daemon.network.broadcast_transaction(tx))
+            except Exception as e:
+                ok, msg = False, repr(e)
+            else:
+                ok, msg = True, tx.txid()
+            return ok, msg
 
         # Capture current TL window; override might be removed on return
         parent = self  # .top_level_window()

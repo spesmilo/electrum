@@ -40,9 +40,9 @@ setup(
     ],
     install_requires=[
         'certifi', 'chardet', 'dnspython', 'ecdsa>=0.9', 'idna',
-        'jsonrpclib-pelix', 'pbkdf2', 'protobuf',
-        'pyaes>=0.1a1', #'pyOpenSSL>=17.5.0', 
-        'PySocks>=1.6.6', 'qrcode', 'requests', 'six',
+        'jsonrpclib-pelix', 'pbkdf2', 'protobuf', 'aiorpcx>=0.8.2,<0.9',
+        'pyaes>=0.1a1', #'pyOpenSSL>=17.5.0', 'aiorpcx>=0.8.2,<0.9',
+        'PySocks>=1.6.6', 'qrcode', 'aiohttp', 'aiohttp_socks', 'requests', 'six',
         'urllib3' #, 'pyqt5'
     ],
     options={

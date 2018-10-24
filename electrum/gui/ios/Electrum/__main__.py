@@ -21,12 +21,12 @@ if __name__ == '__main__':
         # TODO: Figure out how to get bitcoincash.com to not fail with cert verification.
         #   - Calin May 24, 2018
         #
-        if (getattr(ssl, '_create_unverified_context', None)): 
-            ssl._create_default_https_context = ssl._create_unverified_context
-            ssl.create_default_context = ssl._create_unverified_context
+        if (getattr(ssl, '_create_unverified_context', None)):
+            #ssl._create_default_https_context = ssl._create_unverified_context
+            #ssl.create_default_context = ssl._create_unverified_context
             print("*** SSL *** Allow Unverfied Context: ENABLED! ;)")
         else:
-            raise Exception("pyOpenSSL seems to be missing the '_create_unverified_context' function") 
+            raise Exception("pyOpenSSL seems to be missing the '_create_unverified_context' function")
     except:
         print("*** SSL *** Allow Unverified Context: FAILED (%s)"%(str(sys.exc_info()[1])))
     

@@ -213,17 +213,17 @@ class NetworkDialogVC(UIViewController):
         network = parent().daemon.network
         chains = network.get_blockchains()
         n_chains = len(chains)
-        host, port, protocol, proxy_config, auto_connect = network.get_parameters()
-        self.hostTF.text = str(host)
-        self.portTF.text = str(port)
-        self.lastPort = at(int(port))
-        self.autoServerSW.on = bool(auto_connect)
+        net_params = network.get_parameters()
+        self.hostTF.text = str(net_params.host)
+        self.portTF.text = str(net_params.port)
+        self.lastPort = at(int(net_params.port))
+        self.autoServerSW.on = bool(net_params.auto_connect)
 
         host = network.interface.host if network.interface else _('None')
         self.serverLbl.text = str(host)
 
         # self.set_protocol(protocol)
-        self.protocol = protocol
+        self.protocol = net_params.protocol
         servers_orig = network.get_servers()
         servers = []
         if servers_orig: servers_orig = sorted(servers_orig.items())
@@ -233,8 +233,8 @@ class NetworkDialogVC(UIViewController):
             host, d = s
             if host.endswith('.onion') and not use_tor:
                 continue
-            if d.get(protocol, None):
-                ser_server = serialize_server(host, d.get(protocol), protocol)
+            if d.get(self.protocol, None):
+                ser_server = serialize_server(host, d.get(self.protocol), self.protocol)
                 servers.append((host, d, ser_server))
         utils.nspy_put_byname(self, servers, 'servers')
         self.peersTV.reloadData()
@@ -250,7 +250,7 @@ class NetworkDialogVC(UIViewController):
             checkpoint = chain.get_checkpoint()
             name = chain.get_name()
             msg = _('Chain split detected at block %d') % checkpoint + '\n'
-            msg += (_('You are following branch') if auto_connect else _('Your server is on branch')) + ' ' + name
+            msg += (_('You are following branch') if net_params.auto_connect else _('Your server is on branch')) + ' ' + name
             msg += ' (%d %s)' % (chain.get_branch_size(), _('blocks'))
         else:
             msg = ''
@@ -447,7 +447,7 @@ class NetworkDialogVC(UIViewController):
     def followBranch_(self, index: int) -> None:
         network = parent().daemon.network if parent() and parent().daemon else None
         if network is None: return
-        network.follow_chain(index)
+        network.run_from_another_thread(network.follow_chain(index))
         self.refresh()
 
     @objc_method
@@ -455,21 +455,23 @@ class NetworkDialogVC(UIViewController):
         network = parent().daemon.network if parent() and parent().daemon else None
         if network is None: return
         server = py_from_ns(server_in)
-        network.switch_to_interface(server)
-        host, port, protocol, proxy, auto_connect = network.get_parameters()
+        network.run_from_another_thread(network.switch_to_interface(server))
         host, port, protocol = deserialize_server(server)
-        network.set_parameters(host, port, protocol, proxy, auto_connect)
+        net_params = network.get_parameters()
+        net_params._replace(host=host, port=port, protocol=protocol)
+        network.run_from_another_thread(self.network.set_parameters(net_params))
         self.refresh()
 
     @objc_method
     def doSetServer(self) -> None:
         network = parent().daemon.network if parent() and parent().daemon else None
         if network is None: return
-        host, port, protocol, proxy, auto_connect = network.get_parameters()
         host = str(self.hostTF.text)
         port = str(self.portTF.text)
         auto_connect = self.autoServerSW.isOn()
-        network.set_parameters(host, port, protocol, proxy, auto_connect)
+        net_params = network.get_parameters()
+        net_params._replace(host=host, port=port, auto_connect=auto_connect)
+        network.run_from_another_thread(network.set_parameters(net_params))
 
     @objc_method
     def setServer_(self, s: ObjCInstance) -> None:
