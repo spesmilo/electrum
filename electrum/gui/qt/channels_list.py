@@ -40,22 +40,26 @@ class ChannelsList(MyTreeWidget):
         ]
 
     def create_menu(self, position):
+        from .util import WaitingDialog
+        network = self.parent.network
+        lnworker = self.parent.wallet.lnworker
         menu = QMenu()
         channel_id = self.currentItem().data(0, QtCore.Qt.UserRole)
+        def on_success(txid):
+            self.main_window.show_error('Channel closed' + '\n' + txid)
+        def on_failure(exc_info):
+            type_, e, traceback = exc_info
+            self.main_window.show_error('Failed to close channel:\n{}'.format(repr(e)))
         def close():
-            netw = self.parent.network
-            coro = self.parent.wallet.lnworker.close_channel(channel_id)
-            try:
-                _txid = netw.run_from_another_thread(coro)
-            except Exception as e:
-                self.main_window.show_error('Force-close failed:\n{}'.format(repr(e)))
+            def task():
+                coro = lnworker.close_channel(channel_id)
+                return network.run_from_another_thread(coro)
+            WaitingDialog(self, 'please wait..', task, on_success, on_failure)
         def force_close():
-            netw = self.parent.network
-            coro = self.parent.wallet.lnworker.force_close_channel(channel_id)
-            try:
-                _txid = netw.run_from_another_thread(coro)
-            except Exception as e:
-                self.main_window.show_error('Force-close failed:\n{}'.format(repr(e)))
+            def task():
+                coro = lnworker.force_close_channel(channel_id)
+                return network.run_from_another_thread(coro)
+            WaitingDialog(self, 'please wait..', task, on_success, on_failure)
         menu.addAction(_("Close channel"), close)
         menu.addAction(_("Force-close channel"), force_close)
         menu.exec_(self.viewport().mapToGlobal(position))

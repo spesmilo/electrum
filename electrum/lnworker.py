@@ -421,7 +421,7 @@ class LNWorker(PrintError):
     async def close_channel(self, chan_id):
         chan = self.channels[chan_id]
         peer = self.peers[chan.node_id]
-        await peer.close_channel(chan_id)
+        return await peer.close_channel(chan_id)
 
     async def force_close_channel(self, chan_id):
         chan = self.channels[chan_id]
@@ -437,9 +437,7 @@ class LNWorker(PrintError):
         none_idx = tx._inputs[0]["signatures"].index(None)
         tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
         assert tx.is_complete()
-        txid = await self.network.broadcast_transaction(tx)
-        self.network.trigger_callback('ln_message', self, 'Channel closed' + '\n' + txid)
-        return txid
+        return await self.network.broadcast_transaction(tx)
 
     def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
         now = time.time()

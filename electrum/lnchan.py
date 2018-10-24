@@ -757,7 +757,7 @@ class Channel(PrintError):
 
         der_sig = bfh(closing_tx.sign_txin(0, self.config[LOCAL].multisig_key.privkey))
         sig = ecc.sig_string_from_der_sig(der_sig[:-1])
-        return sig, fee_sat
+        return sig, fee_sat, closing_tx.txid()
 
 def maybe_create_sweeptx_for_their_ctx_to_remote(chan, ctx, their_pcp: bytes,
                                                  sweep_address) -> Optional[EncumberedTransaction]:
