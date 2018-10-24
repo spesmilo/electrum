@@ -583,16 +583,82 @@ def on_utxo_list_update(utxo_list):
         if utxo_labels[label]:
             item.setIcon(0,  shuffle_icon)
 
+
+class shuffle_thread_observer(object):
+
+    def __init__(self, parent, pubkey):
+        self.parent = parent
+        self.pubkey = pubkey
+        self.pThread = None
+
+    def send(self, message):
+        if message.startswith("Error"):
+            self.pThread.done.set()
+            self.pThread.stop()
+            # self.pThread.join()
+            self.parent.send(message, self.pubkey)
+            # self.coinshuffle_text_output.setTextColor(QColor('red'))
+            # self.coinshuffle_text_output.append(message)
+            # self.enable_coinshuffle_settings()
+            # self.coinshuffle_cancel_button.setEnabled(False)
+            # self.coinshuffle_inputs_list.update(self.window.wallet)
+            # self.coinshuffle_outputs.update(self.window.wallet)
+            # self.timer.stop()
+        elif message[-17:] == "complete protocol":
+            self.parent.send(message, self.pubkey)
+            self.pThread.done.set()
+            tx = self.pThread.protocol.tx
+            if tx:
+                self.pThread.join()
+            else:
+                print("No tx: " + str(tx.raw))
+            # self.enable_coinshuffle_settings()
+            # self.coinshuffle_cancel_button.setEnabled(False)
+            # self.coinshuffle_inputs_list.update(self.window.wallet)
+            # self.coinshuffle_outputs.update(self.window.wallet)
+        # elif "begins" in message:
+        #     pass
+        #     # self.timer.stop()
+        #     # self.coinshuffle_timer_output.setText("")
+        #     # self.waiting_timeout = 180
+        else:
+        #     header = message[:6]
+        #     if header == 'Player':
+        #         self.coinshuffle_text_output.setTextColor(QColor('green'))
+        #     if header[:5] == 'Blame':
+        #         self.coinshuffle_text_output.setTextColor(QColor('red'))
+        #         if "insufficient" in message:
+        #             pass
+        #         elif "wrong hash" in message:
+        #             pass
+        #         else:
+        #             self.pThread.join()
+        #             self.enable_coinshuffle_settings()
+        #             self.coinshuffle_text_output.append(str(self.pThread.isAlive()))
+
+            self.parent.send(message, self.pubkey)
+            # self.coinshuffle_text_output.append(message)
+            # self.coinshuffle_text_output.setTextColor(QColor('black'))
+
+
+
+
 class electrum_console_logger(QObject):
 
     gotMessage = pyqtSignal(str)
 
-    def __init__(self, name, parent=None):
-        super(QObject, self).__init(parent)
-        self.name = name
+    def __init__(self, parent=None):
+        super(QObject, self).__init__(parent)
+        self.observers = {}
 
-    def send(self, msg):
-        self.gotMessage.emit("from {}: {}".format(self.name, msg))
+    def add_observer(self, observer_id):
+        self.observers[observer_id] = shuffle_thread_observer(self, observer_id)
+
+    def set_observer_thread(self, observer_id, thread):
+        self.observers[observer_id].pThread = thread
+
+    def send(self, msg, sender):
+        self.gotMessage.emit("{}: {}".format(sender, msg))
 
 
 def start_background_shuffling(window, network_settings, period = 1, password=None):
