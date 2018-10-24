@@ -420,6 +420,11 @@ class LNWorker(PrintError):
 
     async def close_channel(self, chan_id):
         chan = self.channels[chan_id]
+        peer = self.peers[chan.node_id]
+        await peer.close_channel(chan_id)
+
+    async def force_close_channel(self, chan_id):
+        chan = self.channels[chan_id]
         # local_commitment always gives back the next expected local_commitment,
         # but in this case, we want the current one. So substract one ctn number
         old_local_state = chan.config[LOCAL]
@@ -432,7 +437,9 @@ class LNWorker(PrintError):
         none_idx = tx._inputs[0]["signatures"].index(None)
         tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
         assert tx.is_complete()
-        return await self.network.broadcast_transaction(tx)
+        txid = await self.network.broadcast_transaction(tx)
+        self.network.trigger_callback('ln_message', self, 'Channel closed' + '\n' + txid)
+        return txid
 
     def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
         now = time.time()

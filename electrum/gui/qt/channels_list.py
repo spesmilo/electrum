@@ -42,7 +42,6 @@ class ChannelsList(MyTreeWidget):
     def create_menu(self, position):
         menu = QMenu()
         channel_id = self.currentItem().data(0, QtCore.Qt.UserRole)
-        print('ID', bh2u(channel_id))
         def close():
             netw = self.parent.network
             coro = self.parent.wallet.lnworker.close_channel(channel_id)
@@ -50,7 +49,15 @@ class ChannelsList(MyTreeWidget):
                 _txid = netw.run_from_another_thread(coro)
             except Exception as e:
                 self.main_window.show_error('Force-close failed:\n{}'.format(repr(e)))
-        menu.addAction(_("Force-close channel"), close)
+        def force_close():
+            netw = self.parent.network
+            coro = self.parent.wallet.lnworker.force_close_channel(channel_id)
+            try:
+                _txid = netw.run_from_another_thread(coro)
+            except Exception as e:
+                self.main_window.show_error('Force-close failed:\n{}'.format(repr(e)))
+        menu.addAction(_("Close channel"), close)
+        menu.addAction(_("Force-close channel"), force_close)
         menu.exec_(self.viewport().mapToGlobal(position))
 
     @QtCore.pyqtSlot(Channel)
