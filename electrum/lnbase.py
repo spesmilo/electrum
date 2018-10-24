@@ -262,9 +262,10 @@ class Peer(PrintError):
             asyncio.ensure_future(execution_result)
 
     def on_error(self, payload):
+        # todo: self.channel_reestablished is not a queue
         self.print_error("error", payload["data"].decode("ascii"))
         chan_id = payload.get("channel_id")
-        for d in [ self.channel_accepted, self.channel_reestablished, self.funding_signed,
+        for d in [ self.channel_accepted, self.funding_signed,
                    self.funding_created, self.revoke_and_ack, self.commitment_signed,
                    self.announcement_signatures, self.closing_signed ]:
             if chan_id in d:
