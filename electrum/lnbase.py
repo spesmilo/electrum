@@ -350,6 +350,11 @@ class Peer(PrintError):
     @log_exceptions
     @handle_disconnect
     async def main_loop(self):
+        """
+        This is used in LNWorker and is necessary so that we don't kill the main
+        task group. It is not merged with _main_loop, so that we can test if the
+        correct exceptions are getting thrown using _main_loop.
+        """
         await self._main_loop()
 
     async def _main_loop(self):
