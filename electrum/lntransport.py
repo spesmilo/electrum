@@ -1,3 +1,10 @@
+# Copyright (C) 2018 Adam Gibson (waxwing)
+# Copyright (C) 2018 The Electrum developers
+# Distributed under the MIT software license, see the accompanying
+# file LICENCE or http://www.opensource.org/licenses/mit-license.php
+
+# Derived from https://gist.github.com/AdamISZ/046d05c156aaeb56cc897f85eecb3eb8
+
 import hashlib
 from asyncio import StreamReader, StreamWriter
 

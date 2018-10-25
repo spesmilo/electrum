@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""
-  Lightning network interface for Electrum
-  Derived from https://gist.github.com/AdamISZ/046d05c156aaeb56cc897f85eecb3eb8
-"""
+#
+# Copyright (C) 2018 The Electrum developers
+# Distributed under the MIT software license, see the accompanying
+# file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 from collections import OrderedDict, defaultdict
 import json
