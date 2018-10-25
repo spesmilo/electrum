@@ -37,7 +37,7 @@ from . import constants
 from .util import PrintError, bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits
 from .storage import JsonDB
 from .lnchannelverifier import LNChannelVerifier, verify_sig_for_channel_update
-from .crypto import Hash
+from .crypto import sha256d
 from . import ecc
 from .lnutil import LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr, NUM_MAX_EDGES_IN_PAYMENT_PATH
 
@@ -416,7 +416,7 @@ class ChannelDB(JsonDB):
     def on_node_announcement(self, msg_payload):
         pubkey = msg_payload['node_id']
         signature = msg_payload['signature']
-        h = Hash(msg_payload['raw'][66:])
+        h = sha256d(msg_payload['raw'][66:])
         if not ecc.verify_signature(pubkey, signature, h):
             return
         old_node_info = self.nodes.get(pubkey, None)
