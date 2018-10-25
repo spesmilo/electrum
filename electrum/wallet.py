@@ -47,7 +47,7 @@ from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u)
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
-                      is_minikey)
+                      is_minikey, relayfee, dust_threshold)
 from .version import *
 from .crypto import sha256d
 from .keystore import load_keystore, Hardware_KeyStore
@@ -72,18 +72,6 @@ TX_STATUS = [
     _('Not Verified'),
     _('Local'),
 ]
-
-
-
-def relayfee(network: 'Network'):
-    from .simple_config import FEERATE_DEFAULT_RELAY
-    MAX_RELAY_FEE = 50000
-    f = network.relay_fee if network and network.relay_fee else FEERATE_DEFAULT_RELAY
-    return min(f, MAX_RELAY_FEE)
-
-def dust_threshold(network: 'Network'):
-    # Change <= dust threshold is added to the tx fee
-    return 182 * 3 * relayfee(network) / 1000
 
 
 def append_utxos_to_inputs(inputs, network: 'Network', pubkey, txin_type, imax):

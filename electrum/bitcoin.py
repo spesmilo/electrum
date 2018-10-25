@@ -24,7 +24,7 @@
 # SOFTWARE.
 
 import hashlib
-from typing import List, Tuple
+from typing import List, Tuple, TYPE_CHECKING
 
 from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict
 from . import version
@@ -32,6 +32,9 @@ from . import segwit_addr
 from . import constants
 from . import ecc
 from .crypto import sha256d, sha256, hash_160, hmac_oneshot
+
+if TYPE_CHECKING:
+    from .network import Network
 
 
 ################################## transactions
@@ -145,6 +148,18 @@ def push_script(data: str) -> str:
 
 def add_number_to_script(i: int) -> bytes:
     return bfh(push_script(script_num_to_hex(i)))
+
+
+def relayfee(network: 'Network'=None) -> int:
+    from .simple_config import FEERATE_DEFAULT_RELAY
+    MAX_RELAY_FEE = 50000
+    f = network.relay_fee if network and network.relay_fee else FEERATE_DEFAULT_RELAY
+    return min(f, MAX_RELAY_FEE)
+
+
+def dust_threshold(network: 'Network'=None) -> int:
+    # Change <= dust threshold is added to the tx fee
+    return 182 * 3 * relayfee(network) // 1000
 
 
 hash_encode = lambda x: bh2u(x[::-1])
