@@ -206,13 +206,13 @@ class Daemon(DaemonThread):
     def run_gui(self, config_options):
         config = SimpleConfig(config_options)
         if self.gui:
-            #if hasattr(self.gui, 'new_window'):
-            #    path = config.get_wallet_path()
-            #    self.gui.new_window(path, config.get('url'))
-            #    response = "ok"
-            #else:
-            #    response = "error: current GUI does not support multiple windows"
-            response = "error: Electron Cash GUI already running"
+            if hasattr(self.gui, 'new_window'):
+                config.open_last_wallet()
+                path = config.get_wallet_path()
+                self.gui.new_window(path, config.get('url'))
+                response = "ok"
+            else:
+                response = "error: current GUI does not support multiple windows"
         else:
             response = "Error: Electron Cash is running in daemon mode. Please stop the daemon first."
         return response
