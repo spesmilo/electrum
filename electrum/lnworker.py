@@ -32,7 +32,6 @@ from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      generate_keypair, LnKeyFamily, LOCAL, REMOTE,
                      UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH)
-from .lnaddr import lndecode
 from .i18n import _
 from .lnrouter import RouteEdge, is_route_sane_to_use
 
@@ -258,6 +257,15 @@ class LNWorker(PrintError):
         return bh2u(chan.node_id)
 
     def pay(self, invoice, amount_sat=None):
+        """
+        This is not merged with _pay so that we can run the test with
+        one thread only.
+        """
+        addr, peer, coro = self._pay(invoice, amount_sat)
+        fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+        return addr, peer, fut
+
+    def _pay(self, invoice, amount_sat=None):
         addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         payment_hash = addr.paymenthash
         amount_sat = (addr.amount * COIN) if addr.amount else amount_sat
@@ -279,7 +287,7 @@ class LNWorker(PrintError):
             raise Exception("PathFinder returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
         peer = self.peers[node_id]
         coro = peer.pay(route, chan, amount_msat, payment_hash, addr.get_min_final_cltv_expiry())
-        return addr, peer, asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+        return addr, peer, coro
 
     def _create_route_from_invoice(self, decoded_invoice, amount_msat) -> List[RouteEdge]:
         invoice_pubkey = decoded_invoice.pubkey.serialize()
