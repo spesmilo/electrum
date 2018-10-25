@@ -30,6 +30,7 @@ from functools import partial
 
 from . import bitcoin
 from . import keystore
+from .bip32 import is_bip32_derivation, xpub_type
 from .keystore import bip44_derivation, purpose48_derivation
 from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
                      wallet_types, Wallet, Abstract_Wallet)
@@ -339,7 +340,7 @@ class BaseWizard(object):
             try:
                 self.choice_and_line_dialog(
                     run_next=f, title=_('Script type and Derivation path'), message1=message1,
-                    message2=message2, choices=choices, test_text=bitcoin.is_bip32_derivation)
+                    message2=message2, choices=choices, test_text=is_bip32_derivation)
                 return
             except ScriptTypeNotSupported as e:
                 self.show_error(e)
@@ -419,7 +420,6 @@ class BaseWizard(object):
     def on_keystore(self, k):
         has_xpub = isinstance(k, keystore.Xpub)
         if has_xpub:
-            from .bitcoin import xpub_type
             t1 = xpub_type(k.xpub)
         if self.wallet_type == 'standard':
             if has_xpub and t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:

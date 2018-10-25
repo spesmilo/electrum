@@ -38,9 +38,8 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=electrum/ --python_out=electrum/ electrum/paymentrequest.proto'")
 
 from . import bitcoin, ecc, util, transaction, x509, rsakey
-from .util import print_error, bh2u, bfh
-from .util import export_meta, import_meta
-
+from .util import print_error, bh2u, bfh, export_meta, import_meta
+from .crypto import sha256
 from .bitcoin import TYPE_ADDRESS
 from .transaction import TxOutput
 
@@ -113,7 +112,7 @@ class PaymentRequest:
     def parse(self, r):
         if self.error:
             return
-        self.id = bh2u(bitcoin.sha256(r)[0:16])
+        self.id = bh2u(sha256(r)[0:16])
         try:
             self.data = pb2.PaymentRequest()
             self.data.ParseFromString(r)

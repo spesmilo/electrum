@@ -5,8 +5,9 @@
 
 try:
     from electrum.crypto import Hash, EncodeAES, DecodeAES
-    from electrum.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh, is_address,
-                                  serialize_xpub, deserialize_xpub)
+    from electrum.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh,
+                                  is_address)
+    from electrum.bip32 import serialize_xpub, deserialize_xpub
     from electrum import ecc
     from electrum.ecc import msg_magic
     from electrum.wallet import Standard_Wallet

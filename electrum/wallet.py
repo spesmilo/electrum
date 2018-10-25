@@ -44,18 +44,20 @@ from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    TimeoutException, WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
-                   Fiat)
-from .bitcoin import *
+                   Fiat, bfh, bh2u)
+from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
+                      is_minikey)
 from .version import *
+from .crypto import Hash
 from .keystore import load_keystore, Hardware_KeyStore
 from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW, WalletStorage
-from . import transaction, bitcoin, coinchooser, paymentrequest, contacts
+from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
 from .transaction import Transaction, TxOutput, TxOutputHwInfo
 from .plugin import run_hook
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED)
-from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
-from .paymentrequest import InvoiceStore
+from .paymentrequest import (PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED,
+                             InvoiceStore)
 from .contacts import Contacts
 from .network import Network
 from .simple_config import SimpleConfig
@@ -1499,7 +1501,7 @@ class Simple_Deterministic_Wallet(Simple_Wallet, Deterministic_Wallet):
     def load_keystore(self):
         self.keystore = load_keystore(self.storage, 'keystore')
         try:
-            xtype = bitcoin.xpub_type(self.keystore.xpub)
+            xtype = bip32.xpub_type(self.keystore.xpub)
         except:
             xtype = 'standard'
         self.txin_type = 'p2pkh' if xtype == 'standard' else xtype
@@ -1569,7 +1571,7 @@ class Multisig_Wallet(Deterministic_Wallet):
             name = 'x%d/'%(i+1)
             self.keystores[name] = load_keystore(self.storage, name)
         self.keystore = self.keystores['x1/']
-        xtype = bitcoin.xpub_type(self.keystore.xpub)
+        xtype = bip32.xpub_type(self.keystore.xpub)
         self.txin_type = 'p2sh' if xtype == 'standard' else xtype
 
     def save_keystore(self):

@@ -1,16 +1,17 @@
 import base64
 import sys
 
-from electrum.bitcoin import (
-    public_key_to_p2pkh,
-    bip32_root, bip32_public_derivation, bip32_private_derivation,
-    Hash, address_from_private_key,
-    is_address, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
-    var_int, op_push, address_to_script,
-    deserialize_privkey, serialize_privkey, is_segwit_address,
-    is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
-    xpub_type, is_xprv, is_bip32_derivation, seed_type, EncodeBase58Check,
-    script_num_to_hex, push_script, add_number_to_script, int_to_hex, convert_bip32_path_to_list_of_uint32)
+from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
+                              is_address, is_private_key, is_new_seed, is_old_seed,
+                              var_int, op_push, address_to_script,
+                              deserialize_privkey, serialize_privkey, is_segwit_address,
+                              is_b58_address, address_to_scripthash, is_minikey,
+                              is_compressed, seed_type, EncodeBase58Check,
+                              script_num_to_hex, push_script, add_number_to_script, int_to_hex)
+from electrum.bip32 import (bip32_root, bip32_public_derivation, bip32_private_derivation,
+                            xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
+                            is_xpub, convert_bip32_path_to_list_of_uint32)
+from electrum.crypto import Hash
 from electrum import ecc, crypto, constants
 from electrum.ecc import number_to_string, string_to_number
 from electrum.transaction import opcodes

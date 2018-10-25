@@ -3,14 +3,12 @@ import traceback
 import sys
 
 from electrum.util import bfh, bh2u, UserCancelled
-from electrum.bitcoin import (xpub_from_pubkey, deserialize_xpub,
-                              TYPE_ADDRESS, TYPE_SCRIPT)
+from electrum.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
+from electrum.bip32 import deserialize_xpub
 from electrum import constants
 from electrum.i18n import _
-from electrum.plugin import BasePlugin
 from electrum.transaction import deserialize, Transaction
 from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
-from electrum.wallet import Standard_Wallet
 from electrum.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
