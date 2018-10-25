@@ -781,7 +781,8 @@ class Channel(PrintError):
             ),
             htlcs=htlcs)
 
-    def make_closing_tx(self, local_script: bytes, remote_script: bytes, fee_sat: Optional[int] = None) -> (bytes, int):
+    def make_closing_tx(self, local_script: bytes, remote_script: bytes,
+                        fee_sat: Optional[int]=None) -> Tuple[bytes, int, str]:
         if fee_sat is None:
             fee_sat = self.pending_local_fee
 
