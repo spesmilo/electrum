@@ -597,14 +597,14 @@ def update_coin_status(window, coin_name):
 
 class electrum_console_logger(QObject):
 
-    gotMessage = pyqtSignal(msg, sender)
+    gotMessage = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super(QObject, self).__init__(parent)
         self.parent = parent
 
     def send(self, msg, sender):
-        self.gotMessage.emit(msg, sender)
+        self.gotMessage.emit("{}: {}".format(msg, sender))
 
 
 def start_background_shuffling(window, network_settings, period = 1, password=None):
