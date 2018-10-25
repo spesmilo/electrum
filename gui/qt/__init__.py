@@ -26,6 +26,7 @@
 import signal
 import sys
 import traceback
+import urllib.parse
 
 
 try:
@@ -70,8 +71,20 @@ class OpenFileEventFilter(QObject):
 
     def eventFilter(self, obj, event):
         if event.type() == QtCore.QEvent.FileOpen:
+            uri = urllib.parse.unquote(str(event.url().toString()))
+            if uri.startswith('file:///'):
+                # work around MacOSX -> Qt weirdness in URL rewriting! bitcoincash:xxx becomes file:///bitcoincash/xxx due to MacOS quirks.
+                # (So we have to undo this back to bitcoincash:xxx)
+                uri2 = uri[8:]
+                if uri2.lower().startswith('bitcoincash/') or uri2.lower().startswith('bchtest/'):
+                    uri = []
+                    for ch in uri2:
+                        if ch == ':': ch = '/'
+                        elif ch == '/': ch = ':'
+                        uri.append(ch)
+                    uri = ''.join(uri)
             if len(self.windows) >= 1:
-                self.windows[0].pay_to_URI(event.url().toString())
+                self.windows[0].pay_to_URI(uri)
                 return True
         return False
 
