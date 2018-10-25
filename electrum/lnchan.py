@@ -29,9 +29,9 @@ from enum import Enum, auto
 from typing import Optional, Dict, List, Tuple
 
 from .util import bfh, PrintError, bh2u
-from .bitcoin import Hash, TYPE_SCRIPT, TYPE_ADDRESS
+from .bitcoin import TYPE_SCRIPT, TYPE_ADDRESS
 from .bitcoin import redeem_script_to_address
-from .crypto import sha256
+from .crypto import sha256, sha256d
 from . import ecc
 from .lnutil import Outpoint, LocalConfig, RemoteConfig, Keypair, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore, EncumberedTransaction
 from .lnutil import get_per_commitment_secret_from_seed
@@ -328,7 +328,7 @@ class Channel(PrintError):
 
         pending_local_commitment = self.pending_local_commitment
         preimage_hex = pending_local_commitment.serialize_preimage(0)
-        pre_hash = Hash(bfh(preimage_hex))
+        pre_hash = sha256d(bfh(preimage_hex))
         if not ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, sig, pre_hash):
             raise Exception('failed verifying signature of our updated commitment transaction: ' + bh2u(sig) + ' preimage is ' + preimage_hex)
 
@@ -357,7 +357,7 @@ class Channel(PrintError):
     def verify_htlc(self, htlc, htlc_sigs, we_receive):
         _, this_point, _ = self.points
         _script, htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, self.pending_local_commitment, htlc)
-        pre_hash = Hash(bfh(htlc_tx.serialize_preimage(0)))
+        pre_hash = sha256d(bfh(htlc_tx.serialize_preimage(0)))
         remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, this_point)
         for idx, sig in enumerate(htlc_sigs):
             if ecc.verify_signature(remote_htlc_pubkey, sig, pre_hash):

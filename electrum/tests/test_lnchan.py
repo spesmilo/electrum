@@ -20,14 +20,14 @@
 # THE SOFTWARE.
 
 import unittest
-import electrum.bitcoin as bitcoin
-import electrum.lnbase as lnbase
-import electrum.lnchan as lnchan
-import electrum.lnutil as lnutil
-import electrum.util as util
 import os
 import binascii
 
+from electrum import bitcoin
+from electrum import lnbase
+from electrum import lnchan
+from electrum import lnutil
+from electrum import bip32 as bip32_utils
 from electrum.lnutil import SENT, LOCAL, REMOTE, RECEIVED
 
 one_bitcoin_in_msat = bitcoin.COIN * 1000
@@ -96,9 +96,9 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
     }
 
 def bip32(sequence):
-    xprv, xpub = bitcoin.bip32_root(b"9dk", 'standard')
-    xprv, xpub = bitcoin.bip32_private_derivation(xprv, "m/", sequence)
-    xtype, depth, fingerprint, child_number, c, k = bitcoin.deserialize_xprv(xprv)
+    xprv, xpub = bip32_utils.bip32_root(b"9dk", 'standard')
+    xprv, xpub = bip32_utils.bip32_private_derivation(xprv, "m/", sequence)
+    xtype, depth, fingerprint, child_number, c, k = bip32_utils.deserialize_xprv(xprv)
     assert len(k) == 32
     assert type(k) is bytes
     return k
@@ -536,13 +536,13 @@ class TestChanReserve(unittest.TestCase):
         force_state_transition(self.alice_channel, self.bob_channel)
         self.check_bals(one_bitcoin_in_msat*3\
                 - self.alice_channel.pending_local_fee,
-                  one_bitocin_in_msat*5)
+                  one_bitcoin_in_msat*5)
         self.bob_channel.settle_htlc(paymentPreimage, bob_idx)
         self.alice_channel.receive_htlc_settle(paymentPreimage, alice_idx)
         force_state_transition(self.alice_channel, self.bob_channel)
         self.check_bals(one_bitcoin_in_msat*3\
                 - self.alice_channel.pending_local_fee,
-                  one_bitocin_in_msat*7)
+                  one_bitcoin_in_msat*7)
         # And now let Bob add an HTLC of 1 BTC. This will take Bob's balance
         # all the way down to his channel reserve, but since he is not paying
         # the fee this is okay.
@@ -552,7 +552,7 @@ class TestChanReserve(unittest.TestCase):
         force_state_transition(self.alice_channel, self.bob_channel)
         self.check_bals(one_bitcoin_in_msat*3\
                 - self.alice_channel.pending_local_fee,
-                  one_bitocin_in_msat*6)
+                  one_bitcoin_in_msat*6)
 
     def check_bals(self, amt1, amt2):
         self.assertEqual(self.alice_channel.available_to_spend(LOCAL), amt1)

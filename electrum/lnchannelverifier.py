@@ -38,6 +38,7 @@ from .lnutil import invert_short_channel_id, funding_output_script_from_keys
 from .verifier import verify_tx_is_in_block, MerkleVerificationFailure
 from .transaction import Transaction
 from .interface import GracefulDisconnect
+from .crypto import sha256d
 
 if TYPE_CHECKING:
     from .network import Network
@@ -185,7 +186,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
 def verify_sigs_for_channel_announcement(chan_ann: dict) -> bool:
     msg_bytes = lnbase.gen_msg('channel_announcement', **chan_ann)
     pre_hash = msg_bytes[2+256:]
-    h = bitcoin.Hash(pre_hash)
+    h = sha256d(pre_hash)
     pubkeys = [chan_ann['node_id_1'], chan_ann['node_id_2'], chan_ann['bitcoin_key_1'], chan_ann['bitcoin_key_2']]
     sigs = [chan_ann['node_signature_1'], chan_ann['node_signature_2'], chan_ann['bitcoin_signature_1'], chan_ann['bitcoin_signature_2']]
     for pubkey, sig in zip(pubkeys, sigs):
@@ -197,7 +198,7 @@ def verify_sigs_for_channel_announcement(chan_ann: dict) -> bool:
 def verify_sig_for_channel_update(chan_upd: dict, node_id: bytes) -> bool:
     msg_bytes = lnbase.gen_msg('channel_update', **chan_upd)
     pre_hash = msg_bytes[2+64:]
-    h = bitcoin.Hash(pre_hash)
+    h = sha256d(pre_hash)
     sig = chan_upd['signature']
     if not ecc.verify_signature(node_id, sig, h):
         return False

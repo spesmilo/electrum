@@ -17,9 +17,10 @@ import dns.exception
 
 from . import constants
 from . import keystore
-from . import bitcoin
 from .keystore import BIP32_KeyStore
-from .bitcoin import sha256, COIN
+from .bitcoin import COIN
+from .crypto import sha256
+from .bip32 import bip32_root
 from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
 from .lntransport import LNResponderTransport
 from .lnbase import Peer
@@ -84,7 +85,7 @@ class LNWorker(PrintError):
             # TODO derive this deterministically from wallet.keystore at keystore generation time
             # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
             seed = os.urandom(32)
-            xprv, xpub = bitcoin.bip32_root(seed, xtype='standard')
+            xprv, xpub = bip32_root(seed, xtype='standard')
             self.wallet.storage.put('lightning_privkey2', xprv)
             self.wallet.storage.write()
         return keystore.from_xprv(xprv)
