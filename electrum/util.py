@@ -23,7 +23,7 @@
 import binascii
 import os, sys, re, json
 from collections import defaultdict
-from typing import NamedTuple, Union, TYPE_CHECKING
+from typing import NamedTuple, Union, TYPE_CHECKING, Tuple, Optional
 from datetime import datetime
 import decimal
 from decimal import Decimal
@@ -49,6 +49,7 @@ from .i18n import _
 if TYPE_CHECKING:
     from .network import Network
     from .interface import Interface
+    from .simple_config import SimpleConfig
 
 
 def inv_dict(d):
@@ -652,6 +653,8 @@ mainnet_block_explorers = {
                         {'tx': 'api/tx?txid=', 'addr': '#/search?q='}),
     'OXT.me': ('https://oxt.me/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
+    'smartbit.com.au': ('https://www.smartbit.com.au/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain:/',
                         {'tx': 'tx/', 'addr': 'address/'}),
 }
@@ -659,28 +662,41 @@ mainnet_block_explorers = {
 testnet_block_explorers = {
     'Blocktrail.com': ('https://www.blocktrail.com/tBTC/',
                        {'tx': 'tx/', 'addr': 'address/'}),
+    'BlockCypher.com': ('https://live.blockcypher.com/btc-testnet/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
+    'Blockchain.info': ('https://testnet.blockchain.info/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
+    'BTC.com': ('https://tchain.btc.com/',
+                       {'tx': '', 'addr': ''}),
+    'smartbit.com.au': ('https://testnet.smartbit.com.au/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain://000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943/',
                        {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 def block_explorer_info():
     from . import constants
-    return testnet_block_explorers if constants.net.TESTNET else mainnet_block_explorers
+    return mainnet_block_explorers if not constants.net.TESTNET else testnet_block_explorers
 
-def block_explorer(config):
-    return config.get('block_explorer', 'Blocktrail.com')
+def block_explorer(config: 'SimpleConfig') -> str:
+    from . import constants
+    default_ = 'Blockchair.com' if not constants.net.TESTNET else 'smartbit.com.au'
+    be_key = config.get('block_explorer', default_)
+    be = block_explorer_info().get(be_key)
+    return be_key if be is not None else default_
 
-def block_explorer_tuple(config):
+def block_explorer_tuple(config: 'SimpleConfig') -> Optional[Tuple[str, dict]]:
     return block_explorer_info().get(block_explorer(config))
 
-def block_explorer_URL(config, kind, item):
+def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional[str]:
     be_tuple = block_explorer_tuple(config)
     if not be_tuple:
         return
-    kind_str = be_tuple[1].get(kind)
-    if not kind_str:
+    explorer_url, explorer_dict = be_tuple
+    kind_str = explorer_dict.get(kind)
+    if kind_str is None:
         return
-    url_parts = [be_tuple[0], kind_str, item]
+    url_parts = [explorer_url, kind_str, item]
     return ''.join(url_parts)
 
 # URL decode
