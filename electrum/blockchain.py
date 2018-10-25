@@ -25,7 +25,8 @@ import threading
 from typing import Optional, Dict
 
 from . import util
-from .bitcoin import Hash, hash_encode, int_to_hex, rev_hex
+from .bitcoin import hash_encode, int_to_hex, rev_hex
+from .crypto import sha256d
 from . import constants
 from .util import bfh, bh2u
 from .simple_config import SimpleConfig
@@ -71,7 +72,7 @@ def hash_header(header: dict) -> str:
         return '0' * 64
     if header.get('prev_block_hash') is None:
         header['prev_block_hash'] = '00'*32
-    return hash_encode(Hash(bfh(serialize_header(header))))
+    return hash_encode(sha256d(bfh(serialize_header(header))))
 
 
 blockchains = {}  # type: Dict[int, Blockchain]

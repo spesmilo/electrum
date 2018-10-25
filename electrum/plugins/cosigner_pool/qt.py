@@ -133,7 +133,7 @@ class Plugin(BasePlugin):
         for key, keystore in wallet.keystores.items():
             xpub = keystore.get_master_public_key()
             K = bip32.deserialize_xpub(xpub)[-1]
-            _hash = bh2u(crypto.Hash(K))
+            _hash = bh2u(crypto.sha256d(K))
             if not keystore.is_watching_only():
                 self.keys.append((key, _hash, window))
             else:

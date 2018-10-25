@@ -48,7 +48,7 @@ from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey)
 from .version import *
-from .crypto import Hash
+from .crypto import sha256d
 from .keystore import load_keystore, Hardware_KeyStore
 from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW, WalletStorage
 from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
@@ -931,7 +931,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
     def make_payment_request(self, addr, amount, message, expiration):
         timestamp = int(time.time())
-        _id = bh2u(Hash(addr + "%d"%timestamp))[0:10]
+        _id = bh2u(sha256d(addr + "%d"%timestamp))[0:10]
         r = {'time':timestamp, 'amount':amount, 'exp':expiration, 'address':addr, 'memo':message, 'id':_id}
         return r
 

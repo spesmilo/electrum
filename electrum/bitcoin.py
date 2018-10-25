@@ -31,7 +31,7 @@ from . import version
 from . import segwit_addr
 from . import constants
 from . import ecc
-from .crypto import Hash, sha256, hash_160, hmac_oneshot
+from .crypto import sha256d, sha256, hash_160, hmac_oneshot
 
 
 ################################## transactions
@@ -199,7 +199,7 @@ is_seed = lambda x: bool(seed_type(x))
 def hash160_to_b58_address(h160: bytes, addrtype):
     s = bytes([addrtype])
     s += h160
-    return base_encode(s+Hash(s)[0:4], base=58)
+    return base_encode(s+sha256d(s)[0:4], base=58)
 
 
 def b58_address_to_hash160(addr):
@@ -382,7 +382,7 @@ class InvalidChecksum(Exception):
 
 
 def EncodeBase58Check(vchIn):
-    hash = Hash(vchIn)
+    hash = sha256d(vchIn)
     return base_encode(vchIn + hash[0:4], base=58)
 
 
@@ -390,7 +390,7 @@ def DecodeBase58Check(psz):
     vchRet = base_decode(psz, None, base=58)
     key = vchRet[0:-4]
     csum = vchRet[-4:]
-    hash = Hash(key)
+    hash = sha256d(key)
     cs32 = hash[0:4]
     if cs32 != csum:
         raise InvalidChecksum('expected {}, actual {}'.format(bh2u(cs32), bh2u(csum)))

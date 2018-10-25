@@ -11,7 +11,7 @@ from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
 from electrum.bip32 import (bip32_root, bip32_public_derivation, bip32_private_derivation,
                             xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
                             is_xpub, convert_bip32_path_to_list_of_uint32)
-from electrum.crypto import Hash
+from electrum.crypto import sha256d
 from electrum import ecc, crypto, constants
 from electrum.ecc import number_to_string, string_to_number
 from electrum.transaction import opcodes
@@ -246,13 +246,9 @@ class Test_bitcoin(SequentialTestCase):
         enc = crypto.pw_encode(payload, password)
         self.assertRaises(Exception, crypto.pw_decode, enc, wrong_password)
 
-    def test_hash(self):
-        """Make sure the Hash function does sha256 twice"""
-        payload = u"test"
-        expected = b'\x95MZI\xfdp\xd9\xb8\xbc\xdb5\xd2R&x)\x95\x7f~\xf7\xfalt\xf8\x84\x19\xbd\xc5\xe8"\t\xf4'
-
-        result = Hash(payload)
-        self.assertEqual(expected, result)
+    def test_sha256d(self):
+        self.assertEqual(b'\x95MZI\xfdp\xd9\xb8\xbc\xdb5\xd2R&x)\x95\x7f~\xf7\xfalt\xf8\x84\x19\xbd\xc5\xe8"\t\xf4',
+                         sha256d(u"test"))
 
     def test_int_to_hex(self):
         self.assertEqual('00', int_to_hex(0, 1))

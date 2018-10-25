@@ -4,7 +4,7 @@
 #
 
 try:
-    from electrum.crypto import Hash, EncodeAES, DecodeAES
+    from electrum.crypto import sha256d, EncodeAES, DecodeAES
     from electrum.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh,
                                   is_address)
     from electrum.bip32 import serialize_xpub, deserialize_xpub
@@ -395,7 +395,7 @@ class DigitalBitbox_Client():
     def hid_send_encrypt(self, msg):
         reply = ""
         try:
-            secret = Hash(self.password)
+            secret = sha256d(self.password)
             msg = EncodeAES(secret, msg)
             reply = self.hid_send_plain(msg)
             if 'ciphertext' in reply:
@@ -448,7 +448,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         try:
             message = message.encode('utf8')
             inputPath = self.get_derivation() + "/%d/%d" % sequence
-            msg_hash = Hash(msg_magic(message))
+            msg_hash = sha256d(msg_magic(message))
             inputHash = to_hexstr(msg_hash)
             hasharray = []
             hasharray.append({'hash': inputHash, 'keypath': inputPath})
@@ -526,7 +526,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     if x_pubkey in derivations:
                         index = derivations.get(x_pubkey)
                         inputPath = "%s/%d/%d" % (self.get_derivation(), index[0], index[1])
-                        inputHash = Hash(binascii.unhexlify(tx.serialize_preimage(i)))
+                        inputHash = sha256d(binascii.unhexlify(tx.serialize_preimage(i)))
                         hasharray_i = {'hash': to_hexstr(inputHash), 'keypath': inputPath}
                         hasharray.append(hasharray_i)
                         inputhasharray.append(inputHash)
@@ -577,7 +577,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     },
                 }
                 if tx_dbb_serialized is not None:
-                    msg["sign"]["meta"] = to_hexstr(Hash(tx_dbb_serialized))
+                    msg["sign"]["meta"] = to_hexstr(sha256d(tx_dbb_serialized))
                 msg = json.dumps(msg).encode('ascii')
                 dbb_client = self.plugin.get_client(self)
 
