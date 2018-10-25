@@ -7,6 +7,7 @@ from typing import NamedTuple, Iterable, TYPE_CHECKING
 import os
 from collections import defaultdict
 import asyncio
+
 import jsonrpclib
 
 from .util import PrintError, bh2u, bfh, log_exceptions, ignore_exceptions

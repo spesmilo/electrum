@@ -16,7 +16,7 @@ import sys
 
 import aiorpcx
 
-from .crypto import sha256
+from .crypto import sha256, sha256d
 from . import bitcoin
 from . import ecc
 from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string
@@ -868,7 +868,7 @@ class Peer(PrintError):
             bitcoin_key_2=bitcoin_keys[1]
         )
         to_hash = chan_ann[256+2:]
-        h = bitcoin.Hash(to_hash)
+        h = sha256d(to_hash)
         bitcoin_signature = ecc.ECPrivkey(chan.config[LOCAL].multisig_key.privkey).sign(h, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
         node_signature = ecc.ECPrivkey(self.privkey).sign(h, sig_string_from_r_and_s, get_r_and_s_from_sig_string)
         self.send_message("announcement_signatures",
