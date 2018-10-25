@@ -38,6 +38,7 @@ import traceback
 from functools import partial
 from numbers import Number
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
@@ -59,8 +60,10 @@ from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
 from .paymentrequest import (PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED,
                              InvoiceStore)
 from .contacts import Contacts
-from .network import Network
-from .simple_config import SimpleConfig
+
+if TYPE_CHECKING:
+    from .network import Network
+    from .simple_config import SimpleConfig
 
 
 TX_STATUS = [
@@ -72,18 +75,18 @@ TX_STATUS = [
 
 
 
-def relayfee(network: Network):
+def relayfee(network: 'Network'):
     from .simple_config import FEERATE_DEFAULT_RELAY
     MAX_RELAY_FEE = 50000
     f = network.relay_fee if network and network.relay_fee else FEERATE_DEFAULT_RELAY
     return min(f, MAX_RELAY_FEE)
 
-def dust_threshold(network: Network):
+def dust_threshold(network: 'Network'):
     # Change <= dust threshold is added to the tx fee
     return 182 * 3 * relayfee(network) / 1000
 
 
-def append_utxos_to_inputs(inputs, network: Network, pubkey, txin_type, imax):
+def append_utxos_to_inputs(inputs, network: 'Network', pubkey, txin_type, imax):
     if txin_type != 'p2pk':
         address = bitcoin.pubkey_to_address(txin_type, pubkey)
         scripthash = bitcoin.address_to_scripthash(address)
@@ -106,7 +109,7 @@ def append_utxos_to_inputs(inputs, network: Network, pubkey, txin_type, imax):
         item['num_sig'] = 1
         inputs.append(item)
 
-def sweep_preparations(privkeys, network: Network, imax=100):
+def sweep_preparations(privkeys, network: 'Network', imax=100):
 
     def find_utxos_for_privkey(txin_type, privkey, compressed):
         pubkey = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
@@ -132,7 +135,7 @@ def sweep_preparations(privkeys, network: Network, imax=100):
     return inputs, keypairs
 
 
-def sweep(privkeys, network: Network, config: SimpleConfig, recipient, fee=None, imax=100):
+def sweep(privkeys, network: 'Network', config: 'SimpleConfig', recipient, fee=None, imax=100):
     inputs, keypairs = sweep_preparations(privkeys, network, imax)
     total = sum(i.get('value') for i in inputs)
     if fee is None:

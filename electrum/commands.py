@@ -32,7 +32,7 @@ import ast
 import base64
 from functools import wraps
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from .import util, ecc
 from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode
@@ -46,8 +46,10 @@ from .storage import WalletStorage
 from . import keystore
 from .wallet import Wallet, Imported_Wallet, Abstract_Wallet
 from .mnemonic import Mnemonic
-from .network import Network
-from .simple_config import SimpleConfig
+
+if TYPE_CHECKING:
+    from .network import Network
+    from .simple_config import SimpleConfig
 
 
 known_commands = {}
