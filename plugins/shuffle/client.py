@@ -354,9 +354,9 @@ class BackgroundShufflingThread(threading.Thread):
     scales = [10e4, 10e5, 10e6, 10e7 ,10e8]
 
     def __init__(self, wallet, network_settings,
-                 period = 1, logger = None, fee=1000, password=None):
+                 period = 10, logger = None, fee=1000, password=None):
         threading.Thread.__init__(self)
-        self.period = period * 60 # Period goes in minutes
+        self.period = period # Period goes in minutes
         self.logger = logger
         self.wallet = wallet
         self.host = network_settings.get("host", None)
@@ -366,7 +366,8 @@ class BackgroundShufflingThread(threading.Thread):
         self.fee = fee
         self.password = password
         self.threads = {scale:None for scale in self.scales}
-        self.loggers = {scale:Channel(switch_timeout=4) for scale in self.scales}
+        self.loggers = {scale:Channel(switch_timeout=1) for scale in self.scales}
+        self.holders = {scale:threading.Timer(self.period, lambda x: self.hold(x), [scale]) for scale in self.scales}
         self.stopper = threading.Event()
 
     def run(self):
@@ -376,12 +377,15 @@ class BackgroundShufflingThread(threading.Thread):
         while not self.stopper.is_set():
             for scale in self.scales:
                 if self.threads[scale]:
+                    print("{}, {}, {}".format(scale, "process message", self.threads[scale]))
                     self.prosess_protocol_messages(scale)
                 else:
                     coin = self.get_coin_for_shuffling(scale)
                     if coin:
+                        print("{}, {}".format(scale, "start new protoocl"))
                         self.make_prototocol_thread(coin, scale)
                         self.threads[scale].start()
+            time.sleep(0.001)
 
     def get_coin_for_shuffling(self, scale):
         coins = self.wallet.get_utxos(exclude_frozen=True, confirmed_only=True )
@@ -400,13 +404,14 @@ class BackgroundShufflingThread(threading.Thread):
             message = self.loggers[scale].recv()
             vk = self.threads[scale].vk
             sender = self.threads[scale].inputs[vk][0]
-            # print(self.threads[scale].inputs)
             if message.startswith("Error"):
                 self.logger.send(message, sender)
                 self.threads[scale].join()
                 while self.threads[scale].is_alive():
                     pass
-                self.threads[scale] = None
+                with self.loggers[scale].mutex:
+                    self.loggers[scale].queue.clear()
+                self.holders[scale].start()
             elif message.endswith("complete protocol"):
                 pass
             elif message.startswith("Player"):
@@ -439,10 +444,17 @@ class BackgroundShufflingThread(threading.Thread):
         self.threads[scale] = ProtocolThread(self.host, self.port, self.network,
                                              scale, self.fee, sk, sks, inputs, public_key, output, change,
                                              logger=self.loggers[scale], ssl=self.ssl)
+        self.threads[scale].commutator.timeout = 5
 
+    def hold(self, scale):
+        if self.threads[scale]:
+            self.threads[scale] = None
+        self.holders[scale] = threading.Timer(self.period, lambda x: self.hold(x), [scale])
 
     def join(self):
         self.stopper.set()
+        for scale in self.holders:
+            self.holders[scale].cancel()
         if self.logger:
             self.logger.send("stopped", "MAINLOG")
 
