@@ -3,24 +3,20 @@
 #
 #
 from struct import pack, unpack
-import hashlib
 import os, sys, time, io
 import traceback
 
-from electrum_ltc import bitcoin
-from electrum_ltc.bitcoin import serialize_xpub, deserialize_xpub, InvalidMasterKeyVersionBytes
-from electrum_ltc import constants
-from electrum_ltc.bitcoin import TYPE_ADDRESS, int_to_hex
+from electrum_ltc.bip32 import serialize_xpub, deserialize_xpub, InvalidMasterKeyVersionBytes
 from electrum_ltc.i18n import _
-from electrum_ltc.plugin import BasePlugin, Device
+from electrum_ltc.plugin import Device
 from electrum_ltc.keystore import Hardware_KeyStore, xpubkey_to_pubkey, Xpub
 from electrum_ltc.transaction import Transaction
 from electrum_ltc.wallet import Standard_Wallet
 from electrum_ltc.crypto import hash_160
-from ..hw_wallet import HW_PluginBase
-from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
 from electrum_ltc.util import print_error, bfh, bh2u, versiontuple
 from electrum_ltc.base_wizard import ScriptTypeNotSupported
+
+from ..hw_wallet import HW_PluginBase
 
 try:
     import hid
@@ -46,7 +42,7 @@ try:
             from electrum_ltc.ecc import ECPubkey
 
             xtype, depth, parent_fingerprint, child_number, chain_code, K_or_k \
-                = bitcoin.deserialize_xpub(expect_xpub)
+                = deserialize_xpub(expect_xpub)
 
             pubkey = ECPubkey(K_or_k)
             try:

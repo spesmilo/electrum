@@ -34,7 +34,7 @@ from ecdsa.ellipticcurve import Point
 from ecdsa.util import string_to_number, number_to_string
 
 from .util import bfh, bh2u, assert_bytes, print_error, to_bytes, InvalidPassword, profiler
-from .crypto import (Hash, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
+from .crypto import (sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
 from .ecc_fast import do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1
 from . import msqr
 
@@ -252,7 +252,7 @@ class ECPubkey(object):
 
     def verify_message_for_address(self, sig65: bytes, message: bytes) -> None:
         assert_bytes(message)
-        h = Hash(msg_magic(message))
+        h = sha256d(msg_magic(message))
         public_key, compressed = self.from_signature65(sig65, h)
         # check public key
         if public_key != self:
@@ -313,7 +313,7 @@ def verify_message_with_address(address: str, sig65: bytes, message: bytes):
     from .bitcoin import pubkey_to_address
     assert_bytes(sig65, message)
     try:
-        h = Hash(msg_magic(message))
+        h = sha256d(msg_magic(message))
         public_key, compressed = ECPubkey.from_signature65(sig65, h)
         # check public key using the address
         pubkey_hex = public_key.get_public_key_hex(compressed)
@@ -403,7 +403,7 @@ class ECPrivkey(ECPubkey):
                 raise Exception("error: cannot sign message. no recid fits..")
 
         message = to_bytes(message, 'utf8')
-        msg_hash = Hash(msg_magic(message))
+        msg_hash = sha256d(msg_magic(message))
         sig_string = self.sign(msg_hash,
                                sigencode=sig_string_from_r_and_s,
                                sigdecode=get_r_and_s_from_sig_string)

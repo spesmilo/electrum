@@ -201,7 +201,7 @@ class Network(PrintError):
 
         self.banner = ''
         self.donation_address = ''
-        self.relay_fee = None
+        self.relay_fee = None  # type: Optional[int]
         # callbacks set by the GUI
         self.callbacks = defaultdict(list)      # note: needs self.callback_lock
 

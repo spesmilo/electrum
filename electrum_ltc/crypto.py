@@ -27,6 +27,7 @@ import base64
 import os
 import hashlib
 import hmac
+from typing import Union
 
 import pyaes
 
@@ -104,14 +105,14 @@ def DecodeAES(secret, e):
 
 def pw_encode(s, password):
     if password:
-        secret = Hash(password)
+        secret = sha256d(password)
         return EncodeAES(secret, to_bytes(s, "utf8")).decode('utf8')
     else:
         return s
 
 def pw_decode(s, password):
     if password is not None:
-        secret = Hash(password)
+        secret = sha256d(password)
         try:
             d = to_string(DecodeAES(secret, s), "utf8")
         except Exception:
@@ -121,12 +122,12 @@ def pw_decode(s, password):
         return s
 
 
-def sha256(x: bytes) -> bytes:
+def sha256(x: Union[bytes, str]) -> bytes:
     x = to_bytes(x, 'utf8')
     return bytes(hashlib.sha256(x).digest())
 
 
-def Hash(x: bytes) -> bytes:
+def sha256d(x: Union[bytes, str]) -> bytes:
     x = to_bytes(x, 'utf8')
     out = bytes(sha256(sha256(x)))
     return out

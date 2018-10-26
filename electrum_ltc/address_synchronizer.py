@@ -25,6 +25,7 @@ import threading
 import asyncio
 import itertools
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
@@ -34,8 +35,10 @@ from .synchronizer import Synchronizer
 from .verifier import SPV
 from .blockchain import hash_header
 from .i18n import _
-from .storage import WalletStorage
-from .network import Network
+
+if TYPE_CHECKING:
+    from .storage import WalletStorage
+    from .network import Network
 
 
 TX_HEIGHT_LOCAL = -2
@@ -56,7 +59,7 @@ class AddressSynchronizer(PrintError):
     inherited by wallet
     """
 
-    def __init__(self, storage: WalletStorage):
+    def __init__(self, storage: 'WalletStorage'):
         self.storage = storage
         self.network = None  # type: Network
         # verifier (SPV) and synchronizer are started in start_network

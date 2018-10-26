@@ -3,11 +3,11 @@ import traceback
 import sys
 
 from electrum_ltc.util import bfh, bh2u, versiontuple, UserCancelled
-from electrum_ltc.bitcoin import (xpub_from_pubkey, deserialize_xpub,
-                                  TYPE_ADDRESS, TYPE_SCRIPT)
+from electrum_ltc.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
+from electrum_ltc.bip32 import deserialize_xpub
 from electrum_ltc import constants
 from electrum_ltc.i18n import _
-from electrum_ltc.plugin import BasePlugin, Device
+from electrum_ltc.plugin import Device
 from electrum_ltc.transaction import deserialize, Transaction
 from electrum_ltc.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
 from electrum_ltc.base_wizard import ScriptTypeNotSupported

@@ -33,7 +33,7 @@ import threading
 from .i18n import _
 from .util import (profiler, PrintError, DaemonThread, UserCancelled,
                    ThreadJob, print_error)
-from . import bitcoin
+from . import bip32
 from . import plugins
 from .simple_config import SimpleConfig
 
@@ -432,7 +432,7 @@ class DeviceMgr(ThreadJob, PrintError):
     def force_pair_xpub(self, plugin, handler, info, xpub, derivation, devices):
         # The wallet has not been previously paired, so let the user
         # choose an unpaired device and compare its first address.
-        xtype = bitcoin.xpub_type(xpub)
+        xtype = bip32.xpub_type(xpub)
         client = self.client_lookup(info.device.id_)
         if client and client.is_pairable():
             # See comment above for same code

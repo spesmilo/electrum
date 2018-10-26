@@ -25,13 +25,19 @@
 # SOFTWARE.
 
 from unicodedata import normalize
+import hashlib
 
-from . import bitcoin, ecc, constants
-from .bitcoin import *
+from . import bitcoin, ecc, constants, bip32
+from .bitcoin import (deserialize_privkey, serialize_privkey,
+                      public_key_to_p2pkh, seed_type, is_seed)
+from .bip32 import (bip32_public_derivation, deserialize_xpub, CKD_pub,
+                    bip32_root, deserialize_xprv, bip32_private_derivation,
+                    bip32_private_key, bip32_derivation, BIP32_PRIME,
+                    is_xpub, is_xprv)
 from .ecc import string_to_number, number_to_string
-from .crypto import pw_decode, pw_encode
+from .crypto import pw_decode, pw_encode, sha256d
 from .util import (PrintError, InvalidPassword, hfu, WalletFileException,
-                   BitcoinException)
+                   BitcoinException, bh2u, bfh, print_error, inv_dict)
 from .mnemonic import Mnemonic, load_wordlist
 from .plugin import run_hook
 
@@ -332,7 +338,7 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
     def add_xprv(self, xprv):
         self.xprv = xprv
-        self.xpub = bitcoin.xpub_from_xprv(xprv)
+        self.xpub = bip32.xpub_from_xprv(xprv)
 
     def add_xprv_from_seed(self, bip32_seed, xtype, derivation):
         xprv, xpub = bip32_root(bip32_seed, xtype)
@@ -407,7 +413,7 @@ class Old_KeyStore(Deterministic_KeyStore):
 
     @classmethod
     def get_sequence(self, mpk, for_change, n):
-        return string_to_number(Hash(("%d:%d:"%(n, for_change)).encode('ascii') + bfh(mpk)))
+        return string_to_number(sha256d(("%d:%d:"%(n, for_change)).encode('ascii') + bfh(mpk)))
 
     @classmethod
     def get_pubkey_from_mpk(self, mpk, for_change, n):
@@ -614,6 +620,13 @@ def from_bip39_seed(seed, passphrase, derivation, xtype=None):
     return k
 
 
+PURPOSE48_SCRIPT_TYPES = {
+    'p2wsh-p2sh': 1,  # specifically multisig
+    'p2wsh': 2,       # specifically multisig
+}
+PURPOSE48_SCRIPT_TYPES_INV = inv_dict(PURPOSE48_SCRIPT_TYPES)
+
+
 def xtype_from_derivation(derivation: str) -> str:
     """Returns the script type to be used for this derivation."""
     if derivation.startswith("m/84'"):
@@ -781,7 +794,7 @@ def from_seed(seed, passphrase, is_p2sh=False):
 def from_private_key_list(text):
     keystore = Imported_KeyStore({})
     for x in get_private_keys(text):
-        keystore.import_key(x, None)
+        keystore.import_privkey(x, None)
     return keystore
 
 def from_old_mpk(mpk):
@@ -795,7 +808,7 @@ def from_xpub(xpub):
     return k
 
 def from_xprv(xprv):
-    xpub = bitcoin.xpub_from_xprv(xprv)
+    xpub = bip32.xpub_from_xprv(xprv)
     k = BIP32_KeyStore({})
     k.xprv = xprv
     k.xpub = xpub
