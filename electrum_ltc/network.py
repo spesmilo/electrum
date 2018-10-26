@@ -836,29 +836,32 @@ class Network(PrintError):
             self._jobs.append(job)
             await self.main_taskgroup.spawn(job)
 
+    @log_exceptions
     async def _stop(self, full_shutdown=False):
         self.print_error("stopping network")
         try:
             await asyncio.wait_for(self.main_taskgroup.cancel_remaining(), timeout=2)
-        except asyncio.TimeoutError: pass
-        self.main_taskgroup = None
-
-        assert self.interface is None
-        assert not self.interfaces
-        self.connecting.clear()
-        self.server_queue = None
-        self.trigger_callback('network_updated')
-
-        if full_shutdown:
-            self._run_forever.set_result(1)
+        except (asyncio.TimeoutError, asyncio.CancelledError) as e:
+            self.print_error(f"exc during main_taskgroup cancellation: {repr(e)}")
+        try:
+            self.main_taskgroup = None
+            self.interface = None  # type: Interface
+            self.interfaces = {}  # type: Dict[str, Interface]
+            self.connecting.clear()
+            self.server_queue = None
+            if not full_shutdown:
+                self.trigger_callback('network_updated')
+        finally:
+            if full_shutdown:
+                self._run_forever.set_result(1)
 
     def stop(self):
         assert self._thread != threading.current_thread(), 'must not be called from network thread'
         fut = asyncio.run_coroutine_threadsafe(self._stop(full_shutdown=True), self.asyncio_loop)
-        fut.result()
-
-    def join(self):
-        self._thread.join(1)
+        try:
+            fut.result(timeout=2)
+        except (asyncio.TimeoutError, asyncio.CancelledError): pass
+        self._thread.join(timeout=1)
 
     async def _ensure_there_is_a_main_interface(self):
         if self.is_connected():
