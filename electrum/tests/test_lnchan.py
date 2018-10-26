@@ -396,6 +396,23 @@ class TestChannel(unittest.TestCase):
             self.alice_channel.add_htlc(new)
         self.assertIn('Not enough local balance', cm.exception.args[0])
 
+    def test_sign_commitment_is_pure(self):
+        force_state_transition(self.alice_channel, self.bob_channel)
+        self.htlc_dict['payment_hash'] = bitcoin.sha256(b'\x02' * 32)
+        aliceHtlcIndex = self.alice_channel.add_htlc(self.htlc_dict)
+        before_signing = self.alice_channel.to_save()
+        self.alice_channel.sign_next_commitment()
+        after_signing = self.alice_channel.to_save()
+        try:
+            self.assertEqual(before_signing, after_signing)
+        except:
+            try:
+                from deepdiff import DeepDiff
+                from pprint import pformat
+            except ImportError:
+                raise
+            raise Exception(pformat(DeepDiff(before_signing, after_signing)))
+
 class TestAvailableToSpend(unittest.TestCase):
     def test_DesyncHTLCs(self):
         alice_channel, bob_channel = create_test_channels()
