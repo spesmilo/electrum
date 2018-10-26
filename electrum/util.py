@@ -882,7 +882,7 @@ def log_exceptions(func):
             raise
         except BaseException as e:
             print_ = self.print_error if hasattr(self, 'print_error') else print_error
-            print_("Exception in", func.__name__, ":", e.__class__.__name__, repr(e))
+            print_("Exception in", func.__name__, ":", repr(e))
             try:
                 traceback.print_exc(file=sys.stderr)
             except BaseException as e2:

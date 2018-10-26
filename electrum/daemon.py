@@ -302,7 +302,6 @@ class Daemon(DaemonThread):
         if self.network:
             self.print_error("shutting down network")
             self.network.stop()
-            self.network.join()
         self.on_stop()
 
     def stop(self):
