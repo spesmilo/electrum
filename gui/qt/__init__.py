@@ -42,11 +42,8 @@ import PyQt5.QtCore as QtCore
 from electroncash.i18n import _, set_language
 from electroncash.plugins import run_hook
 from electroncash import WalletStorage
-# from electroncash.synchronizer import Synchronizer
-# from electroncash.verifier import SPV
-# from electroncash.util import DebugMem
 from electroncash.util import UserCancelled, print_error
-# from electroncash.wallet import Abstract_Wallet
+from electroncash.networks import NetworkConstants
 
 from .installwizard import InstallWizard, GoBack
 
@@ -71,19 +68,15 @@ class OpenFileEventFilter(QObject):
 
     def eventFilter(self, obj, event):
         if event.type() == QtCore.QEvent.FileOpen:
-            uri = urllib.parse.unquote(str(event.url().toString()))
-            if uri.startswith('file:///'):
-                # work around MacOSX -> Qt weirdness in URL rewriting! bitcoincash:xxx becomes file:///bitcoincash/xxx due to MacOS quirks.
-                # (So we have to undo this back to bitcoincash:xxx)
-                uri2 = uri[8:]
-                if uri2.lower().startswith('bitcoincash/') or uri2.lower().startswith('bchtest/'):
-                    uri = []
-                    for ch in uri2:
-                        if ch == ':': ch = '/'
-                        elif ch == '/': ch = ':'
-                        uri.append(ch)
-                    uri = ''.join(uri)
             if len(self.windows) >= 1:
+                uri = urllib.parse.unquote(str(event.url().toString()))
+                if uri.lower().startswith('file:///'):
+                    # work around MacOSX -> Qt weirdness in URL rewriting! bitcoincash:xxx comes in as file:///bitcoincash/xxx due to MacOS quirks.
+                    # (So we have to undo this back to bitcoincash:xxx)
+                    uri2 = uri[8:]
+                    if uri2.lower().startswith(NetworkConstants.CASHADDR_PREFIX + "/"):
+                        # translate ':' -> '/' and '/' -> ':'
+                        uri = uri2.translate(str.maketrans(':/','/:'))
                 self.windows[0].pay_to_URI(uri)
                 return True
         return False
