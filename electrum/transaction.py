@@ -1067,6 +1067,7 @@ class Transaction:
             return network_ser
 
     def serialize_to_network(self, estimate_size=False, witness=True):
+        self.deserialize()
         nVersion = int_to_hex(self.version, 4)
         nLocktime = int_to_hex(self.locktime, 4)
         inputs = self.inputs()
