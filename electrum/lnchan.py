@@ -19,7 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-# API (method signatures) copied from lnd
+# API (method signatures and docstrings) partially copied from lnd
 # 42de4400bff5105352d0552155f73589166d162b
 
 from collections import namedtuple, defaultdict
@@ -225,6 +225,8 @@ class Channel(PrintError):
         """
         AddHTLC adds an HTLC to the state machine's local update log. This method
         should be called when preparing to send an outgoing HTLC.
+
+        This docstring is from LND.
         """
         assert type(htlc) is dict
         self._check_can_pay(htlc['amount_msat'])
@@ -239,6 +241,8 @@ class Channel(PrintError):
         ReceiveHTLC adds an HTLC to the state machine's remote update log. This
         method should be called in response to receiving a new HTLC from the remote
         party.
+
+        This docstring is from LND.
         """
         assert type(htlc) is dict
         htlc = UpdateAddHtlc(**htlc, htlc_id = self.config[REMOTE].next_htlc_id)
@@ -256,14 +260,13 @@ class Channel(PrintError):
         """
         SignNextCommitment signs a new commitment which includes any previous
         unsettled HTLCs, any new HTLCs, and any modifications to prior HTLCs
-        committed in previous commitment updates. Signing a new commitment
-        decrements the available revocation window by 1. After a successful method
-        call, the remote party's commitment chain is extended by a new commitment
-        which includes all updates to the HTLC log prior to this method invocation.
+        committed in previous commitment updates.
         The first return parameter is the signature for the commitment transaction
-        itself, while the second parameter is a slice of all HTLC signatures (if
+        itself, while the second parameter is are all HTLC signatures concatenated.
         any). The HTLC signatures are sorted according to the BIP 69 order of the
         HTLC's on the commitment transaction.
+
+        This docstring was adapted from LND.
         """
         self.print_error("sign_next_commitment")
         self.lock_in_htlc_changes(LOCAL)
@@ -321,6 +324,8 @@ class Channel(PrintError):
         to our local commitment chain. Once we send a revocation for our prior
         state, then this newly added commitment becomes our current accepted channel
         state.
+
+        This docstring is from LND.
         """
         self.print_error("receive_new_commitment")
         self.lock_in_htlc_changes(REMOTE)
@@ -366,16 +371,6 @@ class Channel(PrintError):
             raise Exception(f'failed verifying HTLC signatures: {htlc}')
 
     def revoke_current_commitment(self):
-        """
-        RevokeCurrentCommitment revokes the next lowest unrevoked commitment
-        transaction in the local commitment chain. As a result the edge of our
-        revocation window is extended by one, and the tail of our local commitment
-        chain is advanced by a single commitment. This now lowest unrevoked
-        commitment becomes our currently accepted state within the channel. This
-        method also returns the set of HTLC's currently active within the commitment
-        transaction. This return value allows callers to act once an HTLC has been
-        locked into our commitment transaction.
-        """
         self.print_error("revoke_current_commitment")
 
         last_secret, this_point, next_point = self.points
@@ -445,18 +440,7 @@ class Channel(PrintError):
         if encumbered_sweeptx:
             self.lnwatcher.add_sweep_tx(outpoint, ctx.txid(), encumbered_sweeptx.to_json())
 
-    def receive_revocation(self, revocation):
-        """
-        ReceiveRevocation processes a revocation sent by the remote party for the
-        lowest unrevoked commitment within their commitment chain. We receive a
-        revocation either during the initial session negotiation wherein revocation
-        windows are extended, or in response to a state update that we initiate. If
-        successful, then the remote commitment chain is advanced by a single
-        commitment, and a log compaction is attempted.
-
-        Returns the forwarding package corresponding to the remote commitment height
-        that was revoked.
-        """
+    def receive_revocation(self, revocation) -> Tuple[int, int]:
         self.print_error("receive_revocation")
 
         cur_point = self.config[REMOTE].current_per_commitment_point

@@ -79,7 +79,7 @@ MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE = MIN_FINAL_CLTV_EXPIRY_ACCEPTED + 1
 
 
 class RevocationStore:
-    """ taken from lnd """
+    """ Taken from LND, see license in lnchan.py. """
 
     START_INDEX = 2 ** 48 - 1
 
