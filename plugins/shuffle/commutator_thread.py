@@ -76,7 +76,7 @@ class Commutator(threading.Thread):
                                               ciphers="ECDHE-RSA-AES128-GCM-SHA256")
             else:
                 self.socket = bare_socket
-            print(self.socket)
+            self.socket.settimeout(self.timeout)
             self.socket.connect((host, port))
             self.debug('connected')
         except IOError as e:

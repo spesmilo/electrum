@@ -83,7 +83,7 @@ class ShuffleWidget(QWidget):
         self.bot_limit_value = 1
         self.bot_maximum_value = 3
         self.bot_period_value = 1
-        self.bot_stopper = False  
+        self.bot_stopper = False
         # This is for debug
         # self.coinshuffle_fee_constant = 10
         #
@@ -558,7 +558,7 @@ def is_coin_shuffled(wallet, coin):
                 outputs_groups[amount] = [out_n]
         for amount in outputs_groups:
             group_len = len(outputs_groups[amount])
-            if group_len > 2 and amount in [1e7, 1e6, 1e5, 1e4]:
+            if group_len > 2 and amount in [10e4, 10e5, 10e6, 10e7 ,10e8]:
                 if coin_out_n in outputs_groups[amount] and inputs_len >= group_len:
                     return True
         return False
@@ -573,74 +573,26 @@ def get_shuffled_coins(wallet):
 def on_utxo_list_update(utxo_list):
     utxo_list.on_update_backup()
     utxo_labels = {}
+    in_progress = {}
     for utxo in utxo_list.utxos:
         name = utxo_list.get_name(utxo)
-        utxo_labels[name[0:10] + '...' + name[-2:]] = utxo_list.wallet.is_coin_shuffled(utxo)
-    shuffle_icon = QIcon(":shuffle_tab_ico.png")
+        short_name = name[0:10] + '...' + name[-2:]
+        utxo_labels[short_name] = utxo_list.wallet.is_coin_shuffled(utxo)
+        in_progress[short_name] = name in utxo_list.in_progress
+    # shuffle_icon = QIcon(":shuffle_tab_ico.png")
     for index in range(utxo_list.topLevelItemCount()):
         item = utxo_list.topLevelItem(index)
         label = item.data(4, Qt.DisplayRole)
         if utxo_labels[label]:
-            item.setIcon(0,  shuffle_icon)
+            item.setData(5, Qt.DisplayRole, "shuffled")
+            # item.setIcon(0,  shuffle_icon)
+        if in_progress[label]:
+            item.setData(5, Qt.DisplayRole, "in progress")
 
 
-class shuffle_thread_observer(object):
-
-    def __init__(self, parent, pubkey):
-        self.parent = parent
-        self.pubkey = pubkey
-        self.pThread = None
-
-    def send(self, message):
-        if message.startswith("Error"):
-            self.pThread.done.set()
-            self.pThread.stop()
-            # self.pThread.join()
-            self.parent.send(message, self.pubkey)
-            # self.coinshuffle_text_output.setTextColor(QColor('red'))
-            # self.coinshuffle_text_output.append(message)
-            # self.enable_coinshuffle_settings()
-            # self.coinshuffle_cancel_button.setEnabled(False)
-            # self.coinshuffle_inputs_list.update(self.window.wallet)
-            # self.coinshuffle_outputs.update(self.window.wallet)
-            # self.timer.stop()
-        elif message[-17:] == "complete protocol":
-            self.parent.send(message, self.pubkey)
-            self.pThread.done.set()
-            tx = self.pThread.protocol.tx
-            if tx:
-                self.pThread.join()
-            else:
-                print("No tx: " + str(tx.raw))
-            # self.enable_coinshuffle_settings()
-            # self.coinshuffle_cancel_button.setEnabled(False)
-            # self.coinshuffle_inputs_list.update(self.window.wallet)
-            # self.coinshuffle_outputs.update(self.window.wallet)
-        # elif "begins" in message:
-        #     pass
-        #     # self.timer.stop()
-        #     # self.coinshuffle_timer_output.setText("")
-        #     # self.waiting_timeout = 180
-        else:
-        #     header = message[:6]
-        #     if header == 'Player':
-        #         self.coinshuffle_text_output.setTextColor(QColor('green'))
-        #     if header[:5] == 'Blame':
-        #         self.coinshuffle_text_output.setTextColor(QColor('red'))
-        #         if "insufficient" in message:
-        #             pass
-        #         elif "wrong hash" in message:
-        #             pass
-        #         else:
-        #             self.pThread.join()
-        #             self.enable_coinshuffle_settings()
-        #             self.coinshuffle_text_output.append(str(self.pThread.isAlive()))
-
-            self.parent.send(message, self.pubkey)
-            # self.coinshuffle_text_output.append(message)
-            # self.coinshuffle_text_output.setTextColor(QColor('black'))
-
-
+def update_coin_status(window, coin_name):
+    window.utxo_list.in_progress.append(coin_name)
+    window.utxo_list.on_update()
 
 
 class electrum_console_logger(QObject):
@@ -649,27 +601,40 @@ class electrum_console_logger(QObject):
 
     def __init__(self, parent=None):
         super(QObject, self).__init__(parent)
-        self.observers = {}
-
-    def add_observer(self, observer_id):
-        self.observers[observer_id] = shuffle_thread_observer(self, observer_id)
-
-    def set_observer_thread(self, observer_id, thread):
-        self.observers[observer_id].pThread = thread
+        self.parent = parent
 
     def send(self, msg, sender):
-        self.gotMessage.emit("{}: {}".format(sender, msg))
+        self.gotMessage.emit("{}: {}".format(msg, sender))
 
 
 def start_background_shuffling(window, network_settings, period = 1, password=None):
     logger = electrum_console_logger()
     logger.gotMessage.connect(lambda msg: window.console.showMessage(msg))
-    # logger.send = lambda msg: window.console.showMessage(msg)
     window.background_process = BackgroundShufflingThread(window.wallet, network_settings,
                                                           logger=logger,
                                                           period=period,
                                                           password=password)
     window.background_process.start()
+
+def modify_utxo_list(window):
+    header = window.utxo_list.headerItem()
+    header_labels = [header.text(i) for i in range(header.columnCount())]
+    header_labels.append("Shuffling status")
+    window.utxo_list.setColumnCount(6)
+    window.utxo_list.setHeaderLabels(header_labels)
+    window.utxo_list.on_update_backup = window.utxo_list.on_update
+    window.utxo_list.on_update = lambda: on_utxo_list_update(window.utxo_list)
+    window.utxo_list.in_progress = []
+
+def restore_utxo_list(window):
+    header = window.utxo_list.headerItem()
+    header_labels = [header.text(i) for i in range(header.columnCount())]
+    del header_labels[-1]
+    window.utxo_list.setColumnCount(5)
+    window.utxo_list.setHeaderLabels(header_labels)
+    window.utxo_list.on_update = window.utxo_list.on_update_backup
+    window.utxo_list.in_progress = None
+    delattr(window.utxo_list, "in_progress")
 
 class Plugin(BasePlugin):
 
@@ -703,11 +668,7 @@ class Plugin(BasePlugin):
         self.utxo_list_menu_backup = window.utxo_list.create_menu
         window.cs_tab = None
         self.update(window)
-        # utxo_list_modification
-        window.utxo_list.customContextMenuRequested.disconnect()
-        window.utxo_list.customContextMenuRequested.connect(lambda x: create_coins_menu(window.utxo_list, x))
-        window.utxo_list.on_update_backup = window.utxo_list.on_update
-        window.utxo_list.on_update = lambda: on_utxo_list_update(window.utxo_list)
+        modify_utxo_list(window)
         # wallet modification
         window.wallet.is_coin_shuffled = lambda coin: is_coin_shuffled(window.wallet, coin)
         window.wallet.get_shuffled_coins = lambda: get_shuffled_coins(window.wallet)
@@ -730,13 +691,10 @@ class Plugin(BasePlugin):
                 delattr(window.wallet, "is_coin_shuffled")
             if getattr(window.wallet, "get_shuffled_coins", None):
                 delattr(window.wallet, "get_shuffled_coins")
-            window.utxo_list.customContextMenuRequested.disconnect()
-            window.utxo_list.customContextMenuRequested.connect(self.utxo_list_menu_backup)
-            window.utxo_list.on_update = window.utxo_list.on_update_backup
+            restore_utxo_list(window)
             delattr(window.utxo_list, "on_update_backup")
             if window.console.namespace.get("start_background_shuffling", None):
                 del window.console.namespace["start_background_shuffling"]
-
             window.utxo_list.on_update()
 
 
@@ -770,8 +728,8 @@ class Plugin(BasePlugin):
 
         grid.addWidget(QLabel('Servers'), 0, 0)
         grid.addWidget(serverList, 0, 1)
-       
-        
+
+
         vbox.addStretch()
         vbox.addLayout(Buttons(CloseButton(d), OkButton(d)))
 
@@ -780,7 +738,7 @@ class Plugin(BasePlugin):
 
         server = str(server_e.text())
         self.config.set_key('email_server', server)
- 
+
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), partial(self.settings_dialog, window))
