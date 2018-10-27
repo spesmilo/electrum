@@ -1158,7 +1158,7 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_sending_offline_wif_online_addr_p2pkh(self, mock_write):  # compressed pubkey
         wallet_offline = WalletIntegrityHelper.create_imported_wallet(privkeys=True)
-        wallet_offline.import_private_key('p2pkh:cQDxbmQfwRV3vP1mdnVHq37nJekHLsuD3wdSQseBRA2ct4MFk5Pq', pw=None)
+        wallet_offline.import_private_key('p2pkh:cQDxbmQfwRV3vP1mdnVHq37nJekHLsuD3wdSQseBRA2ct4MFk5Pq', password=None)
         wallet_online = WalletIntegrityHelper.create_imported_wallet(privkeys=False)
         wallet_online.import_address('mg2jk6S5WGDhUPA8mLSxDLWpUoQnX1zzoG')
 
@@ -1192,7 +1192,7 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_sending_offline_wif_online_addr_p2wpkh_p2sh(self, mock_write):
         wallet_offline = WalletIntegrityHelper.create_imported_wallet(privkeys=True)
-        wallet_offline.import_private_key('p2wpkh-p2sh:cU9hVzhpvfn91u2zTVn8uqF2ymS7ucYH8V5TmsTDmuyMHgRk9WsJ', pw=None)
+        wallet_offline.import_private_key('p2wpkh-p2sh:cU9hVzhpvfn91u2zTVn8uqF2ymS7ucYH8V5TmsTDmuyMHgRk9WsJ', password=None)
         wallet_online = WalletIntegrityHelper.create_imported_wallet(privkeys=False)
         wallet_online.import_address('2NA2JbUVK7HGWUCK5RXSVNHrkgUYF8d9zV8')
 
@@ -1226,7 +1226,7 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
     @mock.patch.object(storage.WalletStorage, '_write')
     def test_sending_offline_wif_online_addr_p2wpkh(self, mock_write):
         wallet_offline = WalletIntegrityHelper.create_imported_wallet(privkeys=True)
-        wallet_offline.import_private_key('p2wpkh:cPuQzcNEgbeYZ5at9VdGkCwkPA9r34gvEVJjuoz384rTfYpahfe7', pw=None)
+        wallet_offline.import_private_key('p2wpkh:cPuQzcNEgbeYZ5at9VdGkCwkPA9r34gvEVJjuoz384rTfYpahfe7', password=None)
         wallet_online = WalletIntegrityHelper.create_imported_wallet(privkeys=False)
         wallet_online.import_address('tb1qm2eh4787lwanrzr6pf0ekf5c7jnmghm2y9k529')
 
