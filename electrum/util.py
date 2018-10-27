@@ -902,14 +902,18 @@ def ignore_exceptions(func):
     return wrapper
 
 
-TxMinedStatus = NamedTuple("TxMinedStatus", [("height", int),
-                                             ("conf", int),
-                                             ("timestamp", int),
-                                             ("header_hash", str)])
-VerifiedTxInfo = NamedTuple("VerifiedTxInfo", [("height", int),
-                                               ("timestamp", int),
-                                               ("txpos", int),
-                                               ("header_hash", str)])
+class TxMinedStatus(NamedTuple):
+    height: int
+    conf: int
+    timestamp: int
+    header_hash: str
+
+
+class VerifiedTxInfo(NamedTuple):
+    height: int
+    timestamp: int
+    txpos: int
+    header_hash: str
 
 
 def make_aiohttp_session(proxy: dict, headers=None, timeout=None):

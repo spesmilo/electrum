@@ -22,8 +22,9 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 from math import floor, log10
+from typing import NamedTuple, List
 
 from .bitcoin import sha256, COIN, TYPE_ADDRESS, is_address
 from .transaction import Transaction, TxOutput
@@ -68,13 +69,14 @@ class PRNG:
             x[i], x[j] = x[j], x[i]
 
 
-Bucket = namedtuple('Bucket',
-                    ['desc',
-                     'weight',      # as in BIP-141
-                     'value',       # in satoshis
-                     'coins',       # UTXOs
-                     'min_height',  # min block height where a coin was confirmed
-                     'witness'])    # whether any coin uses segwit
+class Bucket(NamedTuple):
+    desc: str
+    weight: int         # as in BIP-141
+    value: int          # in satoshis
+    coins: List[dict]   # UTXOs
+    min_height: int     # min block height where a coin was confirmed
+    witness: bool       # whether any coin uses segwit
+
 
 def strip_unneeded(bkts, sufficient_funds):
     '''Remove buckets that are unnecessary in achieving the spend amount'''

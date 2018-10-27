@@ -28,7 +28,7 @@ from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
 from electrum.bitcoin import is_address, TYPE_SCRIPT
 from electrum.util import bfh, versiontuple
-from electrum.transaction import opcodes, TxOutput
+from electrum.transaction import opcodes, TxOutput, Transaction
 
 
 class HW_PluginBase(BasePlugin):
@@ -113,14 +113,13 @@ class HW_PluginBase(BasePlugin):
         return message
 
 
-def is_any_tx_output_on_change_branch(tx):
-    if not hasattr(tx, 'output_info'):
+def is_any_tx_output_on_change_branch(tx: Transaction):
+    if not tx.output_info:
         return False
-    for _type, address, amount in tx.outputs():
-        info = tx.output_info.get(address)
+    for o in tx.outputs():
+        info = tx.output_info.get(o.address)
         if info is not None:
-            index, xpubs, m = info.address_index, info.sorted_xpubs, info.num_sig
-            if index[0] == 1:
+            if info.address_index[0] == 1:
                 return True
     return False
 
