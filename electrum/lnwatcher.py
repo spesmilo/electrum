@@ -95,6 +95,7 @@ class LNWatcher(PrintError):
             storage.put('sweepstore', sweepstore)
         storage.write()
 
+    @with_watchtower
     def watch_channel(self, address, outpoint):
         self.watch_address(address)
         with self.lock:
