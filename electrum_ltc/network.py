@@ -110,11 +110,12 @@ def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
     return random.choice(eligible) if eligible else None
 
 
-NetworkParameters = NamedTuple("NetworkParameters", [("host", str),
-                                                     ("port", str),
-                                                     ("protocol", str),
-                                                     ("proxy", Optional[dict]),
-                                                     ("auto_connect", bool)])
+class NetworkParameters(NamedTuple):
+    host: str
+    port: str
+    protocol: str
+    proxy: Optional[dict]
+    auto_connect: bool
 
 
 proxy_modes = ['socks4', 'socks5']

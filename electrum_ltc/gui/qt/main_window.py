@@ -2612,19 +2612,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         text = text_dialog(self, title, header_layout, _('Import'), allow_multi=True)
         if not text:
             return
-        bad = []
-        good = []
-        for key in str(text).split():
-            try:
-                addr = func(key)
-                good.append(addr)
-            except BaseException as e:
-                bad.append(key)
-                continue
-        if good:
-            self.show_message(_("The following addresses were added") + ':\n' + '\n'.join(good))
-        if bad:
-            self.show_critical(_("The following inputs could not be imported") + ':\n'+ '\n'.join(bad))
+        keys = str(text).split()
+        good_inputs, bad_inputs = func(keys)
+        if good_inputs:
+            msg = '\n'.join(good_inputs[:10])
+            if len(good_inputs) > 10: msg += '\n...'
+            self.show_message(_("The following addresses were added")
+                              + f' ({len(good_inputs)}):\n' + msg)
+        if bad_inputs:
+            msg = "\n".join(f"{key[:10]}... ({msg})" for key, msg in bad_inputs[:10])
+            if len(bad_inputs) > 10: msg += '\n...'
+            self.show_error(_("The following inputs could not be imported")
+                            + f' ({len(bad_inputs)}):\n' + msg)
         self.address_list.update()
         self.history_list.update()
 
@@ -2632,7 +2631,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not self.wallet.can_import_address():
             return
         title, msg = _('Import addresses'), _("Enter addresses")+':'
-        self._do_import(title, msg, self.wallet.import_address)
+        self._do_import(title, msg, self.wallet.import_addresses)
 
     @protected
     def do_import_privkey(self, password):
@@ -2642,7 +2641,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         header_layout = QHBoxLayout()
         header_layout.addWidget(QLabel(_("Enter private keys")+':'))
         header_layout.addWidget(InfoButton(WIF_HELP_TEXT), alignment=Qt.AlignRight)
-        self._do_import(title, header_layout, lambda x: self.wallet.import_private_key(x, password))
+        self._do_import(title, header_layout, lambda x: self.wallet.import_private_keys(x, password))
 
     def update_fiat(self):
         b = self.fx and self.fx.is_enabled()

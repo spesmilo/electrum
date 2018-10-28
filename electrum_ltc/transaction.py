@@ -31,7 +31,7 @@ import struct
 import traceback
 import sys
 from typing import (Sequence, Union, NamedTuple, Tuple, Optional, Iterable,
-                    Callable, List)
+                    Callable, List, Dict)
 
 from . import ecc, bitcoin, constants, segwit_addr
 from .util import print_error, profiler, to_bytes, bh2u, bfh
@@ -63,17 +63,22 @@ class MalformedBitcoinScript(Exception):
     pass
 
 
-TxOutput = NamedTuple("TxOutput", [('type', int), ('address', str), ('value', Union[int, str])])
-# ^ value is str when the output is set to max: '!'
+class TxOutput(NamedTuple):
+    type: int
+    address: str
+    value: Union[int, str]  # str when the output is set to max: '!'
 
 
-TxOutputForUI = NamedTuple("TxOutputForUI", [('address', str), ('value', int)])
+class TxOutputForUI(NamedTuple):
+    address: str
+    value: int
 
 
-TxOutputHwInfo = NamedTuple("TxOutputHwInfo", [('address_index', Tuple),
-                                               ('sorted_xpubs', Iterable[str]),
-                                               ('num_sig', Optional[int]),
-                                               ('script_type', str)])
+class TxOutputHwInfo(NamedTuple):
+    address_index: Tuple
+    sorted_xpubs: Iterable[str]
+    num_sig: Optional[int]
+    script_type: str
 
 
 class BCDataStream(object):
@@ -682,6 +687,7 @@ class Transaction:
         # this value will get properly set when deserializing
         self.is_partial_originally = True
         self._segwit_ser = None  # None means "don't know"
+        self.output_info = None  # type: Optional[Dict[str, TxOutputHwInfo]]
 
     def update(self, raw):
         self.raw = raw

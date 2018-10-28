@@ -374,7 +374,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         # give empty bytes for error cases; it seems to clear the old signature box
         return b''
 
-    def build_psbt(self, tx, wallet=None, xfp=None):
+    def build_psbt(self, tx: Transaction, wallet=None, xfp=None):
         # Render a PSBT file, for upload to Coldcard.
         # 
         if xfp is None:
@@ -390,7 +390,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             wallet.add_hw_info(tx)
 
         # wallet.add_hw_info installs this attr
-        assert hasattr(tx, 'output_info'), 'need data about outputs'
+        assert tx.output_info, 'need data about outputs'
 
         # Build map of pubkey needed as derivation from master, in PSBT binary format
         # 1) binary version of the common subpath for all keys
