@@ -42,6 +42,7 @@ from PyQt5.QtCore import *
 import PyQt5.QtCore as QtCore
 from PyQt5.QtWidgets import *
 
+import electrum
 from electrum import (keystore, simple_config, ecc, constants, util, bitcoin, commands,
                       coinchooser, paymentrequest)
 from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
@@ -1950,18 +1951,24 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         console.history = self.config.get("console-history",[])
         console.history_index = len(console.history)
 
-        console.updateNamespace({'wallet' : self.wallet,
-                                 'network' : self.network,
-                                 'plugins' : self.gui_object.plugins,
-                                 'window': self})
-        console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
+        console.updateNamespace({
+            'wallet': self.wallet,
+            'network': self.network,
+            'plugins': self.gui_object.plugins,
+            'window': self,
+            'config': self.config,
+            'electrum': electrum,
+            'daemon': self.gui_object.daemon,
+            'util': util,
+            'bitcoin': bitcoin,
+        })
 
         c = commands.Commands(self.config, self.wallet, self.network, lambda: self.console.set_json(True))
         methods = {}
         def mkfunc(f, method):
             return lambda *args: f(method, args, self.password_dialog)
         for m in dir(c):
-            if m[0]=='_' or m in ['network','wallet']: continue
+            if m[0]=='_' or m in ['network','wallet','config']: continue
             methods[m] = mkfunc(c._run, m)
 
         console.updateNamespace(methods)
