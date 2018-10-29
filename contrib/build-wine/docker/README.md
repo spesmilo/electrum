@@ -27,6 +27,19 @@ folder.
 
 3. Build Windows binaries
 
+    It's recommended to build from a fresh clone
+    (but you can skip this if reproducibility is not necessary).
+
+    ```
+    $ FRESH_CLONE=contrib/build-wine/fresh_clone && \
+        rm -rf $FRESH_CLONE && \
+        mkdir -p $FRESH_CLONE && \
+        cd $FRESH_CLONE  && \
+        git clone https://github.com/spesmilo/electrum.git && \
+        cd electrum
+    ```
+
+    And then build from this directory:
     ```
     $ git checkout $REV
     $ sudo docker run \
