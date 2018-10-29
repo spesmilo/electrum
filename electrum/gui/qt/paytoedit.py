@@ -29,7 +29,7 @@ from decimal import Decimal
 from PyQt5.QtGui import *
 
 from electrum import bitcoin
-from electrum.util import bfh
+from electrum.util import bfh, PrintError
 from electrum.transaction import TxOutput
 
 from .qrtextedit import ScanQRTextEdit
@@ -42,7 +42,7 @@ frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
 
 
-class PayToEdit(CompletionTextEdit, ScanQRTextEdit):
+class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
 
     def __init__(self, win):
         CompletionTextEdit.__init__(self)
@@ -215,6 +215,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit):
         if self.is_pr:
             return
         key = str(self.toPlainText())
+        key = key.strip()  # strip whitespaces
         if key == self.previous_payto:
             return
         self.previous_payto = key
@@ -225,7 +226,8 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit):
             return
         try:
             data = self.win.contacts.resolve(key)
-        except:
+        except Exception as e:
+            self.print_error(f'error resolving address/alias: {repr(e)}')
             return
         if not data:
             return

@@ -98,7 +98,7 @@ class Contacts(dict):
         try:
             records, validated = dnssec.query(url, dns.rdatatype.TXT)
         except DNSException as e:
-            print_error('Error resolving openalias: ', str(e))
+            print_error(f'Error resolving openalias: {repr(e)}')
             return None
         prefix = 'btc'
         for record in records:
