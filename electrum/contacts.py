@@ -30,7 +30,6 @@ from dns.exception import DNSException
 from . import bitcoin
 from . import dnssec
 from .util import export_meta, import_meta, print_error, to_string
-from . import opencap
 
 
 class Contacts(dict):
@@ -84,8 +83,8 @@ class Contacts(dict):
                     'address': addr,
                     'type': 'contact'
                 }
-        opencap_alias = self.resolve_opencap(k)
-        if opencap_alias:
+        out = self.resolve_opencap(k)
+        if out:
             address, name, validated = out
             return {
                 'address': address,
@@ -124,31 +123,30 @@ class Contacts(dict):
                     continue
                 return address, name, validated
 
-        def resolve_opencap(self, alias):
-            username, domain = opencap.validateAlias(alias)
-            if username == "" or domain == "":
-                return None
-
-            try:
-                records, validated = dnssec.query(
-                    "_opencap._tcp."+domain, dns.rdatatype.SRV)
-            except Exception as e:
-                print_error('Error resolving opencap: ', str(e))
-                return None
-
-            if len(records) < 1:
-                return None
-
-            host = str(records[0].target).rstrip('.')
-
-            response = requests.get(
-                "https://" + host + "/v1/addresses?alias="+username+"$"+domain)
-            json_data = json.loads(response.text)
-            for addressObject in json_data:
-                if addressObject["address_type"] == 100 or addressObject["address_type"] == 101:
-                    return addressObject["address"], username, validated
-
+    def resolve_opencap(self, alias):
+        # check if 'alias' looks like an 'opencap alias'
+        username, domain = validate_opencap_alias(alias)
+        if not username or not domain:
             return None
+        # do dnssec query
+        try:
+            records, validated = dnssec.query(
+                "_opencap._tcp."+domain, dns.rdatatype.SRV)
+        except DNSException as e:
+            print_error(f'Error resolving opencap: {repr(e)}')
+            return None
+        if len(records) < 1:
+            return None
+        # do HTTP query
+        host = str(records[0].target).rstrip('.')
+        # FIXME should 'host' be further sanitized?
+        response = requests.get(
+            "https://" + host + "/v1/addresses?alias="+username+"$"+domain)
+        json_data = json.loads(response.text)
+        for addressObject in json_data:
+            if addressObject["address_type"] in (100, 101, 102):
+                return addressObject["address"], username, validated
+        return None
 
     def find_regex(self, haystack, needle):
         regex = re.compile(needle)
@@ -169,3 +167,35 @@ class Contacts(dict):
                     data.pop(k)
         return data
 
+
+def validate_opencap_alias(alias):
+    def validate_username(username):
+        username = username.lower()
+        if re.match(r"^[a-z0-9._-]{1,25}$", username):
+            return username
+        return None
+
+    def validate_domain(domain):
+        # regex from https://github.com/kvesteri/validators/blob/6d1fb210eeed9b52a4d3b40cc82b4fee3611562f/validators/domain.py
+        # Copyright (c) 2013-2014 Konsta Vesterinen (MIT software license)
+        DOMAIN_REGEX = re.compile(
+            r'^(:?(([a-zA-Z]{1})|([a-zA-Z]{1}[a-zA-Z]{1})|'  # domain pt.1
+            r'([a-zA-Z]{1}[0-9]{1})|([0-9]{1}[a-zA-Z]{1})|'  # domain pt.2
+            r'([a-zA-Z0-9][-_a-zA-Z0-9]{0,61}[a-zA-Z0-9]))\.)+'  # domain pt.3
+            r'([a-zA-Z]{2,13}|(xn--[a-zA-Z0-9]{2,30}))$'  # TLD
+        )
+        return bool(DOMAIN_REGEX.match(domain))
+
+    parts = alias.split("$")
+    if len(parts) != 2:
+        return "", ""
+
+    username = parts[0]
+    domain = parts[1]
+
+    username = validate_username(username)
+    if not username:
+        return "", ""
+    if not validate_domain(domain):
+        return "", ""
+    return username, domain
