@@ -27,7 +27,6 @@ import signal
 import sys
 import traceback
 
-
 try:
     import PyQt5
 except Exception:
@@ -41,11 +40,8 @@ import PyQt5.QtCore as QtCore
 from electroncash.i18n import _, set_language
 from electroncash.plugins import run_hook
 from electroncash import WalletStorage
-# from electroncash.synchronizer import Synchronizer
-# from electroncash.verifier import SPV
-# from electroncash.util import DebugMem
 from electroncash.util import UserCancelled, print_error
-# from electroncash.wallet import Abstract_Wallet
+from electroncash.networks import NetworkConstants
 
 from .installwizard import InstallWizard, GoBack
 
