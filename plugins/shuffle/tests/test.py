@@ -7,10 +7,12 @@ import ecdsa
 import threading
 import time
 
+import sys
+print(sys.path)
 import imp
-imp.load_module('electroncash', *imp.find_module('lib'))
-imp.load_module('electroncash_gui', *imp.find_module('gui'))
-imp.load_module('electroncash_plugins', *imp.find_module('plugins'))
+imp.load_module('electroncash', *imp.find_module('../../../lib'))
+imp.load_module('electroncash_gui', *imp.find_module('../../../gui/qt'))
+imp.load_module('electroncash_plugins', *imp.find_module('../../../plugins'))
 
 
 from electroncash.address import Address

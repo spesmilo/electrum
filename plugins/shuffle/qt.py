@@ -558,7 +558,7 @@ def is_coin_shuffled(wallet, coin):
                 outputs_groups[amount] = [out_n]
         for amount in outputs_groups:
             group_len = len(outputs_groups[amount])
-            if group_len > 2 and amount in [10e4, 10e5, 10e6, 10e7 ,10e8]:
+            if group_len > 2 and amount in [ 10000, 100000, 1000000, 10000000, 100000000]:
                 if coin_out_n in outputs_groups[amount] and inputs_len >= group_len:
                     return True
         return False
@@ -573,43 +573,73 @@ def get_shuffled_coins(wallet):
 def on_utxo_list_update(utxo_list):
     utxo_list.on_update_backup()
     utxo_labels = {}
+    queued_labels = {}
     in_progress = {}
+    too_big_labels = {}
+    dust_labels = {}
     for utxo in utxo_list.utxos:
         name = utxo_list.get_name(utxo)
         short_name = name[0:10] + '...' + name[-2:]
         utxo_labels[short_name] = utxo_list.wallet.is_coin_shuffled(utxo)
         in_progress[short_name] = name in utxo_list.in_progress
+        queued_labels[short_name] = utxo['value'] > 10000 and utxo['value']<1000000000
+        too_big_labels[short_name] = utxo['value'] >= 1000000000
+        dust_labels[short_name] = utxo['value'] <= 10000
     # shuffle_icon = QIcon(":shuffle_tab_ico.png")
     for index in range(utxo_list.topLevelItemCount()):
         item = utxo_list.topLevelItem(index)
         label = item.data(4, Qt.DisplayRole)
         if utxo_labels[label]:
             item.setData(5, Qt.DisplayRole, "shuffled")
-            # item.setIcon(0,  shuffle_icon)
+        elif queued_labels[label]:
+            item.setData(5, Qt.DisplayRole, "in queue")
+        elif too_big_labels[label]:
+            item.setData(5, Qt.DisplayRole, "too big coin")
+        elif dust_labels[label]:
+            item.setData(5, Qt.DisplayRole, "too small coin")
         if in_progress[label]:
             item.setData(5, Qt.DisplayRole, "in progress")
 
 
-def update_coin_status(window, coin_name):
-    window.utxo_list.in_progress.append(coin_name)
-    window.utxo_list.on_update()
+def update_coin_status(window, coin_name, msg):
+    if coin_name not in ["MAINLOG", "PROTOCOL"]:
+        if msg.startswith("Player") and coin_name not in window.utxo_list.in_progress:
+            window.utxo_list.in_progress.append(coin_name)
+            window.utxo_list.on_update()
+        elif msg.startswith("Error"):
+            if coin_name in window.utxo_list.in_progress:
+                window.utxo_list.in_progress.remove(coin_name)
+                window.utxo_list.on_update()
+        elif msg.endswith("complete protocol"):
+            window.utxo_list.in_progress.remove(coin_name)
+            window.utxo_list.on_update()
+        elif msg.startswith("Blame") and "insufficient" not in message and "wrong hash" not in message:
+            window.utxo_list.in_progress.remove(coin_name)
+            window.utxo_list.on_update()
+    else:
+        if msg == "stopped":
+            window.utxo_list.in_progress = []
+            window.utxo_list.on_update()
+
 
 
 class electrum_console_logger(QObject):
 
-    gotMessage = pyqtSignal(str)
+    gotMessage = pyqtSignal(str, str)
 
     def __init__(self, parent=None):
         super(QObject, self).__init__(parent)
         self.parent = parent
 
     def send(self, msg, sender):
-        self.gotMessage.emit("{}: {}".format(msg, sender))
+        self.gotMessage.emit(msg, sender)
 
 
 def start_background_shuffling(window, network_settings, period = 1, password=None):
     logger = electrum_console_logger()
-    logger.gotMessage.connect(lambda msg: window.console.showMessage(msg))
+    logger.gotMessage.connect(lambda msg, sender: window.console.showMessage("{}: {}".format(sender, msg)))
+    # logger.gotMessage.connect(lambda msg, sender: update_coin_status(window, sender, msg))
+
     window.background_process = BackgroundShufflingThread(window.wallet, network_settings,
                                                           logger=logger,
                                                           period=period,
@@ -635,6 +665,27 @@ def restore_utxo_list(window):
     window.utxo_list.on_update = window.utxo_list.on_update_backup
     window.utxo_list.in_progress = None
     delattr(window.utxo_list, "in_progress")
+    delattr(window.utxo_list, "on_update_backup")
+
+
+def unfreeze_frozen_by_shuffling(wallet):
+    coins_frozen_by_shuffling = wallet.storage.get("coins_frozen_by_shuffling", [])
+    if coins_frozen_by_shuffling:
+        wallet.set_frozen_coin_state(coins_frozen_by_shuffling, False)
+    wallet.storage.put("coins_frozen_by_shuffling", None)
+
+def modify_wallet(wallet):
+    wallet.is_coin_shuffled = lambda coin: is_coin_shuffled(wallet, coin)
+    wallet.get_shuffled_coins = lambda: get_shuffled_coins(wallet)
+    unfreeze_frozen_by_shuffling(wallet)
+
+def restore_wallet(wallet):
+    if getattr(wallet, "is_coin_shuffled", None):
+        delattr(wallet, "is_coin_shuffled")
+    if getattr(wallet, "get_shuffled_coins", None):
+        delattr(wallet, "get_shuffled_coins")
+    unfreeze_frozen_by_shuffling(wallet)
+
 
 class Plugin(BasePlugin):
 
@@ -669,13 +720,12 @@ class Plugin(BasePlugin):
         window.cs_tab = None
         self.update(window)
         modify_utxo_list(window)
-        # wallet modification
-        window.wallet.is_coin_shuffled = lambda coin: is_coin_shuffled(window.wallet, coin)
-        window.wallet.get_shuffled_coins = lambda: get_shuffled_coins(window.wallet)
+        modify_wallet(window.wallet)
         # console modification
         window.console.updateNamespace({"start_background_shuffling": lambda *args, **kwargs: start_background_shuffling(window, *args, **kwargs)})
-
         window.utxo_list.on_update()
+        network_settings = {"host":"localhost", "port":33333, "ssl":False, "network":window.network}
+        # start_background_shuffling(window, network_settings, period = 10, password="testwallet")
 
     @hook
     def on_close_window(self, window):
@@ -683,34 +733,33 @@ class Plugin(BasePlugin):
 
     def on_close(self):
         for window in self.windows:
-            tabIndex= window.tabs.indexOf(window.cs_tab)
-            window.tabs.removeTab(tabIndex)
-            if getattr(window, "cs_tab", None):
-                delattr(window, "cs_tab")
-            if getattr(window.wallet, "is_coin_shuffled", None):
-                delattr(window.wallet, "is_coin_shuffled")
-            if getattr(window.wallet, "get_shuffled_coins", None):
-                delattr(window.wallet, "get_shuffled_coins")
+            # window.background_process.join()
+            # tabIndex= window.tabs.indexOf(window.cs_tab)
+            # window.tabs.removeTab(tabIndex)
+            # if getattr(window, "cs_tab", None):
+            #     delattr(window, "cs_tab")
             restore_utxo_list(window)
-            delattr(window.utxo_list, "on_update_backup")
+            restore_wallet(window.wallet)
             if window.console.namespace.get("start_background_shuffling", None):
                 del window.console.namespace["start_background_shuffling"]
             window.utxo_list.on_update()
 
 
+
     def update(self, window):
-        window.cs_tab = ShuffleWidget(window)
-        window.cs_tab.set_coinshuffle_addrs()
-        # icon = QIcon(":icons/tab_coins.png")
-        icon = QIcon(":shuffle_tab_ico.png")
-        description =  _("Shuffle")
-        name = "shuffle"
-        window.cs_tab.tab_icon = icon
-        window.cs_tab.tab_description = description
-        window.cs_tab.tab_pos = len(window.tabs)
-        window.cs_tab.tab_name = name
-        window.tabs.addTab(window.cs_tab, icon, description.replace("&", ""))
-        self.windows.append(window)
+        pass
+        # window.cs_tab = ShuffleWidget(window)
+        # window.cs_tab.set_coinshuffle_addrs()
+        # # icon = QIcon(":icons/tab_coins.png")
+        # icon = QIcon(":shuffle_tab_ico.png")
+        # description =  _("Shuffle")
+        # name = "shuffle"
+        # window.cs_tab.tab_icon = icon
+        # window.cs_tab.tab_description = description
+        # window.cs_tab.tab_pos = len(window.tabs)
+        # window.cs_tab.tab_name = name
+        # window.tabs.addTab(window.cs_tab, icon, description.replace("&", ""))
+        # self.windows.append(window)
 
     def settings_dialog(self, window):
 

@@ -2,6 +2,7 @@ import socket
 import ssl
 import threading
 import queue
+# import time
 
 class Channel(queue.Queue):
     "simple Queue wrapper for using recv and send"
@@ -41,6 +42,7 @@ class Commutator(threading.Thread):
         self.switch_timeout = switch_timeout
         self.ssl = ssl
         self.response = b''
+        # self.history = []
 
     def debug(self, obj):
         if self.logger:
@@ -76,7 +78,8 @@ class Commutator(threading.Thread):
                                               ciphers="ECDHE-RSA-AES128-GCM-SHA256")
             else:
                 self.socket = bare_socket
-            self.socket.settimeout(self.timeout)
+            # print("s!")
+            # self.socket.settimeout(self.timeout)
             self.socket.connect((host, port))
             self.debug('connected')
         except IOError as e:
@@ -101,9 +104,15 @@ class Commutator(threading.Thread):
                     if len(self.response[12:]) >= msg_length:
                         result = self.response[12: 12 + msg_length]
                         self.response = self.response[12 + msg_length:]
+                        # self.history.append(result)
                         return result
+                    else:
+                        print("incomplete")
                 else:
                     print("bad magic! appears")
                     return None
             else:
-                self.response += self.socket.recv(self.MAX_BLOCK_SIZE)
+                x = self.socket.recv(self.MAX_BLOCK_SIZE)
+                if x:
+                    self.response += x
+            # time.sleep(0.01)
