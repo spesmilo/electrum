@@ -156,6 +156,31 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
 
+
+        use_shuffle= self.config.get('use_shuffle', False)
+        shuffle_noprompt = self.config.get('shuffle_noprompt', False)
+        if use_shuffle == False and shuffle_noprompt != True:
+            d = WindowModalDialog(self, title=_('Would you like to turn on CashShuffle?'))
+            d.setMinimumSize(400, 200)
+            vbox = QVBoxLayout(d)
+            vbox.addWidget(QLabel(_("NOTICE: CashShuffle is disabled.  If you enable it, Electron Cash will shuffle your coins for greater privacy.  Would you like to turn this feature on?  (You can always disable it later from the Optional Features menu).  Click the enable button turn CashShuffle on, or cancel to decline.")))
+             
+            csnoprompt_cb = QCheckBox(_('Don\'t ask me again'))
+            vbox.addWidget(csnoprompt_cb) 
+            vbox.addStretch(1)
+            sweep_button = OkButton(d, _('Enable CashShuffle'))
+            vbox.addLayout(Buttons(CancelButton(d), sweep_button))
+            if not d.exec_(): 
+                self.config.set_key('use_shuffle', False)
+                if csnoprompt_cb.isChecked()==True:
+                    self.config.set_key('shuffle_noprompt', True)
+            else: 
+                self.config.set_key('use_shuffle', True)
+                if csnoprompt_cb.isChecked()==True:
+                    self.config.set_key('shuffle_noprompt', True)
+          
+
+
         def add_optional_tab(tabs, tab, icon, description, name, default=False):
             tab.tab_icon = icon
             tab.tab_description = description
