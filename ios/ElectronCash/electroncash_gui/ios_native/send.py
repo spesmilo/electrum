@@ -17,6 +17,7 @@ from .custom_objc import *
 from .uikit_bindings import *
 from electroncash.networks import NetworkConstants
 from electroncash.address import Address, ScriptOutput
+from electroncash.paymentrequest import PaymentRequest
 from electroncash import bitcoin
 from .feeslider import FeeSlider
 from .amountedit import BTCAmountEdit
@@ -59,7 +60,6 @@ class SendVC(SendBase):
     dismissOnAppear = objc_property()
     kbas = objc_property()
     queuedPayTo = objc_property()
-    prInfo = objc_property()
     
     @objc_method
     def init(self):
@@ -75,7 +75,6 @@ class SendVC(SendBase):
         self.dismissOnAppear = False
         self.kbas = None
         self.queuedPayTo = None
-        self.prInfo = None
         
         self.navigationItem.leftItemsSupplementBackButton = True
         bb = UIBarButtonItem.new().autorelease()
@@ -99,8 +98,9 @@ class SendVC(SendBase):
         self.excessiveFee = None
         self.kbas = None
         self.queuedPayTo = None
-        self.prInfo = None
         utils.nspy_pop(self)
+        for e in [self.amt, self.fiat, self.payTo]:
+            if e: utils.nspy_pop(e)
         send_super(__class__, self, 'dealloc')
 
     @objc_method
@@ -407,25 +407,22 @@ class SendVC(SendBase):
         if not self.viewIfLoaded:
             self.queuedPayTo = [address, message, amount]
             return
-        requestor = None
-        address = py_from_ns(address) # ensure python type
         tf = self.payTo
-        if isinstance(address, (list, tuple)) and len(address) >= 2:
-            requestor = address[0]
-            address = address[1]
-        if requestor and address:
-            tf.text = str(requestor)
-            self.setPR_([requestor, address])
-        else:
-            self.setPR_(None)
-            tf.text = str(address) if address is not None else tf.text
+        pr = get_PR(self)
+        if pr:
+            # ignore passed-in values if using PRs
+            address = pr.get_requestor()
+            message = pr.get_memo()
+            amount = pr.get_amount()
+        tf.text = str(address) if address is not None else tf.text
         tf.resignFirstResponder() # just in case
+        utils.uitf_redo_attrs(tf)
         # label
         self.descDel.text = str(message) if message is not None else ""
         self.desc.resignFirstResponder()
         # amount
         if amount == "!":
-            if self.isPR():
+            if pr:
                 # '!' max amount not supported for PRs!
                 amount = 0
             else:
@@ -434,10 +431,13 @@ class SendVC(SendBase):
         self.amountSats = int(amount) if type(amount) in [int,float] else self.amountSats
         tf.setAmount_(self.amountSats)
         tf.resignFirstResponder()
+        utils.uitf_redo_attrs(tf)
+        utils.uitf_redo_attrs(self.fiat)
+
         self.qrScanErr = False
         self.chkOk()
         utils.NSLog("OnPayTo %s %s %s",str(address), str(message), str(amount))
-    
+
     @objc_method
     def chkOk(self) -> bool:
         
@@ -515,7 +515,8 @@ class SendVC(SendBase):
         self.isMax = False
         self.notEnoughFunds = False
         self.excessiveFee = False
-        self.setPR_(None) # implicitly clears nspy_byname attr 'payment_request'
+        set_PR(self, None) # implicitly clears nspy_byname attr 'payment_request'
+        self.doChkPR()
         # address
         tf = self.payTo
         tf.text = ""
@@ -552,37 +553,35 @@ class SendVC(SendBase):
         self.clearSpendFrom()
 
     @objc_method
-    def setPR_(self, ra : ObjCInstance) -> None:
-        b = bool(ra) # ensure bool
-        ra = py_from_ns(ra) if b else ra # ensure list
-        self.prInfo = ns_from_py(ra) if b and ra else None
-        b = self.isPR() # make sure it took and do additional checks.
+    def doChkPR(self) -> None:
+        if not self.viewIfLoaded:
+            return
+        b = bool(self.isPR()) # ensure bool
         for e in [self.payTo, self.amt, self.fiat]:
             e.setFrozen_(b)
+            if b:
+                utils.nspy_put_byname(e, 10.0, 'indent_override')
+            else:
+                utils.nspy_pop_byname(e, 'indent_override')
         for but in [self.maxBut, self.contactBut, self.qrBut]:
             but.userInteractionEnabled = not b
             but.alpha = 1.0 if not b else 0.3
         if b:
             self.isMax = False
-            if ra[0]:
-                self.payTo.text = ra[0]
-            elif ra[1]:
-                self.payTo.text = ra[1]
-            else:
-                self.payTo.text = ''
+            self.payTo.text = get_PR(self).get_requestor()
         else:
-            utils.nspy_pop_byname(self, 'payment_request')
-            self.prInfo = None # force nothing there if not valid
             self.payTo.backgroundColor = utils.uicolor_custom('ultralight')
             
     @objc_method
     def isPR(self) -> bool:
-        prInfo = py_from_ns(self.prInfo)
-        return bool(prInfo) and isinstance(prInfo, (list, tuple)) and len(prInfo) >= 2
+        return get_PR(self) is not None
 
     @objc_method
     def getPayToAddress(self) -> ObjCInstance:
-        return ns_from_py(py_from_ns(self.prInfo)[1] if self.isPR() else self.payTo.text)
+        pr = get_PR(self)
+        if pr:
+            return ns_from_py(pr.get_address())
+        return ns_from_py(self.payTo.text)
 
 
     @objc_method
@@ -747,10 +746,12 @@ class SendVC(SendBase):
             if not freeze_fee:
                 fee = None if self.notEnoughFunds else tx.get_fee()
                 fee_e.setAmount_(fee)
+                utils.uitf_redo_attrs(fee_e)
 
             if self.isMax:
                 amount = tx.output_value()
                 amount_e.setAmount_(amount)
+                utils.uitf_redo_attrs(amount_e)
         self.chkOk()
 
     @objc_method
@@ -1052,6 +1053,20 @@ def read_send_form(send : ObjCInstance) -> tuple:
     coins = get_coins(send)
     return outputs, fee, label, coins
 
+def get_PR(sendVC):
+    if sendVC:
+        pr = utils.nspy_get_byname(sendVC, 'payment_request')
+        if isinstance(pr, PaymentRequest):
+            return pr
+    return None
+
+def set_PR(sendVC, pr):
+    if sendVC:
+        if isinstance(pr, PaymentRequest):
+            utils.nspy_put_byname(sendVC, pr, 'payment_request')
+        else:
+            # Passed None to clear
+            utils.nspy_pop_byname(sendVC, 'payment_request')
 
 class Parser:
     def parse_address_and_amount(self, line):

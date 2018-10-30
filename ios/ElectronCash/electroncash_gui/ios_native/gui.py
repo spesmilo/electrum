@@ -1081,18 +1081,6 @@ class ElectrumGui(PrintError):
             return True
         return False
 
-    def get_payment_request(self):
-        if self.sendVC:
-            return utils.nspy_get_byname(self.sendVC, 'payment_request')
-        return None
-
-    def set_payment_request(self, pr):
-        if self.sendVC:
-            if pr:
-                utils.nspy_put_byname(self.sendVC, pr, 'payment_request')
-            else:
-                utils.nspy_pop_byname(self.sendVC, 'payment_request')
-
     def do_clear_send(self):
         if self.sendVC: self.sendVC.clear() # implicitly clears 'payment_request' nspy attr
 
@@ -1101,7 +1089,7 @@ class ElectrumGui(PrintError):
         if not self.wallet:
             self.do_clear_send()
             return
-        pr = self.get_payment_request()
+        pr = send.get_PR(self.sendVC)
         if not pr:
             self.show_error("Payment request OK called but no 'payment_request' attribute set on sendVC!")
             return
@@ -1112,24 +1100,23 @@ class ElectrumGui(PrintError):
         if status == PR_PAID:
             self.show_message("invoice already paid", onOk = lambda: self.do_clear_send())
             return
-        def onShow() -> None:
-            if not pr.has_expired():
-                self.sendVC.setPayToGreen()
-            else:
-                self.sendVC.setPayToExpired()
-            self.sendVC.onPayTo_message_amount_([pr.get_requestor(), pr.get_address()], pr.get_memo(), pr.get_amount())
-            # need to update fee
-            self.sendVC.updateFee()
-        self.show_send_modal(completion=onShow)
+        self.sendVC.doChkPR() # freezes UI elements, etc
+        if not pr.has_expired():
+            self.sendVC.setPayToGreen()
+        else:
+            self.sendVC.setPayToExpired()
+        self.sendVC.onPayTo_message_amount_(None, None, None) # special usage of function will pick up fields from pr
+        # need to update fee
+        self.sendVC.updateFee()
 
     def payment_request_error(self):
         #print("Payment request ERROR called")
-        pr = self.get_payment_request()
+        pr = send.get_PR(self.sendVC)
         self.show_message(str(pr.error if pr else _("Payment Request Error")), onOk = lambda: self.do_clear_send())
 
     def on_pr(self, request):
         with self.payment_request_lock:
-            self.set_payment_request(request)
+            send.set_PR(self.sendVC, request)
             if self.wallet and request and request.verify(self.wallet.contacts):
                 self.payment_request_ok_signal.emit()
             else:
@@ -1138,7 +1125,7 @@ class ElectrumGui(PrintError):
     def prepare_for_payment_request(self):
         #print("Prepare for payment request...")
         def onShow() -> None:
-            if self.sendVC and not self.sendVC.prInfo:
+            if self.sendVC and not self.sendVC.isPR():
                 self.sendVC.payTo.text = _("please wait...")
         self.show_send_modal(completion=onShow)
 
@@ -1883,9 +1870,9 @@ class ElectrumGui(PrintError):
         if not vc:
             vc = self.get_presented_viewcontroller()
         def broadcast_thread(): # non-GUI thread
-            pr = self.get_payment_request()
+            pr = send.get_PR(self.sendVC)
             if pr and pr.has_expired():
-                #self.set_payment_request(None)
+                #send.set_PR(self.sendVC, None)
                 return False, _("Payment request has expired")
             if not pr:
                 # only broadcast tx if NOT a payment request! Otherwise, merchant/bitpay broadcasts it as per BIP70 spec.
@@ -1897,7 +1884,7 @@ class ElectrumGui(PrintError):
                 # TODO: invoice list stuff in a future release.
                 #    self.invoices.set_paid(pr, tx.txid())
                 #    self.invoices.save()
-                #    self.set_payment_request(None) # may never want to clear here as the modal send relies on this being set..?
+                #    send.set_PR(self.sendVC, None) # may never want to clear here as the modal send relies on this being set..?
 
             return status, msg
 
