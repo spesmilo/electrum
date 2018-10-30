@@ -42,6 +42,7 @@ from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
 from . import blockchain
 from .blockchain import Blockchain
 from . import constants
+from .i18n import _
 
 if TYPE_CHECKING:
     from .network import Network
