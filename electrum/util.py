@@ -113,16 +113,6 @@ class FileExportFailed(Exception):
         return _("Failed to export to file.") + "\n" + self.message
 
 
-class TimeoutException(Exception):
-    def __init__(self, message=''):
-        self.message = str(message)
-
-    def __str__(self):
-        if not self.message:
-            return _("Operation timed out.")
-        return self.message
-
-
 class WalletFileException(Exception): pass
 
 
