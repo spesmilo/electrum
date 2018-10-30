@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 from .i18n import _
 from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
-                   TimeoutException, WalletFileException, BitcoinException,
+                   WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
                    Fiat, bfh, bh2u)
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
@@ -60,6 +60,7 @@ from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
 from .paymentrequest import (PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED,
                              InvoiceStore)
 from .contacts import Contacts
+from .interface import RequestTimedOut
 
 if TYPE_CHECKING:
     from .network import Network
@@ -768,11 +769,14 @@ class Abstract_Wallet(AddressSynchronizer):
         tx = self.transactions.get(tx_hash, None)
         if not tx and self.network:
             try:
-                tx = Transaction(self.network.get_transaction(tx_hash))
-            except TimeoutException as e:
-                self.print_error('getting input txn from network timed out for {}'.format(tx_hash))
+                raw_tx = self.network.run_from_another_thread(
+                    self.network.get_transaction(tx_hash, timeout=10))
+            except RequestTimedOut as e:
+                self.print_error(f'getting input txn from network timed out for {tx_hash}')
                 if not ignore_timeout:
                     raise e
+            else:
+                tx = Transaction(raw_tx)
         return tx
 
     def add_hw_info(self, tx):

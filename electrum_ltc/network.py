@@ -706,7 +706,7 @@ class Network(PrintError):
         return await self.interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
 
     @best_effort_reliable
-    async def broadcast_transaction(self, tx, timeout=10):
+    async def broadcast_transaction(self, tx, *, timeout=10):
         out = await self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)], timeout=timeout)
         if out != tx.txid():
             raise Exception(out)
@@ -717,8 +717,9 @@ class Network(PrintError):
         return await self.interface.request_chunk(height, tip=tip, can_return_early=can_return_early)
 
     @best_effort_reliable
-    async def get_transaction(self, tx_hash: str) -> str:
-        return await self.interface.session.send_request('blockchain.transaction.get', [tx_hash])
+    async def get_transaction(self, tx_hash: str, *, timeout=None) -> str:
+        return await self.interface.session.send_request('blockchain.transaction.get', [tx_hash],
+                                                         timeout=timeout)
 
     @best_effort_reliable
     async def get_history_for_scripthash(self, sh: str) -> List[dict]:

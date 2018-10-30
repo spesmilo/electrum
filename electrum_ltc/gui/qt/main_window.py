@@ -2427,11 +2427,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if ok and txid:
             txid = str(txid).strip()
             try:
-                r = self.network.get_transaction(txid)
-            except BaseException as e:
-                self.show_message(str(e))
+                raw_tx = self.network.run_from_another_thread(
+                    self.network.get_transaction(txid, timeout=10))
+            except Exception as e:
+                self.show_message(_("Error getting transaction from network") + ":\n" + str(e))
                 return
-            tx = transaction.Transaction(r)
+            tx = transaction.Transaction(raw_tx)
             self.show_transaction(tx)
 
     @protected
