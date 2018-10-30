@@ -448,6 +448,9 @@ class BackgroundShufflingThread(threading.Thread):
                     pass
                 self.threads[scale] = None
             elif message.startswith("Player"):
+                # pass
+                self.logger.send(message, sender)
+            elif "get session number" in message:
                 self.logger.send(message, sender)
             elif message.startswith("Blame"):
                 if "insufficient" in message:
@@ -522,5 +525,5 @@ class BackgroundShufflingThread(threading.Thread):
             self.logger.send("stopped", "MAINLOG")
         for scale in self.scales:
             if self.threads[scale]:
-                self.threads[scale].join()    
+                self.threads[scale].join()
         threading.Thread.join(self)

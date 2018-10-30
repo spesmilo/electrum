@@ -163,22 +163,32 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             d = WindowModalDialog(self, title=_('Would you like to turn on CashShuffle?'))
             d.setMinimumSize(400, 200)
             vbox = QVBoxLayout(d)
-            vbox.addWidget(QLabel(_("NOTICE: CashShuffle is disabled.  If you enable it, Electron Cash will shuffle your coins for greater privacy.  Would you like to turn this feature on?  (You can always disable it later from the Optional Features menu).  Click the enable button turn CashShuffle on, or cancel to decline.")))
-             
+            notice = QLabel(_("""
+                NOTICE: CashShuffle is disabled.
+
+                If you enable it, Electron Cash will shuffle your coins for greater privacy.
+                Would you like to turn this feature on?
+                (You can always disable it later from the Optional Features menu).
+
+                Click the enable button turn CashShuffle on, or cancel to decline."""))
+            notice.setWordWrap(True)
+            # vbox.addWidget(QLabel(_("NOTICE: CashShuffle is disabled.  If you enable it, Electron Cash will shuffle your coins for greater privacy.  Would you like to turn this feature on?  (You can always disable it later from the Optional Features menu).  Click the enable button turn CashShuffle on, or cancel to decline.")))
+            vbox.addWidget(notice)
+
             csnoprompt_cb = QCheckBox(_('Don\'t ask me again'))
-            vbox.addWidget(csnoprompt_cb) 
+            vbox.addWidget(csnoprompt_cb)
             vbox.addStretch(1)
             sweep_button = OkButton(d, _('Enable CashShuffle'))
             vbox.addLayout(Buttons(CancelButton(d), sweep_button))
-            if not d.exec_(): 
+            if not d.exec_():
                 self.config.set_key('use_shuffle', False)
                 if csnoprompt_cb.isChecked()==True:
                     self.config.set_key('shuffle_noprompt', True)
-            else: 
+            else:
                 self.config.set_key('use_shuffle', True)
                 if csnoprompt_cb.isChecked()==True:
                     self.config.set_key('shuffle_noprompt', True)
-          
+
 
 
         def add_optional_tab(tabs, tab, icon, description, name, default=False):
@@ -1549,7 +1559,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # IN THE FUTURE IF WE WANT TO APPEND SOMETHING IN THE MSG ABOUT THE FEE, CODE IS COMMENTED OUT:
         #if fee > confirm_rate * tx.estimated_size() / 1000:
         #    msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
- 
+
         if tx.warning_message is not None:
             msg.append(_('Warning') + ': ' + _(tx.warning_message))
 
