@@ -425,7 +425,11 @@ class SendVC(SendBase):
         self.desc.resignFirstResponder()
         # amount
         if amount == "!":
-            self.spendMax()
+            if self.isPR():
+                # '!' max amount not supported for PRs!
+                amount = 0
+            else:
+                self.spendMax()
         tf = self.amt
         self.amountSats = int(amount) if type(amount) in [int,float] else self.amountSats
         tf.setAmount_(self.amountSats)
