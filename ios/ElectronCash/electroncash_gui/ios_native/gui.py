@@ -178,6 +178,9 @@ class ElectrumGui(PrintError):
         self.sigCoins = coins.CoinsMgr()
         self.sigWallets = wallets.WalletsMgr()
         self.contactHistSync = history.ContactsHistorySynchronizer(self)
+        # More signals.. Qt desktop workalikes
+        self.payment_request_ok_signal = utils.PySig(); self.payment_request_ok_signal.connect(self.payment_request_ok)
+        self.payment_request_error_signal = utils.PySig(); self.payment_request_error_signal.connect(self.payment_request_error)
 
         #todo: support multiple wallets in 1 UI?
         self.config = config
@@ -471,6 +474,8 @@ class ElectrumGui(PrintError):
         self.sigCoins.clear()
         self.sigWallets.clear()
         self.contactHistSync = None
+        self.payment_request_ok_signal.clear(); self.payment_request_ok_signal = None
+        self.payment_request_error_signal.clear(); self.payment_request_error_signal = None
 
     def on_backgrounded(self):
         ct = 0
@@ -1075,21 +1080,67 @@ class ElectrumGui(PrintError):
             return True
         return False
 
+    def get_payment_request(self):
+        if self.sendVC:
+            return utils.nspy_get_byname(self.sendVC, 'payment_request')
+        return None
+
+    def set_payment_request(self, pr):
+        if self.sendVC:
+            if pr:
+                utils.nspy_put_byname(self.sendVC, pr, 'payment_request')
+            else:
+                utils.nspy_pop_byname(self.sendVC, 'payment_request')
+
+    def do_clear_send(self):
+        if self.sendVC: self.sendVC.clear() # implicitly clears 'payment_request' nspy attr
+
+    def payment_request_ok(self):
+        #print("Payment request OK called")
+        if not self.wallet:
+            self.do_clear_send()
+            return
+        pr = self.get_payment_request()
+        if not pr:
+            self.show_error("Payment request OK called but no 'payment_request' attribute set on sendVC!")
+            return
+        key = self.wallet.invoices.add(pr)
+        status = self.wallet.invoices.get_status(key)
+        #self.invoice_list.update()
+        from electroncash.paymentrequest import PR_PAID
+        if status == PR_PAID:
+            self.show_message("invoice already paid", onOk = lambda: self.do_clear_send())
+            return
+        def onShow() -> None:
+            if not pr.has_expired():
+                self.sendVC.setPayToGreen()
+            else:
+                self.sendVC.setPayToExpired()
+            self.sendVC.onPayTo_message_amount_([pr.get_requestor(), pr.get_address()], pr.get_memo(), pr.get_amount())
+            # signal to set fee
+            self.sendVC.updateFee()
+        self.show_send_modal(completion=onShow)
+
+    def payment_request_error(self):
+        #print("Payment request ERROR called")
+        pr = self.get_payment_request()
+        self.show_message(str(pr.error if pr else _("Payment Request Error")), onOk = lambda: self.do_clear_send())
+
     def on_pr(self, request):
-        #self.payment_request = request
-        #if self.payment_request.verify(self.contacts):
-        #    self.payment_request_ok_signal.emit()
-        #else:
-        #    self.payment_request_error_signal.emit()
-        s = "<PaymentRequest>"
-        try:
-            s = str(request.get_dict())
-        except:
-            pass
-        utils.NSLog("On PR verify thread callback not yet implemented. TODO: Implement in next version. (PR was: %s)",s)
+        self.set_payment_request(request)
+        if self.wallet and request and request.verify(self.wallet.contacts):
+            self.payment_request_ok_signal.emit()
+        else:
+            self.payment_request_error_signal.emit()
+
+    def prepare_for_payment_request(self):
+        #print("Prepare for payment request...")
+        def onShow() -> None:
+            if self.sendVC and not self.sendVC.prInfo:
+                self.sendVC.payTo.text = _("please wait...")
+        self.show_send_modal(completion=onShow)
 
     def sign_payment_request(self, addr : Address, onSuccess : Callable[[],None] = None, onFailure : Callable[[],None] = None, vc : ObjCInstance = None):
-        ''' No-op for now -- needs to be IMPLEMENTED -- requires the alias functionality '''
         assert isinstance(addr, Address)
         if not self.wallet:
             if callable(onFailure): onFailure()
@@ -1097,6 +1148,7 @@ class ElectrumGui(PrintError):
         alias = self.config.get('alias')
         alias_privkey = None
         if alias and self.alias_info:
+            # NB: this branch is never taken. self.alias_info is always None for now. TO DO: IMPLEMENT alias functionality.
             alias_addr, alias_name, validated = self.alias_info
             if alias_addr:
                 if self.wallet.is_mine(alias_addr):
@@ -1128,10 +1180,11 @@ class ElectrumGui(PrintError):
         sig = out.get('sig')
         name = out.get('name')
         if r or (name and sig):
-            #self.prepare_for_payment_request()
-            utils.NSLog("Don't know how to handle this payment request type. %s %s %s", str(r), str(name), str(sig))
-            if showErr: self.show_error("Don't know how to handle this payment request type. Sorry!\n\nEmail the developers!")
-            return False
+            ''' Note: self.on_pr() will be called once the paymentrequest thread is started in the web.pare_URI() function called above.
+                      self.on_pr() assumes the self.sendVC modal is already up (so it can save the payment_request to it).
+                      I *believe* there is no race condition here since the python GIL should be held up until this call! '''
+            self.prepare_for_payment_request()
+            return True
         self.show_send_modal()
         address = out.get('address')
         amount = out.get('amount')
@@ -1821,26 +1874,29 @@ class ElectrumGui(PrintError):
                             on_signed, on_failed)
 
     def broadcast_transaction(self, tx, tx_desc, doneCallback = None, vc = None):
+        if not self.wallet or not self.daemon: return
         if not vc:
             vc = self.get_presented_viewcontroller()
         def broadcast_thread(): # non-GUI thread
-            #pr = self.payment_request
-            #if pr and pr.has_expired():
-            #    self.payment_request = None
-            #    return False, _("Payment request has expired")
-            status, msg =  self.daemon.network.broadcast_transaction(tx)
-            #if pr and status is True:
-            #    self.invoices.set_paid(pr, tx.txid())
-            #    self.invoices.save()
-            #    self.payment_request = None
-            #    refund_address = self.wallet.get_receiving_addresses()[0]
-            #    ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
-            #    if ack_status:
-            #        msg = ack_msg
+            pr = self.get_payment_request()
+            if pr and pr.has_expired():
+                #self.set_payment_request(None)
+                return False, _("Payment request has expired")
+            if not pr:
+                # only broadcast tx if NOT a payment request! Otherwise, merchant/bitpay broadcasts it as per BIP70 spec.
+                status, msg =  self.daemon.network.broadcast_transaction(tx)
+            else:
+                refund_address = self.wallet.get_receiving_addresses()[0]
+                status, msg = pr.send_payment(str(tx), refund_address) # merchant will broadcast tx for us.
+                #if status:
+                # TODO: invoice list stuff in a future release.
+                #    self.invoices.set_paid(pr, tx.txid())
+                #    self.invoices.save()
+                #    self.set_payment_request(None) # may never want to clear here as the modal send relies on this being set..?
+
             return status, msg
 
-        # Capture current TL window; override might be removed on return
-        parent = self#.top_level_window()
+        parent = self
 
         def broadcast_done(result):
             # GUI thread
@@ -1978,14 +2034,18 @@ class ElectrumGui(PrintError):
             self.sendNav = None
         utils.NSDeallocObserver(self.sendVC).connect(doCleanup)
 
-    def show_send_modal(self, vc = None) -> None:
+    def show_send_modal(self, vc = None, completion = None) -> None:
         self.send_create_if_none()
         if not self.tabController or not self.sendNav: return
         if self.sendNav.topViewController.ptr.value != self.sendVC.ptr.value:
             self.sendNav.popToRootViewControllerAnimated_(False)
-        if self.sendNav.presentingViewController: return # already presented, return early
+        if self.sendNav.presentingViewController:
+            # already presented, return early
+            if callable(completion):
+                completion()
+            return
         if not vc: vc = self.get_presented_viewcontroller()
-        vc.presentViewController_animated_completion_(self.sendNav, True, None)
+        vc.presentViewController_animated_completion_(self.sendNav, True, completion)
 
     def show_receive_modal(self, vc = None, onDone = None) -> None:
         self.receive_create_if_none()
