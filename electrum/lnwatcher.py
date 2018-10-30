@@ -7,6 +7,7 @@ from typing import NamedTuple, Iterable, TYPE_CHECKING
 import os
 from collections import defaultdict
 import asyncio
+from enum import IntEnum, auto
 
 import jsonrpclib
 
@@ -20,7 +21,12 @@ if TYPE_CHECKING:
     from .network import Network
 
 
-TX_MINED_STATUS_DEEP, TX_MINED_STATUS_SHALLOW, TX_MINED_STATUS_MEMPOOL, TX_MINED_STATUS_FREE = range(0, 4)
+class TxMinedDepth(IntEnum):
+    """ IntEnum because we call min() in get_deepest_tx_mined_depth_for_txids """
+    DEEP = auto()
+    SHALLOW = auto()
+    MEMPOOL = auto()
+    FREE = auto()
 
 
 class LNWatcher(PrintError):
@@ -164,17 +170,17 @@ class LNWatcher(PrintError):
         with self.lock:
             encumbered_sweep_txns = self.sweepstore[funding_outpoint][prev_txid]
         if len(encumbered_sweep_txns) == 0:
-            if self.get_tx_mined_status(prev_txid) == TX_MINED_STATUS_DEEP:
+            if self.get_tx_mined_depth(prev_txid) == TxMinedDepth.DEEP:
                 return False
         # check if any response applies
         keep_watching_this = False
         local_height = self.network.get_local_height()
         for e_tx in list(encumbered_sweep_txns):
             conflicts = self.addr_sync.get_conflicting_transactions(e_tx.tx.txid(), e_tx.tx, include_self=True)
-            conflict_mined_status = self.get_deepest_tx_mined_status_for_txids(conflicts)
-            if conflict_mined_status != TX_MINED_STATUS_DEEP:
+            conflict_mined_depth = self.get_deepest_tx_mined_depth_for_txids(conflicts)
+            if conflict_mined_depth != TxMinedDepth.DEEP:
                 keep_watching_this = True
-            if conflict_mined_status == TX_MINED_STATUS_FREE:
+            if conflict_mined_depth == TxMinedDepth.FREE:
                 tx_height = self.addr_sync.get_tx_height(prev_txid).height
                 num_conf = local_height - tx_height + 1
                 broadcast = True
@@ -214,27 +220,27 @@ class LNWatcher(PrintError):
             self.sweepstore[funding_outpoint][prev_txid].add(encumbered_sweeptx)
         self.write_to_disk()
 
-    def get_tx_mined_status(self, txid: str):
+    def get_tx_mined_depth(self, txid: str):
         if not txid:
-            return TX_MINED_STATUS_FREE
-        tx_mined_status = self.addr_sync.get_tx_height(txid)
-        height, conf = tx_mined_status.height, tx_mined_status.conf
+            return TxMinedStatus.FREE
+        tx_mined_depth = self.addr_sync.get_tx_height(txid)
+        height, conf = tx_mined_depth.height, tx_mined_depth.conf
         if conf > 100:
-            return TX_MINED_STATUS_DEEP
+            return TxMinedDepth.DEEP
         elif conf > 0:
-            return TX_MINED_STATUS_SHALLOW
+            return TxMinedDepth.SHALLOW
         elif height in (wallet.TX_HEIGHT_UNCONFIRMED, wallet.TX_HEIGHT_UNCONF_PARENT):
-            return TX_MINED_STATUS_MEMPOOL
+            return TxMinedDepth.MEMPOOL
         elif height == wallet.TX_HEIGHT_LOCAL:
-            return TX_MINED_STATUS_FREE
+            return TxMinedDepth.FREE
         elif height > 0 and conf == 0:
             # unverified but claimed to be mined
-            return TX_MINED_STATUS_MEMPOOL
+            return TxMinedDepth.MEMPOOL
         else:
             raise NotImplementedError()
 
-    def get_deepest_tx_mined_status_for_txids(self, set_of_txids: Iterable[str]):
+    def get_deepest_tx_mined_depth_for_txids(self, set_of_txids: Iterable[str]):
         if not set_of_txids:
-            return TX_MINED_STATUS_FREE
+            return TxMinedDepth.FREE
         # note: using "min" as lower status values are deeper
-        return min(map(self.get_tx_mined_status, set_of_txids))
+        return min(map(self.get_tx_mined_depth, set_of_txids))
