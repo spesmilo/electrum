@@ -734,7 +734,7 @@ class Abstract_Wallet(AddressSynchronizer):
         raise NotImplementedError()  # implemented by subclasses
 
     def add_input_info(self, txin):
-        address = txin['address']
+        address = self.get_txin_address(txin)
         if self.is_mine(address):
             txin['type'] = self.get_txin_type(address)
             # segwit needs value to sign

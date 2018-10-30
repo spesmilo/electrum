@@ -39,7 +39,7 @@ from electrum_ltc.i18n import _
 from electrum_ltc.plugin import run_hook
 from electrum_ltc import simple_config
 from electrum_ltc.util import bfh
-from electrum_ltc.transaction import SerializationError
+from electrum_ltc.transaction import SerializationError, Transaction
 
 from .util import *
 
@@ -73,7 +73,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         # Take a copy; it might get updated in the main window by
         # e.g. the FX plugin.  If this happens during or after a long
         # sign operation the signatures are lost.
-        self.tx = tx = copy.deepcopy(tx)
+        self.tx = tx = copy.deepcopy(tx)  # type: Transaction
         try:
             self.tx.deserialize()
         except BaseException as e:
