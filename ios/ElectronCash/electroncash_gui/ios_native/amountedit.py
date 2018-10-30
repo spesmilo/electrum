@@ -27,8 +27,6 @@ def config():
 #   'edited'      == func(amountEdit : BTCAmountEdit) -> None
 
 class BTCAmountEdit(UITextField):
-    #frozen = pyqtSignal()
-    #shortcut = pyqtSignal()
     isInt = objc_property()
     isShortcut = objc_property()
     modified = objc_property()
@@ -70,16 +68,11 @@ class BTCAmountEdit(UITextField):
 
     @objc_method
     def commonInit(self):
-        # This seems sufficient for hundred-BTC amounts with 8 decimals
-        #self.setFixedWidth(140)
-        #self.base_unit = base_unit
-        #self.textChanged.connect(self.numbify)
         self.addTarget_action_forControlEvents_(self, SEL(b'numbify'), UIControlEventEditingDidEnd)
         self.addTarget_action_forControlEvents_(self, SEL(b'edited'), UIControlEventEditingChanged)        
         self.isInt = False
         self.isShortcut = False
         self.modified = False
-        #self.help_palette = QPalette()
         
     @objc_method
     def setUseUnitLabel_(self, b : bool) -> None:
@@ -185,16 +178,9 @@ class BTCAmountEdit(UITextField):
     
     @objc_method
     def setFrozen_(self, b : bool) -> None:
-        #self.setReadOnly(b)
-        self.userInteractionEnabled = not b
-        #self.setFrame(not b)
-        self.alpha = 1.0 if b else 0.3
+        # NB: we now implement this in ObjC in UIKitExtras.m
+        send_super(__class__, self, 'setFrozen:', bool(b), argtypes=[c_bool])
         utils.get_callback(self, 'frozen')()
-        #self.frozen.emit()
-        
-    @objc_method
-    def isFrozen(self) -> bool:
-        return not self.userInteractionEnabled
 
     @objc_method
     def numbify(self):

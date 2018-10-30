@@ -59,13 +59,14 @@ class SendVC(SendBase):
     dismissOnAppear = objc_property()
     kbas = objc_property()
     queuedPayTo = objc_property()
+    prInfo = objc_property()
     
     @objc_method
     def init(self):
         self = ObjCInstance(send_super(__class__, self, 'init'))
         self.title = _("Send")
         self.qrScanErr = False
-        self.amountSats = None # None ok on this one       
+        self.amountSats = None # None ok on this one
         self.feeSats = None  # None ok on this one too
         self.isMax = False # should always be defined
         self.notEnoughFunds = False
@@ -74,14 +75,15 @@ class SendVC(SendBase):
         self.dismissOnAppear = False
         self.kbas = None
         self.queuedPayTo = None
+        self.prInfo = None
         
         self.navigationItem.leftItemsSupplementBackButton = True
         bb = UIBarButtonItem.new().autorelease()
         bb.title = _("Back")
         self.navigationItem.backBarButtonItem = bb
-                
+
         return self
-    
+
     @objc_method
     def dealloc(self) -> None:
         self.qrScanErr = None
@@ -97,13 +99,14 @@ class SendVC(SendBase):
         self.excessiveFee = None
         self.kbas = None
         self.queuedPayTo = None
+        self.prInfo = None
         utils.nspy_pop(self)
         send_super(__class__, self, 'dealloc')
 
     @objc_method
     def didRotateFromInterfaceOrientation_(self, o : int) -> None:
         pass
-    
+
     @objc_method
     def reader_didScanResult_(self, reader, result) -> None:
         utils.NSLog("Reader data = '%s'",str(result))
@@ -404,8 +407,18 @@ class SendVC(SendBase):
         if not self.viewIfLoaded:
             self.queuedPayTo = [address, message, amount]
             return
+        requestor = None
+        address = py_from_ns(address) # ensure python type
         tf = self.payTo
-        tf.text = str(address) if address is not None else tf.text
+        if isinstance(address, (list, tuple)) and len(address) >= 2:
+            requestor = address[0]
+            address = address[1]
+        if requestor and address:
+            tf.text = str(requestor)
+            self.setPR_([requestor, address])
+        else:
+            self.setPR_(None)
+            tf.text = str(address) if address is not None else tf.text
         tf.resignFirstResponder() # just in case
         # label
         self.descDel.text = str(message) if message is not None else ""
@@ -440,7 +453,6 @@ class SendVC(SendBase):
         
         retVal = False
         errLbl = self.message
-        addrTf = self.payTo
         sendBut = self.sendBut
         previewBut = self.previewBut
         amountTf = self.amt
@@ -451,6 +463,8 @@ class SendVC(SendBase):
         previewBut.enabled = False
         errLbl.text = ""
         
+        addy = ''
+
         #c, u, x = wallet().get_balance()        
         #a = self.amountSats if self.amountSats is not None else 0
         #f = self.feeSats if self.feeSats is not None else 0
@@ -464,11 +478,12 @@ class SendVC(SendBase):
                 errLbl.text = _("Max fee exceeded")
                 raise Exception("ExcessiveFee")
             try:
-                if len(addrTf.text): Parser().parse_address(addrTf.text) # raises exception on parse error
+                addy = py_from_ns(self.getPayToAddress())
+                if len(addy): Parser().parse_address(addy) # raises exception on parse error
             except:
                 errLbl.text = _("Invalid Address")
                 raise Exception("InvalidAddress")
-            if self.amountSats is None or self.feeSats is None or not len(addrTf.text): # or self.feeSats <= 0:
+            if self.amountSats is None or self.feeSats is None or not len(addy): # or self.feeSats <= 0:
                 errLbl.text = ""
                 raise Exception("SilentException") # silent error when amount or fee isn't yet specified
             
@@ -496,12 +511,15 @@ class SendVC(SendBase):
         self.isMax = False
         self.notEnoughFunds = False
         self.excessiveFee = False
+        self.setPR_(None) # implicitly clears nspy_byname attr 'payment_request'
         # address
         tf = self.payTo
         tf.text = ""
         # Amount
         tf = self.amt
         tf.setAmount_(None)
+        # Fiat
+        tf = self.fiat
         # label
         self.descDel.text = ""
         # slider
@@ -511,6 +529,7 @@ class SendVC(SendBase):
         # manual edit fee
         tf = self.feeTf
         tf.setAmount_(None)
+        tf.setFrozen_(False)
         # self.amountSats set below..
         self.amountSats = None
         self.feeSats = None
@@ -527,7 +546,49 @@ class SendVC(SendBase):
     def clear(self) -> None:
         self.clearAllExceptSpendFrom()
         self.clearSpendFrom()
-        
+
+    @objc_method
+    def setPR_(self, ra : ObjCInstance) -> None:
+        b = bool(ra) # ensure bool
+        ra = py_from_ns(ra) if b else ra # ensure list
+        self.prInfo = ns_from_py(ra) if b and ra else None
+        b = self.isPR() # make sure it took and do additional checks.
+        for e in [self.payTo, self.amt, self.fiat]:
+            e.setFrozen_(b)
+        for but in [self.maxBut, self.contactBut, self.qrBut]:
+            but.userInteractionEnabled = not b
+            but.alpha = 1.0 if not b else 0.3
+        if b:
+            self.isMax = False
+            if ra[0]:
+                self.payTo.text = ra[0]
+            elif ra[1]:
+                self.payTo.text = ra[1]
+            else:
+                self.payTo.text = ''
+        else:
+            utils.nspy_pop_byname(self, 'payment_request')
+            self.prInfo = None # force nothing there if not valid
+            self.payTo.backgroundColor = utils.uicolor_custom('ultralight')
+            
+    @objc_method
+    def isPR(self) -> bool:
+        prInfo = py_from_ns(self.prInfo)
+        return bool(prInfo) and isinstance(prInfo, (list, tuple)) and len(prInfo) >= 2
+
+    @objc_method
+    def getPayToAddress(self) -> ObjCInstance:
+        return ns_from_py(py_from_ns(self.prInfo)[1] if self.isPR() else self.payTo.text)
+
+
+    @objc_method
+    def setPayToGreen(self) -> None:
+        self.payTo.backgroundColor = utils.uicolor_custom('green')
+
+    @objc_method
+    def setPayToExpired(self) -> None:
+        self.payTo.backgroundColor = utils.uicolor_custom('red')
+
     @objc_method
     def checkQRData_(self, text) -> None:
         self.qrScanErr = False
@@ -622,20 +683,20 @@ class SendVC(SendBase):
         '''
         fee_e = self.feeTf
         amount_e = self.amt
-        addr_e = self.payTo
+        payToAddr = py_from_ns(self.getPayToAddress())
         self.notEnoughFunds = False
         self.excessiveFee = False
        
         def get_outputs(is_max):
             outputs = []
-            if addr_e.text:
+            if payToAddr:
                 if is_max:
                     amount = '!'
                 else:
                     amount = amount_e.getAmount()
                 
                 try:
-                    _type, addr = Parser().parse_output(addr_e.text)
+                    _type, addr = Parser().parse_output(payToAddr)
                     outputs = [(_type, addr, amount)]
                 except Exception as e:
                     #print("Testing get_outputs Exception: %s"%str(e))
@@ -943,11 +1004,8 @@ def get_coins(sendvc : ObjCInstance) -> list:
     return wallet().get_spendable_coins(None, config())
            
 def read_send_form(send : ObjCInstance) -> tuple:
-    #if self.payment_request and self.payment_request.has_expired():
-    #    parent().show_error(_('Payment request has expired'))
-    #    return
     label = send.descDel.text
-    addr_e = send.payTo
+    addr = py_from_ns(send.getPayToAddress())
     fee_e = send.feeTf
     outputs = []
 
@@ -962,7 +1020,7 @@ def read_send_form(send : ObjCInstance) -> tuple:
             pass
         amt_e = send.amt
         try:
-            typ, addr = Parser().parse_output(addr_e.text)
+            typ, addr = Parser().parse_output(addr)
         except:
             utils.show_alert(send, _("Error"), _("Invalid Address"))
             return None

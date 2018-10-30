@@ -122,3 +122,17 @@ typedef void(^ActionBlock)(id);
 @interface UIResponder (FirstResponder)
 + (id) currentFirstResponder;
 @end
+
+/* Support for setFrozen method which was used in original EC Qt implementation.
+   If set to true: 1. Makes the text field read-only and 2. Sets the border to a line border.
+   Setting to false undoes the above, restoring the original border
+   (NB: The original borderStyle setting gets saved to self.ECPvtData). */
+@interface UITextField(ECLibCompatFreeze)
+- (void)setFrozen:(BOOL)frozen;
+- (BOOL)isFrozen;
+@end
+
+// Support for adding arbitrary dictionary items at runtime to any NSObject
+@interface NSObject(ECPrivateData)
+@property (nonatomic, readonly, getter=getnsobjectECPvtData) NSMutableDictionary *ECPvtData;
+@end

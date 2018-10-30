@@ -542,3 +542,35 @@ static __weak id currentFirstResponder;
     currentFirstResponder = self;
 }
 @end
+
+@implementation UITextField(ECLibCompatFreeze)
+- (void)setFrozen:(BOOL)frozen {
+    if (frozen == [self isFrozen]) return;
+    self.userInteractionEnabled = !frozen;
+    //self.alpha = frozen ? 0.3 : 1.0;
+    static const NSString *key = @"original_borderStyle_before_freeze";
+    if (frozen) {
+        self.ECPvtData[key] = [NSNumber numberWithInteger:(NSInteger)self.borderStyle];
+        self.borderStyle = UITextBorderStyleLine;
+    } else {
+        NSNumber *n = [self.ECPvtData objectForKey:key];
+        if (n)
+            self.borderStyle = (UITextBorderStyle)n.integerValue;
+    }
+}
+- (BOOL)isFrozen {
+    return !self.userInteractionEnabled;
+}
+@end
+
+@implementation NSObject(ECPrivateData)
+- (NSMutableDictionary *)getnsobjectECPvtData {
+    static const long key = 0xecb1ab1ab1ab1aec;
+    id dict = objc_getAssociatedObject(self, &key);
+    if (!dict || ![dict isKindOfClass:[NSDictionary class]]) {
+        dict = [NSMutableDictionary dictionary];
+        objc_setAssociatedObject(self, &key, dict, OBJC_ASSOCIATION_RETAIN);
+    }
+    return (NSMutableDictionary *)dict;
+}
+@end
