@@ -192,7 +192,11 @@ def uitf_redo_attrs(tf : ObjCInstance) -> None:
     ps = NSMutableParagraphStyle.new().autorelease()
     ps.setParagraphStyle_(NSParagraphStyle.defaultParagraphStyle)
     ps.lineBreakMode = NSLineBreakByTruncatingMiddle
-    indent = 10.0 if tf.isUserInteractionEnabled() else 0.0
+    indent = nspy_get_byname(tf, 'indent_override')
+    if isinstance(indent, (float, int)):
+        indent = float(indent)
+    else:
+        indent = 10.0 if tf.isUserInteractionEnabled() else 0.0
     ps.firstLineHeadIndent = indent
     ps.tailIndent = -indent
     ats.addAttribute_value_range_(NSParagraphStyleAttributeName, ps, r)
