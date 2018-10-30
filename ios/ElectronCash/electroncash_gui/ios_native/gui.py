@@ -181,6 +181,7 @@ class ElectrumGui(PrintError):
         # More signals.. Qt desktop workalikes
         self.payment_request_ok_signal = utils.PySig(); self.payment_request_ok_signal.connect(self.payment_request_ok)
         self.payment_request_error_signal = utils.PySig(); self.payment_request_error_signal.connect(self.payment_request_error)
+        self.payment_request_lock = threading.Lock()
 
         #todo: support multiple wallets in 1 UI?
         self.config = config
@@ -1117,7 +1118,7 @@ class ElectrumGui(PrintError):
             else:
                 self.sendVC.setPayToExpired()
             self.sendVC.onPayTo_message_amount_([pr.get_requestor(), pr.get_address()], pr.get_memo(), pr.get_amount())
-            # signal to set fee
+            # need to update fee
             self.sendVC.updateFee()
         self.show_send_modal(completion=onShow)
 
@@ -1127,11 +1128,12 @@ class ElectrumGui(PrintError):
         self.show_message(str(pr.error if pr else _("Payment Request Error")), onOk = lambda: self.do_clear_send())
 
     def on_pr(self, request):
-        self.set_payment_request(request)
-        if self.wallet and request and request.verify(self.wallet.contacts):
-            self.payment_request_ok_signal.emit()
-        else:
-            self.payment_request_error_signal.emit()
+        with self.payment_request_lock:
+            self.set_payment_request(request)
+            if self.wallet and request and request.verify(self.wallet.contacts):
+                self.payment_request_ok_signal.emit()
+            else:
+                self.payment_request_error_signal.emit()
 
     def prepare_for_payment_request(self):
         #print("Prepare for payment request...")
@@ -1166,38 +1168,41 @@ class ElectrumGui(PrintError):
             if callable(onSuccess): onSuccess()
 
     def pay_to_URI(self, URI, showErr : bool = True) -> bool:
-        utils.NSLog("PayTo URI: %s", str(URI))
-        if not URI or not self.wallet:
+        with self.payment_request_lock:
+            utils.NSLog("PayTo URI: %s", str(URI))
+            if not URI or not self.wallet:
+                return False
+            try:
+                out = web.parse_URI(URI, self.on_pr)
+            except:
+                e = sys.exc_info()[1]
+                utils.NSLog("Invalid bitcoincash URI: %s, exception: %s", URI, str(e))
+                if showErr: self.show_error(_('Invalid bitcoincash URI:') + '\n' + str(e))
+                return False
+            r = out.get('r')
+            sig = out.get('sig')
+            name = out.get('name')
+            if r or (name and sig):
+                ''' NOTE about potential race conditions: (do not remove self.payment_request_lock!)
+                    self.on_pr() will be called once the paymentrequest thread is finished (in the web.pare_URI() function called above).
+                    But, self.on_pr() assumes the self.sendVC modal is already up (so it can save the payment_request to it).
+                    Thus, there is a potential race condition involved. The self.payment_request_lock was added to prevent that.
+                    And so, after the addition of the above lock, it is impossible for self.on_pr() to execute before the sendVC
+                    is created (by the call to self.prepare_for_payment_request() below). '''
+                self.prepare_for_payment_request() # starts up the self.sendVC modal. note how we are holding the lock until after this runs.
+                return True
+            self.show_send_modal()
+            address = out.get('address')
+            amount = out.get('amount')
+            label = out.get('label')
+            message = out.get('message')
+            # use label as description (not BIP21 compliant)
+            if self.sendVC:
+                self.sendVC.onPayTo_message_amount_(address,message,amount)
+                return True
+            else:
+                self.show_error("Oops! Something went wrong! Email the developers!")
             return False
-        try:
-            out = web.parse_URI(URI, self.on_pr)
-        except:
-            e = sys.exc_info()[1]
-            utils.NSLog("Invalid bitcoincash URI: %s, exception: %s", URI, str(e))
-            if showErr: self.show_error(_('Invalid bitcoincash URI:') + '\n' + str(e))
-            return False
-        r = out.get('r')
-        sig = out.get('sig')
-        name = out.get('name')
-        if r or (name and sig):
-            ''' Note: self.on_pr() will be called once the paymentrequest thread is started in the web.pare_URI() function called above.
-                      self.on_pr() assumes the self.sendVC modal is already up (so it can save the payment_request to it).
-                      I *believe* there is no race condition here since the python GIL should be held up until this call! '''
-            self.prepare_for_payment_request()
-            return True
-        self.show_send_modal()
-        address = out.get('address')
-        amount = out.get('amount')
-        label = out.get('label')
-        message = out.get('message')
-        # use label as description (not BIP21 compliant)
-        if self.sendVC:
-            self.sendVC.onPayTo_message_amount_(address,message,amount)
-            return True
-        else:
-            self.show_error("Oops! Something went wrong! Email the developers!")
-        return False
-
 
     def refresh_all(self):
         self.refresh_components('*')
