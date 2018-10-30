@@ -581,16 +581,20 @@ class Transaction:
 
     @classmethod
     def get_preimage_script(self, txin):
-        if txin['type'] == 'p2pkh':
+        _type = txin['type']
+        if _type == 'p2pkh':
             return txin['address'].to_script().hex()
-        elif txin['type'] in ['p2sh']:
+        elif _type == 'p2sh':
             pubkeys, x_pubkeys = self.get_sorted_pubkeys(txin)
             return multisig_script(pubkeys, txin['num_sig'])
-        elif txin['type'] == 'p2pk':
+        elif _type == 'p2pk':
             pubkey = txin['pubkeys'][0]
             return public_key_to_p2pk_script(pubkey)
+        elif _type == 'unknown':
+            # this approach enables most P2SH smart contracts (but take care if using OP_CODESEPARATOR)
+            return txin['scriptCode']
         else:
-            raise TypeError('Unknown txin type', txin['type'])
+            raise RuntimeError('Unknown txin type', _type)
 
     @classmethod
     def serialize_outpoint(self, txin):
