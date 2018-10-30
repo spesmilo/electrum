@@ -15,7 +15,7 @@ from .util import PrintError, bh2u, bfh, log_exceptions, ignore_exceptions
 from .lnutil import EncumberedTransaction
 from . import wallet
 from .storage import WalletStorage
-from .address_synchronizer import AddressSynchronizer
+from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED
 
 if TYPE_CHECKING:
     from .network import Network
@@ -182,6 +182,8 @@ class LNWatcher(PrintError):
                 keep_watching_this = True
             if conflict_mined_depth == TxMinedDepth.FREE:
                 tx_height = self.addr_sync.get_tx_height(prev_txid).height
+                if tx_height == TX_HEIGHT_LOCAL:
+                    continue
                 num_conf = local_height - tx_height + 1
                 broadcast = True
                 if e_tx.cltv_expiry:
@@ -229,9 +231,9 @@ class LNWatcher(PrintError):
             return TxMinedDepth.DEEP
         elif conf > 0:
             return TxMinedDepth.SHALLOW
-        elif height in (wallet.TX_HEIGHT_UNCONFIRMED, wallet.TX_HEIGHT_UNCONF_PARENT):
+        elif height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
             return TxMinedDepth.MEMPOOL
-        elif height == wallet.TX_HEIGHT_LOCAL:
+        elif height == TX_HEIGHT_LOCAL:
             return TxMinedDepth.FREE
         elif height > 0 and conf == 0:
             # unverified but claimed to be mined
