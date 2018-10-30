@@ -1635,7 +1635,7 @@ class ElectrumGui(PrintError):
                                                           onForcedDismissal = myOnCancel, usingStorage = storage, vc = waitDlg)
             def promptPwLater() -> None:
                 utils.call_later(0.1, promptPW)
-            waitDlg = utils.show_please_wait(vc = vc, message = "Opening " + wallet_name[:25] + "...", completion = promptPwLater)
+            waitDlg = utils.show_please_wait(vc = vc, message = _("Opening {}...").format(wallet_name[:25]), completion = promptPwLater)
         else:
             DoSwicheroo()
 

@@ -3003,7 +3003,7 @@
                             <imageView opaque="NO" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="OnBoardingLock.png" translatesAutoresizingMaskIntoConstraints="NO" id="Dob-Qg-7wJ">
                                 <rect key="frame" x="47.5" y="180" width="280" height="195"/>
                             </imageView>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Control your own private keys" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="c6o-vS-XDJ">
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Control your own private keys" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="c6o-vS-XDJ">
                                 <rect key="frame" x="15" y="100" width="345" height="25"/>
                                 <constraints>
                                     <constraint firstAttribute="height" constant="25" id="g9E-KH-sto"/>
