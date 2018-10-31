@@ -338,17 +338,17 @@ class BotThread(threading.Thread):
         threading.Thread.join(self)
 
 
-def get_coin_for_shuffling(wallet, scale, fee = 1000):
-    coins = wallet.get_utxos(exclude_frozen=True, confirmed_only=True )
-    unshuffled_coins = [coin for coin in coins if not wallet.is_coin_shuffled(coin)]
-    upper_amount = scale*10
-    lower_amount = scale + fee
-    unshuffled_coins_on_scale = [coin for coin in unshuffled_coins if coin['value'] < upper_amount and coin['value'] > lower_amount]
-    unshuffled_coins_on_scale.sort(key=lambda x: x['value']*10e8 + (10e8-x['height']))
-    if unshuffled_coins_on_scale:
-        return unshuffled_coins_on_scale[-1]
-    else:
-        return None
+# def get_coin_for_shuffling(wallet, scale, fee = 1000):
+#     coins = wallet.get_utxos(exclude_frozen=True, confirmed_only=True )
+#     unshuffled_coins = [coin for coin in coins if not wallet.is_coin_shuffled(coin)]
+#     upper_amount = scale*10
+#     lower_amount = scale + fee
+#     unshuffled_coins_on_scale = [coin for coin in unshuffled_coins if coin['value'] < upper_amount and coin['value'] > lower_amount]
+#     unshuffled_coins_on_scale.sort(key=lambda x: x['value']*10e8 + (10e8-x['height']))
+#     if unshuffled_coins_on_scale:
+#         return unshuffled_coins_on_scale[-1]
+#     else:
+#         return None
 
 
 def generate_random_sk():
@@ -513,6 +513,7 @@ class BackgroundShufflingThread(threading.Thread):
             self.threads[scale].join()
             while self.threads[scale].is_alive():
                 pass
+            self.threads[scale] = None   
         self.watchdogs[scale] = threading.Timer(self.watchdog_period, lambda x: self.watchdog_checkout(x), [scale])
         self.watchdogs[scale].start()
 
