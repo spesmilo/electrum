@@ -228,14 +228,7 @@ class BaseWizard(object):
     def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET):
         title = _('Hardware Keystore')
         # check available plugins
-        support = self.plugins.get_hardware_support()
-        if not support:
-            msg = '\n'.join([
-                _('No hardware wallet support found on your system.'),
-                _('Please install the relevant libraries (eg python-trezor for Trezor).'),
-            ])
-            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device(purpose))
-            return
+        supported_plugins = self.plugins.get_hardware_support()
         # scan devices
         devices = []
         devmgr = self.plugins.device_manager
@@ -246,14 +239,24 @@ class BaseWizard(object):
             debug_msg = '  {}:\n    {}'.format(_('Error scanning devices'), e)
         else:
             debug_msg = ''
-            for name, description, plugin in support:
+            for splugin in supported_plugins:
+                name, plugin = splugin.name, splugin.plugin
+                # plugin init errored?
+                if not plugin:
+                    e = splugin.exception
+                    indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
+                    debug_msg += f'  {name}: (error during plugin init)\n'
+                    debug_msg += '    {}\n'.format(_('You might have an incompatible library.'))
+                    debug_msg += f'{indented_error_msg}\n'
+                    continue
+                # see if plugin recognizes 'scanned_devices'
                 try:
                     # FIXME: side-effect: unpaired_device_info sets client.handler
                     u = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices)
                 except BaseException as e:
-                    devmgr.print_error('error getting device infos for {}: {}'.format(name, e))
+                    devmgr.print_error(f'error getting device infos for {name}: {e}')
                     indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
-                    debug_msg += '  {}:\n{}\n'.format(plugin.name, indented_error_msg)
+                    debug_msg += f'  {name}: (error getting device infos)\n{indented_error_msg}\n'
                     continue
                 devices += list(map(lambda x: (name, x), u))
         if not debug_msg:

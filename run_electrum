@@ -165,18 +165,20 @@ def init_cmdline(config_options, server):
 
 
 def get_connected_hw_devices(plugins):
-    support = plugins.get_hardware_support()
-    if not support:
-        print_msg('No hardware wallet support found on your system.')
-        sys.exit(1)
+    supported_plugins = plugins.get_hardware_support()
     # scan devices
     devices = []
     devmgr = plugins.device_manager
-    for name, description, plugin in support:
+    for splugin in supported_plugins:
+        name, plugin = splugin.name, splugin.plugin
+        if not plugin:
+            e = splugin.exception
+            print_stderr(f"{name}: error during plugin init: {repr(e)}")
+            continue
         try:
             u = devmgr.unpaired_device_infos(None, plugin)
         except:
-            devmgr.print_error("error", name)
+            devmgr.print_error(f'error getting device infos for {name}: {e}')
             continue
         devices += list(map(lambda x: (name, x), u))
     return devices

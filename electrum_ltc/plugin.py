@@ -28,7 +28,7 @@ import os
 import pkgutil
 import time
 import threading
-from typing import NamedTuple, Any, Union
+from typing import NamedTuple, Any, Union, TYPE_CHECKING, Optional
 
 from .i18n import _
 from .util import (profiler, PrintError, DaemonThread, UserCancelled,
@@ -36,6 +36,9 @@ from .util import (profiler, PrintError, DaemonThread, UserCancelled,
 from . import bip32
 from . import plugins
 from .simple_config import SimpleConfig
+
+if TYPE_CHECKING:
+    from .plugins.hw_wallet import HW_PluginBase
 
 
 plugin_loaders = {}
@@ -97,8 +100,11 @@ class Plugins(DaemonThread):
         if not loader:
             raise RuntimeError("%s implementation for %s plugin not found"
                                % (self.gui_name, name))
-        p = loader.load_module()
-        plugin = p.Plugin(self, self.config, name)
+        try:
+            p = loader.load_module()
+            plugin = p.Plugin(self, self.config, name)
+        except Exception as e:
+            raise Exception(f"Error loading {name} plugin: {e}") from e
         self.add_jobs(plugin.thread_jobs())
         self.plugins[name] = plugin
         self.print_error("loaded", name)
@@ -148,10 +154,17 @@ class Plugins(DaemonThread):
                 try:
                     p = self.get_plugin(name)
                     if p.is_enabled():
-                        out.append([name, details[2], p])
-                except:
+                        out.append(HardwarePluginToScan(name=name,
+                                                        description=details[2],
+                                                        plugin=p,
+                                                        exception=None))
+                except Exception as e:
                     traceback.print_exc()
                     self.print_error("cannot load plugin for:", name)
+                    out.append(HardwarePluginToScan(name=name,
+                                                    description=details[2],
+                                                    plugin=None,
+                                                    exception=e))
         return out
 
     def register_wallet_type(self, name, gui_good, wallet_type):
@@ -275,6 +288,13 @@ class DeviceInfo(NamedTuple):
     device: Device
     label: str
     initialized: bool
+
+
+class HardwarePluginToScan(NamedTuple):
+    name: str
+    description: str
+    plugin: Optional['HW_PluginBase']
+    exception: Optional[Exception]
 
 
 class DeviceMgr(ThreadJob, PrintError):
