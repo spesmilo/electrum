@@ -92,7 +92,7 @@ def get_server(config: SimpleConfig) -> Optional[jsonrpclib.Server]:
             server.ping()
             return server
         except Exception as e:
-            print_error("[get_server]", e)
+            print_error(f"failed to connect to JSON-RPC server: {e}")
         if not create_time or create_time < time.time() - 1.0:
             return None
         # Sleep a bit and try again; it might have just been started
