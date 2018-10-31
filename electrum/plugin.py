@@ -100,8 +100,11 @@ class Plugins(DaemonThread):
         if not loader:
             raise RuntimeError("%s implementation for %s plugin not found"
                                % (self.gui_name, name))
-        p = loader.load_module()
-        plugin = p.Plugin(self, self.config, name)
+        try:
+            p = loader.load_module()
+            plugin = p.Plugin(self, self.config, name)
+        except Exception as e:
+            raise Exception(f"Error loading {name} plugin: {e}") from e
         self.add_jobs(plugin.thread_jobs())
         self.plugins[name] = plugin
         self.print_error("loaded", name)
