@@ -617,6 +617,9 @@ class EncumberedTransaction(NamedTuple("EncumberedTransaction", [('name', str),
         d2['tx'] = Transaction(d['tx'])
         return EncumberedTransaction(**d2)
 
+    def __str__(self):
+        return super().__str__()[:-1] + ", txid: " + self.tx.txid() + ")"
+
 
 NUM_MAX_HOPS_IN_PAYMENT_PATH = 20
 NUM_MAX_EDGES_IN_PAYMENT_PATH = NUM_MAX_HOPS_IN_PAYMENT_PATH + 1
