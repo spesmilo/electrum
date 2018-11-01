@@ -30,6 +30,7 @@ import traceback
 import sys
 import threading
 from typing import Dict, Optional, Tuple
+import re
 
 import jsonrpclib
 
@@ -127,10 +128,12 @@ class Daemon(DaemonThread):
         if fd is None and listen_jsonrpc:
             fd, server = get_fd_or_server(config)
             if fd is None: raise Exception('failed to lock daemon; already running?')
+        self.create_and_start_event_loop()
         if config.get('offline'):
             self.network = None
         else:
             self.network = Network(config)
+            self.network._loop_thread = self._loop_thread
         self.fx = FxThread(config, self.network)
         if self.network:
             self.network.start([self.fx.run])
@@ -170,7 +173,7 @@ class Daemon(DaemonThread):
         return True
 
     def run_daemon(self, config_options):
-        asyncio.set_event_loop(self.network.asyncio_loop)  # FIXME what if self.network is None?
+        asyncio.set_event_loop(self.asyncio_loop)
         config = SimpleConfig(config_options)
         sub = config.get('subcommand')
         assert sub in [None, 'start', 'stop', 'status', 'load_wallet', 'close_wallet']
@@ -265,7 +268,7 @@ class Daemon(DaemonThread):
         wallet.stop_threads()
 
     def run_cmdline(self, config_options):
-        asyncio.set_event_loop(self.network.asyncio_loop)  # FIXME what if self.network is None?
+        asyncio.set_event_loop(self.asyncio_loop)
         password = config_options.get('password')
         new_password = config_options.get('new_password')
         config = SimpleConfig(config_options)
@@ -297,11 +300,15 @@ class Daemon(DaemonThread):
     def run(self):
         while self.is_running():
             self.server.handle_request() if self.server else time.sleep(0.1)
+        # stop network/wallets
         for k, wallet in self.wallets.items():
             wallet.stop_threads()
         if self.network:
             self.print_error("shutting down network")
             self.network.stop()
+        # stop event loop
+        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
+        self._loop_thread.join(timeout=1)
         self.on_stop()
 
     def stop(self):
@@ -323,3 +330,22 @@ class Daemon(DaemonThread):
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             # app will exit now
+
+    def create_and_start_event_loop(self):
+        def on_exception(loop, context):
+            """Suppress spurious messages it appears we cannot control."""
+            SUPPRESS_MESSAGE_REGEX = re.compile('SSL handshake|Fatal read error on|'
+                                                'SSL error in data received')
+            message = context.get('message')
+            if message and SUPPRESS_MESSAGE_REGEX.match(message):
+                return
+            loop.default_exception_handler(context)
+
+        self.asyncio_loop = asyncio.get_event_loop()
+        self.asyncio_loop.set_exception_handler(on_exception)
+        # self.asyncio_loop.set_debug(1)
+        self._stop_loop = asyncio.Future()
+        self._loop_thread = threading.Thread(target=self.asyncio_loop.run_until_complete,
+                                             args=(self._stop_loop,),
+                                             name='EventLoop')
+        self._loop_thread.start()
