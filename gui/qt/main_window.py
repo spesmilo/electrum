@@ -102,16 +102,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     computing_privkeys_signal = pyqtSignal()
     show_privkeys_signal = pyqtSignal()
     cashaddr_toggled_signal = pyqtSignal()
+    cashshuffle_toggled_signal = pyqtSignal()
     history_updated_signal = pyqtSignal()
 
     def __init__(self, gui_object, wallet):
         QMainWindow.__init__(self)
-
+ 
+        self.wallet=wallet
         self.gui_object = gui_object
         self.config = config = gui_object.config
 
         self.setup_exception_hook()
-
+       
         self.network = gui_object.daemon.network
         self.fx = gui_object.daemon.fx
         self.invoices = wallet.invoices
@@ -135,7 +137,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         Address.show_cashaddr(config.get('show_cashaddr', False))
 
-        self.create_status_bar()
         self.need_update = threading.Event()
 
         self.decimal_point = config.get('decimal_point', 8)
@@ -143,6 +144,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.num_zeros     = int(config.get('num_zeros',0))
 
         self.completions = QStringListModel()
+
+        self.create_status_bar()
 
         self.tabs = tabs = QTabWidget(self)
         self.send_tab = self.create_send_tab()
@@ -155,42 +158,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tabs.addTab(self.create_history_tab(), QIcon(":icons/tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
-
-
-        use_shuffle= self.config.get('use_shuffle', False)
-        shuffle_noprompt = self.config.get('shuffle_noprompt', False)
-        if use_shuffle == False and shuffle_noprompt != True:
-            d = WindowModalDialog(self, title=_('Would you like to turn on CashShuffle?'))
-            d.setMinimumSize(400, 200)
-            vbox = QVBoxLayout(d)
-            notice = QLabel(_("""
-                NOTICE: CashShuffle is disabled.
-
-                If you enable it, Electron Cash will shuffle your coins for greater privacy.
-                Would you like to turn this feature on?
-                (You can always disable it later from the Optional Features menu).
-
-                Click the enable button turn CashShuffle on, or cancel to decline."""))
-            notice.setWordWrap(True)
-            # vbox.addWidget(QLabel(_("NOTICE: CashShuffle is disabled.  If you enable it, Electron Cash will shuffle your coins for greater privacy.  Would you like to turn this feature on?  (You can always disable it later from the Optional Features menu).  Click the enable button turn CashShuffle on, or cancel to decline.")))
-            vbox.addWidget(notice)
-
-            csnoprompt_cb = QCheckBox(_('Don\'t ask me again'))
-            vbox.addWidget(csnoprompt_cb)
-            vbox.addStretch(1)
-            sweep_button = OkButton(d, _('Enable CashShuffle'))
-            vbox.addLayout(Buttons(CancelButton(d), sweep_button))
-            if not d.exec_():
-                self.config.set_key('use_shuffle', False)
-                if csnoprompt_cb.isChecked()==True:
-                    self.config.set_key('shuffle_noprompt', True)
-            else:
-                self.config.set_key('use_shuffle', True)
-                if csnoprompt_cb.isChecked()==True:
-                    self.config.set_key('shuffle_noprompt', True)
-
-
-
+  
         def add_optional_tab(tabs, tab, icon, description, name, default=False):
             tab.tab_icon = icon
             tab.tab_description = description
@@ -225,6 +193,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             QShortcut(QKeySequence("Alt+" + str(i + 1)), self, lambda i=i: wrtabs.setCurrentIndex(i))
 
         self.cashaddr_toggled_signal.connect(self.update_cashaddr_icon)
+        self.cashshuffle_toggled_signal.connect(self.update_cashshuffle_icon)
         self.payment_request_ok_signal.connect(self.payment_request_ok)
         self.payment_request_error_signal.connect(self.payment_request_error)
         self.notify_transactions_signal.connect(self.notify_transactions)
@@ -250,6 +219,44 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # update fee slider in case we missed the callback
         self.fee_slider.update()
         self.load_wallet(wallet)
+
+
+        use_cashshuffle= self.wallet.storage.get('use_cashshuffle', False)
+        shuffle_noprompt = self.wallet.storage.get('shuffle_noprompt', False) 
+        if use_cashshuffle == False and shuffle_noprompt != True:
+            d = WindowModalDialog(self, title=_('Would you like to turn on CashShuffle for this wallet?'))
+            d.setMinimumSize(400, 200)
+            vbox = QVBoxLayout(d)
+            notice = QLabel(_("""
+                NOTICE: CashShuffle is disabled for this wallet.
+
+                If you enable it, Electron Cash will shuffle your coins for greater privacy.
+                Would you like to turn this feature on?
+                (You can always disable it later from the Wallet menu).
+
+                Click the enable button turn CashShuffle on, or cancel to decline."""))
+            notice.setWordWrap(True)
+            # vbox.addWidget(QLabel(_("NOTICE: CashShuffle is disabled.  If you enable it, Electron Cash will shuffle your coins for greater privacy.  Would you like to turn this feature on?  (You can always disable it later from the Optional Features menu).  Click the enable button turn CashShuffle on, or cancel to decline.")))
+            vbox.addWidget(notice)
+
+            csnoprompt_cb = QCheckBox(_('Don\'t ask me again'))
+            vbox.addWidget(csnoprompt_cb)
+            vbox.addStretch(1)
+            sweep_button = OkButton(d, _('Enable CashShuffle'))
+            vbox.addLayout(Buttons(CancelButton(d), sweep_button))
+            if not d.exec_():
+                if csnoprompt_cb.isChecked()==True:
+                    self.wallet.storage.put('shuffle_noprompt', True)
+            else:
+                self.wallet.storage.put('use_cashshuffle', True)
+                self.update_cashshuffle_icon()
+                if csnoprompt_cb.isChecked()==True:
+                    self.wallet.storage.put('shuffle_noprompt', True)
+                    
+
+
+
+        #self.create_status_bar()
         self.connect_slots(gui_object.timer)
         self.fetch_alias()
 
@@ -544,6 +551,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_menu.addAction(_("&Information"), self.show_master_public_keys)
+        wallet_menu.addAction(_("&Toggle Cash Shuffle"), self.toggle_cashshuffle_status_bar) 
         wallet_menu.addSeparator()
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
@@ -2036,6 +2044,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.password_button = StatusBarButton(self.lock_icon, _("Password"), self.change_password_dialog )
         sb.addPermanentWidget(self.password_button)
 
+ 
+        self.cashshuffle_status_button = StatusBarButton(
+            self.cashshuffle_icon(),
+            _("Toggle CashShuffle On or Off"),
+            self.toggle_cashshuffle_status_bar
+        )
+        sb.addPermanentWidget(self.cashshuffle_status_button)
+
         self.addr_converter_button = StatusBarButton(
             self.cashaddr_icon(),
             _("Toggle CashAddr Display"),
@@ -2760,20 +2776,41 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             return QIcon(":icons/tab_converter_bw.png")
 
+
+    def cashshuffle_icon(self): 
+        use_cashshuffle=self.wallet.storage.get('use_cashshuffle')
+        if use_cashshuffle:
+            return QIcon(":icons/cashshuffle_on.png")
+        else:
+            return QIcon(":icons/cashshuffle_off.png")
+
     def update_cashaddr_icon(self):
         self.addr_converter_button.setIcon(self.cashaddr_icon())
 
-    def toggle_cashaddr_status_bar(self):
+    def update_cashshuffle_icon(self):
+        self.cashshuffle_status_button.setIcon(self.cashshuffle_icon())
+
+    def toggle_cashaddr_status_bar(self): 
         self.toggle_cashaddr(not self.config.get('show_cashaddr', False))
+
+
+    def toggle_cashshuffle_status_bar(self):
+        self.toggle_cashshuffle(not self.wallet.storage.get('use_cashshuffle', False))
 
     def toggle_cashaddr_settings(self, state):
         self.toggle_cashaddr(state == Qt.Checked)
 
-    def toggle_cashaddr(self, on):
+    def toggle_cashaddr(self, on): 
         self.config.set_key('show_cashaddr', on)
         Address.show_cashaddr(on)
         for window in self.gui_object.windows:
             window.cashaddr_toggled_signal.emit()
+
+    def toggle_cashshuffle(self, on):
+        self.wallet.storage.put('use_cashshuffle', on)
+        for window in self.gui_object.windows:
+            window.cashshuffle_toggled_signal.emit()
+
 
     def settings_dialog(self):
         self.need_restart = False
