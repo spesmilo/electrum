@@ -716,7 +716,6 @@ class Plugin(BasePlugin):
 
     @hook
     def init_qt(self, gui):
-        # print(gui)
         for window in gui.windows:
             tab_names = [window.tabs.tabText(i) for i in range(window.tabs.count())]
             if "Shuffle" not in tab_names:
@@ -726,13 +725,15 @@ class Plugin(BasePlugin):
     def on_new_window(self, window):
         # self.utxo_list_menu_backup = window.utxo_list.create_menu
         window.cs_tab = None
-        self.update(window)
+        self.windows.append(window)
+        # self.update(window)
         modify_utxo_list(window)
         modify_wallet(window.wallet)
         # console modification
         window.console.updateNamespace({"start_background_shuffling": lambda *args, **kwargs: start_background_shuffling(window, *args, **kwargs)})
         window.utxo_list.on_update()
-        network_settings = {"host":"shuffle.imaginary.cash", "port":8080, "ssl":True, "network":window.network}
+        # network_settings = {"host":"shuffle.imaginary.cash", "port":8080, "ssl":True, "network":window.network}
+        network_settings = {"host":"localhost", "port":8080, "ssl":False, "network":window.network}
         while window.wallet.has_password():
             password = window.password_dialog(parent=window)
             if password is None:
@@ -746,17 +747,21 @@ class Plugin(BasePlugin):
                 continue
         start_background_shuffling(window, network_settings, period = 10, password=password)
 
-    @hook
-    def on_close_window(self, window):
-        self.update(window)
+    # @hook
+    # def on_close_window(self, window):
+    #     self.update(window)
 
     def on_close(self):
+        print(self.windows)
         for window in self.windows:
             window.background_process.join()
             # tabIndex= window.tabs.indexOf(window.cs_tab)
             # window.tabs.removeTab(tabIndex)
             # if getattr(window, "cs_tab", None):
             #     delattr(window, "cs_tab")
+            # print("restoring")
+            while window.background_process.is_alive():
+                pass
             restore_utxo_list(window)
             restore_wallet(window.wallet)
             if window.console.namespace.get("start_background_shuffling", None):
@@ -778,7 +783,7 @@ class Plugin(BasePlugin):
         # window.cs_tab.tab_pos = len(window.tabs)
         # window.cs_tab.tab_name = name
         # window.tabs.addTab(window.cs_tab, icon, description.replace("&", ""))
-        # self.windows.append(window)
+        self.windows.append(window)
 
     def settings_dialog(self, window):
 

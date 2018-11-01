@@ -369,7 +369,7 @@ class BackgroundShufflingThread(threading.Thread):
     ]
 
     def __init__(self, wallet, network_settings,
-                 period = 10, logger = None, fee=1000, password=None, watchdog_period = 600):
+                 period = 10, logger = None, fee=1000, password=None, watchdog_period=300):
         threading.Thread.__init__(self)
         self.watchdog_period = watchdog_period
         self.period = period # Period goes in minutes
@@ -509,13 +509,15 @@ class BackgroundShufflingThread(threading.Thread):
         self.threads_timer.start()
 
     def watchdog_checkout(self, scale):
+        # print("restarting thread {}".format(self.threads[scale]))
         if self.threads[scale]:
             self.threads[scale].join()
             while self.threads[scale].is_alive():
                 pass
-            self.threads[scale] = None   
+            self.threads[scale] = None
         self.watchdogs[scale] = threading.Timer(self.watchdog_period, lambda x: self.watchdog_checkout(x), [scale])
         self.watchdogs[scale].start()
+        # print("restarted thread {}".format(self.threads[scale]))
 
     def join(self):
         self.stopper.set()
