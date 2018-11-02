@@ -182,7 +182,7 @@ class LNWatcher(PrintError):
             encumbered_sweep_txns = self.sweepstore[funding_outpoint][prev_txid]
         if len(encumbered_sweep_txns) == 0:
             if self.get_tx_mined_depth(prev_txid) == TxMinedDepth.DEEP:
-                self.print_error(e_tx.name, 'have no follow-up transactions and prevtx mined deep, returning')
+                self.print_error('have no follow-up transactions and prevtx', prev_txid, 'mined deep, returning')
                 return False
         # check if any response applies
         keep_watching_this = False
@@ -224,13 +224,6 @@ class LNWatcher(PrintError):
     async def broadcast_or_log(self, funding_outpoint, e_tx):
         height = self.addr_sync.get_tx_height(e_tx.tx.txid()).height
         if height != TX_HEIGHT_LOCAL:
-            return
-        try:
-            await self.network.get_transaction(e_tx.tx.txid())
-        except:
-            pass
-        else:
-            self.print_error('already published, returning')
             return
         try:
             txid = await self.network.broadcast_transaction(e_tx.tx)
