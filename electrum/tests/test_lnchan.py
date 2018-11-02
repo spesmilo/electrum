@@ -29,6 +29,7 @@ from electrum import lnchan
 from electrum import lnutil
 from electrum import bip32 as bip32_utils
 from electrum.lnutil import SENT, LOCAL, REMOTE, RECEIVED
+from electrum.ecc import sig_string_from_der_sig
 
 one_bitcoin_in_msat = bitcoin.COIN * 1000
 
@@ -81,7 +82,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 per_commitment_secret_seed=seed,
                 funding_locked_received=True,
                 was_announced=False,
-                current_commitment_signature=None,
+                # just a random signature
+                current_commitment_signature=sig_string_from_der_sig(bytes.fromhex('3046022100c66e112e22b91b96b795a6dd5f4b004f3acccd9a2a31bf104840f256855b7aa3022100e711b868b62d87c7edd95a2370e496b9cb6a38aff13c9f64f9ff2f3b2a0052dd')),
                 current_htlc_signatures=None,
             ),
             "constraints":lnbase.ChannelConstraints(
@@ -184,6 +186,14 @@ class TestChannel(unittest.TestCase):
         self.bob_pending_remote_balance = after
 
         self.htlc = self.bob_channel.log[lnutil.REMOTE].adds[0]
+
+    def test_concurrent_reversed_payment(self):
+        self.htlc_dict['payment_hash'] = bitcoin.sha256(32 * b'\x02')
+        self.htlc_dict['amount_msat'] += 1000
+        bob_idx = self.bob_channel.add_htlc(self.htlc_dict)
+        alice_idx = self.alice_channel.receive_htlc(self.htlc_dict)
+        self.alice_channel.receive_new_commitment(*self.bob_channel.sign_next_commitment())
+        self.assertEquals(len(self.alice_channel.pending_remote_commitment.outputs()), 3)
 
     def test_SimpleAddSettleWorkflow(self):
         alice_channel, bob_channel = self.alice_channel, self.bob_channel
