@@ -901,7 +901,7 @@ class Network(util.DaemonThread):
         until it gets handled in the response to it's first header
         request.
         '''
-        #interface.print_error("requesting header %d" % height)
+        interface.print_error("requesting header %d" % height)
         if height > bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT:
             params = [height]
         else:
@@ -956,14 +956,21 @@ class Network(util.DaemonThread):
                 interface.good = height
                 next_height = (interface.bad + interface.good) // 2
             else:
-                if height == 0:
+                # A backwards header request should not happen before the checkpoint height. It isn't requested in this
+                # context, and it isn't requested anywhere else. If this happens it is an error. Additionally, if the
+                # checkpoint height header was requested and it does not connect, then there's not much Electron Cash
+                # can do about it (that we're going to bother). We depend on the checkpoint being relevant for the
+                # blockchain the user is running against.
+                if height <= bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT:
                     self.connection_down(interface.server)
                     next_height = None
                 else:
                     interface.bad = height
                     interface.bad_header = header
                     delta = interface.tip - height
-                    next_height = max(0, interface.tip - 2 * delta)
+                    # If the longest chain does not connect at any point we check to the chain this interface is
+                    # serving, then we fall back on the checkpoint height which is expected to work.
+                    next_height = max(bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT, interface.tip - 2 * delta)
 
         elif interface.mode == 'binary':
             if chain:
