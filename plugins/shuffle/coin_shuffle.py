@@ -287,7 +287,7 @@ class Round(object):
 
     def process_verification_and_submission(self):
         """
-        This function implemens processing of messages on verification and submission phase (phase # 6)
+        This function implemens processing of messages on verification and submission phase (phase # 5)
 
         It does the follows:
         1. Check if all players send its signatures
@@ -333,7 +333,7 @@ class Round(object):
 
     def process_blame(self):
         """
-        This function implements processing the messages on the blame phase
+        This function implements processing the messages on the blame phase (phase # 6)
 
         It does the follows:
         1. get the blame reason from the blame message
