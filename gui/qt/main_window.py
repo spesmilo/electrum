@@ -107,13 +107,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def __init__(self, gui_object, wallet):
         QMainWindow.__init__(self)
- 
+
         self.wallet=wallet
         self.gui_object = gui_object
         self.config = config = gui_object.config
 
         self.setup_exception_hook()
-       
+
         self.network = gui_object.daemon.network
         self.fx = gui_object.daemon.fx
         self.invoices = wallet.invoices
@@ -158,7 +158,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tabs.addTab(self.create_history_tab(), QIcon(":icons/tab_history.png"), _('History'))
         tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
         tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
-  
+
         def add_optional_tab(tabs, tab, icon, description, name, default=False):
             tab.tab_icon = icon
             tab.tab_description = description
@@ -222,7 +222,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
         use_cashshuffle= self.wallet.storage.get('use_cashshuffle', False)
-        shuffle_noprompt = self.wallet.storage.get('shuffle_noprompt', False) 
+        shuffle_noprompt = self.wallet.storage.get('shuffle_noprompt', False)
         if use_cashshuffle == False and shuffle_noprompt != True:
             d = WindowModalDialog(self, title=_('Would you like to turn on CashShuffle for this wallet?'))
             d.setMinimumSize(400, 200)
@@ -249,10 +249,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.wallet.storage.put('shuffle_noprompt', True)
             else:
                 self.wallet.storage.put('use_cashshuffle', True)
+                self.gui_object.plugins.toggle_internal_plugin("shuffle")
+                run_hook('init_qt', self.gui_object)
                 self.update_cashshuffle_icon()
                 if csnoprompt_cb.isChecked()==True:
                     self.wallet.storage.put('shuffle_noprompt', True)
-                    
+
 
 
 
@@ -551,7 +553,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_menu.addAction(_("&Information"), self.show_master_public_keys)
-        wallet_menu.addAction(_("&Toggle Cash Shuffle"), self.toggle_cashshuffle_status_bar) 
+        wallet_menu.addAction(_("&Toggle Cash Shuffle"), self.toggle_cashshuffle_status_bar)
         wallet_menu.addSeparator()
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
@@ -2044,7 +2046,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.password_button = StatusBarButton(self.lock_icon, _("Password"), self.change_password_dialog )
         sb.addPermanentWidget(self.password_button)
 
- 
+
         self.cashshuffle_status_button = StatusBarButton(
             self.cashshuffle_icon(),
             _("Toggle CashShuffle On or Off"),
@@ -2777,7 +2779,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return QIcon(":icons/tab_converter_bw.png")
 
 
-    def cashshuffle_icon(self): 
+    def cashshuffle_icon(self):
         use_cashshuffle=self.wallet.storage.get('use_cashshuffle')
         if use_cashshuffle:
             return QIcon(":icons/cashshuffle_on.png")
@@ -2790,7 +2792,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def update_cashshuffle_icon(self):
         self.cashshuffle_status_button.setIcon(self.cashshuffle_icon())
 
-    def toggle_cashaddr_status_bar(self): 
+    def toggle_cashaddr_status_bar(self):
         self.toggle_cashaddr(not self.config.get('show_cashaddr', False))
 
 
@@ -2800,7 +2802,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def toggle_cashaddr_settings(self, state):
         self.toggle_cashaddr(state == Qt.Checked)
 
-    def toggle_cashaddr(self, on): 
+    def toggle_cashaddr(self, on):
         self.config.set_key('show_cashaddr', on)
         Address.show_cashaddr(on)
         for window in self.gui_object.windows:

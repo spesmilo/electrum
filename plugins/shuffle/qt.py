@@ -717,9 +717,9 @@ class Plugin(BasePlugin):
     @hook
     def init_qt(self, gui):
         for window in gui.windows:
-            tab_names = [window.tabs.tabText(i) for i in range(window.tabs.count())]
-            if "Shuffle" not in tab_names:
-                self.on_new_window(window)
+            # tab_names = [window.tabs.tabText(i) for i in range(window.tabs.count())]
+            # if "Shuffle" not in tab_names:
+            self.on_new_window(window)
 
     @hook
     def on_new_window(self, window):

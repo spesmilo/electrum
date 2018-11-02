@@ -411,6 +411,21 @@ class BackgroundShufflingThread(threading.Thread):
         else:
             return None
 
+    def stop_protocol_thread(self, scale, message):
+        sender = list(self.threads[scale].inputs.values())[0][0]
+        self.wallet.set_frozen_coin_state([sender], False)
+        coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
+        coins_for_shuffling -= {sender}
+        self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
+        self.logger.send(message, sender)
+        self.threads[scale].join()
+        while self.threads[scale].is_alive():
+            pass
+        with self.loggers[scale].mutex:
+            self.loggers[scale].queue.clear()
+        self.threads[scale] = None
+
+
     def prosess_protocol_messages(self, scale):
         # try:
         if self.loggers[scale].empty():
@@ -426,27 +441,29 @@ class BackgroundShufflingThread(threading.Thread):
             vk = self.threads[scale].vk
             sender = list(self.threads[scale].inputs.values())[0][0]
             if message.startswith("Error"):
-                self.wallet.set_frozen_coin_state([sender], False)
-                coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
-                coins_for_shuffling -= {sender}
-                self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
-                self.logger.send(message, sender)
-                self.threads[scale].join()
-                while self.threads[scale].is_alive():
-                    pass
-                with self.loggers[scale].mutex:
-                    self.loggers[scale].queue.clear()
-                self.threads[scale] = None
+                self.stop_protocol_thread(scale, message)
+                # self.wallet.set_frozen_coin_state([sender], False)
+                # coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
+                # coins_for_shuffling -= {sender}
+                # self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
+                # self.logger.send(message, sender)
+                # self.threads[scale].join()
+                # while self.threads[scale].is_alive():
+                #     pass
+                # with self.loggers[scale].mutex:
+                #     self.loggers[scale].queue.clear()
+                # self.threads[scale] = None
             elif message.endswith("complete protocol"):
-                self.wallet.set_frozen_coin_state([sender], False)
-                coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
-                coins_for_shuffling -= {sender}
-                self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
-                self.logger.send(message, sender)
-                self.threads[scale].join()
-                while self.threads[scale].is_alive():
-                    pass
-                self.threads[scale] = None
+                self.stop_protocol_thread(scale, message)
+                # self.wallet.set_frozen_coin_state([sender], False)
+                # coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
+                # coins_for_shuffling -= {sender}
+                # self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
+                # self.logger.send(message, sender)
+                # self.threads[scale].join()
+                # while self.threads[scale].is_alive():
+                #     pass
+                # self.threads[scale] = None
             elif message.startswith("Player"):
                 # pass
                 self.logger.send(message, sender)
@@ -458,15 +475,16 @@ class BackgroundShufflingThread(threading.Thread):
                 elif "wrong hash" in message:
                     pass
                 else:
-                    self.wallet.set_frozen_coin_state([sender], False)
-                    coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
-                    coins_for_shuffling -= {sender}
-                    self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
-                    self.logger.send(message, sender)
-                    self.threads[scale].join()
-                    while self.threads[scale].is_alive():
-                        pass
-                    self.threads[scale] = None
+                    self.stop_protocol_thread(scale, message)
+                    # self.wallet.set_frozen_coin_state([sender], False)
+                    # coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
+                    # coins_for_shuffling -= {sender}
+                    # self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
+                    # self.logger.send(message, sender)
+                    # self.threads[scale].join()
+                    # while self.threads[scale].is_alive():
+                    #     pass
+                    # self.threads[scale] = None
         # except Exception as e:
         #     # print(e)
         #     self.logger.send("{} >> {}".format(type(e).__name__, e), "PROTOCOL")
@@ -509,15 +527,15 @@ class BackgroundShufflingThread(threading.Thread):
         self.threads_timer.start()
 
     def watchdog_checkout(self, scale):
-        # print("restarting thread {}".format(self.threads[scale]))
+
         if self.threads[scale]:
-            self.threads[scale].join()
-            while self.threads[scale].is_alive():
-                pass
-            self.threads[scale] = None
+            self.stop_protocol_thread(scale, "restart thread")
+            # self.threads[scale].join()
+            # while self.threads[scale].is_alive():
+            #     pass
+            # self.threads[scale] = None
         self.watchdogs[scale] = threading.Timer(self.watchdog_period, lambda x: self.watchdog_checkout(x), [scale])
         self.watchdogs[scale].start()
-        # print("restarted thread {}".format(self.threads[scale]))
 
     def join(self):
         self.stopper.set()
