@@ -2,17 +2,19 @@
 import json
 import asyncio
 
+from electrum.simple_config import SimpleConfig
 from electrum.network import filter_version, Network
 from electrum.util import create_and_start_event_loop, log_exceptions
 from electrum import constants
 
 import util
 
-
+# testnet?
 #constants.set_testnet()
+config = SimpleConfig({'testnet': False})
 
 loop, stopping_fut, loop_thread = create_and_start_event_loop()
-network = Network()
+network = Network(config)
 network.start()
 
 @log_exceptions

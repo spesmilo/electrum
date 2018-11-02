@@ -12,6 +12,7 @@ from electrum.interface import Interface
 async def get_peers(network: Network):
     while not network.is_connected():
         await asyncio.sleep(1)
+        print("waiting for network to get connected...")
     interface = network.interface
     session = interface.session
     print(f"asking server {interface.server} for its peers")
