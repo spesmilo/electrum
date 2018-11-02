@@ -19,7 +19,7 @@ import aiorpcx
 from .crypto import sha256, sha256d
 from . import bitcoin
 from . import ecc
-from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string
+from .ecc import sig_string_from_r_and_s, get_r_and_s_from_sig_string, der_sig_from_sig_string
 from . import constants
 from .util import PrintError, bh2u, print_error, bfh, log_exceptions, list_enabled_bits, ignore_exceptions
 from .transaction import Transaction, TxOutput
@@ -1157,6 +1157,25 @@ class Peer(PrintError):
         txid = await self._shutdown(chan, payload)
         self.print_error('Channel closed', txid)
         return txid
+
+    async def force_close_channel(self, chan_id):
+        chan = self.channels[chan_id]
+        # local_commitment always gives back the next expected local_commitment,
+        # but in this case, we want the current one. So substract one ctn number
+        old_local_state = chan.config[LOCAL]
+        chan.config[LOCAL]=chan.config[LOCAL]._replace(ctn=chan.config[LOCAL].ctn - 1)
+        tx = chan.pending_local_commitment
+        chan.config[LOCAL] = old_local_state
+        tx.sign({bh2u(chan.config[LOCAL].multisig_key.pubkey): (chan.config[LOCAL].multisig_key.privkey, True)})
+        remote_sig = chan.config[LOCAL].current_commitment_signature
+        remote_sig = der_sig_from_sig_string(remote_sig) + b"\x01"
+        none_idx = tx._inputs[0]["signatures"].index(None)
+        tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
+        assert tx.is_complete()
+        # TODO persist FORCE_CLOSING state to disk
+        chan.set_state('FORCE_CLOSING')
+        self.lnworker.save_channel(chan)
+        return await self.network.broadcast_transaction(tx)
 
     @log_exceptions
     async def on_shutdown(self, payload):

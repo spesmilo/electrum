@@ -11,6 +11,7 @@ from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING
 import threading
 import socket
 import json
+from decimal import Decimal
 
 import dns.resolver
 import dns.exception
@@ -267,18 +268,13 @@ class LNWorker(PrintError):
         return addr, peer, fut
 
     def _pay(self, invoice, amount_sat=None):
-        addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-        payment_hash = addr.paymenthash
-        amount_sat = (addr.amount * COIN) if addr.amount else amount_sat
-        if amount_sat is None:
-            raise InvoiceError(_("Missing amount"))
-        amount_msat = int(amount_sat * 1000)
-        if addr.get_min_final_cltv_expiry() > 60 * 144:
-            raise InvoiceError("{}\n{}".format(
-                _("Invoice wants us to risk locking funds for unreasonably long."),
-                f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
-        route = self._create_route_from_invoice(decoded_invoice=addr, amount_msat=amount_msat)
-        node_id, short_channel_id = route[0].node_id, route[0].short_channel_id
+        addr = self._check_invoice(invoice, amount_sat)
+        route = self._create_route_from_invoice(decoded_invoice=addr)
+        peer = self.peers[route[0].node_id]
+        return addr, peer, self._pay_to_route(route, addr)
+
+    async def _pay_to_route(self, route, addr):
+        short_channel_id = route[0].short_channel_id
         with self.lock:
             channels = list(self.channels.values())
         for chan in channels:
@@ -286,11 +282,24 @@ class LNWorker(PrintError):
                 break
         else:
             raise Exception("PathFinder returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
-        peer = self.peers[node_id]
-        coro = peer.pay(route, chan, amount_msat, payment_hash, addr.get_min_final_cltv_expiry())
-        return addr, peer, coro
+        peer = self.peers[route[0].node_id]
+        return await peer.pay(route, chan, int(addr.amount * COIN * 1000), addr.paymenthash, addr.get_min_final_cltv_expiry())
 
-    def _create_route_from_invoice(self, decoded_invoice, amount_msat) -> List[RouteEdge]:
+    @staticmethod
+    def _check_invoice(invoice, amount_sat=None):
+        addr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        if amount_sat:
+            addr.amount = Decimal(amount_sat) / COIN
+        if addr.amount is None:
+            raise InvoiceError(_("Missing amount"))
+        if addr.get_min_final_cltv_expiry() > 60 * 144:
+            raise InvoiceError("{}\n{}".format(
+                _("Invoice wants us to risk locking funds for unreasonably long."),
+                f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
+        return addr
+
+    def _create_route_from_invoice(self, decoded_invoice) -> List[RouteEdge]:
+        amount_msat = int(decoded_invoice.amount * COIN * 1000)
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice
         route = None  # type: List[RouteEdge]
@@ -441,19 +450,8 @@ class LNWorker(PrintError):
 
     async def force_close_channel(self, chan_id):
         chan = self.channels[chan_id]
-        # local_commitment always gives back the next expected local_commitment,
-        # but in this case, we want the current one. So substract one ctn number
-        old_local_state = chan.config[LOCAL]
-        chan.config[LOCAL]=chan.config[LOCAL]._replace(ctn=chan.config[LOCAL].ctn - 1)
-        tx = chan.pending_local_commitment
-        chan.config[LOCAL] = old_local_state
-        tx.sign({bh2u(chan.config[LOCAL].multisig_key.pubkey): (chan.config[LOCAL].multisig_key.privkey, True)})
-        remote_sig = chan.config[LOCAL].current_commitment_signature
-        remote_sig = der_sig_from_sig_string(remote_sig) + b"\x01"
-        none_idx = tx._inputs[0]["signatures"].index(None)
-        tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
-        assert tx.is_complete()
-        return await self.network.broadcast_transaction(tx)
+        peer = self.peers[chan.node_id]
+        return await peer.force_close_channel(chan_id)
 
     def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
         now = time.time()
