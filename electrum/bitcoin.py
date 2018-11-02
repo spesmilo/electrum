@@ -284,13 +284,15 @@ def script_to_address(script, *, net=None):
     assert t == TYPE_ADDRESS
     return addr
 
-def address_to_script(addr, *, net=None):
+def address_to_script(addr: str, *, net=None) -> str:
     if net is None:
         net = constants.net
+    if not is_address(addr, net=net):
+        raise BitcoinException(f"invalid bitcoin address: {addr}")
     witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
     if witprog is not None:
         if not (0 <= witver <= 16):
-            raise BitcoinException('impossible witness version: {}'.format(witver))
+            raise BitcoinException(f'impossible witness version: {witver}')
         OP_n = witver + 0x50 if witver > 0 else 0
         script = bh2u(bytes([OP_n]))
         script += push_script(bh2u(bytes(witprog)))
@@ -305,7 +307,7 @@ def address_to_script(addr, *, net=None):
         script += push_script(bh2u(hash_160_))
         script += '87'                                       # op_equal
     else:
-        raise BitcoinException('unknown address type: {}'.format(addrtype))
+        raise BitcoinException(f'unknown address type: {addrtype}')
     return script
 
 def address_to_scripthash(addr):
@@ -491,24 +493,28 @@ def address_from_private_key(sec):
     public_key = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
     return pubkey_to_address(txin_type, public_key)
 
-def is_segwit_address(addr):
+def is_segwit_address(addr, *, net=None):
+    if net is None: net = constants.net
     try:
-        witver, witprog = segwit_addr.decode(constants.net.SEGWIT_HRP, addr)
+        witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
     except Exception as e:
         return False
     return witprog is not None
 
-def is_b58_address(addr):
+def is_b58_address(addr, *, net=None):
+    if net is None: net = constants.net
     try:
         addrtype, h = b58_address_to_hash160(addr)
     except Exception as e:
         return False
-    if addrtype not in [constants.net.ADDRTYPE_P2PKH, constants.net.ADDRTYPE_P2SH]:
+    if addrtype not in [net.ADDRTYPE_P2PKH, net.ADDRTYPE_P2SH]:
         return False
     return addr == hash160_to_b58_address(h, addrtype)
 
-def is_address(addr):
-    return is_segwit_address(addr) or is_b58_address(addr)
+def is_address(addr, *, net=None):
+    if net is None: net = constants.net
+    return is_segwit_address(addr, net=net) \
+           or is_b58_address(addr, net=net)
 
 
 def is_private_key(key):

@@ -72,7 +72,11 @@ def hash_header(header: dict) -> str:
         return '0' * 64
     if header.get('prev_block_hash') is None:
         header['prev_block_hash'] = '00'*32
-    return hash_encode(sha256d(bfh(serialize_header(header))))
+    return hash_raw_header(serialize_header(header))
+
+
+def hash_raw_header(header: str) -> str:
+    return hash_encode(sha256d(bfh(header)))
 
 
 blockchains = {}  # type: Dict[int, Blockchain]

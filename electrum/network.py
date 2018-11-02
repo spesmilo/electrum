@@ -32,7 +32,7 @@ import json
 import sys
 import ipaddress
 import asyncio
-from typing import NamedTuple, Optional, Sequence, List, Dict
+from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple
 import traceback
 
 import dns
@@ -53,7 +53,7 @@ NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
 
 
-def parse_servers(result):
+def parse_servers(result: Sequence[Tuple[str, str, List[str]]]) -> Dict[str, dict]:
     """ parse servers list into dict format"""
     servers = {}
     for item in result:
@@ -170,6 +170,7 @@ class Network(PrintError):
         INSTANCE = self
 
         self.asyncio_loop = asyncio.get_event_loop()
+        assert self.asyncio_loop.is_running(), "event loop not running"
         self._loop_thread = None  # type: threading.Thread  # set by caller; only used for sanity checks
 
         if config is None:
@@ -224,6 +225,8 @@ class Network(PrintError):
         self.connecting = set()
         self.server_queue = None
         self.proxy = None
+
+        self._set_status('disconnected')
 
     def run_from_another_thread(self, coro):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
@@ -411,10 +414,10 @@ class Network(PrintError):
             out = filter_noonion(out)
         return out
 
-    def _start_interface(self, server):
+    def _start_interface(self, server: str):
         if server not in self.interfaces and server not in self.connecting:
             if server == self.default_server:
-                self.print_error("connecting to %s as new interface" % server)
+                self.print_error(f"connecting to {server} as new interface")
                 self._set_status('connecting')
             self.connecting.add(server)
             self.server_queue.put(server)
