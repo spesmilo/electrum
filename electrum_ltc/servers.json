@@ -15,90 +15,67 @@
         "pruning": "-",
         "s": "443",
         "t": "50001",
-        "version": "1.2"
+        "version": "1.4"
     },
     "e-1.claudioboxx.com": {
         "pruning": "-",
         "s": "50004",
         "t": "50003",
-        "version": "1.2"
+        "version": "1.4"
     },
     "e-3.claudioboxx.com": {
         "pruning": "-",
         "s": "50004",
         "t": "50003",
-        "version": "1.2"
+        "version": "1.4"
     },
     "elec.luggs.co": {
         "pruning": "-",
         "s": "444",
-        "version": "1.2"
+        "version": "1.4"
     },
     "electrum-ltc.bysh.me": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.2"
-    },
-    "electrum-ltc.festivaldelhumor.org": {
-        "pruning": "-",
-        "s": "60002",
-        "t": "60001",
-        "version": "1.2"
+        "version": "1.4"
     },
     "electrum-ltc.klippb.org": {
         "pruning": "-",
         "s": "50002",
-        "version": "1.2"
+        "version": "1.4"
     },
     "electrum-ltc.villocq.com": {
         "pruning": "-",
         "s": "60002",
         "t": "60001",
-        "version": "1.2"
+        "version": "1.4"
     },
     "electrum-ltc.wilv.in": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.2"
-    },
-    "electrum-ltc0.snel.it": {
-        "pruning": "-",
-        "s": "50004",
-        "t": "50003",
-        "version": "1.2"
+        "version": "1.4"
     },
     "electrum.leblancnet.us": {
         "pruning": "-",
         "s": "50004",
         "t": "50003",
-        "version": "1.2"
+        "version": "1.4"
     },
     "electrum.ltc.xurious.com": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
-        "version": "1.2"
-    },
-    "electrumx.kekku.li": {
-        "pruning": "-",
-        "s": "50003",
-        "version": "1.2"
+        "version": "1.4"
     },
     "electrumx.nmdps.net": {
         "pruning": "-",
         "s": "9434",
         "t": "9433",
-        "version": "1.2"
+        "version": "1.4"
     },
     "gttvzmfh23pxqiw4.onion": {
-        "pruning": "-",
-        "s": "50004",
-        "t": "50003",
-        "version": "1.2"
-    },
-    "ltc.asis.io": {
         "pruning": "-",
         "s": "50004",
         "t": "50003",
@@ -108,18 +85,12 @@
         "pruning": "-",
         "s": "50004",
         "t": "50003",
-        "version": "1.2"
+        "version": "1.4"
     },
     "luggscoqbymhvnkp.onion": {
         "pruning": "-",
         "t": "81",
-        "version": "1.2"
-    },
-    "node.erratic.space": {
-        "pruning": "-",
-        "s": "50102",
-        "t": "50101",
-        "version": "1.2"
+        "version": "1.4"
     },
     "node.ispol.sk": {
         "pruning": "-",
@@ -136,6 +107,6 @@
     "technetium.network": {
         "pruning": "-",
         "s": "50003",
-        "version": "1.2"
+        "version": "1.4"
     }
 }

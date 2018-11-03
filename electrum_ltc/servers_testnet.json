@@ -3,17 +3,12 @@
         "pruning": "-",
         "s": "51002",
         "t": "51001",
-        "version": "1.2"
+        "version": "1.4"
     },
     "electrum.ltc.xurious.com": {
         "pruning": "-",
         "s": "51002",
         "t": "51001",
-        "version": "1.2"
-    },
-    "electrumx.kekku.li": {
-        "pruning": "-",
-        "s": "51003",
-        "version": "1.2"
+        "version": "1.4"
     }
 }
