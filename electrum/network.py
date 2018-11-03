@@ -382,7 +382,11 @@ class Network(PrintError):
 
     def get_parameters(self) -> NetworkParameters:
         host, port, protocol = deserialize_server(self.default_server)
-        return NetworkParameters(host, port, protocol, self.proxy, self.auto_connect)
+        return NetworkParameters(host=host,
+                                 port=port,
+                                 protocol=protocol,
+                                 proxy=self.proxy,
+                                 auto_connect=self.auto_connect)
 
     def get_donation_address(self):
         if self.is_connected():
@@ -487,15 +491,16 @@ class Network(PrintError):
         try:
             deserialize_server(serialize_server(host, port, protocol))
             if proxy:
-                proxy_modes.index(proxy["mode"]) + 1
+                proxy_modes.index(proxy['mode']) + 1
                 int(proxy['port'])
         except:
             return
         self.config.set_key('auto_connect', net_params.auto_connect, False)
-        self.config.set_key("proxy", proxy_str, False)
-        self.config.set_key("server", server_str, True)
+        self.config.set_key('proxy', proxy_str, False)
+        self.config.set_key('server', server_str, True)
         # abort if changes were not allowed by config
-        if self.config.get('server') != server_str or self.config.get('proxy') != proxy_str:
+        if self.config.get('server') != server_str \
+                or self.config.get('proxy') != proxy_str:
             return
 
         async with self.restart_lock:
@@ -796,6 +801,14 @@ class Network(PrintError):
     async def _start(self):
         assert not self.main_taskgroup
         self.main_taskgroup = SilentTaskGroup()
+        assert not self.interface and not self.interfaces
+        assert not self.connecting and not self.server_queue
+        self.print_error('starting network')
+        self.disconnected_servers = set([])
+        self.protocol = deserialize_server(self.default_server)[2]
+        self.server_queue = queue.Queue()
+        self._set_proxy(deserialize_proxy(self.config.get('proxy')))
+        self._start_interface(self.default_server)
 
         async def main():
             try:
@@ -808,14 +821,6 @@ class Network(PrintError):
                 raise e
         asyncio.run_coroutine_threadsafe(main(), self.asyncio_loop)
 
-        assert not self.interface and not self.interfaces
-        assert not self.connecting and not self.server_queue
-        self.print_error('starting network')
-        self.disconnected_servers = set([])
-        self.protocol = deserialize_server(self.default_server)[2]
-        self.server_queue = queue.Queue()
-        self._set_proxy(deserialize_proxy(self.config.get('proxy')))
-        self._start_interface(self.default_server)
         self.trigger_callback('network_updated')
 
     def start(self, jobs: List=None):
