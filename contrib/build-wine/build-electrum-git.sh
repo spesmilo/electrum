@@ -19,28 +19,25 @@ set -e
 cd tmp
 
 
-for repo in Electron-Cash; do
-    if [ -d $repo ]; then
-	cd $repo
-	git pull
-	git checkout 3.3.1
-	cd ..
-    else
-	URL=https://github.com/Electron-Cash/$repo
-	git clone -b master $URL electrum # rest of script assumes the dir is called 'electrum'
-    fi
-done
-
+if [ -d electrum ]; then
+    cd electrum
+    git checkout master
+    git pull
+    cd ..
+else
+    URL=https://github.com/Electron-Cash/Electron-Cash
+    git clone -b master $URL electrum # rest of script assumes the dir is called 'electrum'
+fi
 
 for repo in electrum-locale electrum-icons; do
     if [ -d $repo ]; then
-	cd $repo
-	git pull
-	git checkout master
-	cd ..
+        cd $repo
+        git checkout master
+        git pull
+        cd ..
     else
-	URL=https://github.com/Electron-Cash/$repo
-	git clone -b master $URL $repo
+        URL=https://github.com/Electron-Cash/$repo
+        git clone -b master $URL $repo
     fi
 done
 
@@ -106,4 +103,3 @@ python3 setup.py sdist --format=zip,gztar
 
 
 echo "Done."
-md5sum dist/electrum*exe
