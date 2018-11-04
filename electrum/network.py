@@ -299,7 +299,7 @@ class Network(PrintError):
         lh = self.get_local_height()
         result = (lh - sh) > 1
         if result:
-            self.print_error('%s is lagging (%d vs %d)' % (self.default_server, sh, lh))
+            self.print_error(f'{self.default_server} is lagging ({sh} vs {lh})')
         return result
 
     def _set_status(self, status):
@@ -350,13 +350,15 @@ class Network(PrintError):
             for i in FEE_ETA_TARGETS:
                 fee_tasks.append((i, await group.spawn(session.send_request('blockchain.estimatefee', [i]))))
         self.config.mempool_fees = histogram = histogram_task.result()
-        self.print_error('fee_histogram', histogram)
+        self.print_error(f'fee_histogram {histogram}')
         self.notify('fee_histogram')
-        for i, task in fee_tasks:
+        fee_estimates_eta = {}
+        for nblock_target, task in fee_tasks:
             fee = int(task.result() * COIN)
-            self.print_error("fee_estimates[%d]" % i, fee)
+            fee_estimates_eta[nblock_target] = fee
             if fee < 0: continue
-            self.config.update_fee_estimates(i, fee)
+            self.config.update_fee_estimates(nblock_target, fee)
+        self.print_error(f'fee_estimates {fee_estimates_eta}')
         self.notify('fee')
 
     def get_status_value(self, key):
