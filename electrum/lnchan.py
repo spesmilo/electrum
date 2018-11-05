@@ -579,14 +579,14 @@ class Channel(PrintError):
           unsettled_local + remote_settled - local_settled
         return remote_msat, local_msat
 
-    def included_htlcs(self, subject, htlc_initiator):
+    def included_htlcs(self, subject, htlc_initiator, only_pending=True):
         """
         return filter of non-dust htlcs for subjects commitment transaction, initiated by given party
         """
         feerate = self.pending_feerate(subject)
         conf = self.config[subject]
         weight = HTLC_SUCCESS_WEIGHT if subject != htlc_initiator else HTLC_TIMEOUT_WEIGHT
-        htlcs = self.htlcs(htlc_initiator, only_pending=True)
+        htlcs = self.htlcs(htlc_initiator, only_pending=only_pending)
         fee_for_htlc = lambda htlc: htlc.amount_msat // 1000 - (weight * feerate // 1000)
         return filter(lambda htlc: fee_for_htlc(htlc) >= conf.dust_limit_sat, htlcs)
 
@@ -852,6 +852,21 @@ class Channel(PrintError):
         tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
         assert tx.is_complete()
         return tx
+
+    def included_htlcs_in_latest_ctxs(self):
+        """ A map from commitment number to list of HTLCs in
+            their latest two commitment transactions.
+            The oldest might have been revoked.  """
+        old_htlcs = list(self.included_htlcs(REMOTE, REMOTE, only_pending=False)) \
+                  + list(self.included_htlcs(REMOTE, LOCAL,  only_pending=False))
+
+        old_logs = dict(self.lock_in_htlc_changes(LOCAL))
+        new_htlcs = list(self.included_htlcs(REMOTE, REMOTE)) \
+                  + list(self.included_htlcs(REMOTE, LOCAL))
+        self.log = old_logs
+
+        return {self.config[REMOTE].ctn:   old_htlcs,
+                self.config[REMOTE].ctn+1: new_htlcs, }
 
 def maybe_create_sweeptx_for_their_ctx_to_remote(chan, ctx, their_pcp: bytes,
                                                  sweep_address) -> Optional[EncumberedTransaction]:
