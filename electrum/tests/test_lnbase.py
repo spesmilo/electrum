@@ -88,6 +88,7 @@ class MockLNWorker:
     _create_route_from_invoice = LNWorker._create_route_from_invoice
     _check_invoice = staticmethod(LNWorker._check_invoice)
     _pay_to_route = LNWorker._pay_to_route
+    force_close_channel = LNWorker.force_close_channel
 
 class MockTransport:
     def __init__(self):
@@ -203,7 +204,7 @@ class TestPeer(unittest.TestCase):
         addr = w1._check_invoice(pay_req)
         route = w1._create_route_from_invoice(decoded_invoice=addr)
 
-        run(p1.force_close_channel(self.alice_channel.channel_id))
+        run(w1.force_close_channel(self.alice_channel.channel_id))
         # check if a tx (commitment transaction) was broadcasted:
         assert q1.qsize() == 1
 
