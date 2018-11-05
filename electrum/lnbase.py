@@ -1152,6 +1152,8 @@ class Peer(PrintError):
     @log_exceptions
     async def close_channel(self, chan_id: bytes):
         chan = self.channels[chan_id]
+        if len(chan.htlcs(LOCAL, only_pending=True)) > 0:
+            raise Exception('Can\'t co-operatively close channel with payments ongoing (pending HTLCs). Please wait, or force-close the channel.')
         self.shutdown_received[chan_id] = asyncio.Future()
         self.send_shutdown(chan)
         payload = await self.shutdown_received[chan_id]
