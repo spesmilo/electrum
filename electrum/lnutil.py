@@ -72,6 +72,8 @@ class ConnStringFormatError(LightningError): pass
 class UnknownPaymentHash(LightningError): pass
 class RemoteMisbehaving(LightningError): pass
 
+class NotFoundChanAnnouncementForUpdate(Exception): pass
+
 
 # TODO make configurable?
 MIN_FINAL_CLTV_EXPIRY_ACCEPTED = 144

@@ -32,12 +32,12 @@ from .lnutil import (Outpoint, LocalConfig, ChannelConfig,
                      secret_to_pubkey, LNPeerAddr, PaymentFailure, LnLocalFeatures,
                      LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily,
                      get_ln_flag_pair_of_bit, privkey_to_pubkey, UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
-                     LightningPeerConnectionClosed, HandshakeFailed, LNPeerAddr)
-from .lnrouter import NotFoundChanAnnouncementForUpdate, RouteEdge
+                     LightningPeerConnectionClosed, HandshakeFailed, LNPeerAddr, NotFoundChanAnnouncementForUpdate)
 from .lntransport import LNTransport, LNTransportBase
 
 if TYPE_CHECKING:
     from .lnworker import LNWorker
+    from .lnrouter import RouteEdge
 
 
 def channel_id_from_funding_tx(funding_txid: str, funding_index: int) -> Tuple[bytes, bytes]:
@@ -908,7 +908,7 @@ class Peer(PrintError):
         await self.receive_revoke(chan)
         self.network.trigger_callback('ln_message', self.lnworker, 'Payment failed')
 
-    async def _handle_error_code_from_failed_htlc(self, error_reason, route: List[RouteEdge], channel_id, htlc_id):
+    async def _handle_error_code_from_failed_htlc(self, error_reason, route: List['RouteEdge'], channel_id, htlc_id):
         chan = self.channels[channel_id]
         failure_msg, sender_idx = decode_onion_error(error_reason,
                                                      [x.node_id for x in route],
@@ -962,7 +962,7 @@ class Peer(PrintError):
         await self.receive_commitment(chan)
         self.revoke(chan)
 
-    async def pay(self, route: List[RouteEdge], chan: Channel, amount_msat: int,
+    async def pay(self, route: List['RouteEdge'], chan: Channel, amount_msat: int,
                   payment_hash: bytes, min_final_cltv_expiry: int):
         assert chan.get_state() == "OPEN", chan.get_state()
         assert amount_msat > 0, "amount_msat is not greater zero"
