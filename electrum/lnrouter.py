@@ -39,7 +39,8 @@ from .storage import JsonDB
 from .lnchannelverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .crypto import sha256d
 from . import ecc
-from .lnutil import LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr, NUM_MAX_EDGES_IN_PAYMENT_PATH
+from .lnutil import (LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr, NUM_MAX_EDGES_IN_PAYMENT_PATH,
+                     NotFoundChanAnnouncementForUpdate)
 
 if TYPE_CHECKING:
     from .lnchan import Channel
@@ -48,8 +49,6 @@ if TYPE_CHECKING:
 
 class UnknownEvenFeatureBits(Exception): pass
 
-
-class NotFoundChanAnnouncementForUpdate(Exception): pass
 
 
 class ChannelInfo(PrintError):
