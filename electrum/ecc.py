@@ -327,7 +327,7 @@ def verify_message_with_address(address: str, sig65: bytes, message: bytes):
         public_key.verify_message_hash(sig65[1:], h)
         return True
     except Exception as e:
-        print_error("Verification error: {0}".format(e))
+        print_error(f"Verification error: {repr(e)}")
         return False
 
 

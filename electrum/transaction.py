@@ -788,7 +788,8 @@ class Transaction:
         return self
 
     @classmethod
-    def pay_script(self, output_type, addr):
+    def pay_script(self, output_type, addr: str) -> str:
+        """Returns scriptPubKey in hex form."""
         if output_type == TYPE_SCRIPT:
             return addr
         elif output_type == TYPE_ADDRESS:
