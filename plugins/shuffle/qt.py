@@ -26,9 +26,9 @@
 
 from __future__ import absolute_import
 
-import time
-import threading
-import base64
+# import time
+# import threading
+# import base64
 from functools import partial
 
 from PyQt5.QtGui import *
@@ -43,7 +43,7 @@ from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton
 from electroncash_gui.qt.util import OkButton, WindowModalDialog
 from electroncash.address import Address
 from electroncash.transaction import Transaction
-from .shuffle import ChangeAdressWidget, OutputAdressWidget, ConsoleOutput, AmountSelect, ServersList, ExternalOutput, ConsoleLogger, InputAddressesWidget
+from .shuffle import ServersList
 from .client import BackgroundShufflingThread
 # from .coin import Coin
 
@@ -274,8 +274,9 @@ class Plugin(BasePlugin):
         # console modification
         window.console.updateNamespace({"start_background_shuffling": lambda *args, **kwargs: start_background_shuffling(window, *args, **kwargs)})
         window.utxo_list.on_update()
-        network_settings = {"host":"shuffle.imaginary.cash", "port":8080, "ssl":True, "network":window.network}
-        # network_settings = {"host":"localhost", "port":8080, "ssl":False, "network":window.network}
+        # network_settings = {"host":"shuffle.imaginary.cash", "port":8080, "ssl":True, "network":window.network}
+        network_settings = {"host":"localhost", "port":8080, "ssl":False, "network":window.network}
+        password = None
         while window.wallet.has_password():
             password = window.password_dialog(parent=window)
             if password is None:
