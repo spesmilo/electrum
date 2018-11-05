@@ -57,7 +57,8 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            UnknownBaseUnit, DECIMAL_POINT_DEFAULT)
 from electrum.transaction import Transaction, TxOutput
 from electrum.address_synchronizer import AddTransactionException
-from electrum.wallet import Multisig_Wallet, CannotBumpFee, Abstract_Wallet
+from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
+                             sweep_preparations)
 from electrum.version import ELECTRUM_VERSION
 from electrum.network import Network
 from electrum.exchange_rate import FxThread
@@ -2601,19 +2602,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         address_e.textChanged.connect(on_address)
         if not d.exec_():
             return
-        from electrum.wallet import sweep_preparations
+        # user pressed "sweep"
         try:
-            self.do_clear()
             coins, keypairs = sweep_preparations(get_pk(), self.network)
-            self.tx_external_keypairs = keypairs
-            self.spend_coins(coins)
-            self.payto_e.setText(get_address())
-            self.spend_max()
-            self.payto_e.setFrozen(True)
-            self.amount_e.setFrozen(True)
         except Exception as e:  # FIXME too broad...
+            #traceback.print_exc(file=sys.stderr)
             self.show_message(str(e))
             return
+        self.do_clear()
+        self.tx_external_keypairs = keypairs
+        self.spend_coins(coins)
+        self.payto_e.setText(get_address())
+        self.spend_max()
+        self.payto_e.setFrozen(True)
+        self.amount_e.setFrozen(True)
         self.warn_if_watching_only()
 
     def _do_import(self, title, header_layout, func):
