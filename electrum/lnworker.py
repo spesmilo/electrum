@@ -36,6 +36,7 @@ from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      NUM_MAX_EDGES_IN_PAYMENT_PATH)
 from .i18n import _
 from .lnrouter import RouteEdge, is_route_sane_to_use
+from .address_synchronizer import TX_HEIGHT_LOCAL
 
 if TYPE_CHECKING:
     from .network import Network
@@ -173,7 +174,8 @@ class LNWorker(PrintError):
             return
         chan.set_funding_txo_spentness(is_spent)
         if is_spent:
-            chan.set_state("CLOSED")
+            if chan.get_state() != 'FORCE_CLOSING':
+                chan.set_state("CLOSED")
             self.channel_db.remove_channel(chan.short_channel_id)
         self.network.trigger_callback('channel', chan)
 
@@ -207,6 +209,13 @@ class LNWorker(PrintError):
                     await peer.bitcoin_fee_update(chan)
                 conf = addr_sync.get_tx_height(chan.funding_outpoint.txid).conf
                 peer.on_network_update(chan, conf)
+            elif chan.get_state() == 'FORCE_CLOSING':
+                txid = chan.force_close_tx().txid()
+                height = addr_sync.get_tx_height(txid).height
+                self.print_error("force closing tx", txid, "height", height)
+                if height == TX_HEIGHT_LOCAL:
+                    self.print_error('REBROADCASTING CLOSING TX')
+                    await self.force_close_channel(chan.channel_id)
 
     async def _open_channel_coroutine(self, peer, local_amount_sat, push_sat, password):
         # peer might just have been connected to
@@ -450,8 +459,10 @@ class LNWorker(PrintError):
 
     async def force_close_channel(self, chan_id):
         chan = self.channels[chan_id]
-        peer = self.peers[chan.node_id]
-        return await peer.force_close_channel(chan_id)
+        tx = chan.force_close_tx()
+        chan.set_state('FORCE_CLOSING')
+        self.save_channel(chan)
+        return await self.network.broadcast_transaction(tx)
 
     def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
         now = time.time()

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import traceback
 import asyncio
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtWidgets import *
@@ -48,7 +49,8 @@ class ChannelsList(MyTreeWidget):
         def on_success(txid):
             self.main_window.show_error('Channel closed' + '\n' + txid)
         def on_failure(exc_info):
-            type_, e, traceback = exc_info
+            type_, e, tb = exc_info
+            traceback.print_tb(tb)
             self.main_window.show_error('Failed to close channel:\n{}'.format(repr(e)))
         def close():
             def task():
