@@ -199,6 +199,11 @@ class TestChannel(unittest.TestCase):
         alice_channel, bob_channel = self.alice_channel, self.bob_channel
         htlc = self.htlc
 
+        ctn_to_htlcs = alice_channel.included_htlcs_in_latest_ctxs()
+        self.assertEqual(list(ctn_to_htlcs.keys()), [0,1])
+        self.assertEqual(ctn_to_htlcs[0], [])
+        self.assertEqual(ctn_to_htlcs[1], [htlc])
+
         # Next alice commits this change by sending a signature message. Since
         # we expect the messages to be ordered, Bob will receive the HTLC we
         # just sent before he receives this signature, so the signature will
@@ -273,6 +278,12 @@ class TestChannel(unittest.TestCase):
         alice_channel.receive_htlc_settle(preimage, self.aliceHtlcIndex)
 
         bobSig2, bobHtlcSigs2 = bob_channel.sign_next_commitment()
+
+        ctn_to_htlcs = bob_channel.included_htlcs_in_latest_ctxs()
+        self.assertEqual(list(ctn_to_htlcs.keys()), [1,2])
+        self.assertEqual(len(ctn_to_htlcs[1]), 1)
+        self.assertEqual(len(ctn_to_htlcs[2]), 0)
+
         alice_channel.receive_new_commitment(bobSig2, bobHtlcSigs2)
 
         aliceRevocation2, _ = alice_channel.revoke_current_commitment()
