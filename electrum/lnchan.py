@@ -187,7 +187,11 @@ class Channel(PrintError):
         self.remote_commitment = self.pending_remote_commitment
 
         self._is_funding_txo_spent = None  # "don't know"
-        self.set_state('DISCONNECTED')
+        self._state = None
+        if state.get('force_closed', False):
+            self.set_state('FORCE_CLOSING')
+        else:
+            self.set_state('DISCONNECTED')
 
         self.lnwatcher = None
 
@@ -197,6 +201,8 @@ class Channel(PrintError):
             self.log[sub].locked_in.update(self.log[sub].adds.keys())
 
     def set_state(self, state: str):
+        if self._state == 'FORCE_CLOSING':
+            assert state == 'FORCE_CLOSING', 'new state was not FORCE_CLOSING: ' + state
         self._state = state
 
     def get_state(self):
@@ -713,6 +719,7 @@ class Channel(PrintError):
                 "onion_keys": str_bytes_dict_to_save(self.onion_keys),
                 "settled_local": self.settled[LOCAL],
                 "settled_remote": self.settled[REMOTE],
+                "force_closed": self.get_state() == 'FORCE_CLOSING',
         }
 
         # htlcs number must be monotonically increasing,
@@ -806,6 +813,7 @@ class Channel(PrintError):
 
     def make_closing_tx(self, local_script: bytes, remote_script: bytes,
                         fee_sat: Optional[int]=None) -> Tuple[bytes, int, str]:
+        """ cooperative close """
         if fee_sat is None:
             fee_sat = self.pending_local_fee
 
@@ -829,6 +837,21 @@ class Channel(PrintError):
         der_sig = bfh(closing_tx.sign_txin(0, self.config[LOCAL].multisig_key.privkey))
         sig = ecc.sig_string_from_der_sig(der_sig[:-1])
         return sig, fee_sat, closing_tx.txid()
+
+    def force_close_tx(self):
+        # local_commitment always gives back the next expected local_commitment,
+        # but in this case, we want the current one. So substract one ctn number
+        old_local_state = self.config[LOCAL]
+        self.config[LOCAL]=self.config[LOCAL]._replace(ctn=self.config[LOCAL].ctn - 1)
+        tx = self.pending_local_commitment
+        self.config[LOCAL] = old_local_state
+        tx.sign({bh2u(self.config[LOCAL].multisig_key.pubkey): (self.config[LOCAL].multisig_key.privkey, True)})
+        remote_sig = self.config[LOCAL].current_commitment_signature
+        remote_sig = ecc.der_sig_from_sig_string(remote_sig) + b"\x01"
+        none_idx = tx._inputs[0]["signatures"].index(None)
+        tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
+        assert tx.is_complete()
+        return tx
 
 def maybe_create_sweeptx_for_their_ctx_to_remote(chan, ctx, their_pcp: bytes,
                                                  sweep_address) -> Optional[EncumberedTransaction]:
