@@ -390,7 +390,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             wallet.add_hw_info(tx)
 
         # wallet.add_hw_info installs this attr
-        assert tx.output_info, 'need data about outputs'
+        assert tx.output_info is not None, 'need data about outputs'
 
         # Build map of pubkey needed as derivation from master, in PSBT binary format
         # 1) binary version of the common subpath for all keys
