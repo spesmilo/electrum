@@ -74,29 +74,29 @@ def set_coins(win, selected):
     win.parent.tabs.setCurrentWidget(win.parent.cs_tab)
 
 
-def create_coins_menu(win, position):
-    selected = [x.data(0, Qt.UserRole) for x in win.selectedItems()]
-    if not selected:
-        return
-    menu = QMenu()
-    coins = filter(lambda x: win.get_name(x) in selected, win.utxos)
-
-    menu.addAction(_("Spend"), lambda: win.parent.spend_coins(coins))
-    if len(selected) == 1:
-        txid = selected[0].split(':')[0]
-        tx = win.wallet.transactions.get(txid)
-        menu.addAction(_("Details"), lambda: win.parent.show_transaction(tx))
-
-    if len(selected) > 0:
-        selected_coins = [utxo for utxo in win.wallet.get_utxos()
-                          if "{}:{}".format(utxo['prevout_hash'],utxo['prevout_n']) in selected]
-        selected_amount = sum(utxo['value'] for utxo in selected_coins)
-        is_enough_for_shuffling = selected_amount >= win.parent.cs_tab.get_sufficient_amount()
-        is_not_shuffle_now = not win.parent.cs_tab.coinshuffle_cancel_button.isEnabled()
-        if is_enough_for_shuffling and is_not_shuffle_now:
-            menu.addAction(_("Shuffle"), lambda : set_coins(win, selected))
-
-    menu.exec_(win.viewport().mapToGlobal(position))
+# def create_coins_menu(win, position):
+#     selected = [x.data(0, Qt.UserRole) for x in win.selectedItems()]
+#     if not selected:
+#         return
+#     menu = QMenu()
+#     coins = filter(lambda x: win.get_name(x) in selected, win.utxos)
+#
+#     menu.addAction(_("Spend"), lambda: win.parent.spend_coins(coins))
+#     if len(selected) == 1:
+#         txid = selected[0].split(':')[0]
+#         tx = win.wallet.transactions.get(txid)
+#         menu.addAction(_("Details"), lambda: win.parent.show_transaction(tx))
+#
+#     if len(selected) > 0:
+#         selected_coins = [utxo for utxo in win.wallet.get_utxos()
+#                           if "{}:{}".format(utxo['prevout_hash'],utxo['prevout_n']) in selected]
+#         selected_amount = sum(utxo['value'] for utxo in selected_coins)
+#         is_enough_for_shuffling = selected_amount >= win.parent.cs_tab.get_sufficient_amount()
+#         is_not_shuffle_now = not win.parent.cs_tab.coinshuffle_cancel_button.isEnabled()
+#         if is_enough_for_shuffling and is_not_shuffle_now:
+#             menu.addAction(_("Shuffle"), lambda : set_coins(win, selected))
+#
+#     menu.exec_(win.viewport().mapToGlobal(position))
 
 def is_coin_shuffled(wallet, coin):
     txs = wallet.storage.get("transactions", {})
@@ -131,22 +131,28 @@ def on_utxo_list_update(utxo_list):
     utxo_labels = {}
     queued_labels = {}
     in_progress = {}
+    wait_for_others = {}
     too_big_labels = {}
     dust_labels = {}
+    not_confirmed = {}
     for utxo in utxo_list.utxos:
         name = utxo_list.get_name(utxo)
         short_name = name[0:10] + '...' + name[-2:]
-        utxo_labels[short_name] = utxo_list.wallet.is_coin_shuffled(utxo)
-        in_progress[short_name] = name in utxo_list.in_progress
+        utxo_labels[short_name] = utxo_list.wallet.is_coin_shuffled(utxo) # is it optimal to do so?
+        in_progress[short_name] = utxo_list.in_progress.get(name) == 'in progress'
+        wait_for_others[short_name] = utxo_list.in_progress.get(name) == "wait for others"
         queued_labels[short_name] = utxo['value'] > 10000 and utxo['value']<1000000000
         too_big_labels[short_name] = utxo['value'] >= 1000000000
         dust_labels[short_name] = utxo['value'] <= 10000
+        not_confirmed[short_name] = utxo['height'] <= 0
     # shuffle_icon = QIcon(":shuffle_tab_ico.png")
     for index in range(utxo_list.topLevelItemCount()):
         item = utxo_list.topLevelItem(index)
         label = item.data(4, Qt.DisplayRole)
         if utxo_labels[label]:
             item.setData(5, Qt.DisplayRole, "shuffled")
+        elif not_confirmed[label]:
+            item.setData(5, Qt.DisplayRole, "not confirmed")
         elif queued_labels[label]:
             item.setData(5, Qt.DisplayRole, "in queue")
         elif too_big_labels[label]:
@@ -155,28 +161,35 @@ def on_utxo_list_update(utxo_list):
             item.setData(5, Qt.DisplayRole, "too small coin")
         if in_progress[label]:
             item.setData(5, Qt.DisplayRole, "in progress")
+        if wait_for_others[label]:
+            item.setData(5, Qt.DisplayRole, "wait for others")
 
 
 def update_coin_status(window, coin_name, msg):
     if coin_name not in ["MAINLOG", "PROTOCOL"]:
         if msg.startswith("Player") and coin_name not in window.utxo_list.in_progress:
             if "get session number" in msg:
-                window.utxo_list.in_progress.append(coin_name)
+                window.utxo_list.in_progress[coin_name] = 'wait for others'
                 window.utxo_list.on_update()
-            pass
+        elif msg.startswith("Player"):
+            if "begins CoinShuffle protocol" in msg:
+                window.utxo_list.in_progress[coin_name] = 'in progress'
+                window.utxo_list.on_update()
         elif msg.startswith("Error"):
             if coin_name in window.utxo_list.in_progress:
-                window.utxo_list.in_progress.remove(coin_name)
+                del window.utxo_list.in_progress[coin_name]
                 window.utxo_list.on_update()
         elif msg.endswith("complete protocol"):
-            window.utxo_list.in_progress.remove(coin_name)
-            window.utxo_list.on_update()
+            if coin_name in window.utxo_list.in_progress:
+                del window.utxo_list.in_progress[coin_name]
+                window.utxo_list.on_update()
         elif msg.startswith("Blame") and "insufficient" not in message and "wrong hash" not in message:
-            window.utxo_list.in_progress.remove(coin_name)
-            window.utxo_list.on_update()
+            if coin_name in window.utxo_list.in_progress:
+                del window.utxo_list.in_progress[coin_name]
+                window.utxo_list.on_update()
     else:
         if msg == "stopped":
-            window.utxo_list.in_progress = []
+            window.utxo_list.in_progress = {}
             window.utxo_list.on_update()
 
 
@@ -212,7 +225,7 @@ def modify_utxo_list(window):
     window.utxo_list.setHeaderLabels(header_labels)
     window.utxo_list.on_update_backup = window.utxo_list.on_update
     window.utxo_list.on_update = lambda: on_utxo_list_update(window.utxo_list)
-    window.utxo_list.in_progress = []
+    window.utxo_list.in_progress = {}
 
 def restore_utxo_list(window):
     header = window.utxo_list.headerItem()

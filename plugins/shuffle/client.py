@@ -390,6 +390,8 @@ class BackgroundShufflingThread(threading.Thread):
                 self.logger.send(message, sender)
             elif "get session number" in message:
                 self.logger.send(message, sender)
+            elif "begins CoinShuffle protocol" in message:
+                self.logger.send(message, sender)    
             elif message.startswith("Blame"):
                 if "insufficient" in message:
                     pass
