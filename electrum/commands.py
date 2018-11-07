@@ -806,6 +806,10 @@ class Commands:
     def clear_ln_blacklist(self):
         self.network.path_finder.blacklist.clear()
 
+    @command('w')
+    def listinvoices(self):
+        return "\n".join(self.wallet.lnworker.list_invoices())
+
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
     if x == 'true': return True

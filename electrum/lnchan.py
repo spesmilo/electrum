@@ -26,7 +26,7 @@ from collections import namedtuple, defaultdict
 import binascii
 import json
 from enum import Enum, auto
-from typing import Optional, Dict, List, Tuple, NamedTuple, Set
+from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Iterable
 from copy import deepcopy
 
 from .util import bfh, PrintError, bh2u
@@ -52,7 +52,9 @@ class ChannelJsonEncoder(json.JSONEncoder):
             return binascii.hexlify(o).decode("ascii")
         if isinstance(o, RevocationStore):
             return o.serialize()
-        return super(ChannelJsonEncoder, self)
+        if isinstance(o, set):
+            return list(o)
+        return super().default(o)
 
 RevokeAndAck = namedtuple("RevokeAndAck", ["per_commitment_secret", "next_per_commitment_point"])
 
@@ -144,7 +146,11 @@ class Channel(PrintError):
         except:
             return super().diagnostic_name()
 
-    def __init__(self, state, name = None):
+    def __init__(self, state, name = None, payment_completed : Optional[Callable[[HTLCOwner, UpdateAddHtlc, bytes], None]] = None):
+        self.preimages = {}
+        if not payment_completed:
+            payment_completed = lambda x: None
+        self.payment_completed = payment_completed
         assert 'local_state' not in state
         self.config = {}
         self.config[LOCAL] = state["local_config"]
@@ -495,6 +501,11 @@ class Channel(PrintError):
                 adds = self.log[subject].adds
                 htlc = adds.pop(htlc_id)
                 self.settled[subject].append(htlc.amount_msat)
+                if subject == LOCAL:
+                    preimage = self.preimages.pop(htlc_id)
+                else:
+                    preimage = None
+                self.payment_completed(subject, htlc, preimage)
             self.log[subject].settles.clear()
 
             return old_amount - htlcsum(self.htlcs(subject, False))
@@ -647,6 +658,7 @@ class Channel(PrintError):
         htlc = log.adds[htlc_id]
         assert htlc.payment_hash == sha256(preimage)
         assert htlc_id not in log.settles
+        self.preimages[htlc_id] = preimage
         log.settles.add(htlc_id)
         # we don't save the preimage because we don't need to forward it anyway
 
