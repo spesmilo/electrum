@@ -26,7 +26,7 @@ from .transaction import Transaction, TxOutput
 from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment,
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailureMessage)
 from .lnchan import Channel, RevokeAndAck, htlcsum
-from .lnutil import (Outpoint, LocalConfig, ChannelConfig,
+from .lnutil import (Outpoint, LocalConfig,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_per_commitment_secret_from_seed,
                      secret_to_pubkey, LNPeerAddr, PaymentFailure, LnLocalFeatures,
@@ -381,7 +381,7 @@ class Peer(PrintError):
                 chan.set_state('DISCONNECTED')
             self.network.trigger_callback('channel', chan)
 
-    def make_local_config(self, funding_sat: int, push_msat: int, initiator: HTLCOwner) -> Tuple[ChannelConfig, bytes]:
+    def make_local_config(self, funding_sat: int, push_msat: int, initiator: HTLCOwner) -> LocalConfig:
         # key derivation
         channel_counter = self.lnworker.get_and_inc_counter_for_channel_keys()
         keypair_generator = lambda family: generate_keypair(self.lnworker.ln_keystore, family, channel_counter)
@@ -389,7 +389,7 @@ class Peer(PrintError):
             initial_msat = funding_sat * 1000 - push_msat
         else:
             initial_msat = push_msat
-        local_config=ChannelConfig(
+        local_config=LocalConfig(
             payment_basepoint=keypair_generator(LnKeyFamily.PAYMENT_BASE),
             multisig_key=keypair_generator(LnKeyFamily.MULTISIG),
             htlc_basepoint=keypair_generator(LnKeyFamily.HTLC_BASE),
@@ -404,9 +404,13 @@ class Peer(PrintError):
             next_htlc_id=0,
             amount_msat=initial_msat,
             reserve_sat=546,
+            per_commitment_secret_seed=keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey,
+            funding_locked_received=False,
+            was_announced=False,
+            current_commitment_signature=None,
+            current_htlc_signatures=[],
         )
-        per_commitment_secret_seed = keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey
-        return local_config, per_commitment_secret_seed
+        return local_config
 
     @log_exceptions
     async def channel_establishment_flow(self, password: Optional[str], funding_sat: int,
@@ -417,9 +421,10 @@ class Peer(PrintError):
                                       password, self.lnworker.config, nonlocal_only=True)
         await self.initialized
         feerate = self.current_feerate_per_kw()
-        local_config, per_commitment_secret_seed = self.make_local_config(funding_sat, push_msat, LOCAL)
+        local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
         # for the first commitment transaction
-        per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, RevocationStore.START_INDEX)
+        per_commitment_secret_first = get_per_commitment_secret_from_seed(local_config.per_commitment_secret_seed,
+                                                                          RevocationStore.START_INDEX)
         per_commitment_point_first = secret_to_pubkey(int.from_bytes(per_commitment_secret_first, 'big'))
         self.send_message(
             "open_channel",
@@ -488,14 +493,7 @@ class Peer(PrintError):
                 "short_channel_id": None,
                 "funding_outpoint": Outpoint(funding_txid, funding_index),
                 "remote_config": remote_config,
-                "local_config": LocalConfig(
-                    **local_config._asdict(),
-                    per_commitment_secret_seed=per_commitment_secret_seed,
-                    funding_locked_received = False,
-                    was_announced = False,
-                    current_commitment_signature = None,
-                    current_htlc_signatures = None,
-                ),
+                "local_config": local_config,
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth, feerate=feerate),
                 "remote_commitment_to_be_revoked": None,
         }
@@ -530,12 +528,11 @@ class Peer(PrintError):
         feerate = int.from_bytes(payload['feerate_per_kw'], 'big')
 
         temp_chan_id = payload['temporary_channel_id']
-        local_config, per_commitment_secret_seed = self.make_local_config(funding_sat * 1000, push_msat, REMOTE)
-
+        local_config = self.make_local_config(funding_sat * 1000, push_msat, REMOTE)
         # for the first commitment transaction
-        per_commitment_secret_first = get_per_commitment_secret_from_seed(per_commitment_secret_seed, RevocationStore.START_INDEX)
+        per_commitment_secret_first = get_per_commitment_secret_from_seed(local_config.per_commitment_secret_seed,
+                                                                          RevocationStore.START_INDEX)
         per_commitment_point_first = secret_to_pubkey(int.from_bytes(per_commitment_secret_first, 'big'))
-
         min_depth = 3
         self.send_message('accept_channel',
             temporary_channel_id=temp_chan_id,
@@ -586,14 +583,7 @@ class Peer(PrintError):
                     current_per_commitment_point=None,
                     revocation_store=their_revocation_store,
                 ),
-                "local_config": LocalConfig(
-                    **local_config._asdict(),
-                    per_commitment_secret_seed=per_commitment_secret_seed,
-                    funding_locked_received = False,
-                    was_announced = False,
-                    current_commitment_signature = None,
-                    current_htlc_signatures = None,
-                ),
+                "local_config": local_config,
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth, feerate=feerate),
                 "remote_commitment_to_be_revoked": None,
         }
