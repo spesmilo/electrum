@@ -193,7 +193,7 @@ class TestChannel(unittest.TestCase):
         bob_idx = self.bob_channel.add_htlc(self.htlc_dict)
         alice_idx = self.alice_channel.receive_htlc(self.htlc_dict)
         self.alice_channel.receive_new_commitment(*self.bob_channel.sign_next_commitment())
-        self.assertEquals(len(self.alice_channel.pending_remote_commitment.outputs()), 3)
+        self.assertEqual(len(self.alice_channel.pending_remote_commitment.outputs()), 3)
 
     def test_SimpleAddSettleWorkflow(self):
         alice_channel, bob_channel = self.alice_channel, self.bob_channel
