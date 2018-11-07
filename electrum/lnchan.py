@@ -149,7 +149,7 @@ class Channel(PrintError):
     def __init__(self, state, name = None, payment_completed : Optional[Callable[[HTLCOwner, UpdateAddHtlc, bytes], None]] = None):
         self.preimages = {}
         if not payment_completed:
-            payment_completed = lambda x: None
+            payment_completed = lambda x, y, z: None
         self.payment_completed = payment_completed
         assert 'local_state' not in state
         self.config = {}
