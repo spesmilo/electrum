@@ -61,6 +61,19 @@ class MockNetwork:
         if self.tx_queue:
             await self.tx_queue.put(tx)
 
+class MockStorage:
+    def put(self, key, value):
+        pass
+
+    def get(self, key, default=None):
+        pass
+
+    def write(self):
+        pass
+
+class MockWallet:
+    storage = MockStorage()
+
 class MockLNWorker:
     def __init__(self, remote_keypair, local_keypair, chan, tx_queue):
         self.chan = chan
@@ -69,6 +82,8 @@ class MockLNWorker:
         self.network = MockNetwork(tx_queue)
         self.channels = {self.chan.channel_id: self.chan}
         self.invoices = {}
+        self.paying = {}
+        self.wallet = MockWallet()
 
     @property
     def lock(self):
