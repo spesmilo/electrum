@@ -27,32 +27,53 @@ HTLC_SUCCESS_WEIGHT = 703
 Keypair = namedtuple("Keypair", ["pubkey", "privkey"])
 OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
 
-common = [
-    ('ctn' , int),
-    ('amount_msat' , int),
-    ('next_htlc_id' , int),
-    ('payment_basepoint' , Keypair),
-    ('multisig_key' , Keypair),
-    ('htlc_basepoint' , Keypair),
-    ('delayed_basepoint' , Keypair),
-    ('revocation_basepoint' , Keypair),
-    ('to_self_delay' , int),
-    ('dust_limit_sat' , int),
-    ('max_htlc_value_in_flight_msat' , int),
-    ('max_accepted_htlcs' , int),
-    ('initial_msat' , int),
-    ('reserve_sat', int),
-]
 
-ChannelConfig = NamedTuple('ChannelConfig', common)
+# NamedTuples cannot subclass NamedTuples :'(   https://github.com/python/typing/issues/427
+class LocalConfig(NamedTuple):
+    # shared channel config fields (DUPLICATED code!!)
+    ctn: int
+    amount_msat: int
+    next_htlc_id: int
+    payment_basepoint: 'Keypair'
+    multisig_key: 'Keypair'
+    htlc_basepoint: 'Keypair'
+    delayed_basepoint: 'Keypair'
+    revocation_basepoint: 'Keypair'
+    to_self_delay: int
+    dust_limit_sat: int
+    max_htlc_value_in_flight_msat: int
+    max_accepted_htlcs: int
+    initial_msat: int
+    reserve_sat: int
+    # specific to "LOCAL" config
+    per_commitment_secret_seed: bytes
+    funding_locked_received: bool
+    was_announced: bool
+    current_commitment_signature: Optional[bytes]
+    current_htlc_signatures: List[bytes]
 
-LocalConfig = NamedTuple('LocalConfig', common + [
-    ('per_commitment_secret_seed', bytes),
-    ('funding_locked_received', bool),
-    ('was_announced', bool),
-    ('current_commitment_signature', bytes),
-    ('current_htlc_signatures', List[bytes]),
-])
+
+class RemoteConfig(NamedTuple):
+    # shared channel config fields (DUPLICATED code!!)
+    ctn: int
+    amount_msat: int
+    next_htlc_id: int
+    payment_basepoint: 'Keypair'
+    multisig_key: 'Keypair'
+    htlc_basepoint: 'Keypair'
+    delayed_basepoint: 'Keypair'
+    revocation_basepoint: 'Keypair'
+    to_self_delay: int
+    dust_limit_sat: int
+    max_htlc_value_in_flight_msat: int
+    max_accepted_htlcs: int
+    initial_msat: int
+    reserve_sat: int
+    # specific to "REMOTE" config
+    next_per_commitment_point: bytes
+    revocation_store: 'RevocationStore'
+    current_per_commitment_point: Optional[bytes]
+
 
 ChannelConstraints = namedtuple("ChannelConstraints", ["capacity", "is_initiator", "funding_txn_minimum_depth", "feerate"])
 
@@ -129,11 +150,6 @@ class RevocationStore:
     def __hash__(self):
         return hash(json.dumps(self.serialize(), sort_keys=True))
 
-RemoteConfig = NamedTuple('RemoteConfig', common + [
-    ('next_per_commitment_point' , bytes),
-    ('revocation_store' , RevocationStore),
-    ('current_per_commitment_point' , bytes),
-])
 
 def count_trailing_zeros(index):
     """ BOLT-03 (where_to_put_secret) """
