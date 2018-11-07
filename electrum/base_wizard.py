@@ -538,8 +538,8 @@ class BaseWizard(object):
             _("Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period.")
         ])
         choices = [
-            ('create_standard_seed', _('Standard')),
             ('create_segwit_seed', _('Segwit')),
+            ('create_standard_seed', _('Standard')),
         ]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
