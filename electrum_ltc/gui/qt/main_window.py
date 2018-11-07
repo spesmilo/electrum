@@ -36,6 +36,7 @@ from decimal import Decimal
 import base64
 from functools import partial
 import queue
+import asyncio
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -1656,10 +1657,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.invoices.set_paid(pr, tx.txid())
                 self.invoices.save()
                 self.payment_request = None
-                refund_address = self.wallet.get_receiving_addresses()[0]
-                ack_status, ack_msg = pr.send_ack(str(tx), refund_address)
-                if ack_status:
-                    msg = ack_msg
+                refund_address = self.wallet.get_receiving_address()
+                coro = pr.send_payment_and_receive_paymentack(str(tx), refund_address)
+                fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+                ack_status, ack_msg = fut.result(timeout=20)
+                msg += f"\n\nPayment ACK: {ack_status}.\nAck message: {ack_msg}"
             return status, msg
 
         # Capture current TL window; override might be removed on return

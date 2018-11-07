@@ -788,7 +788,8 @@ class Transaction:
         return self
 
     @classmethod
-    def pay_script(self, output_type, addr):
+    def pay_script(self, output_type, addr: str) -> str:
+        """Returns scriptPubKey in hex form."""
         if output_type == TYPE_SCRIPT:
             return addr
         elif output_type == TYPE_ADDRESS:
@@ -1025,10 +1026,9 @@ class Transaction:
         if outputs:
             self._outputs.sort(key = lambda o: (o.value, self.pay_script(o.type, o.address)))
 
-    def serialize_output(self, output):
-        output_type, addr, amount = output
-        s = int_to_hex(amount, 8)
-        script = self.pay_script(output_type, addr)
+    def serialize_output(self, output: TxOutput) -> str:
+        s = int_to_hex(output.value, 8)
+        script = self.pay_script(output.type, output.address)
         s += var_int(len(script)//2)
         s += script
         return s
