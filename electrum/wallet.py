@@ -727,7 +727,8 @@ class Abstract_Wallet(AddressSynchronizer):
             return
         self.add_input_info(item)
         inputs = [item]
-        outputs = [TxOutput(TYPE_ADDRESS, address, value - fee)]
+        out_address = self.get_unused_address() or address
+        outputs = [TxOutput(TYPE_ADDRESS, out_address, value - fee)]
         locktime = self.get_local_height()
         return Transaction.from_io(inputs, outputs, locktime=locktime)
 
