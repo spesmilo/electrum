@@ -11,7 +11,7 @@ from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING
 import threading
 import socket
 import json
-from decimal import Decimal
+from datetime import datetime, timezone
 
 import dns.resolver
 import dns.exception
@@ -27,13 +27,13 @@ from .lntransport import LNResponderTransport
 from .lnbase import Peer
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
-from .lnchan import Channel, ChannelJsonEncoder
+from .lnchan import Channel, ChannelJsonEncoder, UpdateAddHtlc
 from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
                      generate_keypair, LnKeyFamily, LOCAL, REMOTE,
                      UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE,
-                     NUM_MAX_EDGES_IN_PAYMENT_PATH)
+                     NUM_MAX_EDGES_IN_PAYMENT_PATH, SENT, RECEIVED, HTLCOwner)
 from .i18n import _
 from .lnrouter import RouteEdge, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
@@ -55,10 +55,14 @@ FALLBACK_NODE_LIST_MAINNET = (
     LNPeerAddr('13.80.67.162', 9735, bfh('02c0ac82c33971de096d87ce5ed9b022c2de678f08002dc37fdb1b6886d12234b5')),   # Stampery
 )
 
+encoder = ChannelJsonEncoder()
+
 class LNWorker(PrintError):
 
     def __init__(self, wallet: 'Abstract_Wallet', network: 'Network'):
         self.wallet = wallet
+        # invoices we are currently trying to pay (might be pending HTLCs on a commitment transaction)
+        self.paying = self.wallet.storage.get('lightning_payments_inflight', {}) # type: Dict[bytes, Tuple[str, Optional[int]]]
         self.sweep_address = wallet.get_receiving_address()
         self.network = network
         self.channel_db = self.network.channel_db
@@ -67,7 +71,8 @@ class LNWorker(PrintError):
         self.node_keypair = generate_keypair(self.ln_keystore, LnKeyFamily.NODE_KEY, 0)
         self.config = network.config
         self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
-        self.channels = {x.channel_id: x for x in map(Channel, wallet.storage.get("channels", []))}  # type: Dict[bytes, Channel]
+        channels_map = map(lambda x: Channel(x, payment_completed=self.payment_completed), wallet.storage.get("channels", []))
+        self.channels = {x.channel_id: x for x in channels_map}  # type: Dict[bytes, Channel]
         for c in self.channels.values():
             c.lnwatcher = network.lnwatcher
             c.sweep_address = self.sweep_address
@@ -80,6 +85,79 @@ class LNWorker(PrintError):
         self.network.register_callback(self.on_network_update, ['wallet_updated', 'network_updated', 'verified', 'fee'])  # thread safe
         self.network.register_callback(self.on_channel_txo, ['channel_txo'])
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
+
+    def payment_completed(self, direction, htlc, preimage):
+        if direction == SENT:
+            assert htlc.payment_hash not in self.invoices
+            self.paying.pop(bh2u(htlc.payment_hash))
+            self.wallet.storage.put('lightning_payments_inflight', self.paying)
+        l = self.wallet.storage.get('lightning_payments_completed', [])
+        if not preimage:
+            preimage, _addr = self.get_invoice(htlc.payment_hash)
+        l.append((time.time(), direction, json.loads(encoder.encode(htlc)), bh2u(preimage)))
+        self.wallet.storage.put('lightning_payments_completed', l)
+        self.wallet.storage.write()
+
+    def list_invoices(self):
+        report = self._list_invoices()
+        if report['settled']:
+            yield 'Settled invoices:'
+            yield '-----------------'
+            for date, direction, htlc, preimage in sorted(report['settled']):
+                # astimezone converts to local time
+                # replace removes the tz info since we don't need to display it
+                yield 'Paid at: ' + date.astimezone().replace(tzinfo=None).isoformat(sep=' ', timespec='minutes')
+                yield 'We paid' if direction == SENT else 'They paid'
+                yield str(htlc)
+                yield 'Preimage: ' + (bh2u(preimage) if preimage else 'Not available') # if delete_invoice was called
+                yield ''
+        if report['unsettled']:
+            yield 'Your unsettled invoices:'
+            yield '------------------------'
+            for addr, preimage in report['unsettled']:
+                yield str(addr)
+                yield 'Preimage: ' + bh2u(preimage)
+                yield ''
+        if report['inflight']:
+            yield 'Outgoing payments in progress:'
+            yield '------------------------------'
+            for addr, htlc in report['inflight']:
+                yield str(addr)
+                yield str(htlc)
+                yield ''
+
+    def _list_invoices(self):
+        invoices  = dict(self.invoices)
+        completed = self.wallet.storage.get('lightning_payments_completed', [])
+        settled = []
+        unsettled = []
+        inflight = []
+        for date, direction, htlc, hex_preimage in completed:
+            htlcobj = UpdateAddHtlc(*htlc)
+            if direction == RECEIVED:
+                preimage = bfh(invoices.pop(bh2u(htlcobj.payment_hash))[0])
+            else:
+                preimage = bfh(hex_preimage)
+            # FIXME use fromisoformat when minimum Python is 3.7
+            settled.append((datetime.fromtimestamp(date, timezone.utc), HTLCOwner(direction), htlcobj, preimage))
+        for preimage, pay_req in invoices.values():
+            addr = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
+            unsettled.append((addr, bfh(preimage)))
+        for pay_req, amount_sat in self.paying.values():
+            addr = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
+            if amount_sat is not None:
+                addr.amount = Decimal(amount_sat) / COIN
+            htlc = self.find_htlc_for_addr(addr)
+            if not htlc:
+                self.print_error('Warning, in flight HTLC not found in any channel')
+            inflight.append((addr, htlc))
+        return {'settled': settled, 'unsettled': unsettled, 'inflight': inflight}
+
+    def find_htlc_for_addr(self, addr):
+        for chan in self.channels.values():
+            for htlc in chan.log[LOCAL].adds.values():
+                if htlc.payment_hash == addr.paymenthash:
+                    return htlc
 
     def _read_ln_keystore(self) -> BIP32_KeyStore:
         xprv = self.wallet.storage.get('lightning_privkey2')
@@ -280,6 +358,9 @@ class LNWorker(PrintError):
         addr = self._check_invoice(invoice, amount_sat)
         route = self._create_route_from_invoice(decoded_invoice=addr)
         peer = self.peers[route[0].node_id]
+        self.paying[bh2u(addr.paymenthash)] = (invoice, amount_sat)
+        self.wallet.storage.put('lightning_payments_inflight', self.paying)
+        self.wallet.storage.write()
         return addr, peer, self._pay_to_route(route, addr)
 
     async def _pay_to_route(self, route, addr):
@@ -437,13 +518,12 @@ class LNWorker(PrintError):
         self.wallet.storage.write()
 
     def list_channels(self):
-        encoder = ChannelJsonEncoder()
         with self.lock:
             # we output the funding_outpoint instead of the channel_id because lnd uses channel_point (funding outpoint) to identify channels
             for channel_id, chan in self.channels.items():
                 yield {
-                    'local_htlcs':  json.loads(encoder.encode(chan.log[LOCAL ])),
-                    'remote_htlcs': json.loads(encoder.encode(chan.log[REMOTE])),
+                    'local_htlcs':  json.loads(encoder.encode(chan.log[LOCAL ]._asdict())),
+                    'remote_htlcs': json.loads(encoder.encode(chan.log[REMOTE]._asdict())),
                     'channel_id': bh2u(chan.short_channel_id),
                     'channel_point': chan.funding_outpoint.to_str(),
                     'state': chan.get_state(),

@@ -499,7 +499,7 @@ class Peer(PrintError):
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=True, funding_txn_minimum_depth=funding_txn_minimum_depth, feerate=feerate),
                 "remote_commitment_to_be_revoked": None,
         }
-        chan = Channel(chan_dict)
+        chan = Channel(chan_dict, payment_completed=self.lnworker.payment_completed)
         chan.lnwatcher = self.lnwatcher
         chan.sweep_address = self.lnworker.sweep_address
         sig_64, _ = chan.sign_next_commitment()
@@ -597,7 +597,7 @@ class Peer(PrintError):
                 "constraints": ChannelConstraints(capacity=funding_sat, is_initiator=False, funding_txn_minimum_depth=min_depth, feerate=feerate),
                 "remote_commitment_to_be_revoked": None,
         }
-        chan = Channel(chan_dict)
+        chan = Channel(chan_dict, payment_completed=self.lnworker.payment_completed)
         chan.lnwatcher = self.lnwatcher
         chan.sweep_address = self.lnworker.sweep_address
         remote_sig = funding_created['signature']
