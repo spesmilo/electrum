@@ -162,11 +162,16 @@ class ElectrumWindow(App):
         self.switch_to('send')
         self.send_screen.set_URI(uri)
 
+    def set_ln_invoice(self, invoice):
+        self.switch_to('send')
+        self.send_screen.set_ln_invoice(invoice)
+
     def on_new_intent(self, intent):
-        if intent.getScheme() != 'bitcoin':
-            return
-        uri = intent.getDataString()
-        self.set_URI(uri)
+        data = intent.getDataString()
+        if intent.getScheme() == 'bitcoin':
+            self.set_URI(data)
+        elif intent.getScheme() == 'lightning':
+            self.set_ln_invoice(data)
 
     def on_language(self, instance, language):
         Logger.info('language: {}'.format(language))
@@ -354,6 +359,9 @@ class ElectrumWindow(App):
             return
         if data.startswith('bitcoin:'):
             self.set_URI(data)
+            return
+        if data.startswith('ln'):
+            self.set_ln_invoice(data)
             return
         # try to decode transaction
         from electrum.transaction import Transaction

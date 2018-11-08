@@ -97,6 +97,7 @@ class LNWorker(PrintError):
         l.append((time.time(), direction, json.loads(encoder.encode(htlc)), bh2u(preimage)))
         self.wallet.storage.put('lightning_payments_completed', l)
         self.wallet.storage.write()
+        self.network.trigger_callback('ln_payment_completed', direction, htlc, preimage)
 
     def list_invoices(self):
         report = self._list_invoices()
