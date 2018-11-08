@@ -13,7 +13,7 @@ from electrum.keystore import Hardware_KeyStore, xpubkey_to_pubkey, Xpub
 from electrum.transaction import Transaction
 from electrum.wallet import Standard_Wallet
 from electrum.crypto import hash_160
-from electrum.util import print_error, bfh, bh2u, versiontuple
+from electrum.util import print_error, bfh, bh2u, versiontuple, UserFacingException
 from electrum.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
@@ -190,8 +190,8 @@ class CKCCClient:
         try:
             __, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub)
         except InvalidMasterKeyVersionBytes:
-            raise Exception(_('Invalid xpub magic. Make sure your {} device is set to the correct chain.')
-                            .format(self.device)) from None
+            raise UserFacingException(_('Invalid xpub magic. Make sure your {} device is set to the correct chain.')
+                                      .format(self.device)) from None
         if xtype != 'standard':
             xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
         return xpub
@@ -305,7 +305,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             self.ux_busy = False
         if clear_client:
             self.client = None
-        raise Exception(message)
+        raise UserFacingException(message)
 
     def wrap_busy(func):
         # decorator: function takes over the UX on the device.
@@ -318,7 +318,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         return wrapper
 
     def decrypt_message(self, pubkey, message, password):
-        raise RuntimeError(_('Encryption and decryption are currently not supported for {}').format(self.device))
+        raise UserFacingException(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
     @wrap_busy
     def sign_message(self, sequence, message, password):
@@ -650,8 +650,8 @@ class ColdcardPlugin(HW_PluginBase):
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
         if client is None:
-            raise Exception(_('Failed to create a client for this device.') + '\n' +
-                            _('Make sure it is in the correct state.'))
+            raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
+                                      _('Make sure it is in the correct state.'))
         client.handler = self.create_handler(wizard)
 
     def get_xpub(self, device_id, derivation, xtype, wizard):

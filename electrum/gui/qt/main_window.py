@@ -55,7 +55,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            export_meta, import_meta, bh2u, bfh, InvalidPassword,
                            base_units, base_units_list, base_unit_name_to_decimal_point,
                            decimal_point_to_base_unit_name, quantize_feerate,
-                           UnknownBaseUnit, DECIMAL_POINT_DEFAULT)
+                           UnknownBaseUnit, DECIMAL_POINT_DEFAULT, UserFacingException)
 from electrum.transaction import Transaction, TxOutput
 from electrum.address_synchronizer import AddTransactionException
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
@@ -300,12 +300,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.raise_()
 
     def on_error(self, exc_info):
-        if not isinstance(exc_info[1], UserCancelled):
+        e = exc_info[1]
+        if isinstance(e, UserCancelled):
+            pass
+        elif isinstance(e, UserFacingException):
+            self.show_error(str(e))
+        else:
             try:
                 traceback.print_exception(*exc_info)
             except OSError:
-                pass  # see #4418; try to at least show popup:
-            self.show_error(str(exc_info[1]))
+                pass  # see #4418
+            self.show_error(str(e))
 
     def on_network(self, event, *args):
         if event == 'wallet_updated':

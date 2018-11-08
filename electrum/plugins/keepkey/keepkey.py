@@ -2,7 +2,7 @@ from binascii import hexlify, unhexlify
 import traceback
 import sys
 
-from electrum.util import bfh, bh2u, UserCancelled
+from electrum.util import bfh, bh2u, UserCancelled, UserFacingException
 from electrum.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
 from electrum.bip32 import deserialize_xpub
 from electrum import constants
@@ -30,7 +30,7 @@ class KeepKey_KeyStore(Hardware_KeyStore):
         return self.plugin.get_client(self, force_pair)
 
     def decrypt_message(self, sequence, message, password):
-        raise RuntimeError(_('Encryption and decryption are not implemented by {}').format(self.device))
+        raise UserFacingException(_('Encryption and decryption are not implemented by {}').format(self.device))
 
     def sign_message(self, sequence, message, password):
         client = self.get_client()
@@ -50,7 +50,7 @@ class KeepKey_KeyStore(Hardware_KeyStore):
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
             tx_hash = txin['prevout_hash']
             if txin.get('prev_tx') is None and not Transaction.is_segwit_input(txin):
-                raise Exception(_('Offline signing with {} is not supported for legacy inputs.').format(self.device))
+                raise UserFacingException(_('Offline signing with {} is not supported for legacy inputs.').format(self.device))
             prev_tx[tx_hash] = txin['prev_tx']
             for x_pubkey in x_pubkeys:
                 if not is_xpubkey(x_pubkey):
@@ -138,7 +138,7 @@ class KeepKeyPlugin(HW_PluginBase):
             if handler:
                 handler.show_error(msg)
             else:
-                raise Exception(msg)
+                raise UserFacingException(msg)
             return None
 
         return client
@@ -242,8 +242,8 @@ class KeepKeyPlugin(HW_PluginBase):
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
         if client is None:
-            raise Exception(_('Failed to create a client for this device.') + '\n' +
-                            _('Make sure it is in the correct state.'))
+            raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
+                                      _('Make sure it is in the correct state.'))
         # fixme: we should use: client.handler = wizard
         client.handler = self.create_handler(wizard)
         if not device_info.initialized:

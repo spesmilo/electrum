@@ -32,7 +32,7 @@ from typing import NamedTuple, Any, Union, TYPE_CHECKING, Optional
 
 from .i18n import _
 from .util import (profiler, PrintError, DaemonThread, UserCancelled,
-                   ThreadJob, print_error)
+                   ThreadJob, print_error, UserFacingException)
 from . import bip32
 from . import plugins
 from .simple_config import SimpleConfig
@@ -500,6 +500,8 @@ class DeviceMgr(ThreadJob, PrintError):
                 continue
             try:
                 client = self.create_client(device, handler, plugin)
+            except UserFacingException:
+                raise
             except BaseException as e:
                 self.print_error(f'failed to create client for {plugin.name} at {device.path}: {repr(e)}')
                 continue
