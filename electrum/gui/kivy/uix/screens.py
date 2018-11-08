@@ -1,8 +1,10 @@
+import asyncio
 from weakref import ref
 from decimal import Decimal
 import re
 import datetime
 import traceback, sys
+from enum import Enum, auto
 
 from kivy.app import App
 from kivy.cache import Cache
@@ -19,17 +21,24 @@ from kivy.factory import Factory
 from kivy.utils import platform
 
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
-from electrum import bitcoin
+from electrum import bitcoin, constants
 from electrum.transaction import TxOutput
 from electrum.util import send_exception_to_crash_reporter
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
+from electrum.lnaddr import lndecode
+from electrum.lnutil import RECEIVED, SENT
 
 from .context_menu import ContextMenu
 
 
 from electrum.gui.kivy.i18n import _
+
+class Destination(Enum):
+    Address = auto()
+    PR = auto()
+    LN = auto()
 
 class HistoryRecycleView(RecycleView):
     pass
@@ -184,7 +193,19 @@ class SendScreen(CScreen):
         self.screen.message = uri.get('message', '')
         self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
         self.payment_request = None
-        self.screen.is_pr = False
+        self.screen.destinationtype = Destination.Address
+
+    def set_ln_invoice(self, invoice):
+        try:
+            lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        except Exception as e:
+            self.app.show_info(invoice + _(" is not a valid Lightning invoice: ") + repr(e)) # repr because str(Exception()) == ''
+            return
+        self.screen.address = invoice
+        self.screen.message = dict(lnaddr.tags).get('d', None)
+        self.screen.amount = self.app.format_amount_and_units(lnaddr.amount * bitcoin.COIN) if lnaddr.amount else ''
+        self.payment_request = None
+        self.screen.destinationtype = Destination.LN
 
     def update(self):
         if self.app.wallet and self.payment_request_queued:
@@ -196,7 +217,7 @@ class SendScreen(CScreen):
         self.screen.message = ''
         self.screen.address = ''
         self.payment_request = None
-        self.screen.is_pr = False
+        self.screen.destinationtype = Destination.Address
 
     def set_request(self, pr):
         self.screen.address = pr.get_requestor()
@@ -204,16 +225,16 @@ class SendScreen(CScreen):
         self.screen.amount = self.app.format_amount_and_units(amount) if amount else ''
         self.screen.message = pr.get_memo()
         if pr.is_pr():
-            self.screen.is_pr = True
+            self.screen.destinationtype = Destination.PR
             self.payment_request = pr
         else:
-            self.screen.is_pr = False
+            self.screen.destinationtype = Destination.Address
             self.payment_request = None
 
     def do_save(self):
         if not self.screen.address:
             return
-        if self.screen.is_pr:
+        if self.screen.destinationtype == Destination.PR:
             # it should be already saved
             return
         # save address as invoice
@@ -226,10 +247,10 @@ class SendScreen(CScreen):
         self.app.wallet.invoices.add(pr)
         self.app.show_info(_("Invoice saved"))
         if pr.is_pr():
-            self.screen.is_pr = True
+            self.screen.destinationtype = Destination.PR
             self.payment_request = pr
         else:
-            self.screen.is_pr = False
+            self.screen.destinationtype = Destination.Address
             self.payment_request = None
 
     def do_paste(self):
@@ -237,10 +258,42 @@ class SendScreen(CScreen):
         if not contents:
             self.app.show_info(_("Clipboard is empty"))
             return
-        self.set_URI(contents)
+        if contents.startswith('ln'):
+            self.set_ln_invoice(contents.rstrip())
+        else:
+            self.set_URI(contents)
+
+    def _do_send_lightning(self):
+        if not self.screen.amount:
+            self.app.show_error(_('Since the invoice contained no amount, you must enter one'))
+            return
+        invoice = self.screen.address
+        amount_sat = self.app.get_amount(self.screen.amount)
+        try:
+            addr = self.app.wallet.lnworker._check_invoice(invoice, amount_sat)
+            route = self.app.wallet.lnworker._create_route_from_invoice(decoded_invoice=addr)
+        except Exception as e:
+            self.app.show_error(_('Could not find path for payment. Check if you have open channels. Error details:') + ':\n' + repr(e))
+        self.app.network.register_callback(self.payment_completed_async_thread, ['ln_payment_completed'])
+        _addr, _peer, coro = self.app.wallet.lnworker._pay(invoice, amount_sat)
+        fut = asyncio.run_coroutine_threadsafe(coro, self.app.network.asyncio_loop)
+        fut.add_done_callback(self.ln_payment_result)
+
+    def payment_completed_async_thread(self, event, direction, htlc, preimage):
+        Clock.schedule_once(lambda dt: self.payment_completed(direction, htlc, preimage))
+
+    def payment_completed(self, direction, htlc, preimage):
+        self.app.show_info(_('Payment received') if direction == RECEIVED else _('Payment sent'))
+
+    def ln_payment_result(self, fut):
+        if fut.exception():
+            self.app.show_error(_('Lightning payment failed:') + '\n' + repr(fut.exception()))
 
     def do_send(self):
-        if self.screen.is_pr:
+        if self.screen.destinationtype == Destination.LN:
+            self._do_send_lightning()
+            return
+        elif self.screen.destinationtype == Destination.PR:
             if self.payment_request.has_expired():
                 self.app.show_error(_('Payment request has expired'))
                 return
