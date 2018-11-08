@@ -280,6 +280,7 @@ class Plugin(BasePlugin):
 
     @hook
     def on_new_window(self, window):
+        window.update_cashshuffle_icon()
         window.cs_tab = None
         self.windows.append(window)
         modify_utxo_list(window)
@@ -287,8 +288,8 @@ class Plugin(BasePlugin):
         # console modification
         window.console.updateNamespace({"start_background_shuffling": lambda *args, **kwargs: start_background_shuffling(window, *args, **kwargs)})
         window.utxo_list.on_update()
-        network_settings = {"host":"shuffle.imaginary.cash", "port":8080, "ssl":True, "network":window.network}
-        # network_settings = {"host":"localhost", "port":8080, "ssl":False, "network":window.network}
+        # network_settings = {"host":"shuffle.imaginary.cash", "port":8080, "ssl":True, "network":window.network}
+        network_settings = {"host":"localhost", "port":8080, "ssl":False, "network":window.network}
         password = None
         while window.wallet.has_password():
             password = window.password_dialog(parent=window)
@@ -315,6 +316,7 @@ class Plugin(BasePlugin):
             if window.console.namespace.get("start_background_shuffling", None):
                 del window.console.namespace["start_background_shuffling"]
             window.utxo_list.on_update()
+            window.update_cashshuffle_icon()
 
 
 
