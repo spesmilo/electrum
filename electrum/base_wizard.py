@@ -334,12 +334,14 @@ class BaseWizard(object):
             # There is no general standard for HD multisig.
             # For legacy, this is partially compatible with BIP45; assumes index=0
             # For segwit, a custom path is used, as there is no standard at all.
+            default_choice_idx = 2
             choices = [
                 ('standard',   'legacy multisig (p2sh)',            "m/45'/0"),
                 ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
                 ('p2wsh',      'native segwit multisig (p2wsh)',    purpose48_derivation(0, xtype='p2wsh')),
             ]
         else:
+            default_choice_idx = 2
             choices = [
                 ('standard',    'legacy (p2pkh)',            bip44_derivation(0, bip43_purpose=44)),
                 ('p2wpkh-p2sh', 'p2sh-segwit (p2wpkh-p2sh)', bip44_derivation(0, bip43_purpose=49)),
@@ -349,7 +351,8 @@ class BaseWizard(object):
             try:
                 self.choice_and_line_dialog(
                     run_next=f, title=_('Script type and Derivation path'), message1=message1,
-                    message2=message2, choices=choices, test_text=is_bip32_derivation)
+                    message2=message2, choices=choices, test_text=is_bip32_derivation,
+                    default_choice_idx=default_choice_idx)
                 return
             except ScriptTypeNotSupported as e:
                 self.show_error(e)
@@ -539,7 +542,7 @@ class BaseWizard(object):
         ])
         choices = [
             ('create_segwit_seed', _('Segwit')),
-            ('create_standard_seed', _('Standard')),
+            ('create_standard_seed', _('Legacy')),
         ]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 
