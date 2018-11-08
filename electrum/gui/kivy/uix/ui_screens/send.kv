@@ -1,4 +1,5 @@
 #:import _ electrum.gui.kivy.i18n._
+#:import Destination electrum.gui.kivy.uix.screens.Destination
 #:import Decimal decimal.Decimal
 #:set btc_symbol chr(171)
 #:set mbtc_symbol chr(187)
@@ -11,7 +12,7 @@ SendScreen:
     address: ''
     amount: ''
     message: ''
-    is_pr: False
+    destinationtype: Destination.Address
     BoxLayout
         padding: '12dp', '12dp', '12dp', '12dp'
         spacing: '12dp'
@@ -36,7 +37,7 @@ SendScreen:
                     on_release: Clock.schedule_once(lambda dt: app.show_info(_('Copy and paste the recipient address using the Paste button, or use the camera to scan a QR code.')))
                     #on_release: Clock.schedule_once(lambda dt: app.popup_dialog('contacts'))
             CardSeparator:
-                opacity: int(not root.is_pr)
+                opacity: int(root.destinationtype == Destination.Address)
                 color: blue_bottom.foreground_color
             BoxLayout:
                 size_hint: 1, None
@@ -52,10 +53,10 @@ SendScreen:
                     id: amount_e
                     default_text: _('Amount')
                     text: s.amount if s.amount else _('Amount')
-                    disabled: root.is_pr
+                    disabled: root.destinationtype == Destination.PR or root.destinationtype == Destination.LN and not s.amount
                     on_release: Clock.schedule_once(lambda dt: app.amount_dialog(s, True))
             CardSeparator:
-                opacity: int(not root.is_pr)
+                opacity: int(root.destinationtype == Destination.Address)
                 color: blue_bottom.foreground_color
             BoxLayout:
                 id: message_selection
@@ -69,27 +70,27 @@ SendScreen:
                     pos_hint: {'center_y': .5}
                 BlueButton:
                     id: description
-                    text: s.message if s.message else (_('No Description') if root.is_pr else _('Description'))
-                    disabled: root.is_pr
+                    text: s.message if s.message else ({Destination.LN: _('Lightning invoice contains no description'), Destination.Address: _('Description'), Destination.PR: _('No Description')}[root.destinationtype])
+                    disabled: root.destinationtype != Destination.Address
                     on_release: Clock.schedule_once(lambda dt: app.description_dialog(s))
             CardSeparator:
-                opacity: int(not root.is_pr)
+                opacity: int(root.destinationtype == Destination.Address)
                 color: blue_bottom.foreground_color
             BoxLayout:
                 size_hint: 1, None
-                height: blue_bottom.item_height
+                height: blue_bottom.item_height if root.destinationtype != Destination.LN else 0
                 spacing: '5dp'
                 Image:
                     source: 'atlas://electrum/gui/kivy/theming/light/star_big_inactive'
-                    opacity: 0.7
+                    opacity: 0.7 if root.destinationtype != Destination.LN else 0
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
                 BlueButton:
                     id: fee_e
                     default_text: _('Fee')
-                    text: app.fee_status
-                    on_release: Clock.schedule_once(lambda dt: app.fee_dialog(s, True))
+                    text: app.fee_status if root.destinationtype != Destination.LN else ''
+                    on_release: Clock.schedule_once(lambda dt: app.fee_dialog(s, True)) if root.destinationtype != Destination.LN else None
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
