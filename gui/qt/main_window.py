@@ -2048,7 +2048,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.cashshuffle_status_button = StatusBarButton(
             self.cashshuffle_icon(),
             _("Toggle CashShuffle On or Off"),
-            self.toggle_cashshuffle_status_bar
+            # self.toggle_cashshuffle_status_bar
+            self.toggle_cashshuffle
         )
         sb.addPermanentWidget(self.cashshuffle_status_button)
 
@@ -2792,8 +2793,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def toggle_cashaddr_status_bar(self):
         self.toggle_cashaddr(not self.config.get('show_cashaddr', False))
 
-    def toggle_cashshuffle_status_bar(self):
-        self.toggle_cashshuffle()
+    # def toggle_cashshuffle_status_bar(self):
+    #     self.toggle_cashshuffle()
 
     def toggle_cashaddr_settings(self, state):
         self.toggle_cashaddr(state == Qt.Checked)
@@ -2807,6 +2808,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def toggle_cashshuffle(self):
         p = self.gui_object.plugins.toggle_internal_plugin("shuffle")
         self.config.set_key('use_shuffle', bool(p))
+        self.wallet.storage.put('use_cashshuffle', bool(p))
         if p:
             run_hook('init_qt', self.gui_object)
 

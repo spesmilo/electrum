@@ -306,7 +306,6 @@ class Plugin(BasePlugin):
 
 
     def on_close(self):
-        print(self.windows)
         for window in self.windows:
             window.background_process.join()
             while window.background_process.is_alive():
