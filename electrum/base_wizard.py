@@ -27,6 +27,7 @@ import os
 import sys
 import traceback
 from functools import partial
+from typing import List, TYPE_CHECKING, Tuple
 
 from . import bitcoin
 from . import keystore
@@ -40,6 +41,9 @@ from .i18n import _
 from .util import UserCancelled, InvalidPassword, WalletFileException
 from .simple_config import SimpleConfig
 from .plugin import Plugins
+
+if TYPE_CHECKING:
+    from .plugin import DeviceInfo
 
 
 # hardware device setup purpose
@@ -230,7 +234,7 @@ class BaseWizard(object):
         # check available plugins
         supported_plugins = self.plugins.get_hardware_support()
         # scan devices
-        devices = []
+        devices = []  # type: List[Tuple[str, DeviceInfo]]
         devmgr = self.plugins.device_manager
         try:
             scanned_devices = devmgr.scan_devices()
@@ -254,6 +258,7 @@ class BaseWizard(object):
                     # FIXME: side-effect: unpaired_device_info sets client.handler
                     u = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices)
                 except BaseException as e:
+                    traceback.print_exc()
                     devmgr.print_error(f'error getting device infos for {name}: {e}')
                     indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
                     debug_msg += f'  {name}: (error getting device infos)\n{indented_error_msg}\n'
@@ -278,7 +283,8 @@ class BaseWizard(object):
         for name, info in devices:
             state = _("initialized") if info.initialized else _("wiped")
             label = info.label or _("An unnamed {}").format(name)
-            descr = "%s [%s, %s]" % (label, name, state)
+            descr = f"{label} [{name}, {state}]"
+            # TODO maybe expose info.device.path (mainly for transport type)
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
         self.choice_dialog(title=title, message=msg, choices=choices, run_next= lambda *args: self.on_device(*args, purpose=purpose))

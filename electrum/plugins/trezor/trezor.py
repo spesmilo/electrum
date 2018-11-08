@@ -121,6 +121,7 @@ class TrezorPlugin(HW_PluginBase):
             return
 
         self.print_error("connected to device at", device.path)
+        # note that this call can still raise!
         client = self.client_class(transport, handler, self)
 
         # Try a ping for device sanity

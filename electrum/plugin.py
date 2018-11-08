@@ -485,7 +485,7 @@ class DeviceMgr(ThreadJob, PrintError):
               'its seed (and passphrase, if any).  Otherwise all bitcoins you '
               'receive will be unspendable.').format(plugin.device))
 
-    def unpaired_device_infos(self, handler, plugin, devices=None):
+    def unpaired_device_infos(self, handler, plugin: 'HW_PluginBase', devices=None):
         '''Returns a list of DeviceInfo objects: one for each connected,
         unpaired device accepted by the plugin.'''
         if not plugin.libraries_available:
@@ -498,7 +498,11 @@ class DeviceMgr(ThreadJob, PrintError):
         for device in devices:
             if device.product_key not in plugin.DEVICE_IDS:
                 continue
-            client = self.create_client(device, handler, plugin)
+            try:
+                client = self.create_client(device, handler, plugin)
+            except BaseException as e:
+                self.print_error(f'failed to create client for {plugin.name} at {device.path}: {repr(e)}')
+                continue
             if not client:
                 continue
             infos.append(DeviceInfo(device, client.label(), client.is_initialized()))
