@@ -593,7 +593,7 @@ class Abstract_Wallet(AddressSynchronizer):
             coin_chooser = coinchooser.get_coin_chooser(config)
             # If there is an unconfirmed RBF tx, merge with it
             base_tx = self.get_unconfirmed_tx()
-            if base_tx and not base_tx.is_final():
+            if config.get('batch_rbf', False) and base_tx and not base_tx.is_final():
                 base_tx = Transaction(base_tx.serialize())
                 base_tx.deserialize(force_full_parse=True)
                 base_tx.remove_signatures()
