@@ -484,6 +484,12 @@ class AddressSynchronizer(PrintError):
                 self.threadlocal_cache.local_height = orig_val
         return f
 
+    def get_unconfirmed_tx(self):
+        for tx_hash, tx_mined_status, delta, balance in self.get_history():
+            if tx_mined_status.conf <= 0 and delta < 0:
+                tx = self.transactions.get(tx_hash)
+                return tx
+
     @with_local_height_cached
     def get_history(self, domain=None):
         # get domain

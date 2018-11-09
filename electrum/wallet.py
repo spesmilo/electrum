@@ -536,7 +536,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
-    def make_unsigned_transaction(self, inputs, outputs, config, fixed_fee=None,
+    def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None,
                                   change_addr=None, is_sweep=False):
         # check outputs
         i_max = None
@@ -550,13 +550,13 @@ class Abstract_Wallet(AddressSynchronizer):
                 i_max = i
 
         # Avoid index-out-of-range with inputs[0] below
-        if not inputs:
+        if not coins:
             raise NotEnoughFunds()
 
         if fixed_fee is None and config.fee_per_kb() is None:
             raise NoDynamicFeeEstimates()
 
-        for item in inputs:
+        for item in coins:
             self.add_input_info(item)
 
         # change address
@@ -591,19 +591,34 @@ class Abstract_Wallet(AddressSynchronizer):
             # Let the coin chooser select the coins to spend
             max_change = self.max_change_outputs if self.multiple_change else 1
             coin_chooser = coinchooser.get_coin_chooser(config)
-            tx = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
+            # If there is an unconfirmed RBF tx, merge with it
+            base_tx = self.get_unconfirmed_tx()
+            if base_tx and not base_tx.is_final():
+                base_tx = Transaction(base_tx.serialize())
+                base_tx.deserialize(force_full_parse=True)
+                base_tx.remove_signatures()
+                base_tx.add_inputs_info(self)
+                base_fee = base_tx.get_fee()
+                fee_per_byte = Decimal(base_fee) / base_tx.estimated_size()
+                fee_estimator = lambda size: base_fee + round(fee_per_byte * size)
+                txi = base_tx.inputs()
+                txo = list(filter(lambda x: not self.is_change(x[1]), base_tx.outputs()))
+            else:
+                txi = []
+                txo = []
+            tx = coin_chooser.make_tx(coins, txi, outputs[:] + txo, change_addrs[:max_change],
                                       fee_estimator, self.dust_threshold())
         else:
             # FIXME?? this might spend inputs with negative effective value...
-            sendable = sum(map(lambda x:x['value'], inputs))
+            sendable = sum(map(lambda x:x['value'], coins))
             outputs[i_max] = outputs[i_max]._replace(value=0)
-            tx = Transaction.from_io(inputs, outputs[:])
+            tx = Transaction.from_io(coins, outputs[:])
             fee = fee_estimator(tx.estimated_size())
             amount = sendable - tx.output_value() - fee
             if amount < 0:
                 raise NotEnoughFunds()
             outputs[i_max] = outputs[i_max]._replace(value=amount)
-            tx = Transaction.from_io(inputs, outputs[:])
+            tx = Transaction.from_io(coins, outputs[:])
 
         # Timelock tx to current height.
         tx.locktime = self.get_local_height()
@@ -679,11 +694,10 @@ class Abstract_Wallet(AddressSynchronizer):
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('transaction is final'))
         tx = Transaction(tx.serialize())
         tx.deserialize(force_full_parse=True)  # need to parse inputs
-        inputs = copy.deepcopy(tx.inputs())
-        outputs = copy.deepcopy(tx.outputs())
-        for txin in inputs:
-            txin['signatures'] = [None] * len(txin['signatures'])
-            self.add_input_info(txin)
+        tx.remove_signatures()
+        tx.add_inputs_info(self)
+        inputs = tx.inputs()
+        outputs = tx.outputs()
         # use own outputs
         s = list(filter(lambda x: self.is_mine(x[1]), outputs))
         # ... unless there is none
@@ -738,26 +752,21 @@ class Abstract_Wallet(AddressSynchronizer):
     def add_input_info(self, txin):
         address = self.get_txin_address(txin)
         if self.is_mine(address):
+            txin['address'] = address
             txin['type'] = self.get_txin_type(address)
             # segwit needs value to sign
-            if txin.get('value') is None and Transaction.is_input_value_needed(txin):
+            if txin.get('value') is None:
                 received, spent = self.get_addr_io(address)
                 item = received.get(txin['prevout_hash']+':%d'%txin['prevout_n'])
-                tx_height, value, is_cb = item
-                txin['value'] = value
+                if item:
+                    txin['value'] = item[1]
             self.add_input_sig_info(txin, address)
-
-    def add_input_info_to_all_inputs(self, tx):
-        if tx.is_complete():
-            return
-        for txin in tx.inputs():
-            self.add_input_info(txin)
 
     def can_sign(self, tx):
         if tx.is_complete():
             return False
         # add info to inputs if we can; otherwise we might return a false negative:
-        self.add_input_info_to_all_inputs(tx)  # though note that this is a side-effect
+        tx.add_inputs_info(self)
         for k in self.get_keystores():
             if k.can_sign(tx):
                 return True
@@ -804,7 +813,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def sign_transaction(self, tx, password):
         if self.is_watching_only():
             return
-        self.add_input_info_to_all_inputs(tx)
+        tx.add_inputs_info(self)
         # hardware wallets require extra info
         if any([(isinstance(k, Hardware_KeyStore) and k.can_sign(tx)) for k in self.get_keystores()]):
             self.add_hw_info(tx)

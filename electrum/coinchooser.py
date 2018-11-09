@@ -187,7 +187,7 @@ class CoinChooserBase(PrintError):
             self.print_error('not keeping dust', dust)
         return change
 
-    def make_tx(self, coins, outputs, change_addrs, fee_estimator,
+    def make_tx(self, coins, inputs, outputs, change_addrs, fee_estimator,
                 dust_threshold):
         """Select unspent coins to spend to pay outputs.  If the change is
         greater than dust_threshold (after adding the change output to
@@ -202,7 +202,9 @@ class CoinChooserBase(PrintError):
         self.p = PRNG(''.join(sorted(utxos)))
 
         # Copy the outputs so when adding change we don't modify "outputs"
-        tx = Transaction.from_io([], outputs[:])
+        tx = Transaction.from_io(inputs[:], outputs[:])
+        v = tx.input_value()
+
         # Weight of the transaction with no inputs and no change
         # Note: this will use legacy tx serialization as the need for "segwit"
         # would be detected from inputs. The only side effect should be that the
@@ -230,7 +232,7 @@ class CoinChooserBase(PrintError):
         def sufficient_funds(buckets):
             '''Given a list of buckets, return True if it has enough
             value to pay for the transaction'''
-            total_input = sum(bucket.value for bucket in buckets)
+            total_input = v + sum(bucket.value for bucket in buckets)
             total_weight = get_tx_weight(buckets)
             return total_input >= spent_amount + fee_estimator_w(total_weight)
 
