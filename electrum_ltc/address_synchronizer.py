@@ -25,7 +25,7 @@ import threading
 import asyncio
 import itertools
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
@@ -457,7 +457,7 @@ class AddressSynchronizer(PrintError):
                 self.spent_outpoints = defaultdict(dict)
                 self.history = {}
                 self.verified_tx = {}
-                self.transactions = {}
+                self.transactions = {}  # type: Dict[str, Transaction]
                 self.save_transactions()
 
     def get_txpos(self, tx_hash):

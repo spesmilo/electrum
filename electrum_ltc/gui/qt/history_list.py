@@ -414,26 +414,29 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         if not filename:
             return
         try:
-            self.do_export_history(self.wallet, filename, csv_button.isChecked())
+            self.do_export_history(filename, csv_button.isChecked())
         except (IOError, os.error) as reason:
             export_error_label = _("Electrum was unable to produce a transaction export.")
             self.parent.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
             return
         self.parent.show_message(_("Your wallet history has been successfully exported."))
 
-    def do_export_history(self, wallet, fileName, is_csv):
+    def do_export_history(self, file_name, is_csv):
         history = self.transactions
         lines = []
-        for item in history:
-            if is_csv:
-                lines.append([item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['date']])
-            else:
-                lines.append(item)
-        with open(fileName, "w+", encoding='utf-8') as f:
+        if is_csv:
+            for item in history:
+                lines.append([item['txid'],
+                              item.get('label', ''),
+                              item['confirmations'],
+                              item['value'],
+                              item.get('fiat_value', ''),
+                              item['date']])
+        with open(file_name, "w+", encoding='utf-8') as f:
             if is_csv:
                 import csv
                 transaction = csv.writer(f, lineterminator='\n')
-                transaction.writerow(["transaction_hash","label", "confirmations", "value", "timestamp"])
+                transaction.writerow(["transaction_hash", "label", "confirmations", "value", "fiat_value", "timestamp"])
                 for line in lines:
                     transaction.writerow(line)
             else:
