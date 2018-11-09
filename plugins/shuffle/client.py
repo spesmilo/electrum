@@ -346,7 +346,7 @@ class BackgroundShufflingThread(threading.Thread):
         unshuffled_coins = [coin for coin in coins if not self.wallet.is_coin_shuffled(coin)]
         upper_amount = scale*10
         lower_amount = scale + self.fee
-        unshuffled_coins_on_scale = [coin for coin in unshuffled_coins if coin['value'] < upper_amount and coin['value'] > lower_amount]
+        unshuffled_coins_on_scale = [coin for coin in unshuffled_coins if coin['value'] < upper_amount and coin['value'] >= lower_amount]
         unshuffled_coins_on_scale.sort(key=lambda x: x['value']*100000000 + (100000000-x['height']))
         if unshuffled_coins_on_scale:
             return unshuffled_coins_on_scale[-1]
@@ -391,7 +391,7 @@ class BackgroundShufflingThread(threading.Thread):
             elif "get session number" in message:
                 self.logger.send(message, sender)
             elif "begins CoinShuffle protocol" in message:
-                self.logger.send(message, sender)    
+                self.logger.send(message, sender)
             elif message.startswith("Blame"):
                 if "insufficient" in message:
                     pass
