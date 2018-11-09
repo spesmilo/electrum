@@ -26,6 +26,8 @@
 
 from __future__ import absolute_import
 
+import os
+import json
 # import time
 # import threading
 # import base64
@@ -35,7 +37,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
-from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QLineEdit, QHBoxLayout, QWidget, QCheckBox, QMenu)
+from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout, QLineEdit, QHBoxLayout, QWidget, QCheckBox, QMenu, QComboBox
 
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
@@ -43,7 +45,7 @@ from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton
 from electroncash_gui.qt.util import OkButton, WindowModalDialog
 from electroncash.address import Address
 from electroncash.transaction import Transaction
-from .shuffle import ServersList
+# from .shuffle import ServersList
 from .client import BackgroundShufflingThread
 # from .coin import Coin
 
@@ -193,6 +195,43 @@ def update_coin_status(window, coin_name, msg):
             window.utxo_list.on_update()
 
 
+class ServersList(QComboBox):
+
+    def __init__(self, parent=None):
+        QComboBox.__init__(self, parent)
+        self.servers_path = "servers.json"
+        self.servers_list = None
+        self.load_servers_list()
+
+    def load_servers_list(self):
+        r = {}
+        try:
+            zips = __file__.find(".zip")
+            if zips == -1:
+                with open(os.path.join(os.path.dirname(__file__), self.servers_path), 'r') as f:
+                    r = json.loads(f.read())
+            else:
+                from zipfile import ZipFile
+                zip_file = ZipFile(__file__[: zips + 4])
+                with zip_file.open("shuffle/" + self.servers_path) as f:
+                    r = json.loads(f.read().decode())
+        except:
+            pass
+        self.servers_list = r
+
+    def setItems(self):
+        for server in self.servers_list:
+            ssl = self.servers_list[server].get('ssl')
+            item = server + ('   [ssl enabled]' if ssl else '   [ssl disabled]')
+            self.addItem(item)
+
+    def get_current_server(self):
+        current_server = self.currentText().split(' ')[0]
+        server = self.servers_list.get(current_server)
+        server["server"] = current_server
+        return server
+
+
 
 class electrum_console_logger(QObject):
 
@@ -288,7 +327,19 @@ class Plugin(BasePlugin):
         # console modification
         window.console.updateNamespace({"start_background_shuffling": lambda *args, **kwargs: start_background_shuffling(window, *args, **kwargs)})
         window.utxo_list.on_update()
-        network_settings = {"host":"shuffle.imaginary.cash", "port":8080, "ssl":True, "network":window.network}
+        network_settings = window.wallet.storage.get("cashshuffle_server", None)
+        if not network_settings:
+            network_settings = self.settings_dialog(window, msg="Choose the server, please")
+        if not network_settings:
+            network_settings = {"server":"localhost", "port":8080, "ssl":False}
+        else:
+            window.wallet.storage.put("cashshuffle_server", network_settings)
+        network_settings['host'] = network_settings.pop('server')
+        network_settings["network"] = window.network
+
+        # get server from wallet
+
+        # network_settings = {"host":"shuffle.imaginary.cash", "port":8080, "ssl":True, "network":window.network}
         # network_settings = {"host":"localhost", "port":8080, "ssl":False, "network":window.network}
         password = None
         while window.wallet.has_password():
@@ -310,6 +361,7 @@ class Plugin(BasePlugin):
             window.background_process.join()
             while window.background_process.is_alive():
                 pass
+            window.background_process = None
             restore_utxo_list(window)
             restore_wallet(window.wallet)
             if window.console.namespace.get("start_background_shuffling", None):
@@ -322,36 +374,39 @@ class Plugin(BasePlugin):
     def update(self, window):
         self.windows.append(window)
 
-    # def settings_dialog(self, window):
-    #
-    #     d = WindowModalDialog(window, _("CashShuffle settings"))
-    #     d.setMinimumSize(500, 200)
-    #
-    #     vbox = QVBoxLayout(d)
-    #     vbox.addWidget(QLabel(_('CashShuffle Servers List')))
-    #     grid = QGridLayout()
-    #     vbox.addLayout(grid)
-    #
-    #     serverList=ServersList(parent=d)
-    #     serverList.setItems()
-    #
-    #
-    #     grid.addWidget(QLabel('Servers'), 0, 0)
-    #     grid.addWidget(serverList, 0, 1)
-    #
-    #
-    #     vbox.addStretch()
-    #     vbox.addLayout(Buttons(CloseButton(d), OkButton(d)))
-    #
-    #     if not d.exec_():
-    #         return
-    #
-    #     server = str(server_e.text())
-    #     self.config.set_key('email_server', server)
+    def settings_dialog(self, window, msg=None):
+
+        d = WindowModalDialog(window, _("CashShuffle settings"))
+        d.setMinimumSize(500, 200)
+
+        vbox = QVBoxLayout(d)
+        if not msg:
+            msg = "Choose CashShuffle Server from List\nChanges will take effect after restarting the plugin"
+        vbox.addWidget(QLabel(_(msg)))
+        grid = QGridLayout()
+        vbox.addLayout(grid)
+
+        serverList=ServersList(parent=d)
+        serverList.setItems()
+
+        grid.addWidget(QLabel('Servers'), 0, 0)
+        grid.addWidget(serverList, 0, 1)
+
+        vbox.addStretch()
+        vbox.addLayout(Buttons(CloseButton(d), OkButton(d)))
 
 
-    # def settings_widget(self, window):
-    #     return EnterButton(_('Settings'), partial(self.settings_dialog, window))
+        if not d.exec_():
+            return
+        else:
+            return serverList.get_current_server()
+
+        # server = str(server_e.text())
+        # self.config.set_key('email_server', server)
+
+
+    def settings_widget(self, window):
+        return EnterButton(_('Settings'), partial(self.settings_dialog, window))
 
     def requires_settings(self):
-        return False
+        return True
