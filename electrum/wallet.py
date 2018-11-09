@@ -572,10 +572,6 @@ class Abstract_Wallet(AddressSynchronizer):
                     raise Exception("More than one output set to spend max")
                 i_max = i
 
-        # Avoid index-out-of-range with inputs[0] below
-        if not coins:
-            raise NotEnoughFunds()
-
         if fixed_fee is None and config.fee_per_kb() is None:
             raise NoDynamicFeeEstimates()
 
@@ -621,9 +617,6 @@ class Abstract_Wallet(AddressSynchronizer):
                 base_tx.deserialize(force_full_parse=True)
                 base_tx.remove_signatures()
                 base_tx.add_inputs_info(self)
-                base_fee = base_tx.get_fee()
-                fee_per_byte = Decimal(base_fee) / base_tx.estimated_size()
-                fee_estimator = lambda size: base_fee + round(fee_per_byte * size)
                 txi = base_tx.inputs()
                 txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs()))
             else:
