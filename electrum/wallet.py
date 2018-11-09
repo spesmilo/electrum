@@ -550,6 +550,9 @@ class Abstract_Wallet(AddressSynchronizer):
             for output_idx, o in enumerate(tx.outputs()):
                 if self.is_mine(o.address) and self.spent_outpoints[tx.txid()].get(output_idx):
                     continue
+            # all inputs should be is_mine
+            if not all([self.is_mine(self.get_txin_address(txin)) for txin in tx.inputs()]):
+                continue
             # prefer txns already in mempool (vs local)
             if tx_mined_status.height == TX_HEIGHT_LOCAL:
                 candidate = tx
@@ -613,10 +616,18 @@ class Abstract_Wallet(AddressSynchronizer):
             # If there is an unconfirmed RBF tx, merge with it
             base_tx = self.get_unconfirmed_base_tx_for_batching()
             if config.get('batch_rbf', False) and base_tx:
+                is_local = self.get_tx_height(base_tx.txid()).height == TX_HEIGHT_LOCAL
                 base_tx = Transaction(base_tx.serialize())
                 base_tx.deserialize(force_full_parse=True)
                 base_tx.remove_signatures()
                 base_tx.add_inputs_info(self)
+                base_tx_fee = base_tx.get_fee()
+                relayfeerate = self.relayfee() / 1000
+                original_fee_estimator = fee_estimator
+                def fee_estimator(size: int) -> int:
+                    lower_bound = base_tx_fee + round(size * relayfeerate)
+                    lower_bound = lower_bound if not is_local else 0
+                    return max(lower_bound, original_fee_estimator(size))
                 txi = base_tx.inputs()
                 txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs()))
             else:
