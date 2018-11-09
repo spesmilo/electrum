@@ -536,6 +536,29 @@ class Abstract_Wallet(AddressSynchronizer):
     def dust_threshold(self):
         return dust_threshold(self.network)
 
+    def get_unconfirmed_base_tx_for_batching(self) -> Optional[Transaction]:
+        candidate = None
+        for tx_hash, tx_mined_status, delta, balance in self.get_history():
+            # tx should not be mined yet
+            if tx_mined_status.conf > 0: continue
+            # tx should be "outgoing" from wallet
+            if delta >= 0: continue
+            tx = self.transactions.get(tx_hash)
+            if not tx: continue
+            # is_mine outputs should not be spent yet
+            # to avoid cancelling our own dependent transactions
+            for output_idx, o in enumerate(tx.outputs()):
+                if self.is_mine(o.address) and self.spent_outpoints[tx.txid()].get(output_idx):
+                    continue
+            # prefer txns already in mempool (vs local)
+            if tx_mined_status.height == TX_HEIGHT_LOCAL:
+                candidate = tx
+                continue
+            # tx must have opted-in for RBF
+            if tx.is_final(): continue
+            return tx
+        return candidate
+
     def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None,
                                   change_addr=None, is_sweep=False):
         # check outputs
@@ -592,8 +615,8 @@ class Abstract_Wallet(AddressSynchronizer):
             max_change = self.max_change_outputs if self.multiple_change else 1
             coin_chooser = coinchooser.get_coin_chooser(config)
             # If there is an unconfirmed RBF tx, merge with it
-            base_tx = self.get_unconfirmed_tx()
-            if config.get('batch_rbf', False) and base_tx and not base_tx.is_final():
+            base_tx = self.get_unconfirmed_base_tx_for_batching()
+            if config.get('batch_rbf', False) and base_tx:
                 base_tx = Transaction(base_tx.serialize())
                 base_tx.deserialize(force_full_parse=True)
                 base_tx.remove_signatures()
@@ -602,7 +625,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 fee_per_byte = Decimal(base_fee) / base_tx.estimated_size()
                 fee_estimator = lambda size: base_fee + round(fee_per_byte * size)
                 txi = base_tx.inputs()
-                txo = list(filter(lambda x: not self.is_change(x[1]), base_tx.outputs()))
+                txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs()))
             else:
                 txi = []
                 txo = []

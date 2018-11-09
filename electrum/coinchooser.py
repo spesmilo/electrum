@@ -84,8 +84,8 @@ def strip_unneeded(bkts, sufficient_funds):
     for i in range(len(bkts)):
         if not sufficient_funds(bkts[i + 1:]):
             return bkts[i:]
-    # Shouldn't get here
-    return bkts
+    # none of the buckets are needed
+    return []
 
 class CoinChooserBase(PrintError):
 
@@ -203,12 +203,13 @@ class CoinChooserBase(PrintError):
 
         # Copy the outputs so when adding change we don't modify "outputs"
         tx = Transaction.from_io(inputs[:], outputs[:])
-        v = tx.input_value()
+        input_value = tx.input_value()
 
         # Weight of the transaction with no inputs and no change
         # Note: this will use legacy tx serialization as the need for "segwit"
         # would be detected from inputs. The only side effect should be that the
         # marker and flag are excluded, which is compensated in get_tx_weight()
+        # FIXME calculation will be off by this (2 wu) in case of RBF batching
         base_weight = tx.estimated_weight()
         spent_amount = tx.output_value()
 
@@ -232,7 +233,7 @@ class CoinChooserBase(PrintError):
         def sufficient_funds(buckets):
             '''Given a list of buckets, return True if it has enough
             value to pay for the transaction'''
-            total_input = v + sum(bucket.value for bucket in buckets)
+            total_input = input_value + sum(bucket.value for bucket in buckets)
             total_weight = get_tx_weight(buckets)
             return total_input >= spent_amount + fee_estimator_w(total_weight)
 

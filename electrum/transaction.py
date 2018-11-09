@@ -864,7 +864,7 @@ class Transaction:
     @classmethod
     def serialize_witness(self, txin, estimate_size=False):
         _type = txin['type']
-        if not self.is_segwit_input(txin) and not self.is_input_value_needed(txin):
+        if not self.is_segwit_input(txin) and not txin['type'] == 'address':
             return '00'
         if _type == 'coinbase':
             return txin['witness']
@@ -901,10 +901,6 @@ class Transaction:
     @classmethod
     def is_segwit_inputtype(cls, txin_type):
         return txin_type in ('p2wpkh', 'p2wpkh-p2sh', 'p2wsh', 'p2wsh-p2sh')
-
-    @classmethod
-    def is_input_value_needed(cls, txin):
-        return cls.is_segwit_input(txin) or txin['type'] == 'address'
 
     @classmethod
     def guess_txintype_from_address(cls, addr):

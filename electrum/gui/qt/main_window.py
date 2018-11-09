@@ -2763,7 +2763,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         batch_rbf_cb.setChecked(self.config.get('batch_rbf', False))
         batch_rbf_cb.setEnabled(use_rbf)
         batch_rbf_cb.setToolTip(
-            _('If you check this box, your unconfirmed transactios will be consolidated in a single transaction') + '\n' + \
+            _('If you check this box, your unconfirmed transactions will be consolidated into a single transaction.') + '\n' + \
             _('This will save fees.'))
         def on_batch_rbf(x):
             self.config.set_key('batch_rbf', bool(x))

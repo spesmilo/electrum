@@ -25,7 +25,7 @@ import threading
 import asyncio
 import itertools
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
@@ -457,7 +457,7 @@ class AddressSynchronizer(PrintError):
                 self.spent_outpoints = defaultdict(dict)
                 self.history = {}
                 self.verified_tx = {}
-                self.transactions = {}
+                self.transactions = {}  # type: Dict[str, Transaction]
                 self.save_transactions()
 
     def get_txpos(self, tx_hash):
@@ -483,12 +483,6 @@ class AddressSynchronizer(PrintError):
             finally:
                 self.threadlocal_cache.local_height = orig_val
         return f
-
-    def get_unconfirmed_tx(self):
-        for tx_hash, tx_mined_status, delta, balance in self.get_history():
-            if tx_mined_status.conf <= 0 and delta < 0:
-                tx = self.transactions.get(tx_hash)
-                return tx
 
     @with_local_height_cached
     def get_history(self, domain=None):
