@@ -166,6 +166,7 @@ hash_encode = lambda x: bh2u(x[::-1])
 hash_decode = lambda x: bfh(x)[::-1]
 hmac_sha_512 = lambda x, y: hmac_oneshot(x, y, hashlib.sha512)
 
+is_base58=lambda string58: all(ord(c) in __b58chars for c in string58)
 
 ################################## electrum seeds
 

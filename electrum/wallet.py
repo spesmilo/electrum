@@ -1651,7 +1651,7 @@ class Multisig_Wallet(Deterministic_Wallet):
         txin['num_sig'] = self.m
 
 
-wallet_types = ['standard', 'multisig', 'imported']
+wallet_types = ['standard', 'multisig', 'imported', 'solo']
 
 def register_wallet_type(category):
     wallet_types.append(category)
@@ -1660,7 +1660,8 @@ wallet_constructors = {
     'standard': Standard_Wallet,
     'old': Standard_Wallet,
     'xpub': Standard_Wallet,
-    'imported': Imported_Wallet
+    'imported': Imported_Wallet,
+    'solo': Imported_Wallet
 }
 
 def register_constructor(wallet_type, constructor):

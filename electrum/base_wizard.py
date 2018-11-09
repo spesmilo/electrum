@@ -111,6 +111,7 @@ class BaseWizard(object):
             ('2fa', _("Wallet with two-factor authentication")),
             ('multisig',  _("Multi-signature wallet")),
             ('imported',  _("Import Bitcoin addresses or private keys")),
+            ('solo',  _("Import Solo BTC keys")),
         ]
         choices = [pair for pair in wallet_kinds if pair[0] in wallet_types]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_wallet_type)
@@ -147,6 +148,16 @@ class BaseWizard(object):
             action = self.storage.get_action()
         elif choice == 'imported':
             action = 'import_addresses_or_keys'
+        elif choice == 'solo':
+            action = 'choose_solo'
+        self.run(action)
+
+    def on_solo_type(self, choice):
+        self.solo_type = choice
+        if choice == 'solo':
+            action = 'import_solo'
+        elif choice == 'solo_pro':
+            action = 'import_solo_pro'
         self.run(action)
 
     def choose_multisig(self):
@@ -188,6 +199,39 @@ class BaseWizard(object):
         self.add_xpub_dialog(title=title, message=message, run_next=self.on_import,
                              is_valid=v, allow_multi=True, show_wif_help=True)
 
+    def choose_solo(self):
+        v = lambda x: keystore.is_solo_list(x) 
+
+        title = _("Choose your Solo type")
+        message = _('Please Choose your Solo type')
+        choices = [
+                ('solo', _('Solo')),
+                ('solo_pro', _('Solo Pro')),
+            ]
+        self.choice_dialog(title=title, message=message, choices=choices, run_next=self.on_solo_type)
+
+    def import_solo(self):
+        self.add_solo_secret_dialog(run_next=self.on_import_solo,  is_solo_pro=False)
+        
+    def import_solo_pro(self):
+        self.add_solo_secret_dialog(run_next=self.on_import_solo,  is_solo_pro=True)
+
+    def on_import_solo(self, key):
+        k = keystore.Imported_KeyStore({})
+        self.storage.put('keystore', k.dump())
+        w = Imported_Wallet(self.storage)
+        good_inputs, bad_inputs = w.import_private_keys([key], None)
+        self.keystores.append(w.keystore)
+        if bad_inputs:
+            msg = "\n".join(f"{key[:10]}... ({msg})" for key, msg in bad_inputs[:10])
+            if len(bad_inputs) > 10: msg += '\n...'
+            self.show_error(_("The following inputs could not be imported")
+                            + f' ({len(bad_inputs)}):\n' + msg)
+        # FIXME what if len(good_inputs) == 0 ?
+        if len(good_inputs) == 0:
+            self.terminate()
+        return self.run('create_wallet')
+
     def on_import(self, text):
         # create a temporary wallet and exploit that modifications
         # will be reflected on self.storage
@@ -202,6 +246,15 @@ class BaseWizard(object):
             keys = keystore.get_private_keys(text)
             good_inputs, bad_inputs = w.import_private_keys(keys, None)
             self.keystores.append(w.keystore)
+        elif  keystore.is_solo_list(text):
+            k = keystore.Imported_KeyStore({})
+            self.storage.put('keystore', k.dump())
+            w = Imported_Wallet(self.storage)
+            bad_inputs_solo = []
+            keys, bad_inputs_solo = keystore.get_solo_private_keys(text)
+            good_inputs, bad_inputs = w.import_private_keys(keys, None)
+            bad_inputs += bad_inputs_solo 
+            self.keystores.append(w.keystore)
         else:
             return self.terminate()
         if bad_inputs:
@@ -210,6 +263,8 @@ class BaseWizard(object):
             self.show_error(_("The following inputs could not be imported")
                             + f' ({len(bad_inputs)}):\n' + msg)
         # FIXME what if len(good_inputs) == 0 ?
+        if len(good_inputs) == 0:
+            self.terminate()
         return self.run('create_wallet')
 
     def restore_from_key(self):
@@ -527,7 +582,7 @@ class BaseWizard(object):
             self.storage.write()
             self.wallet = Multisig_Wallet(self.storage)
             self.run('create_addresses')
-        elif self.wallet_type == 'imported':
+        elif self.wallet_type == 'imported' or self.wallet_type == 'solo':
             if len(self.keystores) > 0:
                 keys = self.keystores[0].dump()
                 self.storage.put('keystore', keys)

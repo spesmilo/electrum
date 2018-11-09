@@ -24,11 +24,12 @@
 # SOFTWARE.
 
 from electrum.i18n import _
+from electrum import bitcoin
 from electrum.mnemonic import Mnemonic
 import electrum.old_mnemonic
 from electrum.plugin import run_hook
-
-
+from electrum.solo import compute_privatekey_bitcoin, reconstruct
+from electrum.bitcoin import is_base58
 from .util import *
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
@@ -196,6 +197,128 @@ class KeysLayout(QVBoxLayout):
     def on_edit(self):
         b = self.is_valid(self.get_text())
         self.parent.next_button.setEnabled(b)
+
+class SoloLayout(QVBoxLayout):
+    def __init__(self, parent,  is_solo_pro=False):
+        QVBoxLayout.__init__(self)
+        message = 'Please enter address and the secrets which are on your Solo(s).'
+            
+        self.addWidget(WWLabel(message))
+        self.parent = parent
+        self.number_solo = 1
+        self.is_solo_pro = is_solo_pro
+        if is_solo_pro:
+            label_type = QLabel("What type of Solo Pro do you have")
+            self.cb = QComboBox()
+            self.cb.addItem("2 out of 3")
+            hboxtype = QHBoxLayout()
+            hboxtype.addWidget(label_type)
+            hboxtype.addWidget(self.cb)
+            self.addLayout(hboxtype)
+            self.number_solo = 2
+        hboxaddresss = QHBoxLayout()
+        label_address = QLabel("Address")
+        self.address = QLineEdit()
+        self.address.textChanged.connect(self.on_edit)
+
+        hboxaddresss.addWidget(label_address)
+        hboxaddresss.addWidget(self.address)
+        self.addLayout(hboxaddresss)
+        self.display_secrets()
+        self.key = None
+        self.parent = parent
+        self.parent.next_button.setEnabled(False)
+
+        #Recomputation of the private key is using scrypt and is time comsuming
+        #this cannot be done at each edit.
+        self.parent.next_button.clicked.disconnect()
+        self.parent.next_button.clicked.connect(self.check_key)
+        self.parent.back_button.clicked.disconnect()
+        self.parent.back_button.clicked.connect(self.back)
+        
+    def back(self):
+        self.reset_buttons()
+        self.parent.loop.exit(1)
+        
+    def reset_buttons(self):
+        self.parent.back_button.clicked.disconnect()
+        self.parent.next_button.clicked.disconnect()
+        self.parent.next_button.clicked.connect(lambda: self.parent.loop.exit(2))
+        self.parent.back_button.clicked.connect(lambda: self.parent.loop.exit(1))
+        
+    def check_key(self):
+        if self.get_key() is None:
+            self.parent.show_error("The recomputed private key do not correspond to the address you entered, please verify that secret codes are correct")
+        else:
+            self.reset_buttons()
+            self.parent.loop.exit(2)
+
+    def on_edit(self):
+        b = bitcoin.is_address(self.address.text())
+        indexes = []
+        for solo in self.solos:
+            b &= len(solo["secret1"].text()) == 28
+            b &= is_base58(solo["secret1"].text())
+            b &= len(solo["secret2"].text()) == 14
+            b &= is_base58(solo["secret2"].text())
+            if self.number_solo > 1:
+                ind = solo["cb"].currentIndex()
+                b &= ind not in indexes
+                indexes.append(ind)
+        
+        self.parent.next_button.setEnabled(b)
+
+    def display_secrets(self):
+        self.cb_number = []
+        label_number = QLabel("Solo number")
+        self.solos = []
+        for i in range(self.number_solo):
+            cb_number = None
+            if self.number_solo > 1:
+                cb_number = QComboBox()
+                cb_number.addItems(["1", "2", "3"])
+                cb_number.setCurrentIndex(i)
+                cb_number.setCurrentIndex(i)
+                cb_number.currentIndexChanged.connect(self.on_edit)
+                hboxtype = QHBoxLayout()
+                hboxtype.addWidget(label_number)
+                hboxtype.addWidget(cb_number)
+                self.addLayout(hboxtype)
+                
+            hbox = QHBoxLayout()
+            label_secret1 = QLabel("Secret 1")
+            label_secret2 = QLabel("Secret 2")
+            secret1 = QLineEdit()
+            secret1.setMaxLength(28)
+            secret2 = QLineEdit()
+            secret2.setMaxLength(14)
+            secret1.textChanged.connect(self.on_edit)
+            secret2.textChanged.connect(self.on_edit)
+
+            hbox.addWidget(label_secret1)
+            hbox.addWidget(secret1,1)
+            hbox.addWidget(label_secret2)
+            hbox.addWidget(secret2)
+            self.solos.append({"cb":cb_number,"secret1":secret1, "secret2":secret2})
+            self.addLayout(hbox)
+
+    def get_key(self):
+        if self.number_solo ==1:
+            secret1 = self.solos[0]["secret1"].text()
+            secret2 = self.solos[0]["secret2"].text()
+        else:
+            secret1_shares = []
+            secret2_shares = []
+            for solo in self.solos:
+                secret1_shares.append((solo["cb"].currentIndex()+1,solo["secret1"].text()))
+                secret2_shares.append((solo["cb"].currentIndex()+1,solo["secret2"].text()))
+            secret1 = reconstruct(secret1_shares,28)
+            secret2 = reconstruct(secret2_shares,14)
+        self.key = compute_privatekey_bitcoin(secret1, secret2)
+        if bitcoin.address_from_private_key(self.key) == self.address.text():
+            return self.key
+        return None
+
 
 
 class SeedDialog(WindowModalDialog):
