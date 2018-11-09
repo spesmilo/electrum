@@ -322,36 +322,36 @@ class Plugin(BasePlugin):
     def update(self, window):
         self.windows.append(window)
 
-    def settings_dialog(self, window):
+    # def settings_dialog(self, window):
+    #
+    #     d = WindowModalDialog(window, _("CashShuffle settings"))
+    #     d.setMinimumSize(500, 200)
+    #
+    #     vbox = QVBoxLayout(d)
+    #     vbox.addWidget(QLabel(_('CashShuffle Servers List')))
+    #     grid = QGridLayout()
+    #     vbox.addLayout(grid)
+    #
+    #     serverList=ServersList(parent=d)
+    #     serverList.setItems()
+    #
+    #
+    #     grid.addWidget(QLabel('Servers'), 0, 0)
+    #     grid.addWidget(serverList, 0, 1)
+    #
+    #
+    #     vbox.addStretch()
+    #     vbox.addLayout(Buttons(CloseButton(d), OkButton(d)))
+    #
+    #     if not d.exec_():
+    #         return
+    #
+    #     server = str(server_e.text())
+    #     self.config.set_key('email_server', server)
 
-        d = WindowModalDialog(window, _("CashShuffle settings"))
-        d.setMinimumSize(500, 200)
 
-        vbox = QVBoxLayout(d)
-        vbox.addWidget(QLabel(_('CashShuffle Servers List')))
-        grid = QGridLayout()
-        vbox.addLayout(grid)
-
-        serverList=ServersList(parent=d)
-        serverList.setItems()
-
-
-        grid.addWidget(QLabel('Servers'), 0, 0)
-        grid.addWidget(serverList, 0, 1)
-
-
-        vbox.addStretch()
-        vbox.addLayout(Buttons(CloseButton(d), OkButton(d)))
-
-        if not d.exec_():
-            return
-
-        server = str(server_e.text())
-        self.config.set_key('email_server', server)
-
-
-    def settings_widget(self, window):
-        return EnterButton(_('Settings'), partial(self.settings_dialog, window))
+    # def settings_widget(self, window):
+    #     return EnterButton(_('Settings'), partial(self.settings_dialog, window))
 
     def requires_settings(self):
-        return True
+        return False
