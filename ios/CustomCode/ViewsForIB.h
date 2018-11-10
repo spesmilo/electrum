@@ -161,7 +161,8 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
     WalletsStatusOffline = 0,
     WalletsStatusOnline = 1,
     WalletsStatusDownloadingHeaders = 2,
-    WalletsStatusSynchronizing = 3
+    WalletsStatusSynchronizing = 3,
+    WalletsStatusLagging = 4
 };
 
 @class WalletsDrawerVC;
@@ -170,6 +171,7 @@ typedef NS_ENUM(NSInteger, WalletsStatusMode) {
 
 @interface WalletsVCBase : UIViewController
 @property (nonatomic,assign) WalletsStatusMode status;
+@property (nonatomic,copy) NSString *statusExtraInfo;
 @property (nonatomic,weak) IBOutlet UILabel *statusLabel;
 @property (nonatomic,weak) IBOutlet UILabel *statusBlurb;
 @property (nonatomic, weak) IBOutlet NSLayoutConstraint *statusLabelWidthCS;

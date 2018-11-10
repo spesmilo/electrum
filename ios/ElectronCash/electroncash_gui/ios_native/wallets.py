@@ -18,6 +18,7 @@ StatusOffline = 0
 StatusOnline = 1
 StatusDownloadingHeaders = 2
 StatusSynchronizing = 3
+StatusLagging = 4
 
 
 def StatusColors() -> dict:
@@ -26,6 +27,7 @@ def StatusColors() -> dict:
         StatusOnline : UIColor.colorWithRed_green_blue_alpha_(187.0/255.0,255.0/255.0,59.0/255.0,1.0),
         StatusDownloadingHeaders : UIColor.colorWithRed_green_blue_alpha_(255.0/255.0,194.0/255.0,104.0/255.0,1.0),
         StatusSynchronizing : UIColor.colorWithRed_green_blue_alpha_(104.0/255.0,255.0/255.0,179.0/255.0,1.0),
+        StatusLagging : UIColor.colorInDeviceRGBWithHexString_("#EDFF95"),
     }
 
 def VChevronImages() -> list:
@@ -143,6 +145,9 @@ class WalletsVC(WalletsVCBase):
         elif mode == StatusSynchronizing:
             self.statusBlurb.text = _("Updating transaction history.")
             self.statusLabel.text = _("Synchronizing")
+        elif mode == StatusLagging:
+            self.statusBlurb.text = self.statusExtraInfo if self.statusExtraInfo else ''
+            self.statusLabel.text = _("Server Lagging")
         else: # mode == StatusOffline
             self.statusBlurb.text = _("Cannot send/receive new transactions.")
             self.statusLabel.text = _("Offline")
