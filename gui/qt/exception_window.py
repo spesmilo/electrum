@@ -27,6 +27,7 @@ import json
 import locale
 import platform
 import traceback
+import html
 
 import requests
 from PyQt5.QtCore import QObject
@@ -165,7 +166,7 @@ class Exception_Window(QWidget):
 
     def get_report_string(self):
         info = self.get_additional_info()
-        info["traceback"] = "".join(traceback.format_exception(*self.exc_args))
+        info["traceback"] = html.escape("".join(traceback.format_exception(*self.exc_args)), quote=False)
         return issue_template.format(**info)
 
 
