@@ -377,7 +377,6 @@ class BackgroundShufflingThread(threading.Thread):
             try:
                 message = self.loggers[scale].recv()
             except Exception as e:
-                # print(e)
                 self.logger.send("{} >> {}".format(type(e).__name__, e), "PROTOCOL")
                 return None
             vk = self.threads[scale].vk

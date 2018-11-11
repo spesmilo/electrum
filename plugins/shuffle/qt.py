@@ -37,7 +37,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
-from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout, QLineEdit, QHBoxLayout, QWidget, QCheckBox, QMenu, QComboBox
+from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout, QLineEdit, QHBoxLayout, QWidget, QCheckBox, QMenu, QComboBox, QMessageBox
 
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
@@ -319,6 +319,22 @@ class Plugin(BasePlugin):
 
     @hook
     def on_new_window(self, window):
+        password = None
+        while window.wallet.has_password():
+            password = window.password_dialog(parent=window, msg = "Enter password to allow\nCashShuffle do the job")
+            if password is None:
+                # User cancelled password input
+                msgBox = QMessageBox(parent=window)
+                msgBox.setText("Can't get password. Closing the pluging")
+                msgBox.exec_()
+                window.gui_object.plugins.toggle_internal_plugin('shuffle')
+                return
+            try:
+                window.wallet.check_password(password)
+                break
+            except Exception as e:
+                window.show_error(str(e), parent=window)
+                continue
         window.update_cashshuffle_icon()
         window.cs_tab = None
         self.windows.append(window)
@@ -331,44 +347,29 @@ class Plugin(BasePlugin):
         if not network_settings:
             network_settings = self.settings_dialog(window, msg="Choose the server, please")
         if not network_settings:
-            network_settings = {"server":"localhost", "port":8080, "ssl":False}
-        else:
-            window.wallet.storage.put("cashshuffle_server", network_settings)
+            msgBox = QMessageBox(parent=window)
+            msgBox.setText("Can't get network. Closing the pluging")
+            msgBox.exec_()
+            window.gui_object.plugins.toggle_internal_plugin('shuffle')
+            return
         network_settings['host'] = network_settings.pop('server')
         network_settings["network"] = window.network
-
-        # get server from wallet
-
-        # network_settings = {"host":"shuffle.imaginary.cash", "port":8080, "ssl":True, "network":window.network}
-        # network_settings = {"host":"localhost", "port":8080, "ssl":False, "network":window.network}
-        password = None
-        while window.wallet.has_password():
-            password = window.password_dialog(parent=window, msg = "Enter password to allow\nCashShuffle do the job")
-            if password is None:
-                # User cancelled password input
-                return
-            try:
-                window.wallet.check_password(password)
-                break
-            except Exception as e:
-                window.show_error(str(e), parent=window)
-                continue
         start_background_shuffling(window, network_settings, period = 10, password=password)
 
 
     def on_close(self):
         for window in self.windows:
-            window.background_process.join()
-            while window.background_process.is_alive():
-                pass
-            window.background_process = None
+            if getattr(window, "background_process", None):
+                window.background_process.join()
+                while window.background_process.is_alive():
+                    pass
+                window.background_process = None
             restore_utxo_list(window)
             restore_wallet(window.wallet)
             if window.console.namespace.get("start_background_shuffling", None):
                 del window.console.namespace["start_background_shuffling"]
             window.utxo_list.on_update()
             window.update_cashshuffle_icon()
-
 
 
     def update(self, window):
@@ -399,10 +400,10 @@ class Plugin(BasePlugin):
         if not d.exec_():
             return
         else:
-            return serverList.get_current_server()
-
-        # server = str(server_e.text())
-        # self.config.set_key('email_server', server)
+            network_settings = serverList.get_current_server()
+            for wdw in self.windows:
+                wdw.wallet.storage.put("cashshuffle_server", network_settings)
+            return network_settings
 
 
     def settings_widget(self, window):
