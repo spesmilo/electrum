@@ -317,8 +317,8 @@ class TestChannel(unittest.TestCase):
         #self.assertEqual(alice_channel.remote_update_log, [], "alice's remote not updated, should be empty, has %s entries instead"% len(alice_channel.remote_update_log))
         self.assertEqual(self.bob_pending_remote_balance, self.alice_channel.balance(LOCAL))
 
-        alice_channel.update_fee(100000)
-        bob_channel.receive_update_fee(100000)
+        alice_channel.update_fee(100000, True)
+        bob_channel.update_fee(100000, False)
         force_state_transition(alice_channel, bob_channel)
 
         self.htlc_dict['amount_msat'] *= 5
@@ -337,8 +337,8 @@ class TestChannel(unittest.TestCase):
 
 
     def alice_to_bob_fee_update(self, fee=111):
-        self.alice_channel.update_fee(fee)
-        self.bob_channel.receive_update_fee(fee)
+        self.alice_channel.update_fee(fee, True)
+        self.bob_channel.update_fee(fee, False)
         return fee
 
     def test_UpdateFeeSenderCommits(self):
