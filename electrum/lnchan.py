@@ -187,7 +187,7 @@ class Channel(PrintError):
 
         self.name = name
 
-        self.fee_mgr = []
+        self.pending_fee = None
 
         self.local_commitment = self.pending_local_commitment
         self.remote_commitment = self.pending_remote_commitment
@@ -377,11 +377,11 @@ class Channel(PrintError):
             current_commitment_signature=sig,
             current_htlc_signatures=htlc_sigs_string)
 
-        for pending_fee in self.fee_mgr:
+        if self.pending_fee:
             if not self.constraints.is_initiator:
-                pending_fee[FUNDEE_SIGNED] = True
-            if self.constraints.is_initiator and pending_fee[FUNDEE_ACKED]:
-                pending_fee[FUNDER_SIGNED] = True
+                self.pending_fee[FUNDEE_SIGNED] = True
+            if self.constraints.is_initiator and self.pending_fee[FUNDEE_ACKED]:
+                self.pending_fee[FUNDER_SIGNED] = True
 
         self.process_new_offchain_ctx(pending_local_commitment, ours=True)
 
@@ -403,14 +403,14 @@ class Channel(PrintError):
 
         new_feerate = self.constraints.feerate
 
-        for pending_fee in self.fee_mgr[:]:
-            if not self.constraints.is_initiator and pending_fee[FUNDEE_SIGNED]:
-                new_feerate = pending_fee.rate
-                self.fee_mgr.remove(pending_fee)
+        if self.pending_fee:
+            if not self.constraints.is_initiator and self.pending_fee[FUNDEE_SIGNED]:
+                new_feerate = self.pending_fee.rate
+                self.pending_fee = None
                 print("FEERATE CHANGE COMPLETE (non-initiator)")
-            if self.constraints.is_initiator and pending_fee[FUNDER_SIGNED]:
-                new_feerate = pending_fee.rate
-                self.fee_mgr.remove(pending_fee)
+            if self.constraints.is_initiator and self.pending_fee[FUNDER_SIGNED]:
+                new_feerate = self.pending_fee.rate
+                self.pending_fee = None
                 print("FEERATE CHANGE COMPLETE (initiator)")
 
         self.config[LOCAL]=self.config[LOCAL]._replace(
@@ -477,11 +477,11 @@ class Channel(PrintError):
             self.log = old_logs
             raise Exception('revoked secret not for current point')
 
-        for pending_fee in self.fee_mgr:
+        if self.pending_fee:
             if not self.constraints.is_initiator:
-                pending_fee[FUNDEE_SIGNED] = True
+                self.pending_fee[FUNDEE_SIGNED] = True
             if self.constraints.is_initiator and pending_fee[FUNDEE_ACKED]:
-                pending_fee[FUNDER_SIGNED] = True
+                self.pending_fee[FUNDER_SIGNED] = True
 
         # FIXME not sure this is correct... but it seems to work
         # if there are update_add_htlc msgs between commitment_signed and rev_ack,
@@ -527,9 +527,9 @@ class Channel(PrintError):
             amount_msat = self.config[LOCAL].amount_msat + (received_this_batch - sent_this_batch)
         )
 
-        for pending_fee in self.fee_mgr:
+        if self.pending_fee:
             if self.constraints.is_initiator:
-                pending_fee[FUNDEE_ACKED] = True
+                self.pending_fee[FUNDEE_ACKED] = True
 
         self.local_commitment = self.pending_local_commitment
         self.remote_commitment = self.pending_remote_commitment
@@ -608,11 +608,10 @@ class Channel(PrintError):
 
     def pending_feerate(self, subject):
         candidate = self.constraints.feerate
-        for pending_fee in self.fee_mgr:
-            x = pending_fee.pending_feerate(subject)
+        if self.pending_fee:
+            x = self.pending_fee.pending_feerate(subject)
             if x is not None:
                 candidate = x
-
         return candidate
 
     @property
@@ -682,17 +681,12 @@ class Channel(PrintError):
     def pending_local_fee(self):
         return self.constraints.capacity - sum(x[2] for x in self.pending_local_commitment.outputs())
 
-    def update_fee(self, feerate):
-        if not self.constraints.is_initiator:
-            raise Exception("only initiator can update_fee, this counterparty is not initiator")
-        pending_fee = FeeUpdate(self, rate=feerate)
-        self.fee_mgr.append(pending_fee)
-
-    def receive_update_fee(self, feerate):
-        if self.constraints.is_initiator:
-            raise Exception("only the non-initiator can receive_update_fee, this counterparty is initiator")
-        pending_fee = FeeUpdate(self, rate=feerate)
-        self.fee_mgr.append(pending_fee)
+    def update_fee(self, feerate, initiator):
+        if self.constraints.is_initiator != initiator:
+            raise Exception("Cannot update_fee: wrong initiator", initiator)
+        if self.pending_fee:
+            raise Exception("a fee update is already in progress")
+        self.pending_fee = FeeUpdate(self, rate=feerate)
 
     def remove_uncommitted_htlcs_from_log(self, subject):
         """

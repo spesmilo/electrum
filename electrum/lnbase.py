@@ -1103,7 +1103,8 @@ class Peer(PrintError):
 
     def on_update_fee(self, payload):
         channel_id = payload["channel_id"]
-        self.channels[channel_id].receive_update_fee(int.from_bytes(payload["feerate_per_kw"], "big"))
+        feerate =int.from_bytes(payload["feerate_per_kw"], "big")
+        self.channels[channel_id].update_fee(feerate, False)
 
     async def bitcoin_fee_update(self, chan: Channel):
         """
@@ -1122,7 +1123,7 @@ class Peer(PrintError):
             self.print_error("FEES HAVE RISEN")
         else:
             return
-        chan.update_fee(feerate_per_kw)
+        chan.update_fee(feerate_per_kw, True)
         await self.update_channel(chan, "update_fee", channel_id=chan.channel_id, feerate_per_kw=feerate_per_kw)
 
     def current_feerate_per_kw(self):
