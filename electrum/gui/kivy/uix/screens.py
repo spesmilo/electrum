@@ -32,7 +32,7 @@ from electrum.lnaddr import lndecode
 from electrum.lnutil import RECEIVED, SENT
 
 from .context_menu import ContextMenu
-
+from .dialogs.lightning_open_channel import LightningOpenChannelDialog
 
 from electrum.gui.kivy.i18n import _
 
@@ -280,11 +280,13 @@ class SendScreen(CScreen):
             return
         invoice = self.screen.address
         amount_sat = self.app.get_amount(self.screen.amount)
+        addr = self.app.wallet.lnworker._check_invoice(invoice, amount_sat)
         try:
-            addr = self.app.wallet.lnworker._check_invoice(invoice, amount_sat)
             route = self.app.wallet.lnworker._create_route_from_invoice(decoded_invoice=addr)
         except Exception as e:
-            self.app.show_error(_('Could not find path for payment. Check if you have open channels. Error details:') + ':\n' + repr(e))
+            dia = LightningOpenChannelDialog(self.app, addr, str(e) + _(':\nYou can open a channel.'))
+            dia.open()
+            return
         self.app.network.register_callback(self.payment_completed_async_thread, ['ln_payment_completed'])
         _addr, _peer, coro = self.app.wallet.lnworker._pay(invoice, amount_sat)
         fut = asyncio.run_coroutine_threadsafe(coro, self.app.network.asyncio_loop)

@@ -75,7 +75,7 @@ from electrum.util import (base_units, NoDynamicFeeEstimates, decimal_point_to_b
                            base_unit_name_to_decimal_point, NotEnoughFunds, UnknownBaseUnit,
                            DECIMAL_POINT_DEFAULT)
 
-from .uix.dialogs.lightning_payer import LightningPayerDialog
+from .uix.dialogs.lightning_open_channel import LightningOpenChannelDialog
 from .uix.dialogs.lightning_channels import LightningChannelsDialog
 
 class ElectrumWindow(App):
@@ -645,8 +645,8 @@ class ElectrumWindow(App):
         self._settings_dialog.update()
         self._settings_dialog.open()
 
-    def lightning_payer_dialog(self):
-        d = LightningPayerDialog(self)
+    def lightning_open_channel_dialog(self):
+        d = LightningOpenChannelDialog(self)
         d.open()
 
     def lightning_channels_dialog(self):
@@ -803,7 +803,11 @@ class ElectrumWindow(App):
         inputs = self.wallet.get_spendable_coins(None, self.electrum_config)
         if not inputs:
             return ''
-        addr = str(self.send_screen.screen.address) or self.wallet.dummy_address()
+        addr = None
+        if self.send_screen:
+            addr = str(self.send_screen.screen.address)
+        if not addr:
+            addr = self.wallet.dummy_address()
         outputs = [TxOutput(TYPE_ADDRESS, addr, '!')]
         try:
             tx = self.wallet.make_unsigned_transaction(inputs, outputs, self.electrum_config)

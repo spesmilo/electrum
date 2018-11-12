@@ -240,6 +240,7 @@ class LNWorker(PrintError):
         if conf >= chan.constraints.funding_txn_minimum_depth > 0:
             chan.short_channel_id = chan.short_channel_id_predicted
             self.save_channel(chan)
+            self.on_channels_updated()
             return True, conf
         return False, conf
 
@@ -255,6 +256,7 @@ class LNWorker(PrintError):
         if is_spent:
             if chan.get_state() != 'FORCE_CLOSING':
                 chan.set_state("CLOSED")
+                self.on_channels_updated()
             self.channel_db.remove_channel(chan.short_channel_id)
         self.network.trigger_callback('channel', chan)
 
@@ -543,6 +545,7 @@ class LNWorker(PrintError):
         tx = chan.force_close_tx()
         chan.set_state('FORCE_CLOSING')
         self.save_channel(chan)
+        self.on_channels_updated()
         return await self.network.broadcast_transaction(tx)
 
     def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
