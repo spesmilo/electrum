@@ -20,6 +20,7 @@ bin/
 electrum/gui/qt/icons_rc.py
 electrum/gui/kivy/theming/light-0.png
 electrum/gui/kivy/theming/light.atlas
+electrum/gui/kivy/theming/light/network.png
 
 # tests/tox
 .tox/
