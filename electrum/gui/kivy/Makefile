@@ -5,6 +5,7 @@ PYTHON = python3
 .PHONY: theming apk clean
 
 theming:
+	bash -c "convert -background none theming/light/network.{svg,png}"
 	$(PYTHON) -m kivy.atlas theming/light 1024 theming/light/*.png
 prepare:
 	# running pre build setup
