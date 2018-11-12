@@ -377,7 +377,7 @@ class Channel(PrintError):
             current_commitment_signature=sig,
             current_htlc_signatures=htlc_sigs_string)
 
-        if self.pending_fee:
+        if self.pending_fee is not None:
             if not self.constraints.is_initiator:
                 self.pending_fee[FUNDEE_SIGNED] = True
             if self.constraints.is_initiator and self.pending_fee[FUNDEE_ACKED]:
@@ -403,7 +403,7 @@ class Channel(PrintError):
 
         new_feerate = self.constraints.feerate
 
-        if self.pending_fee:
+        if self.pending_fee is not None:
             if not self.constraints.is_initiator and self.pending_fee[FUNDEE_SIGNED]:
                 new_feerate = self.pending_fee.rate
                 self.pending_fee = None
@@ -477,10 +477,10 @@ class Channel(PrintError):
             self.log = old_logs
             raise Exception('revoked secret not for current point')
 
-        if self.pending_fee:
+        if self.pending_fee is not None:
             if not self.constraints.is_initiator:
                 self.pending_fee[FUNDEE_SIGNED] = True
-            if self.constraints.is_initiator and pending_fee[FUNDEE_ACKED]:
+            if self.constraints.is_initiator and self.pending_fee[FUNDEE_ACKED]:
                 self.pending_fee[FUNDER_SIGNED] = True
 
         # FIXME not sure this is correct... but it seems to work
@@ -527,7 +527,7 @@ class Channel(PrintError):
             amount_msat = self.config[LOCAL].amount_msat + (received_this_batch - sent_this_batch)
         )
 
-        if self.pending_fee:
+        if self.pending_fee is not None:
             if self.constraints.is_initiator:
                 self.pending_fee[FUNDEE_ACKED] = True
 
@@ -608,7 +608,7 @@ class Channel(PrintError):
 
     def pending_feerate(self, subject):
         candidate = self.constraints.feerate
-        if self.pending_fee:
+        if self.pending_fee is not None:
             x = self.pending_fee.pending_feerate(subject)
             if x is not None:
                 candidate = x
@@ -684,7 +684,7 @@ class Channel(PrintError):
     def update_fee(self, feerate, initiator):
         if self.constraints.is_initiator != initiator:
             raise Exception("Cannot update_fee: wrong initiator", initiator)
-        if self.pending_fee:
+        if self.pending_fee is not None:
             raise Exception("a fee update is already in progress")
         self.pending_fee = FeeUpdate(self, rate=feerate)
 
