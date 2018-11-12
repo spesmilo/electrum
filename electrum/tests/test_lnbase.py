@@ -99,6 +99,9 @@ class MockLNWorker:
     def save_channel(self, chan):
         print("Ignoring channel save")
 
+    def on_channels_updated(self):
+        pass
+
     get_invoice = LNWorker.get_invoice
     _create_route_from_invoice = LNWorker._create_route_from_invoice
     _check_invoice = staticmethod(LNWorker._check_invoice)
