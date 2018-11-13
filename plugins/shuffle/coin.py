@@ -61,7 +61,7 @@ class Coin(object):
                         total += utxos[utxo]
                     else:
                         return None
-            return total > amount
+            return total >= amount
         except Exception as e:
             return None
 
@@ -112,7 +112,7 @@ class Coin(object):
         transaction = Transaction.from_io(tx_inputs, tx_outputs)
         tx_changes = [(TYPE_ADDRESS, Address.from_string(changes[player]), int(amounts[player] - amount -fee))
                       for player in sorted(changes)
-                      if Address.is_valid(changes[player])]
+                      if Address.is_valid(changes[player]) and int(amounts[player] - amount -fee) > 0]
         transaction.add_outputs(tx_changes)
         return transaction
 

@@ -410,7 +410,15 @@ class BackgroundShufflingThread(threading.Thread):
         id_sk = generate_random_sk()
         id_pub = id_sk.GetPubKey(True).hex()
         output = self.wallet.get_unused_addresses()[0].to_ui_string()
-        change = self.wallet.get_change_addresses()[0].to_ui_string()
+        # Lookup a changes in threads
+        changes_in_threads = [Address.from_string(self.threads[scale].change) for scale in self.threads if self.threads[scale]]
+        # find unused changes
+        fresh_changes = [address for address in self.wallet.get_change_addresses()
+                         if not self.wallet.get_address_history(address) and
+                            address not in changes_in_threads]
+        change_addr = fresh_changes[0] if fresh_changes else self.wallet.create_new_address(for_change=True)
+        change = change_addr.to_ui_string()
+        # change = self.wallet.get_change_addresses()[0].to_ui_string()
         self.threads[scale] = ProtocolThread(self.host, self.port, self.network,
                                              scale, self.fee, id_sk, sks, inputs, id_pub, output, change,
                                              logger=self.loggers[scale], ssl=self.ssl)

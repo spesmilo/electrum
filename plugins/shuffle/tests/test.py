@@ -1,18 +1,18 @@
 import unittest
 import configparser
 import subprocess
-import os
+import os, sys
 import random
 import ecdsa
 import threading
 import time
 
-import sys
-print(sys.path)
 import imp
-imp.load_module('electroncash', *imp.find_module('../../../lib'))
-imp.load_module('electroncash_gui', *imp.find_module('../../../gui/qt'))
-imp.load_module('electroncash_plugins', *imp.find_module('../../../plugins'))
+sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/../../../"))
+
+imp.load_module('electroncash', *imp.find_module('lib'))
+imp.load_module('electroncash_gui', *imp.find_module('gui/qt'))
+imp.load_module('electroncash_plugins', *imp.find_module('plugins'))
 
 
 from electroncash.address import Address
@@ -42,7 +42,7 @@ class testNetwork(object):
         bc_command, addresses = command
         if bc_command == 'blockchain.scripthash.listunspent':
             if len(addresses) > 0:
-                result = [self.coins[addr] for addr in self.coins if Address.from_string(addr).to_scripthash_hex()==addresses[0]][0]
+                result = [self.coins[addr] for addr in self.coins if addr.to_scripthash_hex()==addresses[0]][0]
                 return result
         else:
             return []

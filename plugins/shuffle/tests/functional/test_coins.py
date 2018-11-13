@@ -1,5 +1,9 @@
 import unittest
 
+import sys, os
+sys.path.append(os.path.realpath(os.path.dirname(__file__)+"/../../../../"))
+# print(sys.path)
+
 import imp
 imp.load_module('electroncash', *imp.find_module('lib'))
 imp.load_module('electroncash_plugins', *imp.find_module('plugins'))
@@ -68,7 +72,7 @@ class TestCoin(unittest.TestCase):
         self.assertIsNone(coins)
 
     def test_003_make_unsigned_transaction(self):
-        fee = 50
+        fee = 100
         amount = 1000
         pubkey_1, pubkey_2, pubkey_3, pubkey_4 = self.public_keys[0:4]
         address_1, address_2, address_3, address_4 = self.addresses[0:4]
@@ -102,29 +106,30 @@ class TestCoin(unittest.TestCase):
         transaction = self.coin.make_unsigned_transaction(amount, fee, inputs, outputs, changes)
 
         flat_inputs = [
-            {"public_key": pubkey_1, "address": address_1, "tx_hash": inputs["player_1_vk"][pubkey_1][0].split(":")[0], "value": 500},
-            {"public_key": pubkey_1, "address": address_1, "tx_hash": inputs["player_1_vk"][pubkey_1][1].split(":")[0], "value": 100},
-            {"public_key": pubkey_2, "address": address_2, "tx_hash": inputs["player_1_vk"][pubkey_2][0].split(":")[0], "value": 500},
-            {"public_key": pubkey_3, "address": address_3, "tx_hash": inputs["player_2_vk"][pubkey_3][0].split(":")[0], "value": 1000},
-            {"public_key": pubkey_3, "address": address_3, "tx_hash": inputs["player_2_vk"][pubkey_3][1].split(":")[0], "value": 100},
-            {"public_key": pubkey_4, "address": address_4, "tx_hash": inputs["player_3_vk"][pubkey_4][0].split(":")[0], "value": 10000},
+            {"public_key": pubkey_1, "address": address_1, "tx_hash": inputs["player_1_vk"][pubkey_1][0].split(":")[0], "value": 500, "tx_pos":0},
+            {"public_key": pubkey_1, "address": address_1, "tx_hash": inputs["player_1_vk"][pubkey_1][1].split(":")[0], "value": 100, "tx_pos":0},
+            {"public_key": pubkey_2, "address": address_2, "tx_hash": inputs["player_1_vk"][pubkey_2][0].split(":")[0], "value": 500, "tx_pos":0},
+            {"public_key": pubkey_3, "address": address_3, "tx_hash": inputs["player_2_vk"][pubkey_3][0].split(":")[0], "value": 1000, "tx_pos":0},
+            {"public_key": pubkey_3, "address": address_3, "tx_hash": inputs["player_2_vk"][pubkey_3][1].split(":")[0], "value": 100, "tx_pos":0},
+            {"public_key": pubkey_4, "address": address_4, "tx_hash": inputs["player_3_vk"][pubkey_4][0].split(":")[0], "value": 10000, "tx_pos":0},
         ]
         flat_inputs.sort(key=lambda x:x["tx_hash"])
         for i, input in enumerate(transaction.inputs()):
             self.assertEquals(input['value'], flat_inputs[i]['value'])
             self.assertEquals(input['tx_hash'], flat_inputs[i]['tx_hash'])
             self.assertEquals(input['pubkeys'][0], flat_inputs[i]['public_key'])
-            self.assertEquals(input['address'].to_string(Address.FMT_LEGACY), flat_inputs[i]['address'])
+            self.assertEquals(input['address'].to_string(Address.FMT_LEGACY), flat_inputs[i]['address'].to_string(Address.FMT_LEGACY))
         amounts = {"player_1_vk":1100, "player_2_vk":1100, "player_3_vk":10000 }
         flat_changes = [(changes[player], amounts[player]) for player in sorted(changes)]
         flat_outputs = [
             (0, Address.from_string(outputs[0]), amount),
             (0, Address.from_string(outputs[1]), amount),
             (0, Address.from_string(outputs[2]), amount),
-            (0, Address.from_string(flat_changes[0][0]), flat_changes[0][1] - amount -fee),
-            (0, Address.from_string(flat_changes[1][0]), flat_changes[1][1] - amount -fee),
+            # (0, Address.from_string(flat_changes[0][0]), flat_changes[0][1] - amount -fee),
+            # (0, Address.from_string(flat_changes[1][0]), flat_changes[1][1] - amount -fee),
             (0, Address.from_string(flat_changes[2][0]), flat_changes[2][1] - amount - fee)
         ]
+        print(transaction.outputs())
         self.assertEquals(transaction.outputs(), flat_outputs)
 
 
