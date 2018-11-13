@@ -991,6 +991,15 @@ class ElectrumWindow(App):
         popup = AmountDialog(show_max, amount, cb)
         popup.open()
 
+    def lightning_invoices_dialog(self, cb):
+        from .uix.dialogs.lightning_invoices import LightningInvoicesDialog
+        report = self.wallet.lnworker._list_invoices()
+        if not report['unsettled']:
+            self.show_info(_('No unsettled invoices. Type in an amount to generate a new one.'))
+            return
+        popup = LightningInvoicesDialog(report, cb)
+        popup.open()
+
     def invoices_dialog(self, screen):
         from .uix.dialogs.invoices import InvoicesDialog
         if len(self.wallet.invoices.sorted_list()) == 0:
