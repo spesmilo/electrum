@@ -636,7 +636,7 @@ class Network(PrintError):
             await asyncio.wait_for(interface.ready, timeout)
         except BaseException as e:
             #traceback.print_exc()
-            self.print_error(server, "couldn't launch because", str(e), str(type(e)))
+            self.print_error(f"couldn't launch iface {server} -- {repr(e)}")
             await interface.close()
             return
         else:

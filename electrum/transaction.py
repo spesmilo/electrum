@@ -38,7 +38,7 @@ from .util import print_error, profiler, to_bytes, bh2u, bfh
 from .bitcoin import (TYPE_ADDRESS, TYPE_PUBKEY, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       hash_encode, var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
-                      op_push, int_to_hex, push_script, b58_address_to_hash160)
+                      push_script, int_to_hex, push_script, b58_address_to_hash160)
 from .crypto import sha256d
 from .keystore import xpubkey_to_address, xpubkey_to_pubkey
 
@@ -649,15 +649,12 @@ def deserialize(raw: str, force_full_parse=False) -> dict:
 
 # pay & redeem scripts
 
-
-
 def multisig_script(public_keys: Sequence[str], m: int) -> str:
     n = len(public_keys)
-    assert n <= 15
-    assert m <= n
-    op_m = format(opcodes.OP_1 + m - 1, 'x')
-    op_n = format(opcodes.OP_1 + n - 1, 'x')
-    keylist = [op_push(len(k)//2) + k for k in public_keys]
+    assert 1 <= m <= n <= 15, f'm {m}, n {n}'
+    op_m = bh2u(bytes([opcodes.OP_1 - 1 + m]))
+    op_n = bh2u(bytes([opcodes.OP_1 - 1 + n]))
+    keylist = [push_script(k) for k in public_keys]
     return op_m + ''.join(keylist) + op_n + 'ae'
 
 
