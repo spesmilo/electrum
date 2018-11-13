@@ -115,7 +115,8 @@ class LNWorker(PrintError):
         if report['unsettled']:
             yield 'Your unsettled invoices:'
             yield '------------------------'
-            for addr, preimage in report['unsettled']:
+            for addr, preimage, pay_req in report['unsettled']:
+                yield pay_req
                 yield str(addr)
                 yield 'Preimage: ' + bh2u(preimage)
                 yield ''
@@ -143,7 +144,7 @@ class LNWorker(PrintError):
             settled.append((datetime.fromtimestamp(date, timezone.utc), HTLCOwner(direction), htlcobj, preimage))
         for preimage, pay_req in invoices.values():
             addr = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
-            unsettled.append((addr, bfh(preimage)))
+            unsettled.append((addr, bfh(preimage), pay_req))
         for pay_req, amount_sat in self.paying.values():
             addr = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
             if amount_sat is not None:

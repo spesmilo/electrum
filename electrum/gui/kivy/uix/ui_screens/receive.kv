@@ -14,6 +14,7 @@ ReceiveScreen:
     amount: ''
     message: ''
     status: ''
+    lnaddr: ''
 
     on_address:
         self.parent.on_address(self.address)
@@ -30,6 +31,7 @@ ReceiveScreen:
         FloatLayout:
             id: bl
             QRCodeWidget:
+                opacity: 0 if lnbutton.state == 'down' and not s.lnaddr else 1
                 id: qr
                 size_hint: None, 1
                 width: min(self.height, bl.width)
@@ -62,15 +64,15 @@ ReceiveScreen:
                 height: blue_bottom.item_height
                 spacing: '5dp'
                 Image:
-                    source: 'atlas://electrum/gui/kivy/theming/light/globe'
+                    source: 'atlas://electrum/gui/kivy/theming/light/lightning' if lnbutton.state == 'down' else 'atlas://electrum/gui/kivy/theming/light/globe'
                     size_hint: None, None
                     size: '22dp', '22dp'
                     pos_hint: {'center_y': .5}
                 BlueButton:
                     id: address_label
-                    text: s.address if s.address else _('Bitcoin Address')
+                    text: (s.address if s.address else _('Bitcoin Address')) if lnbutton.state != 'down' else (s.lnaddr if s.lnaddr else _('Please enter amount'))
                     shorten: True
-                    on_release: Clock.schedule_once(lambda dt: app.addresses_dialog(s))
+                    on_release: Clock.schedule_once(lambda dt: app.addresses_dialog(s) if lnbutton.state != 'down' else s.parent.do_copy())
             CardSeparator:
                 opacity: message_selection.opacity
                 color: blue_bottom.foreground_color
@@ -111,15 +113,17 @@ ReceiveScreen:
             size_hint: 1, None
             height: '48dp'
             IconButton:
-                icon: 'atlas://electrum/gui/kivy/theming/light/save'
-                size_hint: 0.6, None
+                opacity: 1 if lnbutton.state != 'down' else 0
+                icon: 'atlas://electrum/gui/kivy/theming/light/save' if lnbutton.state != 'down' else ''
+                size_hint: (0 if lnbutton.state == 'down' else 0.6), None
                 height: '48dp'
-                on_release: s.parent.do_save()
+                on_release: s.parent.do_save() if lnbutton.state != 'down' else None
+                width: (0 if lnbutton.state == 'down' else 100)
             Button:
-                text: _('Requests')
-                size_hint: 1, None
+                text: _('Requests') if lnbutton.state != 'down' else _('Lightning Invoices')
+                size_hint: 1 + (.6 if lnbutton.state == 'down' else 0), None
                 height: '48dp'
-                on_release: Clock.schedule_once(lambda dt: app.requests_dialog(s))
+                on_release: Clock.schedule_once(lambda dt: app.requests_dialog(s) if lnbutton.state != 'down' else app.lightning_invoices_dialog(s.parent.do_open_lnaddr))
             Button:
                 text: _('Copy')
                 size_hint: 1, None
@@ -133,8 +137,11 @@ ReceiveScreen:
         BoxLayout:
             size_hint: 1, None
             height: '48dp'
+            LightningButton
+                id: lnbutton
+                on_state: s.parent.on_amount_or_message()
             Widget
-                size_hint: 2, 1
+                size_hint: 1, 1
             Button:
                 text: _('New')
                 size_hint: 1, None

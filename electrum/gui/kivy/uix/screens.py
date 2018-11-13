@@ -15,6 +15,8 @@ from kivy.properties import (ObjectProperty, DictProperty, NumericProperty,
 
 from kivy.uix.recycleview import RecycleView
 from kivy.uix.label import Label
+from kivy.uix.behaviors import ToggleButtonBehavior
+from kivy.uix.image import Image
 
 from kivy.lang import Builder
 from kivy.factory import Factory
@@ -398,6 +400,7 @@ class ReceiveScreen(CScreen):
         self.screen.address = ''
         self.screen.amount = ''
         self.screen.message = ''
+        self.screen.lnaddr = ''
 
     def get_new_address(self) -> bool:
         """Sets the address field, and returns whether the set address
@@ -440,18 +443,30 @@ class ReceiveScreen(CScreen):
 
     @profiler
     def update_qr(self):
-        uri = self.get_URI()
         qr = self.screen.ids.qr
-        qr.set_data(uri)
+        if self.screen.ids.lnbutton.state == 'down':
+            qr.set_data(self.screen.lnaddr)
+        else:
+            uri = self.get_URI()
+            qr.set_data(uri)
 
     def do_share(self):
-        uri = self.get_URI()
-        self.app.do_share(uri, _("Share Bitcoin Request"))
+        if self.screen.ids.lnbutton.state == 'down':
+            if self.screen.lnaddr:
+                self.app.do_share('lightning://' + self.lnaddr, _('Share Lightning invoice'))
+        else:
+            uri = self.get_URI()
+            self.app.do_share(uri, _("Share Bitcoin Request"))
 
     def do_copy(self):
-        uri = self.get_URI()
-        self.app._clipboard.copy(uri)
-        self.app.show_info(_('Request copied to clipboard'))
+        if self.screen.ids.lnbutton.state == 'down':
+            if self.screen.lnaddr:
+                self.app._clipboard.copy(self.screen.lnaddr)
+                self.app.show_info(_('Invoice copied to clipboard'))
+        else:
+            uri = self.get_URI()
+            self.app._clipboard.copy(uri)
+            self.app.show_info(_('Request copied to clipboard'))
 
     def save_request(self):
         addr = self.screen.address
@@ -472,6 +487,9 @@ class ReceiveScreen(CScreen):
         return added_request
 
     def on_amount_or_message(self):
+        if self.screen.ids.lnbutton.state == 'down':
+            if self.screen.amount:
+                self.screen.lnaddr = self.app.wallet.lnworker.add_invoice(self.app.get_amount(self.screen.amount), self.screen.message)
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def do_new(self):
@@ -483,6 +501,13 @@ class ReceiveScreen(CScreen):
         if self.save_request():
             self.app.show_info(_('Request was saved.'))
 
+    def do_open_lnaddr(self, lnaddr):
+        self.clear()
+        self.screen.lnaddr = lnaddr
+        obj = lndecode(lnaddr, expected_hrp=constants.net.SEGWIT_HRP)
+        self.screen.message = dict(obj.tags).get('d', '')
+        self.screen.amount = self.app.format_amount_and_units(int(obj.amount * bitcoin.COIN))
+        self.on_amount_or_message()
 
 class TabbedCarousel(Factory.TabbedPanel):
     '''Custom TabbedPanel using a carousel used in the Main Screen
@@ -556,3 +581,15 @@ class TabbedCarousel(Factory.TabbedPanel):
             self.carousel.add_widget(widget)
             return
         super(TabbedCarousel, self).add_widget(widget, index=index)
+
+class LightningButton(ToggleButtonBehavior, Image):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.source = 'atlas://electrum/gui/kivy/theming/light/lightning_switch_off'
+
+    def on_state(self, widget, value):
+        self.state = value
+        if value == 'down':
+            self.source = 'atlas://electrum/gui/kivy/theming/light/lightning_switch_on'
+        else:
+            self.source = 'atlas://electrum/gui/kivy/theming/light/lightning_switch_off'

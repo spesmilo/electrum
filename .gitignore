@@ -17,8 +17,12 @@ bin/
 
 # icons
 electrum/gui/kivy/theming/light-0.png
+electrum/gui/kivy/theming/light-1.png
 electrum/gui/kivy/theming/light.atlas
 electrum/gui/kivy/theming/light/network.png
+electrum/gui/kivy/theming/light/lightning_switch_off.png
+electrum/gui/kivy/theming/light/lightning_switch_on.png
+electrum/gui/kivy/theming/light/lightning.png
 
 # tests/tox
 .tox/
