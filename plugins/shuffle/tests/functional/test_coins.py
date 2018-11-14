@@ -125,8 +125,6 @@ class TestCoin(unittest.TestCase):
             (0, Address.from_string(outputs[0]), amount),
             (0, Address.from_string(outputs[1]), amount),
             (0, Address.from_string(outputs[2]), amount),
-            # (0, Address.from_string(flat_changes[0][0]), flat_changes[0][1] - amount -fee),
-            # (0, Address.from_string(flat_changes[1][0]), flat_changes[1][1] - amount -fee),
             (0, Address.from_string(flat_changes[2][0]), flat_changes[2][1] - amount - fee)
         ]
         print(transaction.outputs())
