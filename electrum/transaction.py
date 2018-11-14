@@ -1030,9 +1030,10 @@ class Transaction:
         if outputs:
             self._outputs.sort(key = lambda o: (o.value, self.pay_script(o.type, o.address)))
 
-    def serialize_output(self, output: TxOutput) -> str:
+    @classmethod
+    def serialize_output(cls, output: TxOutput) -> str:
         s = int_to_hex(output.value, 8)
-        script = self.pay_script(output.type, output.address)
+        script = cls.pay_script(output.type, output.address)
         s += var_int(len(script)//2)
         s += script
         return s

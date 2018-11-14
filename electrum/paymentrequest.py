@@ -132,8 +132,12 @@ class PaymentRequest:
         self.details.ParseFromString(self.data.serialized_payment_details)
         self.outputs = []
         for o in self.details.outputs:
-            addr = transaction.get_address_from_output_script(o.script)[1]
-            self.outputs.append(TxOutput(TYPE_ADDRESS, addr, o.amount))
+            type_, addr = transaction.get_address_from_output_script(o.script)
+            if type_ != TYPE_ADDRESS:
+                # TODO maybe rm restriction but then get_requestor and get_id need changes
+                self.error = "only addresses are allowed as outputs"
+                return
+            self.outputs.append(TxOutput(type_, addr, o.amount))
         self.memo = self.details.memo
         self.payment_url = self.details.payment_url
 
@@ -195,6 +199,9 @@ class PaymentRequest:
             verify = pubkey0.verify(sigBytes, x509.PREFIX_RSA_SHA256 + hashBytes)
         elif paymntreq.pki_type == "x509+sha1":
             verify = pubkey0.hashAndVerify(sigBytes, msgBytes)
+        else:
+            self.error = f"ERROR: unknown pki_type {paymntreq.pki_type} in Payment Request"
+            return False
         if not verify:
             self.error = "ERROR: Invalid Signature for Payment Request Data"
             return False
