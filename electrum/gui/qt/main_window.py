@@ -1667,7 +1667,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 coro = pr.send_payment_and_receive_paymentack(str(tx), refund_address)
                 fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
                 ack_status, ack_msg = fut.result(timeout=20)
-                msg += f"\n\nPayment ACK: {ack_status}.\nAck message: {ack_msg}"
+                self.print_error(f"Payment ACK: {ack_status}. Ack message: {ack_msg}")
             return status, msg
 
         # Capture current TL window; override might be removed on return
