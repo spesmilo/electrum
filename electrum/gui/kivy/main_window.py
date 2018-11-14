@@ -101,6 +101,14 @@ class ElectrumWindow(App):
     def toggle_auto_connect(self, x):
         self.auto_connect = not self.auto_connect
 
+    oneserver = BooleanProperty(False)
+    def on_oneserver(self, instance, x):
+        net_params = self.network.get_parameters()
+        net_params = net_params._replace(oneserver=self.oneserver)
+        self.network.run_from_another_thread(self.network.set_parameters(net_params))
+    def toggle_oneserver(self, x):
+        self.oneserver = not self.oneserver
+
     def choose_server_dialog(self, popup):
         from .uix.dialogs.choice_dialog import ChoiceDialog
         protocol = 's'
@@ -275,6 +283,7 @@ class ElectrumWindow(App):
             self.server_host = net_params.host
             self.server_port = net_params.port
             self.auto_connect = net_params.auto_connect
+            self.oneserver = net_params.oneserver
             self.proxy_config = net_params.proxy if net_params.proxy else {}
 
         self.plugins = kwargs.get('plugins', [])

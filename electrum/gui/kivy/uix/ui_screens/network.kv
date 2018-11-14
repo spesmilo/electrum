@@ -39,6 +39,13 @@ Popup:
 
                 CardSeparator
                 SettingsItem:
+                    title: _("One-server mode") + ': ' + ('ON' if app.oneserver else 'OFF')
+                    description: _("Only connect to a single server")
+                    action: app.toggle_oneserver
+                    disabled: app.auto_connect and not app.oneserver
+
+                CardSeparator
+                SettingsItem:
                     value: "%d blocks" % app.num_blocks
                     title: _("Blockchain") + ': ' + self.value
                     description: _('Verified block headers')
