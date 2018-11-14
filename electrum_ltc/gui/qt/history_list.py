@@ -297,10 +297,14 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             super(HistoryList, self).on_doubleclick(item, column)
         else:
             tx_hash = item.data(0, Qt.UserRole)
-            tx = self.wallet.transactions.get(tx_hash)
-            if not tx:
-                return
-            self.parent.show_transaction(tx)
+            self.show_transaction(tx_hash)
+
+    def show_transaction(self, tx_hash):
+        tx = self.wallet.transactions.get(tx_hash)
+        if not tx:
+            return
+        label = self.wallet.get_label(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
+        self.parent.show_transaction(tx, label)
 
     def update_labels(self):
         root = self.invisibleRootItem()
@@ -354,7 +358,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         for c in self.editable_columns:
             menu.addAction(_("Edit {}").format(self.headerItem().text(c)),
                            lambda bound_c=c: self.editItem(item, bound_c))
-        menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx))
+        menu.addAction(_("Details"), lambda: self.show_transaction(tx_hash))
         if is_unconfirmed and tx:
             # note: the current implementation of RBF *needs* the old tx fee
             rbf = is_mine and not tx.is_final() and fee is not None
