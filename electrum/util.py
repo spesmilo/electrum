@@ -183,17 +183,23 @@ class PrintError(object):
     verbosity_filter = ''
 
     def diagnostic_name(self):
-        return self.__class__.__name__
+        return ''
+
+    def log_name(self):
+        msg = self.verbosity_filter or self.__class__.__name__
+        d = self.diagnostic_name()
+        if d: msg += "][" + d
+        return "[%s]" % msg
 
     def print_error(self, *msg):
         if self.verbosity_filter in verbosity or verbosity == '*':
-            print_error("[%s]" % self.diagnostic_name(), *msg)
+            print_error(self.log_name(), *msg)
 
     def print_stderr(self, *msg):
-        print_stderr("[%s]" % self.diagnostic_name(), *msg)
+        print_stderr(self.log_name(), *msg)
 
     def print_msg(self, *msg):
-        print_msg("[%s]" % self.diagnostic_name(), *msg)
+        print_msg(self.log_name(), *msg)
 
 class ThreadJob(PrintError):
     """A job that is run periodically from a thread's main loop.  run() is
