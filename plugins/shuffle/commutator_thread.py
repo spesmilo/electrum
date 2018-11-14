@@ -2,7 +2,7 @@ import socket
 import ssl
 import threading
 import queue
-# import time
+import time
 
 class Channel(queue.Queue):
     "simple Queue wrapper for using recv and send"
@@ -28,7 +28,7 @@ class ChannelWithPrint(queue.Queue):
 class Commutator(threading.Thread):
     """Class for decoupling of send and recv ops."""
     def __init__(self, income, outcome, logger=ChannelWithPrint(),
-                 buffsize=4096, timeout=0, switch_timeout=0.0, ssl=False):
+                 buffsize=4096, timeout=1, switch_timeout=0.0, ssl=False):
         super(Commutator, self).__init__()
         self.income = income
         self.outcome = outcome
@@ -56,11 +56,13 @@ class Commutator(threading.Thread):
                 self.debug('send!')
             except (queue.Empty, socket.error) as e:
                 try:
-                    self.socket.setblocking(0)
+                    # self.socket.setblocking(0)
                     response = self._recv()
                     self.outcome.put_nowait(response)
                     self.debug('recv')
                 except (queue.Empty, socket.error) as e:
+                    # print(e)
+                    # time.sleep(0.001)
                     continue
 
     def join(self, timeout=None):
@@ -78,8 +80,7 @@ class Commutator(threading.Thread):
                                               ciphers="ECDHE-RSA-AES128-GCM-SHA256")
             else:
                 self.socket = bare_socket
-            # print("s!")
-            # self.socket.settimeout(self.timeout)
+            self.socket.settimeout(self.timeout)
             self.socket.connect((host, port))
             self.debug('connected')
         except IOError as e:
@@ -115,4 +116,3 @@ class Commutator(threading.Thread):
                 x = self.socket.recv(self.MAX_BLOCK_SIZE)
                 if x:
                     self.response += x
-            # time.sleep(0.01)
