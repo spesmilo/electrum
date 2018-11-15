@@ -213,7 +213,7 @@ class Blockchain(util.PrintError):
         p = self.offset_path()
         self._size = (os.path.getsize(p)//8) - 1 if os.path.exists(p) else 0
 
-    def verify_header(self, header, prev_hash, target):
+    def verify_header(self, header, prev_hash):
         _hash = hash_header(header)
         if prev_hash != header.get('prev_block_hash'):
             raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
@@ -221,10 +221,9 @@ class Blockchain(util.PrintError):
     def verify_chunk(self, index, headers):
         num = len(headers)
         prev_hash = self.get_hash(index * 2016 - 1)
-        target = self.get_target(index-1)
         for i in range(num):
             header = headers[i]
-            self.verify_header(header, prev_hash, target)
+            self.verify_header(header, prev_hash)
             prev_hash = hash_header(header)
 
     def path(self):
@@ -421,53 +420,6 @@ class Blockchain(util.PrintError):
         else:
             return hash_header(self.read_header(height))
 
-    # DEPRECATED ON OCEAN-ELEMENTS
-    def get_target(self, index):
-        # compute target from chunk x, used in chunk x+1
-        if constants.net.TESTNET:
-            return 0
-        if index == -1:
-            return MAX_TARGET
-        if index < len(self.checkpoints):
-            h, t = self.checkpoints[index]
-            return t
-        # new target
-        first = self.read_header(index * 2016)
-        last = self.read_header(index * 2016 + 2015)
-        pprint(first)
-        pprint(last)
-        if not first or not last:
-            raise MissingHeader()
-        bits = last.get('bits')
-        target = self.bits_to_target(bits)
-        nActualTimespan = last.get('timestamp') - first.get('timestamp')
-        nTargetTimespan = 14 * 24 * 60 * 60
-        nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
-        nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
-        new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
-        return new_target
-
-    # DEPRECATED ON OCEAN-ELEMENTS
-    def bits_to_target(self, bits):
-        bitsN = (bits >> 24) & 0xff
-        if not (bitsN >= 0x03 and bitsN <= 0x1d):
-            raise Exception("First part of bits should be in [0x03, 0x1d]")
-        bitsBase = bits & 0xffffff
-        if not (bitsBase >= 0x8000 and bitsBase <= 0x7fffff):
-            raise Exception("Second part of bits should be in [0x8000, 0x7fffff]")
-        return bitsBase << (8 * (bitsN-3))
-
-    # DEPRECATED ON OCEAN-ELEMENTS
-    def target_to_bits(self, target):
-        c = ("%064x" % target)[2:]
-        while c[:2] == '00' and len(c) > 6:
-            c = c[2:]
-        bitsN, bitsBase = len(c) // 2, int('0x' + c[:6], 16)
-        if bitsBase >= 0x800000:
-            bitsN += 1
-            bitsBase >>= 8
-        return bitsN << 24 | bitsBase
-
     def can_connect(self, header, check_height=True):
         if header is None:
             return False
@@ -484,11 +436,7 @@ class Blockchain(util.PrintError):
         if prev_hash != header.get('prev_block_hash'):
             return False
         try:
-            target = self.get_target(height // 2016 - 1)
-        except MissingHeader:
-            return False
-        try:
-            self.verify_header(header, prev_hash, target)
+            self.verify_header(header, prev_hash)
         except BaseException as e:
             return False
         return True
@@ -510,6 +458,5 @@ class Blockchain(util.PrintError):
         n = self.height() // 2016
         for index in range(n):
             h = self.get_hash((index+1) * 2016 -1)
-            target = self.get_target(index)
-            cp.append((h, target))
+            cp.append(h)
         return cp
