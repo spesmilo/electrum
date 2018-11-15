@@ -27,6 +27,7 @@ from . import util
 from .bitcoin import Hash, hash_encode, int_to_hex, rev_hex
 from . import constants
 from .util import bfh, bh2u
+from pprint import pprint
 
 MAX_TARGET = 0x00000000FFFF0000000000000000000000000000000000000000000000000000
 
@@ -433,6 +434,8 @@ class Blockchain(util.PrintError):
         # new target
         first = self.read_header(index * 2016)
         last = self.read_header(index * 2016 + 2015)
+        pprint(first)
+        pprint(last)
         if not first or not last:
             raise MissingHeader()
         bits = last.get('bits')
