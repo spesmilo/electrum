@@ -21,7 +21,7 @@ from electroncash_plugins.shuffle.client import ProtocolThread
 from electroncash_plugins.shuffle.commutator_thread import (ChannelWithPrint, Channel)
 from electroncash_plugins.shuffle.coin import Coin
 from electroncash_plugins.shuffle.crypto import Crypto
-from electroncash_plugins.shuffle.phase import Phase
+# from electroncash_plugins.shuffle.phase import Phase
 from electroncash_plugins.shuffle.coin_shuffle import Round
 from electroncash.bitcoin import (regenerate_key, deserialize_privkey, EC_KEY, generator_secp256k1,
                                   number_to_string ,public_key_to_p2pkh, point_to_ser, Hash)
@@ -328,7 +328,8 @@ class bad_client_wrong_broadcast(ProtocolThread):
         coin = Coin(self.network)
         crypto = Crypto_cheater()
         self.messages.clear_packets()
-        begin_phase = Phase('Announcement')
+        # begin_phase = Phase('Announcement')
+        begin_phase = 'Announcement'
         # Make Round
         self.protocol = Round_wrong_broadcast(
             coin, crypto, self.messages,
@@ -361,7 +362,8 @@ class bad_client_output_vector(ProtocolThread):
         coin = Coin(self.network)
         crypto = Crypto_cheater()
         self.messages.clear_packets()
-        begin_phase = Phase('Announcement')
+        # begin_phase = Phase('Announcement')
+        begin_phase = 'Announcement'
         # Make Round
         self.protocol = Round_wrong_output_vector(
             coin, crypto, self.messages,
@@ -392,7 +394,8 @@ class bad_client_same_ciphertext(ProtocolThread):
         # crypto = Crypto_cheater()
         crypto = Crypto()
         self.messages.clear_packets()
-        begin_phase = Phase('Announcement')
+        # begin_phase = Phase('Announcement')
+        begin_phase = 'Announcement'
         # Make Round
         self.protocol = Round_wrong_ciphertexts(
             coin, crypto, self.messages,
@@ -422,7 +425,8 @@ class bad_client_changig_the_output(ProtocolThread):
         coin = Coin(self.network)
         crypto = Crypto()
         self.messages.clear_packets()
-        begin_phase = Phase('Announcement')
+        # begin_phase = Phase('Announcement')
+        begin_phase = 'Announcement'
         # Make Round
         self.protocol = Round_wrong_outputs(
             coin, crypto, self.messages,

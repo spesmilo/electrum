@@ -28,9 +28,6 @@ from __future__ import absolute_import
 
 import os
 import json
-# import time
-# import threading
-# import base64
 from functools import partial
 
 from PyQt5.QtGui import *
@@ -45,9 +42,7 @@ from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton
 from electroncash_gui.qt.util import OkButton, WindowModalDialog
 from electroncash.address import Address
 from electroncash.transaction import Transaction
-# from .shuffle import ServersList
-from .client import BackgroundShufflingThread
-# from .coin import Coin
+from electroncash_plugins.shuffle.client import BackgroundShufflingThread
 
 class SimpleLogger(object):
 
@@ -75,30 +70,6 @@ def set_coins(win, selected):
     win.parent.cs_tab.check_sufficient_ammount()
     win.parent.tabs.setCurrentWidget(win.parent.cs_tab)
 
-
-# def create_coins_menu(win, position):
-#     selected = [x.data(0, Qt.UserRole) for x in win.selectedItems()]
-#     if not selected:
-#         return
-#     menu = QMenu()
-#     coins = filter(lambda x: win.get_name(x) in selected, win.utxos)
-#
-#     menu.addAction(_("Spend"), lambda: win.parent.spend_coins(coins))
-#     if len(selected) == 1:
-#         txid = selected[0].split(':')[0]
-#         tx = win.wallet.transactions.get(txid)
-#         menu.addAction(_("Details"), lambda: win.parent.show_transaction(tx))
-#
-#     if len(selected) > 0:
-#         selected_coins = [utxo for utxo in win.wallet.get_utxos()
-#                           if "{}:{}".format(utxo['prevout_hash'],utxo['prevout_n']) in selected]
-#         selected_amount = sum(utxo['value'] for utxo in selected_coins)
-#         is_enough_for_shuffling = selected_amount >= win.parent.cs_tab.get_sufficient_amount()
-#         is_not_shuffle_now = not win.parent.cs_tab.coinshuffle_cancel_button.isEnabled()
-#         if is_enough_for_shuffling and is_not_shuffle_now:
-#             menu.addAction(_("Shuffle"), lambda : set_coins(win, selected))
-#
-#     menu.exec_(win.viewport().mapToGlobal(position))
 
 def is_coin_shuffled(wallet, coin):
     txs = wallet.storage.get("transactions", {})

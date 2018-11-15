@@ -10,7 +10,7 @@ from electroncash_plugins.shuffle.messages import Messages
 from electroncash_plugins.shuffle.coin_shuffle import Round
 from electroncash_plugins.shuffle.tests.test import testNetwork, random_sk, make_fake_public_key, make_fake_address, fake_hash
 from electroncash_plugins.shuffle.commutator_thread import Channel, ChannelWithPrint
-from electroncash_plugins.shuffle.phase import Phase
+# from electroncash_plugins.shuffle.phase import Phase
 
 
 class TestRound(unittest.TestCase):
@@ -34,7 +34,8 @@ class TestRound(unittest.TestCase):
         self.inchan = Channel()
         self.logchan = Channel()
         self.session = b"session"
-        self.phase = Phase('Announcement')
+        # self.phase = Phase('Announcement')
+        self.phase = 'Announcement'
         self.amount = 1000
         self.fee = 50
         self.secret_keys = [random_sk() for _ in range(self.number_of_players)]

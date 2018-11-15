@@ -30,7 +30,6 @@ class Coin(object):
         """Returns the UTXO list of any address. Note: This
         is a walletless server query, results are not checked by SPV.
         """
-        # sh = Address.from_string(address).to_scripthash_hex()
         sh = address.to_scripthash_hex()
         return self.network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
 
@@ -53,7 +52,6 @@ class Coin(object):
         try:
             for public_key in inputs:
                 address = address_from_public_key(public_key)
-                # unspent_list = self.network.synchronous_get(('blockchain.address.listunspent', [address]))
                 unspent_list = self.getaddressunspent(address)
                 utxos = {(utxo['tx_hash']+ ":" + str(utxo['tx_pos'])):utxo['value'] for utxo in unspent_list}
                 for utxo in inputs[public_key]:
@@ -70,7 +68,6 @@ class Coin(object):
         for public_key in inputs:
             address = address_from_public_key(public_key)
             coins[public_key] = []
-            # unspent_list = self.network.synchronous_get(('blockchain.address.listunspent', [address]))
             unspent_list = self.getaddressunspent(address)
             utxo_hashes = {(utxo["tx_hash"] + ":" + str(utxo["tx_pos"])):utxo for utxo in unspent_list}
             for utxo in inputs[public_key]:
@@ -96,7 +93,6 @@ class Coin(object):
             for pubkey in coins[player]:
                 for utxo in coins[player][pubkey]:
                     utxo['type'] = 'p2pkh'
-                    # utxo['address'] = Address.from_string(address_from_public_key(pubkey))
                     utxo['address'] = address_from_public_key(pubkey)
                     utxo['pubkeys'] = [pubkey]
                     utxo['x_pubkeys'] = [pubkey]
@@ -167,7 +163,6 @@ class Coin(object):
 
     def broadcast_transaction(self, transaction):
         try:
-            # return self.network.broadcast(transaction)
             return self.network.broadcast_transaction(transaction)
         except:
             return None, None
