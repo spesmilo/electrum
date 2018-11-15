@@ -505,12 +505,14 @@ class TestProtocolCase(unittest.TestCase):
                 player["inputs"][pubk]=[]
                 number_of_coins = random.randint(1,2)
                 addr = public_key_to_p2pkh(bytes.fromhex(pubk))
+
                 for i in range(number_of_coins):
                     min_amout_per_input = self.amount // number_of_pubs // number_of_coins
                     coin_amount = random.randint(min_amout_per_input + self.fee + 1 , min_amout_per_input + self.fee + 1000)
                     coin_hash = fake_hash(addr, coin_amount)
                     player["inputs"][pubk].append(coin_hash+":0")
-                    self.network.add_coin(addr, coin_amount, tx_hash=coin_hash)
+                    # self.network.add_coin(addr, coin_amount, tx_hash=coin_hash)
+                    self.network.add_coin(Address.from_pubkey(pubk), coin_amount, tx_hash=coin_hash)
             player["sk"] = random_sk()
             player["pubk"] = player["sk"].get_public_key()
         protocolThreads = [testThread(self.HOST, self.PORT, self.network, self.amount,  self.fee,

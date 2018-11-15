@@ -28,7 +28,7 @@ class ChannelWithPrint(queue.Queue):
 class Commutator(threading.Thread):
     """Class for decoupling of send and recv ops."""
     def __init__(self, income, outcome, logger=ChannelWithPrint(),
-                 buffsize=4096, timeout=1, switch_timeout=0.01, ssl=False):
+                 buffsize=4096, timeout=1, switch_timeout=0.1, ssl=False):
         super(Commutator, self).__init__()
         self.income = income
         self.outcome = outcome
