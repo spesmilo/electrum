@@ -28,7 +28,7 @@ class ChannelWithPrint(queue.Queue):
 class Commutator(threading.Thread):
     """Class for decoupling of send and recv ops."""
     def __init__(self, income, outcome, logger=ChannelWithPrint(),
-                 buffsize=4096, timeout=1, switch_timeout=0.0, ssl=False):
+                 buffsize=4096, timeout=1, switch_timeout=0.01, ssl=False):
         super(Commutator, self).__init__()
         self.income = income
         self.outcome = outcome
@@ -42,7 +42,7 @@ class Commutator(threading.Thread):
         self.switch_timeout = switch_timeout
         self.ssl = ssl
         self.response = b''
-        # self.history = []
+        # self.debug = True
 
     def debug(self, obj):
         if self.logger:
@@ -50,24 +50,22 @@ class Commutator(threading.Thread):
 
     def run(self):
         while self.alive.isSet():
-            try:
-                msg = self.income.get(True, self.switch_timeout)
+            if not self.income.empty():
+                msg = self.income.get_nowait()
                 self._send(msg)
                 self.debug('send!')
-            except (queue.Empty, socket.error) as e:
-                try:
-                    # self.socket.setblocking(0)
-                    response = self._recv()
+            else:
+                response = self._recv()
+                if response:
                     self.outcome.put_nowait(response)
                     self.debug('recv')
-                except (queue.Empty, socket.error) as e:
-                    # print(e)
-                    # time.sleep(0.001)
+                else:
+                    time.sleep(self.switch_timeout)
                     continue
 
     def join(self, timeout=None):
-        self.socket.close()
         self.alive.clear()
+        self.socket.close()
         threading.Thread.join(self, timeout)
 
 
@@ -82,6 +80,8 @@ class Commutator(threading.Thread):
                 self.socket = bare_socket
             self.socket.settimeout(self.timeout)
             self.socket.connect((host, port))
+            self.socket.settimeout(0)
+            self.socket.setblocking(0)
             self.debug('connected')
         except IOError as e:
             self.logger.put(str(e))
@@ -105,14 +105,13 @@ class Commutator(threading.Thread):
                     if len(self.response[12:]) >= msg_length:
                         result = self.response[12: 12 + msg_length]
                         self.response = self.response[12 + msg_length:]
-                        # self.history.append(result)
                         return result
-                    else:
-                        print("incomplete")
                 else:
-                    print("bad magic! appears")
                     return None
             else:
-                x = self.socket.recv(self.MAX_BLOCK_SIZE)
-                if x:
-                    self.response += x
+                try:
+                    x = self.socket.recv(self.MAX_BLOCK_SIZE)
+                    if x:
+                        self.response += x
+                except:
+                    return None
