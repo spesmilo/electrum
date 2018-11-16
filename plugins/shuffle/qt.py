@@ -132,6 +132,8 @@ def on_utxo_list_update(utxo_list):
             item.setData(5, Qt.DisplayRole, "too big coin")
         elif dust_labels[label]:
             item.setData(5, Qt.DisplayRole, "too small coin")
+        else:
+            item.setData(5, Qt.DisplayRole, "DEFAULT NONBLANK VALUE")
         if in_progress[label]:
             item.setData(5, Qt.DisplayRole, "in progress")
         if wait_for_others[label]:
