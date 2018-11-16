@@ -43,7 +43,7 @@ from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
 from electrum.storage import WalletStorage
 from electrum.base_wizard import GoBack
-from electrum.util import (UserCancelled, PrintError,
+from electrum.util import (UserCancelled, PrintError, profiler,
                            WalletFileException, BitcoinException)
 
 from .installwizard import InstallWizard
@@ -85,6 +85,7 @@ class QNetworkUpdatedSignalObject(QObject):
 
 class ElectrumGui(PrintError):
 
+    @profiler
     def __init__(self, config, daemon, plugins):
         set_language(config.get('language'))
         # Uncomment this call to verify objects are being properly
@@ -190,6 +191,7 @@ class ElectrumGui(PrintError):
                                 self.network_updated_signal_obj)
         self.nd.show()
 
+    @profiler
     def create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)
         self.windows.append(w)
