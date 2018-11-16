@@ -1299,7 +1299,11 @@ def _ImportItemify(item : str) -> ImportItem:
         item = item.split(':')[-1]
     elif bitcoin.is_private_key(item):
         typ = 2
-        info = PublicKey.from_WIF_privkey(item).address
+        try:
+            info = PublicKey.from_WIF_privkey(item).address
+        except ValueError:
+            # Not an address, not a PK
+            info, typ = None, 0
     return ImportItem(item, typ, info)
 
 def _ToErrIsHuman(vc : UIViewController, title = "Oops!", message = "Something went wrong! Please email the developers!", onOk = None) -> None:
