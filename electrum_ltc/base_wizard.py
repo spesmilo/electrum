@@ -283,8 +283,7 @@ class BaseWizard(object):
         for name, info in devices:
             state = _("initialized") if info.initialized else _("wiped")
             label = info.label or _("An unnamed {}").format(name)
-            descr = f"{label} [{name}, {state}]"
-            # TODO maybe expose info.device.path (mainly for transport type)
+            descr = f"{label} [{name}, {state}, {info.device.transport_ui_string}]"
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
         self.choice_dialog(title=title, message=msg, choices=choices, run_next= lambda *args: self.on_device(*args, purpose=purpose))

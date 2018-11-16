@@ -105,7 +105,13 @@ class SafeTPlugin(HW_PluginBase):
 
     def enumerate(self):
         devices = self.transport_handler.enumerate_devices()
-        return [Device(d.get_path(), -1, d.get_path(), 'Safe-T mini', 0) for d in devices]
+        return [Device(path=d.get_path(),
+                       interface_number=-1,
+                       id_=d.get_path(),
+                       product_key='Safe-T mini',
+                       usage_page=0,
+                       transport_ui_string=d.get_path())
+                for d in devices]
 
     def create_client(self, device, handler):
         try:

@@ -625,10 +625,14 @@ class ColdcardPlugin(HW_PluginBase):
         fn = CKCC_SIMULATOR_PATH
 
         if os.path.exists(fn):
-            return [Device(fn, -1, fn, (COINKITE_VID, CKCC_SIMULATED_PID), 0)]
+            return [Device(path=fn,
+                           interface_number=-1,
+                           id_=fn,
+                           product_key=(COINKITE_VID, CKCC_SIMULATED_PID),
+                           usage_page=0,
+                           transport_ui_string='simulator')]
 
         return []
-        
 
     def create_client(self, device, handler):
         if handler:

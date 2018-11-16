@@ -291,6 +291,7 @@ class Device(NamedTuple):
     id_: str
     product_key: Any   # when using hid, often Tuple[int, int]
     usage_page: int
+    transport_ui_string: str
 
 
 class DeviceInfo(NamedTuple):
@@ -576,8 +577,12 @@ class DeviceMgr(ThreadJob, PrintError):
                 if len(id_) == 0:
                     id_ = str(d['path'])
                 id_ += str(interface_number) + str(usage_page)
-                devices.append(Device(d['path'], interface_number,
-                                      id_, product_key, usage_page))
+                devices.append(Device(path=d['path'],
+                                      interface_number=interface_number,
+                                      id_=id_,
+                                      product_key=product_key,
+                                      usage_page=usage_page,
+                                      transport_ui_string='hid'))
         return devices
 
     def scan_devices(self):
