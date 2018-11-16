@@ -76,7 +76,7 @@ bins2remove=('QtWeb', 'Qt3D', 'QtGame', 'QtDesigner', 'QtQuick', 'QtLocation', '
 print("Removing", *bins2remove)
 for b in a.binaries.copy():
     for r in bins2remove:
-        if b[0].find(r) == 0:
+        if b[0].startswith(r):
             a.binaries.remove(b)
             print('----> Removed b =', b)
 #
