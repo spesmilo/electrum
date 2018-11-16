@@ -675,7 +675,10 @@ class SendVC(SendBase):
         # Enqueus a doUpdateFee() call for later -- this facility is provided for the fee slider so that it doesn't behave too slowly.
         def onTimer() -> None:
             self.timer = None
-            self.doUpdateFee()
+            # Note it is very unlikely but the timer can fire right after we kill the wallet instance
+            # due to the user losing auth (a long phone sleep does this). Hence this check here.
+            if wallet():
+                self.doUpdateFee()
         if self.timer: self.timer.invalidate()
         self.timer = utils.call_later(0.1,onTimer)
 
