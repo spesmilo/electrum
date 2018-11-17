@@ -729,7 +729,7 @@ class Abstract_Wallet(PrintError):
 
 
     def cashshuffle_add_utxo_to_list(self,txid,prevout_n,value, outputs):
-        print ("MY TEST txid is ",txid,"prevout_n is ",prevout_n," value is ",value)
+        # print ("MY TEST txid is ",txid,"prevout_n is ",prevout_n," value is ",value)
         # raw_tx = self.network.synchronous_get(('blockchain.transaction.get',[txid]))
         # tx = Transaction(raw_tx)
         # outputs = tx.outputs()
