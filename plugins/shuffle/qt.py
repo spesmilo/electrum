@@ -118,24 +118,23 @@ def on_utxo_list_update(utxo_list):
         too_big_labels[short_name] = utxo['value'] >= 1000000000
         dust_labels[short_name] = utxo['value'] <= 10000
         not_confirmed[short_name] = utxo['height'] <= 0
-    # shuffle_icon = QIcon(":shuffle_tab_ico.png")
     for index in range(utxo_list.topLevelItemCount()):
         item = utxo_list.topLevelItem(index)
-        label = item.data(4, Qt.DisplayRole)
+        label = item.text(4)
         if utxo_labels[label]:
-            item.setData(5, Qt.DisplayRole, "shuffled")
+            item.setText(5, "shuffled")
         elif not_confirmed[label]:
-            item.setData(5, Qt.DisplayRole, "not confirmed")
+            item.setText(5, "not confirmed")
         elif queued_labels[label]:
-            item.setData(5, Qt.DisplayRole, "in queue")
+            item.setText(5, "in queue")
         elif too_big_labels[label]:
-            item.setData(5, Qt.DisplayRole, "too big coin")
+            item.setText(5, "too big coin")
         elif dust_labels[label]:
-            item.setData(5, Qt.DisplayRole, "too small coin")
+            item.setText(5, "too small coin")
         if in_progress[label]:
-            item.setData(5, Qt.DisplayRole, "in progress")
+            item.setText(5, "in progress")
         if wait_for_others[label]:
-            item.setData(5, Qt.DisplayRole, "wait for others")
+            item.setText(5, "wait for others")
 
 
 def update_coin_status(window, coin_name, msg):
@@ -218,7 +217,6 @@ class electrum_console_logger(QObject):
 
 def start_background_shuffling(window, network_settings, period = 1, password=None):
     logger = electrum_console_logger()
-    # logger.gotMessage.connect(lambda msg, sender: window.console.showMessage("{}: {}".format(sender, msg)))
     logger.gotMessage.connect(lambda msg, sender: update_coin_status(window, sender, msg))
 
     window.background_process = BackgroundShufflingThread(window.wallet, network_settings,
