@@ -217,6 +217,7 @@ class ElectrumGui(PrintError):
         self.num_zeros     = self.prefs_get_num_zeros()
         self.alias_info = None # TODO: IMPLEMENT alias stuff
         self.lastHeightSeen = -2
+        self.lastSplitNotify = 0
 
         Address.show_cashaddr(self.prefs_get_use_cashaddr())
 
@@ -608,11 +609,13 @@ class ElectrumGui(PrintError):
             return
 
         walletStatus = wallets.StatusOffline
+        walletStatusExtraInfo = ""
         walletBalanceTxt = ""
         walletUnitTxt = ""
         walletUnconfTxt = ""
         networkStatusText = _("Offline")
         blockHeightChanged = False
+        num_chains = 0
         #icon = ""
 
         if self.daemon.network is None or not self.daemon.network.is_running():
@@ -628,6 +631,8 @@ class ElectrumGui(PrintError):
                 self.lastHeightSeen = lh
                 blockHeightChanged = True
             server_lag = lh - sh
+            num_chains = len(self.daemon.network.get_blockchains())
+
             # Server height can be 0 after switching to a new server
             # until we get a headers subscription request response.
             # Display the synchronizing message in that case.
@@ -636,12 +641,6 @@ class ElectrumGui(PrintError):
                 networkStatusText = text
                 walletUnitTxt = text
                 #icon = "status_waiting.png"
-                walletStatus = wallets.StatusSynchronizing
-            elif server_lag > 1:
-                text = _("Server is lagging ({} blocks)").format(server_lag)
-                walletUnitTxt = text
-                networkStatusText = text
-                #icon = "status_lagging.png"
                 walletStatus = wallets.StatusSynchronizing
             else:
                 walletStatus = wallets.StatusOnline
@@ -671,7 +670,29 @@ class ElectrumGui(PrintError):
                 #    icon = "status_connected.png"
                 #else:
                 #    icon = "status_connected_proxy.png"
+                if server_lag > 1:
+                    text = _("Server is lagging ({} blocks)").format(server_lag)
+                    networkStatusText = text
+                    #icon = "status_lagging.png"
+                    walletStatus = wallets.StatusLagging
+                    walletStatusExtraInfo = text
 
+            ''' Chain split notify -- show a banner in the status bar for 60 seconds every 120 seconds until they
+                ackwowledge the banner and check network settings. '''
+            if num_chains > 1 and (time.time() - self.lastSplitNotify) > 120:
+                def ShowSplitNotify():
+                    chain = self.daemon.network.blockchain()
+                    checkpoint = chain.get_base_height()
+                    name = chain.get_name()
+                    msg = _('Chain split detected at block %d')%checkpoint
+                    def onTapCB():
+                        self.lastSplitNotify = time.time()+86400 # suppress for a day or until app restart if they tap
+                        self.show_network_dialog()
+                    self.notify(msg, duration=60, color=(0.5, 0.0, 0.25, 1.0), onTapCallback=onTapCB, style=CWNotificationStyleStatusBarNotification)
+                ShowSplitNotify()
+                self.lastSplitNotify = time.time()
+
+ 
             '''utils.NSLog("lh=%d sh=%d is_up_to_date=%d Wallet Network is_up_to_date=%d is_connecting=%d is_connected=%d",
                         int(lh), int(sh),
                         int(self.wallet.up_to_date),
@@ -706,6 +727,7 @@ class ElectrumGui(PrintError):
             self.dismiss_downloading_notif()
 
         self.walletsVC.status = walletStatus
+        self.walletsVC.statusExtraInfo = walletStatusExtraInfo
         self.walletsVC.setAmount_andUnits_unconf_(walletBalanceTxt, walletUnitTxt, walletUnconfTxt)
 
         if self.prefsVC and (self.prefsVC.networkStatusText != networkStatusText
@@ -763,15 +785,23 @@ class ElectrumGui(PrintError):
                 do_notify_cb()
 
 
-    def notify(self, message):
+    def notify(self, message,
+               duration=10.0,
+               color=(0.0, .5, .25, 1.0), # deeper green
+               textColor=UIColor.whiteColor,
+               font=UIFont.systemFontOfSize_(12.0),
+               style=CWNotificationStyleNavigationBarNotification,
+               onTapCallback = None # should take no args and return nothing.
+               ):
         lines = message.split(': ')
         utils.show_notification(message=':\n'.join(lines),
-                                duration=10.0,
-                                color=(0.0, .5, .25, 1.0), # deeper green
-                                textColor=UIColor.whiteColor,
-                                font=UIFont.systemFontOfSize_(12.0),
-                                style=CWNotificationStyleNavigationBarNotification,
-                                multiline=bool(len(lines)))
+                                duration=duration,
+                                color=color,
+                                textColor=textColor,
+                                font=font,
+                                style=style,
+                                multiline=bool(len(lines)),
+                                onTapCallback=onTapCallback)
 
     def query_hide_downloading_notif(self):
         vc = self.tabController if self.tabController.presentedViewController is None else self.tabController.presentedViewController
@@ -1996,6 +2026,7 @@ class ElectrumGui(PrintError):
         ''' Provide this dialog on-demand to save on startup time and/or on memory consumption '''
         if self.networkNav is not None:
             utils.NSLog("**** WARNING **** Network Nav is not None!! FIXME!")
+            return
         if not self.daemon:
             utils.NSLog('"Show Network Dialog" request failed -- daemon is not active!')
             return

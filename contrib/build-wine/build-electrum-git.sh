@@ -3,7 +3,7 @@
 NAME_ROOT=electrum
 PYTHON_VERSION=3.5.4
 
-CHECKOUT_TAG=3.3.1
+CHECKOUT_TAG=3.3.2
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
