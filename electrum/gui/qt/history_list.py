@@ -26,12 +26,16 @@
 import webbrowser
 import datetime
 from datetime import date
+from typing import TYPE_CHECKING
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
 from electrum.util import block_explorer_URL, profiler, print_error, TxMinedStatus
 
 from .util import *
+
+if TYPE_CHECKING:
+    from electrum.wallet import Abstract_Wallet
 
 try:
     from electrum.plot import plot_history, NothingToPlotException
@@ -216,7 +220,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
 
     @profiler
     def on_update(self):
-        self.wallet = self.parent.wallet
+        self.wallet = self.parent.wallet  # type: Abstract_Wallet
         fx = self.parent.fx
         r = self.wallet.get_full_history(domain=self.get_domain(), from_timestamp=self.start_timestamp, to_timestamp=self.end_timestamp, fx=fx)
         self.transactions = r['transactions']
@@ -435,12 +439,21 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                               item['confirmations'],
                               item['value'],
                               item.get('fiat_value', ''),
+                              item.get('fee', ''),
+                              item.get('fiat_fee', ''),
                               item['date']])
         with open(file_name, "w+", encoding='utf-8') as f:
             if is_csv:
                 import csv
                 transaction = csv.writer(f, lineterminator='\n')
-                transaction.writerow(["transaction_hash", "label", "confirmations", "value", "fiat_value", "timestamp"])
+                transaction.writerow(["transaction_hash",
+                                      "label",
+                                      "confirmations",
+                                      "value",
+                                      "fiat_value",
+                                      "fee",
+                                      "fiat_fee",
+                                      "timestamp"])
                 for line in lines:
                     transaction.writerow(line)
             else:

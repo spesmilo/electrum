@@ -25,7 +25,7 @@ import threading
 import asyncio
 import itertools
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Dict, Optional
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
@@ -711,6 +711,19 @@ class AddressSynchronizer(PrintError):
         if not is_mine:
             fee = None
         return is_relevant, is_mine, v, fee
+
+    def get_tx_fee(self, tx: Transaction) -> Optional[int]:
+        if not tx:
+            return None
+        if hasattr(tx, '_cached_fee'):
+            return tx._cached_fee
+        is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
+        if fee is None:
+            txid = tx.txid()
+            fee = self.tx_fees.get(txid)
+        if fee is not None:
+            tx._cached_fee = fee
+        return fee
 
     def get_addr_io(self, address):
         with self.lock, self.transaction_lock:
