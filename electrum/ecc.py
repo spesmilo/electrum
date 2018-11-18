@@ -52,31 +52,31 @@ def point_at_infinity():
     return ECPubkey(None)
 
 
-def sig_string_from_der_sig(der_sig, order=CURVE_ORDER):
+def sig_string_from_der_sig(der_sig: bytes, order=CURVE_ORDER) -> bytes:
     r, s = ecdsa.util.sigdecode_der(der_sig, order)
     return ecdsa.util.sigencode_string(r, s, order)
 
 
-def der_sig_from_sig_string(sig_string, order=CURVE_ORDER):
+def der_sig_from_sig_string(sig_string: bytes, order=CURVE_ORDER) -> bytes:
     r, s = ecdsa.util.sigdecode_string(sig_string, order)
     return ecdsa.util.sigencode_der_canonize(r, s, order)
 
 
-def der_sig_from_r_and_s(r, s, order=CURVE_ORDER):
+def der_sig_from_r_and_s(r: int, s: int, order=CURVE_ORDER) -> bytes:
     return ecdsa.util.sigencode_der_canonize(r, s, order)
 
 
-def get_r_and_s_from_der_sig(der_sig, order=CURVE_ORDER):
+def get_r_and_s_from_der_sig(der_sig: bytes, order=CURVE_ORDER) -> Tuple[int, int]:
     r, s = ecdsa.util.sigdecode_der(der_sig, order)
     return r, s
 
 
-def get_r_and_s_from_sig_string(sig_string, order=CURVE_ORDER):
+def get_r_and_s_from_sig_string(sig_string: bytes, order=CURVE_ORDER) -> Tuple[int, int]:
     r, s = ecdsa.util.sigdecode_string(sig_string, order)
     return r, s
 
 
-def sig_string_from_r_and_s(r, s, order=CURVE_ORDER):
+def sig_string_from_r_and_s(r: int, s: int, order=CURVE_ORDER) -> bytes:
     return ecdsa.util.sigencode_string_canonize(r, s, order)
 
 
@@ -410,7 +410,7 @@ class ECPrivkey(ECPubkey):
         sig65, recid = bruteforce_recid(sig_string)
         return sig65
 
-    def decrypt_message(self, encrypted, magic=b'BIE1'):
+    def decrypt_message(self, encrypted: Tuple[str, bytes], magic: bytes=b'BIE1') -> bytes:
         encrypted = base64.b64decode(encrypted)
         if len(encrypted) < 85:
             raise Exception('invalid ciphertext: length')
@@ -435,6 +435,6 @@ class ECPrivkey(ECPubkey):
         return aes_decrypt_with_iv(key_e, iv, ciphertext)
 
 
-def construct_sig65(sig_string, recid, is_compressed):
+def construct_sig65(sig_string: bytes, recid: int, is_compressed: bool) -> bytes:
     comp = 4 if is_compressed else 0
     return bytes([27 + recid + comp]) + sig_string

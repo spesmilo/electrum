@@ -6,7 +6,7 @@ from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               var_int, op_push, address_to_script,
                               deserialize_privkey, serialize_privkey, is_segwit_address,
                               is_b58_address, address_to_scripthash, is_minikey,
-                              is_compressed, seed_type, EncodeBase58Check,
+                              is_compressed_privkey, seed_type, EncodeBase58Check,
                               script_num_to_hex, push_script, add_number_to_script, int_to_hex)
 from electrum.bip32 import (bip32_root, bip32_public_derivation, bip32_private_derivation,
                             xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
@@ -710,10 +710,10 @@ class Test_keyImport(SequentialTestCase):
             self.assertEqual(minikey, is_minikey(priv))
 
     @needs_test_with_all_ecc_implementations
-    def test_is_compressed(self):
+    def test_is_compressed_privkey(self):
         for priv_details in self.priv_pub_addr:
             self.assertEqual(priv_details['compressed'],
-                             is_compressed(priv_details['priv']))
+                             is_compressed_privkey(priv_details['priv']))
 
 
 class Test_seeds(SequentialTestCase):
