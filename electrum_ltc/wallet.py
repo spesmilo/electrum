@@ -396,6 +396,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 continue
             if to_timestamp and (timestamp or now) >= to_timestamp:
                 continue
+            tx = self.transactions.get(tx_hash)
             item = {
                 'txid': tx_hash,
                 'height': tx_mined_status.height,
@@ -406,8 +407,9 @@ class Abstract_Wallet(AddressSynchronizer):
                 'date': timestamp_to_datetime(timestamp),
                 'label': self.get_label(tx_hash),
             }
+            tx_fee = self.get_tx_fee(tx)
+            item['fee'] = Satoshis(tx_fee) if tx_fee is not None else None
             if show_addresses:
-                tx = self.transactions.get(tx_hash)
                 item['inputs'] = list(map(lambda x: dict((k, x[k]) for k in ('prevout_hash', 'prevout_n')), tx.inputs()))
                 item['outputs'] = list(map(lambda x:{'address':x.address, 'value':Satoshis(x.value)},
                                            tx.get_outputs_for_UI()))
@@ -423,8 +425,11 @@ class Abstract_Wallet(AddressSynchronizer):
             if fx and fx.is_enabled() and fx.get_history_config():
                 fiat_value = self.get_fiat_value(tx_hash, fx.ccy)
                 fiat_default = fiat_value is None
-                fiat_value = fiat_value if fiat_value is not None else value / Decimal(COIN) * self.price_at_timestamp(tx_hash, fx.timestamp_rate)  #
+                fiat_rate = self.price_at_timestamp(tx_hash, fx.timestamp_rate)
+                fiat_value = fiat_value if fiat_value is not None else value / Decimal(COIN) * fiat_rate
+                fiat_fee = tx_fee / Decimal(COIN) * fiat_rate if tx_fee is not None else None
                 item['fiat_value'] = Fiat(fiat_value, fx.ccy)
+                item['fiat_fee'] = Fiat(fiat_fee, fx.ccy) if fiat_fee else None
                 item['fiat_default'] = fiat_default
                 if value < 0:
                     acquisition_price = - value / Decimal(COIN) * self.average_price(tx_hash, fx.timestamp_rate, fx.ccy)
