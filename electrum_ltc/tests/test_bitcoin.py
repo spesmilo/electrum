@@ -360,8 +360,8 @@ class Test_bitcoin(SequentialTestCase):
         self.assertEqual(address_to_script('ltc1zw508d6qejxtdg4y5r3zarvaryvdzur3w'), '5210751e76e8199196d454941c45d1b3a323')
 
         # base58 P2PKH
-        self.assertEqual(address_to_script('LNuZh2Eeps3L114Lu4PVCxBR61UvqcAb8p'), '76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac')
-        self.assertEqual(address_to_script('LVTnwCztciF3bcZpSqvJStuMSXrnDt1pUU'), '76a914704f4b81cadb7bf7e68c08cd3657220f680f863c88ac')
+        self.assertEqual(address_to_script('LNuZh2Eeps3L114Lu4PVCxBR61UvrUKgze'), '76a91428662c67561b95c79d2257d2a93d9d151c977e9188ac')
+        self.assertEqual(address_to_script('LVTnwCztciF3bcZpSqvJStuMSXrnCcRjNm'), '76a914704f4b81cadb7bf7e68c08cd3657220f680f863c88ac')
 
         # base58 P2SH
         self.assertEqual(address_to_script('MBmyiC29MUQSfPC2gKtdrazbSWHvGqJCnU'), 'a9142a84cf00d47f699ee7bbc1dea5ec1bdecb4ac15487')
