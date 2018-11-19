@@ -25,8 +25,8 @@ from .util import PrintError, bh2u, print_error, bfh, log_exceptions, list_enabl
 from .transaction import Transaction, TxOutput
 from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment,
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailureMessage)
-from .lnchan import Channel, RevokeAndAck, htlcsum
-from .lnutil import (Outpoint, LocalConfig,
+from .lnchan import Channel, RevokeAndAck, htlcsum, UpdateAddHtlc
+from .lnutil import (Outpoint, LocalConfig, RECEIVED,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_per_commitment_secret_from_seed,
                      secret_to_pubkey, LNPeerAddr, PaymentFailure, LnLocalFeatures,
@@ -896,7 +896,7 @@ class Peer(PrintError):
         self.revoke(chan)
         self.send_commitment(chan)  # htlc will be removed
         await self.receive_revoke(chan)
-        self.network.trigger_callback('ln_message', self.lnworker, 'Payment failed')
+        self.network.trigger_callback('ln_message', self.lnworker, 'Payment failed', htlc_id)
 
     async def _handle_error_code_from_failed_htlc(self, error_reason, route: List['RouteEdge'], channel_id, htlc_id):
         chan = self.channels[channel_id]
@@ -969,6 +969,7 @@ class Peer(PrintError):
         self.attempted_route[(chan.channel_id, htlc_id)] = route
         self.print_error(f"starting payment. route: {route}")
         await self.update_channel(chan, "update_add_htlc", channel_id=chan.channel_id, id=htlc_id, cltv_expiry=cltv, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes())
+        return UpdateAddHtlc(**htlc, htlc_id=htlc_id)
 
     async def receive_revoke(self, chan: Channel):
         revoke_and_ack_msg = await self.revoke_and_ack[chan.channel_id].get()
@@ -1007,7 +1008,7 @@ class Peer(PrintError):
         self.revoke(chan)
         self.send_commitment(chan) # htlc will be removed
         await self.receive_revoke(chan)
-        self.network.trigger_callback('ln_message', self.lnworker, 'Payment sent')
+        self.network.trigger_callback('ln_message', self.lnworker, 'Payment sent', htlc_id)
 
         # used in lightning-integration
         self.payment_preimages[sha256(preimage)].put_nowait(preimage)
@@ -1034,7 +1035,7 @@ class Peer(PrintError):
             pass  # TODO fail the channel
         # add htlc
         htlc = {'amount_msat': amount_msat_htlc, 'payment_hash':payment_hash, 'cltv_expiry':cltv_expiry}
-        chan.receive_htlc(htlc)
+        htlc_id = chan.receive_htlc(htlc)
         await self.receive_commitment(chan)
         self.revoke(chan)
         self.send_commitment(chan)
@@ -1074,6 +1075,7 @@ class Peer(PrintError):
                                                 data=amount_msat_htlc.to_bytes(8, byteorder="big"))
             await self.fail_htlc(chan, htlc_id, onion_packet, reason)
             return
+        self.network.trigger_callback('htlc_added', UpdateAddHtlc(**htlc, htlc_id=htlc_id), invoice, RECEIVED)
         # settle htlc
         await self.settle_htlc(chan, htlc_id, preimage)
 
@@ -1083,7 +1085,7 @@ class Peer(PrintError):
                                   channel_id=chan.channel_id,
                                   id=htlc_id,
                                   payment_preimage=preimage)
-        self.network.trigger_callback('ln_message', self.lnworker, 'Payment received')
+        self.network.trigger_callback('ln_message', self.lnworker, 'Payment received', htlc_id)
 
     async def fail_htlc(self, chan: Channel, htlc_id: int, onion_packet: OnionPacket,
                         reason: OnionRoutingFailureMessage):
