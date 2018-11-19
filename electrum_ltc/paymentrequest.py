@@ -336,7 +336,7 @@ def sign_request_with_alias(pr, alias, alias_privkey):
     pr.pki_data = str(alias)
     message = pr.SerializeToString()
     ec_key = ecc.ECPrivkey(alias_privkey)
-    compressed = bitcoin.is_compressed(alias_privkey)
+    compressed = bitcoin.is_compressed_privkey(alias_privkey)
     pr.signature = ec_key.sign_message(message, compressed)
 
 
