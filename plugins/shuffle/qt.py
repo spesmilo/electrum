@@ -325,6 +325,9 @@ class Plugin(BasePlugin):
         network_settings["network"] = window.network
         start_background_shuffling(window, network_settings, period = 10, password=password)
 
+    @hook
+    def on_close_window(self, window):
+        print("closing the window {}:".format(window))
 
     def on_close(self):
         for window in self.windows:
