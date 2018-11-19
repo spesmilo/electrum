@@ -149,7 +149,7 @@ class Channel(PrintError):
     def __init__(self, state, name = None, payment_completed : Optional[Callable[[HTLCOwner, UpdateAddHtlc, bytes], None]] = None):
         self.preimages = {}
         if not payment_completed:
-            payment_completed = lambda x, y, z: None
+            payment_completed = lambda this, x, y, z: None
         self.payment_completed = payment_completed
         assert 'local_state' not in state
         self.config = {}
@@ -505,7 +505,7 @@ class Channel(PrintError):
                     preimage = self.preimages.pop(htlc_id)
                 else:
                     preimage = None
-                self.payment_completed(subject, htlc, preimage)
+                self.payment_completed(self, subject, htlc, preimage)
             self.log[subject].settles.clear()
 
             return old_amount - htlcsum(self.htlcs(subject, False))

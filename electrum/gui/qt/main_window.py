@@ -390,7 +390,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.do_update_fee()
             self.history_model.on_fee_histogram()
         elif event == 'ln_message':
-            lnworker, message = args
+            lnworker, message, htlc_id = args
             if lnworker == self.wallet.lnworker:
                 self.show_message(message)
         else:
