@@ -294,7 +294,7 @@ class SendScreen(CScreen):
         fut = asyncio.run_coroutine_threadsafe(coro, self.app.network.asyncio_loop)
         fut.add_done_callback(self.ln_payment_result)
 
-    def payment_completed_async_thread(self, event, direction, htlc, preimage):
+    def payment_completed_async_thread(self, event, date, direction, htlc, preimage, chan_id):
         Clock.schedule_once(lambda dt: self.payment_completed(direction, htlc, preimage))
 
     def payment_completed(self, direction, htlc, preimage):

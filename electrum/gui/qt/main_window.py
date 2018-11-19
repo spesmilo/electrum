@@ -396,7 +396,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 self.require_fee_update = True
             self.history_model.on_fee_histogram()
         elif event == 'ln_message':
-            lnworker, message = args
+            lnworker, message, htlc_id = args
             if lnworker == self.wallet.lnworker:
                 self.show_message(message)
         else:

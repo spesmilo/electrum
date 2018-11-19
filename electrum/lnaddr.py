@@ -250,7 +250,7 @@ class LnAddr(object):
 
     def __str__(self):
         return "LnAddr[{}, amount={}{} tags=[{}]]".format(
-            hexlify(self.pubkey.serialize()).decode('utf-8'),
+            hexlify(self.pubkey.serialize()).decode('utf-8') if self.pubkey else None,
             self.amount, self.currency,
             ", ".join([k + '=' + str(v) for k, v in self.tags])
         )

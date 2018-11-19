@@ -11,6 +11,7 @@ from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError
 
 from .util import MyTreeWidget, SortableTreeWidgetItem, WindowModalDialog, Buttons, OkButton, CancelButton
 from .amountedit import BTCAmountEdit
+from .channel_details import ChannelDetailsDialog
 
 class ChannelsList(MyTreeWidget):
     update_rows = QtCore.pyqtSignal()
@@ -62,9 +63,14 @@ class ChannelsList(MyTreeWidget):
                 coro = lnworker.force_close_channel(channel_id)
                 return network.run_from_another_thread(coro)
             WaitingDialog(self, 'please wait..', task, on_success, on_failure)
+        menu.addAction(_("Details..."), lambda: self.details(channel_id))
         menu.addAction(_("Close channel"), close)
         menu.addAction(_("Force-close channel"), force_close)
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def details(self, channel_id):
+        assert self.parent.wallet
+        ChannelDetailsDialog(self.parent, channel_id).show()
 
     @QtCore.pyqtSlot(Channel)
     def do_update_single_row(self, chan):

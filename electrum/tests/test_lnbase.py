@@ -195,7 +195,7 @@ class TestPeer(unittest.TestCase):
     def prepare_ln_message_future(w2 # receiver
             ):
         fut = asyncio.Future()
-        def evt_set(event, _lnworker, msg):
+        def evt_set(event, _lnworker, msg, _htlc_id):
             fut.set_result(msg)
         w2.network.register_callback(evt_set, ['ln_message'])
         return fut
