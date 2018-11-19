@@ -194,7 +194,6 @@ class CoinChooserBase(PrintError):
 
         Note: fee_estimator expects virtual bytes
         """
-
         # Deterministic randomness from coins
         utxos = [c['prevout_hash'] + str(c['prevout_n']) for c in coins]
         self.p = PRNG(''.join(sorted(utxos)))
@@ -237,8 +236,22 @@ class CoinChooserBase(PrintError):
         buckets = self.choose_buckets(buckets, sufficient_funds,
                                       self.penalty_func(tx))
 
+
         inputs = [coin for b in buckets for coin in b.coins]
-        input_map = {i['asset']: i['value'] for i in inputs}
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        from pdb import set_trace
+        pyqtRemoveInputHook()
+        set_trace()
+        #Store TOTAL value associated with each input asset type by summing each of the input values associated with each asset type
+        input_map = {}
+        for i in inputs:
+            asset=i['asset']
+            value=i['value']
+            if (asset in input_map):
+                input_map[asset]=input_map[asset]+value
+            else:
+                input_map[asset]=value
+# input_map = {i['asset']: i['value'] for i in inputs}
 
         # append outputs with asset id and adjust asset input value balance
         asset_outputs = [TxOutput(o.type, o.address, value, 1, asset, 1)
