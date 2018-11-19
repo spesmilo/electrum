@@ -1,60 +1,115 @@
 {
+    "94.1.159.183": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
     "abc1.hsmiths.com": {
         "pruning": "-",
-        "version": "1.1",
+        "s": "60002",
         "t": "60001",
-        "s": "60002"
-    },
-    "electroncash.checksum0.com": {
-        "pruning": "-",
-        "version": "1.1",
-        "t": "50001"
-    },
-    "35.157.238.5": {
-        "pruning": "-",
-        "version": "1.1",
-        "t":"51001",
-        "s":"51002"
-    },
-    "electrumx-cash.1209k.com": {
-        "pruning": "-",
-        "version": "1.1",
-        "t":"51001",
-        "s":"51002"
-    },
-    "shsmithgoggryfbx.onion": {
-        "pruning": "-",
-        "version": "1.1",
-        "t": "60001",
-        "s": "60002"
+        "version": "1.4"
     },
     "bch.curalle.ovh": {
         "pruning": "-",
-        "version": "1.1",
-        "t":"51001",
-        "s":"51002"
+        "s": "50002",
+        "version": "1.4"
     },
-    "electroncash.ueo.ch": {
+    "bch.electrumx.cash": {
         "pruning": "-",
-        "version": "1.4.3",
-        "t":"51001",
-        "s":"51002"
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "bch.imaginary.cash": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "bch0.kister.net": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "bitcoincash.quangld.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "blackie.c3-soft.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "crypto.mldlabs.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
     },
     "electron-cash.dragon.zone": {
         "pruning": "-",
-        "version": "1.1",
-        "t":"50001",
-        "s":"50002"
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electron.coinucopia.io": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electron.jochen-hoenicke.de": {
+        "pruning": "-",
+        "s": "51002",
+        "t": "51001",
+        "version": "1.4"
     },
     "electroncash.cascharia.com": {
         "pruning": "-",
-        "version": "1.1",
-        "s": "50002"
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electroncash.dk": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electroncash.ueo.ch": {
+        "pruning": "-",
+        "s": "51002",
+        "t": "51001",
+        "version": "1.4"
     },
     "electrum.imaginary.cash": {
         "pruning": "-",
-        "version": "1.2.1",
-        "t":"50001",
-        "s":"50002"
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "electrum.leblancnet.us": {
+        "pruning": "-",
+        "s": "50012",
+        "t": "50011",
+        "version": "1.4"
+    },
+    "electrumx.hillsideinternet.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
+    "wallet.satoshiscoffeehouse.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
     }
 }

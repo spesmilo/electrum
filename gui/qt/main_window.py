@@ -2382,10 +2382,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         file_content = file_content.strip()
         tx_file_dict = json.loads(str(file_content))
         tx = self.tx_from_text(file_content)
-        # Older saved transaction do not include this key.
-        if 'input_values' in tx_file_dict and len(tx_file_dict['input_values']) >= len(tx.inputs()):
-            for i in range(len(tx.inputs())):
-                tx._inputs[i]['value'] = tx_file_dict['input_values'][i]
         return tx
 
     def do_process_from_text(self):

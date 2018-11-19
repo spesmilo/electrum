@@ -24,5 +24,9 @@ $ wine --version
 ```
 
 2. Make sure `/opt` is writable by the current user.
-3. Run `build.sh`.
+3. Run `build.sh [<git-ref>]`, where <git-ref> (e.g., 3.3.1) is the branch/tag
+   you want to be checked out from official repo.
+   (optional -- defaults a hardcoded tag found in build-electrum-git.sh )
+   Note that build.sh may fail the first time after fetching gpg signatures.
+   It should work correctly on the second try.
 4. The generated binaries are in `dist`.
