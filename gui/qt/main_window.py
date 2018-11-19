@@ -1450,7 +1450,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         try:
             # handle op_return if specified and enabled
-            opreturn_message = self.message_opreturn_e.text() if self.config.get('enable_opreturn') else None
+            opreturn_message = self.message_opreturn_e.text()
             if opreturn_message:
                 outputs.append(self.output_for_opreturn_stringdata(opreturn_message))
         except OPReturnTooLarge as e:
@@ -1698,6 +1698,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         amount = out.get('amount')
         label = out.get('label')
         message = out.get('message')
+        op_return = out.get('op_return')
         # use label as description (not BIP21 compliant)
         if label and not message:
             message = label
@@ -1708,7 +1709,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if amount:
             self.amount_e.setAmount(amount)
             self.amount_e.textEdited.emit("")
-
+        if op_return:
+            self.message_opreturn_e.setText(op_return)
+            self.message_opreturn_e.setHidden(False)
+            self.opreturn_label.setHidden(False)
+        elif not self.config.get('enable_opreturn'): 
+            self.message_opreturn_e.setText('')
+            self.message_opreturn_e.setHidden(True)
+            self.opreturn_label.setHidden(True)
 
     def do_clear(self):
         self.is_max = False
@@ -1722,6 +1730,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.max_button.setDisabled(False)
         self.set_pay_from([])
         self.tx_external_keypairs = {}
+        self.message_opreturn_e.setVisible(self.config.get('enable_opreturn'))
+        self.opreturn_label.setVisible(self.config.get('enable_opreturn'))
         self.update_status()
         run_hook('do_clear', self)
 
