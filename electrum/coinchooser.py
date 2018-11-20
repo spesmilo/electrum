@@ -238,10 +238,6 @@ class CoinChooserBase(PrintError):
 
 
         inputs = [coin for b in buckets for coin in b.coins]
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        from pdb import set_trace
-        pyqtRemoveInputHook()
-        set_trace()
         #Store TOTAL value associated with each input asset type by summing each of the input values associated with each asset type
         input_map = {}
         for i in inputs:
@@ -251,7 +247,6 @@ class CoinChooserBase(PrintError):
                 input_map[asset]=input_map[asset]+value
             else:
                 input_map[asset]=value
-# input_map = {i['asset']: i['value'] for i in inputs}
 
         # append outputs with asset id and adjust asset input value balance
         asset_outputs = [TxOutput(o.type, o.address, value, 1, asset, 1)
