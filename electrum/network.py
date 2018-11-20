@@ -177,10 +177,10 @@ class Network(PrintError):
         if config is None:
             config = {}  # Do not use mutables as default values!
         self.config = SimpleConfig(config) if isinstance(config, dict) else config  # type: SimpleConfig
-        blockchain.blockchains = blockchain.read_blockchains(self.config)
-        self.print_error("blockchains", list(blockchain.blockchains))
+        blockchain.read_blockchains(self.config)
+        self.print_error("blockchains", list(map(lambda b: b.forkpoint, blockchain.blockchains.values())))
         self._blockchain_preferred_block = self.config.get('blockchain_preferred_block', None)  # type: Optional[Dict]
-        self._blockchain_index = 0
+        self._blockchain = blockchain.get_best_chain()
         # Server for addresses and transactions
         self.default_server = self.config.get('server', None)
         # Sanitize default server
@@ -559,17 +559,24 @@ class Network(PrintError):
             filtered = list(filter(lambda iface: iface.blockchain.check_hash(pref_height, pref_hash),
                                    interfaces))
             if filtered:
+                self.print_error("switching to preferred fork")
                 chosen_iface = random.choice(filtered)
                 await self.switch_to_interface(chosen_iface.server)
                 return
-        # try to switch to longest chain
-        if self.blockchain().parent_id is None:
-            return  # already on longest chain
-        filtered = list(filter(lambda iface: iface.blockchain.parent_id is None,
+            else:
+                self.print_error("tried to switch to preferred fork but no interfaces are on it")
+        # try to switch to best chain
+        if self.blockchain().parent is None:
+            return  # already on best chain
+        filtered = list(filter(lambda iface: iface.blockchain.parent is None,
                                interfaces))
         if filtered:
+            self.print_error("switching to best chain")
             chosen_iface = random.choice(filtered)
             await self.switch_to_interface(chosen_iface.server)
+        else:
+            # FIXME switch to best available?
+            self.print_error("tried to switch to best chain but no interfaces are on it")
 
     async def switch_to_interface(self, server: str):
         """Switch to server as our main interface. If no connection exists,
@@ -637,7 +644,7 @@ class Network(PrintError):
     @ignore_exceptions  # do not kill main_taskgroup
     @log_exceptions
     async def _run_new_interface(self, server):
-        interface = Interface(self, server, self.config.path, self.proxy)
+        interface = Interface(self, server, self.proxy)
         timeout = 10 if not self.proxy else 20
         try:
             await asyncio.wait_for(interface.ready, timeout)
@@ -661,7 +668,7 @@ class Network(PrintError):
         self.trigger_callback('network_updated')
 
     async def _init_headers_file(self):
-        b = blockchain.blockchains[0]
+        b = blockchain.get_best_chain()
         filename = b.path()
         length = HEADER_SIZE * len(constants.net.CHECKPOINTS) * 2016
         if not os.path.exists(filename) or os.path.getsize(filename) < length:
@@ -739,8 +746,8 @@ class Network(PrintError):
     def blockchain(self) -> Blockchain:
         interface = self.interface
         if interface and interface.blockchain is not None:
-            self._blockchain_index = interface.blockchain.forkpoint
-        return blockchain.blockchains[self._blockchain_index]
+            self._blockchain = interface.blockchain
+        return self._blockchain
 
     def get_blockchains(self):
         out = {}  # blockchain_id -> list(interfaces)
@@ -752,13 +759,6 @@ class Network(PrintError):
                 out[chain_id] = r
         return out
 
-    async def disconnect_from_interfaces_on_given_blockchain(self, chain: Blockchain) -> Sequence[Interface]:
-        chain_id = chain.forkpoint
-        ifaces = self.get_blockchains().get(chain_id) or []
-        for interface in ifaces:
-            await self.connection_down(interface.server)
-        return ifaces
-
     def _set_preferred_chain(self, chain: Blockchain):
         height = chain.get_max_forkpoint()
         header_hash = chain.get_hash(height)
@@ -768,7 +768,7 @@ class Network(PrintError):
         }
         self.config.set_key('blockchain_preferred_block', self._blockchain_preferred_block)
 
-    async def follow_chain_given_id(self, chain_id: int) -> None:
+    async def follow_chain_given_id(self, chain_id: str) -> None:
         bc = blockchain.blockchains.get(chain_id)
         if not bc:
             raise Exception('blockchain {} not found'.format(chain_id))

@@ -82,8 +82,8 @@ class NodesListWidget(QTreeWidget):
             server = item.data(1, Qt.UserRole)
             menu.addAction(_("Use as server"), lambda: self.parent.follow_server(server))
         else:
-            index = item.data(1, Qt.UserRole)
-            menu.addAction(_("Follow this branch"), lambda: self.parent.follow_branch(index))
+            chain_id = item.data(1, Qt.UserRole)
+            menu.addAction(_("Follow this branch"), lambda: self.parent.follow_branch(chain_id))
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def keyPressEvent(self, event):
@@ -103,22 +103,23 @@ class NodesListWidget(QTreeWidget):
         self.addChild = self.addTopLevelItem
         chains = network.get_blockchains()
         n_chains = len(chains)
-        for k, items in chains.items():
-            b = blockchain.blockchains[k]
+        for chain_id, interfaces in chains.items():
+            b = blockchain.blockchains.get(chain_id)
+            if b is None: continue
             name = b.get_name()
-            if n_chains >1:
+            if n_chains > 1:
                 x = QTreeWidgetItem([name + '@%d'%b.get_max_forkpoint(), '%d'%b.height()])
                 x.setData(0, Qt.UserRole, 1)
-                x.setData(1, Qt.UserRole, b.forkpoint)
+                x.setData(1, Qt.UserRole, b.get_id())
             else:
                 x = self
-            for i in items:
+            for i in interfaces:
                 star = ' *' if i == network.interface else ''
                 item = QTreeWidgetItem([i.host + star, '%d'%i.tip])
                 item.setData(0, Qt.UserRole, 0)
                 item.setData(1, Qt.UserRole, i.server)
                 x.addChild(item)
-            if n_chains>1:
+            if n_chains > 1:
                 self.addTopLevelItem(x)
                 x.setExpanded(True)
 
@@ -410,8 +411,8 @@ class NetworkChoiceLayout(object):
         self.set_protocol(p)
         self.set_server()
 
-    def follow_branch(self, index):
-        self.network.run_from_another_thread(self.network.follow_chain_given_id(index))
+    def follow_branch(self, chain_id):
+        self.network.run_from_another_thread(self.network.follow_chain_given_id(chain_id))
         self.update()
 
     def follow_server(self, server):

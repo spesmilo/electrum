@@ -79,26 +79,67 @@ def hash_raw_header(header: str) -> str:
     return hash_encode(sha256d(bfh(header)))
 
 
-blockchains = {}  # type: Dict[int, Blockchain]
-blockchains_lock = threading.Lock()
+# key: blockhash hex at forkpoint
+# the chain at some key is the best chain that includes the given hash
+blockchains = {}  # type: Dict[str, Blockchain]
+blockchains_lock = threading.RLock()
 
 
-def read_blockchains(config: 'SimpleConfig') -> Dict[int, 'Blockchain']:
-    blockchains[0] = Blockchain(config, 0, None)
+def read_blockchains(config: 'SimpleConfig'):
+    blockchains[constants.net.GENESIS] = Blockchain(config=config,
+                                                    forkpoint=0,
+                                                    parent=None,
+                                                    forkpoint_hash=constants.net.GENESIS,
+                                                    prev_hash=None)
     fdir = os.path.join(util.get_headers_dir(config), 'forks')
     util.make_dir(fdir)
-    l = filter(lambda x: x.startswith('fork_'), os.listdir(fdir))
-    l = sorted(l, key = lambda x: int(x.split('_')[1]))
-    for filename in l:
-        forkpoint = int(filename.split('_')[2])
-        parent_id = int(filename.split('_')[1])
-        b = Blockchain(config, forkpoint, parent_id)
-        h = b.read_header(b.forkpoint)
-        if b.parent().can_connect(h, check_height=False):
-            blockchains[b.forkpoint] = b
+    # files are named as: fork2_{forkpoint}_{prev_hash}_{first_hash}
+    l = filter(lambda x: x.startswith('fork2_') and '.' not in x, os.listdir(fdir))
+    l = sorted(l, key=lambda x: int(x.split('_')[1]))  # sort by forkpoint
+
+    def delete_chain(filename, reason):
+        util.print_error("[blockchain]", reason, filename)
+        os.unlink(os.path.join(fdir, filename))
+
+    def instantiate_chain(filename):
+        __, forkpoint, prev_hash, first_hash = filename.split('_')
+        forkpoint = int(forkpoint)
+        prev_hash = (64-len(prev_hash)) * "0" + prev_hash  # left-pad with zeroes
+        first_hash = (64-len(first_hash)) * "0" + first_hash
+        # forks below the max checkpoint are not allowed
+        if forkpoint <= constants.net.max_checkpoint():
+            delete_chain(filename, "deleting fork below max checkpoint")
+            return
+        # find parent (sorting by forkpoint guarantees it's already instantiated)
+        for parent in blockchains.values():
+            if parent.check_hash(forkpoint - 1, prev_hash):
+                break
         else:
-            util.print_error("cannot connect", filename)
-    return blockchains
+            delete_chain(filename, "cannot find parent for chain")
+            return
+        b = Blockchain(config=config,
+                       forkpoint=forkpoint,
+                       parent=parent,
+                       forkpoint_hash=first_hash,
+                       prev_hash=prev_hash)
+        # consistency checks
+        h = b.read_header(b.forkpoint)
+        if first_hash != hash_header(h):
+            delete_chain(filename, "incorrect first hash for chain")
+            return
+        if not b.parent.can_connect(h, check_height=False):
+            delete_chain(filename, "cannot connect chain to parent")
+            return
+        chain_id = b.get_id()
+        assert first_hash == chain_id, (first_hash, chain_id)
+        blockchains[chain_id] = b
+
+    for filename in l:
+        instantiate_chain(filename)
+
+
+def get_best_chain() -> 'Blockchain':
+    return blockchains[constants.net.GENESIS]
 
 
 class Blockchain(util.PrintError):
@@ -106,15 +147,20 @@ class Blockchain(util.PrintError):
     Manages blockchain headers and their verification
     """
 
-    def __init__(self, config: SimpleConfig, forkpoint: int, parent_id: Optional[int]):
+    def __init__(self, config: SimpleConfig, forkpoint: int, parent: Optional['Blockchain'],
+                 forkpoint_hash: str, prev_hash: Optional[str]):
+        assert isinstance(forkpoint_hash, str) and len(forkpoint_hash) == 64, forkpoint_hash
+        assert (prev_hash is None) or (isinstance(prev_hash, str) and len(prev_hash) == 64), prev_hash
+        # assert (parent is None) == (forkpoint == 0)
+        if 0 < forkpoint <= constants.net.max_checkpoint():
+            raise Exception(f"cannot fork below max checkpoint. forkpoint: {forkpoint}")
         self.config = config
-        self.forkpoint = forkpoint
-        self.checkpoints = constants.net.CHECKPOINTS
-        self.parent_id = parent_id
-        assert parent_id != forkpoint
+        self.forkpoint = forkpoint  # height of first header
+        self.parent = parent
+        self._forkpoint_hash = forkpoint_hash  # blockhash at forkpoint. "first hash"
+        self._prev_hash = prev_hash  # blockhash immediately before forkpoint
         self.lock = threading.RLock()
-        with self.lock:
-            self.update_size()
+        self.update_size()
 
     def with_lock(func):
         def func_wrapper(self, *args, **kwargs):
@@ -122,12 +168,13 @@ class Blockchain(util.PrintError):
                 return func(self, *args, **kwargs)
         return func_wrapper
 
-    def parent(self) -> 'Blockchain':
-        return blockchains[self.parent_id]
+    @property
+    def checkpoints(self):
+        return constants.net.CHECKPOINTS
 
     def get_max_child(self) -> Optional[int]:
         with blockchains_lock: chains = list(blockchains.values())
-        children = list(filter(lambda y: y.parent_id==self.forkpoint, chains))
+        children = list(filter(lambda y: y.parent==self, chains))
         return max([x.forkpoint for x in children]) if children else None
 
     def get_max_forkpoint(self) -> int:
@@ -137,11 +184,12 @@ class Blockchain(util.PrintError):
         mc = self.get_max_child()
         return mc if mc is not None else self.forkpoint
 
+    @with_lock
     def get_branch_size(self) -> int:
         return self.height() - self.get_max_forkpoint() + 1
 
     def get_name(self) -> str:
-        return self.get_hash(self.get_max_forkpoint()).lstrip('00')[0:10]
+        return self.get_hash(self.get_max_forkpoint()).lstrip('0')[0:10]
 
     def check_header(self, header: dict) -> bool:
         header_hash = hash_header(header)
@@ -159,24 +207,38 @@ class Blockchain(util.PrintError):
             return False
 
     def fork(parent, header: dict) -> 'Blockchain':
+        if not parent.can_connect(header, check_height=False):
+            raise Exception("forking header does not connect to parent chain")
         forkpoint = header.get('block_height')
-        self = Blockchain(parent.config, forkpoint, parent.forkpoint)
+        self = Blockchain(config=parent.config,
+                          forkpoint=forkpoint,
+                          parent=parent,
+                          forkpoint_hash=hash_header(header),
+                          prev_hash=parent.get_hash(forkpoint-1))
         open(self.path(), 'w+').close()
         self.save_header(header)
+        # put into global dict
+        chain_id = self.get_id()
+        with blockchains_lock:
+            assert chain_id not in blockchains, (chain_id, list(blockchains))
+            blockchains[chain_id] = self
         return self
 
+    @with_lock
     def height(self) -> int:
         return self.forkpoint + self.size() - 1
 
+    @with_lock
     def size(self) -> int:
-        with self.lock:
-            return self._size
+        return self._size
 
+    @with_lock
     def update_size(self) -> None:
         p = self.path()
         self._size = os.path.getsize(p)//HEADER_SIZE if os.path.exists(p) else 0
 
-    def verify_header(self, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
+    @classmethod
+    def verify_header(cls, header: dict, prev_hash: str, target: int, expected_header_hash: str=None) -> None:
         _hash = hash_header(header)
         if expected_header_hash and expected_header_hash != _hash:
             raise Exception("hash mismatches with expected: {} vs {}".format(expected_header_hash, _hash))
@@ -184,7 +246,7 @@ class Blockchain(util.PrintError):
             raise Exception("prev hash mismatch: %s vs %s" % (prev_hash, header.get('prev_block_hash')))
         if constants.net.TESTNET:
             return
-        bits = self.target_to_bits(target)
+        bits = cls.target_to_bits(target)
         if bits != header.get('bits'):
             raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
         if int('0x' + _hash, 16) > target:
@@ -206,21 +268,26 @@ class Blockchain(util.PrintError):
             self.verify_header(header, prev_hash, target, expected_header_hash)
             prev_hash = hash_header(header)
 
+    @with_lock
     def path(self):
         d = util.get_headers_dir(self.config)
-        if self.parent_id is None:
+        if self.parent is None:
             filename = 'blockchain_headers'
         else:
-            basename = 'fork_%d_%d' % (self.parent_id, self.forkpoint)
+            assert self.forkpoint > 0, self.forkpoint
+            prev_hash = self._prev_hash.lstrip('0')
+            first_hash = self._forkpoint_hash.lstrip('0')
+            basename = f'fork2_{self.forkpoint}_{prev_hash}_{first_hash}'
             filename = os.path.join('forks', basename)
         return os.path.join(d, filename)
 
     @with_lock
     def save_chunk(self, index: int, chunk: bytes):
+        assert index >= 0, index
         chunk_within_checkpoint_region = index < len(self.checkpoints)
         # chunks in checkpoint region are the responsibility of the 'main chain'
-        if chunk_within_checkpoint_region and self.parent_id is not None:
-            main_chain = blockchains[0]
+        if chunk_within_checkpoint_region and self.parent is not None:
+            main_chain = get_best_chain()
             main_chain.save_chunk(index, chunk)
             return
 
@@ -235,18 +302,36 @@ class Blockchain(util.PrintError):
         self.write(chunk, delta_bytes, truncate)
         self.swap_with_parent()
 
-    @with_lock
     def swap_with_parent(self) -> None:
-        if self.parent_id is None:
-            return
-        parent_branch_size = self.parent().height() - self.forkpoint + 1
-        if parent_branch_size >= self.size():
-            return
-        self.print_error("swap", self.forkpoint, self.parent_id)
-        parent_id = self.parent_id
-        forkpoint = self.forkpoint
-        parent = self.parent()
+        parent_lock = self.parent.lock if self.parent is not None else threading.Lock()
+        with parent_lock, self.lock, blockchains_lock:  # this order should not deadlock
+            # do the swap; possibly multiple ones
+            cnt = 0
+            while self._swap_with_parent():
+                cnt += 1
+                if cnt > len(blockchains):  # make sure we are making progress
+                    raise Exception(f'swapping fork with parent too many times: {cnt}')
+
+    def _swap_with_parent(self) -> bool:
+        """Check if this chain became stronger than its parent, and swap
+        the underlying files if so. The Blockchain instances will keep
+        'containing' the same headers, but their ids change and so
+        they will be stored in different files."""
+        if self.parent is None:
+            return False
+        parent_branch_size = self.parent.height() - self.forkpoint + 1
+        if parent_branch_size >= self.size():  # FIXME most work, not length
+            return False
+        self.print_error("swap", self.forkpoint, self.parent.forkpoint)
+        forkpoint = self.forkpoint  # type: Optional[int]
+        parent = self.parent  # type: Optional[Blockchain]
+        child_old_id = self.get_id()
+        parent_old_id = parent.get_id()
+        # swap files
+        # child takes parent's name
+        # parent's new name will be something new (not child's old name)
         self.assert_headers_file_available(self.path())
+        child_old_name = self.path()
         with open(self.path(), 'rb') as f:
             my_data = f.read()
         self.assert_headers_file_available(parent.path())
@@ -255,24 +340,28 @@ class Blockchain(util.PrintError):
             parent_data = f.read(parent_branch_size*HEADER_SIZE)
         self.write(parent_data, 0)
         parent.write(my_data, (forkpoint - parent.forkpoint)*HEADER_SIZE)
-        # store file path
-        with blockchains_lock: chains = list(blockchains.values())
-        for b in chains:
-            b.old_path = b.path()
         # swap parameters
-        self.parent_id = parent.parent_id; parent.parent_id = parent_id
-        self.forkpoint = parent.forkpoint; parent.forkpoint = forkpoint
-        self._size = parent._size; parent._size = parent_branch_size
-        # move files
-        for b in chains:
-            if b in [self, parent]: continue
-            if b.old_path != b.path():
-                self.print_error("renaming", b.old_path, b.path())
-                os.rename(b.old_path, b.path())
+        self.parent, parent.parent = parent.parent, self  # type: Optional[Blockchain], Optional[Blockchain]
+        self.forkpoint, parent.forkpoint = parent.forkpoint, self.forkpoint
+        self._forkpoint_hash, parent._forkpoint_hash = parent._forkpoint_hash, hash_raw_header(bh2u(parent_data[:HEADER_SIZE]))
+        self._prev_hash, parent._prev_hash = parent._prev_hash, self._prev_hash
+        # parent's new name
+        try:
+            os.rename(child_old_name, parent.path())
+        except OSError:
+            os.remove(parent.path())
+            os.rename(child_old_name, parent.path())
+        self.update_size()
+        parent.update_size()
         # update pointers
-        with blockchains_lock:
-            blockchains[self.forkpoint] = self
-            blockchains[parent.forkpoint] = parent
+        blockchains.pop(child_old_id, None)
+        blockchains.pop(parent_old_id, None)
+        blockchains[self.get_id()] = self
+        blockchains[parent.get_id()] = parent
+        return True
+
+    def get_id(self) -> str:
+        return self._forkpoint_hash
 
     def assert_headers_file_available(self, path):
         if os.path.exists(path):
@@ -282,19 +371,19 @@ class Blockchain(util.PrintError):
         else:
             raise FileNotFoundError('Cannot find headers file but headers_dir is there. Should be at {}'.format(path))
 
+    @with_lock
     def write(self, data: bytes, offset: int, truncate: bool=True) -> None:
         filename = self.path()
-        with self.lock:
-            self.assert_headers_file_available(filename)
-            with open(filename, 'rb+') as f:
-                if truncate and offset != self._size * HEADER_SIZE:
-                    f.seek(offset)
-                    f.truncate()
+        self.assert_headers_file_available(filename)
+        with open(filename, 'rb+') as f:
+            if truncate and offset != self._size * HEADER_SIZE:
                 f.seek(offset)
-                f.write(data)
-                f.flush()
-                os.fsync(f.fileno())
-            self.update_size()
+                f.truncate()
+            f.seek(offset)
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        self.update_size()
 
     @with_lock
     def save_header(self, header: dict) -> None:
@@ -306,12 +395,12 @@ class Blockchain(util.PrintError):
         self.write(data, delta*HEADER_SIZE)
         self.swap_with_parent()
 
+    @with_lock
     def read_header(self, height: int) -> Optional[dict]:
-        assert self.parent_id != self.forkpoint
         if height < 0:
             return
         if height < self.forkpoint:
-            return self.parent().read_header(height)
+            return self.parent.read_header(height)
         if height > self.height():
             return
         delta = height - self.forkpoint
@@ -371,16 +460,18 @@ class Blockchain(util.PrintError):
         new_target = self.bits_to_target(self.target_to_bits(new_target))
         return new_target
 
-    def bits_to_target(self, bits: int) -> int:
+    @classmethod
+    def bits_to_target(cls, bits: int) -> int:
         bitsN = (bits >> 24) & 0xff
-        if not (bitsN >= 0x03 and bitsN <= 0x1d):
+        if not (0x03 <= bitsN <= 0x1d):
             raise Exception("First part of bits should be in [0x03, 0x1d]")
         bitsBase = bits & 0xffffff
-        if not (bitsBase >= 0x8000 and bitsBase <= 0x7fffff):
+        if not (0x8000 <= bitsBase <= 0x7fffff):
             raise Exception("Second part of bits should be in [0x8000, 0x7fffff]")
         return bitsBase << (8 * (bitsN-3))
 
-    def target_to_bits(self, target: int) -> int:
+    @classmethod
+    def target_to_bits(cls, target: int) -> int:
         c = ("%064x" % target)[2:]
         while c[:2] == '00' and len(c) > 6:
             c = c[2:]
@@ -416,6 +507,7 @@ class Blockchain(util.PrintError):
         return True
 
     def connect_chunk(self, idx: int, hexdata: str) -> bool:
+        assert idx >= 0, idx
         try:
             data = bfh(hexdata)
             self.verify_chunk(idx, data)
@@ -423,7 +515,7 @@ class Blockchain(util.PrintError):
             self.save_chunk(idx, data)
             return True
         except BaseException as e:
-            self.print_error('verify_chunk %d failed'%idx, str(e))
+            self.print_error(f'verify_chunk idx {idx} failed: {repr(e)}')
             return False
 
     def get_checkpoints(self):
