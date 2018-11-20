@@ -6,6 +6,7 @@ import time
 
 class Channel(queue.Queue):
     "simple Queue wrapper for using recv and send"
+
     def __init__(self, switch_timeout=None):
         queue.Queue.__init__(self)
         self.switch_timeout = switch_timeout
@@ -83,9 +84,9 @@ class Commutator(threading.Thread):
             self.socket.settimeout(0)
             self.socket.setblocking(0)
             self.debug('connected')
-        except IOError as e:
-            self.logger.put(str(e))
-            raise e
+        except IOError as error:
+            self.logger.put(str(error))
+            raise error
 
     def _send(self, msg):
         message_length = len(msg).to_bytes(4, byteorder='big')
@@ -98,7 +99,7 @@ class Commutator(threading.Thread):
 
     def _recv(self):
         while True:
-            if len(self.response)>12:
+            if len(self.response) > 12:
                 magic = self.response[0:8]
                 if magic == self.magic:
                     msg_length = int.from_bytes(self.response[8:12], byteorder='big')
@@ -110,8 +111,8 @@ class Commutator(threading.Thread):
                     return None
             else:
                 try:
-                    x = self.socket.recv(self.MAX_BLOCK_SIZE)
-                    if x:
-                        self.response += x
-                except:
+                    message_part = self.socket.recv(self.MAX_BLOCK_SIZE)
+                    if message_part:
+                        self.response += message_part
+                except socket.error:
                     return None
