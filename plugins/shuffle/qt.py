@@ -44,31 +44,31 @@ from electroncash.address import Address
 from electroncash.transaction import Transaction
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread
 
-class SimpleLogger(object):
+# class SimpleLogger(object):
+#
+#     def __init__(self, logchan = None):
+#         self.pThread = None
+#         self.logchan = logchan
+#
+#     def send(self, message):
+#         if not self.logchan == None:
+#             self.logchan.send(message)
+#         if message.startswith("Error"):
+#             self.pThread.done.set()
+#         elif message.startswith("Blame"):
+#             if "insufficient" in message:
+#                 pass
+#             elif "wrong hash" in message:
+#                 pass
+#             else:
+#                 self.pThread.done.set()
 
-    def __init__(self, logchan = None):
-        self.pThread = None
-        self.logchan = logchan
 
-    def send(self, message):
-        if not self.logchan == None:
-            self.logchan.send(message)
-        if message.startswith("Error"):
-            self.pThread.done.set()
-        elif message.startswith("Blame"):
-            if "insufficient" in message:
-                pass
-            elif "wrong hash" in message:
-                pass
-            else:
-                self.pThread.done.set()
-
-
-def set_coins(win, selected):
-    checked_utxos = [utxo.replace(":","") for utxo in selected]
-    win.parent.cs_tab.coinshuffle_inputs_list.setItems(win.wallet, checked_utxos=checked_utxos)
-    win.parent.cs_tab.check_sufficient_ammount()
-    win.parent.tabs.setCurrentWidget(win.parent.cs_tab)
+# def set_coins(win, selected):
+#     checked_utxos = [utxo.replace(":","") for utxo in selected]
+#     win.parent.cs_tab.coinshuffle_inputs_list.setItems(win.wallet, checked_utxos=checked_utxos)
+#     win.parent.cs_tab.check_sufficient_ammount()
+#     win.parent.tabs.setCurrentWidget(win.parent.cs_tab)
 
 
 def is_coin_shuffled(wallet, coin):
@@ -325,9 +325,6 @@ class Plugin(BasePlugin):
         network_settings["network"] = window.network
         start_background_shuffling(window, network_settings, period = 10, password=password)
 
-    # @hook
-    # def on_close_window(self, window):
-    #     print("close window")
 
     def on_close(self):
         for window in self.windows:
@@ -344,8 +341,8 @@ class Plugin(BasePlugin):
             window.update_cashshuffle_icon()
 
 
-    def update(self, window):
-        self.windows.append(window)
+    # def update(self, window):
+    #     self.windows.append(window)
 
     def settings_dialog(self, window, msg=None):
 
