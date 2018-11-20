@@ -522,7 +522,7 @@ class Network(PrintError):
 
     def _set_oneserver(self, oneserver: bool):
         self.num_server = 10 if not oneserver else 0
-        self.oneserver = oneserver
+        self.oneserver = bool(oneserver)
 
     async def _switch_to_random_interface(self):
         '''Switch to a random connected server other than the current one'''
@@ -817,7 +817,7 @@ class Network(PrintError):
         self.protocol = deserialize_server(self.default_server)[2]
         self.server_queue = queue.Queue()
         self._set_proxy(deserialize_proxy(self.config.get('proxy')))
-        self._set_oneserver(self.config.get('oneserver'))
+        self._set_oneserver(self.config.get('oneserver', False))
         self._start_interface(self.default_server)
 
         async def main():
