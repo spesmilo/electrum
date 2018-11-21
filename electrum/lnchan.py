@@ -324,6 +324,8 @@ class Channel(PrintError):
         htlcsigs.sort()
         htlcsigs = [x[1] for x in htlcsigs]
 
+        self.process_new_offchain_ctx(pending_remote_commitment, ours=False)
+
         # we can't know if this message arrives.
         # since we shouldn't actually throw away
         # failed htlcs yet (or mark htlc locked in),
@@ -387,6 +389,8 @@ class Channel(PrintError):
             if self.constraints.is_initiator and self.pending_fee[FUNDEE_ACKED]:
                 self.pending_fee[FUNDER_SIGNED] = True
 
+        self.process_new_offchain_ctx(pending_local_commitment, ours=True)
+
     def verify_htlc(self, htlc: UpdateAddHtlc, htlc_sigs: Sequence[bytes], we_receive: bool) -> int:
         _, this_point, _ = self.points
         _script, htlc_tx = make_htlc_tx_with_open_channel(chan=self,
@@ -448,6 +452,21 @@ class Channel(PrintError):
         next_secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - next_small_num)
         next_point = secret_to_pubkey(int.from_bytes(next_secret, 'big'))
         return last_secret, this_point, next_point
+
+    # TODO don't presign txns for non-breach close
+    def process_new_offchain_ctx(self, ctx: 'Transaction', ours: bool):
+        if not self.lnwatcher:
+            return
+        outpoint = self.funding_outpoint.to_str()
+        if ours:
+            encumbered_sweeptxs = create_sweeptxs_for_our_latest_ctx(self, ctx, self.sweep_address)
+        else:
+            encumbered_sweeptxs = create_sweeptxs_for_their_latest_ctx(self, ctx, self.sweep_address)
+        for prev_txid, encumbered_tx in encumbered_sweeptxs:
+            if prev_txid is None:
+                prev_txid = ctx.txid()
+            if encumbered_tx is not None:
+                self.lnwatcher.add_sweep_tx(outpoint, prev_txid, encumbered_tx.to_json())
 
     def process_new_revocation_secret(self, per_commitment_secret: bytes):
         if not self.lnwatcher:
