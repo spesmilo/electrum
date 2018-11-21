@@ -1,4 +1,4 @@
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import PyQt5.QtGui as QtGui
 import PyQt5.QtWidgets as QtWidgets
@@ -91,30 +91,14 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
     def do_ln_payment_completed(self, evtname, date, direction, htlc, preimage, chan_id):
         self.move('inflight', 'settled', htlc.payment_hash)
 
-    def __init__(self, window: Optional['ElectrumWindow'], chan_id: bytes):
+    def __init__(self, window: 'ElectrumWindow', chan_id: bytes):
         super().__init__(window)
-        self.window = window
-        assert type(window).__name__ in ['NoneType', 'ElectrumWindow']
         self.ln_payment_completed.connect(self.do_ln_payment_completed)
         self.htlc_added.connect(self.do_htlc_added)
-        if not window:
-            self.format = str
-            htlcs = {
-                    'settled':
-                        [
-                        ],
-                    'inflight':
-                        [
-                            (lndecode("lnbcrt100n1pdl9c2vpp5z6ztyjy8an80te3u6l0fxuhjzt9pfa27a27uqap3xt8nv6dq47esdqgw3jhxapncqzy3rzjq2j0zgr9slpsefhaem0rq9w3kgjx6mjfd9tp7pe8yw23jqydcdtrsqqrc5qqqqgqqqqqqqlgqqqqqqgqjq5v97p0f0ftkwzmpxhjj6magd5ars465krljcp5z28j3nxl8d0kqjkzf6acjerxdu3yvtus75kakx3yvyus6c68hdwm2hpunusr47w3gpee4hgp"), UpdateAddHtlc(amount_msat=10001,  payment_hash=b"\x01"*32, cltv_expiry=500, htlc_id=1)),
-                            (lndecode('lnbcrt22m1pdl9kc7pp5qw903tar0e3ar4mu4h8m3zratj0sddqhfftpsjgcx0jsekzk43dsdqqcqzy3a6ev4vh6lt62xrzlq5l23g59pv0g3tur6drnduhczqg8smqlm75nklwx8r0mm535e4x8uq6tzqw7j7tvy70qaapfnt3e9n6rltvcs7cppzmqys'), UpdateAddHtlc(amount_msat=10002,  payment_hash=b"\x02"*32, cltv_expiry=501, htlc_id=2)),
-                            (lndecode('lnbcrt1u1pdl9k6tpp58la47qfxz6mvtgjmnmkl8xe8vcrkhluxrldlhv3dgdlla6tr3mvqdqgw3jhxapncqzy3rzjq2j0zgr9slpsefhaem0rq9w3kgjx6mjfd9tp7pe8yw23jqydcdtrsqqrc5qqqqgqqqqqqqlgqqqqqqgqjqavsdk9qdjwgfdywhlqtuzn5atkhzt9sgjz6tfll67wc34rh80mqzjme3meqyutrj0p7tvxczeuag956h6fv0356ezstgpfgqy47d7vsq7vhx6l'), UpdateAddHtlc(amount_msat=10003,  payment_hash=b"\x03"*32, cltv_expiry=502, htlc_id=3)),
-                        ],
-            }
-        else:
-            htlcs = self.window.wallet.lnworker._list_invoices(chan_id)
-            self.format = lambda msat: self.window.format_amount_and_units(msat / 1000)
-            self.window.network.register_callback(self.ln_payment_completed.emit, ['ln_payment_completed'])
-            self.window.network.register_callback(self.htlc_added.emit, ['htlc_added'])
+        htlcs = window.wallet.lnworker._list_invoices(chan_id)
+        self.format = lambda msat: window.format_amount_and_units(msat / 1000)
+        window.network.register_callback(self.ln_payment_completed.emit, ['ln_payment_completed'])
+        window.network.register_callback(self.htlc_added.emit, ['htlc_added'])
         self.setWindowTitle(_('Channel Details'))
         self.setMinimumSize(800, 400)
         vbox = QtWidgets.QVBoxLayout(self)
@@ -123,19 +107,3 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         #w.header().setStretchLastSection(False)
         w.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         vbox.addWidget(w)
-
-
-if __name__ == '__main__':
-    import sys
-    app = QtWidgets.QApplication(sys.argv)
-    d = ChannelDetailsDialog(None, b"\x01"*32)
-    d.show()
-
-    timer = QtCore.QTimer()
-    timer.setSingleShot(True)
-    def tick():
-        d.move('inflight', 'settled', b'\x02' * 32)
-    timer.timeout.connect(tick)
-    timer.start(3000)
-
-    sys.exit(app.exec_())
