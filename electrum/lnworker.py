@@ -243,10 +243,10 @@ class LNWorker(PrintError):
         Returns tuple (mined_deep_enough, num_confirmations).
         """
         assert chan.get_state() in ["OPEN", "OPENING"]
-        addr_sync = self.network.lnwatcher.addr_sync
-        conf = addr_sync.get_tx_height(chan.funding_outpoint.txid).conf
+        lnwatcher = self.network.lnwatcher
+        conf = lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
         if conf > 0:
-            block_height, tx_pos = addr_sync.get_txpos(chan.funding_outpoint.txid)
+            block_height, tx_pos = lnwatcher.get_txpos(chan.funding_outpoint.txid)
             assert tx_pos >= 0
             chan.short_channel_id_predicted = calc_short_channel_id(block_height, tx_pos, chan.funding_outpoint.output_index)
         if conf >= chan.constraints.funding_txn_minimum_depth > 0:
@@ -279,10 +279,9 @@ class LNWorker(PrintError):
         # since short_channel_id could be changed while saving.
         with self.lock:
             channels = list(self.channels.values())
-        addr_sync = self.network.lnwatcher.addr_sync
+        lnwatcher = self.network.lnwatcher
         if event in ('verified', 'wallet_updated'):
-            wallet = args[0]
-            if wallet != addr_sync:
+            if args[0] != lnwatcher:
                 return
         for chan in channels:
             if chan.get_state() == "OPENING":
@@ -300,11 +299,11 @@ class LNWorker(PrintError):
                     return
                 if event == 'fee':
                     await peer.bitcoin_fee_update(chan)
-                conf = addr_sync.get_tx_height(chan.funding_outpoint.txid).conf
+                conf = lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
                 peer.on_network_update(chan, conf)
             elif chan.get_state() == 'FORCE_CLOSING':
                 txid = chan.force_close_tx().txid()
-                height = addr_sync.get_tx_height(txid).height
+                height = lnwatcher.get_tx_height(txid).height
                 self.print_error("force closing tx", txid, "height", height)
                 if height == TX_HEIGHT_LOCAL:
                     self.print_error('REBROADCASTING CLOSING TX')
