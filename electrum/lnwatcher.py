@@ -35,20 +35,18 @@ class TxMinedDepth(IntEnum):
     FREE = auto()
 
 
-class LNWatcher(PrintError):
+class LNWatcher(AddressSynchronizer):
     # TODO if verifier gets an incorrect merkle proof, that tx will never verify!!
     # similarly, what if server ignores request for merkle proof?
     # maybe we should disconnect from server in these cases
     verbosity_filter = 'W'
 
     def __init__(self, network: 'Network'):
-        self.network = network
-        self.config = network.config
         path = os.path.join(network.config.path, "watcher_db")
         storage = WalletStorage(path)
-        self.addr_sync = AddressSynchronizer(storage)
-        self.addr_sync.diagnostic_name = lambda: 'LnWatcherAS'
-        self.addr_sync.start_network(network)
+        AddressSynchronizer.__init__(self, storage)
+        self.config = network.config
+        self.start_network(network)
         self.lock = threading.RLock()
         self.watched_addresses = set()
         self.channel_info = storage.get('channel_info', {})  # access with 'lock'
@@ -99,7 +97,7 @@ class LNWatcher(PrintError):
     def write_to_disk(self):
         # FIXME: json => every update takes linear instead of constant disk write
         with self.lock:
-            storage = self.addr_sync.storage
+            storage = self.storage
             storage.put('channel_info', self.channel_info)
             # self.sweepstore
             sweepstore = {}
@@ -121,13 +119,12 @@ class LNWatcher(PrintError):
     @log_exceptions
     async def on_network_update(self, event, *args):
         if event in ('verified', 'wallet_updated'):
-            wallet = args[0]
-            if wallet != self.addr_sync:
+            if args[0] != self:
                 return
-        if not self.addr_sync.synchronizer:
+        if not self.synchronizer:
             self.print_error("synchronizer not set yet")
             return
-        if not self.addr_sync.synchronizer.is_up_to_date():
+        if not self.synchronizer.is_up_to_date():
             return
         with self.lock:
             channel_info_items = list(self.channel_info.items())
@@ -137,21 +134,21 @@ class LNWatcher(PrintError):
     def watch_address(self, addr):
         with self.lock:
             self.watched_addresses.add(addr)
-            self.addr_sync.add_address(addr)
+            self.add_address(addr)
 
     async def check_onchain_situation(self, funding_outpoint):
         txid, index = funding_outpoint.split(':')
-        ctx_candidate_txid = self.addr_sync.spent_outpoints[txid].get(int(index))
+        ctx_candidate_txid = self.spent_outpoints[txid].get(int(index))
         is_spent = ctx_candidate_txid is not None
         self.network.trigger_callback('channel_txo', funding_outpoint, is_spent)
         if not is_spent:
             return
-        ctx_candidate = self.addr_sync.transactions.get(ctx_candidate_txid)
+        ctx_candidate = self.transactions.get(ctx_candidate_txid)
         if ctx_candidate is None:
             return
         #self.print_error("funding outpoint {} is spent by {}"
         #                 .format(funding_outpoint, ctx_candidate_txid))
-        conf = self.addr_sync.get_tx_height(ctx_candidate_txid).conf
+        conf = self.get_tx_height(ctx_candidate_txid).conf
         # only care about confirmed and verified ctxs. TODO is this necessary?
         if conf == 0:
             return
@@ -189,12 +186,12 @@ class LNWatcher(PrintError):
         local_height = self.network.get_local_height()
         self.print_error(funding_outpoint, 'iterating over encumbered txs')
         for e_tx in list(encumbered_sweep_txns):
-            conflicts = self.addr_sync.get_conflicting_transactions(e_tx.tx.txid(), e_tx.tx, include_self=True)
+            conflicts = self.get_conflicting_transactions(e_tx.tx.txid(), e_tx.tx, include_self=True)
             conflict_mined_depth = self.get_deepest_tx_mined_depth_for_txids(conflicts)
             if conflict_mined_depth != TxMinedDepth.DEEP:
                 keep_watching_this = True
             if conflict_mined_depth == TxMinedDepth.FREE:
-                tx_height = self.addr_sync.get_tx_height(prev_txid).height
+                tx_height = self.get_tx_height(prev_txid).height
                 if tx_height == TX_HEIGHT_LOCAL:
                     continue
                 num_conf = local_height - tx_height + 1
@@ -222,7 +219,7 @@ class LNWatcher(PrintError):
         return keep_watching_this
 
     async def broadcast_or_log(self, funding_outpoint, e_tx):
-        height = self.addr_sync.get_tx_height(e_tx.tx.txid()).height
+        height = self.get_tx_height(e_tx.tx.txid()).height
         if height != TX_HEIGHT_LOCAL:
             return
         try:
@@ -245,7 +242,7 @@ class LNWatcher(PrintError):
     def get_tx_mined_depth(self, txid: str):
         if not txid:
             return TxMinedStatus.FREE
-        tx_mined_depth = self.addr_sync.get_tx_height(txid)
+        tx_mined_depth = self.get_tx_height(txid)
         height, conf = tx_mined_depth.height, tx_mined_depth.conf
         if conf > 100:
             return TxMinedDepth.DEEP
