@@ -512,7 +512,7 @@ class Peer(PrintError):
         chan.receive_new_commitment(remote_sig, [])
         # broadcast funding tx
         await self.network.broadcast_transaction(funding_tx)
-        chan.remote_commitment_to_be_revoked = chan.pending_remote_commitment()
+        chan.remote_commitment_to_be_revoked = chan.pending_commitment(REMOTE)
         chan.config[REMOTE] = chan.config[REMOTE]._replace(ctn=0)
         chan.config[LOCAL] = chan.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
         chan.set_state('OPENING')
@@ -598,7 +598,7 @@ class Peer(PrintError):
             signature=sig_64,
         )
         chan.set_state('OPENING')
-        chan.remote_commitment_to_be_revoked = chan.pending_remote_commitment()
+        chan.remote_commitment_to_be_revoked = chan.pending_commitment(REMOTE)
         chan.config[REMOTE] = chan.config[REMOTE]._replace(ctn=0)
         chan.config[LOCAL] = chan.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
         self.lnworker.save_channel(chan)
