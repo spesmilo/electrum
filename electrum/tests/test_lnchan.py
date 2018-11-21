@@ -193,7 +193,7 @@ class TestChannel(unittest.TestCase):
         bob_idx = self.bob_channel.add_htlc(self.htlc_dict)
         alice_idx = self.alice_channel.receive_htlc(self.htlc_dict)
         self.alice_channel.receive_new_commitment(*self.bob_channel.sign_next_commitment())
-        self.assertEqual(len(self.alice_channel.pending_remote_commitment.outputs()), 3)
+        self.assertEqual(len(self.alice_channel.pending_commitment(REMOTE).outputs()), 3)
 
     def test_SimpleAddSettleWorkflow(self):
         alice_channel, bob_channel = self.alice_channel, self.bob_channel
@@ -577,13 +577,13 @@ class TestChanReserve(unittest.TestCase):
         bob_idx = self.bob_channel.receive_htlc(htlc_dict)
         force_state_transition(self.alice_channel, self.bob_channel)
         self.check_bals(one_bitcoin_in_msat*3\
-                - self.alice_channel.pending_local_fee,
+                - self.alice_channel.pending_local_fee(),
                   one_bitcoin_in_msat*5)
         self.bob_channel.settle_htlc(paymentPreimage, bob_idx)
         self.alice_channel.receive_htlc_settle(paymentPreimage, alice_idx)
         force_state_transition(self.alice_channel, self.bob_channel)
         self.check_bals(one_bitcoin_in_msat*3\
-                - self.alice_channel.pending_local_fee,
+                - self.alice_channel.pending_local_fee(),
                   one_bitcoin_in_msat*7)
         # And now let Bob add an HTLC of 1 BTC. This will take Bob's balance
         # all the way down to his channel reserve, but since he is not paying
@@ -593,7 +593,7 @@ class TestChanReserve(unittest.TestCase):
         self.alice_channel.receive_htlc(htlc_dict)
         force_state_transition(self.alice_channel, self.bob_channel)
         self.check_bals(one_bitcoin_in_msat*3\
-                - self.alice_channel.pending_local_fee,
+                - self.alice_channel.pending_local_fee(),
                   one_bitcoin_in_msat*6)
 
     def check_bals(self, amt1, amt2):
@@ -624,7 +624,7 @@ class TestDust(unittest.TestCase):
         self.assertEqual(len(alice_channel.local_commitment.outputs()), 3)
         self.assertEqual(len(bob_channel.local_commitment.outputs()), 2)
         default_fee = calc_static_fee(0)
-        self.assertEqual(bob_channel.pending_local_fee, default_fee + htlcAmt)
+        self.assertEqual(bob_channel.pending_local_fee(), default_fee + htlcAmt)
         bob_channel.settle_htlc(paymentPreimage, bobHtlcIndex)
         alice_channel.receive_htlc_settle(paymentPreimage, aliceHtlcIndex)
         force_state_transition(bob_channel, alice_channel)
