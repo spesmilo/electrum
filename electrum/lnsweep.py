@@ -76,7 +76,7 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
     if sweep_tx:
         txs.append((None, EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)))
     # HTLCs
-    def create_sweeptx_for_htlc(htlc: UpdateAddHtlc, is_received_htlc: bool) -> Tuple[Optional[Transaction],
+    def create_sweeptx_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Tuple[Optional[Transaction],
                                                                                       Optional[Transaction],
                                                                                       Transaction]:
         htlc_tx_witness_script, htlc_tx = make_htlc_tx_with_open_channel(chan=chan,
@@ -154,7 +154,7 @@ def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
     if sweep_tx:
         txs.append((None, EncumberedTransaction('our_ctx_to_local', sweep_tx, csv_delay=to_self_delay, cltv_expiry=0)))
     # HTLCs
-    def create_txns_for_htlc(htlc: UpdateAddHtlc, is_received_htlc: bool) -> Tuple[Optional[Transaction], Optional[Transaction]]:
+    def create_txns_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Tuple[Optional[Transaction], Optional[Transaction]]:
         if is_received_htlc:
             try:
                 preimage, invoice = chan.get_preimage_and_invoice(htlc.payment_hash)
@@ -258,7 +258,7 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
     # to handle the breach already; out of scope here)
     if ctn not in (this_conf.ctn, this_conf.ctn + 1):
         return txs
-    def create_sweeptx_for_htlc(htlc: UpdateAddHtlc, is_received_htlc: bool) -> Optional[Transaction]:
+    def create_sweeptx_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Optional[Transaction]:
         if not is_received_htlc:
             try:
                 preimage, invoice = chan.get_preimage_and_invoice(htlc.payment_hash)
