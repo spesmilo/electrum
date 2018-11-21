@@ -189,8 +189,8 @@ class Channel(PrintError):
 
         self.pending_fee = None
 
-        self.local_commitment = self.pending_local_commitment
-        self.remote_commitment = self.pending_remote_commitment
+        self.local_commitment = self.pending_commitment(LOCAL)
+        self.remote_commitment = self.pending_commitment(REMOTE)
 
         self._is_funding_txo_spent = None  # "don't know"
         self._state = None
@@ -296,7 +296,7 @@ class Channel(PrintError):
 
         old_logs = dict(self.lock_in_htlc_changes(LOCAL))
 
-        pending_remote_commitment = self.pending_remote_commitment
+        pending_remote_commitment = self.pending_commitment(REMOTE)
         sig_64 = sign_and_get_sig_string(pending_remote_commitment, self.config[LOCAL], self.config[REMOTE])
 
         their_remote_htlc_privkey_number = derive_privkey(
@@ -357,7 +357,7 @@ class Channel(PrintError):
 
         assert len(htlc_sigs) == 0 or type(htlc_sigs[0]) is bytes
 
-        pending_local_commitment = self.pending_local_commitment
+        pending_local_commitment = self.pending_commitment(LOCAL)
         preimage_hex = pending_local_commitment.serialize_preimage(0)
         pre_hash = sha256d(bfh(preimage_hex))
         if not ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, sig, pre_hash):
@@ -386,8 +386,8 @@ class Channel(PrintError):
         self.process_new_offchain_ctx(pending_local_commitment, ours=True)
 
     def verify_htlc(self, htlc, htlc_sigs, we_receive):
-        _, this_point, _ = self.points
-        _script, htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, self.pending_local_commitment, htlc)
+        _, this_point, _ = self.points()
+        _script, htlc_tx = make_htlc_tx_with_open_channel(self, this_point, True, we_receive, self.pending_commitment(LOCAL), htlc)
         pre_hash = sha256d(bfh(htlc_tx.serialize_preimage(0)))
         remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, this_point)
         for idx, sig in enumerate(htlc_sigs):
@@ -399,7 +399,7 @@ class Channel(PrintError):
     def revoke_current_commitment(self):
         self.print_error("revoke_current_commitment")
 
-        last_secret, this_point, next_point = self.points
+        last_secret, this_point, next_point = self.points()
 
         new_feerate = self.constraints.feerate
 
@@ -420,11 +420,10 @@ class Channel(PrintError):
             feerate=new_feerate
         )
 
-        self.local_commitment = self.pending_local_commitment
+        self.local_commitment = self.pending_commitment(LOCAL)
 
         return RevokeAndAck(last_secret, next_point), "current htlcs"
 
-    @property
     def points(self):
         last_small_num = self.config[LOCAL].ctn
         this_small_num = last_small_num + 1
@@ -486,7 +485,7 @@ class Channel(PrintError):
         # FIXME not sure this is correct... but it seems to work
         # if there are update_add_htlc msgs between commitment_signed and rev_ack,
         # this might break
-        prev_remote_commitment = self.pending_remote_commitment
+        prev_remote_commitment = self.pending_commitment(REMOTE)
 
         self.config[REMOTE].revocation_store.add_next_entry(revocation.per_commitment_secret)
         self.process_new_revocation_secret(revocation.per_commitment_secret)
@@ -531,8 +530,8 @@ class Channel(PrintError):
             if self.constraints.is_initiator:
                 self.pending_fee[FUNDEE_ACKED] = True
 
-        self.local_commitment = self.pending_local_commitment
-        self.remote_commitment = self.pending_remote_commitment
+        self.local_commitment = self.pending_commitment(LOCAL)
+        self.remote_commitment = self.pending_commitment(REMOTE)
         self.remote_commitment_to_be_revoked = prev_remote_commitment
         return received_this_batch, sent_this_batch
 
@@ -601,11 +600,6 @@ class Channel(PrintError):
         fee_for_htlc = lambda htlc: htlc.amount_msat // 1000 - (weight * feerate // 1000)
         return filter(lambda htlc: fee_for_htlc(htlc) >= conf.dust_limit_sat, htlcs)
 
-    @property
-    def pending_remote_commitment(self):
-        this_point = self.config[REMOTE].next_per_commitment_point
-        return self.make_commitment(REMOTE, this_point)
-
     def pending_feerate(self, subject):
         candidate = self.constraints.feerate
         if self.pending_fee is not None:
@@ -614,10 +608,9 @@ class Channel(PrintError):
                 candidate = x
         return candidate
 
-    @property
-    def pending_local_commitment(self):
-        _, this_point, _ = self.points
-        return self.make_commitment(LOCAL, this_point)
+    def pending_commitment(self, subject):
+        this_point = self.config[REMOTE].next_per_commitment_point if subject == REMOTE else self.points()[1]
+        return self.make_commitment(subject, this_point)
 
     def total_msat(self, sub):
         return sum(self.settled[sub])
@@ -677,9 +670,8 @@ class Channel(PrintError):
     def current_height(self):
         return {LOCAL: self.config[LOCAL].ctn, REMOTE: self.config[REMOTE].ctn}
 
-    @property
     def pending_local_fee(self):
-        return self.constraints.capacity - sum(x[2] for x in self.pending_local_commitment.outputs())
+        return self.constraints.capacity - sum(x[2] for x in self.pending_commitment(LOCAL).outputs())
 
     def update_fee(self, feerate, initiator):
         if self.constraints.is_initiator != initiator:
@@ -821,7 +813,7 @@ class Channel(PrintError):
                         fee_sat: Optional[int]=None) -> Tuple[bytes, int, str]:
         """ cooperative close """
         if fee_sat is None:
-            fee_sat = self.pending_local_fee
+            fee_sat = self.pending_local_fee()
 
         _, outputs = make_commitment_outputs({
                     LOCAL:  fee_sat * 1000 if     self.constraints.is_initiator else 0,
@@ -849,7 +841,7 @@ class Channel(PrintError):
         # but in this case, we want the current one. So substract one ctn number
         old_local_state = self.config[LOCAL]
         self.config[LOCAL]=self.config[LOCAL]._replace(ctn=self.config[LOCAL].ctn - 1)
-        tx = self.pending_local_commitment
+        tx = self.pending_commitment(LOCAL)
         self.config[LOCAL] = old_local_state
         tx.sign({bh2u(self.config[LOCAL].multisig_key.pubkey): (self.config[LOCAL].multisig_key.privkey, True)})
         remote_sig = self.config[LOCAL].current_commitment_signature
