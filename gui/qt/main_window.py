@@ -1713,7 +1713,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.message_opreturn_e.setText(op_return)
             self.message_opreturn_e.setHidden(False)
             self.opreturn_label.setHidden(False)
-        elif not self.config.get('enable_opreturn'): 
+        elif not self.config.get('enable_opreturn'):
             self.message_opreturn_e.setText('')
             self.message_opreturn_e.setHidden(True)
             self.opreturn_label.setHidden(True)
@@ -1730,8 +1730,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.max_button.setDisabled(False)
         self.set_pay_from([])
         self.tx_external_keypairs = {}
-        self.message_opreturn_e.setVisible(self.config.get('enable_opreturn'))
-        self.opreturn_label.setVisible(self.config.get('enable_opreturn'))
+        self.message_opreturn_e.setVisible(self.config.get('enable_opreturn', False))
+        self.opreturn_label.setVisible(self.config.get('enable_opreturn', False))
         self.update_status()
         run_hook('do_clear', self)
 
