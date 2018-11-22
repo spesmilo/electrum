@@ -45,7 +45,6 @@ class LNWatcher(AddressSynchronizer):
         self.config = network.config
         self.start_network(network)
         self.lock = threading.RLock()
-        self.watched_addresses = set()
         self.channel_info = storage.get('channel_info', {})  # access with 'lock'
         # [funding_outpoint_str][prev_txid] -> set of EncumberedTransaction
         # prev_txid is the txid of a tx that is watched for confirmations
@@ -107,7 +106,7 @@ class LNWatcher(AddressSynchronizer):
 
     @with_watchtower
     def watch_channel(self, address, outpoint):
-        self.watch_address(address)
+        self.add_address(address)
         with self.lock:
             if address not in self.channel_info:
                 self.channel_info[address] = outpoint
@@ -127,11 +126,6 @@ class LNWatcher(AddressSynchronizer):
             channel_info_items = list(self.channel_info.items())
         for address, outpoint in channel_info_items:
             await self.check_onchain_situation(outpoint)
-
-    def watch_address(self, addr):
-        with self.lock:
-            self.watched_addresses.add(addr)
-            self.add_address(addr)
 
     async def check_onchain_situation(self, funding_outpoint):
         txid, index = funding_outpoint.split(':')
@@ -164,8 +158,8 @@ class LNWatcher(AddressSynchronizer):
         # make sure we are subscribed to all outputs of tx
         not_yet_watching = False
         for o in prev_tx.outputs():
-            if o.address not in self.watched_addresses:
-                self.watch_address(o.address)
+            if o.address not in self.get_addresses():
+                self.add_address(o.address)
                 not_yet_watching = True
         if not_yet_watching:
             self.print_error('prev_tx', prev_tx, 'not yet watching')
