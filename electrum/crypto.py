@@ -55,8 +55,8 @@ def strip_PKCS7_padding(data: bytes) -> bytes:
     if len(data) % 16 != 0 or len(data) == 0:
         raise InvalidPadding("invalid length")
     padlen = data[-1]
-    if padlen > 16:
-        raise InvalidPadding("invalid padding byte (large)")
+    if not (0 < padlen <= 16):
+        raise InvalidPadding("invalid padding byte (out of range)")
     for i in data[-padlen:]:
         if i != padlen:
             raise InvalidPadding("invalid padding byte (inconsistent)")
