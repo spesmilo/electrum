@@ -23,12 +23,17 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import sys
 import hashlib
 from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING
 from enum import IntEnum, IntFlag
 
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms
-from cryptography.hazmat.backends import default_backend
+try:
+    from Cryptodome.Cipher import ChaCha20
+except Exception as e:
+    print(e)
+    print("Error: pycryptodomex >= 3.7 not available.")
+    sys.exit(1)
 
 from . import ecc
 from .crypto import sha256, hmac_oneshot
@@ -227,10 +232,8 @@ def generate_filler(key_type: bytes, num_hops: int, hop_size: int,
 
 
 def generate_cipher_stream(stream_key: bytes, num_bytes: int) -> bytes:
-    algo = algorithms.ChaCha20(stream_key, nonce=bytes(16))
-    cipher = Cipher(algo, mode=None, backend=default_backend())
-    encryptor = cipher.encryptor()
-    return encryptor.update(bytes(num_bytes))
+    cipher = ChaCha20.new(key=stream_key, nonce=bytes(8))
+    return cipher.encrypt(bytes(num_bytes))
 
 
 ProcessedOnionPacket = NamedTuple("ProcessedOnionPacket", [("are_we_final", bool),

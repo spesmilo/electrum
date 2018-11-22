@@ -5,10 +5,16 @@
 
 # Derived from https://gist.github.com/AdamISZ/046d05c156aaeb56cc897f85eecb3eb8
 
+import sys
 import hashlib
 from asyncio import StreamReader, StreamWriter
 
-import cryptography.hazmat.primitives.ciphers.aead as AEAD
+try:
+    from Cryptodome.Cipher import ChaCha20_Poly1305
+except Exception as e:
+    print(e)
+    print("Error: pycryptodomex >= 3.7 not available.")
+    sys.exit(1)
 
 from .crypto import sha256, hmac_oneshot
 from .lnutil import (get_ecdh, privkey_to_pubkey, LightningPeerConnectionClosed,
@@ -38,16 +44,19 @@ def get_nonce_bytes(n):
     """
     return b"\x00"*4 + n.to_bytes(8, 'little')
 
-def aead_encrypt(k, nonce, associated_data, data):
+def aead_encrypt(key: bytes, nonce: int, associated_data: bytes, data: bytes) -> bytes:
     nonce_bytes = get_nonce_bytes(nonce)
-    a = AEAD.ChaCha20Poly1305(k)
-    return a.encrypt(nonce_bytes, data, associated_data)
+    cipher = ChaCha20_Poly1305.new(key=key, nonce=nonce_bytes)
+    cipher.update(associated_data)
+    ciphertext, mac = cipher.encrypt_and_digest(plaintext=data)
+    return ciphertext + mac
 
-def aead_decrypt(k, nonce, associated_data, data):
+def aead_decrypt(key: bytes, nonce: int, associated_data: bytes, data: bytes) -> bytes:
     nonce_bytes = get_nonce_bytes(nonce)
-    a = AEAD.ChaCha20Poly1305(k)
-    #raises InvalidTag exception if it's not valid
-    return a.decrypt(nonce_bytes, data, associated_data)
+    cipher = ChaCha20_Poly1305.new(key=key, nonce=nonce_bytes)
+    cipher.update(associated_data)
+    # raises ValueError if not valid (e.g. incorrect MAC)
+    return cipher.decrypt_and_verify(ciphertext=data[:-16], received_mac_tag=data[-16:])
 
 def get_bolt8_hkdf(salt, ikm):
     """RFC5869 HKDF instantiated in the specific form
