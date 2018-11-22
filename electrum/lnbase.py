@@ -1147,8 +1147,6 @@ class Peer(PrintError):
     @log_exceptions
     async def close_channel(self, chan_id: bytes):
         chan = self.channels[chan_id]
-        if len(chan.htlcs(LOCAL, only_pending=True)) > 0:
-            raise Exception('Can\'t co-operatively close channel with payments ongoing (pending HTLCs). Please wait, or force-close the channel.')
         self.shutdown_received[chan_id] = asyncio.Future()
         self.send_shutdown(chan)
         payload = await self.shutdown_received[chan_id]
@@ -1176,16 +1174,27 @@ class Peer(PrintError):
 
     @log_exceptions
     async def _shutdown(self, chan: Channel, payload):
+        # set state so that we stop accepting HTLCs
+        chan.set_state('CLOSING')
+        while len(chan.htlcs(LOCAL, only_pending=True)) > 0:
+            await asyncio.sleep(1)
+        our_fee = chan.pending_local_fee()
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
-        signature, fee, txid = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'])
-        self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=fee, signature=signature)
-        while chan.get_state() != 'CLOSED':
-            try:
-                closing_signed = await asyncio.wait_for(self.closing_signed[chan.channel_id].get(), 1)
-            except asyncio.TimeoutError:
-                pass
-            else:
-                fee = int.from_bytes(closing_signed['fee_satoshis'], 'big')
-                signature, _, txid = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'], fee_sat=fee)
-                self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=fee, signature=signature)
-        return txid
+        # negociate fee
+        while True:
+            our_sig, closing_tx = chan.make_closing_tx(scriptpubkey, payload['scriptpubkey'], fee_sat=our_fee)
+            self.send_message('closing_signed', channel_id=chan.channel_id, fee_satoshis=our_fee, signature=our_sig)
+            cs_payload = await asyncio.wait_for(self.closing_signed[chan.channel_id].get(), 1)
+            their_fee = int.from_bytes(cs_payload['fee_satoshis'], 'big')
+            their_sig = cs_payload['signature']
+            if our_fee == their_fee:
+                break
+            # TODO: negociate better
+            our_fee = their_fee
+        # add their signature
+        i = chan.get_local_index()
+        closing_tx.add_signature_to_txin(0, i, bh2u(our_sig))
+        closing_tx.add_signature_to_txin(0, 1-i, bh2u(their_sig))
+        # broadcast
+        await self.network.broadcast_transaction(closing_tx)
+        return closing_tx.txid()

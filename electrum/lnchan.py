@@ -824,12 +824,12 @@ class Channel(PrintError):
             ),
             htlcs=htlcs)
 
-    def make_closing_tx(self, local_script: bytes, remote_script: bytes,
-                        fee_sat: Optional[int]=None) -> Tuple[bytes, int, str]:
-        """ cooperative close """
-        if fee_sat is None:
-            fee_sat = self.pending_local_fee()
+    def get_local_index(self):
+        return int(self.config[LOCAL].multisig_key.pubkey < self.config[REMOTE].multisig_key.pubkey)
 
+    def make_closing_tx(self, local_script: bytes, remote_script: bytes,
+                        fee_sat: int) -> Tuple[bytes, int, str]:
+        """ cooperative close """
         _, outputs = make_commitment_outputs({
                     LOCAL:  fee_sat * 1000 if     self.constraints.is_initiator else 0,
                     REMOTE: fee_sat * 1000 if not self.constraints.is_initiator else 0,
@@ -849,7 +849,7 @@ class Channel(PrintError):
 
         der_sig = bfh(closing_tx.sign_txin(0, self.config[LOCAL].multisig_key.privkey))
         sig = ecc.sig_string_from_der_sig(der_sig[:-1])
-        return sig, fee_sat, closing_tx.txid()
+        return sig, closing_tx
 
     def force_close_tx(self):
         # local_commitment always gives back the next expected local_commitment,
