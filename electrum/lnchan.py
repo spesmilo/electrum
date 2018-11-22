@@ -392,7 +392,7 @@ class Channel(PrintError):
         self.process_new_offchain_ctx(pending_local_commitment, ours=True)
 
     def verify_htlc(self, htlc: UpdateAddHtlc, htlc_sigs: Sequence[bytes], we_receive: bool) -> int:
-        _, this_point, _ = self.points
+        _, this_point, _ = self.points()
         _script, htlc_tx = make_htlc_tx_with_open_channel(chan=self,
                                                           pcp=this_point,
                                                           for_us=True,
