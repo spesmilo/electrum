@@ -10,4 +10,3 @@ aiohttp
 aiohttp_socks
 certifi
 bitstring
-cryptography
