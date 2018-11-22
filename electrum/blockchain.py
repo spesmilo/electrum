@@ -367,6 +367,8 @@ class Blockchain(util.PrintError):
         nActualTimespan = max(nActualTimespan, nTargetTimespan // 4)
         nActualTimespan = min(nActualTimespan, nTargetTimespan * 4)
         new_target = min(MAX_TARGET, (target * nActualTimespan) // nTargetTimespan)
+        # not any target can be represented in 32 bits:
+        new_target = self.bits_to_target(self.target_to_bits(new_target))
         return new_target
 
     def bits_to_target(self, bits: int) -> int:
