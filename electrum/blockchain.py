@@ -141,6 +141,11 @@ def read_blockchains(config: 'SimpleConfig'):
 def get_best_chain() -> 'Blockchain':
     return blockchains[constants.net.GENESIS]
 
+# block hash -> chain work; up to and including that block
+_CHAINWORK_CACHE = {
+    "0000000000000000000000000000000000000000000000000000000000000000": 0,  # virtual block at height -1
+}  # type: Dict[str, int]
+
 
 class Blockchain(util.PrintError):
     """
@@ -319,10 +324,10 @@ class Blockchain(util.PrintError):
         they will be stored in different files."""
         if self.parent is None:
             return False
-        parent_branch_size = self.parent.height() - self.forkpoint + 1
-        if parent_branch_size >= self.size():  # FIXME most work, not length
+        if self.parent.get_chainwork() >= self.get_chainwork():
             return False
         self.print_error("swap", self.forkpoint, self.parent.forkpoint)
+        parent_branch_size = self.parent.height() - self.forkpoint + 1
         forkpoint = self.forkpoint  # type: Optional[int]
         parent = self.parent  # type: Optional[Blockchain]
         child_old_id = self.get_id()
@@ -480,6 +485,40 @@ class Blockchain(util.PrintError):
             bitsN += 1
             bitsBase >>= 8
         return bitsN << 24 | bitsBase
+
+    def chainwork_of_header_at_height(self, height: int) -> int:
+        """work done by single header at given height"""
+        chunk_idx = height // 2016 - 1
+        target = self.get_target(chunk_idx)
+        work = ((2 ** 256 - target - 1) // (target + 1)) + 1
+        return work
+
+    @with_lock
+    def get_chainwork(self, height=None) -> int:
+        if height is None:
+            height = max(0, self.height())
+        if constants.net.TESTNET:
+            # On testnet/regtest, difficulty works somewhat different.
+            # It's out of scope to properly implement that.
+            return height
+        last_retarget = height // 2016 * 2016 - 1
+        cached_height = last_retarget
+        while _CHAINWORK_CACHE.get(self.get_hash(cached_height)) is None:
+            if cached_height <= -1:
+                break
+            cached_height -= 2016
+        assert cached_height >= -1, cached_height
+        running_total = _CHAINWORK_CACHE[self.get_hash(cached_height)]
+        while cached_height < last_retarget:
+            cached_height += 2016
+            work_in_single_header = self.chainwork_of_header_at_height(cached_height)
+            work_in_chunk = 2016 * work_in_single_header
+            running_total += work_in_chunk
+            _CHAINWORK_CACHE[self.get_hash(cached_height)] = running_total
+        cached_height += 2016
+        work_in_single_header = self.chainwork_of_header_at_height(cached_height)
+        work_in_last_partial_chunk = (height % 2016 + 1) * work_in_single_header
+        return running_total + work_in_last_partial_chunk
 
     def can_connect(self, header: dict, check_height: bool=True) -> bool:
         if header is None:
