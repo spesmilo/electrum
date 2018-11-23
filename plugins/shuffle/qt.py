@@ -54,7 +54,8 @@ from electroncash_plugins.shuffle.client import BackgroundShufflingThread
 #         if not self.logchan == None:
 #             self.logchan.send(message)
 #         if message.startswith("Error"):
-#             self.pThread.done.set()
+#             self.pThread.done.set()t
+
 #         elif message.startswith("Blame"):
 #             if "insufficient" in message:
 #                 pass
@@ -138,6 +139,8 @@ def on_utxo_list_update(utxo_list):
 
 
 def update_coin_status(window, coin_name, msg):
+    if not getattr(window.utxo_list, "in_progress", None):
+        return
     if coin_name not in ["MAINLOG", "PROTOCOL"]:
         if msg.startswith("Player") and coin_name not in window.utxo_list.in_progress:
             if "get session number" in msg:
