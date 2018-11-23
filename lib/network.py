@@ -868,13 +868,30 @@ class Network(util.DaemonThread):
             if interface.mode == 'verification':
                 return
 
-        connect = interface.blockchain.connect_chunk(request_base_height, hexdata, proof_was_provided)
-        if not connect:
-            interface.print_error("discarded unconnected chunk, height={} count={}".format(request_base_height, actual_header_count))
-            self.connection_down(interface.server)
+        hexdata = bfh(hexdata)
+        connect_state = interface.blockchain.connect_chunk(request_base_height, hexdata, proof_was_provided)
+        if connect_state == blockchain.CHUNK_ACCEPTED:
+            interface.print_error("connected chunk, height={} count={} proof_was_provided={}".format(request_base_height, actual_header_count, proof_was_provided))
+        elif connect_state == blockchain.CHUNK_FORKS:
+            interface.print_error("identified forking chunk, height={} count={}".format(request_base_height, actual_header_count))
+            # We actually have all the headers up to the bad point. In theory we
+            # can use them to detect a fork point in some cases. But that's bonus
+            # work for someone later.
+            # Discard the chunk and do a normal search for the fork point.
+            # Note that this will not give us the right blockchain, the
+            # syncing does not work that way historically.  That might
+            # wait until either a new block appears, or
+            interface.blockchain = None
+            interface.set_mode('backward')
+            interface.bad = request_base_height + actual_header_count - 1
+            bad_header_hex = blockchain.HeaderChunk(request_base_height, hexdata).get_header_at_height(interface.bad)
+            interface.bad_header = blockchain.deserialize_header(bad_header_hex, interface.bad)
+            self.request_header(interface, min(interface.tip, interface.bad - 1))
             return
         else:
-            interface.print_error("connected chunk, height={} count={} proof_was_provided={}".format(request_base_height, actual_header_count, proof_was_provided))
+            interface.print_error("discarded bad chunk, height={} count={} reason={}".format(request_base_height, actual_header_count, connect_state))
+            self.connection_down(interface.server)
+            return
 
         # If not finished, get the next chunk.
         if proof_was_provided and not was_verification_request:
