@@ -139,7 +139,7 @@ def on_utxo_list_update(utxo_list):
 
 
 def update_coin_status(window, coin_name, msg):
-    if not getattr(window.utxo_list, "in_progress", None):
+    if getattr(window.utxo_list, "in_progress", None) == None:
         return
     if coin_name not in ["MAINLOG", "PROTOCOL"]:
         if msg.startswith("Player") and coin_name not in window.utxo_list.in_progress:
