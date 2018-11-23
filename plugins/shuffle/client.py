@@ -255,6 +255,9 @@ class BackgroundShufflingThread(threading.Thread):
             time.sleep(0.01)
 
     def get_coin_for_shuffling(self, scale):
+        if not getattr(self.wallet, "is_coin_shuffled", None):
+            self.join()
+            return None
         coins = self.wallet.get_utxos(exclude_frozen=True, confirmed_only=True )
         unshuffled_coins = [coin for coin in coins if not self.wallet.is_coin_shuffled(coin)]
         upper_amount = scale*10
