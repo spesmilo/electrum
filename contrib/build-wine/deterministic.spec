@@ -32,6 +32,7 @@ datas = [
     (home+'lib/wordlist/english.txt', 'electroncash/wordlist'),
     (home+'lib/locale', 'electroncash/locale'),
     (home+'plugins', 'electroncash_plugins'),
+    ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
