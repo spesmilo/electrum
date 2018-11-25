@@ -252,6 +252,12 @@ class Interface(util.PrintError):
     - Member variable server.
     """
 
+    MODE_DEFAULT = 'default'
+    MODE_BACKWARD = 'backward'
+    MODE_BINARY = 'binary'
+    MODE_CATCH_UP = 'catch_up'
+    MODE_VERIFICATION = 'verification'
+
     def __init__(self, server, socket):
         self.server = server
         self.host, _, _ = server.rsplit(':', 2)
