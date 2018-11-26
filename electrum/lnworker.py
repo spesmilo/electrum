@@ -47,9 +47,11 @@ if TYPE_CHECKING:
 NUM_PEERS_TARGET = 4
 PEER_RETRY_INTERVAL = 600  # seconds
 PEER_RETRY_INTERVAL_FOR_CHANNELS = 30  # seconds
+GRAPH_DOWNLOAD_SECONDS = 600
 
 FALLBACK_NODE_LIST_TESTNET = (
     LNPeerAddr('ecdsa.net', 9735, bfh('038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff')),
+    LNPeerAddr('165.227.30.200', 9735, bfh('023ea0a53af875580899da0ab0a21455d9c19160c4ea1b7774c9d4be6810b02d2c')),
 )
 FALLBACK_NODE_LIST_MAINNET = (
     LNPeerAddr('104.198.32.198', 9735, bfh('02f6725f9c1c40333b67faea92fd211c183050f28df32cac3f9d69685fe9665432')), # Blockstream
@@ -88,6 +90,30 @@ class LNWorker(PrintError):
         self.network.register_callback(self.on_network_update, ['wallet_updated', 'network_updated', 'verified', 'fee'])  # thread safe
         self.network.register_callback(self.on_channel_txo, ['channel_txo'])
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
+        self.first_timestamp_requested = None
+
+    def get_first_timestamp(self):
+        first_request = False
+        if self.first_timestamp_requested is None:
+            self.first_timestamp_requested = time.time()
+            first_request = True
+        first_timestamp = self.wallet.storage.get('lightning_gossip_until', 0)
+        if first_timestamp == 0:
+            self.print_error('requesting whole channel graph')
+        else:
+            self.print_error('requesting channel graph since', datetime.fromtimestamp(first_timestamp).ctime())
+        if first_request:
+            asyncio.run_coroutine_threadsafe(self.save_gossip_timestamp(), self.network.asyncio_loop)
+        return first_timestamp
+
+    @log_exceptions
+    async def save_gossip_timestamp(self):
+        while True:
+            await asyncio.sleep(GRAPH_DOWNLOAD_SECONDS)
+            yesterday = int(time.time()) - 24*60*60 # now minus a day
+            self.wallet.storage.put('lightning_gossip_until', yesterday)
+            self.wallet.storage.write()
+            self.print_error('saved lightning gossip timestamp')
 
     def payment_completed(self, chan, direction, htlc, preimage):
         chan_id = chan.channel_id

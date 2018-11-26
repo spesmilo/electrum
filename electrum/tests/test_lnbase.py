@@ -107,6 +107,7 @@ class MockLNWorker:
     _check_invoice = staticmethod(LNWorker._check_invoice)
     _pay_to_route = LNWorker._pay_to_route
     force_close_channel = LNWorker.force_close_channel
+    get_first_timestamp = lambda self: 0
 
 class MockTransport:
     def __init__(self):
