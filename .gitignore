@@ -27,6 +27,7 @@ tmp/
 .DS_Store/
 .DS_Store
 icons/.DS_Store/
+xcuserdata/
 
 # IntelliJ Pycharm IDE
 /.idea
