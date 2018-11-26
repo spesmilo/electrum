@@ -310,6 +310,8 @@ class Peer(PrintError):
                     raise LightningPeerConnectionClosed("remote does not have even flag {}"
                                                         .format(str(LnLocalFeatures(1 << flag))))
                 self.localfeatures ^= 1 << flag  # disable flag
+        first_timestamp = self.lnworker.get_first_timestamp()
+        self.send_message('gossip_timestamp_filter', chain_hash=constants.net.rev_genesis_bytes(), first_timestamp=first_timestamp, timestamp_range=b"\xff"*4)
         self.initialized.set_result(True)
 
     def on_channel_update(self, payload):
