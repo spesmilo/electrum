@@ -39,6 +39,7 @@ import urllib.request, urllib.parse, urllib.error
 import builtins
 import json
 import time
+from typing import NamedTuple, Optional
 
 import aiohttp
 from aiohttp_socks import SocksConnector, SocksVer
@@ -129,31 +130,15 @@ class UserCancelled(Exception):
     '''An exception that is suppressed from the user'''
     pass
 
-class Satoshis(object):
-    __slots__ = ('value',)
-
-    def __new__(cls, value):
-        self = super(Satoshis, cls).__new__(cls)
-        self.value = value
-        return self
-
-    def __repr__(self):
-        return 'Satoshis(%d)'%self.value
+class Satoshis(NamedTuple):
+    value: int
 
     def __str__(self):
         return format_satoshis(self.value) + " BTC"
 
-class Fiat(object):
-    __slots__ = ('value', 'ccy')
-
-    def __new__(cls, value, ccy):
-        self = super(Fiat, cls).__new__(cls)
-        self.ccy = ccy
-        self.value = value
-        return self
-
-    def __repr__(self):
-        return 'Fiat(%s)'% self.__str__()
+class Fiat(NamedTuple):
+    value: Optional[Decimal]
+    ccy: str
 
     def __str__(self):
         if self.value is None or self.value.is_nan():
