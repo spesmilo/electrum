@@ -9,6 +9,7 @@
 #import "AppDelegate.h"
 #import <AVFoundation/AVFoundation.h>
 #include <stdio.h>
+#include <Availability.h>
 
 @interface AppDelegate () <NSWindowDelegate, AVCaptureVideoDataOutputSampleBufferDelegate> {
     __strong dispatch_queue_t dispatchQueue;
@@ -50,6 +51,7 @@
     NSError *error;
     self.button.hidden = YES;
 
+#if defined(__MAC_10_14) && __MAC_OS_X_VERSION_MAX_ALLOWED >= __MAC_10_14
     if (@available(macOS 10.14, *)) {
         // macOS 10.14 or later code path -- ask user for permission to access camera
         AVAuthorizationStatus st = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
@@ -71,6 +73,8 @@
             return NO;
         }
     }
+#endif
+
 
     AVCaptureDevice *captureDevice = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
 
