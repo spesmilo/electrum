@@ -26,3 +26,7 @@ electrum/gui/kivy/theming/light.atlas
 .cache/
 .coverage
 .pytest_cache
+
+# Xcode project per-user data
+xcuserdata/
+

@@ -41,6 +41,9 @@ datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 datas += collect_data_files('ckcc')
 
+# Add the QR Scanner helper app
+datas += [(electrum + "contrib/CalinsQRReader/build/Release/CalinsQRReader.app", "./contrib/CalinsQRReader/build/Release/CalinsQRReader.app")]
+
 # Add libusb so Trezor and Safe-T mini will work
 binaries = [(electrum + "contrib/build-osx/libusb-1.0.dylib", ".")]
 binaries += [(electrum + "contrib/build-osx/libsecp256k1.0.dylib", ".")]
