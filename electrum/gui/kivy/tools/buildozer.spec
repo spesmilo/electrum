@@ -52,7 +52,7 @@ fullscreen = False
 #
 
 # (list) Permissions
-android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, CAMERA
+android.permissions = INTERNET, CAMERA
 
 # (int) Android API to use
 android.api = 28
