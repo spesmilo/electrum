@@ -127,7 +127,7 @@ def deserialize_xkey(xkey, prv, *, net=None):
     fingerprint = xkey[5:9]
     child_number = xkey[9:13]
     c = xkey[13:13+32]
-    header = int('0x' + bh2u(xkey[0:4]), 16)
+    header = int.from_bytes(xkey[0:4], byteorder='big')
     headers = net.XPRV_HEADERS if prv else net.XPUB_HEADERS
     if header not in headers.values():
         raise InvalidMasterKeyVersionBytes('Invalid extended key format: {}'

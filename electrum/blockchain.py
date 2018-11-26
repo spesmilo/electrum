@@ -56,7 +56,7 @@ def deserialize_header(s: bytes, height: int) -> dict:
         raise InvalidHeader('Invalid header: {}'.format(s))
     if len(s) != HEADER_SIZE:
         raise InvalidHeader('Invalid header length: {}'.format(len(s)))
-    hex_to_int = lambda s: int('0x' + bh2u(s[::-1]), 16)
+    hex_to_int = lambda s: int.from_bytes(s, byteorder='little')
     h = {}
     h['version'] = hex_to_int(s[0:4])
     h['prev_block_hash'] = hash_encode(s[4:36])
@@ -187,8 +187,9 @@ class Blockchain(util.PrintError):
         bits = self.target_to_bits(target)
         if bits != header.get('bits'):
             raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
-        if int('0x' + _hash, 16) > target:
-            raise Exception("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
+        block_hash_as_num = int.from_bytes(bfh(_hash), byteorder='big')
+        if block_hash_as_num > target:
+            raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
 
     def verify_chunk(self, index: int, data: bytes) -> None:
         num = len(data) // HEADER_SIZE
@@ -384,7 +385,7 @@ class Blockchain(util.PrintError):
         c = ("%064x" % target)[2:]
         while c[:2] == '00' and len(c) > 6:
             c = c[2:]
-        bitsN, bitsBase = len(c) // 2, int('0x' + c[:6], 16)
+        bitsN, bitsBase = len(c) // 2, int.from_bytes(bfh(c[:6]), byteorder='big')
         if bitsBase >= 0x800000:
             bitsN += 1
             bitsBase >>= 8
