@@ -325,7 +325,12 @@ class BackgroundShufflingThread(threading.Thread):
         sks[public_key] = sk
         id_sk = generate_random_sk()
         id_pub = id_sk.GetPubKey(True).hex()
-        output = self.wallet.get_unused_addresses()[0].to_ui_string()
+        address_on_threads = [Address.from_string(self.threads[scale].protocol.addr_new)
+                              for scale in self.threads
+                              if self.threads[scale] and self.threads[scale].protocol]
+        output = [address for address in self.wallet.get_unused_addresses()
+                  if address not in address_on_threads][0].to_ui_string()
+        # output = self.wallet.get_unused_addresses()[0].to_ui_string()
         changes_in_threads = [Address.from_string(self.threads[scale].change) for scale in self.threads if self.threads[scale]]
         fresh_changes = [address for address in self.wallet.get_change_addresses()
                          if not self.wallet.get_address_history(address) and
