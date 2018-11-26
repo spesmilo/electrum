@@ -190,4 +190,17 @@ and there is no warning message.
 * Add OP_RETURN feature.
 * Upgraded fee interface allowing lower fees with a custom fee rate.
 
+# Release 3.3.2
 
+* UTXO (coin) level freezing (accessible from Coins tab)
+* Bugfix to network code reared its head when user switches forks in unlikely circumstances
+* Checkpoint code (ElectrumX 1.4) protocol upgrade for faster blockchain header downloads
+* Updated servers list
+* BitPay support now works flawlessly
+* Fork icon indicates chain splits to allow user to select an alternate chain
+* UI glitches fixed
+* Various bug fixes (address exceptions)
+* Translations on Windows working again
+* More Spanish language translations!
+* Mac: bitcoincash: URLs working
+* Mac: Bitpay URLs working

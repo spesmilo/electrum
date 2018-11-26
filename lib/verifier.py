@@ -50,10 +50,14 @@ class SPV(ThreadJob):
         local_height = self.network.get_local_height()
         unverified = self.wallet.get_unverified_txs()
         for tx_hash, tx_height in unverified.items():
-            # do not request merkle branch before headers are available
+            # do not request merkle branch if we already requested it
+            if tx_hash in self.requested_merkle or tx_hash in self.merkle_roots:
+                continue
+            # or before headers are available
             if tx_height <= 0 or tx_height > local_height:
                 continue
 
+            # if it's in the checkpoint region, we still might not have the header
             header = blockchain.read_header(tx_height)
             if header is None:
                 if tx_height <= NetworkConstants.VERIFICATION_BLOCK_HEIGHT:
@@ -62,15 +66,15 @@ class SPV(ThreadJob):
                     # currently designed for catching up post-checkpoint headers.
                     index = tx_height // 2016
                     if self.network.request_chunk(interface, index):
-                        interface.print_error("verifier requesting chunk {} for height {}".format(index, tx_height))                    
-            elif (tx_hash not in self.requested_merkle
-                    and tx_hash not in self.merkle_roots):
-                self.network.get_merkle_for_transaction(
-                        tx_hash,
-                        tx_height,
-                        self.verify_merkle)
-                self.print_error('requested merkle', tx_hash)
-                self.requested_merkle.add(tx_hash)
+                        interface.print_error("verifier requesting chunk {} for height {}".format(index, tx_height))
+                continue
+            # request now
+            self.network.get_merkle_for_transaction(
+                    tx_hash,
+                    tx_height,
+                    self.verify_merkle)
+            self.print_error('requested merkle', tx_hash)
+            self.requested_merkle.add(tx_hash)
 
         if self.network.blockchain() != self.blockchain:
             self.blockchain = self.network.blockchain()

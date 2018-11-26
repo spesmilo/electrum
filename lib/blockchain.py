@@ -33,6 +33,11 @@ from .bitcoin import *
 class VerifyError(Exception):
     '''Exception used for blockchain verification errors.'''
 
+CHUNK_FORKS = -3
+CHUNK_BAD = -2
+CHUNK_LACKED_PROOF = -1
+CHUNK_ACCEPTED = 0
+
 def bits_to_work(bits):
     return (1 << 256) // (bits_to_target(bits) + 1)
 
@@ -164,16 +169,22 @@ class HeaderChunk:
     def __init__(self, base_height, data):
         self.base_height = base_height
         self.data = data
+        self.header_count = len(self.data) // HEADER_SIZE
 
     def __repr__(self):
-        return "HeaderChunk(base_height={}, data_count={})".format(self.base_height, len(self.data))
+        return "HeaderChunk(base_height={}, data_length={}, header_count={})".format(self.base_height, len(self.data), self.header_count)
+
+    def get_count(self):
+        return self.header_count
 
     def contains_height(self, height):
-        header_count = len(self.data) // HEADER_SIZE
-        return height >= self.base_height and height < self.base_height + header_count
+        return height >= self.base_height and height < self.base_height + self.header_count
 
     def get_header_at_height(self, height):
-        return self.get_header_at_index(height - self.base_height)
+        assert self.contains_height(height)
+        header_hex = self.get_header_at_index(height - self.base_height)
+        assert len(header_hex) == HEADER_SIZE
+        return header_hex
 
     def get_header_at_index(self, index):
         header_offset = index * HEADER_SIZE
@@ -518,30 +529,51 @@ class Blockchain(util.PrintError):
             return False
         return True
 
-    def chunk_exists(self, base_height, hexdata):
-        """
-        We truncate on writing any chunks after the verification block height, which
-        means that if a slow server gives us an old chunk, we then lose data that
-        other consecutive chunks will try and build on and error.
-        """
-        if base_height > NetworkConstants.VERIFICATION_BLOCK_HEIGHT:
-            header_count = len(hexdata) // HEADER_SIZE
-            top_height = base_height + header_count - 1
-            if top_height <= self.height():
-                self.print_error("chunk already appended {} -> {} (current height {})".format(base_height, top_height, self.height()))
-                return True
-        return False
-
     def connect_chunk(self, base_height, hexdata, proof_was_provided=False):
-        if self.chunk_exists(base_height, hexdata):
-            return False
+        chunk = HeaderChunk(base_height, hexdata)
+
+        header_count = len(hexdata) // HEADER_SIZE
+        top_height = base_height + header_count - 1
+        # We know that chunks before the checkpoint height, end at the checkpoint height, and
+        # will be guaranteed to be covered by the checkpointing. If no proof is provided then
+        # this is wrong.
+        if top_height <= NetworkConstants.VERIFICATION_BLOCK_HEIGHT:
+            if not proof_was_provided:
+                return CHUNK_LACKED_PROOF
+            # We do not truncate when writing chunks before the checkpoint, and there's no
+            # way at this time to know if we have this chunk, or even a consecutive subset.
+            # So just overwrite it.
+        elif base_height < NetworkConstants.VERIFICATION_BLOCK_HEIGHT and proof_was_provided:
+            # This was the initial verification request which gets us enough leading headers
+            # that we can calculate difficulty and verify the headers that we add to this
+            # chain above the verification block height.
+            if top_height <= self.height():
+                return CHUNK_ACCEPTED
+        elif base_height != self.height() + 1:
+            # This chunk covers a segment of this blockchain which we already have headers
+            # for. We need to verify that there isn't a split within the chunk, and if
+            # there is, indicate the need for the server to fork.
+            intersection_height = min(top_height, self.height())
+            chunk_header = deserialize_header(chunk.get_header_at_height(intersection_height), intersection_height)
+            our_header = self.read_header(intersection_height)
+            if hash_header(chunk_header) != hash_header(our_header):
+                return CHUNK_FORKS
+            if intersection_height <= self.height():
+                return CHUNK_ACCEPTED
+        else:
+            # This base of this chunk joins to the top of the blockchain in theory.
+            # We need to rule out the case where the chunk is actually a fork at the
+            # connecting height.
+            our_header = self.read_header(self.height())
+            chunk_header = deserialize_header(chunk.get_header_at_height(base_height), base_height)
+            if hash_header(our_header) != chunk_header['prev_block_hash']:
+                return CHUNK_FORKS
 
         try:
-            data = bfh(hexdata)
             if not proof_was_provided:
-                self.verify_chunk(base_height, data)
-            self.save_chunk(base_height, data)
-            return True
+                self.verify_chunk(base_height, hexdata)
+            self.save_chunk(base_height, hexdata)
+            return CHUNK_ACCEPTED
         except VerifyError as e:
             self.print_error('verify_chunk failed: {}'.format(e))
-            return False
+            return CHUNK_BAD
