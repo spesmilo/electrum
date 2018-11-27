@@ -26,12 +26,16 @@
 import webbrowser
 import datetime
 from datetime import date
+from typing import TYPE_CHECKING
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
 from electrum.util import block_explorer_URL, profiler, print_error, TxMinedStatus
 
 from .util import *
+
+if TYPE_CHECKING:
+    from electrum.wallet import Abstract_Wallet
 
 try:
     from electrum.plot import plot_history, NothingToPlotException
@@ -216,7 +220,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
 
     @profiler
     def on_update(self):
-        self.wallet = self.parent.wallet
+        self.wallet = self.parent.wallet  # type: Abstract_Wallet
         fx = self.parent.fx
         r = self.wallet.get_full_history(domain=self.get_domain(), from_timestamp=self.start_timestamp, to_timestamp=self.end_timestamp, fx=fx)
         self.transactions = r['transactions']
@@ -297,10 +301,14 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             super(HistoryList, self).on_doubleclick(item, column)
         else:
             tx_hash = item.data(0, Qt.UserRole)
-            tx = self.wallet.transactions.get(tx_hash)
-            if not tx:
-                return
-            self.parent.show_transaction(tx)
+            self.show_transaction(tx_hash)
+
+    def show_transaction(self, tx_hash):
+        tx = self.wallet.transactions.get(tx_hash)
+        if not tx:
+            return
+        label = self.wallet.get_label(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
+        self.parent.show_transaction(tx, label)
 
     def update_labels(self):
         root = self.invisibleRootItem()
@@ -354,7 +362,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         for c in self.editable_columns:
             menu.addAction(_("Edit {}").format(self.headerItem().text(c)),
                            lambda bound_c=c: self.editItem(item, bound_c))
-        menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx))
+        menu.addAction(_("Details"), lambda: self.show_transaction(tx_hash))
         if is_unconfirmed and tx:
             # note: the current implementation of RBF *needs* the old tx fee
             rbf = is_mine and not tx.is_final() and fee is not None
@@ -414,26 +422,38 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         if not filename:
             return
         try:
-            self.do_export_history(self.wallet, filename, csv_button.isChecked())
+            self.do_export_history(filename, csv_button.isChecked())
         except (IOError, os.error) as reason:
             export_error_label = _("Electrum was unable to produce a transaction export.")
             self.parent.show_critical(export_error_label + "\n" + str(reason), title=_("Unable to export history"))
             return
         self.parent.show_message(_("Your wallet history has been successfully exported."))
 
-    def do_export_history(self, wallet, fileName, is_csv):
+    def do_export_history(self, file_name, is_csv):
         history = self.transactions
         lines = []
-        for item in history:
-            if is_csv:
-                lines.append([item['txid'], item.get('label', ''), item['confirmations'], item['value'], item['date']])
-            else:
-                lines.append(item)
-        with open(fileName, "w+", encoding='utf-8') as f:
+        if is_csv:
+            for item in history:
+                lines.append([item['txid'],
+                              item.get('label', ''),
+                              item['confirmations'],
+                              item['value'],
+                              item.get('fiat_value', ''),
+                              item.get('fee', ''),
+                              item.get('fiat_fee', ''),
+                              item['date']])
+        with open(file_name, "w+", encoding='utf-8') as f:
             if is_csv:
                 import csv
                 transaction = csv.writer(f, lineterminator='\n')
-                transaction.writerow(["transaction_hash","label", "confirmations", "value", "timestamp"])
+                transaction.writerow(["transaction_hash",
+                                      "label",
+                                      "confirmations",
+                                      "value",
+                                      "fiat_value",
+                                      "fee",
+                                      "fiat_fee",
+                                      "timestamp"])
                 for line in lines:
                     transaction.writerow(line)
             else:

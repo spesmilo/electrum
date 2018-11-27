@@ -1,16 +1,17 @@
 import base64
 import sys
 
-from electrum.bitcoin import (
-    public_key_to_p2pkh,
-    bip32_root, bip32_public_derivation, bip32_private_derivation,
-    Hash, address_from_private_key,
-    is_address, is_private_key, xpub_from_xprv, is_new_seed, is_old_seed,
-    var_int, op_push, address_to_script,
-    deserialize_privkey, serialize_privkey, is_segwit_address,
-    is_b58_address, address_to_scripthash, is_minikey, is_compressed, is_xpub,
-    xpub_type, is_xprv, is_bip32_derivation, seed_type, EncodeBase58Check,
-    script_num_to_hex, push_script, add_number_to_script, int_to_hex, convert_bip32_path_to_list_of_uint32)
+from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
+                              is_address, is_private_key, is_new_seed, is_old_seed,
+                              var_int, op_push, address_to_script,
+                              deserialize_privkey, serialize_privkey, is_segwit_address,
+                              is_b58_address, address_to_scripthash, is_minikey,
+                              is_compressed_privkey, seed_type, EncodeBase58Check,
+                              script_num_to_hex, push_script, add_number_to_script, int_to_hex)
+from electrum.bip32 import (bip32_root, bip32_public_derivation, bip32_private_derivation,
+                            xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
+                            is_xpub, convert_bip32_path_to_list_of_uint32)
+from electrum.crypto import sha256d
 from electrum import ecc, crypto, constants
 from electrum.ecc import number_to_string, string_to_number
 from electrum.transaction import opcodes
@@ -245,13 +246,9 @@ class Test_bitcoin(SequentialTestCase):
         enc = crypto.pw_encode(payload, password)
         self.assertRaises(Exception, crypto.pw_decode, enc, wrong_password)
 
-    def test_hash(self):
-        """Make sure the Hash function does sha256 twice"""
-        payload = u"test"
-        expected = b'\x95MZI\xfdp\xd9\xb8\xbc\xdb5\xd2R&x)\x95\x7f~\xf7\xfalt\xf8\x84\x19\xbd\xc5\xe8"\t\xf4'
-
-        result = Hash(payload)
-        self.assertEqual(expected, result)
+    def test_sha256d(self):
+        self.assertEqual(b'\x95MZI\xfdp\xd9\xb8\xbc\xdb5\xd2R&x)\x95\x7f~\xf7\xfalt\xf8\x84\x19\xbd\xc5\xe8"\t\xf4',
+                         sha256d(u"test"))
 
     def test_int_to_hex(self):
         self.assertEqual('00', int_to_hex(0, 1))
@@ -713,10 +710,10 @@ class Test_keyImport(SequentialTestCase):
             self.assertEqual(minikey, is_minikey(priv))
 
     @needs_test_with_all_ecc_implementations
-    def test_is_compressed(self):
+    def test_is_compressed_privkey(self):
         for priv_details in self.priv_pub_addr:
             self.assertEqual(priv_details['compressed'],
-                             is_compressed(priv_details['priv']))
+                             is_compressed_privkey(priv_details['priv']))
 
 
 class Test_seeds(SequentialTestCase):

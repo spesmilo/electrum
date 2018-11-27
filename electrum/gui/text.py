@@ -367,16 +367,14 @@ class ElectrumGui:
             self.wallet.labels[tx.txid()] = self.str_description
 
         self.show_message(_("Please wait..."), getchar=False)
-        status, msg = self.network.run_from_another_thread(
-            self.network.broadcast_transaction(tx))
-
-        if status:
+        try:
+            self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+        except Exception as e:
+            self.show_message(repr(e))
+        else:
             self.show_message(_('Payment sent.'))
             self.do_clear()
             #self.update_contacts_tab()
-        else:
-            self.show_message(_('Error'))
-
 
     def show_message(self, message, getchar = True):
         w = self.w

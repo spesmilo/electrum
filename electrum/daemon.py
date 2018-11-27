@@ -29,15 +29,15 @@ import time
 import traceback
 import sys
 import threading
-from typing import Dict
+from typing import Dict, Optional, Tuple
 
 import jsonrpclib
 
 from .jsonrpc import VerifyingJSONRPCServer
 from .version import ELECTRUM_VERSION
 from .network import Network
-from .util import json_decode, DaemonThread
-from .util import print_error, to_string
+from .util import (json_decode, DaemonThread, print_error, to_string,
+                   create_and_start_event_loop, profiler)
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .commands import known_commands, Commands
@@ -46,7 +46,7 @@ from .exchange_rate import FxThread
 from .plugin import run_hook
 
 
-def get_lockfile(config):
+def get_lockfile(config: SimpleConfig):
     return os.path.join(config.path, 'daemon')
 
 
@@ -54,7 +54,7 @@ def remove_lockfile(lockfile):
     os.unlink(lockfile)
 
 
-def get_fd_or_server(config):
+def get_fd_or_server(config: SimpleConfig):
     '''Tries to create the lockfile, using O_EXCL to
     prevent races.  If it succeeds it returns the FD.
     Otherwise try and connect to the server specified in the lockfile.
@@ -73,7 +73,7 @@ def get_fd_or_server(config):
         remove_lockfile(lockfile)
 
 
-def get_server(config):
+def get_server(config: SimpleConfig) -> Optional[jsonrpclib.Server]:
     lockfile = get_lockfile(config)
     while True:
         create_time = None
@@ -92,14 +92,14 @@ def get_server(config):
             server.ping()
             return server
         except Exception as e:
-            print_error("[get_server]", e)
+            print_error(f"failed to connect to JSON-RPC server: {e}")
         if not create_time or create_time < time.time() - 1.0:
             return None
         # Sleep a bit and try again; it might have just been started
         time.sleep(1.0)
 
 
-def get_rpc_credentials(config):
+def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
     rpc_user = config.get('rpcuser', None)
     rpc_password = config.get('rpcpassword', None)
     if rpc_user is None or rpc_password is None:
@@ -121,16 +121,19 @@ def get_rpc_credentials(config):
 
 class Daemon(DaemonThread):
 
-    def __init__(self, config, fd=None, *, listen_jsonrpc=True):
+    @profiler
+    def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
         DaemonThread.__init__(self)
         self.config = config
         if fd is None and listen_jsonrpc:
             fd, server = get_fd_or_server(config)
             if fd is None: raise Exception('failed to lock daemon; already running?')
+        self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
         if config.get('offline'):
             self.network = None
         else:
             self.network = Network(config)
+            self.network._loop_thread = self._loop_thread
         self.fx = FxThread(config, self.network)
         if self.network:
             self.network.start([self.fx.run])
@@ -142,7 +145,7 @@ class Daemon(DaemonThread):
             self.init_server(config, fd)
         self.start()
 
-    def init_server(self, config, fd):
+    def init_server(self, config: SimpleConfig, fd):
         host = config.get('rpchost', '127.0.0.1')
         port = config.get('rpcport', 0)
         rpc_user, rpc_password = get_rpc_credentials(config)
@@ -170,7 +173,7 @@ class Daemon(DaemonThread):
         return True
 
     def run_daemon(self, config_options):
-        asyncio.set_event_loop(self.network.asyncio_loop)
+        asyncio.set_event_loop(self.asyncio_loop)
         config = SimpleConfig(config_options)
         sub = config.get('subcommand')
         assert sub in [None, 'start', 'stop', 'status', 'load_wallet', 'close_wallet']
@@ -192,18 +195,18 @@ class Daemon(DaemonThread):
                 response = False
         elif sub == 'status':
             if self.network:
-                p = self.network.get_parameters()
+                net_params = self.network.get_parameters()
                 current_wallet = self.cmd_runner.wallet
                 current_wallet_path = current_wallet.storage.path \
                                       if current_wallet else None
                 response = {
                     'path': self.network.config.path,
-                    'server': p[0],
+                    'server': net_params.host,
                     'blockchain_height': self.network.get_local_height(),
                     'server_height': self.network.get_server_height(),
                     'spv_nodes': len(self.network.get_interfaces()),
                     'connected': self.network.is_connected(),
-                    'auto_connect': p[4],
+                    'auto_connect': net_params.auto_connect,
                     'version': ELECTRUM_VERSION,
                     'wallets': {k: w.is_up_to_date()
                                 for k, w in self.wallets.items()},
@@ -221,6 +224,7 @@ class Daemon(DaemonThread):
         config = SimpleConfig(config_options)
         if self.gui:
             if hasattr(self.gui, 'new_window'):
+                config.open_last_wallet()
                 path = config.get_wallet_path()
                 self.gui.new_window(path, config.get('url'))
                 response = "ok"
@@ -230,7 +234,7 @@ class Daemon(DaemonThread):
             response = "Error: Electrum is running in daemon mode. Please stop the daemon first."
         return response
 
-    def load_wallet(self, path, password):
+    def load_wallet(self, path, password) -> Optional[Abstract_Wallet]:
         # wizard will be launched if we return
         if path in self.wallets:
             wallet = self.wallets[path]
@@ -251,7 +255,7 @@ class Daemon(DaemonThread):
         self.wallets[path] = wallet
         return wallet
 
-    def add_wallet(self, wallet):
+    def add_wallet(self, wallet: Abstract_Wallet):
         path = wallet.storage.path
         self.wallets[path] = wallet
 
@@ -264,6 +268,7 @@ class Daemon(DaemonThread):
         wallet.stop_threads()
 
     def run_cmdline(self, config_options):
+        asyncio.set_event_loop(self.asyncio_loop)
         password = config_options.get('password')
         new_password = config_options.get('new_password')
         config = SimpleConfig(config_options)
@@ -295,12 +300,15 @@ class Daemon(DaemonThread):
     def run(self):
         while self.is_running():
             self.server.handle_request() if self.server else time.sleep(0.1)
+        # stop network/wallets
         for k, wallet in self.wallets.items():
             wallet.stop_threads()
         if self.network:
             self.print_error("shutting down network")
             self.network.stop()
-            self.network.join()
+        # stop event loop
+        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
+        self._loop_thread.join(timeout=1)
         self.on_stop()
 
     def stop(self):

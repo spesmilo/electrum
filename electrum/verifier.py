@@ -22,17 +22,21 @@
 # SOFTWARE.
 
 import asyncio
-from typing import Sequence, Optional
+from typing import Sequence, Optional, TYPE_CHECKING
 
 import aiorpcx
-from aiorpcx import TaskGroup
 
-from .util import PrintError, bh2u, VerifiedTxInfo
-from .bitcoin import Hash, hash_decode, hash_encode
+from .util import bh2u, VerifiedTxInfo, NetworkJobOnDefaultServer
+from .crypto import sha256d
+from .bitcoin import hash_decode, hash_encode
 from .transaction import Transaction
 from .blockchain import hash_header
 from .interface import GracefulDisconnect
 from . import constants
+
+if TYPE_CHECKING:
+    from .network import Network
+    from .address_synchronizer import AddressSynchronizer
 
 
 class MerkleVerificationFailure(Exception): pass
@@ -41,26 +45,33 @@ class MerkleRootMismatch(MerkleVerificationFailure): pass
 class InnerNodeOfSpvProofIsValidTx(MerkleVerificationFailure): pass
 
 
-class SPV(PrintError):
+class SPV(NetworkJobOnDefaultServer):
     """ Simple Payment Verification """
 
-    def __init__(self, network, wallet):
+    def __init__(self, network: 'Network', wallet: 'AddressSynchronizer'):
         self.wallet = wallet
-        self.network = network
+        NetworkJobOnDefaultServer.__init__(self, network)
+
+    def _reset(self):
+        super()._reset()
         self.merkle_roots = {}  # txid -> merkle root (once it has been verified)
         self.requested_merkle = set()  # txid set of pending requests
+
+    async def _start_tasks(self):
+        async with self.group as group:
+            await group.spawn(self.main)
 
     def diagnostic_name(self):
         return '{}:{}'.format(self.__class__.__name__, self.wallet.diagnostic_name())
 
-    async def main(self, group: TaskGroup):
+    async def main(self):
         self.blockchain = self.network.blockchain()
         while True:
             await self._maybe_undo_verifications()
-            await self._request_proofs(group)
+            await self._request_proofs()
             await asyncio.sleep(0.1)
 
-    async def _request_proofs(self, group: TaskGroup):
+    async def _request_proofs(self):
         local_height = self.blockchain.height()
         unverified = self.wallet.get_unverified_txs()
 
@@ -75,12 +86,12 @@ class SPV(PrintError):
             header = self.blockchain.read_header(tx_height)
             if header is None:
                 if tx_height < constants.net.max_checkpoint():
-                    await group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
+                    await self.group.spawn(self.network.request_chunk(tx_height, None, can_return_early=True))
                 continue
             # request now
             self.print_error('requested merkle', tx_hash)
             self.requested_merkle.add(tx_hash)
-            await group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
+            await self.group.spawn(self._request_and_verify_single_proof, tx_hash, tx_height)
 
     async def _request_and_verify_single_proof(self, tx_hash, tx_height):
         try:
@@ -129,7 +140,7 @@ class SPV(PrintError):
             raise MerkleVerificationFailure(e)
 
         for i, item in enumerate(merkle_branch_bytes):
-            h = Hash(item + h) if ((leaf_pos_in_tree >> i) & 1) else Hash(h + item)
+            h = sha256d(item + h) if ((leaf_pos_in_tree >> i) & 1) else sha256d(h + item)
             cls._raise_if_valid_tx(bh2u(h))
         return hash_encode(h)
 
@@ -149,7 +160,7 @@ class SPV(PrintError):
 
     async def _maybe_undo_verifications(self):
         def undo_verifications():
-            height = self.blockchain.get_forkpoint()
+            height = self.blockchain.get_max_forkpoint()
             self.print_error("undoing verifications back to height {}".format(height))
             tx_hashes = self.wallet.undo_verifications(self.blockchain, height)
             for tx_hash in tx_hashes:

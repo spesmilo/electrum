@@ -1,4 +1,6 @@
-from electrum.util import format_satoshis, parse_URI
+from decimal import Decimal
+
+from electrum.util import format_satoshis, format_fee_satoshis, parse_URI
 
 from . import SequentialTestCase
 
@@ -6,56 +8,41 @@ from . import SequentialTestCase
 class TestUtil(SequentialTestCase):
 
     def test_format_satoshis(self):
-        result = format_satoshis(1234)
-        expected = "0.00001234"
-        self.assertEqual(expected, result)
+        self.assertEqual("0.00001234", format_satoshis(1234))
 
     def test_format_satoshis_negative(self):
-        result = format_satoshis(-1234)
-        expected = "-0.00001234"
-        self.assertEqual(expected, result)
+        self.assertEqual("-0.00001234", format_satoshis(-1234))
 
-    def test_format_fee(self):
-        result = format_satoshis(1700/1000, 0, 0)
-        expected = "1.7"
-        self.assertEqual(expected, result)
+    def test_format_fee_float(self):
+        self.assertEqual("1.7", format_fee_satoshis(1700/1000))
+
+    def test_format_fee_decimal(self):
+        self.assertEqual("1.7", format_fee_satoshis(Decimal("1.7")))
 
     def test_format_fee_precision(self):
-        result = format_satoshis(1666/1000, 0, 0, precision=6)
-        expected = "1.666"
-        self.assertEqual(expected, result)
-
-        result = format_satoshis(1666/1000, 0, 0, precision=1)
-        expected = "1.7"
-        self.assertEqual(expected, result)
+        self.assertEqual("1.666",
+                         format_fee_satoshis(1666/1000, precision=6))
+        self.assertEqual("1.7",
+                         format_fee_satoshis(1666/1000, precision=1))
 
     def test_format_satoshis_whitespaces(self):
-        result = format_satoshis(12340, whitespaces=True)
-        expected = "     0.0001234 "
-        self.assertEqual(expected, result)
-
-        result = format_satoshis(1234, whitespaces=True)
-        expected = "     0.00001234"
-        self.assertEqual(expected, result)
+        self.assertEqual("     0.0001234 ",
+                         format_satoshis(12340, whitespaces=True))
+        self.assertEqual("     0.00001234",
+                         format_satoshis(1234, whitespaces=True))
 
     def test_format_satoshis_whitespaces_negative(self):
-        result = format_satoshis(-12340, whitespaces=True)
-        expected = "    -0.0001234 "
-        self.assertEqual(expected, result)
-
-        result = format_satoshis(-1234, whitespaces=True)
-        expected = "    -0.00001234"
-        self.assertEqual(expected, result)
+        self.assertEqual("    -0.0001234 ",
+                         format_satoshis(-12340, whitespaces=True))
+        self.assertEqual("    -0.00001234",
+                         format_satoshis(-1234, whitespaces=True))
 
     def test_format_satoshis_diff_positive(self):
-        result = format_satoshis(1234, is_diff=True)
-        expected = "+0.00001234"
-        self.assertEqual(expected, result)
+        self.assertEqual("+0.00001234",
+                         format_satoshis(1234, is_diff=True))
 
     def test_format_satoshis_diff_negative(self):
-        result = format_satoshis(-1234, is_diff=True)
-        expected = "-0.00001234"
-        self.assertEqual(expected, result)
+        self.assertEqual("-0.00001234", format_satoshis(-1234, is_diff=True))
 
     def _do_test_parse_URI(self, uri, expected):
         result = parse_URI(uri)

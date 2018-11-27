@@ -107,7 +107,7 @@ class NodesListWidget(QTreeWidget):
             b = blockchain.blockchains[k]
             name = b.get_name()
             if n_chains >1:
-                x = QTreeWidgetItem([name + '@%d'%b.get_forkpoint(), '%d'%b.height()])
+                x = QTreeWidgetItem([name + '@%d'%b.get_max_forkpoint(), '%d'%b.height()])
                 x.setData(0, Qt.UserRole, 1)
                 x.setData(1, Qt.UserRole, b.forkpoint)
             else:
@@ -364,7 +364,7 @@ class NetworkChoiceLayout(object):
         chains = self.network.get_blockchains()
         if len(chains) > 1:
             chain = self.network.blockchain()
-            forkpoint = chain.get_forkpoint()
+            forkpoint = chain.get_max_forkpoint()
             name = chain.get_name()
             msg = _('Chain split detected at block {0}').format(forkpoint) + '\n'
             msg += (_('You are following branch') if auto_connect else _('Your server is on branch'))+ ' ' + name
@@ -411,14 +411,11 @@ class NetworkChoiceLayout(object):
         self.set_server()
 
     def follow_branch(self, index):
-        self.network.run_from_another_thread(self.network.follow_chain(index))
+        self.network.run_from_another_thread(self.network.follow_chain_given_id(index))
         self.update()
 
     def follow_server(self, server):
-        net_params = self.network.get_parameters()
-        host, port, protocol = deserialize_server(server)
-        net_params = net_params._replace(host=host, port=port, protocol=protocol)
-        self.network.run_from_another_thread(self.network.set_parameters(net_params))
+        self.network.run_from_another_thread(self.network.follow_chain_given_server(server))
         self.update()
 
     def server_changed(self, x):

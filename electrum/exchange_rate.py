@@ -14,9 +14,11 @@ from typing import Sequence
 
 from .bitcoin import COIN
 from .i18n import _
-from .util import PrintError, ThreadJob, make_dir, aiosafe
+from .util import PrintError, ThreadJob, make_dir, log_exceptions
 from .util import make_aiohttp_session
 from .network import Network
+from .simple_config import SimpleConfig
+
 
 # See https://en.wikipedia.org/wiki/ISO_4217
 CCY_PRECISIONS = {'BHD': 3, 'BIF': 0, 'BYR': 0, 'CLF': 4, 'CLP': 0,
@@ -58,7 +60,7 @@ class ExchangeBase(PrintError):
     def name(self):
         return self.__class__.__name__
 
-    @aiosafe
+    @log_exceptions
     async def update_safe(self, ccy):
         try:
             self.print_error("getting fx quotes for", ccy)
@@ -89,7 +91,7 @@ class ExchangeBase(PrintError):
             self.on_history()
         return h
 
-    @aiosafe
+    @log_exceptions
     async def get_historical_rates_safe(self, ccy, cache_dir):
         try:
             self.print_error("requesting fx history for", ccy)
@@ -461,7 +463,7 @@ def get_exchanges_by_ccy(history=True):
 
 class FxThread(ThreadJob):
 
-    def __init__(self, config, network):
+    def __init__(self, config: SimpleConfig, network: Network):
         self.config = config
         self.network = network
         if self.network:

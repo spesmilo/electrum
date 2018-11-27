@@ -90,7 +90,7 @@ class JsonDB(PrintError):
             json.dumps(key, cls=util.MyEncoder)
             json.dumps(value, cls=util.MyEncoder)
         except:
-            self.print_error("json error: cannot save", key)
+            self.print_error(f"json error: cannot save {repr(key)} ({repr(value)})")
             return
         with self.db_lock:
             if value is not None:
@@ -175,6 +175,8 @@ class WalletStorage(JsonDB):
                     self.print_error('Failed to convert label to json format', key)
                     continue
                 self.data[key] = value
+        if not isinstance(self.data, dict):
+            raise WalletFileException("Malformed wallet file (not dict)")
 
         # check here if I need to load a plugin
         t = self.get('wallet_type')

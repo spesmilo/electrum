@@ -30,7 +30,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import QPushButton
 
-from electrum import bitcoin, util, keystore, ecc
+from electrum import util, keystore, ecc, bip32, crypto
 from electrum import transaction
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
@@ -132,8 +132,8 @@ class Plugin(BasePlugin):
         self.cosigner_list = []
         for key, keystore in wallet.keystores.items():
             xpub = keystore.get_master_public_key()
-            K = bitcoin.deserialize_xpub(xpub)[-1]
-            _hash = bh2u(bitcoin.Hash(K))
+            K = bip32.deserialize_xpub(xpub)[-1]
+            _hash = bh2u(crypto.sha256d(K))
             if not keystore.is_watching_only():
                 self.keys.append((key, _hash, window))
             else:
@@ -222,7 +222,7 @@ class Plugin(BasePlugin):
         if not xprv:
             return
         try:
-            k = bitcoin.deserialize_xprv(xprv)[-1]
+            k = bip32.deserialize_xprv(xprv)[-1]
             EC = ecc.ECPrivkey(k)
             message = bh2u(EC.decrypt_message(message))
         except Exception as e:

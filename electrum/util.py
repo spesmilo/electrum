@@ -23,7 +23,7 @@
 import binascii
 import os, sys, re, json
 from collections import defaultdict
-from typing import NamedTuple, Union
+from typing import NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable
 from datetime import datetime
 import decimal
 from decimal import Decimal
@@ -45,6 +45,11 @@ from aiohttp_socks import SocksConnector, SocksVer
 from aiorpcx import TaskGroup
 
 from .i18n import _
+
+if TYPE_CHECKING:
+    from .network import Network
+    from .interface import Interface
+    from .simple_config import SimpleConfig
 
 
 def inv_dict(d):
@@ -77,7 +82,9 @@ def base_unit_name_to_decimal_point(unit_name: str) -> int:
         raise UnknownBaseUnit(unit_name) from None
 
 
-class NotEnoughFunds(Exception): pass
+class NotEnoughFunds(Exception):
+    def __str__(self):
+        return _("Insufficient funds")
 
 
 class NoDynamicFeeEstimates(Exception):
@@ -106,20 +113,14 @@ class FileExportFailed(Exception):
         return _("Failed to export to file.") + "\n" + self.message
 
 
-class TimeoutException(Exception):
-    def __init__(self, message=''):
-        self.message = str(message)
-
-    def __str__(self):
-        if not self.message:
-            return _("Operation timed out.")
-        return self.message
-
-
 class WalletFileException(Exception): pass
 
 
 class BitcoinException(Exception): pass
+
+
+class UserFacingException(Exception):
+    """Exception that contains information intended to be shown to the user."""
 
 
 # Throw this exception to unwind the stack like when an error occurs.
@@ -155,7 +156,7 @@ class Fiat(object):
         return 'Fiat(%s)'% self.__str__()
 
     def __str__(self):
-        if self.value.is_nan():
+        if self.value is None or self.value.is_nan():
             return _('No Data')
         else:
             return "{:.2f}".format(self.value) + ' ' + self.ccy
@@ -182,17 +183,23 @@ class PrintError(object):
     verbosity_filter = ''
 
     def diagnostic_name(self):
-        return self.__class__.__name__
+        return ''
+
+    def log_name(self):
+        msg = self.verbosity_filter or self.__class__.__name__
+        d = self.diagnostic_name()
+        if d: msg += "][" + d
+        return "[%s]" % msg
 
     def print_error(self, *msg):
         if self.verbosity_filter in verbosity or verbosity == '*':
-            print_error("[%s]" % self.diagnostic_name(), *msg)
+            print_error(self.log_name(), *msg)
 
     def print_stderr(self, *msg):
-        print_stderr("[%s]" % self.diagnostic_name(), *msg)
+        print_stderr(self.log_name(), *msg)
 
     def print_msg(self, *msg):
-        print_msg("[%s]" % self.diagnostic_name(), *msg)
+        print_msg(self.log_name(), *msg)
 
 class ThreadJob(PrintError):
     """A job that is run periodically from a thread's main loop.  run() is
@@ -281,7 +288,7 @@ class DaemonThread(threading.Thread, PrintError):
         self.print_error("stopped")
 
 
-verbosity = '*'
+verbosity = ''
 def set_verbosity(filters: Union[str, bool]):
     global verbosity
     if type(filters) is bool:  # backwards compat
@@ -347,40 +354,10 @@ def profiler(func):
     return lambda *args, **kw_args: do_profile(args, kw_args)
 
 
-def android_ext_dir():
-    import jnius
-    env = jnius.autoclass('android.os.Environment')
-    return env.getExternalStorageDirectory().getPath()
-
 def android_data_dir():
     import jnius
     PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
-
-def android_headers_dir():
-    d = android_ext_dir() + '/org.electrum.electrum'
-    if not os.path.exists(d):
-        try:
-            os.mkdir(d)
-        except FileExistsError:
-            pass  # in case of race
-    return d
-
-def android_check_data_dir():
-    """ if needed, move old directory to sandbox """
-    ext_dir = android_ext_dir()
-    data_dir = android_data_dir()
-    old_electrum_dir = ext_dir + '/electrum'
-    if not os.path.exists(data_dir) and os.path.exists(old_electrum_dir):
-        import shutil
-        new_headers_path = android_headers_dir() + '/blockchain_headers'
-        old_headers_path = old_electrum_dir + '/blockchain_headers'
-        if not os.path.exists(new_headers_path) and os.path.exists(old_headers_path):
-            print_error("Moving headers file to", new_headers_path)
-            shutil.move(old_headers_path, new_headers_path)
-        print_error("Moving data to", data_dir)
-        shutil.move(old_electrum_dir, data_dir)
-    return data_dir
 
 
 def ensure_sparse_file(filename):
@@ -394,7 +371,7 @@ def ensure_sparse_file(filename):
 
 
 def get_headers_dir(config):
-    return android_headers_dir() if 'ANDROID_DATA' in os.environ else config.path
+    return config.path
 
 
 def assert_datadir_available(config_path):
@@ -437,8 +414,7 @@ def assert_str(*args):
         assert isinstance(x, str)
 
 
-
-def to_string(x, enc):
+def to_string(x, enc) -> str:
     if isinstance(x, (bytes, bytearray)):
         return x.decode(enc)
     if isinstance(x, str):
@@ -446,7 +422,8 @@ def to_string(x, enc):
     else:
         raise TypeError("Not a string or bytes like object")
 
-def to_bytes(something, encoding='utf8'):
+
+def to_bytes(something, encoding='utf8') -> bytes:
     """
     cast string to bytes() like object, but for python2 support it's bytearray copy
     """
@@ -464,23 +441,20 @@ bfh = bytes.fromhex
 hfu = binascii.hexlify
 
 
-def bh2u(x):
+def bh2u(x: bytes) -> str:
     """
     str with hex representation of a bytes-like object
 
     >>> x = bytes((1, 2, 10))
     >>> bh2u(x)
     '01020A'
-
-    :param x: bytes
-    :rtype: str
     """
     return hfu(x).decode('ascii')
 
 
 def user_dir():
     if 'ANDROID_DATA' in os.environ:
-        return android_check_data_dir()
+        return android_data_dir()
     elif os.name == 'posix':
         return os.path.join(os.environ["HOME"], ".electrum")
     elif "APPDATA" in os.environ:
@@ -511,15 +485,23 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
         return 'unknown'
     if precision is None:
         precision = decimal_point
-    decimal_format = ".0" + str(precision) if precision > 0 else ""
+    # format string
+    decimal_format = "." + str(precision) if precision > 0 else ""
     if is_diff:
         decimal_format = '+' + decimal_format
-    result = ("{:" + decimal_format + "f}").format(x / pow (10, decimal_point)).rstrip('0')
+    # initial result
+    scale_factor = pow(10, decimal_point)
+    if not isinstance(x, Decimal):
+        x = Decimal(x).quantize(Decimal('1E-8'))
+    result = ("{:" + decimal_format + "f}").format(x / scale_factor)
+    if "." not in result: result += "."
+    result = result.rstrip('0')
+    # extra decimal places
     integer_part, fract_part = result.split(".")
-    dp = DECIMAL_POINT
     if len(fract_part) < num_zeros:
         fract_part += "0" * (num_zeros - len(fract_part))
-    result = integer_part + dp + fract_part
+    result = integer_part + DECIMAL_POINT + fract_part
+    # leading/trailing whitespaces
     if whitespaces:
         result += " " * (decimal_point - len(fract_part))
         result = " " * (15 - len(result)) + result
@@ -530,8 +512,11 @@ FEERATE_PRECISION = 1  # num fractional decimal places for sat/byte fee rates
 _feerate_quanta = Decimal(10) ** (-FEERATE_PRECISION)
 
 
-def format_fee_satoshis(fee, num_zeros=0):
-    return format_satoshis(fee, num_zeros, 0, precision=FEERATE_PRECISION)
+def format_fee_satoshis(fee, *, num_zeros=0, precision=None):
+    if precision is None:
+        precision = FEERATE_PRECISION
+    num_zeros = min(num_zeros, FEERATE_PRECISION)  # no more zeroes than available prec
+    return format_satoshis(fee, num_zeros=num_zeros, decimal_point=0, precision=precision)
 
 
 def quantize_feerate(fee):
@@ -605,6 +590,8 @@ def time_difference(distance_in_time, include_seconds):
         return "over %d years" % (round(distance_in_minutes / 525600))
 
 mainnet_block_explorers = {
+    'Bitupper Explorer': ('https://bitupper.com/en/explorer/bitcoin/',
+                        {'tx': 'transactions/', 'addr': 'addresses/'}),
     'Biteasy.com': ('https://www.biteasy.com/blockchain/',
                         {'tx': 'transactions/', 'addr': 'addresses/'}),
     'Bitflyer.jp': ('https://chainflyer.bitflyer.jp/',
@@ -615,6 +602,8 @@ mainnet_block_explorers = {
                         {'tx': 'tx/', 'addr': 'address/'}),
     'Blockr.io': ('https://btc.blockr.io/',
                         {'tx': 'tx/info/', 'addr': 'address/info/'}),
+    'Blockstream.info': ('https://blockstream.info/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'Blocktrail.com': ('https://www.blocktrail.com/BTC/',
                         {'tx': 'tx/', 'addr': 'address/'}),
     'BTC.com': ('https://chain.btc.com/',
@@ -633,6 +622,8 @@ mainnet_block_explorers = {
                         {'tx': 'api/tx?txid=', 'addr': '#/search?q='}),
     'OXT.me': ('https://oxt.me/',
                         {'tx': 'transaction/', 'addr': 'address/'}),
+    'smartbit.com.au': ('https://www.smartbit.com.au/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain:/',
                         {'tx': 'tx/', 'addr': 'address/'}),
 }
@@ -640,35 +631,50 @@ mainnet_block_explorers = {
 testnet_block_explorers = {
     'Blocktrail.com': ('https://www.blocktrail.com/tBTC/',
                        {'tx': 'tx/', 'addr': 'address/'}),
+    'BlockCypher.com': ('https://live.blockcypher.com/btc-testnet/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
+    'Blockchain.info': ('https://testnet.blockchain.info/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
+    'Blockstream.info': ('https://blockstream.info/testnet/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'BTC.com': ('https://tchain.btc.com/',
+                       {'tx': '', 'addr': ''}),
+    'smartbit.com.au': ('https://testnet.smartbit.com.au/',
+                       {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain://000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943/',
                        {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 def block_explorer_info():
     from . import constants
-    return testnet_block_explorers if constants.net.TESTNET else mainnet_block_explorers
+    return mainnet_block_explorers if not constants.net.TESTNET else testnet_block_explorers
 
-def block_explorer(config):
-    return config.get('block_explorer', 'Blocktrail.com')
+def block_explorer(config: 'SimpleConfig') -> str:
+    from . import constants
+    default_ = 'Blockstream.info'
+    be_key = config.get('block_explorer', default_)
+    be = block_explorer_info().get(be_key)
+    return be_key if be is not None else default_
 
-def block_explorer_tuple(config):
+def block_explorer_tuple(config: 'SimpleConfig') -> Optional[Tuple[str, dict]]:
     return block_explorer_info().get(block_explorer(config))
 
-def block_explorer_URL(config, kind, item):
+def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional[str]:
     be_tuple = block_explorer_tuple(config)
     if not be_tuple:
         return
-    kind_str = be_tuple[1].get(kind)
-    if not kind_str:
+    explorer_url, explorer_dict = be_tuple
+    kind_str = explorer_dict.get(kind)
+    if kind_str is None:
         return
-    url_parts = [be_tuple[0], kind_str, item]
+    url_parts = [explorer_url, kind_str, item]
     return ''.join(url_parts)
 
 # URL decode
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 #urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
-def parse_URI(uri, on_pr=None):
+def parse_URI(uri: str, on_pr: Callable=None) -> dict:
     from . import bitcoin
     from .bitcoin import COIN
 
@@ -721,18 +727,17 @@ def parse_URI(uri, on_pr=None):
     sig = out.get('sig')
     name = out.get('name')
     if on_pr and (r or (name and sig)):
-        def get_payment_request_thread():
+        async def get_payment_request():
             from . import paymentrequest as pr
             if name and sig:
                 s = pr.serialize_request(out).SerializeToString()
                 request = pr.PaymentRequest(s)
             else:
-                request = pr.get_payment_request(r)
+                request = await pr.get_payment_request(r)
             if on_pr:
                 on_pr(request)
-        t = threading.Thread(target=get_payment_request_thread)
-        t.setDaemon(True)
-        t.start()
+        loop = asyncio.get_event_loop()
+        asyncio.run_coroutine_threadsafe(get_payment_request(), loop)
 
     return out
 
@@ -836,40 +841,56 @@ def make_dir(path, allow_symlink=True):
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
 
-class AIOSafeSilentException(Exception): pass
-
-
-def aiosafe(f):
-    # save exception in object.
-    # f must be a method of a PrintError instance.
-    # aiosafe calls should not be nested
-    async def f2(*args, **kwargs):
-        self = args[0]
+def log_exceptions(func):
+    """Decorator to log AND re-raise exceptions."""
+    assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    async def wrapper(*args, **kwargs):
+        self = args[0] if len(args) > 0 else None
         try:
-            return await f(*args, **kwargs)
-        except AIOSafeSilentException as e:
-            self.exception = e
+            return await func(*args, **kwargs)
         except asyncio.CancelledError as e:
-            self.exception = e
+            raise
         except BaseException as e:
-            self.exception = e
-            self.print_error("Exception in", f.__name__, ":", e.__class__.__name__, str(e))
+            print_ = self.print_error if hasattr(self, 'print_error') else print_error
+            print_("Exception in", func.__name__, ":", repr(e))
             try:
                 traceback.print_exc(file=sys.stderr)
             except BaseException as e2:
-                self.print_error("aiosafe:traceback.print_exc raised: {}... original exc: {}".format(e2, e))
-    return f2
+                print_error("traceback.print_exc raised: {}...".format(e2))
+            raise
+    return wrapper
 
-TxMinedStatus = NamedTuple("TxMinedStatus", [("height", int),
-                                             ("conf", int),
-                                             ("timestamp", int),
-                                             ("header_hash", str)])
-VerifiedTxInfo = NamedTuple("VerifiedTxInfo", [("height", int),
-                                               ("timestamp", int),
-                                               ("txpos", int),
-                                               ("header_hash", str)])
 
-def make_aiohttp_session(proxy):
+def ignore_exceptions(func):
+    """Decorator to silently swallow all exceptions."""
+    assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except BaseException as e:
+            pass
+    return wrapper
+
+
+class TxMinedStatus(NamedTuple):
+    height: int
+    conf: int
+    timestamp: int
+    header_hash: str
+
+
+class VerifiedTxInfo(NamedTuple):
+    height: int
+    timestamp: int
+    txpos: int
+    header_hash: str
+
+
+def make_aiohttp_session(proxy: dict, headers=None, timeout=None):
+    if headers is None:
+        headers = {'User-Agent': 'Electrum'}
+    if timeout is None:
+        timeout = aiohttp.ClientTimeout(total=10)
     if proxy:
         connector = SocksConnector(
             socks_ver=SocksVer.SOCKS5 if proxy['mode'] == 'socks5' else SocksVer.SOCKS4,
@@ -879,9 +900,9 @@ def make_aiohttp_session(proxy):
             password=proxy.get('password', None),
             rdns=True
         )
-        return aiohttp.ClientSession(headers={'User-Agent' : 'Electrum'}, timeout=aiohttp.ClientTimeout(total=10), connector=connector)
+        return aiohttp.ClientSession(headers=headers, timeout=timeout, connector=connector)
     else:
-        return aiohttp.ClientSession(headers={'User-Agent' : 'Electrum'}, timeout=aiohttp.ClientTimeout(total=10))
+        return aiohttp.ClientSession(headers=headers, timeout=timeout)
 
 
 class SilentTaskGroup(TaskGroup):
@@ -891,3 +912,77 @@ class SilentTaskGroup(TaskGroup):
         if self._closed:
             raise asyncio.CancelledError()
         return super().spawn(*args, **kwargs)
+
+
+class NetworkJobOnDefaultServer(PrintError):
+    """An abstract base class for a job that runs on the main network
+    interface. Every time the main interface changes, the job is
+    restarted, and some of its internals are reset.
+    """
+    def __init__(self, network: 'Network'):
+        asyncio.set_event_loop(network.asyncio_loop)
+        self.network = network
+        self.interface = None  # type: Interface
+        self._restart_lock = asyncio.Lock()
+        self._reset()
+        asyncio.run_coroutine_threadsafe(self._restart(), network.asyncio_loop)
+        network.register_callback(self._restart, ['default_server_changed'])
+
+    def _reset(self):
+        """Initialise fields. Called every time the underlying
+        server connection changes.
+        """
+        self.group = SilentTaskGroup()
+
+    async def _start(self, interface: 'Interface'):
+        self.interface = interface
+        await interface.group.spawn(self._start_tasks)
+
+    async def _start_tasks(self):
+        """Start tasks in self.group. Called every time the underlying
+        server connection changes.
+        """
+        raise NotImplementedError()  # implemented by subclasses
+
+    async def stop(self):
+        await self.group.cancel_remaining()
+
+    @log_exceptions
+    async def _restart(self, *args):
+        interface = self.network.interface
+        if interface is None:
+            return  # we should get called again soon
+
+        async with self._restart_lock:
+            await self.stop()
+            self._reset()
+            await self._start(interface)
+
+    @property
+    def session(self):
+        s = self.interface.session
+        assert s is not None
+        return s
+
+
+def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
+                                           asyncio.Future,
+                                           threading.Thread]:
+    def on_exception(loop, context):
+        """Suppress spurious messages it appears we cannot control."""
+        SUPPRESS_MESSAGE_REGEX = re.compile('SSL handshake|Fatal read error on|'
+                                            'SSL error in data received')
+        message = context.get('message')
+        if message and SUPPRESS_MESSAGE_REGEX.match(message):
+            return
+        loop.default_exception_handler(context)
+
+    loop = asyncio.get_event_loop()
+    loop.set_exception_handler(on_exception)
+    # loop.set_debug(1)
+    stopping_fut = asyncio.Future()
+    loop_thread = threading.Thread(target=loop.run_until_complete,
+                                         args=(stopping_fut,),
+                                         name='EventLoop')
+    loop_thread.start()
+    return loop, stopping_fut, loop_thread

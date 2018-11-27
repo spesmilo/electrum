@@ -3,24 +3,20 @@
 #
 #
 from struct import pack, unpack
-import hashlib
 import os, sys, time, io
 import traceback
 
-from electrum import bitcoin
-from electrum.bitcoin import serialize_xpub, deserialize_xpub, InvalidMasterKeyVersionBytes
-from electrum import constants
-from electrum.bitcoin import TYPE_ADDRESS, int_to_hex
+from electrum.bip32 import serialize_xpub, deserialize_xpub, InvalidMasterKeyVersionBytes
 from electrum.i18n import _
-from electrum.plugin import BasePlugin, Device
+from electrum.plugin import Device
 from electrum.keystore import Hardware_KeyStore, xpubkey_to_pubkey, Xpub
 from electrum.transaction import Transaction
 from electrum.wallet import Standard_Wallet
 from electrum.crypto import hash_160
-from ..hw_wallet import HW_PluginBase
-from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
-from electrum.util import print_error, bfh, bh2u, versiontuple
+from electrum.util import print_error, bfh, bh2u, versiontuple, UserFacingException
 from electrum.base_wizard import ScriptTypeNotSupported
+
+from ..hw_wallet import HW_PluginBase
 
 try:
     import hid
@@ -31,7 +27,7 @@ try:
     from ckcc.constants import (
         PSBT_GLOBAL_UNSIGNED_TX, PSBT_IN_NON_WITNESS_UTXO, PSBT_IN_WITNESS_UTXO,
         PSBT_IN_SIGHASH_TYPE, PSBT_IN_REDEEM_SCRIPT, PSBT_IN_WITNESS_SCRIPT,
-        PSBT_IN_BIP32_DERIVATION, PSBT_OUT_BIP32_DERIVATION)
+        PSBT_IN_BIP32_DERIVATION, PSBT_OUT_BIP32_DERIVATION, PSBT_OUT_REDEEM_SCRIPT)
 
     from ckcc.client import ColdcardDevice, COINKITE_VID, CKCC_PID, CKCC_SIMULATOR_PATH
 
@@ -46,7 +42,7 @@ try:
             from electrum.ecc import ECPubkey
 
             xtype, depth, parent_fingerprint, child_number, chain_code, K_or_k \
-                = bitcoin.deserialize_xpub(expect_xpub)
+                = deserialize_xpub(expect_xpub)
 
             pubkey = ECPubkey(K_or_k)
             try:
@@ -194,8 +190,8 @@ class CKCCClient:
         try:
             __, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub)
         except InvalidMasterKeyVersionBytes:
-            raise Exception(_('Invalid xpub magic. Make sure your {} device is set to the correct chain.')
-                            .format(self.device)) from None
+            raise UserFacingException(_('Invalid xpub magic. Make sure your {} device is set to the correct chain.')
+                                      .format(self.device)) from None
         if xtype != 'standard':
             xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
         return xpub
@@ -309,7 +305,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             self.ux_busy = False
         if clear_client:
             self.client = None
-        raise Exception(message)
+        raise UserFacingException(message)
 
     def wrap_busy(func):
         # decorator: function takes over the UX on the device.
@@ -322,7 +318,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         return wrapper
 
     def decrypt_message(self, pubkey, message, password):
-        raise RuntimeError(_('Encryption and decryption are currently not supported for {}').format(self.device))
+        raise UserFacingException(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
     @wrap_busy
     def sign_message(self, sequence, message, password):
@@ -378,7 +374,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
         # give empty bytes for error cases; it seems to clear the old signature box
         return b''
 
-    def build_psbt(self, tx, wallet=None, xfp=None):
+    def build_psbt(self, tx: Transaction, wallet=None, xfp=None):
         # Render a PSBT file, for upload to Coldcard.
         # 
         if xfp is None:
@@ -394,7 +390,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             wallet.add_hw_info(tx)
 
         # wallet.add_hw_info installs this attr
-        assert hasattr(tx, 'output_info'), 'need data about outputs'
+        assert tx.output_info is not None, 'need data about outputs'
 
         # Build map of pubkey needed as derivation from master, in PSBT binary format
         # 1) binary version of the common subpath for all keys
@@ -423,13 +419,10 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             
         for txin in inputs:
             if txin['type'] == 'coinbase':
-                self.give_error("Coinbase not supported")     # but why not?
+                self.give_error("Coinbase not supported")
 
-            if txin['type'] in ['p2sh']:
-                self.give_error('Not ready for multisig transactions yet')
-
-            #if txin['type'] in ['p2wpkh-p2sh', 'p2wsh-p2sh']:
-            #if txin['type'] in ['p2wpkh', 'p2wsh']:
+            if txin['type'] in ['p2sh', 'p2wsh-p2sh', 'p2wsh']:
+                self.give_error('No support yet for inputs of type: ' + txin['type'])
 
         # Construct PSBT from start to finish.
         out_fd = io.BytesIO()
@@ -452,6 +445,7 @@ class Coldcard_KeyStore(Hardware_KeyStore):
             @classmethod
             def input_script(cls, txin, estimate_size=False):
                 return ''
+
         unsigned = bfh(CustomTXSerialization(tx.serialize()).serialize_to_network(witness=False))
         write_kv(PSBT_GLOBAL_UNSIGNED_TX, unsigned)
 
@@ -470,6 +464,12 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
             for k in pubkeys:
                 write_kv(PSBT_IN_BIP32_DERIVATION, subkeys[k], k)
+
+                if txin['type'] == 'p2wpkh-p2sh':
+                    assert len(pubkeys) == 1, 'can be only one redeem script per input'
+                    pa = hash_160(k)
+                    assert len(pa) == 20
+                    write_kv(PSBT_IN_REDEEM_SCRIPT, b'\x00\x14'+pa)
 
             out_fd.write(b'\x00')
 
@@ -493,9 +493,14 @@ class Coldcard_KeyStore(Hardware_KeyStore):
                     assert 0 <= bb < 0x80000000
 
                     deriv = base_path + pack('<II', aa, bb)
-                    pubkey = self.get_pubkey_from_xpub(xpubkey, index)
+                    pubkey = bfh(self.get_pubkey_from_xpub(xpubkey, index))
 
-                    write_kv(PSBT_OUT_BIP32_DERIVATION, deriv, bfh(pubkey))
+                    write_kv(PSBT_OUT_BIP32_DERIVATION, deriv, pubkey)
+
+                    if output_info.script_type == 'p2wpkh-p2sh':
+                        pa = hash_160(pubkey)
+                        assert len(pa) == 20
+                        write_kv(PSBT_OUT_REDEEM_SCRIPT, b'\x00\x14' + pa)
 
             out_fd.write(b'\x00')
 
@@ -595,7 +600,7 @@ class ColdcardPlugin(HW_PluginBase):
     ]
 
     #SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
-    SUPPORTED_XTYPES = ('standard', 'p2wpkh')
+    SUPPORTED_XTYPES = ('standard', 'p2wpkh', 'p2wpkh-p2sh')
 
     def __init__(self, parent, config, name):
         HW_PluginBase.__init__(self, parent, config, name)
@@ -620,10 +625,14 @@ class ColdcardPlugin(HW_PluginBase):
         fn = CKCC_SIMULATOR_PATH
 
         if os.path.exists(fn):
-            return [Device(fn, -1, fn, (COINKITE_VID, CKCC_SIMULATED_PID), 0)]
+            return [Device(path=fn,
+                           interface_number=-1,
+                           id_=fn,
+                           product_key=(COINKITE_VID, CKCC_SIMULATED_PID),
+                           usage_page=0,
+                           transport_ui_string='simulator')]
 
         return []
-        
 
     def create_client(self, device, handler):
         if handler:
@@ -645,8 +654,8 @@ class ColdcardPlugin(HW_PluginBase):
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
         if client is None:
-            raise Exception(_('Failed to create a client for this device.') + '\n' +
-                            _('Make sure it is in the correct state.'))
+            raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
+                                      _('Make sure it is in the correct state.'))
         client.handler = self.create_handler(wizard)
 
     def get_xpub(self, device_id, derivation, xtype, wizard):

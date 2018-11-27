@@ -101,6 +101,14 @@ class ElectrumWindow(App):
     def toggle_auto_connect(self, x):
         self.auto_connect = not self.auto_connect
 
+    oneserver = BooleanProperty(False)
+    def on_oneserver(self, instance, x):
+        net_params = self.network.get_parameters()
+        net_params = net_params._replace(oneserver=self.oneserver)
+        self.network.run_from_another_thread(self.network.set_parameters(net_params))
+    def toggle_oneserver(self, x):
+        self.oneserver = not self.oneserver
+
     def choose_server_dialog(self, popup):
         from .uix.dialogs.choice_dialog import ChoiceDialog
         protocol = 's'
@@ -120,7 +128,7 @@ class ElectrumWindow(App):
             with blockchain.blockchains_lock: blockchain_items = list(blockchain.blockchains.items())
             for index, b in blockchain_items:
                 if name == b.get_name():
-                    self.network.run_from_another_thread(self.network.follow_chain(index))
+                    self.network.run_from_another_thread(self.network.follow_chain_given_id(index))
         names = [blockchain.blockchains[b].get_name() for b in chains]
         if len(names) > 1:
             cur_chain = self.network.blockchain().get_name()
@@ -275,6 +283,7 @@ class ElectrumWindow(App):
             self.server_host = net_params.host
             self.server_port = net_params.port
             self.auto_connect = net_params.auto_connect
+            self.oneserver = net_params.oneserver
             self.proxy_config = net_params.proxy if net_params.proxy else {}
 
         self.plugins = kwargs.get('plugins', [])
@@ -664,7 +673,7 @@ class ElectrumWindow(App):
         self.num_nodes = len(self.network.get_interfaces())
         self.num_chains = len(self.network.get_blockchains())
         chain = self.network.blockchain()
-        self.blockchain_forkpoint = chain.get_forkpoint()
+        self.blockchain_forkpoint = chain.get_max_forkpoint()
         self.blockchain_name = chain.get_name()
         interface = self.network.interface
         if interface:
@@ -887,9 +896,14 @@ class ElectrumWindow(App):
         Clock.schedule_once(lambda dt: on_success(tx))
 
     def _broadcast_thread(self, tx, on_complete):
-        ok, txid = self.network.run_from_another_thread(
-            self.network.broadcast_transaction(tx))
-        Clock.schedule_once(lambda dt: on_complete(ok, txid))
+
+        try:
+            self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+        except Exception as e:
+            ok, msg = False, repr(e)
+        else:
+            ok, msg = True, tx.txid()
+        Clock.schedule_once(lambda dt: on_complete(ok, msg))
 
     def broadcast(self, tx, pr=None):
         def on_complete(ok, msg):

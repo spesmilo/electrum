@@ -27,6 +27,7 @@ import base64
 import os
 import hashlib
 import hmac
+from typing import Union
 
 import pyaes
 
@@ -43,26 +44,26 @@ class InvalidPadding(Exception):
     pass
 
 
-def append_PKCS7_padding(data):
+def append_PKCS7_padding(data: bytes) -> bytes:
     assert_bytes(data)
     padlen = 16 - (len(data) % 16)
     return data + bytes([padlen]) * padlen
 
 
-def strip_PKCS7_padding(data):
+def strip_PKCS7_padding(data: bytes) -> bytes:
     assert_bytes(data)
     if len(data) % 16 != 0 or len(data) == 0:
         raise InvalidPadding("invalid length")
     padlen = data[-1]
-    if padlen > 16:
-        raise InvalidPadding("invalid padding byte (large)")
+    if not (0 < padlen <= 16):
+        raise InvalidPadding("invalid padding byte (out of range)")
     for i in data[-padlen:]:
         if i != padlen:
             raise InvalidPadding("invalid padding byte (inconsistent)")
     return data[0:-padlen]
 
 
-def aes_encrypt_with_iv(key, iv, data):
+def aes_encrypt_with_iv(key: bytes, iv: bytes, data: bytes) -> bytes:
     assert_bytes(key, iv, data)
     data = append_PKCS7_padding(data)
     if AES:
@@ -74,7 +75,7 @@ def aes_encrypt_with_iv(key, iv, data):
     return e
 
 
-def aes_decrypt_with_iv(key, iv, data):
+def aes_decrypt_with_iv(key: bytes, iv: bytes, data: bytes) -> bytes:
     assert_bytes(key, iv, data)
     if AES:
         cipher = AES.new(key, AES.MODE_CBC, iv)
@@ -89,44 +90,46 @@ def aes_decrypt_with_iv(key, iv, data):
         raise InvalidPassword()
 
 
-def EncodeAES(secret, s):
-    assert_bytes(s)
+def EncodeAES(secret: bytes, msg: bytes) -> bytes:
+    """Returns base64 encoded ciphertext."""
+    assert_bytes(msg)
     iv = bytes(os.urandom(16))
-    ct = aes_encrypt_with_iv(secret, iv, s)
+    ct = aes_encrypt_with_iv(secret, iv, msg)
     e = iv + ct
     return base64.b64encode(e)
 
-def DecodeAES(secret, e):
-    e = bytes(base64.b64decode(e))
+
+def DecodeAES(secret: bytes, ciphertext_b64: Union[bytes, str]) -> bytes:
+    e = bytes(base64.b64decode(ciphertext_b64))
     iv, e = e[:16], e[16:]
     s = aes_decrypt_with_iv(secret, iv, e)
     return s
 
-def pw_encode(s, password):
-    if password:
-        secret = Hash(password)
-        return EncodeAES(secret, to_bytes(s, "utf8")).decode('utf8')
-    else:
-        return s
 
-def pw_decode(s, password):
-    if password is not None:
-        secret = Hash(password)
-        try:
-            d = to_string(DecodeAES(secret, s), "utf8")
-        except Exception:
-            raise InvalidPassword()
-        return d
-    else:
-        return s
+def pw_encode(data: str, password: Union[bytes, str]) -> str:
+    if not password:
+        return data
+    secret = sha256d(password)
+    return EncodeAES(secret, to_bytes(data, "utf8")).decode('utf8')
 
 
-def sha256(x: bytes) -> bytes:
+def pw_decode(data: str, password: Union[bytes, str]) -> str:
+    if password is None:
+        return data
+    secret = sha256d(password)
+    try:
+        d = to_string(DecodeAES(secret, data), "utf8")
+    except Exception:
+        raise InvalidPassword()
+    return d
+
+
+def sha256(x: Union[bytes, str]) -> bytes:
     x = to_bytes(x, 'utf8')
     return bytes(hashlib.sha256(x).digest())
 
 
-def Hash(x: bytes) -> bytes:
+def sha256d(x: Union[bytes, str]) -> bytes:
     x = to_bytes(x, 'utf8')
     out = bytes(sha256(sha256(x)))
     return out

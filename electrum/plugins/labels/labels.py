@@ -9,7 +9,7 @@ import base64
 from electrum.plugin import BasePlugin, hook
 from electrum.crypto import aes_encrypt_with_iv, aes_decrypt_with_iv
 from electrum.i18n import _
-from electrum.util import aiosafe, make_aiohttp_session
+from electrum.util import log_exceptions, ignore_exceptions, make_aiohttp_session
 
 class LabelsPlugin(BasePlugin):
 
@@ -58,7 +58,8 @@ class LabelsPlugin(BasePlugin):
         # Caller will write the wallet
         self.set_nonce(wallet, nonce + 1)
 
-    @aiosafe
+    @ignore_exceptions
+    @log_exceptions
     async def do_post_safe(self, *args):
         await self.do_post(*args)
 
@@ -129,7 +130,8 @@ class LabelsPlugin(BasePlugin):
         self.set_nonce(wallet, response["nonce"] + 1)
         self.on_pulled(wallet)
 
-    @aiosafe
+    @ignore_exceptions
+    @log_exceptions
     async def pull_safe_thread(self, wallet, force):
         await self.pull_thread(wallet, force)
 

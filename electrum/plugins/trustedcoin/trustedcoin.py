@@ -24,14 +24,19 @@
 # SOFTWARE.
 import asyncio
 import socket
-import os
 import json
 import base64
+import time
+import hashlib
+
 from urllib.parse import urljoin
 from urllib.parse import quote
 
-from electrum import bitcoin, ecc, constants, keystore, version
-from electrum.bitcoin import *
+from electrum import ecc, constants, keystore, version, bip32
+from electrum.bitcoin import TYPE_ADDRESS, is_new_seed, public_key_to_p2pkh
+from electrum.bip32 import (deserialize_xpub, deserialize_xprv, bip32_private_key, CKD_pub,
+                            serialize_xpub, bip32_root, bip32_private_derivation)
+from electrum.crypto import sha256
 from electrum.transaction import TxOutput
 from electrum.mnemonic import Mnemonic
 from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
@@ -348,7 +353,7 @@ class Wallet_2fa(Multisig_Wallet):
 
 def get_user_id(storage):
     def make_long_id(xpub_hot, xpub_cold):
-        return bitcoin.sha256(''.join(sorted([xpub_hot, xpub_cold])))
+        return sha256(''.join(sorted([xpub_hot, xpub_cold])))
     xpub1 = storage.get('x1/')['xpub']
     xpub2 = storage.get('x2/')['xpub']
     long_id = make_long_id(xpub1, xpub2)
@@ -357,15 +362,15 @@ def get_user_id(storage):
 
 def make_xpub(xpub, s):
     version, _, _, _, c, cK = deserialize_xpub(xpub)
-    cK2, c2 = bitcoin._CKD_pub(cK, c, s)
-    return bitcoin.serialize_xpub(version, c2, cK2)
+    cK2, c2 = bip32._CKD_pub(cK, c, s)
+    return serialize_xpub(version, c2, cK2)
 
 def make_billing_address(wallet, num):
     long_id, short_id = wallet.get_user_id()
     xpub = make_xpub(get_billing_xpub(), long_id)
     version, _, _, _, c, cK = deserialize_xpub(xpub)
-    cK, c = bitcoin.CKD_pub(cK, c, num)
-    return bitcoin.public_key_to_p2pkh(cK)
+    cK, c = CKD_pub(cK, c, num)
+    return public_key_to_p2pkh(cK)
 
 
 class TrustedCoinPlugin(BasePlugin):
@@ -379,7 +384,7 @@ class TrustedCoinPlugin(BasePlugin):
 
     @staticmethod
     def is_valid_seed(seed):
-        return bitcoin.is_new_seed(seed, SEED_PREFIX)
+        return is_new_seed(seed, SEED_PREFIX)
 
     def is_available(self):
         return True
@@ -479,8 +484,6 @@ class TrustedCoinPlugin(BasePlugin):
 
     @classmethod
     def get_xkeys(self, seed, passphrase, derivation):
-        from electrum.mnemonic import Mnemonic
-        from electrum.keystore import bip32_root, bip32_private_derivation
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
         xprv, xpub = bip32_root(bip32_seed, 'standard')
         xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)

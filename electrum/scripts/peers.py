@@ -1,14 +1,28 @@
 #!/usr/bin/env python3
+import asyncio
 
-from . import util
+from electrum.network import filter_protocol, Network
+from electrum.util import create_and_start_event_loop, log_exceptions
+from electrum.blockchain import hash_raw_header
 
-from electrum.network import filter_protocol
-from electrum.blockchain import hash_header
+import util
 
-peers = util.get_peers()
-peers = filter_protocol(peers, 's')
 
-results = util.send_request(peers, 'blockchain.headers.subscribe', [])
+loop, stopping_fut, loop_thread = create_and_start_event_loop()
+network = Network()
+network.start()
 
-for n,v in sorted(results.items(), key=lambda x:x[1].get('block_height')):
-    print("%60s"%n, v.get('block_height'), hash_header(v))
+@log_exceptions
+async def f():
+    try:
+        peers = await util.get_peers(network)
+        peers = filter_protocol(peers, 's')
+        results = await util.send_request(network, peers, 'blockchain.headers.subscribe', [])
+        for server, header in sorted(results.items(), key=lambda x: x[1].get('height')):
+            height = header.get('height')
+            blockhash = hash_raw_header(header.get('hex'))
+            print("%60s" % server, height, blockhash)
+    finally:
+        stopping_fut.set_result(1)
+
+asyncio.run_coroutine_threadsafe(f(), loop)

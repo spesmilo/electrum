@@ -20,7 +20,7 @@ RUN dpkg --add-architecture i386 && \
         wine-stable-i386:i386=3.0.1~bionic \
         wine-stable:amd64=3.0.1~bionic \
         winehq-stable:amd64=3.0.1~bionic \
-        git=1:2.17.1-1ubuntu0.1 \
+        git=1:2.17.1-1ubuntu0.3 \
         p7zip-full=16.02+dfsg-6 \
         make=4.1-9.1ubuntu1 \
         mingw-w64=5.0.3-1 \

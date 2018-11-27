@@ -22,11 +22,15 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-from . import util
-from .util import profiler, bh2u
-import ecdsa
+
 import hashlib
 import time
+
+import ecdsa
+
+from . import util
+from .util import profiler, bh2u
+
 
 # algo OIDs
 ALGO_RSA_SHA1 = '1.2.840.113549.1.1.5'

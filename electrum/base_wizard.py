@@ -27,14 +27,24 @@ import os
 import sys
 import traceback
 from functools import partial
+from typing import List, TYPE_CHECKING, Tuple
 
 from . import bitcoin
 from . import keystore
+from .bip32 import is_bip32_derivation, xpub_type
 from .keystore import bip44_derivation, purpose48_derivation
-from .wallet import Imported_Wallet, Standard_Wallet, Multisig_Wallet, wallet_types, Wallet
-from .storage import STO_EV_USER_PW, STO_EV_XPUB_PW, get_derivation_used_for_hw_device_encryption
+from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
+                     wallet_types, Wallet, Abstract_Wallet)
+from .storage import (WalletStorage, STO_EV_USER_PW, STO_EV_XPUB_PW,
+                      get_derivation_used_for_hw_device_encryption)
 from .i18n import _
 from .util import UserCancelled, InvalidPassword, WalletFileException
+from .simple_config import SimpleConfig
+from .plugin import Plugins
+
+if TYPE_CHECKING:
+    from .plugin import DeviceInfo
+
 
 # hardware device setup purpose
 HWD_SETUP_NEW_WALLET, HWD_SETUP_DECRYPT_WALLET = range(0, 2)
@@ -48,12 +58,12 @@ class GoBack(Exception): pass
 
 class BaseWizard(object):
 
-    def __init__(self, config, plugins, storage):
+    def __init__(self, config: SimpleConfig, plugins: Plugins, storage: WalletStorage):
         super(BaseWizard, self).__init__()
         self.config = config
         self.plugins = plugins
         self.storage = storage
-        self.wallet = None
+        self.wallet = None  # type: Abstract_Wallet
         self.stack = []
         self.plugin = None
         self.keystores = []
@@ -183,17 +193,23 @@ class BaseWizard(object):
         # will be reflected on self.storage
         if keystore.is_address_list(text):
             w = Imported_Wallet(self.storage)
-            for x in text.split():
-                w.import_address(x)
+            addresses = text.split()
+            good_inputs, bad_inputs = w.import_addresses(addresses)
         elif keystore.is_private_key_list(text):
             k = keystore.Imported_KeyStore({})
             self.storage.put('keystore', k.dump())
             w = Imported_Wallet(self.storage)
-            for x in keystore.get_private_keys(text):
-                w.import_private_key(x, None)
+            keys = keystore.get_private_keys(text)
+            good_inputs, bad_inputs = w.import_private_keys(keys, None)
             self.keystores.append(w.keystore)
         else:
             return self.terminate()
+        if bad_inputs:
+            msg = "\n".join(f"{key[:10]}... ({msg})" for key, msg in bad_inputs[:10])
+            if len(bad_inputs) > 10: msg += '\n...'
+            self.show_error(_("The following inputs could not be imported")
+                            + f' ({len(bad_inputs)}):\n' + msg)
+        # FIXME what if len(good_inputs) == 0 ?
         return self.run('create_wallet')
 
     def restore_from_key(self):
@@ -216,16 +232,9 @@ class BaseWizard(object):
     def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET):
         title = _('Hardware Keystore')
         # check available plugins
-        support = self.plugins.get_hardware_support()
-        if not support:
-            msg = '\n'.join([
-                _('No hardware wallet support found on your system.'),
-                _('Please install the relevant libraries (eg python-trezor for Trezor).'),
-            ])
-            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device(purpose))
-            return
+        supported_plugins = self.plugins.get_hardware_support()
         # scan devices
-        devices = []
+        devices = []  # type: List[Tuple[str, DeviceInfo]]
         devmgr = self.plugins.device_manager
         try:
             scanned_devices = devmgr.scan_devices()
@@ -234,14 +243,25 @@ class BaseWizard(object):
             debug_msg = '  {}:\n    {}'.format(_('Error scanning devices'), e)
         else:
             debug_msg = ''
-            for name, description, plugin in support:
+            for splugin in supported_plugins:
+                name, plugin = splugin.name, splugin.plugin
+                # plugin init errored?
+                if not plugin:
+                    e = splugin.exception
+                    indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
+                    debug_msg += f'  {name}: (error during plugin init)\n'
+                    debug_msg += '    {}\n'.format(_('You might have an incompatible library.'))
+                    debug_msg += f'{indented_error_msg}\n'
+                    continue
+                # see if plugin recognizes 'scanned_devices'
                 try:
                     # FIXME: side-effect: unpaired_device_info sets client.handler
                     u = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices)
                 except BaseException as e:
-                    devmgr.print_error('error getting device infos for {}: {}'.format(name, e))
+                    traceback.print_exc()
+                    devmgr.print_error(f'error getting device infos for {name}: {e}')
                     indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
-                    debug_msg += '  {}:\n{}\n'.format(plugin.name, indented_error_msg)
+                    debug_msg += f'  {name}: (error getting device infos)\n{indented_error_msg}\n'
                     continue
                 devices += list(map(lambda x: (name, x), u))
         if not debug_msg:
@@ -263,7 +283,7 @@ class BaseWizard(object):
         for name, info in devices:
             state = _("initialized") if info.initialized else _("wiped")
             label = info.label or _("An unnamed {}").format(name)
-            descr = "%s [%s, %s]" % (label, name, state)
+            descr = f"{label} [{name}, {state}, {info.device.transport_ui_string}]"
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
         self.choice_dialog(title=title, message=msg, choices=choices, run_next= lambda *args: self.on_device(*args, purpose=purpose))
@@ -319,12 +339,14 @@ class BaseWizard(object):
             # There is no general standard for HD multisig.
             # For legacy, this is partially compatible with BIP45; assumes index=0
             # For segwit, a custom path is used, as there is no standard at all.
+            default_choice_idx = 2
             choices = [
                 ('standard',   'legacy multisig (p2sh)',            "m/45'/0"),
                 ('p2wsh-p2sh', 'p2sh-segwit multisig (p2wsh-p2sh)', purpose48_derivation(0, xtype='p2wsh-p2sh')),
                 ('p2wsh',      'native segwit multisig (p2wsh)',    purpose48_derivation(0, xtype='p2wsh')),
             ]
         else:
+            default_choice_idx = 2
             choices = [
                 ('standard',    'legacy (p2pkh)',            bip44_derivation(0, bip43_purpose=44)),
                 ('p2wpkh-p2sh', 'p2sh-segwit (p2wpkh-p2sh)', bip44_derivation(0, bip43_purpose=49)),
@@ -334,7 +356,8 @@ class BaseWizard(object):
             try:
                 self.choice_and_line_dialog(
                     run_next=f, title=_('Script type and Derivation path'), message1=message1,
-                    message2=message2, choices=choices, test_text=bitcoin.is_bip32_derivation)
+                    message2=message2, choices=choices, test_text=is_bip32_derivation,
+                    default_choice_idx=default_choice_idx)
                 return
             except ScriptTypeNotSupported as e:
                 self.show_error(e)
@@ -414,7 +437,6 @@ class BaseWizard(object):
     def on_keystore(self, k):
         has_xpub = isinstance(k, keystore.Xpub)
         if has_xpub:
-            from .bitcoin import xpub_type
             t1 = xpub_type(k.xpub)
         if self.wallet_type == 'standard':
             if has_xpub and t1 not in ['standard', 'p2wpkh', 'p2wpkh-p2sh']:
@@ -524,8 +546,8 @@ class BaseWizard(object):
             _("Thus, you might want to keep using a non-segwit wallet in order to be able to receive bitcoins during the transition period.")
         ])
         choices = [
-            ('create_standard_seed', _('Standard')),
             ('create_segwit_seed', _('Segwit')),
+            ('create_standard_seed', _('Legacy')),
         ]
         self.choice_dialog(title=title, message=message, choices=choices, run_next=self.run)
 

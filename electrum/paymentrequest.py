@@ -27,9 +27,10 @@ import sys
 import time
 import traceback
 import json
-import requests
 
+import requests
 import urllib.parse
+import aiohttp
 
 
 try:
@@ -38,16 +39,17 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=electrum/ --python_out=electrum/ electrum/paymentrequest.proto'")
 
 from . import bitcoin, ecc, util, transaction, x509, rsakey
-from .util import print_error, bh2u, bfh
-from .util import export_meta, import_meta
-
+from .util import print_error, bh2u, bfh, export_meta, import_meta, make_aiohttp_session
+from .crypto import sha256
 from .bitcoin import TYPE_ADDRESS
 from .transaction import TxOutput
+from .network import Network
+
 
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
 
-ca_path = requests.certs.where()
+ca_path = requests.certs.where()  # FIXME do we need to depend on requests here?
 ca_list = None
 ca_keyID = None
 
@@ -65,25 +67,31 @@ PR_UNKNOWN = 2     # sent but not propagated
 PR_PAID    = 3     # send and propagated
 
 
-
-def get_payment_request(url):
+async def get_payment_request(url: str) -> 'PaymentRequest':
     u = urllib.parse.urlparse(url)
     error = None
-    if u.scheme in ['http', 'https']:
+    if u.scheme in ('http', 'https'):
+        resp_content = None
         try:
-            response = requests.request('GET', url, headers=REQUEST_HEADERS)
-            response.raise_for_status()
-            # Guard against `bitcoin:`-URIs with invalid payment request URLs
-            if "Content-Type" not in response.headers \
-            or response.headers["Content-Type"] != "application/bitcoin-paymentrequest":
-                data = None
-                error = "payment URL not pointing to a payment request handling server"
-            else:
-                data = response.content
-            print_error('fetched payment request', url, len(response.content))
-        except requests.exceptions.RequestException:
+            proxy = Network.get_instance().proxy
+            async with make_aiohttp_session(proxy, headers=REQUEST_HEADERS) as session:
+                async with session.get(url) as response:
+                    resp_content = await response.read()
+                    response.raise_for_status()
+                    # Guard against `bitcoin:`-URIs with invalid payment request URLs
+                    if "Content-Type" not in response.headers \
+                    or response.headers["Content-Type"] != "application/bitcoin-paymentrequest":
+                        data = None
+                        error = "payment URL not pointing to a payment request handling server"
+                    else:
+                        data = resp_content
+                    data_len = len(data) if data is not None else None
+                    print_error('fetched payment request', url, data_len)
+        except aiohttp.ClientError as e:
+            error = f"Error while contacting payment URL:\n{repr(e)}"
+            if isinstance(e, aiohttp.ClientResponseError) and e.status == 400 and resp_content:
+                error += "\n" + resp_content.decode("utf8")
             data = None
-            error = "payment URL not pointing to a valid server"
     elif u.scheme == 'file':
         try:
             with open(u.path, 'r', encoding='utf-8') as f:
@@ -93,7 +101,7 @@ def get_payment_request(url):
             error = "payment URL not pointing to a valid file"
     else:
         data = None
-        error = "Unknown scheme for payment request. URL: {}".format(url)
+        error = f"Unknown scheme for payment request. URL: {url}"
     pr = PaymentRequest(data, error)
     return pr
 
@@ -113,7 +121,7 @@ class PaymentRequest:
     def parse(self, r):
         if self.error:
             return
-        self.id = bh2u(bitcoin.sha256(r)[0:16])
+        self.id = bh2u(sha256(r)[0:16])
         try:
             self.data = pb2.PaymentRequest()
             self.data.ParseFromString(r)
@@ -124,8 +132,12 @@ class PaymentRequest:
         self.details.ParseFromString(self.data.serialized_payment_details)
         self.outputs = []
         for o in self.details.outputs:
-            addr = transaction.get_address_from_output_script(o.script)[1]
-            self.outputs.append(TxOutput(TYPE_ADDRESS, addr, o.amount))
+            type_, addr = transaction.get_address_from_output_script(o.script)
+            if type_ != TYPE_ADDRESS:
+                # TODO maybe rm restriction but then get_requestor and get_id need changes
+                self.error = "only addresses are allowed as outputs"
+                return
+            self.outputs.append(TxOutput(type_, addr, o.amount))
         self.memo = self.details.memo
         self.payment_url = self.details.payment_url
 
@@ -187,6 +199,9 @@ class PaymentRequest:
             verify = pubkey0.verify(sigBytes, x509.PREFIX_RSA_SHA256 + hashBytes)
         elif paymntreq.pki_type == "x509+sha1":
             verify = pubkey0.hashAndVerify(sigBytes, msgBytes)
+        else:
+            self.error = f"ERROR: unknown pki_type {paymntreq.pki_type} in Payment Request"
+            return False
         if not verify:
             self.error = "ERROR: Invalid Signature for Payment Request Data"
             return False
@@ -256,7 +271,7 @@ class PaymentRequest:
     def get_outputs(self):
         return self.outputs[:]
 
-    def send_ack(self, raw_tx, refund_addr):
+    async def send_payment_and_receive_paymentack(self, raw_tx, refund_addr):
         pay_det = self.details
         if not self.details.payment_url:
             return False, "no url"
@@ -268,24 +283,25 @@ class PaymentRequest:
         paymnt.memo = "Paid using Electrum"
         pm = paymnt.SerializeToString()
         payurl = urllib.parse.urlparse(pay_det.payment_url)
+        resp_content = None
         try:
-            r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=ca_path)
-        except requests.exceptions.SSLError:
-            print("Payment Message/PaymentACK verify Failed")
-            try:
-                r = requests.post(payurl.geturl(), data=pm, headers=ACK_HEADERS, verify=False)
-            except Exception as e:
-                print(e)
-                return False, "Payment Message/PaymentACK Failed"
-        if r.status_code >= 500:
-            return False, r.reason
-        try:
-            paymntack = pb2.PaymentACK()
-            paymntack.ParseFromString(r.content)
-        except Exception:
-            return False, "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
-        print("PaymentACK message received: %s" % paymntack.memo)
-        return True, paymntack.memo
+            proxy = Network.get_instance().proxy
+            async with make_aiohttp_session(proxy, headers=ACK_HEADERS) as session:
+                async with session.post(payurl.geturl(), data=pm) as response:
+                    resp_content = await response.read()
+                    response.raise_for_status()
+                    try:
+                        paymntack = pb2.PaymentACK()
+                        paymntack.ParseFromString(resp_content)
+                    except Exception:
+                        return False, "PaymentACK could not be processed. Payment was sent; please manually verify that payment was received."
+                    print(f"PaymentACK message received: {paymntack.memo}")
+                    return True, paymntack.memo
+        except aiohttp.ClientError as e:
+            error = f"Payment Message/PaymentACK Failed:\n{repr(e)}"
+            if isinstance(e, aiohttp.ClientResponseError) and e.status == 400 and resp_content:
+                error += "\n" + resp_content.decode("utf8")
+            return False, error
 
 
 def make_unsigned_request(req):
@@ -320,7 +336,7 @@ def sign_request_with_alias(pr, alias, alias_privkey):
     pr.pki_data = str(alias)
     message = pr.SerializeToString()
     ec_key = ecc.ECPrivkey(alias_privkey)
-    compressed = bitcoin.is_compressed(alias_privkey)
+    compressed = bitcoin.is_compressed_privkey(alias_privkey)
     pr.signature = ec_key.sign_message(message, compressed)
 
 

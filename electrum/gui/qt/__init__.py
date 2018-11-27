@@ -26,6 +26,7 @@
 import signal
 import sys
 import traceback
+import threading
 
 
 try:
@@ -42,7 +43,7 @@ from electrum.i18n import _, set_language
 from electrum.plugin import run_hook
 from electrum.storage import WalletStorage
 from electrum.base_wizard import GoBack
-from electrum.util import (UserCancelled, PrintError,
+from electrum.util import (UserCancelled, PrintError, profiler,
                            WalletFileException, BitcoinException)
 
 from .installwizard import InstallWizard
@@ -84,6 +85,7 @@ class QNetworkUpdatedSignalObject(QObject):
 
 class ElectrumGui(PrintError):
 
+    @profiler
     def __init__(self, config, daemon, plugins):
         set_language(config.get('language'))
         # Uncomment this call to verify objects are being properly
@@ -105,6 +107,8 @@ class ElectrumGui(PrintError):
         self.timer = Timer()
         self.nd = None
         self.network_updated_signal_obj = QNetworkUpdatedSignalObject()
+        self._num_wizards_in_progress = 0
+        self._num_wizards_lock = threading.Lock()
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
@@ -187,6 +191,7 @@ class ElectrumGui(PrintError):
                                 self.network_updated_signal_obj)
         self.nd.show()
 
+    @profiler
     def create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)
         self.windows.append(w)
@@ -195,6 +200,18 @@ class ElectrumGui(PrintError):
         run_hook('on_new_window', w)
         return w
 
+    def count_wizards_in_progress(func):
+        def wrapper(self: 'ElectrumGui', *args, **kwargs):
+            with self._num_wizards_lock:
+                self._num_wizards_in_progress += 1
+            try:
+                return func(self, *args, **kwargs)
+            finally:
+                with self._num_wizards_lock:
+                    self._num_wizards_in_progress -= 1
+        return wrapper
+
+    @count_wizards_in_progress
     def start_new_window(self, path, uri, app_is_starting=False):
         '''Raises the window for the wallet if it is open.  Otherwise
         opens the wallet and creates a new window for it'''
@@ -237,9 +254,9 @@ class ElectrumGui(PrintError):
         try:
             for w in self.windows:
                 if w.wallet.storage.path == wallet.storage.path:
-                    w.bring_to_top()
-                    return
-            w = self.create_window_for_wallet(wallet)
+                    break
+            else:
+                w = self.create_window_for_wallet(wallet)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             d = QMessageBox(QMessageBox.Warning, _('Error'),
@@ -291,10 +308,15 @@ class ElectrumGui(PrintError):
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
 
         def quit_after_last_window():
-            # on some platforms, not only does exec_ not return but not even
-            # aboutToQuit is emitted (but following this, it should be emitted)
-            if self.app.quitOnLastWindowClosed():
-                self.app.quit()
+            # keep daemon running after close
+            if self.config.get('daemon'):
+                return
+            # check if a wizard is in progress
+            with self._num_wizards_lock:
+                if self._num_wizards_in_progress > 0 or len(self.windows) > 0:
+                    return
+            self.app.quit()
+        self.app.setQuitOnLastWindowClosed(False)  # so _we_ can decide whether to quit
         self.app.lastWindowClosed.connect(quit_after_last_window)
 
         def clean_up():
@@ -305,10 +327,6 @@ class ElectrumGui(PrintError):
             self.app.sendEvent(self.app.clipboard(), event)
             self.tray.hide()
         self.app.aboutToQuit.connect(clean_up)
-
-        # keep daemon running after close
-        if self.config.get('daemon'):
-            self.app.setQuitOnLastWindowClosed(False)
 
         # main loop
         self.app.exec_()

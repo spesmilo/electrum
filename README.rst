@@ -41,7 +41,7 @@ directory. To run Electrum from its root directory, just do::
 You can also install Electrum on your system, by running this command::
 
     sudo apt-get install python3-setuptools
-    pip3 install .[fast]
+    python3 -m pip install .[fast]
 
 This will download and install the Python dependencies used by
 Electrum, instead of using the 'packages' directory.
@@ -64,7 +64,7 @@ Check out the code from GitHub::
 
 Run install (this should install dependencies)::
 
-    pip3 install .[fast]
+    python3 -m pip install .[fast]
 
 Render the SVG icons to PNGs (optional)::
 

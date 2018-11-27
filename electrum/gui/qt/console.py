@@ -309,31 +309,34 @@ class Console(QtWidgets.QPlainTextEdit):
 
         super(Console, self).keyPressEvent(event)
 
-
-
     def completions(self):
         cmd = self.getCommand()
         lastword = re.split(' |\(|\)',cmd)[-1]
         beginning = cmd[0:-len(lastword)]
 
         path = lastword.split('.')
+        prefix = '.'.join(path[:-1])
+        prefix = (prefix + '.') if prefix else prefix
         ns = self.namespace.keys()
 
         if len(path) == 1:
             ns = ns
-            prefix = ''
         else:
+            assert len(path) > 1
             obj = self.namespace.get(path[0])
-            prefix = path[0] + '.'
-            ns = dir(obj)
-
+            try:
+                for attr in path[1:-1]:
+                    obj = getattr(obj, attr)
+            except AttributeError:
+                ns = []
+            else:
+                ns = dir(obj)
 
         completions = []
-        for x in ns:
-            if x[0] == '_':continue
-            xx = prefix + x
-            if xx.startswith(lastword):
-                completions.append(xx)
+        for name in ns:
+            if name[0] == '_':continue
+            if name.startswith(path[-1]):
+                completions.append(prefix+name)
         completions.sort()
 
         if not completions:

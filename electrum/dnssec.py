@@ -110,11 +110,9 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
             if rrsig.algorithm == ECDSAP256SHA256:
                 curve = ecdsa.curves.NIST256p
                 key_len = 32
-                digest_len = 32
             elif rrsig.algorithm == ECDSAP384SHA384:
                 curve = ecdsa.curves.NIST384p
                 key_len = 48
-                digest_len = 48
             else:
                 # shouldn't happen
                 raise ValidationFailure('unknown ECDSA curve')
@@ -141,7 +139,7 @@ def python_validate_rrsig(rrset, rrsig, keys, origin=None, now=None):
         rrnamebuf = rrname.to_digestable(origin)
         rrfixed = struct.pack('!HHI', rdataset.rdtype, rdataset.rdclass,
                               rrsig.original_ttl)
-        rrlist = sorted(rdataset);
+        rrlist = sorted(rdataset)
         for rr in rrlist:
             hash.update(rrnamebuf)
             hash.update(rrfixed)
