@@ -272,9 +272,9 @@ class Abstract_Wallet(AddressSynchronizer):
             else:
                 # avoid saving empty dict
                 return True
-        if ccy not in self.fiat_value:
-            self.fiat_value[ccy] = {}
-        if not reset:
+        else:
+            if ccy not in self.fiat_value:
+                self.fiat_value[ccy] = {}
             self.fiat_value[ccy][txid] = text
         self.storage.put('fiat_value', self.fiat_value)
         return reset
