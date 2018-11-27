@@ -24,22 +24,28 @@ folder.
     $ sudo docker build -t electrum-android-builder-img electrum/gui/kivy/tools
     ```
 
-3. Build binaries
+3. Prepare pure python dependencies
 
     ```
-    $ sudo docker run \
+    $ sudo ./contrib/make_packages
+    ```
+
+4. Build binaries
+
+    ```
+    $ sudo docker run -it --rm \
         --name electrum-android-builder-cont \
-        --rm \
         -v $PWD:/home/user/wspace/electrum \
+        -v ~/.keystore:/home/user/.keystore \
         --workdir /home/user/wspace/electrum \
         electrum-android-builder-img \
-        ./electrum/gui/kivy/tools/build.sh
+        ./contrib/make_apk
     ```
     This mounts the project dir inside the container,
     and so the modifications will affect it, e.g. `.buildozer` folder
     will be created.
 
-4. The generated binary is in `./bin`.
+5. The generated binary is in `./bin`.
 
 
 
