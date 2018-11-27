@@ -791,7 +791,7 @@ def get_parent_main_window(widget):
     return None
 
 class SortableTreeWidgetItem(QTreeWidgetItem):
-    DataRole = Qt.UserRole + 1
+    DataRole = Qt.UserRole + 100
 
     def __lt__(self, other):
         column = self.treeWidget().sortColumn()
