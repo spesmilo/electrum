@@ -275,10 +275,11 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             if value and value < 0:
                 item.setForeground(3, red_brush)
                 item.setForeground(4, red_brush)
-            if fiat_value and not tx_item['fiat_default']:
+            if fiat_value is not None and not tx_item['fiat_default']:
                 item.setForeground(6, blue_brush)
             if tx_hash:
                 item.setData(0, Qt.UserRole, tx_hash)
+                item.setData(0, Qt.UserRole+1, value)
             self.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
@@ -286,6 +287,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
     def on_edited(self, item, column, prior):
         '''Called only when the text actually changes'''
         key = item.data(0, Qt.UserRole)
+        value = item.data(0, Qt.UserRole+1)
         text = item.text(column)
         # fixme
         if column == 3:
@@ -293,7 +295,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             self.update_labels()
             self.parent.update_completions()
         elif column == 6:
-            self.parent.wallet.set_fiat_value(key, self.parent.fx.ccy, text)
+            self.parent.wallet.set_fiat_value(key, self.parent.fx.ccy, text, self.parent.fx, value)
             self.on_update()
 
     def on_doubleclick(self, item, column):
