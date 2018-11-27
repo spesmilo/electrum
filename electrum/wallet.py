@@ -247,13 +247,13 @@ class Abstract_Wallet(AddressSynchronizer):
             self.storage.put('labels', self.labels)
         return changed
 
-    def set_fiat_value(self, txid, ccy, text, fx, value):
+    def set_fiat_value(self, txid, ccy, text, fx, value_sat):
         if txid not in self.transactions:
             return
         # since fx is inserting the thousands separator,
         # and not util, also have fx remove it
         text = fx.remove_thousands_separator(text)
-        def_fiat = self.default_fiat_value(txid, fx, value)
+        def_fiat = self.default_fiat_value(txid, fx, value_sat)
         formatted = fx.ccy_amount_str(def_fiat, commas=False)
         def_fiat_rounded = Decimal(formatted)
         reset = not text
@@ -481,8 +481,8 @@ class Abstract_Wallet(AddressSynchronizer):
             'summary': summary
         }
 
-    def default_fiat_value(self, tx_hash, fx, value):
-        return value / Decimal(COIN) * self.price_at_timestamp(tx_hash, fx.timestamp_rate)
+    def default_fiat_value(self, tx_hash, fx, value_sat):
+        return value_sat / Decimal(COIN) * self.price_at_timestamp(tx_hash, fx.timestamp_rate)
 
     def get_tx_item_fiat(self, tx_hash, value, fx, tx_fee):
         item = {}

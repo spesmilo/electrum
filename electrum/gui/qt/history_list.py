@@ -60,6 +60,8 @@ TX_ICONS = [
 
 class HistoryList(MyTreeWidget, AcceptFileDragDrop):
     filter_columns = [2, 3, 4]  # Date, Description, Amount
+    TX_HASH_ROLE = Qt.UserRole
+    TX_VALUE_ROLE = Qt.UserRole + 1
 
     def __init__(self, parent=None):
         MyTreeWidget.__init__(self, parent, self.create_menu, [], 3)
@@ -231,7 +233,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             self.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
             self.period_combo.insertItems(1, self.years)
         item = self.currentItem()
-        current_tx = item.data(0, Qt.UserRole) if item else None
+        current_tx = item.data(0, self.TX_HASH_ROLE) if item else None
         self.clear()
         if fx: fx.history_used_spot = False
         blue_brush = QBrush(QColor("#1E1EFF"))
@@ -242,23 +244,23 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             height = tx_item['height']
             conf = tx_item['confirmations']
             timestamp = tx_item['timestamp']
-            value = tx_item['value'].value
+            value_sat = tx_item['value'].value
             balance = tx_item['balance'].value
             label = tx_item['label']
             tx_mined_status = TxMinedStatus(height, conf, timestamp, None)
             status, status_str = self.wallet.get_tx_status(tx_hash, tx_mined_status)
             has_invoice = self.wallet.invoices.paid.get(tx_hash)
             icon = self.icon_cache.get(":icons/" + TX_ICONS[status])
-            v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)
+            v_str = self.parent.format_amount(value_sat, is_diff=True, whitespaces=True)
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             entry = ['', tx_hash, status_str, label, v_str, balance_str]
             fiat_value = None
-            if value is not None and fx and fx.show_history():
+            if value_sat is not None and fx and fx.show_history():
                 fiat_value = tx_item['fiat_value'].value
                 value_str = fx.format_fiat(fiat_value)
                 entry.append(value_str)
                 # fixme: should use is_mine
-                if value < 0:
+                if value_sat < 0:
                     entry.append(fx.format_fiat(tx_item['acquisition_price'].value))
                     entry.append(fx.format_fiat(tx_item['capital_gain'].value))
             item = SortableTreeWidgetItem(entry)
@@ -272,22 +274,22 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                     item.setTextAlignment(i, Qt.AlignRight | Qt.AlignVCenter)
                 if i!=2:
                     item.setFont(i, monospace_font)
-            if value and value < 0:
+            if value_sat and value_sat < 0:
                 item.setForeground(3, red_brush)
                 item.setForeground(4, red_brush)
             if fiat_value is not None and not tx_item['fiat_default']:
                 item.setForeground(6, blue_brush)
             if tx_hash:
-                item.setData(0, Qt.UserRole, tx_hash)
-                item.setData(0, Qt.UserRole+1, value)
+                item.setData(0, self.TX_HASH_ROLE, tx_hash)
+                item.setData(0, self.TX_VALUE_ROLE, value_sat)
             self.insertTopLevelItem(0, item)
             if current_tx == tx_hash:
                 self.setCurrentItem(item)
 
     def on_edited(self, item, column, prior):
         '''Called only when the text actually changes'''
-        key = item.data(0, Qt.UserRole)
-        value = item.data(0, Qt.UserRole+1)
+        key = item.data(0, self.TX_HASH_ROLE)
+        value_sat = item.data(0, self.TX_VALUE_ROLE)
         text = item.text(column)
         # fixme
         if column == 3:
@@ -295,14 +297,14 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             self.update_labels()
             self.parent.update_completions()
         elif column == 6:
-            self.parent.wallet.set_fiat_value(key, self.parent.fx.ccy, text, self.parent.fx, value)
+            self.parent.wallet.set_fiat_value(key, self.parent.fx.ccy, text, self.parent.fx, value_sat)
             self.on_update()
 
     def on_doubleclick(self, item, column):
         if self.permit_edit(item, column):
             super(HistoryList, self).on_doubleclick(item, column)
         else:
-            tx_hash = item.data(0, Qt.UserRole)
+            tx_hash = item.data(0, self.TX_HASH_ROLE)
             self.show_transaction(tx_hash)
 
     def show_transaction(self, tx_hash):
@@ -317,7 +319,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         child_count = root.childCount()
         for i in range(child_count):
             item = root.child(i)
-            txid = item.data(0, Qt.UserRole)
+            txid = item.data(0, self.TX_HASH_ROLE)
             label = self.wallet.get_label(txid)
             item.setText(3, label)
 
@@ -340,7 +342,7 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
         if not item:
             return
         column = self.currentColumn()
-        tx_hash = item.data(0, Qt.UserRole)
+        tx_hash = item.data(0, self.TX_HASH_ROLE)
         if not tx_hash:
             return
         tx = self.wallet.transactions.get(tx_hash)
