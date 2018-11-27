@@ -46,7 +46,10 @@ class ChannelsList(MyTreeWidget):
         network = self.parent.network
         lnworker = self.parent.wallet.lnworker
         menu = QMenu()
-        channel_id = self.currentItem().data(0, QtCore.Qt.UserRole)
+        item = self.currentItem()
+        if not item:
+            return
+        channel_id = item.data(0, QtCore.Qt.UserRole)
         def on_success(txid):
             self.main_window.show_error('Channel closed' + '\n' + txid)
         def on_failure(exc_info):

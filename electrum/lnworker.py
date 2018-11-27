@@ -128,7 +128,7 @@ class LNWorker(PrintError):
         if report['inflight']:
             yield 'Outgoing payments in progress:'
             yield '------------------------------'
-            for addr, htlc in report['inflight']:
+            for addr, htlc, direction in report['inflight']:
                 yield str(addr)
                 yield str(htlc)
                 yield ''
@@ -162,7 +162,7 @@ class LNWorker(PrintError):
             htlc = self.find_htlc_for_addr(addr, None if chan_id is None else [chan_id])
             if not htlc:
                 self.print_error('Warning, in flight HTLC not found in any channel')
-            inflight.append((addr, htlc))
+            inflight.append((addr, htlc, direction))
         return {'settled': settled, 'unsettled': unsettled, 'inflight': inflight}
 
     def find_htlc_for_addr(self, addr, whitelist=None):
