@@ -664,3 +664,9 @@ class EncumberedTransaction(NamedTuple("EncumberedTransaction", [('name', str),
 NUM_MAX_HOPS_IN_PAYMENT_PATH = 20
 NUM_MAX_EDGES_IN_PAYMENT_PATH = NUM_MAX_HOPS_IN_PAYMENT_PATH + 1
 
+def format_short_channel_id(short_channel_id: Optional[bytes]):
+    if not short_channel_id:
+        return _('Not yet available')
+    return str(int.from_bytes(short_channel_id[:3], 'big')) \
+        + 'x' + str(int.from_bytes(short_channel_id[3:6], 'big')) \
+        + 'x' + str(int.from_bytes(short_channel_id[6:], 'big'))
