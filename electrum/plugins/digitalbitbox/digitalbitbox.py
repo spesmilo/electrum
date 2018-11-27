@@ -16,7 +16,7 @@ try:
     from electrum.i18n import _
     from electrum.keystore import Hardware_KeyStore
     from ..hw_wallet import HW_PluginBase
-    from electrum.util import print_error, to_string, UserCancelled
+    from electrum.util import print_error, to_string, UserCancelled, UserFacingException
     from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 
     import time
@@ -114,7 +114,7 @@ class DigitalBitbox_Client():
     def dbb_has_password(self):
         reply = self.hid_send_plain(b'{"ping":""}')
         if 'ping' not in reply:
-            raise Exception(_('Device communication error. Please unplug and replug your Digital Bitbox.'))
+            raise UserFacingException(_('Device communication error. Please unplug and replug your Digital Bitbox.'))
         if reply['ping'] == 'password':
             return True
         return False
@@ -221,7 +221,7 @@ class DigitalBitbox_Client():
                 return
         else:
             if self.hid_send_encrypt(b'{"device":"info"}')['device']['lock']:
-                raise Exception(_("Full 2FA enabled. This is not supported yet."))
+                raise UserFacingException(_("Full 2FA enabled. This is not supported yet."))
             # Use existing seed
         self.isInitialized = True
 
@@ -294,7 +294,7 @@ class DigitalBitbox_Client():
         msg = ('{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, 'Digital Bitbox Electrum Plugin')).encode('utf8')
         reply = self.hid_send_encrypt(msg)
         if 'error' in reply:
-            raise Exception(reply['error']['message'])
+            raise UserFacingException(reply['error']['message'])
 
 
     def dbb_erase(self):
@@ -304,16 +304,16 @@ class DigitalBitbox_Client():
         hid_reply = self.hid_send_encrypt(b'{"reset":"__ERASE__"}')
         self.handler.finished()
         if 'error' in hid_reply:
-            raise Exception(hid_reply['error']['message'])
+            raise UserFacingException(hid_reply['error']['message'])
         else:
             self.password = None
-            raise Exception('Device erased')
+            raise UserFacingException('Device erased')
 
 
     def dbb_load_backup(self, show_msg=True):
         backups = self.hid_send_encrypt(b'{"backup":"list"}')
         if 'error' in backups:
-            raise Exception(backups['error']['message'])
+            raise UserFacingException(backups['error']['message'])
         try:
             f = self.handler.win.query_choice(_("Choose a backup file:"), backups['backup'])
         except Exception:
@@ -330,7 +330,7 @@ class DigitalBitbox_Client():
         hid_reply = self.hid_send_encrypt(msg)
         self.handler.finished()
         if 'error' in hid_reply:
-            raise Exception(hid_reply['error']['message'])
+            raise UserFacingException(hid_reply['error']['message'])
         return True
 
 
@@ -388,7 +388,7 @@ class DigitalBitbox_Client():
             r = to_string(r, 'utf8')
             reply = json.loads(r)
         except Exception as e:
-            print_error('Exception caught ' + str(e))
+            print_error('Exception caught ' + repr(e))
         return reply
 
 
@@ -405,7 +405,7 @@ class DigitalBitbox_Client():
             if 'error' in reply:
                 self.password = None
         except Exception as e:
-            print_error('Exception caught ' + str(e))
+            print_error('Exception caught ' + repr(e))
         return reply
 
 

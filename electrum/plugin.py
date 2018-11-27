@@ -26,16 +26,20 @@ import traceback
 import sys
 import os
 import pkgutil
+import importlib.util
 import time
 import threading
-from typing import NamedTuple, Any, Union
+from typing import NamedTuple, Any, Union, TYPE_CHECKING, Optional
 
 from .i18n import _
 from .util import (profiler, PrintError, DaemonThread, UserCancelled,
-                   ThreadJob, print_error)
+                   ThreadJob, print_error, UserFacingException)
 from . import bip32
 from . import plugins
 from .simple_config import SimpleConfig
+
+if TYPE_CHECKING:
+    from .plugins.hw_wallet import HW_PluginBase
 
 
 plugin_loaders = {}
@@ -63,9 +67,16 @@ class Plugins(DaemonThread):
 
     def load_plugins(self):
         for loader, name, ispkg in pkgutil.iter_modules([self.pkgpath]):
-            mod = pkgutil.find_loader('electrum.plugins.' + name)
-            m = mod.load_module()
-            d = m.__dict__
+            full_name = f'electrum.plugins.{name}'
+            spec = importlib.util.find_spec(full_name)
+            if spec is None:  # pkgutil found it but importlib can't ?!
+                raise Exception(f"Error pre-loading {full_name}: no spec")
+            try:
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+            except Exception as e:
+                raise Exception(f"Error pre-loading {full_name}: {repr(e)}") from e
+            d = module.__dict__
             gui_good = self.gui_name in d.get('available_for', [])
             if not gui_good:
                 continue
@@ -92,13 +103,17 @@ class Plugins(DaemonThread):
     def load_plugin(self, name):
         if name in self.plugins:
             return self.plugins[name]
-        full_name = 'electrum.plugins.' + name + '.' + self.gui_name
-        loader = pkgutil.find_loader(full_name)
-        if not loader:
+        full_name = f'electrum.plugins.{name}.{self.gui_name}'
+        spec = importlib.util.find_spec(full_name)
+        if spec is None:
             raise RuntimeError("%s implementation for %s plugin not found"
                                % (self.gui_name, name))
-        p = loader.load_module()
-        plugin = p.Plugin(self, self.config, name)
+        try:
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            plugin = module.Plugin(self, self.config, name)
+        except Exception as e:
+            raise Exception(f"Error loading {name} plugin: {repr(e)}") from e
         self.add_jobs(plugin.thread_jobs())
         self.plugins[name] = plugin
         self.print_error("loaded", name)
@@ -148,10 +163,17 @@ class Plugins(DaemonThread):
                 try:
                     p = self.get_plugin(name)
                     if p.is_enabled():
-                        out.append([name, details[2], p])
-                except:
+                        out.append(HardwarePluginToScan(name=name,
+                                                        description=details[2],
+                                                        plugin=p,
+                                                        exception=None))
+                except Exception as e:
                     traceback.print_exc()
                     self.print_error("cannot load plugin for:", name)
+                    out.append(HardwarePluginToScan(name=name,
+                                                    description=details[2],
+                                                    plugin=None,
+                                                    exception=e))
         return out
 
     def register_wallet_type(self, name, gui_good, wallet_type):
@@ -269,12 +291,20 @@ class Device(NamedTuple):
     id_: str
     product_key: Any   # when using hid, often Tuple[int, int]
     usage_page: int
+    transport_ui_string: str
 
 
 class DeviceInfo(NamedTuple):
     device: Device
     label: str
     initialized: bool
+
+
+class HardwarePluginToScan(NamedTuple):
+    name: str
+    description: str
+    plugin: Optional['HW_PluginBase']
+    exception: Optional[Exception]
 
 
 class DeviceMgr(ThreadJob, PrintError):
@@ -465,7 +495,7 @@ class DeviceMgr(ThreadJob, PrintError):
               'its seed (and passphrase, if any).  Otherwise all bitcoins you '
               'receive will be unspendable.').format(plugin.device))
 
-    def unpaired_device_infos(self, handler, plugin, devices=None):
+    def unpaired_device_infos(self, handler, plugin: 'HW_PluginBase', devices=None):
         '''Returns a list of DeviceInfo objects: one for each connected,
         unpaired device accepted by the plugin.'''
         if not plugin.libraries_available:
@@ -478,7 +508,13 @@ class DeviceMgr(ThreadJob, PrintError):
         for device in devices:
             if device.product_key not in plugin.DEVICE_IDS:
                 continue
-            client = self.create_client(device, handler, plugin)
+            try:
+                client = self.create_client(device, handler, plugin)
+            except UserFacingException:
+                raise
+            except BaseException as e:
+                self.print_error(f'failed to create client for {plugin.name} at {device.path}: {repr(e)}')
+                continue
             if not client:
                 continue
             infos.append(DeviceInfo(device, client.label(), client.is_initialized()))
@@ -541,8 +577,12 @@ class DeviceMgr(ThreadJob, PrintError):
                 if len(id_) == 0:
                     id_ = str(d['path'])
                 id_ += str(interface_number) + str(usage_page)
-                devices.append(Device(d['path'], interface_number,
-                                      id_, product_key, usage_page))
+                devices.append(Device(path=d['path'],
+                                      interface_number=interface_number,
+                                      id_=id_,
+                                      product_key=product_key,
+                                      usage_page=usage_page,
+                                      transport_ui_string='hid'))
         return devices
 
     def scan_devices(self):

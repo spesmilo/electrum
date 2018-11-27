@@ -24,7 +24,7 @@
 # SOFTWARE.
 
 import hashlib
-from typing import List, Tuple, TYPE_CHECKING
+from typing import List, Tuple, TYPE_CHECKING, Optional, Union
 
 from .util import bfh, bh2u, BitcoinException, assert_bytes, to_bytes, inv_dict
 from . import version
@@ -49,7 +49,7 @@ TYPE_PUBKEY  = 1
 TYPE_SCRIPT  = 2
 
 
-def rev_hex(s):
+def rev_hex(s: str) -> str:
     return bh2u(bfh(s)[::-1])
 
 
@@ -60,7 +60,7 @@ def int_to_hex(i: int, length: int=1) -> str:
     if not isinstance(i, int):
         raise TypeError('{} instead of int'.format(i))
     range_size = pow(256, length)
-    if i < -range_size/2 or i >= range_size:
+    if i < -(range_size//2) or i >= range_size:
         raise OverflowError('cannot convert int {} to hex ({} bytes)'.format(i, length))
     if i < 0:
         # two's complement
@@ -162,22 +162,25 @@ def dust_threshold(network: 'Network'=None) -> int:
     return 182 * 3 * relayfee(network) // 1000
 
 
-hash_encode = lambda x: bh2u(x[::-1])
-hash_decode = lambda x: bfh(x)[::-1]
-hmac_sha_512 = lambda x, y: hmac_oneshot(x, y, hashlib.sha512)
+def hash_encode(x: bytes) -> str:
+    return bh2u(x[::-1])
+
+
+def hash_decode(x: str) -> bytes:
+    return bfh(x)[::-1]
 
 
 ################################## electrum seeds
 
 
-def is_new_seed(x, prefix=version.SEED_PREFIX):
+def is_new_seed(x: str, prefix=version.SEED_PREFIX) -> bool:
     from . import mnemonic
     x = mnemonic.normalize_text(x)
-    s = bh2u(hmac_sha_512(b"Seed version", x.encode('utf8')))
+    s = bh2u(hmac_oneshot(b"Seed version", x.encode('utf8'), hashlib.sha512))
     return s.startswith(prefix)
 
 
-def is_old_seed(seed):
+def is_old_seed(seed: str) -> bool:
     from . import old_mnemonic, mnemonic
     seed = mnemonic.normalize_text(seed)
     words = seed.split()
@@ -195,7 +198,7 @@ def is_old_seed(seed):
     return is_hex or (uses_electrum_words and (len(words) == 12 or len(words) == 24))
 
 
-def seed_type(x):
+def seed_type(x: str) -> str:
     if is_old_seed(x):
         return 'old'
     elif is_new_seed(x):
@@ -206,29 +209,31 @@ def seed_type(x):
         return '2fa'
     return ''
 
-is_seed = lambda x: bool(seed_type(x))
+
+def is_seed(x: str) -> bool:
+    return bool(seed_type(x))
 
 
 ############ functions from pywallet #####################
 
-def hash160_to_b58_address(h160: bytes, addrtype):
-    s = bytes([addrtype])
-    s += h160
-    return base_encode(s+sha256d(s)[0:4], base=58)
+def hash160_to_b58_address(h160: bytes, addrtype: int) -> str:
+    s = bytes([addrtype]) + h160
+    s = s + sha256d(s)[0:4]
+    return base_encode(s, base=58)
 
 
-def b58_address_to_hash160(addr):
+def b58_address_to_hash160(addr: str) -> Tuple[int, bytes]:
     addr = to_bytes(addr, 'ascii')
     _bytes = base_decode(addr, 25, base=58)
     return _bytes[0], _bytes[1:21]
 
 
-def hash160_to_p2pkh(h160, *, net=None):
+def hash160_to_p2pkh(h160: bytes, *, net=None) -> str:
     if net is None:
         net = constants.net
     return hash160_to_b58_address(h160, net.ADDRTYPE_P2PKH)
 
-def hash160_to_p2sh(h160, *, net=None):
+def hash160_to_p2sh(h160: bytes, *, net=None) -> str:
     if net is None:
         net = constants.net
     return hash160_to_b58_address(h160, net.ADDRTYPE_P2SH)
@@ -236,26 +241,26 @@ def hash160_to_p2sh(h160, *, net=None):
 def public_key_to_p2pkh(public_key: bytes) -> str:
     return hash160_to_p2pkh(hash_160(public_key))
 
-def hash_to_segwit_addr(h, witver, *, net=None):
+def hash_to_segwit_addr(h: bytes, witver: int, *, net=None) -> str:
     if net is None:
         net = constants.net
     return segwit_addr.encode(net.SEGWIT_HRP, witver, h)
 
-def public_key_to_p2wpkh(public_key):
+def public_key_to_p2wpkh(public_key: bytes) -> str:
     return hash_to_segwit_addr(hash_160(public_key), witver=0)
 
-def script_to_p2wsh(script):
+def script_to_p2wsh(script: str) -> str:
     return hash_to_segwit_addr(sha256(bfh(script)), witver=0)
 
-def p2wpkh_nested_script(pubkey):
+def p2wpkh_nested_script(pubkey: str) -> str:
     pkh = bh2u(hash_160(bfh(pubkey)))
     return '00' + push_script(pkh)
 
-def p2wsh_nested_script(witness_script):
+def p2wsh_nested_script(witness_script: str) -> str:
     wsh = bh2u(sha256(bfh(witness_script)))
     return '00' + push_script(wsh)
 
-def pubkey_to_address(txin_type, pubkey):
+def pubkey_to_address(txin_type: str, pubkey: str) -> str:
     if txin_type == 'p2pkh':
         return public_key_to_p2pkh(bfh(pubkey))
     elif txin_type == 'p2wpkh':
@@ -266,7 +271,7 @@ def pubkey_to_address(txin_type, pubkey):
     else:
         raise NotImplementedError(txin_type)
 
-def redeem_script_to_address(txin_type, redeem_script):
+def redeem_script_to_address(txin_type: str, redeem_script: str) -> str:
     if txin_type == 'p2sh':
         return hash160_to_p2sh(hash_160(bfh(redeem_script)))
     elif txin_type == 'p2wsh':
@@ -278,19 +283,21 @@ def redeem_script_to_address(txin_type, redeem_script):
         raise NotImplementedError(txin_type)
 
 
-def script_to_address(script, *, net=None):
+def script_to_address(script: str, *, net=None) -> str:
     from .transaction import get_address_from_output_script
     t, addr = get_address_from_output_script(bfh(script), net=net)
     assert t == TYPE_ADDRESS
     return addr
 
-def address_to_script(addr, *, net=None):
+def address_to_script(addr: str, *, net=None) -> str:
     if net is None:
         net = constants.net
+    if not is_address(addr, net=net):
+        raise BitcoinException(f"invalid bitcoin address: {addr}")
     witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
     if witprog is not None:
         if not (0 <= witver <= 16):
-            raise BitcoinException('impossible witness version: {}'.format(witver))
+            raise BitcoinException(f'impossible witness version: {witver}')
         OP_n = witver + 0x50 if witver > 0 else 0
         script = bh2u(bytes([OP_n]))
         script += push_script(bh2u(bytes(witprog)))
@@ -305,18 +312,18 @@ def address_to_script(addr, *, net=None):
         script += push_script(bh2u(hash_160_))
         script += '87'                                       # op_equal
     else:
-        raise BitcoinException('unknown address type: {}'.format(addrtype))
+        raise BitcoinException(f'unknown address type: {addrtype}')
     return script
 
-def address_to_scripthash(addr):
+def address_to_scripthash(addr: str) -> str:
     script = address_to_script(addr)
     return script_to_scripthash(script)
 
-def script_to_scripthash(script):
-    h = sha256(bytes.fromhex(script))[0:32]
+def script_to_scripthash(script: str) -> str:
+    h = sha256(bfh(script))[0:32]
     return bh2u(bytes(reversed(h)))
 
-def public_key_to_p2pk_script(pubkey):
+def public_key_to_p2pk_script(pubkey: str) -> str:
     script = push_script(pubkey)
     script += 'ac'                                           # op_checksig
     return script
@@ -358,7 +365,7 @@ def base_encode(v: bytes, base: int) -> str:
     return result.decode('ascii')
 
 
-def base_decode(v, length, base):
+def base_decode(v: Union[bytes, str], length: Optional[int], base: int) -> Optional[bytes]:
     """ decode v into a string of len bytes."""
     # assert_bytes(v)
     v = to_bytes(v, 'ascii')
@@ -396,21 +403,20 @@ class InvalidChecksum(Exception):
     pass
 
 
-def EncodeBase58Check(vchIn):
+def EncodeBase58Check(vchIn: bytes) -> str:
     hash = sha256d(vchIn)
     return base_encode(vchIn + hash[0:4], base=58)
 
 
-def DecodeBase58Check(psz):
+def DecodeBase58Check(psz: Union[bytes, str]) -> bytes:
     vchRet = base_decode(psz, None, base=58)
-    key = vchRet[0:-4]
-    csum = vchRet[-4:]
-    hash = sha256d(key)
-    cs32 = hash[0:4]
-    if cs32 != csum:
-        raise InvalidChecksum('expected {}, actual {}'.format(bh2u(cs32), bh2u(csum)))
+    payload = vchRet[0:-4]
+    csum_found = vchRet[-4:]
+    csum_calculated = sha256d(payload)[0:4]
+    if csum_calculated != csum_found:
+        raise InvalidChecksum(f'calculated {bh2u(csum_calculated)}, found {bh2u(csum_found)}')
     else:
-        return key
+        return payload
 
 
 # backwards compat
@@ -482,36 +488,40 @@ def deserialize_privkey(key: str) -> Tuple[str, bytes, bool]:
     return txin_type, secret_bytes, compressed
 
 
-def is_compressed(sec):
+def is_compressed_privkey(sec: str) -> bool:
     return deserialize_privkey(sec)[2]
 
 
-def address_from_private_key(sec):
+def address_from_private_key(sec: str) -> str:
     txin_type, privkey, compressed = deserialize_privkey(sec)
     public_key = ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed)
     return pubkey_to_address(txin_type, public_key)
 
-def is_segwit_address(addr):
+def is_segwit_address(addr: str, *, net=None) -> bool:
+    if net is None: net = constants.net
     try:
-        witver, witprog = segwit_addr.decode(constants.net.SEGWIT_HRP, addr)
+        witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)
     except Exception as e:
         return False
     return witprog is not None
 
-def is_b58_address(addr):
+def is_b58_address(addr: str, *, net=None) -> bool:
+    if net is None: net = constants.net
     try:
         addrtype, h = b58_address_to_hash160(addr)
     except Exception as e:
         return False
-    if addrtype not in [constants.net.ADDRTYPE_P2PKH, constants.net.ADDRTYPE_P2SH]:
+    if addrtype not in [net.ADDRTYPE_P2PKH, net.ADDRTYPE_P2SH]:
         return False
     return addr == hash160_to_b58_address(h, addrtype)
 
-def is_address(addr):
-    return is_segwit_address(addr) or is_b58_address(addr)
+def is_address(addr: str, *, net=None) -> bool:
+    if net is None: net = constants.net
+    return is_segwit_address(addr, net=net) \
+           or is_b58_address(addr, net=net)
 
 
-def is_private_key(key):
+def is_private_key(key: str) -> bool:
     try:
         k = deserialize_privkey(key)
         return k is not False
@@ -521,7 +531,7 @@ def is_private_key(key):
 
 ########### end pywallet functions #######################
 
-def is_minikey(text):
+def is_minikey(text: str) -> bool:
     # Minikeys are typically 22 or 30 characters, but this routine
     # permits any length of 20 or more provided the minikey is valid.
     # A valid minikey must begin with an 'S', be in base58, and when
@@ -531,5 +541,5 @@ def is_minikey(text):
             and all(ord(c) in __b58chars for c in text)
             and sha256(text + '?')[0] == 0x00)
 
-def minikey_to_private_key(text):
+def minikey_to_private_key(text: str) -> bytes:
     return sha256(text)

@@ -36,8 +36,8 @@ import jsonrpclib
 from .jsonrpc import VerifyingJSONRPCServer
 from .version import ELECTRUM_VERSION
 from .network import Network
-from .util import json_decode, DaemonThread
-from .util import print_error, to_string
+from .util import (json_decode, DaemonThread, print_error, to_string,
+                   create_and_start_event_loop, profiler)
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .commands import known_commands, Commands
@@ -92,7 +92,7 @@ def get_server(config: SimpleConfig) -> Optional[jsonrpclib.Server]:
             server.ping()
             return server
         except Exception as e:
-            print_error("[get_server]", e)
+            print_error(f"failed to connect to JSON-RPC server: {e}")
         if not create_time or create_time < time.time() - 1.0:
             return None
         # Sleep a bit and try again; it might have just been started
@@ -121,16 +121,19 @@ def get_rpc_credentials(config: SimpleConfig) -> Tuple[str, str]:
 
 class Daemon(DaemonThread):
 
+    @profiler
     def __init__(self, config: SimpleConfig, fd=None, *, listen_jsonrpc=True):
         DaemonThread.__init__(self)
         self.config = config
         if fd is None and listen_jsonrpc:
             fd, server = get_fd_or_server(config)
             if fd is None: raise Exception('failed to lock daemon; already running?')
+        self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
         if config.get('offline'):
             self.network = None
         else:
             self.network = Network(config)
+            self.network._loop_thread = self._loop_thread
         self.fx = FxThread(config, self.network)
         if self.network:
             self.network.start([self.fx.run])
@@ -170,7 +173,7 @@ class Daemon(DaemonThread):
         return True
 
     def run_daemon(self, config_options):
-        asyncio.set_event_loop(self.network.asyncio_loop)  # FIXME what if self.network is None?
+        asyncio.set_event_loop(self.asyncio_loop)
         config = SimpleConfig(config_options)
         sub = config.get('subcommand')
         assert sub in [None, 'start', 'stop', 'status', 'load_wallet', 'close_wallet']
@@ -192,18 +195,18 @@ class Daemon(DaemonThread):
                 response = False
         elif sub == 'status':
             if self.network:
-                p = self.network.get_parameters()
+                net_params = self.network.get_parameters()
                 current_wallet = self.cmd_runner.wallet
                 current_wallet_path = current_wallet.storage.path \
                                       if current_wallet else None
                 response = {
                     'path': self.network.config.path,
-                    'server': p[0],
+                    'server': net_params.host,
                     'blockchain_height': self.network.get_local_height(),
                     'server_height': self.network.get_server_height(),
                     'spv_nodes': len(self.network.get_interfaces()),
                     'connected': self.network.is_connected(),
-                    'auto_connect': p[4],
+                    'auto_connect': net_params.auto_connect,
                     'version': ELECTRUM_VERSION,
                     'wallets': {k: w.is_up_to_date()
                                 for k, w in self.wallets.items()},
@@ -265,7 +268,7 @@ class Daemon(DaemonThread):
         wallet.stop_threads()
 
     def run_cmdline(self, config_options):
-        asyncio.set_event_loop(self.network.asyncio_loop)  # FIXME what if self.network is None?
+        asyncio.set_event_loop(self.asyncio_loop)
         password = config_options.get('password')
         new_password = config_options.get('new_password')
         config = SimpleConfig(config_options)
@@ -297,11 +300,15 @@ class Daemon(DaemonThread):
     def run(self):
         while self.is_running():
             self.server.handle_request() if self.server else time.sleep(0.1)
+        # stop network/wallets
         for k, wallet in self.wallets.items():
             wallet.stop_threads()
         if self.network:
             self.print_error("shutting down network")
             self.network.stop()
+        # stop event loop
+        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
+        self._loop_thread.join(timeout=1)
         self.on_stop()
 
     def stop(self):

@@ -39,7 +39,7 @@ from electrum.i18n import _
 from electrum.plugin import run_hook
 from electrum import simple_config
 from electrum.util import bfh
-from electrum.transaction import SerializationError
+from electrum.transaction import SerializationError, Transaction
 
 from .util import *
 
@@ -73,7 +73,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         # Take a copy; it might get updated in the main window by
         # e.g. the FX plugin.  If this happens during or after a long
         # sign operation the signatures are lost.
-        self.tx = tx = copy.deepcopy(tx)
+        self.tx = tx = copy.deepcopy(tx)  # type: Transaction
         try:
             self.tx.deserialize()
         except BaseException as e:
@@ -87,7 +87,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         # if the wallet can populate the inputs with more info, do it now.
         # as a result, e.g. we might learn an imported address tx is segwit,
         # in which case it's ok to display txid
-        self.wallet.add_input_info_to_all_inputs(tx)
+        tx.add_inputs_info(self.wallet)
 
         self.setMinimumWidth(950)
         self.setWindowTitle(_("Transaction"))

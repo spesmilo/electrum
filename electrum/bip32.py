@@ -127,7 +127,7 @@ def deserialize_xkey(xkey, prv, *, net=None):
     fingerprint = xkey[5:9]
     child_number = xkey[9:13]
     c = xkey[13:13+32]
-    header = int('0x' + bh2u(xkey[0:4]), 16)
+    header = int.from_bytes(xkey[0:4], byteorder='big')
     headers = net.XPRV_HEADERS if prv else net.XPUB_HEADERS
     if header not in headers.values():
         raise InvalidMasterKeyVersionBytes('Invalid extended key format: {}'
@@ -189,7 +189,7 @@ def xpub_from_pubkey(xtype, cK):
     return serialize_xpub(xtype, b'\x00'*32, cK)
 
 
-def bip32_derivation(s):
+def bip32_derivation(s: str) -> int:
     if not s.startswith('m/'):
         raise ValueError('invalid bip32 derivation path: {}'.format(s))
     s = s[2:]
@@ -216,7 +216,7 @@ def convert_bip32_path_to_list_of_uint32(n: str) -> List[int]:
         path.append(abs(int(x)) | prime)
     return path
 
-def is_bip32_derivation(x):
+def is_bip32_derivation(x: str) -> bool:
     try:
         [ i for i in bip32_derivation(x)]
         return True

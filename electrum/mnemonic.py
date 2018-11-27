@@ -74,7 +74,7 @@ def is_CJK(c):
     return False
 
 
-def normalize_text(seed):
+def normalize_text(seed: str) -> str:
     # normalize
     seed = unicodedata.normalize('NFKD', seed)
     # lower

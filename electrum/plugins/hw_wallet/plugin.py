@@ -27,7 +27,7 @@
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
 from electrum.bitcoin import is_address, TYPE_SCRIPT
-from electrum.util import bfh, versiontuple
+from electrum.util import bfh, versiontuple, UserFacingException
 from electrum.transaction import opcodes, TxOutput, Transaction
 
 
@@ -130,9 +130,9 @@ def trezor_validate_op_return_output_and_get_data(output: TxOutput) -> bytes:
     script = bfh(output.address)
     if not (script[0] == opcodes.OP_RETURN and
             script[1] == len(script) - 2 and script[1] <= 75):
-        raise Exception(_("Only OP_RETURN scripts, with one constant push, are supported."))
+        raise UserFacingException(_("Only OP_RETURN scripts, with one constant push, are supported."))
     if output.value != 0:
-        raise Exception(_("Amount for OP_RETURN output must be zero."))
+        raise UserFacingException(_("Amount for OP_RETURN output must be zero."))
     return script[2:]
 
 
