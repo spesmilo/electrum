@@ -23,49 +23,60 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from typing import Optional, List
+
 from electrum.i18n import _
 
 from .util import *
 
-
-class UTXOList(MyTreeWidget):
-    filter_columns = [0, 2]  # Address, Label
+class UTXOList(MyTreeView):
+    filter_columns = [0, 1]  # Address, Label
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')], 1)
+        super().__init__(parent, self.create_menu, 1)
+        self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
+        self.update()
 
-    def get_name(self, x):
-        return x.get('prevout_hash') + ":%d"%x.get('prevout_n')
-
-    def on_update(self):
+    def update(self):
         self.wallet = self.parent.wallet
-        item = self.currentItem()
-        self.clear()
-        self.utxos = self.wallet.get_utxos()
-        for x in self.utxos:
+        utxos = self.wallet.get_utxos()
+        self.utxo_dict = {}
+        self.model().clear()
+        self.update_headers([ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')])
+        for idx, x in enumerate(utxos):
             address = x.get('address')
             height = x.get('height')
-            name = self.get_name(x)
+            name = x.get('prevout_hash') + ":%d"%x.get('prevout_n')
+            self.utxo_dict[name] = x
             label = self.wallet.get_label(x.get('prevout_hash'))
             amount = self.parent.format_amount(x['value'], whitespaces=True)
-            utxo_item = SortableTreeWidgetItem([address, label, amount, '%d'%height, name[0:10] + '...' + name[-2:]])
-            utxo_item.setFont(0, QFont(MONOSPACE_FONT))
-            utxo_item.setFont(2, QFont(MONOSPACE_FONT))
-            utxo_item.setFont(4, QFont(MONOSPACE_FONT))
-            utxo_item.setData(0, Qt.UserRole, name)
+            labels = [address, label, amount, '%d'%height, name[0:10] + '...' + name[-2:]]
+            utxo_item = [QStandardItem(x) for x in labels]
+            self.set_editability(utxo_item)
+            utxo_item[0].setFont(QFont(MONOSPACE_FONT))
+            utxo_item[2].setFont(QFont(MONOSPACE_FONT))
+            utxo_item[4].setFont(QFont(MONOSPACE_FONT))
+            utxo_item[0].setData(name, Qt.UserRole)
             if self.wallet.is_frozen(address):
-                utxo_item.setBackground(0, ColorScheme.BLUE.as_color(True))
-            self.addChild(utxo_item)
+                utxo_item[0].setBackground(ColorScheme.BLUE.as_color(True))
+            self.model().insertRow(idx, utxo_item)
+
+    def selected_column_0_user_roles(self) -> Optional[List[str]]:
+        if not self.model():
+            return None
+        items = self.selected_in_column(0)
+        if not items:
+            return None
+        return [x.data(Qt.UserRole) for x in items]
 
     def create_menu(self, position):
-        selected = [x.data(0, Qt.UserRole) for x in self.selectedItems()]
+        selected = self.selected_column_0_user_roles()
         if not selected:
             return
         menu = QMenu()
-        coins = filter(lambda x: self.get_name(x) in selected, self.utxos)
-
+        coins = (self.utxo_dict[name] for name in selected)
         menu.addAction(_("Spend"), lambda: self.parent.spend_coins(coins))
         if len(selected) == 1:
             txid = selected[0].split(':')[0]
@@ -75,7 +86,3 @@ class UTXOList(MyTreeWidget):
                 menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, label))
 
         menu.exec_(self.viewport().mapToGlobal(position))
-
-    def on_permit_edit(self, item, column):
-        # disable editing fields in this tab (labels)
-        return False

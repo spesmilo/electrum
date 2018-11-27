@@ -34,67 +34,81 @@ from electrum.bitcoin import is_address
 from electrum.util import block_explorer_URL
 from electrum.plugin import run_hook
 
-from .util import MyTreeWidget, import_meta_gui, export_meta_gui
+from .util import MyTreeView, import_meta_gui, export_meta_gui
 
 
-class ContactList(MyTreeWidget):
+class ContactList(MyTreeView):
     filter_columns = [0, 1]  # Key, Value
 
     def __init__(self, parent):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Name'), _('Address')], 0, [0])
+        super().__init__(parent, self.create_menu, stretch_column=0, editable_columns=[0])
+        self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
+        self.update()
 
-    def on_permit_edit(self, item, column):
-        # openalias items shouldn't be editable
-        return item.text(1) != "openalias"
+    def on_edited(self, idx, user_role, text):
+        _type, prior_name = self.parent.contacts.pop(user_role)
 
-    def on_edited(self, item, column, prior):
-        if column == 0:  # Remove old contact if renamed
-            self.parent.contacts.pop(prior)
-        self.parent.set_contact(item.text(0), item.text(1))
+        # TODO when min Qt >= 5.11, use siblingAtColumn
+        col_1_sibling = idx.sibling(idx.row(), 1)
+        col_1_item = self.model().itemFromIndex(col_1_sibling)
+
+        self.parent.set_contact(text, col_1_item.text())
 
     def import_contacts(self):
-        import_meta_gui(self.parent, _('contacts'), self.parent.contacts.import_file, self.on_update)
+        import_meta_gui(self.parent, _('contacts'), self.parent.contacts.import_file, self.update)
 
     def export_contacts(self):
         export_meta_gui(self.parent, _('contacts'), self.parent.contacts.export_file)
 
     def create_menu(self, position):
         menu = QMenu()
-        selected = self.selectedItems()
-        if not selected:
+        selected = self.selected_in_column(0)
+        selected_keys = []
+        for idx in selected:
+            sel_key = self.model().itemFromIndex(idx).data(Qt.UserRole)
+            selected_keys.append(sel_key)
+        idx = self.indexAt(position)
+        if not selected or not idx.isValid():
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
             menu.addAction(_("Import file"), lambda: self.import_contacts())
             menu.addAction(_("Export file"), lambda: self.export_contacts())
         else:
-            names = [item.text(0) for item in selected]
-            keys = [item.text(1) for item in selected]
-            column = self.currentColumn()
-            column_title = self.headerItem().text(column)
-            column_data = '\n'.join([item.text(column) for item in selected])
+            column = idx.column()
+            column_title = self.model().horizontalHeaderItem(column).text()
+            column_data = '\n'.join(self.model().itemFromIndex(idx).text() for idx in selected)
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
             if column in self.editable_columns:
-                item = self.currentItem()
-                menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(item, column))
-            menu.addAction(_("Pay to"), lambda: self.parent.payto_contacts(keys))
-            menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(keys))
-            URLs = [block_explorer_URL(self.config, 'addr', key) for key in filter(is_address, keys)]
+                item = self.model().itemFromIndex(idx)
+                if item.isEditable():
+                    # would not be editable if openalias
+                    persistent = QPersistentModelIndex(idx)
+                    menu.addAction(_("Edit {}").format(column_title), lambda p=persistent: self.edit(QModelIndex(p)))
+            menu.addAction(_("Pay to"), lambda: self.parent.payto_contacts(selected_keys))
+            menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(selected_keys))
+            URLs = [block_explorer_URL(self.config, 'addr', key) for key in filter(is_address, selected_keys)]
             if URLs:
                 menu.addAction(_("View on block explorer"), lambda: map(webbrowser.open, URLs))
 
-        run_hook('create_contact_menu', menu, selected)
+        run_hook('create_contact_menu', menu, selected_keys)
         menu.exec_(self.viewport().mapToGlobal(position))
 
-    def on_update(self):
-        item = self.currentItem()
-        current_key = item.data(0, Qt.UserRole) if item else None
-        self.clear()
+    def update(self):
+        current_key = self.current_item_user_role(col=0)
+        self.model().clear()
+        self.update_headers([_('Name'), _('Address')])
+        set_current = None
         for key in sorted(self.parent.contacts.keys()):
-            _type, name = self.parent.contacts[key]
-            item = QTreeWidgetItem([name, key])
-            item.setData(0, Qt.UserRole, key)
-            self.addTopLevelItem(item)
+            contact_type, name = self.parent.contacts[key]
+            items = [QStandardItem(x) for x in (name, key)]
+            items[0].setEditable(contact_type != 'openalias')
+            items[1].setEditable(False)
+            items[0].setData(key, Qt.UserRole)
+            row_count = self.model().rowCount()
+            self.model().insertRow(row_count, items)
             if key == current_key:
-                self.setCurrentItem(item)
+                idx = self.model().index(row_count, 0)
+                set_current = QPersistentModelIndex(idx)
+        self.set_current_idx(set_current)
         run_hook('update_contacts_tab', self)
