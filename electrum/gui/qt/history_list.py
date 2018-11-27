@@ -266,7 +266,6 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
             item = SortableTreeWidgetItem(entry)
             item.setIcon(0, icon)
             item.setToolTip(0, str(conf) + " confirmation" + ("s" if conf != 1 else ""))
-            item.setData(0, SortableTreeWidgetItem.DataRole, (status, conf))
             if has_invoice:
                 item.setIcon(3, self.icon_cache.get(":icons/seal"))
             for i in range(len(entry)):
@@ -279,6 +278,15 @@ class HistoryList(MyTreeWidget, AcceptFileDragDrop):
                 item.setForeground(4, red_brush)
             if fiat_value is not None and not tx_item['fiat_default']:
                 item.setForeground(6, blue_brush)
+            # sort orders
+            item.setData(0, SortableTreeWidgetItem.DataRole, (status, conf))
+            item.setData(4, SortableTreeWidgetItem.DataRole, value_sat)
+            item.setData(5, SortableTreeWidgetItem.DataRole, balance)
+            if fiat_value is not None:
+                item.setData(6, SortableTreeWidgetItem.DataRole, fiat_value)
+                if value_sat < 0:
+                    item.setData(7, SortableTreeWidgetItem.DataRole, tx_item['acquisition_price'].value)
+                    item.setData(8, SortableTreeWidgetItem.DataRole, tx_item['capital_gain'].value)
             if tx_hash:
                 item.setData(0, self.TX_HASH_ROLE, tx_hash)
                 item.setData(0, self.TX_VALUE_ROLE, value_sat)
