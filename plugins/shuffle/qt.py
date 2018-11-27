@@ -300,6 +300,7 @@ class Plugin(BasePlugin):
                 msgBox.setText("Can't get password. Closing the pluging")
                 msgBox.exec_()
                 window.gui_object.plugins.toggle_internal_plugin('shuffle')
+                window.update_cashshuffle_icon()
                 return
             try:
                 window.wallet.check_password(password)
