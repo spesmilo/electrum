@@ -5,6 +5,7 @@ import platform
 import queue
 from functools import partial
 from typing import NamedTuple, Callable, Optional
+from abc import abstractmethod
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -398,20 +399,16 @@ class ElectrumItemDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         return self.parent().createEditor(parent, option, index)
 
-class MyTreeWidget(QTreeWidget):
+class MyTreeView(QTreeView):
 
-    def __init__(self, parent, create_menu, headers, stretch_column=None,
-                 editable_columns=None):
-        QTreeWidget.__init__(self, parent)
+    def __init__(self, parent, create_menu, stretch_column=None, editable_columns=None):
+        super().__init__(parent)
         self.parent = parent
         self.config = self.parent.config
         self.stretch_column = stretch_column
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(create_menu)
         self.setUniformRowHeights(True)
-        # extend the syntax for consistency
-        self.addChild = self.addTopLevelItem
-        self.insertChild = self.insertTopLevelItem
 
         self.icon_cache = IconCache()
 
@@ -424,127 +421,143 @@ class MyTreeWidget(QTreeWidget):
             editable_columns = set(editable_columns)
         self.editable_columns = editable_columns
         self.setItemDelegate(ElectrumItemDelegate(self))
-        self.itemDoubleClicked.connect(self.on_doubleclick)
-        self.update_headers(headers)
         self.current_filter = ""
 
         self.setRootIsDecorated(False)  # remove left margin
         self.toolbar_shown = False
 
-    def update_headers(self, headers):
-        self.setColumnCount(len(headers))
-        self.setHeaderLabels(headers)
+    def set_editability(self, items):
+        for idx, i in enumerate(items):
+            i.setEditable(idx in self.editable_columns)
+
+    def selected_in_column(self, column: int):
+        items = self.selectionModel().selectedIndexes()
+        return list(x for x in items if x.column() == column)
+
+    def current_item_user_role(self, col) -> Optional[QStandardItem]:
+        idx = self.selectionModel().currentIndex()
+        idx = idx.sibling(idx.row(), col)
+        item = self.model().itemFromIndex(idx)
+        if item:
+            return item.data(Qt.UserRole)
+
+    def set_current_idx(self, set_current: QPersistentModelIndex):
+        if set_current:
+            assert isinstance(set_current, QPersistentModelIndex)
+            assert set_current.isValid()
+            self.selectionModel().select(QModelIndex(set_current), QItemSelectionModel.SelectCurrent)
+
+    def update_headers(self, headers, model=None):
+        if model is None:
+            model = self.model()
+        model.setHorizontalHeaderLabels(headers)
         self.header().setStretchLastSection(False)
         for col in range(len(headers)):
             sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
             self.header().setSectionResizeMode(col, sm)
 
-    def editItem(self, item, column):
-        if column in self.editable_columns:
-            try:
-                self.editing_itemcol = (item, column, item.text(column))
-                # Calling setFlags causes on_changed events for some reason
-                item.setFlags(item.flags() | Qt.ItemIsEditable)
-                QTreeWidget.editItem(self, item, column)
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-            except RuntimeError:
-                # (item) wrapped C/C++ object has been deleted
-                pass
-
     def keyPressEvent(self, event):
         if event.key() in [ Qt.Key_F2, Qt.Key_Return ] and self.editor is None:
-            self.on_activated(self.currentItem(), self.currentColumn())
-        else:
-            QTreeWidget.keyPressEvent(self, event)
+            self.on_activated(self.selectionModel().currentIndex())
+            return
+        super().keyPressEvent(event)
 
-    def permit_edit(self, item, column):
-        return (column in self.editable_columns
-                and self.on_permit_edit(item, column))
-
-    def on_permit_edit(self, item, column):
-        return True
-
-    def on_doubleclick(self, item, column):
-        if self.permit_edit(item, column):
-            self.editItem(item, column)
-
-    def on_activated(self, item, column):
+    def on_activated(self, idx):
         # on 'enter' we show the menu
-        pt = self.visualItemRect(item).bottomLeft()
+        pt = self.visualRect(idx).bottomLeft()
         pt.setX(50)
         self.customContextMenuRequested.emit(pt)
 
     def createEditor(self, parent, option, index):
         self.editor = QStyledItemDelegate.createEditor(self.itemDelegate(),
                                                        parent, option, index)
-        self.editor.editingFinished.connect(self.editing_finished)
+        persistent = QPersistentModelIndex(index)
+        user_role = index.data(Qt.UserRole)
+        assert user_role is not None
+        idx = QModelIndex(persistent)
+        index = self.proxy.mapToSource(idx)
+        item = self.std_model.itemFromIndex(index)
+        prior_text = item.text()
+        def editing_finished():
+            # Long-time QT bug - pressing Enter to finish editing signals
+            # editingFinished twice.  If the item changed the sequence is
+            # Enter key:  editingFinished, on_change, editingFinished
+            # Mouse: on_change, editingFinished
+            # This mess is the cleanest way to ensure we make the
+            # on_edited callback with the updated item
+            if self.editor is None:
+                return
+            if self.editor.text() == prior_text:
+                self.editor = None # Unchanged - ignore any 2nd call
+                return
+            if item.text() == prior_text:
+                return # Buggy first call on Enter key, item not yet updated
+            if not idx.isValid():
+                return
+            self.on_edited(idx, user_role, self.editor.text())
+            self.editor = None
+        self.editor.editingFinished.connect(editing_finished)
         return self.editor
 
-    def editing_finished(self):
-        # Long-time QT bug - pressing Enter to finish editing signals
-        # editingFinished twice.  If the item changed the sequence is
-        # Enter key:  editingFinished, on_change, editingFinished
-        # Mouse: on_change, editingFinished
-        # This mess is the cleanest way to ensure we make the
-        # on_edited callback with the updated item
-        if self.editor:
-            (item, column, prior_text) = self.editing_itemcol
-            if self.editor.text() == prior_text:
-                self.editor = None  # Unchanged - ignore any 2nd call
-            elif item.text(column) == prior_text:
-                pass # Buggy first call on Enter key, item not yet updated
-            else:
-                # What we want - the updated item
-                self.on_edited(*self.editing_itemcol)
-                self.editor = None
+    def edit(self, idx, trigger=QAbstractItemView.AllEditTriggers, event=None):
+        """
+        this is to prevent:
+           edit: editing failed
+        from inside qt
+        """
+        return super().edit(idx, trigger, event)
 
-            # Now do any pending updates
-            if self.editor is None and self.pending_update:
-                self.pending_update = False
-                self.on_update()
-
-    def on_edited(self, item, column, prior):
-        '''Called only when the text actually changes'''
-        key = item.data(0, Qt.UserRole)
-        text = item.text(column)
-        self.parent.wallet.set_label(key, text)
+    def on_edited(self, idx: QModelIndex, user_role, text):
+        self.parent.wallet.set_label(user_role, text)
         self.parent.history_list.update_labels()
         self.parent.update_completions()
 
-    def update(self):
-        # Defer updates if editing
-        if self.editor:
-            self.pending_update = True
-        else:
-            self.setUpdatesEnabled(False)
-            scroll_pos = self.verticalScrollBar().value()
-            self.on_update()
-            self.setUpdatesEnabled(True)
-            # To paint the list before resetting the scroll position
-            self.parent.app.processEvents()
-            self.verticalScrollBar().setValue(scroll_pos)
+    def apply_filter(self):
         if self.current_filter:
             self.filter(self.current_filter)
 
-    def on_update(self):
+    @abstractmethod
+    def should_hide(self, row):
+        """
+        row_num is for self.model(). So if there is a proxy, it is the row number
+        in that!
+        """
         pass
 
-    def get_leaves(self, root):
-        child_count = root.childCount()
-        if child_count == 0:
-            yield root
-        for i in range(child_count):
-            item = root.child(i)
-            for x in self.get_leaves(item):
-                yield x
+    def hide_row(self, row_num):
+        """
+        row_num is for self.model(). So if there is a proxy, it is the row number
+        in that!
+        """
+        should_hide = self.should_hide(row_num)
+        if not self.current_filter and should_hide is None:
+            # no filters at all, neither date nor search
+            self.setRowHidden(row_num, QModelIndex(), False)
+            return
+        for column in self.filter_columns:
+            if isinstance(self.model(), QSortFilterProxyModel):
+                idx = self.model().mapToSource(self.model().index(row_num, column))
+                item = self.model().sourceModel().itemFromIndex(idx)
+            else:
+                idx = self.model().index(row_num, column)
+                item = self.model().itemFromIndex(idx)
+            txt = item.text().lower()
+            if self.current_filter in txt:
+                # the filter matched, but the date filter might apply
+                self.setRowHidden(row_num, QModelIndex(), bool(should_hide))
+                break
+        else:
+            # we did not find the filter in any columns, show the item
+            self.setRowHidden(row_num, QModelIndex(), True)
 
     def filter(self, p):
-        columns = self.__class__.filter_columns
         p = p.lower()
         self.current_filter = p
-        for item in self.get_leaves(self.invisibleRootItem()):
-            item.setHidden(all([item.text(column).lower().find(p) == -1
-                                for column in columns]))
+        self.hide_rows()
+
+    def hide_rows(self):
+        for row in range(self.model().rowCount()):
+            self.hide_row(row)
 
     def create_toolbar(self, config=None):
         hbox = QHBoxLayout()
@@ -790,22 +803,6 @@ def get_parent_main_window(widget):
             return widget
     return None
 
-class SortableTreeWidgetItem(QTreeWidgetItem):
-    DataRole = Qt.UserRole + 100
-
-    def __lt__(self, other):
-        column = self.treeWidget().sortColumn()
-        if None not in [x.data(column, self.DataRole) for x in [self, other]]:
-            # We have set custom data to sort by
-            return self.data(column, self.DataRole) < other.data(column, self.DataRole)
-        try:
-            # Is the value something numeric?
-            return float(self.text(column)) < float(other.text(column))
-        except ValueError:
-            # If not, we will just do string comparison
-            return self.text(column) < other.text(column)
-
-
 class IconCache:
 
     def __init__(self):
@@ -821,6 +818,21 @@ def get_default_language():
     name = QLocale.system().name()
     return name if name in languages else 'en_UK'
 
+class FromList(QTreeWidget):
+    def __init__(self, parent, create_menu):
+        super().__init__(parent)
+        self.setHeaderHidden(True)
+        self.setMaximumHeight(300)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(create_menu)
+        self.setUniformRowHeights(True)
+        # remove left margin
+        self.setRootIsDecorated(False)
+        self.setColumnCount(2)
+        self.header().setStretchLastSection(False)
+        sm = QHeaderView.ResizeToContents
+        self.header().setSectionResizeMode(0, sm)
+        self.header().setSectionResizeMode(1, sm)
 
 if __name__ == "__main__":
     app = QApplication([])

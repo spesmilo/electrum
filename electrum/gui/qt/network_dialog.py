@@ -100,7 +100,6 @@ class NodesListWidget(QTreeWidget):
 
     def update(self, network: Network):
         self.clear()
-        self.addChild = self.addTopLevelItem
         chains = network.get_blockchains()
         n_chains = len(chains)
         for chain_id, interfaces in chains.items():
@@ -118,7 +117,7 @@ class NodesListWidget(QTreeWidget):
                 item = QTreeWidgetItem([i.host + star, '%d'%i.tip])
                 item.setData(0, Qt.UserRole, 0)
                 item.setData(1, Qt.UserRole, i.server)
-                x.addChild(item)
+                x.addTopLevelItem(item)
             if n_chains > 1:
                 self.addTopLevelItem(x)
                 x.setExpanded(True)
