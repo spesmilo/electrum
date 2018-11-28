@@ -432,7 +432,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return slayout.is_ext
 
     def pw_layout(self, msg, kind, force_disable_encrypt_cb):
-        playout = PasswordLayout(None, msg, kind, self.next_button,
+        playout = PasswordLayout(msg=msg, kind=kind, OK_button=self.next_button,
                                  force_disable_encrypt_cb=force_disable_encrypt_cb)
         playout.encrypt_cb.setChecked(True)
         self.exec_layout(playout.layout())
@@ -446,7 +446,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     @wizard_dialog
     def request_storage_encryption(self, run_next):
-        playout = PasswordLayoutForHW(None, MSG_HW_STORAGE_ENCRYPTION, PW_NEW, self.next_button)
+        playout = PasswordLayoutForHW(MSG_HW_STORAGE_ENCRYPTION)
         playout.encrypt_cb.setChecked(True)
         self.exec_layout(playout.layout())
         return playout.encrypt_cb.isChecked()
