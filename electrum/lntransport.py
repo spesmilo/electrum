@@ -5,16 +5,9 @@
 
 # Derived from https://gist.github.com/AdamISZ/046d05c156aaeb56cc897f85eecb3eb8
 
-import sys
 import hashlib
 from asyncio import StreamReader, StreamWriter
-
-try:
-    from Cryptodome.Cipher import ChaCha20_Poly1305
-except Exception as e:
-    print(e)
-    print("Error: pycryptodomex >= 3.7 not available.")
-    sys.exit(1)
+from Cryptodome.Cipher import ChaCha20_Poly1305
 
 from .crypto import sha256, hmac_oneshot
 from .lnutil import (get_ecdh, privkey_to_pubkey, LightningPeerConnectionClosed,

@@ -23,17 +23,11 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys
 import hashlib
 from typing import Sequence, List, Tuple, NamedTuple, TYPE_CHECKING
 from enum import IntEnum, IntFlag
+from Cryptodome.Cipher import ChaCha20
 
-try:
-    from Cryptodome.Cipher import ChaCha20
-except Exception as e:
-    print(e)
-    print("Error: pycryptodomex >= 3.7 not available.")
-    sys.exit(1)
 
 from . import ecc
 from .crypto import sha256, hmac_oneshot
