@@ -482,8 +482,8 @@ class TrustedCoinPlugin(BasePlugin):
 
     def choose_seed_type(self, wizard):
         choices = [
-            ('create_2fa_seed', _('Standard 2FA')),
             ('create_2fa_segwit_seed', _('Segwit 2FA')),
+            ('create_2fa_seed', _('Legacy 2FA')),
         ]
         wizard.choose_seed_type(choices=choices)
 
