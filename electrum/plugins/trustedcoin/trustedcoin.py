@@ -34,9 +34,9 @@ from urllib.parse import quote
 from aiohttp import ClientResponse
 
 from electrum import ecc, constants, keystore, version, bip32
-from electrum.bitcoin import TYPE_ADDRESS, is_new_seed, public_key_to_p2pkh
+from electrum.bitcoin import TYPE_ADDRESS, is_new_seed, public_key_to_p2pkh, seed_type, is_any_2fa_seed_type
 from electrum.bip32 import (deserialize_xpub, deserialize_xprv, bip32_private_key, CKD_pub,
-                            serialize_xpub, bip32_root, bip32_private_derivation)
+                            serialize_xpub, bip32_root, bip32_private_derivation, xpub_type)
 from electrum.crypto import sha256
 from electrum.transaction import TxOutput
 from electrum.mnemonic import Mnemonic
@@ -47,12 +47,20 @@ from electrum.util import NotEnoughFunds
 from electrum.storage import STO_EV_USER_PW
 from electrum.network import Network
 
-# signing_xpub is hardcoded so that the wallet can be restored from seed, without TrustedCoin's server
-def get_signing_xpub():
-    if constants.net.TESTNET:
-        return "tpubD6NzVbkrYhZ4XdmyJQcCPjQfg6RXVUzGFhPjZ7uvRC8JLcS7Hw1i7UTpyhp9grHpak4TyK2hzBJrujDVLXQ6qB5tNpVx9rC6ixijUXadnmY"
+def get_signing_xpub(xtype):
+    if xtype == 'standard':
+        if constants.net.TESTNET:
+            return "tpubD6NzVbkrYhZ4XdmyJQcCPjQfg6RXVUzGFhPjZ7uvRC8JLcS7Hw1i7UTpyhp9grHpak4TyK2hzBJrujDVLXQ6qB5tNpVx9rC6ixijUXadnmY"
+        else:
+            return "xpub661MyMwAqRbcGnMkaTx2594P9EDuiEqMq25PM2aeG6UmwzaohgA6uDmNsvSUV8ubqwA3Wpste1hg69XHgjUuCD5HLcEp2QPzyV1HMrPppsL"
+    elif xtype == 'p2wsh':
+        # TODO these are temp xpubs
+        if constants.net.TESTNET:
+            return "Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf"
+        else:
+            return "Zpub6xwgqLvc42wXB1wEELTdALD9iXwStMUkGqBgxkJFYumaL2dWgNvUkjEDWyDFZD3fZuDWDzd1KQJ4NwVHS7hs6H6QkpNYSShfNiUZsgMdtNg"
     else:
-        return "xpub661MyMwAqRbcGnMkaTx2594P9EDuiEqMq25PM2aeG6UmwzaohgA6uDmNsvSUV8ubqwA3Wpste1hg69XHgjUuCD5HLcEp2QPzyV1HMrPppsL"
+        raise NotImplementedError('xtype: {}'.format(xtype))
 
 def get_billing_xpub():
     if constants.net.TESTNET:
@@ -60,7 +68,6 @@ def get_billing_xpub():
     else:
         return "xpub6DTBdtBB8qUmH5c77v8qVGVoYk7WjJNpGvutqjLasNG1mbux6KsojaLrYf2sRhXAVU4NaFuHhbD9SvVPRt1MB1MaMooRuhHcAZH1yhQ1qDU"
 
-SEED_PREFIX = version.SEED_PREFIX_2FA
 
 DISCLAIMER = [
     _("Two-factor authentication is a service provided by TrustedCoin.  "
@@ -377,7 +384,8 @@ class TrustedCoinPlugin(BasePlugin):
 
     @staticmethod
     def is_valid_seed(seed):
-        return is_new_seed(seed, SEED_PREFIX)
+        t = seed_type(seed)
+        return is_any_2fa_seed_type(t)
 
     def is_available(self):
         return True
@@ -449,8 +457,10 @@ class TrustedCoinPlugin(BasePlugin):
             t.start()
             return t
 
-    def make_seed(self):
-        return Mnemonic('english').make_seed(seed_type='2fa', num_bits=128)
+    def make_seed(self, seed_type):
+        if not is_any_2fa_seed_type(seed_type):
+            raise BaseException('unexpected seed type: {}'.format(seed_type))
+        return Mnemonic('english').make_seed(seed_type=seed_type, num_bits=128)
 
     @hook
     def do_clear(self, window):
@@ -465,25 +475,41 @@ class TrustedCoinPlugin(BasePlugin):
         title = _('Create or restore')
         message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
         choices = [
-            ('create_seed', _('Create a new seed')),
+            ('choose_seed_type', _('Create a new seed')),
             ('restore_wallet', _('I already have a seed')),
         ]
         wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
 
-    def create_seed(self, wizard):
-        seed = self.make_seed()
+    def choose_seed_type(self, wizard):
+        choices = [
+            ('create_2fa_seed', _('Standard 2FA')),
+            ('create_2fa_segwit_seed', _('Segwit 2FA')),
+        ]
+        wizard.choose_seed_type(choices=choices)
+
+    def create_2fa_seed(self, wizard): self.create_seed(wizard, '2fa')
+    def create_2fa_segwit_seed(self, wizard): self.create_seed(wizard, '2fa_segwit')
+
+    def create_seed(self, wizard, seed_type):
+        seed = self.make_seed(seed_type)
         f = lambda x: wizard.request_passphrase(seed, x)
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
     @classmethod
     def get_xkeys(self, seed, passphrase, derivation):
+        t = seed_type(seed)
+        assert is_any_2fa_seed_type(t)
+        xtype = 'standard' if t == '2fa' else 'p2wsh'
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
-        xprv, xpub = bip32_root(bip32_seed, 'standard')
+        xprv, xpub = bip32_root(bip32_seed, xtype)
         xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
         return xprv, xpub
 
     @classmethod
     def xkeys_from_seed(self, seed, passphrase):
+        t = seed_type(seed)
+        if not is_any_2fa_seed_type(t):
+            raise BaseException('unexpected seed type: {}'.format(t))
         words = seed.split()
         n = len(words)
         # old version use long seed phrases
@@ -495,7 +521,7 @@ class TrustedCoinPlugin(BasePlugin):
                 raise Exception('old 2fa seed cannot have passphrase')
             xprv1, xpub1 = self.get_xkeys(' '.join(words[0:12]), '', "m/")
             xprv2, xpub2 = self.get_xkeys(' '.join(words[12:]), '', "m/")
-        elif n==12:
+        elif not t == '2fa' or n == 12:
             xprv1, xpub1 = self.get_xkeys(seed, passphrase, "m/0'/")
             xprv2, xpub2 = self.get_xkeys(seed, passphrase, "m/1'/")
         else:
@@ -561,7 +587,8 @@ class TrustedCoinPlugin(BasePlugin):
         storage.put('x1/', k1.dump())
         storage.put('x2/', k2.dump())
         long_user_id, short_id = get_user_id(storage)
-        xpub3 = make_xpub(get_signing_xpub(), long_user_id)
+        xtype = xpub_type(xpub1)
+        xpub3 = make_xpub(get_signing_xpub(xtype), long_user_id)
         k3 = keystore.from_xpub(xpub3)
         storage.put('x3/', k3.dump())
 
@@ -578,7 +605,8 @@ class TrustedCoinPlugin(BasePlugin):
         xpub2 = wizard.storage.get('x2/')['xpub']
         # Generate third key deterministically.
         long_user_id, short_id = get_user_id(wizard.storage)
-        xpub3 = make_xpub(get_signing_xpub(), long_user_id)
+        xtype = xpub_type(xpub1)
+        xpub3 = make_xpub(get_signing_xpub(xtype), long_user_id)
         # secret must be sent by the server
         try:
             r = server.create(xpub1, xpub2, email)
