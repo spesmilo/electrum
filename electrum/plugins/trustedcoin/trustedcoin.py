@@ -28,13 +28,15 @@ import json
 import base64
 import time
 import hashlib
+from collections import defaultdict
+from typing import Dict
 
 from urllib.parse import urljoin
 from urllib.parse import quote
 from aiohttp import ClientResponse
 
-from electrum import ecc, constants, keystore, version, bip32
-from electrum.bitcoin import TYPE_ADDRESS, is_new_seed, public_key_to_p2pkh, seed_type, is_any_2fa_seed_type
+from electrum import ecc, constants, keystore, version, bip32, bitcoin
+from electrum.bitcoin import TYPE_ADDRESS, is_new_seed, seed_type, is_any_2fa_seed_type
 from electrum.bip32 import (deserialize_xpub, deserialize_xprv, bip32_private_key, CKD_pub,
                             serialize_xpub, bip32_root, bip32_private_derivation, xpub_type)
 from electrum.crypto import sha256
@@ -244,14 +246,18 @@ class Wallet_2fa(Multisig_Wallet):
         self.is_billing = False
         self.billing_info = None
         self._load_billing_addresses()
+        self.plugin = None  # type: TrustedCoinPlugin
 
     def _load_billing_addresses(self):
         billing_addresses = self.storage.get('trustedcoin_billing_addresses', {})
-        self._billing_addresses = {}  # index -> addr
-        # convert keys from str to int
-        for index, addr in list(billing_addresses.items()):
-            self._billing_addresses[int(index)] = addr
-        self._billing_addresses_set = set(self._billing_addresses.values())  # set of addrs
+        self._billing_addresses = defaultdict(dict)  # type: Dict[str, Dict[int, str]]  # addr_type -> index -> addr
+        self._billing_addresses_set = set()  # set of addrs
+        for addr_type, d in list(billing_addresses.items()):
+            self._billing_addresses[addr_type] = {}
+            # convert keys from str to int
+            for index, addr in d.items():
+                self._billing_addresses[addr_type][int(index)] = addr
+                self._billing_addresses_set.add(addr)
 
     def can_sign_without_server(self):
         return not self.keystores['x2/'].is_watching_only()
@@ -291,7 +297,7 @@ class Wallet_2fa(Multisig_Wallet):
             self, coins, o, config, fixed_fee, change_addr)
         fee = self.extra_fee(config) if not is_sweep else 0
         if fee:
-            address = self.billing_info['billing_address']
+            address = self.billing_info['billing_address_segwit']
             fee_output = TxOutput(TYPE_ADDRESS, address, fee)
             try:
                 tx = mk_tx(outputs + [fee_output])
@@ -322,8 +328,9 @@ class Wallet_2fa(Multisig_Wallet):
         self.billing_info = None
         self.plugin.start_request_thread(self)
 
-    def add_new_billing_address(self, billing_index: int, address: str):
-        saved_addr = self._billing_addresses.get(billing_index)
+    def add_new_billing_address(self, billing_index: int, address: str, addr_type: str):
+        billing_addresses_of_this_type = self._billing_addresses[addr_type]
+        saved_addr = billing_addresses_of_this_type.get(billing_index)
         if saved_addr is not None:
             if saved_addr == address:
                 return  # already saved this address
@@ -332,15 +339,16 @@ class Wallet_2fa(Multisig_Wallet):
                                 'for index {}, already saved {}, now got {}'
                                 .format(billing_index, saved_addr, address))
         # do we have all prior indices? (are we synced?)
-        largest_index_we_have = max(self._billing_addresses) if self._billing_addresses else -1
+        largest_index_we_have = max(billing_addresses_of_this_type) if billing_addresses_of_this_type else -1
         if largest_index_we_have + 1 < billing_index:  # need to sync
             for i in range(largest_index_we_have + 1, billing_index):
-                addr = make_billing_address(self, i)
-                self._billing_addresses[i] = addr
+                addr = make_billing_address(self, i, addr_type=addr_type)
+                billing_addresses_of_this_type[i] = addr
                 self._billing_addresses_set.add(addr)
         # save this address; and persist to disk
-        self._billing_addresses[billing_index] = address
+        billing_addresses_of_this_type[billing_index] = address
         self._billing_addresses_set.add(address)
+        self._billing_addresses[addr_type] = billing_addresses_of_this_type
         self.storage.put('trustedcoin_billing_addresses', self._billing_addresses)
         # FIXME this often runs in a daemon thread, where storage.write will fail
         self.storage.write()
@@ -365,12 +373,17 @@ def make_xpub(xpub, s):
     cK2, c2 = bip32._CKD_pub(cK, c, s)
     return serialize_xpub(version, c2, cK2)
 
-def make_billing_address(wallet, num):
+def make_billing_address(wallet, num, addr_type):
     long_id, short_id = wallet.get_user_id()
     xpub = make_xpub(get_billing_xpub(), long_id)
     version, _, _, _, c, cK = deserialize_xpub(xpub)
     cK, c = CKD_pub(cK, c, num)
-    return public_key_to_p2pkh(cK)
+    if addr_type == 'legacy':
+        return bitcoin.public_key_to_p2pkh(cK)
+    elif addr_type == 'segwit':
+        return bitcoin.public_key_to_p2wpkh(cK)
+    else:
+        raise ValueError(f'unexpected billing type: {addr_type}')
 
 
 class TrustedCoinPlugin(BasePlugin):
@@ -428,7 +441,7 @@ class TrustedCoinPlugin(BasePlugin):
         return f
 
     @finish_requesting
-    def request_billing_info(self, wallet):
+    def request_billing_info(self, wallet: 'Wallet_2fa'):
         if wallet.can_sign_without_server():
             return
         self.print_error("request billing info")
@@ -438,11 +451,16 @@ class TrustedCoinPlugin(BasePlugin):
             self.print_error('cannot connect to TrustedCoin server: {}'.format(repr(e)))
             return
         billing_index = billing_info['billing_index']
-        billing_address = make_billing_address(wallet, billing_index)
-        if billing_address != billing_info['billing_address']:
-            raise Exception('unexpected trustedcoin billing address: expected {}, received {}'
-                            .format(billing_address, billing_info['billing_address']))
-        wallet.add_new_billing_address(billing_index, billing_address)
+        # add segwit billing address; this will be used for actual billing
+        billing_address = make_billing_address(wallet, billing_index, addr_type='segwit')
+        if billing_address != billing_info['billing_address_segwit']:
+            raise Exception(f'unexpected trustedcoin billing address: '
+                            f'calculated {billing_address}, received {billing_info["billing_address_segwit"]}')
+        wallet.add_new_billing_address(billing_index, billing_address, addr_type='segwit')
+        # also add legacy billing address; only used for detecting past payments in GUI
+        billing_address = make_billing_address(wallet, billing_index, addr_type='legacy')
+        wallet.add_new_billing_address(billing_index, billing_address, addr_type='legacy')
+
         wallet.billing_info = billing_info
         wallet.price_per_tx = dict(billing_info['price_per_tx'])
         wallet.price_per_tx.pop(1, None)
