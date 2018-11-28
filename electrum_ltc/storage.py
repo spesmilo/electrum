@@ -125,7 +125,7 @@ class JsonDB(PrintError):
         # perform atomic write on POSIX systems
         try:
             os.rename(temp_path, self.path)
-        except:
+        except OSError:
             os.remove(self.path)
             os.rename(temp_path, self.path)
         os.chmod(self.path, mode)

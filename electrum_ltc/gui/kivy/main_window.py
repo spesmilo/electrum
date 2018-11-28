@@ -126,10 +126,12 @@ class ElectrumWindow(App):
         chains = self.network.get_blockchains()
         def cb(name):
             with blockchain.blockchains_lock: blockchain_items = list(blockchain.blockchains.items())
-            for index, b in blockchain_items:
+            for chain_id, b in blockchain_items:
                 if name == b.get_name():
-                    self.network.run_from_another_thread(self.network.follow_chain_given_id(index))
-        names = [blockchain.blockchains[b].get_name() for b in chains]
+                    self.network.run_from_another_thread(self.network.follow_chain_given_id(chain_id))
+        chain_objects = [blockchain.blockchains.get(chain_id) for chain_id in chains]
+        chain_objects = filter(lambda b: b is not None, chain_objects)
+        names = [b.get_name() for b in chain_objects]
         if len(names) > 1:
             cur_chain = self.network.blockchain().get_name()
             ChoiceDialog(_('Choose your chain'), names, cur_chain, cb).open()
