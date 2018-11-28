@@ -16,6 +16,7 @@ export PYTHONHASHSEED=22
 VERSION=`git describe --tags --dirty --always`
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
+which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
 
 # Code Signing: See https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Procedures/Procedures.html
 APP_SIGN=""
@@ -86,6 +87,14 @@ make
 popd
 cp $BUILDDIR/secp256k1/.libs/libsecp256k1.0.dylib contrib/build-osx
 DoCodeSignMaybe "libsecp256k1" "contrib/build-osx/libsecp256k1.0.dylib" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+
+info "Building CalinsQRReader..."
+d=contrib/CalinsQRReader
+pushd $d
+rm -fr build
+xcodebuild || fail "Could not build CalinsQRReader"
+popd
+DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 
 info "Installing requirements..."
