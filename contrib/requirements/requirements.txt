@@ -10,3 +10,4 @@ aiorpcx>=0.9,<0.11
 aiohttp
 aiohttp_socks
 bitstring
+pycryptodomex>=3.7
