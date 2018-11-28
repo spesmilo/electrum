@@ -1185,6 +1185,9 @@ class Abstract_Wallet(AddressSynchronizer):
         """
         if txin_value is None:
             return Decimal('NaN')
+        # FIXME: this mutual recursion will be really slow and might even reach
+        # max recursion depth if there are no FX rates available as then
+        # nothing will be cached.
         cache_key = "{}:{}:{}".format(str(txid), str(ccy), str(txin_value))
         result = self.coin_price_cache.get(cache_key, None)
         if result is not None:
