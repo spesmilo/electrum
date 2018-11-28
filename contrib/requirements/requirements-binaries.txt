@@ -1,2 +1,2 @@
 PyQt5
-pycryptodomex
+pycryptodomex>=3.7

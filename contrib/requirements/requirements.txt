@@ -10,3 +10,4 @@ aiohttp
 aiohttp_socks
 certifi
 bitstring
+pycryptodomex>=3.7
