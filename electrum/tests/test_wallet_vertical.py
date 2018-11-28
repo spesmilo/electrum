@@ -4,7 +4,7 @@ import tempfile
 from typing import Sequence
 import asyncio
 
-from electrum import storage, bitcoin, keystore
+from electrum import storage, bitcoin, keystore, bip32
 from electrum import Transaction
 from electrum import SimpleConfig
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
@@ -178,7 +178,7 @@ class TestWalletKeystoreAddressIntegrityForMainnet(SequentialTestCase):
         long_user_id, short_id = trustedcoin.get_user_id(
             {'x1/': {'xpub': xpub1},
              'x2/': {'xpub': xpub2}})
-        xtype = bitcoin.xpub_type(xpub1)
+        xtype = bip32.xpub_type(xpub1)
         xpub3 = trustedcoin.make_xpub(trustedcoin.get_signing_xpub(xtype), long_user_id)
         ks3 = keystore.from_xpub(xpub3)
         WalletIntegrityHelper.check_xpub_keystore_sanity(self, ks3)
