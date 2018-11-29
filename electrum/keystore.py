@@ -80,7 +80,7 @@ class KeyStore(PrintError):
     def _get_derivations_for_psbt(self, psbt: PSBT):
         raise NotImplementedError('to be subclassed')
 
-    def get_tx_derivations(self, tx):
+    def get_tx_derivations(self, tx: Union[PSBT, Transaction]):
         keypairs = {}
         # TODO: fix this PSBT mess
         if isinstance(tx, PSBT):
@@ -423,19 +423,8 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         pubkey = get_pubkey_from_xpub(nxpub, [])
         return pubkey
 
-    # def get_tx_derivations(self, tx):
-    #     keypairs = {}
-    #     for inp in tx.input_sections:
-    #         for pubkey, data in inp.bip32_derivation.items():
-    #             # derivation = self.get_pubkey_derivation(pubkey, data)
-    #             if self.master_fingerprint != data['master_fingerprint']:
-    #                 continue
-    #             keypairs[pubkey] = convert_bip32_path_to_list_of_uint32(data['bip32_path'])
-    #     return keypairs
-
 
 class Old_KeyStore(Deterministic_KeyStore):
-
     type = 'old'
 
     def __init__(self, d):

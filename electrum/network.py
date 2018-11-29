@@ -20,35 +20,37 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import time
-import queue
+import asyncio
+import ipaddress
+import json
 import os
+import queue
 import random
 import re
-from collections import defaultdict
-import threading
 import socket
-import json
 import sys
-import ipaddress
-import asyncio
-from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple
+import threading
+import time
 import traceback
+from collections import defaultdict
+from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, Union
 
 import dns
 import dns.resolver
 from aiorpcx import TaskGroup
 
+from . import blockchain
+from . import constants
 from . import util
-from .util import PrintError, print_error, log_exceptions, ignore_exceptions, bfh, SilentTaskGroup
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
 from . import bitcoin
 from .blockchain import Blockchain, HEADER_SIZE
 from .interface import Interface, serialize_server, deserialize_server, RequestTimedOut
-from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
+from .util import PrintError, print_error, log_exceptions, ignore_exceptions, SilentTaskGroup
+from .version import PROTOCOL_VERSION
 
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
@@ -722,7 +724,7 @@ class Network(PrintError):
 
     @best_effort_reliable
     async def broadcast_transaction(self, tx, *, timeout=10):
-        out = await self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)], timeout=timeout)
+        out = await self.interface.session.send_request('blockchain.transaction.broadcast', [tx.serialize_final()], timeout=timeout)
         if out != tx.txid():
             raise Exception(out)
         return out  # txid

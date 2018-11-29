@@ -5,7 +5,8 @@ from electrum.bip32 import xpubkey_to_address
 from electrum.bitcoin import TYPE_ADDRESS, var_int, varint_to_int, TYPE_PUBKEY, TYPE_SCRIPT
 from electrum.transaction import Transaction, TxOutputForUI
 from electrum.transaction_utils import get_address_from_output_script
-from electrum.util import bh2u, bfh, BCDataStream, SerializationError
+from electrum.util import bh2u, bfh
+from electrum.transaction_utils import BCDataStream, SerializationError
 from . import SequentialTestCase, TestCaseForTestnet
 from .test_bitcoin import needs_test_with_all_ecc_implementations
 

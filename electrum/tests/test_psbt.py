@@ -8,7 +8,8 @@ from electrum.bip32 import (xpub_from_xprv)
 from electrum.tests import TestCaseForTestnet
 from electrum.tests.test_wallet_vertical import WalletIntegrityHelper, TestCaseForTestnetWithDisposableStore
 from electrum.transaction import ImmutableTransaction, StandardTransaction, TxOutput
-from electrum.util import bfh, SerializationError, bh2u
+from electrum.util import bfh, bh2u
+from electrum.transaction_utils import SerializationError
 
 """
 unit-test:

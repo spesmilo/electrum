@@ -20,27 +20,35 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import asyncio
 import binascii
 import os, sys, re, json
 import struct
 from collections import defaultdict, OrderedDict
 from typing import NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable
 from datetime import datetime
+import builtins
 import decimal
-from decimal import Decimal
+import hmac
+import inspect
+import json
+import os
+import re
+import stat
+import sys
+import threading
+import time
 import traceback
 import urllib
-import threading
-import hmac
-import stat
-import inspect
+import urllib.error
+import urllib.parse
+import urllib.request
+from collections import defaultdict
+from datetime import datetime
+from decimal import Decimal
 from locale import localeconv
-import asyncio
-import urllib.request, urllib.parse, urllib.error
-import builtins
-import json
-import time
 from typing import NamedTuple, Optional
+from typing import Union, TYPE_CHECKING, Tuple, Callable
 
 import aiohttp
 from aiohttp_socks import SocksConnector, SocksVer
@@ -660,7 +668,6 @@ def block_explorer_info():
     return mainnet_block_explorers if not constants.net.TESTNET else testnet_block_explorers
 
 def block_explorer(config: 'SimpleConfig') -> str:
-    from . import constants
     default_ = 'Blockstream.info'
     be_key = config.get('block_explorer', default_)
     be = block_explorer_info().get(be_key)

@@ -23,27 +23,22 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import sys
 import time
+import traceback
 from xmlrpc.client import ServerProxy
 
-from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import QPushButton
 
-import electrum.crypto
-from electrum import util, keystore, ecc, bip32, crypto
 from electrum import transaction
-from electrum.plugin import BasePlugin, hook
-from electrum.i18n import _
-from electrum.wallet import Multisig_Wallet
-from electrum.util import bh2u, bfh
-
+from electrum import util, keystore, ecc, bip32, crypto
 from electrum.gui.qt.transaction_dialog import show_transaction
 from electrum.gui.qt.util import WaitingDialog
-
-import sys
-import traceback
-
+from electrum.i18n import _
+from electrum.plugin import BasePlugin, hook
+from electrum.util import bh2u, bfh
+from electrum.wallet import Multisig_Wallet
 
 server = ServerProxy('https://cosigner.electrum.org/', allow_none=True)
 

@@ -40,7 +40,7 @@ from typing import TYPE_CHECKING, Optional, List, Union, Tuple
 from . import bitcoin, coinchooser, paymentrequest, ecc, bip32
 from . import transaction_utils
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED
-from .bip174 import PSBT
+from .bip174 import PSBT, SIGHASH_ALL
 from .bip32 import xpub_to_bip32_psbt
 from .bitcoin import COIN, TYPE_ADDRESS, is_address, address_to_script, is_minikey, relayfee, dust_threshold
 from .contacts import Contacts
@@ -643,7 +643,7 @@ class Abstract_Wallet(AddressSynchronizer):
             return tx
         return candidate
 
-    def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None):
+    def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None, is_sweep=False):
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):
@@ -1076,7 +1076,7 @@ class Abstract_Wallet(AddressSynchronizer):
                     sig_info[i]['witness_utxo'] = witness
             else:
                 sig_info[i]['non_witness_utxo'] = utxo
-            sig_info[i]['sighash_type'] = '01000000'
+            sig_info[i]['sighash_type'] = SIGHASH_ALL
         psbt.update_inputs(sig_info)
 
         # adding bip32_derivation to outputs
@@ -1111,7 +1111,7 @@ class Abstract_Wallet(AddressSynchronizer):
                     txin['value'] = value
                 self.add_input_sig_info(txin, address)
 
-    def can_sign(self, tx):
+    def can_sign(self, tx: Union[PSBT, Transaction]):
         if tx.is_complete():
             return False
         # add info to inputs if we can; otherwise we might return a false negative:
@@ -1872,17 +1872,6 @@ class Deterministic_Wallet(Abstract_Wallet):
             if for_change:
                 # note: if it's actually used, it will get filtered later
                 self._unused_change_addresses.append(address)
-            return address
-
-    def create_new_address_by_path(self, derivation_path: str, password):
-        with self.lock:
-            assert derivation_path.startswith('/')
-            x = self.keystore.derive_any_pubkey_bip32(derivation_path, password)
-            address = self.pubkeys_to_address(x)
-            self.receiving_addresses.append(address)
-            self._addr_to_addr_index[address] = (False, derivation_path)
-            self.save_addresses()
-            self.add_address(address)
             return address
 
     def synchronize_sequence(self, for_change):

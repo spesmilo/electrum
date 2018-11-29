@@ -26,12 +26,9 @@ import hashlib
 import sys
 import time
 import traceback
-import json
-
-import requests
 import urllib.parse
-import aiohttp
 
+import aiohttp
 import requests
 
 try:
@@ -40,9 +37,7 @@ except ImportError:
     sys.exit("Error: could not find paymentrequest_pb2.py. Create it with 'protoc --proto_path=electrum/ --python_out=electrum/ electrum/paymentrequest.proto'")
 
 from . import bitcoin, ecc, util, transaction, x509, rsakey
-from .util import print_error, bh2u, bfh, export_meta, import_meta
 
-from .transaction_utils import get_address_from_output_script, TxOutput
 from .util import print_error, bh2u, bfh, export_meta, import_meta, make_aiohttp_session
 from .crypto import sha256
 from .bitcoin import TYPE_ADDRESS

@@ -84,7 +84,6 @@ class AddressSynchronizer(PrintError):
         self.threadlocal_cache = threading.local()
 
         self._addr_to_addr_index = {}
-        self._addr_to_addr_path = {}
 
         self.load_and_cleanup()
 

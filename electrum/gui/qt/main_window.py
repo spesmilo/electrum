@@ -1345,11 +1345,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if not outputs:
                 _type, addr = self.get_payto_or_dummy()
                 outputs = [TxOutput(_type, addr, amount)]
-            # is_sweep = bool(self.tx_external_keypairs)
+            is_sweep = bool(self.tx_external_keypairs)
             make_tx = lambda fee_est: \
                 self.wallet.make_unsigned_transaction(
                     self.get_coins(), outputs, self.config,
-                    fixed_fee=fee_est)
+                    fixed_fee=fee_est, is_sweep=is_sweep)
             try:
                 tx = make_tx(fee_estimator)
                 self.not_enough_funds = False
@@ -1643,7 +1643,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         msg = _('Signing transaction...')
         WaitingDialog(self, msg, task, on_success, on_failure)
 
-    def broadcast_transaction(self, tx, tx_desc):
+    def broadcast_transaction(self, tx: Union[PSBT, Transaction], tx_desc):
 
         def broadcast_thread():
             # non-GUI thread
@@ -1662,7 +1662,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.invoices.save()
                 self.payment_request = None
                 refund_address = self.wallet.get_receiving_address()
-                coro = pr.send_payment_and_receive_paymentack(str(tx), refund_address)
+                coro = pr.send_payment_and_receive_paymentack(tx.serialize_final(), refund_address)
                 fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
                 ack_status, ack_msg = fut.result(timeout=20)
                 self.print_error(f"Payment ACK: {ack_status}. Ack message: {ack_msg}")

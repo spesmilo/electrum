@@ -7,8 +7,8 @@ from .bip32 import convert_raw_uint32_to_bip32_path, convert_bip32_path_to_list_
     parse_xpubkey, xpub_to_bip32_psbt
 from .bitcoin import varint_to_int, var_int, int_to_hex, push_script
 from .transaction import StandardTransaction, Transaction, ImmutableTransaction
-from .transaction_utils import get_num_sig, TxOutput, pay_script, PSBT_TXN_HEADER_MAGIC
-from .util import bh2u, bfh, SerializationError, BitcoinException
+from .transaction_utils import get_num_sig, TxOutput, pay_script, PSBT_TXN_HEADER_MAGIC, SerializationError
+from .util import bh2u, bfh, BitcoinException
 
 """
 Note that you can check public methods and its verified signatures and return values in test_psbt.py
@@ -29,6 +29,8 @@ PSBT_IN_FINAL_SCRIPTWITNESS = b'\x08'
 PSBT_OUT_REDEEM_SCRIPT = b'\x00'
 PSBT_OUT_WITNESS_SCRIPT = b'\x01'
 PSBT_OUT_BIP32_DERIVATION = b'\x02'
+
+SIGHASH_ALL = '01000000'
 
 
 def _validate_bip32(bip32_derivation):

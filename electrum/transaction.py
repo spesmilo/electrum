@@ -33,8 +33,9 @@ from .transaction_utils import deserialize, is_segwit_input, serialize_input, \
     serialize_output, pay_script, virtual_size_from_weight, serialize_witness, get_preimage_script, serialize_outpoint, \
     parse_input, parse_output, parse_witness, is_txin_complete, get_siglist, \
     guess_txintype_from_address, multisig_script, safe_parse_pubkey, get_sorted_pubkeys, TxOutput, \
-    is_input_value_needed, construct_witness, is_segwit_input_psbt, TxOutputForUI, PARTIAL_TXN_HEADER_MAGIC
-from .util import SerializationError, BCDataStream, print_error
+    is_input_value_needed, construct_witness, is_segwit_input_psbt, TxOutputForUI, PARTIAL_TXN_HEADER_MAGIC, \
+    BCDataStream, SerializationError
+from .util import print_error
 
 # Note: The deserialization code originally comes from ABE.
 
@@ -214,6 +215,11 @@ class Transaction:
             return bh2u(PARTIAL_TXN_HEADER_MAGIC) + partial_format_version + network_ser
         else:
             return network_ser
+
+    def serialize_final(self):
+        if not self.is_complete():
+            return None
+        return self.serialize_to_network()
 
     def serialize_to_network(self, estimate_size=False, witness=True):
         self.deserialize()

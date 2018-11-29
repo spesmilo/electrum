@@ -97,7 +97,7 @@ class CoinChooserBase(PrintError):
     def keys(self, coins) -> List[str]:
         return [coin['address'] for coin in coins]
 
-    def bucketize_coins(self, tx, coins):
+    def bucketize_coins(self, coins):
         keys = self.keys(coins)
         buckets = defaultdict(list)
         for key, coin in zip(keys, coins):
@@ -238,7 +238,7 @@ class CoinChooserBase(PrintError):
             return total_input >= spent_amount + fee_estimator_w(total_weight)
 
         # Collect the coins into buckets, choose a subset of the buckets
-        buckets = self.bucketize_coins(tx, coins)
+        buckets = self.bucketize_coins(coins)
         buckets = self.choose_buckets(buckets, sufficient_funds, self.penalty_func(tx))
 
         tx.add_inputs([coin for b in buckets for coin in b.coins])
