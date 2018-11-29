@@ -37,8 +37,8 @@ datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 
-# Add QR Scanner Helper App
-datas += [(electrum+'macos/compiled', './macos/compiled')]
+# Add the QR Scanner helper app
+datas += [(electrum + "contrib/CalinsQRReader/build/Release/CalinsQRReader.app", "./contrib/CalinsQRReader/build/Release/CalinsQRReader.app")]
 
 # Add libusb so Trezor will work
 binaries = [(electrum + "contrib/build-osx/libusb-1.0.dylib", ".")]
