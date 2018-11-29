@@ -222,6 +222,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fetch_alias()
 
     def on_history(self, b):
+        self.wallet.clear_coin_price_cache()
         self.new_fx_history_signal.emit()
 
     def setup_exception_hook(self):
