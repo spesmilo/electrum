@@ -101,7 +101,7 @@ This directory contains the python dependencies used by Electrum.
 Mac OS X / macOS
 --------
 
-See `contrib/build-osx/`.
+See `contrib/osx/`.
 
 Windows
 -------
