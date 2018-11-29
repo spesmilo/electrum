@@ -6,10 +6,9 @@ from electrum import bitcoin, storage, keystore
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.bip32 import (xpub_from_xprv)
 from electrum.tests import TestCaseForTestnet
-from electrum.tests.test_wallet_vertical import WalletIntegrityHelper
+from electrum.tests.test_wallet_vertical import WalletIntegrityHelper, TestCaseForTestnetWithDisposableStore
 from electrum.transaction import ImmutableTransaction, StandardTransaction, TxOutput
 from electrum.util import bfh, SerializationError, bh2u
-from tests.test_wallet_vertical import TestCaseForTestnetWithDisposableStore
 
 """
 unit-test:
