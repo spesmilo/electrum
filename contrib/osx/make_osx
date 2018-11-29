@@ -16,6 +16,7 @@ export PYTHONHASHSEED=22
 VERSION=`git describe --tags --dirty --always`
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
+which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
 
 # Code Signing: See https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Procedures/Procedures.html
 APP_SIGN=""
@@ -71,8 +72,8 @@ cp    ./contrib/deterministic-build/electrum-ltc-icons/icons_rc.py ./electrum_lt
 info "Downloading libusb..."
 curl https://homebrew.bintray.com/bottles/libusb-1.0.22.el_capitan.bottle.tar.gz | \
 tar xz --directory $BUILDDIR
-cp $BUILDDIR/libusb/1.0.22/lib/libusb-1.0.dylib contrib/build-osx
-DoCodeSignMaybe "libusb" "contrib/build-osx/libusb-1.0.dylib" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+cp $BUILDDIR/libusb/1.0.22/lib/libusb-1.0.dylib contrib/osx
+DoCodeSignMaybe "libusb" "contrib/osx/libusb-1.0.dylib" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 info "Building libsecp256k1"
 brew install autoconf automake libtool
@@ -84,8 +85,16 @@ git clean -f -x -q
 ./configure --enable-module-recovery --enable-experimental --enable-module-ecdh --disable-jni
 make
 popd
-cp $BUILDDIR/secp256k1/.libs/libsecp256k1.0.dylib contrib/build-osx
-DoCodeSignMaybe "libsecp256k1" "contrib/build-osx/libsecp256k1.0.dylib" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+cp $BUILDDIR/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx
+DoCodeSignMaybe "libsecp256k1" "contrib/osx/libsecp256k1.0.dylib" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+
+info "Building CalinsQRReader..."
+d=contrib/osx/CalinsQRReader
+pushd $d
+rm -fr build
+xcodebuild || fail "Could not build CalinsQRReader"
+popd
+DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 
 info "Installing requirements..."
@@ -108,7 +117,7 @@ for d in ~/Library/Python/ ~/.pyenv .; do
 done
 
 info "Building binary"
-pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/build-osx/osx.spec || fail "Could not build binary"
+pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
 
 info "Adding litecoin URI types to Info.plist"
 plutil -insert 'CFBundleURLTypes' \

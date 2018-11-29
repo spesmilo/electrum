@@ -21,7 +21,7 @@ function DoCodeSignMaybe { # ARGS: infoName fileOrDirName codesignIdentity
     identity="$3"
     deep=""
     if [ -z "$identity" ]; then
-        # we are ok with them not passing anything -- master script calls us always even if no identity is specified
+        # we are ok with them not passing anything; master script calls us unconditionally even if no identity is specified
         return
     fi
     if [ -d "$file" ]; then
