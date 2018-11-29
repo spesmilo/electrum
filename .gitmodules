@@ -5,5 +5,5 @@
 	path = contrib/deterministic-build/electrum-locale
 	url = https://github.com/spesmilo/electrum-locale
 [submodule "contrib/CalinsQRReader"]
-	path = contrib/CalinsQRReader
+	path = contrib/osx/CalinsQRReader
 	url = https://github.com/spesmilo/CalinsQRReader
