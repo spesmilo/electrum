@@ -37,11 +37,11 @@ datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 
-# Add QR Scanner Helper App
-datas += [(electrum+'macos/compiled', './macos/compiled')]
+# Add the QR Scanner helper app
+datas += [(electrum + "contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app", "./contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app")]
 
 # Add libusb so Trezor will work
-binaries = [(electrum + "contrib/build-osx/libusb-1.0.dylib", ".")]
+binaries = [(electrum + "contrib/osx/libusb-1.0.dylib", ".")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]

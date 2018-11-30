@@ -1,0 +1,3 @@
+[submodule "contrib/osx/CalinsQRReader"]
+	path = contrib/osx/CalinsQRReader
+	url = https://github.com/cculianu/CalinsQRReader

@@ -109,7 +109,7 @@ Run the following to create the release tarball under `dist/`::
 Mac OS X / macOS
 --------
 
-See `contrib/build-osx/`.
+See `contrib/osx/`.
 
 Windows
 -------
