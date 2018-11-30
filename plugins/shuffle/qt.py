@@ -34,12 +34,13 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
-from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout, QLineEdit, QHBoxLayout, QWidget, QCheckBox, QMenu, QComboBox, QMessageBox
+from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout, QLineEdit, QHBoxLayout, QWidget, QCheckBox, QMenu, QComboBox, QMessageBox, QTreeWidgetItemIterator
 
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
 from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton
 from electroncash_gui.qt.util import OkButton, WindowModalDialog
+from electroncash_gui.qt.password_dialog import PasswordDialog
 from electroncash.address import Address
 from electroncash.transaction import Transaction
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread
@@ -119,8 +120,9 @@ def on_utxo_list_update(utxo_list):
         too_big_labels[short_name] = utxo['value'] >= 1000000000
         dust_labels[short_name] = utxo['value'] <= 10000
         not_confirmed[short_name] = utxo['height'] <= 0
-    for index in range(utxo_list.topLevelItemCount()):
-        item = utxo_list.topLevelItem(index)
+    iterator = QTreeWidgetItemIterator(utxo_list)
+    while iterator.value():
+        item = iterator.value()
         label = item.text(4)
         if utxo_labels[label]:
             item.setText(5, "shuffled")
@@ -143,6 +145,7 @@ def on_utxo_list_update(utxo_list):
         if wait_for_others[label]:
             item.setText(5, "wait for others")
             item.setData(5, Qt.UserRole+1, "wait for others")
+        iterator += 1
 
 def update_coin_status(window, coin_name, msg):
     if getattr(window.utxo_list, "in_progress", None) == None:
@@ -296,11 +299,13 @@ class Plugin(BasePlugin):
     def on_new_window(self, window):
         password = None
         while window.wallet.has_password():
-            password = window.password_dialog(parent=window, msg = "Enter password to allow\nCashShuffle do the job")
+            name = window.wallet.basename()
+            msg = _("CashShuffle requires access to '{}'.").format(name) + "\n" +  _('Please enter your password')
+            password = PasswordDialog(parent=None, msg=msg).run()
             if password is None:
                 # User cancelled password input
                 msgBox = QMessageBox(parent=window)
-                msgBox.setText("Can't get password. Closing the pluging")
+                msgBox.setText(_("Can't get password, closing plugin."))
                 msgBox.exec_()
                 window.gui_object.plugins.toggle_internal_plugin('shuffle')
                 window.update_cashshuffle_icon()
@@ -321,10 +326,10 @@ class Plugin(BasePlugin):
         window.utxo_list.on_update()
         network_settings = window.wallet.storage.get("cashshuffle_server", None)
         if not network_settings:
-            network_settings = self.settings_dialog(window, msg="Choose the server, please")
+            network_settings = self.settings_dialog(window, msg=_("Choose the server, please"))
         if not network_settings:
             msgBox = QMessageBox(parent=window)
-            msgBox.setText("Can't get network. Closing the pluging")
+            msgBox.setText(_("Can't get network, closing plugin."))
             msgBox.exec_()
             window.gui_object.plugins.toggle_internal_plugin('shuffle')
             return
@@ -358,7 +363,7 @@ class Plugin(BasePlugin):
 
         vbox = QVBoxLayout(d)
         if not msg:
-            msg = "Choose CashShuffle Server from List\nChanges will take effect after restarting the plugin"
+            msg = _("Choose CashShuffle Server from List\nChanges will take effect after restarting the plugin")
         vbox.addWidget(QLabel(_(msg)))
         grid = QGridLayout()
         vbox.addLayout(grid)
