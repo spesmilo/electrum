@@ -118,6 +118,8 @@ class CKCCClient:
                 or (self.dev.master_fingerprint != expected_xfp)
                 or (self.dev.master_xpub != expected_xpub)):
             # probably indicating programing error, not hacking
+            print_error("[coldcard]", f"xpubs. reported by device: {self.dev.master_xpub}. "
+                                      f"stored in file: {expected_xpub}")
             raise RuntimeError("Expecting 0x%08x but that's not whats connected?!" %
                                     expected_xfp)
 
@@ -454,9 +456,12 @@ class Coldcard_KeyStore(Hardware_KeyStore):
 
         # inputs section
         for txin in inputs:
-            utxo = txin['prev_tx'].outputs()[txin['prevout_n']]
-            spendable = txin['prev_tx'].serialize_output(utxo)
-            write_kv(PSBT_IN_WITNESS_UTXO, spendable)
+            if Transaction.is_segwit_input(txin):
+                utxo = txin['prev_tx'].outputs()[txin['prevout_n']]
+                spendable = txin['prev_tx'].serialize_output(utxo)
+                write_kv(PSBT_IN_WITNESS_UTXO, spendable)
+            else:
+                write_kv(PSBT_IN_NON_WITNESS_UTXO, str(txin['prev_tx']))
 
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
 
