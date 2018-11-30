@@ -101,51 +101,30 @@ def get_shuffled_coins(wallet):
     transactions = wallet.storage.get("transactions")
     return [utxo for utxo in utxos if wallet.is_coin_shuffled(utxo)]
 
-def on_utxo_list_update(utxo_list):
-    utxo_list.on_update_backup()
-    utxo_labels = {}
-    queued_labels = {}
-    in_progress = {}
-    wait_for_others = {}
-    too_big_labels = {}
-    dust_labels = {}
-    not_confirmed = {}
-    for utxo in utxo_list.utxos:
-        name = utxo_list.get_name(utxo)
-        short_name = name[0:10] + '...' + name[-2:]
-        utxo_labels[short_name] = utxo_list.wallet.is_coin_shuffled(utxo) # is it optimal to do so?
-        in_progress[short_name] = utxo_list.in_progress.get(name) == 'in progress'
-        wait_for_others[short_name] = utxo_list.in_progress.get(name) == "wait for others"
-        queued_labels[short_name] = utxo['value'] > 10000 and utxo['value']<1000000000
-        too_big_labels[short_name] = utxo['value'] >= 1000000000
-        dust_labels[short_name] = utxo['value'] <= 10000
-        not_confirmed[short_name] = utxo['height'] <= 0
-    iterator = QTreeWidgetItemIterator(utxo_list)
-    while iterator.value():
-        item = iterator.value()
-        label = item.text(4)
-        if utxo_labels[label]:
-            item.setText(5, "shuffled")
-            item.setData(5, Qt.UserRole+1, "shuffled")
-        elif not_confirmed[label]:
-            item.setText(5, "not confirmed")
-            item.setData(5, Qt.UserRole+1, "not confirmed")
-        elif queued_labels[label]:
-            item.setText(5, "in queue")
-            item.setData(5, Qt.UserRole+1, "in queue")
-        elif too_big_labels[label]:
-            item.setText(5, "too big coin")
-            item.setData(5, Qt.UserRole+1, "too big coin")
-        elif dust_labels[label]:
-            item.setText(5, "too small coin")
-            item.setData(5, Qt.UserRole+1, "too small coin")
-        if in_progress[label]:
-            item.setText(5, "in progress")
-            item.setData(5, Qt.UserRole+1, "in progress")
-        if wait_for_others[label]:
-            item.setText(5, "wait for others")
-            item.setData(5, Qt.UserRole+1, "wait for others")
-        iterator += 1
+def my_custom_item_setup(utxo_list, utxo, name, item):
+    if utxo_list.wallet.is_coin_shuffled(utxo):  # is it optimal to do so?
+        item.setText(5, "shuffled")
+        item.setData(5, Qt.UserRole+1, "shuffled")
+    elif utxo['height'] <= 0: # not_confirmed
+        item.setText(5, "not confirmed")
+        item.setData(5, Qt.UserRole+1, "not confirmed")
+    elif utxo['value'] > 10000 and utxo['value']<1000000000: # queued_labels
+        item.setText(5, "in queue")
+        item.setData(5, Qt.UserRole+1, "in queue")
+    elif utxo['value'] >= 1000000000: # too big
+        item.setText(5, "too big coin")
+        item.setData(5, Qt.UserRole+1, "too big coin")
+    elif utxo['value'] <= 10000: # dust
+        item.setText(5, "too small coin")
+        item.setData(5, Qt.UserRole+1, "too small coin")
+
+    if utxo_list.in_progress.get(name) == 'in progress': # in progress
+        item.setText(5, "in progress")
+        item.setData(5, Qt.UserRole+1, "in progress")
+    if utxo_list.in_progress.get(name) == "wait for others": # wait for others
+        item.setText(5, "wait for others")
+        item.setData(5, Qt.UserRole+1, "wait for others")
+
 
 def update_coin_status(window, coin_name, msg):
     if getattr(window.utxo_list, "in_progress", None) == None:
@@ -239,10 +218,8 @@ def start_background_shuffling(window, network_settings, period = 1, password=No
 def modify_utxo_list(window):
     header = window.utxo_list.headerItem()
     header_labels = [header.text(i) for i in range(header.columnCount())]
-    header_labels.append("Shuffling status")
+    header_labels.append(_("Shuffle status"))
     window.utxo_list.update_headers(header_labels)
-    window.utxo_list.on_update_backup = window.utxo_list.on_update
-    window.utxo_list.on_update = lambda: on_utxo_list_update(window.utxo_list)
     window.utxo_list.in_progress = {}
 
 def restore_utxo_list(window):
@@ -250,10 +227,8 @@ def restore_utxo_list(window):
     header_labels = [header.text(i) for i in range(header.columnCount())]
     del header_labels[-1]
     window.utxo_list.update_headers(header_labels)
-    window.utxo_list.on_update = window.utxo_list.on_update_backup
     window.utxo_list.in_progress = None
     delattr(window.utxo_list, "in_progress")
-    delattr(window.utxo_list, "on_update_backup")
 
 
 def unfreeze_frozen_by_shuffling(wallet):
@@ -323,7 +298,7 @@ class Plugin(BasePlugin):
         modify_wallet(window.wallet)
         # console modification
         window.console.updateNamespace({"start_background_shuffling": lambda *args, **kwargs: start_background_shuffling(window, *args, **kwargs)})
-        window.utxo_list.on_update()
+        window.utxo_list.update()
         network_settings = window.wallet.storage.get("cashshuffle_server", None)
         if not network_settings:
             network_settings = self.settings_dialog(window, msg=_("Choose the server, please"))
@@ -337,6 +312,10 @@ class Plugin(BasePlugin):
         network_settings["network"] = window.network
         start_background_shuffling(window, network_settings, period = 10, password=password)
 
+    @hook
+    def utxo_list_item_setup(self, utxo_list, x, name, item):
+        return my_custom_item_setup(utxo_list, x, name, item)
+
 
     def on_close(self):
         for window in self.windows:
@@ -349,7 +328,7 @@ class Plugin(BasePlugin):
             restore_wallet(window.wallet)
             if window.console.namespace.get("start_background_shuffling", None):
                 del window.console.namespace["start_background_shuffling"]
-            window.utxo_list.on_update()
+            window.utxo_list.update()
             window.update_cashshuffle_icon()
 
 

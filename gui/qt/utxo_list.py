@@ -24,6 +24,7 @@
 # SOFTWARE.
 from .util import *
 from electroncash.i18n import _
+from electroncash.plugins import run_hook
 
 
 class UTXOList(MyTreeWidget):
@@ -74,6 +75,7 @@ class UTXOList(MyTreeWidget):
                 utxo_item.setForeground(0, QColor('#3399ff'))
             # save the address-level-frozen and coin-level-frozen flags to the data item for retrieval later in create_menu() below.
             utxo_item.setData(0, Qt.UserRole+1, "{}{}".format(("a" if a_frozen else ""), ("c" if c_frozen else "")))
+            run_hook("utxo_list_item_setup", self, x, name, utxo_item)
             self.addChild(utxo_item)
             if name in prev_selection:
                 # NB: This needs to be here after the item is added to the widget. See #979.
