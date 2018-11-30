@@ -146,10 +146,6 @@ def on_utxo_list_update(utxo_list):
             item.setText(5, "wait for others")
             item.setData(5, Qt.UserRole+1, "wait for others")
         iterator += 1
-    # Fix for Qt status not updating bug
-    def do_repaint():
-        QWidget.update(utxo_list)
-    QTimer.singleShot(1.0, do_repaint)
 
 def update_coin_status(window, coin_name, msg):
     if getattr(window.utxo_list, "in_progress", None) == None:
