@@ -91,7 +91,7 @@ class ElectrumGui:
         self.set_cursor(0)
         return s
 
-    def update(self, event):
+    def update(self, event, *args):
         self.update_history()
         if self.tab == 0:
             self.print_history()
