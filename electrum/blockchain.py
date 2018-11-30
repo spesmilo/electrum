@@ -352,11 +352,7 @@ class Blockchain(util.PrintError):
         self._forkpoint_hash, parent._forkpoint_hash = parent._forkpoint_hash, hash_raw_header(bh2u(parent_data[:HEADER_SIZE]))
         self._prev_hash, parent._prev_hash = parent._prev_hash, self._prev_hash
         # parent's new name
-        try:
-            os.rename(child_old_name, parent.path())
-        except OSError:
-            os.remove(parent.path())
-            os.rename(child_old_name, parent.path())
+        os.replace(child_old_name, parent.path())
         self.update_size()
         parent.update_size()
         # update pointers
