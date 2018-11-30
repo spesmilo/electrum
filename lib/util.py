@@ -576,17 +576,8 @@ class SocketPipe:
 
     def _send(self, out):
         while out:
-            try:
-                sent = self.socket.send(out)
-                out = out[sent:]
-            except ssl.SSLError as e:
-                print_error("SSLError:", e)
-                time.sleep(0.1)
-                continue
-            except OSError as e:
-                print_error("OSError", e)
-                time.sleep(0.1)
-                continue
+            sent = self.socket.send(out)
+            out = out[sent:]
 
 
 def setup_thread_excepthook():
