@@ -44,6 +44,7 @@ from .util import PrintError, print_error, log_exceptions, ignore_exceptions, bf
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
+from . import bitcoin
 from .blockchain import Blockchain, HEADER_SIZE
 from .interface import Interface, serialize_server, deserialize_server, RequestTimedOut
 from .version import PROTOCOL_VERSION
@@ -321,7 +322,11 @@ class Network(PrintError):
             self.banner = await session.send_request('server.banner')
             self.notify('banner')
         async def get_donation_address():
-            self.donation_address = await session.send_request('server.donation_address')
+            addr = await session.send_request('server.donation_address')
+            if not bitcoin.is_address(addr):
+                self.print_error(f"invalid donation address from server: {addr}")
+                addr = ''
+            self.donation_address = addr
         async def get_server_peers():
             self.server_peers = parse_servers(await session.send_request('server.peers.subscribe'))
             self.notify('servers')

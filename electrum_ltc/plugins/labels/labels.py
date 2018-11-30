@@ -73,7 +73,10 @@ class LabelsPlugin(BasePlugin):
         url = 'https://' + self.target_host + url
         async with make_aiohttp_session(self.proxy) as session:
             async with session.post(url, json=data) as result:
-                return await result.json()
+                try:
+                    return await result.json()
+                except Exception as e:
+                    raise Exception('Could not decode: ' + await result.text()) from e
 
     async def push_thread(self, wallet):
         wallet_data = self.wallets.get(wallet, None)
