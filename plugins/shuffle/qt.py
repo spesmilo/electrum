@@ -124,19 +124,25 @@ def on_utxo_list_update(utxo_list):
         label = item.text(4)
         if utxo_labels[label]:
             item.setText(5, "shuffled")
+            item.setData(5, Qt.UserRole+1, "shuffled")
         elif not_confirmed[label]:
             item.setText(5, "not confirmed")
+            item.setData(5, Qt.UserRole+1, "not confirmed")
         elif queued_labels[label]:
             item.setText(5, "in queue")
+            item.setData(5, Qt.UserRole+1, "in queue")
         elif too_big_labels[label]:
             item.setText(5, "too big coin")
+            item.setData(5, Qt.UserRole+1, "too big coin")
         elif dust_labels[label]:
             item.setText(5, "too small coin")
+            item.setData(5, Qt.UserRole+1, "too small coin")
         if in_progress[label]:
             item.setText(5, "in progress")
+            item.setData(5, Qt.UserRole+1, "in progress")
         if wait_for_others[label]:
             item.setText(5, "wait for others")
-
+            item.setData(5, Qt.UserRole+1, "wait for others")
 
 def update_coin_status(window, coin_name, msg):
     if getattr(window.utxo_list, "in_progress", None) == None:
@@ -165,7 +171,6 @@ def update_coin_status(window, coin_name, msg):
     else:
         if msg == "stopped":
             window.utxo_list.in_progress = {}
-            window.utxo_list.on_update()
 
 
 class ServersList(QComboBox):
@@ -232,8 +237,7 @@ def modify_utxo_list(window):
     header = window.utxo_list.headerItem()
     header_labels = [header.text(i) for i in range(header.columnCount())]
     header_labels.append("Shuffling status")
-    window.utxo_list.setColumnCount(6)
-    window.utxo_list.setHeaderLabels(header_labels)
+    window.utxo_list.update_headers(header_labels)
     window.utxo_list.on_update_backup = window.utxo_list.on_update
     window.utxo_list.on_update = lambda: on_utxo_list_update(window.utxo_list)
     window.utxo_list.in_progress = {}
@@ -242,8 +246,7 @@ def restore_utxo_list(window):
     header = window.utxo_list.headerItem()
     header_labels = [header.text(i) for i in range(header.columnCount())]
     del header_labels[-1]
-    window.utxo_list.setColumnCount(5)
-    window.utxo_list.setHeaderLabels(header_labels)
+    window.utxo_list.update_headers(header_labels)
     window.utxo_list.on_update = window.utxo_list.on_update_backup
     window.utxo_list.in_progress = None
     delattr(window.utxo_list, "in_progress")

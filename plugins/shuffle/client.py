@@ -325,7 +325,7 @@ class BackgroundShufflingThread(threading.Thread):
         sks[public_key] = sk
         id_sk = generate_random_sk()
         id_pub = id_sk.GetPubKey(True).hex()
-        address_on_threads = [Address.from_string(self.threads[scale].protocol.addr_new)
+        address_on_threads = [Address.from_string(self.threads[scale].addr_new)
                               for scale in self.threads
                               if self.threads[scale] and self.threads[scale].protocol]
         output = [address for address in self.wallet.get_unused_addresses()
