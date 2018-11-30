@@ -154,23 +154,23 @@ def update_coin_status(window, coin_name, msg):
         if msg.startswith("Player") and coin_name not in window.utxo_list.in_progress:
             if "get session number" in msg:
                 window.utxo_list.in_progress[coin_name] = 'wait for others'
-                window.utxo_list.on_update()
+                window.utxo_list.update()
         elif msg.startswith("Player"):
             if "begins CoinShuffle protocol" in msg:
                 window.utxo_list.in_progress[coin_name] = 'in progress'
-                window.utxo_list.on_update()
+                window.utxo_list.update()
         elif msg.startswith("Error"):
             if coin_name in window.utxo_list.in_progress:
                 del window.utxo_list.in_progress[coin_name]
-                window.utxo_list.on_update()
+                window.utxo_list.update()
         elif msg.endswith("complete protocol"):
             if coin_name in window.utxo_list.in_progress:
                 del window.utxo_list.in_progress[coin_name]
-                window.utxo_list.on_update()
+                window.utxo_list.update()
         elif msg.startswith("Blame") and "insufficient" not in message and "wrong hash" not in message:
             if coin_name in window.utxo_list.in_progress:
                 del window.utxo_list.in_progress[coin_name]
-                window.utxo_list.on_update()
+                window.utxo_list.update()
     else:
         if msg == "stopped":
             window.utxo_list.in_progress = {}
