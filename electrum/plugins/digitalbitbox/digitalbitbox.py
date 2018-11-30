@@ -573,13 +573,13 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
             if p2pkhTransaction:
                 class CustomTXSerialization(Transaction):
                     @classmethod
-                    def input_script(self, txin, estimate_size=False):
+                    def input_script(cls, txin, estimate_size=False):
                         if txin['type'] == 'p2pkh':
-                            return Transaction.get_preimage_script(txin)
+                            return Transaction.preimage_script(txin)
                         if txin['type'] == 'p2sh':
                             # Multisig verification has partial support, but is disabled. This is the
                             # expected serialization though, so we leave it here until we activate it.
-                            return '00' + push_script(Transaction.get_preimage_script(txin))
+                            return '00' + push_script(Transaction.preimage_script(txin))
                         raise Exception("unsupported type %s" % txin['type'])
                 tx_dbb_serialized = CustomTXSerialization(tx.serialize()).serialize_to_network()
             else:

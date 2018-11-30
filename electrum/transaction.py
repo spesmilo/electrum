@@ -30,7 +30,7 @@ from typing import Sequence
 from . import bitcoin
 from .bitcoin import *
 from .transaction_utils import deserialize, is_segwit_input, serialize_input, \
-    serialize_output, pay_script, virtual_size_from_weight, serialize_witness, get_preimage_script, serialize_outpoint, \
+    serialize_output, pay_script, virtual_size_from_weight, serialize_witness, serialize_outpoint, \
     parse_input, parse_output, parse_witness, is_txin_complete, get_siglist, \
     guess_txintype_from_address, multisig_script, safe_parse_pubkey, get_sorted_pubkeys, TxOutput, \
     is_input_value_needed, construct_witness, is_segwit_input_psbt, TxOutputForUI, PARTIAL_TXN_HEADER_MAGIC, \
@@ -176,6 +176,29 @@ class Transaction:
         if outputs:
             self._outputs.sort(key=lambda o: (o[2], pay_script(o[0], o[1])))
 
+    @classmethod
+    def preimage_script(cls, txin: dict):
+        preimage_script = txin.get('preimage_script', None)
+        if preimage_script is not None:
+            return preimage_script
+
+        pubkeys, x_pubkeys = get_sorted_pubkeys(txin)
+        if txin['type'] == 'p2pkh':
+            return bitcoin.address_to_script(txin['address'])
+        elif txin['type'] in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
+            return multisig_script(pubkeys, txin['num_sig'])
+        elif txin['type'] in ['p2wpkh', 'p2wpkh-p2sh']:
+            pubkey = pubkeys[0]
+            pkh = bh2u(bitcoin.hash_160(bfh(pubkey)))
+            return '76a9' + push_script(pkh) + '88ac'
+        elif txin['type'] == 'p2pk':
+            pubkey = pubkeys[0]
+            return bitcoin.public_key_to_p2pk_script(pubkey)
+        elif txin['type'] == 'p2sc':
+            return txin['redeem_script']
+        else:
+            raise TypeError('Unknown txin type', txin['type'])
+
     def serialize_preimage(self, i):
         nVersion = int_to_hex(self.version, 4)
         nHashType = int_to_hex(1, 4)
@@ -183,20 +206,20 @@ class Transaction:
         inputs = self.inputs()
         outputs = self.outputs()
         txin = inputs[i]
+        preimage_script = self.preimage_script(txin)
         if is_segwit_input(txin):
             hashPrevouts = bh2u(sha256d(bfh(''.join(serialize_outpoint(txin) for txin in inputs))))
             hashSequence = bh2u(
                 sha256d(bfh(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs))))
             hashOutputs = bh2u(sha256d(bfh(''.join(serialize_output(o) for o in outputs))))
             outpoint = serialize_outpoint(txin)
-            preimage_script = get_preimage_script(txin)
             scriptCode = var_int(len(preimage_script) // 2) + preimage_script
             amount = int_to_hex(txin['value'], 8)
             nSequence = int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
             preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
         else:
             txins = var_int(len(inputs)) + ''.join(
-                serialize_input(txin, get_preimage_script(txin) if i == k else '') for k, txin in enumerate(inputs))
+                serialize_input(txin, preimage_script if i == k else '') for k, txin in enumerate(inputs))
             txouts = var_int(len(outputs)) + ''.join(serialize_output(o) for o in outputs)
             preimage = nVersion + txins + txouts + nLocktime + nHashType
         return preimage
@@ -441,7 +464,7 @@ class Transaction:
             if estimate_size:
                 witness_script = ''
             else:
-                witness_script = get_preimage_script(txin)
+                witness_script = cls.preimage_script(txin)
             scriptSig = bitcoin.p2wsh_nested_script(witness_script)
             return push_script(scriptSig)
         elif _type == 'address':
@@ -456,29 +479,10 @@ class ImmutableTransaction(Transaction):
     Used for storing full corresponding tx for selected txin in PSBT input sections
     """
 
-    # def __init__(self, raw):
-    #     if raw is None:
-    #         self.raw = None
-    #     elif isinstance(raw, str):
-    #         self.raw = raw.strip() if raw else None
-    #     elif isinstance(raw, dict):
-    #         self.raw = raw['hex']
-    #     else:
-    #         raise Exception("cannot initialize transaction", raw)
-    #     self._inputs = None
-    #     self._outputs = None  # type: List[TxOutput]
-    #     self.locktime = 0
-    #     self.version = 1
-    #     # by default we assume this is a partial txn;
-    #     # this value will get properly set when deserializing
-    #     self.is_partial_originally = True
-    #     self._segwit_ser = None  # None means "don't know"
-
     def update(self, raw):
         raise NotImplementedError('Immutable object')
 
-    @classmethod
-    def input_script(cls, txin: dict, estimate_size=False):
+    def input_script(self, txin: dict, estimate_size=False):
         script_sig = txin.get('scriptSig', '')
         return script_sig
 
@@ -595,56 +599,8 @@ class StandardTransaction(Transaction):
 
         return signatures
 
-    def sign_txin(self, txin_index, privkey_bytes) -> str:
-        pre_hash = sha256d(bfh(self.serialize_preimage(txin_index)))
-        privkey = ecc.ECPrivkey(privkey_bytes)
-        sig = privkey.sign_transaction(pre_hash)
-        sig = bh2u(sig) + '01'
-        return sig
-
-    def serialize_preimage(self, i):
-        nVersion = int_to_hex(self.version, 4)
-        nHashType = int_to_hex(1, 4)
-        nLocktime = int_to_hex(self.locktime, 4)
-        inputs = self.inputs()
-        outputs = self.outputs()
-        txin = inputs[i]
-        inp = self._parent_psbt._parent.input_sections[i]
-        script_sig = self.preimage_script(i)
-        if is_segwit_input(txin):
-            hashPrevouts = bh2u(sha256d(bfh(''.join(serialize_outpoint(txin) for txin in inputs))))
-            hashSequence = bh2u(
-                sha256d(bfh(''.join(int_to_hex(txin.get('sequence', 0xffffffff - 1), 4) for txin in inputs))))
-            hashOutputs = bh2u(sha256d(bfh(''.join(serialize_output(o) for o in outputs))))
-            outpoint = serialize_outpoint(txin)
-            preimage_script = get_preimage_script(txin)
-            scriptCode = var_int(len(preimage_script) // 2) + preimage_script
-            amount = int_to_hex(txin['value'], 8)
-            nSequence = int_to_hex(txin.get('sequence', 0xffffffff - 1), 4)
-            preimage = nVersion + hashPrevouts + hashSequence + outpoint + scriptCode + amount + nSequence + hashOutputs + nLocktime + nHashType
-        else:
-            txins = var_int(len(inputs)) + ''.join(
-                serialize_input(txin, script_sig if i == k else '') for k, txin in enumerate(inputs))
-            txouts = var_int(len(outputs)) + ''.join(serialize_output(o) for o in outputs)
-            preimage = nVersion + txins + txouts + nLocktime + nHashType
-        return preimage
-
-    # def populate_inputs(self, txins):
-    #     """
-    #     replaces old inputs to new, if new provides more data
-    #     else keep old data
-    #     """
-    #     new = {txin.key(): txin for txin in txins}
-    #     old = {txin.key(): txin for txin in self.inputs()}
-    #     for k, txin in new.items():
-    #         if old.get(k):
-    #             old.pop(k)
-    #             old[k] = txin
-    #     self._inputs = tuple(old.values())
-    #     self.BIP69_sort()
-
-    def preimage_script(self, i: int):
-        txin = self._inputs[i]
+    def preimage_script(self, txin: dict):
+        i = self._inputs.index(txin)
         inp = self._parent_psbt._parent.input_sections[i]
         preimage_script = txin.get('preimage_script', None)
         if preimage_script is not None:
@@ -688,13 +644,12 @@ class StandardTransaction(Transaction):
         elif _type == 'p2pkh':
             script = pubkeys[0]
         elif _type in ['p2wpkh', 'p2wsh']:
-            script = ''
-            script = self.preimage_script(i)
+            script = self.preimage_script(txin)
         elif _type == 'p2wpkh-p2sh':
             pubkey = safe_parse_pubkey(pubkeys[0])
             script = bitcoin.p2wpkh_nested_script(pubkey)
         elif _type == 'p2wsh-p2sh':
-            witness_script = self.preimage_script(i)
+            witness_script = self.preimage_script(txin)
             script = bitcoin.p2wsh_nested_script(witness_script)
         elif _type == 'address':
             script = bitcoin.address_to_script(txin['address'])
@@ -758,14 +713,14 @@ class StandardTransaction(Transaction):
 
         return pk_list, sig_list
 
-    def input_script(self, i: int, estimate_size=False, attach_signatures=False):
-
-        txin = self._inputs[i]
+    def input_script(self, txin: dict, estimate_size=False, attach_signatures=False):
+        i = self._inputs.index(txin)
+        if i < 0:
+            raise Exception('input not found')
 
         _type = txin['type']
         if _type == 'coinbase':
             return txin['scriptSig']
-
         if not self._parent_psbt:
             return ''
         inp = self._parent_psbt._parent.input_sections[i]
@@ -802,15 +757,15 @@ class StandardTransaction(Transaction):
             if estimate_size:
                 witness_script = ''
             else:
-                witness_script = get_preimage_script(txin)
+                witness_script = self.preimage_script(txin)
             scriptSig = bitcoin.p2wsh_nested_script(witness_script)
             return push_script(scriptSig)
         elif _type == 'address':
             raise NotImplementedError('deprecated')
             return 'ff00' + push_script(pubkeys[0])  # fd extended pubkey
         elif _type == 'unknown':
-            raise NotImplementedError('deprecated')
-            # return txin['scriptSig']
+            # raise NotImplementedError('deprecated')
+            return txin.get('scriptSig') or inp.final_scriptsig or ''
         return script
 
     def serialize_to_network(self, estimate_size=False, witness=True, attach_signatures=False) -> str:
@@ -821,9 +776,13 @@ class StandardTransaction(Transaction):
         inputs = self.inputs()
         outputs = self.outputs()
         if attach_signatures:
-            txins = var_int(len(inputs)) + ''.join(
-                serialize_input(txin, self.input_script(i, estimate_size=estimate_size, attach_signatures=True)) for
-                i, txin in enumerate(inputs))
+
+            serialized_inputs = []
+            for i, txin in enumerate(inputs):
+                script = self.input_script(txin, estimate_size=estimate_size, attach_signatures=True)
+                ser = serialize_input(txin, script)
+                serialized_inputs.append(ser)
+            txins = var_int(len(inputs)) + ''.join(serialized_inputs)
         else:
             txins = var_int(len(inputs)) + ''.join(serialize_input(txin, '') for txin in inputs)  # no script sig
         txouts = var_int(len(outputs)) + ''.join(serialize_output(o) for o in outputs)

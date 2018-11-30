@@ -15,7 +15,7 @@ from electrum.util import profiler, InvalidPassword
 from electrum.plugin import run_hook
 from electrum.util import format_satoshis, format_satoshis_plain
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
-from electrum import blockchain
+from electrum import blockchain, PSBT
 from electrum.network import Network
 from .i18n import _
 
@@ -748,14 +748,14 @@ class ElectrumWindow(App):
         addr = str(self.send_screen.screen.address) or self.wallet.dummy_address()
         outputs = [TxOutput(TYPE_ADDRESS, addr, '!')]
         try:
-            tx = self.wallet.make_unsigned_transaction(inputs, outputs, self.electrum_config)
+            psbt = self.wallet.make_psbt(inputs, outputs, self.electrum_config)
         except NoDynamicFeeEstimates as e:
             Clock.schedule_once(lambda dt, bound_e=e: self.show_error(str(bound_e)))
             return ''
         except NotEnoughFunds:
             return ''
-        amount = tx.output_value()
-        __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, tx) or (None, 0)
+        amount = psbt.glob.unsigned_tx.output_value()
+        __, x_fee_amount = run_hook('get_tx_extra_fee', self.wallet, psbt.glob.unsigned_tx) or (None, 0)
         amount_after_all_fees = amount - x_fee_amount
         return format_satoshis_plain(amount_after_all_fees, self.decimal_point())
 
@@ -898,24 +898,24 @@ class ElectrumWindow(App):
         on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
         Clock.schedule_once(lambda dt: on_success(tx))
 
-    def _broadcast_thread(self, tx, on_complete):
+    def _broadcast_thread(self, psbt: PSBT, on_complete):
 
         try:
-            self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+            self.network.run_from_another_thread(self.network.broadcast_transaction(psbt))
         except Exception as e:
             ok, msg = False, repr(e)
         else:
-            ok, msg = True, tx.txid()
+            ok, msg = True, psbt.txid()
         Clock.schedule_once(lambda dt: on_complete(ok, msg))
 
-    def broadcast(self, tx, pr=None):
+    def broadcast(self, psbt: PSBT, pr=None):
         def on_complete(ok, msg):
             if ok:
                 self.show_info(_('Payment sent.'))
                 if self.send_screen:
                     self.send_screen.do_clear()
                 if pr:
-                    self.wallet.invoices.set_paid(pr, tx.txid())
+                    self.wallet.invoices.set_paid(pr, psbt.txid())
                     self.wallet.invoices.save()
                     self.update_tab('invoices')
             else:
@@ -924,7 +924,7 @@ class ElectrumWindow(App):
 
         if self.network and self.network.is_connected():
             self.show_info(_('Sending'))
-            threading.Thread(target=self._broadcast_thread, args=(tx, on_complete)).start()
+            threading.Thread(target=self._broadcast_thread, args=(psbt, on_complete)).start()
         else:
             self.show_info(_('Cannot broadcast transaction') + ':\n' + _('Not connected'))
 

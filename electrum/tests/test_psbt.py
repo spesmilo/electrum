@@ -8,8 +8,8 @@ from electrum.bip32 import (xpub_from_xprv)
 from electrum.tests import TestCaseForTestnet
 from electrum.tests.test_wallet_vertical import WalletIntegrityHelper, TestCaseForTestnetWithDisposableStore
 from electrum.transaction import ImmutableTransaction, StandardTransaction, TxOutput
-from electrum.util import bfh, bh2u
 from electrum.transaction_utils import SerializationError
+from electrum.util import bfh, bh2u
 
 """
 unit-test:
@@ -299,7 +299,6 @@ class TestBIP174Serialization(TestCaseForTestnet):
 
             raise Exception('Must throw SerializationError')
         except SerializationError as e:
-            print(e)
             if str(e) != 'Invalid key value':
                 raise e
             pass
@@ -506,8 +505,6 @@ class TestWalletPSBTForTestnet(TestCaseForTestnetWithDisposableStore):
         tx_copy = Transaction(network_hex)
         self.assertTrue(wallet1a.is_mine(wallet1a.get_txin_address(tx_copy.inputs()[0])))
 
-        # print('receiver', bh2u(psbt.serialize()))
-
         self.assertEqual('6b7dc258db6da4f72d1c0b4c8282606efe05e994f4be9f8ebaab78145c2bf844', tx_copy.txid())
         self.assertEqual('6b7dc258db6da4f72d1c0b4c8282606efe05e994f4be9f8ebaab78145c2bf844', tx_copy.wtxid())
 
@@ -685,7 +682,6 @@ class TestWalletPSBTForTestnet(TestCaseForTestnetWithDisposableStore):
 
         psbt = PSBT.from_raw(raw_psbt)  # type: PSBT
         wallet.process_psbt(psbt, None, sign=False)
-        print(psbt.serialize())
 
         self.assertEqual(
             '70736274ff01005502000000011eaf3872a0740ba0764375d31e126447ab727d52bd4c44fea52c1df8ca81208c0100000000feffffff01fe740000000000001976a914fbd867c813107bc88992c8cbe9d725153d4d20f688ac00000000000100e10100000001afb3f629af2eb31c44a01b02e99cc35b5c790240aadcb365e4ae4f2daa84ed39010000006a47304402204be50fcca31db89e806459d103e687aa89bef1962c03ffe6a232e26eec3c605002201da0b5593819d812932801d2f55f8a738d043befd291475a6834dfab95b5bb72012102e286f4c0d50813bf8f0049e62e98c83fddbfbd6c0c7492a9dddfc4ff7dd19ddfffffffff02103af0bd020000001976a9140b5d601ae5100f63160f8632241c3af8438f29c588ace0930400000000001976a914b28f577caff55861ace05ea631c91591d898645f88ac00000000010304010000000104210228b98f34e57ee99114de0d2c0a28cb2078935c3abdfbf099330db6791e5a985d0000',
@@ -696,7 +692,6 @@ class TestWalletPSBTForTestnet(TestCaseForTestnetWithDisposableStore):
         wallet.process_psbt(psbt, None)
         self.assertTrue(psbt.is_complete())
 
-        print(psbt.serialize())
         self.assertEqual(
             '02000000011eaf3872a0740ba0764375d31e126447ab727d52bd4c44fea52c1df8ca81208c010000006b483045022100b3f98ac157fd7c837f944c15d62fb0f7ef8422c4af0dad8f240234b4075bf597022072eb13595c9504bdae570fb8d0fde723ec1faed18a62c96f918aaa3550e95bfa01210228b98f34e57ee99114de0d2c0a28cb2078935c3abdfbf099330db6791e5a985dfeffffff01fe740000000000001976a914fbd867c813107bc88992c8cbe9d725153d4d20f688ac00000000',
             psbt.serialize_final()
@@ -889,7 +884,6 @@ class TestWalletPSBTForTestnet(TestCaseForTestnetWithDisposableStore):
         )
 
         wallet1.process_psbt(psbt, None)
-        print(psbt.serialize())
         self.assertFalse(psbt.is_complete())
         self.assertEqual(
             '70736274ff01005e02000000011a82e3727a15da508456f7cadc490701db2083c0277c4093f862f429eadc00c60000000000feffffff01950a0300000000002200202d02caeb0c1fecc61dd85b3cc09448ca07303e9f9d69acd91da17bf4cfec5b75000000000001012b760b0300000000002200202d02caeb0c1fecc61dd85b3cc09448ca07303e9f9d69acd91da17bf4cfec5b75220202ef573eb2f63a7f206a87ddeb283b41e94713a5d188d177524ec07ac45a661b0347304402205d276c0c745feb5662f329b2adb958e900f6cb9fabe2ab84acbf18b060b3167c022020dedd45ddb44287454b2a9561c4226bd90d7d7504c835898c9a105c572ea99d010103040100000001044752210203a3dd52811b9d0f73753b2ee603f256ca7e23b1e4d4e96da6a17283ffdb69de2102ef573eb2f63a7f206a87ddeb283b41e94713a5d188d177524ec07ac45a661b0352ae22060203a3dd52811b9d0f73753b2ee603f256ca7e23b1e4d4e96da6a17283ffdb69de0c42d6c8290000000000000000220602ef573eb2f63a7f206a87ddeb283b41e94713a5d188d177524ec07ac45a661b030c6544063c000000000000000000220202ef573eb2f63a7f206a87ddeb283b41e94713a5d188d177524ec07ac45a661b030c6544063c000000000000000022020203a3dd52811b9d0f73753b2ee603f256ca7e23b1e4d4e96da6a17283ffdb69de0c42d6c829000000000000000000',
@@ -952,7 +946,6 @@ class TestWalletPSBTForTestnet(TestCaseForTestnetWithDisposableStore):
         )
 
         wallet1.process_psbt(psbt, None)
-        print(psbt.serialize())
         self.assertFalse(psbt.is_complete())
         self.assertEqual(
             '70736274ff0100550200000001a0ea9692b4623716591e2bf781784b78285330410d324a3455b8bd9617cc581b0000000000feffffff01c1090300000000001976a914b28f577caff55861ace05ea631c91591d898645f88ac000000000001012b950a0300000000002200202d02caeb0c1fecc61dd85b3cc09448ca07303e9f9d69acd91da17bf4cfec5b75220202ef573eb2f63a7f206a87ddeb283b41e94713a5d188d177524ec07ac45a661b034730440220326bcb4d973461fb355a2f2ed4afbe650d074a2061a5bdc024f080f2dcc71e1d02202a505ff7ccf4df60800212ea1a25f9a0c8a5b6933923e1579fcb909a43bf06a7010103040100000001044752210203a3dd52811b9d0f73753b2ee603f256ca7e23b1e4d4e96da6a17283ffdb69de2102ef573eb2f63a7f206a87ddeb283b41e94713a5d188d177524ec07ac45a661b0352ae22060203a3dd52811b9d0f73753b2ee603f256ca7e23b1e4d4e96da6a17283ffdb69de0c42d6c8290000000000000000220602ef573eb2f63a7f206a87ddeb283b41e94713a5d188d177524ec07ac45a661b030c6544063c00000000000000000000',

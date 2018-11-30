@@ -32,7 +32,7 @@ import hashlib
 from urllib.parse import urljoin
 from urllib.parse import quote
 
-from electrum import ecc, constants, keystore, version, bip32
+from electrum import ecc, constants, keystore, version, bip32, PSBT
 from electrum.bitcoin import TYPE_ADDRESS, is_new_seed, public_key_to_p2pkh
 from electrum.bip32 import (deserialize_xpub, deserialize_xprv, bip32_private_key, CKD_pub,
                             serialize_xpub, bip32_root, bip32_private_derivation)
@@ -285,26 +285,24 @@ class Wallet_2fa(Multisig_Wallet):
             raise Exception('too high trustedcoin fee ({} for {} txns)'.format(price, n))
         return price
 
-    def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None,
-                                  change_addr=None, is_sweep=False):
-        mk_tx = lambda o: Multisig_Wallet.make_unsigned_transaction(
-            self, coins, o, config, fixed_fee, change_addr)
+    def make_psbt(self, coins, outputs, config, fixed_fee=None, change_addr=None, is_sweep=False) -> PSBT:
+        mk_psbt = lambda o: Multisig_Wallet.make_psbt(self, coins, o, config, fixed_fee, change_addr)
         fee = self.extra_fee(config) if not is_sweep else 0
         if fee:
             address = self.billing_info['billing_address']
             fee_output = TxOutput(TYPE_ADDRESS, address, fee)
             try:
-                tx = mk_tx(outputs + [fee_output])
+                psbt = mk_psbt(outputs + [fee_output])
             except NotEnoughFunds:
                 # TrustedCoin won't charge if the total inputs is
                 # lower than their fee
-                tx = mk_tx(outputs)
-                if tx.input_value() >= fee:
+                psbt = mk_psbt(outputs)
+                if psbt.glob.unsigned_tx.input_value() >= fee:
                     raise
                 self.print_error("not charging for this tx")
         else:
-            tx = mk_tx(outputs)
-        return tx
+            psbt = mk_psbt(outputs)
+        return psbt
 
     def on_otp(self, tx, otp):
         if not otp:

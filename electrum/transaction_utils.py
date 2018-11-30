@@ -9,7 +9,7 @@ from . import ecc
 from . import segwit_addr
 from .bip32 import xpubkey_to_pubkey, xpubkey_to_address
 from .bitcoin import hash_encode, var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN, op_push, int_to_hex, \
-    b58_address_to_hash160, push_script, TYPE_PUBKEY, TYPE_ADDRESS, hash160_to_p2pkh, hash160_to_p2sh, \
+    b58_address_to_hash160, TYPE_PUBKEY, TYPE_ADDRESS, hash160_to_p2pkh, hash160_to_p2sh, \
     hash_to_segwit_addr, TYPE_SCRIPT
 from .crypto import hash_160
 from .util import bh2u, bfh, print_error, to_bytes
@@ -473,15 +473,6 @@ def deserialize(raw: str, force_full_parse=False) -> dict:
             raise SerializationError('unknown tx partial serialization format version: {}'
                                      .format(partial_format_version))
         raw_bytes = raw_bytes[6:]
-    elif raw_bytes[:5] == PSBT_TXN_HEADER_MAGIC:
-        try:
-            parsed = psbt_parser(raw_bytes)
-            print('PSBT deser')
-            d.update(parsed)
-            d['partial'] = is_partial = True
-            return d
-        except:
-            pass
     else:
         d['partial'] = is_partial = False
     full_parse = force_full_parse or is_partial
@@ -679,29 +670,6 @@ def is_txin_complete(txin):
     x_signatures = txin.get('signatures', [])
     signatures = list(filter(None, x_signatures))
     return len(signatures) == num_sig
-
-
-def get_preimage_script(txin):
-    preimage_script = txin.get('preimage_script', None)
-    if preimage_script is not None:
-        return preimage_script
-
-    pubkeys, x_pubkeys = get_sorted_pubkeys(txin)
-    if txin['type'] == 'p2pkh':
-        return bitcoin.address_to_script(txin['address'])
-    elif txin['type'] in ['p2sh', 'p2wsh', 'p2wsh-p2sh']:
-        return multisig_script(pubkeys, txin['num_sig'])
-    elif txin['type'] in ['p2wpkh', 'p2wpkh-p2sh']:
-        pubkey = pubkeys[0]
-        pkh = bh2u(bitcoin.hash_160(bfh(pubkey)))
-        return '76a9' + push_script(pkh) + '88ac'
-    elif txin['type'] == 'p2pk':
-        pubkey = pubkeys[0]
-        return bitcoin.public_key_to_p2pk_script(pubkey)
-    elif txin['type'] == 'p2sc':
-        return txin['redeem_script']
-    else:
-        raise TypeError('Unknown txin type', txin['type'])
 
 
 def serialize_outpoint(txin):

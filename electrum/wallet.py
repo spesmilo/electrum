@@ -55,7 +55,7 @@ from .transaction import Transaction, tx_to_immutable, ImmutableTransaction
 from .transaction_utils import TxOutputHwInfo, is_input_value_needed, TxOutput, is_segwit_input
 from .util import (NotEnoughFunds, UserCancelled, profiler, format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, InvalidPassword, format_time, BitcoinException, bh2u, timestamp_to_datetime,
-                   Satoshis, Fiat)
+                   Satoshis, Fiat, print_error)
 
 if TYPE_CHECKING:
     from .network import Network
@@ -644,6 +644,7 @@ class Abstract_Wallet(AddressSynchronizer):
         return candidate
 
     def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None, is_sweep=False):
+        print_error('make_unsigned_transaction deprecated')
         # check outputs
         i_max = None
         for i, o in enumerate(outputs):
@@ -830,7 +831,6 @@ class Abstract_Wallet(AddressSynchronizer):
         psbt.BIP69_sort()
         self.add_info_to_psbt(psbt)
 
-        run_hook('make_unsigned_transaction', self, psbt)  # TODO
         run_hook('make_psbt', self, psbt)
         return psbt
 
@@ -908,21 +908,20 @@ class Abstract_Wallet(AddressSynchronizer):
                 age = tx_age
         return age > age_limit
 
-    def bump_fee(self, tx, delta):
-        if tx.is_final():
+    def bump_fee(self, psbt: PSBT, delta):
+        if psbt.glob.unsigned_tx.is_final():
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('transaction is final'))
-        tx = Transaction(tx.serialize())
-        tx.deserialize(force_full_parse=True)  # need to parse inputs
-        tx.remove_signatures()
-        tx.add_inputs_info(self)
-        inputs = tx.inputs()
-        outputs = tx.outputs()
+        psbt = PSBT.from_raw(psbt.serialize())
+        psbt.remove_signatures()
+        self.add_info_to_psbt(psbt)
+        inputs = psbt.glob.unsigned_tx.inputs()
+        outputs = list(psbt.glob.unsigned_tx.outputs())
         # use own outputs
         s = list(filter(lambda x: self.is_mine(x[1]), outputs))
         # ... unless there is none
         if not s:
             s = outputs
-            x_fee = run_hook('get_tx_extra_fee', self, tx)
+            x_fee = run_hook('get_tx_extra_fee', self, psbt.glob.unsigned_tx)
             if x_fee:
                 x_fee_address, x_fee_amount = x_fee
                 s = filter(lambda x: x[1]!=x_fee_address, s)
@@ -943,8 +942,10 @@ class Abstract_Wallet(AddressSynchronizer):
         if delta > 0:
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('could not find suitable outputs'))
         locktime = self.get_local_height()
-        tx_new = Transaction.from_io(inputs, outputs, locktime=locktime)
-        return tx_new
+        psbt_new = PSBT.from_io(inputs, outputs)
+        psbt_new.glob.unsigned_tx.locktime = locktime
+        self.add_info_to_psbt(psbt_new)
+        return psbt_new
 
     def cpfp(self, tx, fee):
         txid = tx.txid()
@@ -1026,7 +1027,6 @@ class Abstract_Wallet(AddressSynchronizer):
             inputs = psbt.glob.unsigned_tx.inputs()
 
         out = []
-
         for i, txin in enumerate(inputs):
             address = txin['address']
             if address is None:

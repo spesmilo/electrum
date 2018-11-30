@@ -23,30 +23,31 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys
-import datetime
-import copy
 import argparse
-import json
 import ast
 import base64
-from functools import wraps
+import copy
+import datetime
+import json
+import sys
 from decimal import Decimal
+from functools import wraps
 from typing import Optional, TYPE_CHECKING
 
-from .import util, ecc
-from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode
 from . import bitcoin
-from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
+from . import keystore
+from . import util, ecc
+from .bip174 import PSBT
+from .bitcoin import is_address, hash_160, COIN, TYPE_ADDRESS
 from .i18n import _
+from .mnemonic import Mnemonic
+from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
+from .storage import WalletStorage
+from .synchronizer import Notifier
 from .transaction import Transaction
 from .transaction_utils import multisig_script, TxOutput
-from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
-from .synchronizer import Notifier
-from .storage import WalletStorage
-from . import keystore
+from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode
 from .wallet import Wallet, Imported_Wallet, Abstract_Wallet
-from .mnemonic import Mnemonic
 
 if TYPE_CHECKING:
     from .network import Network
@@ -482,7 +483,7 @@ class Commands:
         message = util.to_bytes(message)
         return ecc.verify_message_with_address(address, sig, message)
 
-    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime=None):
+    def _mktx(self, outputs, fee, change_addr, domain, nocheck, unsigned, rbf, password, locktime=None) -> PSBT:
         self.nocheck = nocheck
         change_addr = self._resolver(change_addr)
         domain = None if domain is None else map(self._resolver, domain)
@@ -493,7 +494,8 @@ class Commands:
             final_outputs.append(TxOutput(TYPE_ADDRESS, address, amount))
 
         coins = self.wallet.get_spendable_coins(domain, self.config)
-        tx = self.wallet.make_unsigned_transaction(coins, final_outputs, self.config, fee, change_addr)
+        psbt = self.wallet.make_psbt(coins, final_outputs, self.config, fee, change_addr)
+        tx = psbt.glob.unsigned_tx
         if locktime != None:
             tx.locktime = locktime
         if rbf is None:
@@ -501,8 +503,8 @@ class Commands:
         if rbf:
             tx.set_rbf(True)
         if not unsigned:
-            self.wallet.sign_transaction(tx, password)
-        return tx
+            self.wallet.sign_transaction(psbt, password)
+        return psbt
 
     @command('wp')
     def payto(self, destination, amount, fee=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, rbf=None, password=None, locktime=None):

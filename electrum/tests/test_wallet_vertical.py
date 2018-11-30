@@ -837,42 +837,44 @@ class TestWalletSending(TestCaseForTestnetWithDisposableStore):
         # create tx
         outputs = [TxOutput(bitcoin.TYPE_ADDRESS, '2N1VTMMFb91SH9SNRAkT7z8otP5eZEct4KL', 2500000)]
         coins = wallet.get_spendable_coins(domain=None, config=self.config)
-        tx = wallet.make_unsigned_transaction(coins, outputs, config=self.config, fixed_fee=5000)
-        tx.set_rbf(True)
-        tx.locktime = 1325501
-        wallet.sign_transaction(tx, password=None)
+        psbt = wallet.make_psbt(coins, outputs, config=self.config, fixed_fee=5000)  # type: PSBT
+        psbt.glob.unsigned_tx.version = 1
+        psbt.glob.unsigned_tx.set_rbf(True)
+        psbt.glob.unsigned_tx.locktime = 1325501
+        wallet.sign_transaction(psbt, password=None)
 
-        self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
-        self.assertEqual(1, len(tx.inputs()))
-        tx_copy = Transaction(tx.serialize())
-        self.assertTrue(wallet.is_mine(wallet.get_txin_address(tx_copy.inputs()[0])))
+        self.assertTrue(psbt.is_complete())
+        self.assertFalse(psbt.is_segwit())
+        self.assertEqual(1, len(psbt.glob.unsigned_tx.inputs()))
+        psbt_copy = PSBT.from_raw(psbt.serialize())
+        self.assertTrue(wallet.is_mine(wallet.get_txin_address(psbt_copy.glob.unsigned_tx.inputs()[0])))
 
-        self.assertEqual(tx.txid(), tx_copy.txid())
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+        self.assertEqual(psbt.txid(), psbt_copy.txid())
+        self.assertEqual(psbt.wtxid(), psbt_copy.wtxid())
         self.assertEqual('01000000016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc39270503000000006b483045022100df74e6a88085be1ff3a3fd96cf2ef03b5e33fa06788f56aa71649f0177d1bfc402206e36a7e6124863ac746d5288d6d47c1d1eac5d4ac3818e561a7a0f2c0a269429012102a807c07bd7975211078e916bdda061d97e98d59a3631a804aada2f9a3f5b587afdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d7200000000001976a914aab9af3fbee0ab4e5c00d53e92f66d4bcb44f1bd88acbd391400',
-                         str(tx_copy))
-        self.assertEqual('44e6dd9529a253181112fc40cadd8ebb4c4359aacb91aa24c45556a1d00839b0', tx_copy.txid())
-        self.assertEqual('44e6dd9529a253181112fc40cadd8ebb4c4359aacb91aa24c45556a1d00839b0', tx_copy.wtxid())
+                         str(psbt_copy.serialize_final()))
+        self.assertEqual('44e6dd9529a253181112fc40cadd8ebb4c4359aacb91aa24c45556a1d00839b0', psbt_copy.txid())
+        self.assertEqual('44e6dd9529a253181112fc40cadd8ebb4c4359aacb91aa24c45556a1d00839b0', psbt_copy.wtxid())
 
-        wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
+        wallet.receive_tx_callback(psbt.txid(), Transaction(psbt.serialize_final()), TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 2500000 - 5000, 0), wallet.get_balance())
 
         # bump tx
-        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), delta=5000)
-        tx.locktime = 1325501
-        self.assertFalse(tx.is_complete())
+        psbt = wallet.bump_fee(psbt=psbt_copy, delta=5000)
+        psbt.glob.unsigned_tx.locktime = 1325501
+        psbt.glob.unsigned_tx.version = 1
+        self.assertFalse(psbt.is_complete())
 
-        wallet.sign_transaction(tx, password=None)
-        self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
-        tx_copy = Transaction(tx.serialize())
+        wallet.sign_transaction(psbt, password=None)
+        self.assertTrue(psbt.is_complete())
+        self.assertFalse(psbt.is_segwit())
+        psbt_copy = PSBT.from_raw(psbt.serialize())
         self.assertEqual('01000000016207d958dc46508d706e4cd7d3bc46c5c2b02160e2578e5fad2efafc39270503000000006a473044022055b7e6b7e89a55740f7aa2ad1ffcd4b5c913f0de63cf512438921534bc9c3a8d022043b3b27bdc2da4cc6265e4cc9673a3780ccd5cd6f0ee2eaedb51720c15b7a00a012102a807c07bd7975211078e916bdda061d97e98d59a3631a804aada2f9a3f5b587afdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987d0497200000000001976a914aab9af3fbee0ab4e5c00d53e92f66d4bcb44f1bd88acbd391400',
-                         str(tx_copy))
-        self.assertEqual('f26edcf20991dccedf16058adbee923db7057c9b102db660156b8142b6a59bc7', tx_copy.txid())
-        self.assertEqual('f26edcf20991dccedf16058adbee923db7057c9b102db660156b8142b6a59bc7', tx_copy.wtxid())
+                         psbt_copy.serialize_final())
+        self.assertEqual('f26edcf20991dccedf16058adbee923db7057c9b102db660156b8142b6a59bc7', psbt_copy.txid())
+        self.assertEqual('f26edcf20991dccedf16058adbee923db7057c9b102db660156b8142b6a59bc7', psbt_copy.wtxid())
 
-        wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
+        wallet.receive_tx_callback(psbt_copy.txid(), Transaction(psbt_copy.serialize_final()), TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 2500000 - 10000, 0), wallet.get_balance())
 
     @needs_test_with_all_ecc_implementations
@@ -923,42 +925,44 @@ class TestWalletSending(TestCaseForTestnetWithDisposableStore):
         # create tx
         outputs = [TxOutput(bitcoin.TYPE_ADDRESS, '2N1VTMMFb91SH9SNRAkT7z8otP5eZEct4KL', 2500000)]
         coins = wallet.get_spendable_coins(domain=None, config=self.config)
-        tx = wallet.make_unsigned_transaction(coins, outputs, config=self.config, fixed_fee=5000)
-        tx.set_rbf(True)
-        tx.locktime = 1325499
-        wallet.sign_transaction(tx, password=None)
+        psbt = wallet.make_psbt(coins, outputs, config=self.config, fixed_fee=5000)
+        psbt.glob.unsigned_tx.version = 1
+        psbt.glob.unsigned_tx.set_rbf(True)
+        psbt.glob.unsigned_tx.locktime = 1325499
+        wallet.sign_transaction(psbt, password=None)
 
-        self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
-        self.assertEqual(1, len(tx.inputs()))
-        tx_copy = Transaction(tx.serialize())
-        self.assertTrue(wallet.is_mine(wallet.get_txin_address(tx_copy.inputs()[0])))
+        self.assertTrue(psbt.is_complete())
+        self.assertTrue(psbt.is_segwit())
+        self.assertEqual(1, len(psbt.glob.unsigned_tx.inputs()))
+        psbt_copy = PSBT.from_raw(psbt.serialize())
+        self.assertTrue(wallet.is_mine(wallet.get_txin_address(psbt_copy.glob.unsigned_tx.inputs()[0])))
 
-        self.assertEqual(tx.txid(), tx_copy.txid())
-        self.assertEqual(tx.wtxid(), tx_copy.wtxid())
+        self.assertEqual(psbt.txid(), psbt_copy.txid())
+        self.assertEqual(psbt.wtxid(), psbt_copy.wtxid())
         self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987585d720000000000160014f0fe5c1867a174a12e70165e728a072619455ed50247304402205442705e988abe74bf391b293bb1b886674284a92ed0788c33024f9336d60aef022013a93049d3bed693254cd31a704d70bb988a36750f0b74d0a5b4d9e29c54ca9d0121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bb391400',
-                         str(tx_copy))
-        self.assertEqual('b019bbad45a46ed25365e46e4cae6428fb12ae425977eb93011ffb294cb4977e', tx_copy.txid())
-        self.assertEqual('ba87313e2b3b42f1cc478843d4d53c72d6e06f6c66ac8cfbe2a59cdac2fd532d', tx_copy.wtxid())
+                         psbt_copy.serialize_final())
+        self.assertEqual('b019bbad45a46ed25365e46e4cae6428fb12ae425977eb93011ffb294cb4977e', psbt_copy.txid())
+        self.assertEqual('ba87313e2b3b42f1cc478843d4d53c72d6e06f6c66ac8cfbe2a59cdac2fd532d', psbt_copy.wtxid())
 
-        wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
+        wallet.receive_tx_callback(psbt.txid(), Transaction(psbt.serialize_final()), TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 2500000 - 5000, 0), wallet.get_balance())
 
         # bump tx
-        tx = wallet.bump_fee(tx=Transaction(tx.serialize()), delta=5000)
-        tx.locktime = 1325500
-        self.assertFalse(tx.is_complete())
+        psbt = wallet.bump_fee(psbt=psbt_copy, delta=5000)
+        psbt.glob.unsigned_tx.locktime = 1325500
+        psbt.glob.unsigned_tx.version = 1
+        self.assertFalse(psbt.is_complete())
 
-        wallet.sign_transaction(tx, password=None)
-        self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
-        tx_copy = Transaction(tx.serialize())
+        wallet.sign_transaction(psbt, password=None)
+        self.assertTrue(psbt.is_complete())
+        self.assertTrue(psbt.is_segwit())
+        psbt_copy = PSBT.from_raw(psbt.serialize())
         self.assertEqual('01000000000101c0ec8b6cdcb6638fa117ead71a8edebc189b30e6e5415bdfb3c8260aa269e6520100000000fdffffff02a02526000000000017a9145a71fc1a7a98ddd67be935ade1600981c0d066f987d049720000000000160014f0fe5c1867a174a12e70165e728a072619455ed5024730440220517fed3a902b5b41fa718ffd5f229b835b8ed26f23433c4ea437d24eff66d15b0220526854a6ebcd351ab2373d0e7c4e20f17c420520b5d570c2df7ca1d773d6a55d0121028d4c44ca36d2c4bff3813df8d5d3c0278357521ecb892cd694c473c03970e4c5bc391400',
-                         str(tx_copy))
-        self.assertEqual('9a1c0ef7e871798b86074c7f8dd1e81b6d9a758ff07e0059eee31dc6fbf4f438', tx_copy.txid())
-        self.assertEqual('59144d30c911ac33359b0a32d5a3fdd2ca806982c85838e193eb95f5d315e813', tx_copy.wtxid())
+                         psbt_copy.serialize_final())
+        self.assertEqual('9a1c0ef7e871798b86074c7f8dd1e81b6d9a758ff07e0059eee31dc6fbf4f438', psbt_copy.txid())
+        self.assertEqual('59144d30c911ac33359b0a32d5a3fdd2ca806982c85838e193eb95f5d315e813', psbt_copy.wtxid())
 
-        wallet.receive_tx_callback(tx.txid(), tx, TX_HEIGHT_UNCONFIRMED)
+        wallet.receive_tx_callback(psbt.txid(), Transaction(psbt.serialize_final()), TX_HEIGHT_UNCONFIRMED)
         self.assertEqual((0, funding_output_value - 2500000 - 10000, 0), wallet.get_balance())
 
     @needs_test_with_all_ecc_implementations

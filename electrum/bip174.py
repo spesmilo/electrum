@@ -537,6 +537,9 @@ class PSBT:
             'redeem_script': '<hex>'
         }]
         """
+        # check that this is exact Transaction object, and not any subclass
+        if not (type(tx) == Transaction):
+            return [{} for _ in range(len(tx.inputs()))]
         tx.deserialize()
         inputs_data = []
         for txin in tx.inputs():
@@ -775,7 +778,11 @@ class PSBT:
             if info.get('sighash_type'):
                 inp.sighash_type = info.get('sighash_type')
             if inp.is_segwit():
-                inp.witness_script = self.glob.unsigned_tx.input_script(i)
+                # try to generate script, if we have enough data
+                try:
+                    inp.witness_script = self.glob.unsigned_tx.input_script(i)
+                except:
+                    pass
         self.validate()
 
     def update_outputs(self, outputs_meta):
@@ -868,6 +875,12 @@ class PSBT:
             return tx.txid()
         return None
 
+    def wtxid(self):
+        if self.is_complete():
+            tx = Transaction(self.serialize_final())
+            return tx.wtxid()
+        return None
+
     def BIP69_sort(self):
         t = list(zip(self.glob.unsigned_tx.inputs(), self.input_sections))
         t.sort(key=lambda txi_and_section: (txi_and_section[0]['prevout_hash'], txi_and_section[0]['prevout_n']))
@@ -881,3 +894,10 @@ class PSBT:
         txos, outputs = zip(*t)
         self.glob.unsigned_tx._outputs = txos
         self.output_sections = outputs
+
+    def remove_signatures(self):
+        for inp in self.input_sections:
+            inp.partial_sig = {}
+            inp.final_scriptsig = None
+            inp.final_scriptwitness = None
+        assert not self.is_complete()

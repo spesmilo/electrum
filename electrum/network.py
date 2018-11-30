@@ -723,9 +723,10 @@ class Network(PrintError):
         return await self.interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
 
     @best_effort_reliable
-    async def broadcast_transaction(self, tx, *, timeout=10):
-        out = await self.interface.session.send_request('blockchain.transaction.broadcast', [tx.serialize_final()], timeout=timeout)
-        if out != tx.txid():
+    async def broadcast_transaction(self, psbt, *, timeout=10):
+        # here psbt may be just Transaction object,
+        out = await self.interface.session.send_request('blockchain.transaction.broadcast', [psbt.serialize_final()], timeout=timeout)
+        if out != psbt.txid():
             raise Exception(out)
         return out  # txid
 

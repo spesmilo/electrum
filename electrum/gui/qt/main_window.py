@@ -22,58 +22,48 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import sys
-import time
-import threading
-import os
-import traceback
+import asyncio
+import base64
+import csv
 import json
+import os
 import shutil
+import threading
+import traceback
 import weakref
 import webbrowser
-import csv
 from decimal import Decimal
-import base64
-from functools import partial
-import queue
 from typing import Union
-import asyncio
-
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-import PyQt5.QtCore as QtCore
-from PyQt5.QtWidgets import *
 
 import electrum
 from electrum import (keystore, simple_config, ecc, constants, util, bitcoin, commands,
                       coinchooser, paymentrequest, PSBT)
+from electrum.address_synchronizer import AddTransactionException
 from electrum.bitcoin import COIN, is_address, TYPE_ADDRESS
-from electrum.plugin import run_hook
+from electrum.exchange_rate import FxThread
 from electrum.i18n import _
+from electrum.network import Network
+from electrum.plugin import run_hook
+from electrum.simple_config import SimpleConfig
+from electrum.transaction import Transaction, TxOutput
 from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            format_satoshis_plain, NotEnoughFunds, PrintError,
                            UserCancelled, NoDynamicFeeEstimates, profiler,
                            export_meta, import_meta, bh2u, bfh, InvalidPassword,
-                           base_units, base_units_list, base_unit_name_to_decimal_point,
+                           base_units_list, base_unit_name_to_decimal_point,
                            decimal_point_to_base_unit_name, quantize_feerate,
                            UnknownBaseUnit, DECIMAL_POINT_DEFAULT, UserFacingException)
-from electrum.transaction import Transaction, TxOutput
-from electrum.address_synchronizer import AddTransactionException
+from electrum.version import ELECTRUM_VERSION
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
                              sweep_preparations)
-from electrum.version import ELECTRUM_VERSION
-from electrum.network import Network
-from electrum.exchange_rate import FxThread
-from electrum.simple_config import SimpleConfig
-
-from .exception_window import Exception_Hook
 from .amountedit import AmountEdit, BTCAmountEdit, MyLineEdit, FeerateEdit
+from .exception_window import Exception_Hook
+from .fee_slider import FeeSlider
+from .installwizard import WIF_HELP_TEXT
 from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
-from .fee_slider import FeeSlider
 from .util import *
-from .installwizard import WIF_HELP_TEXT
 
 
 class StatusBarButton(QPushButton):
@@ -1347,7 +1337,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 outputs = [TxOutput(_type, addr, amount)]
             is_sweep = bool(self.tx_external_keypairs)
             make_tx = lambda fee_est: \
-                self.wallet.make_unsigned_transaction(
+                self.wallet.make_psbt(
                     self.get_coins(), outputs, self.config,
                     fixed_fee=fee_est, is_sweep=is_sweep)
             try:
@@ -1364,7 +1354,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.not_enough_funds = True
                 elif isinstance(e, NoDynamicFeeEstimates):
                     try:
-                        tx = make_tx(0)
+                        psbt = make_tx(0)  # type: PSBT
+                        tx = psbt.glob.unsigned_tx  # type: StandardTransaction
                         size = tx.estimated_size()
                         self.size_e.setAmount(size)
                     except BaseException:
@@ -1635,10 +1626,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         on_success = run_hook('tc_sign_wrapper', self.wallet, tx, on_success, on_failure) or on_success
         if self.tx_external_keypairs:
             # can sign directly
-            print('direct sign')
             task = partial(Transaction.sign, tx, self.tx_external_keypairs)
         else:
-            print('wallet sign')
             task = partial(self.wallet.process_psbt, tx, password)
         msg = _('Signing transaction...')
         WaitingDialog(self, msg, task, on_success, on_failure)

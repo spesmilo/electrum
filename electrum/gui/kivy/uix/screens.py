@@ -19,7 +19,7 @@ from kivy.factory import Factory
 from kivy.utils import platform
 
 from electrum.util import profiler, parse_URI, format_time, InvalidPassword, NotEnoughFunds, Fiat
-from electrum import bitcoin
+from electrum import bitcoin, PSBT
 from electrum.transaction import TxOutput
 from electrum.util import timestamp_to_datetime
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
@@ -272,7 +272,7 @@ class SendScreen(CScreen):
         config = self.app.electrum_config
         coins = self.app.wallet.get_spendable_coins(None, config)
         try:
-            tx = self.app.wallet.make_unsigned_transaction(coins, outputs, config, None)
+            psbt = self.app.wallet.make_psbt(coins, outputs, config, None)  # type: PSBT
         except NotEnoughFunds:
             self.app.show_error(_("Not enough funds"))
             return
@@ -281,13 +281,13 @@ class SendScreen(CScreen):
             self.app.show_error(str(e))
             return
         if rbf:
-            tx.set_rbf(True)
-        fee = tx.get_fee()
+            psbt.glob.unsigned_tx.set_rbf(True)
+        fee = psbt.glob.unsigned_tx.get_fee()
         msg = [
             _("Amount to be sent") + ": " + self.app.format_amount_and_units(amount),
             _("Mining fee") + ": " + self.app.format_amount_and_units(fee),
         ]
-        x_fee = run_hook('get_tx_extra_fee', self.app.wallet, tx)
+        x_fee = run_hook('get_tx_extra_fee', self.app.wallet, psbt.glob.unsigned_tx)
         if x_fee:
             x_fee_address, x_fee_amount = x_fee
             msg.append(_("Additional fees") + ": " + self.app.format_amount_and_units(x_fee_amount))
@@ -295,24 +295,24 @@ class SendScreen(CScreen):
         if fee >= config.get('confirm_fee', 100000):
             msg.append(_('Warning')+ ': ' + _("The fee for this transaction seems unusually high."))
         msg.append(_("Enter your PIN code to proceed"))
-        self.app.protected('\n'.join(msg), self.send_tx, (tx, message))
+        self.app.protected('\n'.join(msg), self.send_tx, (psbt, message))
 
-    def send_tx(self, tx, message, password):
+    def send_tx(self, psbt: PSBT, message, password):
         if self.app.wallet.has_password() and password is None:
             return
-        def on_success(tx):
-            if tx.is_complete():
-                self.app.broadcast(tx, self.payment_request)
-                self.app.wallet.set_label(tx.txid(), message)
+        def on_success(psbt):
+            if psbt.is_complete():
+                self.app.broadcast(psbt, self.payment_request)
+                self.app.wallet.set_label(psbt.txid(), message)
             else:
-                self.app.tx_dialog(tx)
+                self.app.tx_dialog(psbt)
         def on_failure(error):
             self.app.show_error(error)
-        if self.app.wallet.can_sign(tx):
+        if self.app.wallet.can_sign(psbt):
             self.app.show_info("Signing...")
-            self.app.sign_tx(tx, password, on_success, on_failure)
+            self.app.sign_tx(psbt, password, on_success, on_failure)
         else:
-            self.app.tx_dialog(tx)
+            self.app.tx_dialog(psbt)
 
 
 class ReceiveScreen(CScreen):
