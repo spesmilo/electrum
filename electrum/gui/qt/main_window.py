@@ -2030,7 +2030,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 return
 
             try:
-                hw_dev_pw = self.wallet.keystore.get_password_for_storage_encryption()
+                if isinstance(self.wallet, Multisig_Wallet):
+                    # FIXME we use the "first" device, in case of multiple ones
+                    k = self.wallet.get_hardware_keystores()[0]
+                else:
+                    k = self.wallet.keystore
+                hw_dev_pw = k.get_password_for_storage_encryption()
             except UserCancelled:
                 return
             except BaseException as e:

@@ -1667,6 +1667,9 @@ class Multisig_Wallet(Deterministic_Wallet):
     def get_keystores(self):
         return [self.keystores[i] for i in sorted(self.keystores.keys())]
 
+    def get_hardware_keystores(self):
+        return [k for k in self.get_keystores() if isinstance(k, Hardware_KeyStore)]
+
     def can_have_keystore_encryption(self):
         return any([k.may_have_password() for k in self.get_keystores()])
 
@@ -1683,8 +1686,15 @@ class Multisig_Wallet(Deterministic_Wallet):
         self.storage.check_password(password)
 
     def get_available_storage_encryption_version(self):
-        # multisig wallets are not offered hw device encryption
-        return STO_EV_USER_PW
+        # multisig wallets are only offered hw device encryption if
+        # FIXME there is only one hw keystore [need selection UI] AND
+        # m == n OR n == watchonly + hardware
+        hardware_count = len(self.get_hardware_keystores())
+        watchonly_count = sum(1 for k in self.get_keystores() if k.is_watching_only())
+        if hardware_count == 1 and (self.m == self.n or self.n == watchonly_count + hardware_count):
+            return STO_EV_XPUB_PW
+        else:
+            return STO_EV_USER_PW
 
     def has_seed(self):
         return self.keystore.has_seed()

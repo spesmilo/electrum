@@ -153,7 +153,7 @@ class BaseWizard(object):
         def on_multisig(m, n):
             self.multisig_type = "%dof%d"%(m, n)
             self.storage.put('wallet_type', self.multisig_type)
-            self.n = n
+            self.m, self.n = m, n
             self.run('choose_keystore')
         self.multisig_dialog(run_next=on_multisig)
 
@@ -471,13 +471,28 @@ class BaseWizard(object):
             else:
                 self.run('create_wallet')
 
+    def get_encrypting_hardware_keystore(self):
+        hardware_keystores = [k for k in self.keystores if isinstance(k, keystore.Hardware_KeyStore)]
+
+        # FIXME until there is UI for providing encryption options, restrict to wallets with a single hardware keystore
+        if len(hardware_keystores) != 1:
+            return
+
+        k = hardware_keystores[0]
+        if self.wallet_type == 'standard':
+            return k
+        if self.wallet_type == 'multisig':
+            # note: the following condition ("if") is duplicated logic from
+            # wallet.get_available_storage_encryption_version()
+            watching_count = sum(1 for k in self.keystores if k.is_watching_only())
+            if self.m == self.n or self.n == watching_count + len(hardware_keystores):
+                return k
+
     def create_wallet(self):
         encrypt_keystore = any(k.may_have_password() for k in self.keystores)
-        # note: the following condition ("if") is duplicated logic from
-        # wallet.get_available_storage_encryption_version()
-        if self.wallet_type == 'standard' and isinstance(self.keystores[0], keystore.Hardware_KeyStore):
+        k = self.get_encrypting_hardware_keystore()
+        if k is not None:
             # offer encrypting with a pw derived from the hw device
-            k = self.keystores[0]
             try:
                 k.handler = self.plugin.create_handler(self)
                 password = k.get_password_for_storage_encryption()
