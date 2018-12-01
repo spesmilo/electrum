@@ -74,8 +74,8 @@ from electroncash_plugins.shuffle.client import BackgroundShufflingThread
 #     win.parent.tabs.setCurrentWidget(win.parent.cs_tab)
 
 
-def is_coin_shuffled(wallet, coin):
-    txs = wallet.storage.get("transactions", {})
+def is_coin_shuffled(wallet, coin, txs=None):
+    txs = txs or wallet.storage.get("transactions", {})
     coin_out_n = coin['prevout_n']
     if coin['prevout_hash'] in txs:
         tx = Transaction(txs[coin['prevout_hash']])
@@ -100,7 +100,8 @@ def is_coin_shuffled(wallet, coin):
 def get_shuffled_coins(wallet):
     with self.wallet.transaction_lock:
         utxos = wallet.get_utxos()
-    return [utxo for utxo in utxos if wallet.is_coin_shuffled(utxo)]
+    txs = self.wallet.storage.get("transactions", {})
+    return [utxo for utxo in utxos if wallet.is_coin_shuffled(utxo, txs)]
 
 def my_custom_item_setup(utxo_list, utxo, name, item):
     if not hasattr(utxo_list.wallet, 'is_coin_shuffled'):
