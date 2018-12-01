@@ -220,7 +220,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.connect_slots(gui_object.timer)
         self.fetch_alias()
 
-        if not ElectrumWindow.did_ask_cashshuffle:
+        if not ElectrumWindow.did_ask_cashshuffle and not self.wallet.is_watching_only():
             QTimer.singleShot(300, self.do_cash_shuffle_popup)
 
     def on_history(self, b):
@@ -2779,7 +2779,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if p:
             # NB: all plugins get this message whenever one is toggled so be sure your plugin guards against multiple calls!
             run_hook('init_qt', self.gui_object)
-        self.statusBar().showMessage(_("CashShuffle {}").format(_("ENABLED") if p else _("disabled")), 2500)
+        b = self.is_cashshuffle_enabled()
+        self.statusBar().showMessage(_("CashShuffle {}").format(_("ENABLED") if b else _("disabled")), 2500)
         self.update_cashshuffle_icon()
 
 
