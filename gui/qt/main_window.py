@@ -103,11 +103,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     show_privkeys_signal = pyqtSignal()
     cashaddr_toggled_signal = pyqtSignal()
     history_updated_signal = pyqtSignal()
+    did_ask_cashshuffle = False
 
     def __init__(self, gui_object, wallet):
         QMainWindow.__init__(self)
 
-        self.wallet=wallet
         self.gui_object = gui_object
         self.config = config = gui_object.config
 
@@ -136,6 +136,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         Address.show_cashaddr(config.get('show_cashaddr', False))
 
+        self.create_status_bar()
         self.need_update = threading.Event()
 
         self.decimal_point = config.get('decimal_point', 8)
@@ -143,8 +144,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.num_zeros     = int(config.get('num_zeros',0))
 
         self.completions = QStringListModel()
-
-        self.create_status_bar()
 
         self.tabs = tabs = QTabWidget(self)
         self.send_tab = self.create_send_tab()
@@ -218,47 +217,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_slider.update()
         self.load_wallet(wallet)
 
-
-        use_cashshuffle= self.wallet.storage.get('use_cashshuffle', False)
-        shuffle_noprompt = self.wallet.storage.get('shuffle_noprompt', False)
-        if use_cashshuffle == False and shuffle_noprompt != True:
-            d = WindowModalDialog(self, title=_('Would you like to turn on CashShuffle for this wallet?'))
-            d.setMinimumSize(400, 200)
-            vbox = QVBoxLayout(d)
-            notice = QLabel(_("""
-                NOTICE: CashShuffle is disabled for this wallet.
-
-                If you enable it, Electron Cash will shuffle your coins for greater privacy.
-                Would you like to turn this feature on?
-                (You can always disable it later from the Wallet menu).
-
-                Click the enable button turn CashShuffle on, or cancel to decline."""))
-            notice.setWordWrap(True)
-            # vbox.addWidget(QLabel(_("NOTICE: CashShuffle is disabled.  If you enable it, Electron Cash will shuffle your coins for greater privacy.  Would you like to turn this feature on?  (You can always disable it later from the Optional Features menu).  Click the enable button turn CashShuffle on, or cancel to decline.")))
-            vbox.addWidget(notice)
-
-            csnoprompt_cb = QCheckBox(_('Don\'t ask me again'))
-            vbox.addWidget(csnoprompt_cb)
-            vbox.addStretch(1)
-            sweep_button = OkButton(d, _('Enable CashShuffle'))
-            vbox.addLayout(Buttons(CancelButton(d), sweep_button))
-            if not d.exec_():
-                if csnoprompt_cb.isChecked()==True:
-                    self.wallet.storage.put('shuffle_noprompt', True)
-            else:
-                self.wallet.storage.put('use_cashshuffle', True)
-                self.gui_object.plugins.toggle_internal_plugin("shuffle")
-                run_hook('init_qt', self.gui_object)
-                self.update_cashshuffle_icon()
-                if csnoprompt_cb.isChecked()==True:
-                    self.wallet.storage.put('shuffle_noprompt', True)
-
-
-
-
-        #self.create_status_bar()
         self.connect_slots(gui_object.timer)
         self.fetch_alias()
+
+        if not ElectrumWindow.did_ask_cashshuffle:
+            QTimer.singleShot(300, self.do_cash_shuffle_popup)
 
     def on_history(self, b):
         self.new_fx_history_signal.emit()
@@ -551,7 +514,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_menu.addAction(_("&Information"), self.show_master_public_keys)
-        # wallet_menu.addAction(_("&Toggle Cash Shuffle"), self.toggle_cashshuffle_status_bar)
         wallet_menu.addSeparator()
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
@@ -2058,7 +2020,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.cashshuffle_status_button = StatusBarButton(
             self.cashshuffle_icon(),
             _("Toggle CashShuffle On or Off"),
-            # self.toggle_cashshuffle_status_bar
             self.toggle_cashshuffle
         )
         sb.addPermanentWidget(self.cashshuffle_status_button)
@@ -2095,6 +2056,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         try:
             self.wallet.update_password(password, new_password, encrypt_file)
+            run_hook("on_new_password", self, password, new_password)
         except BaseException as e:
             self.show_error(str(e))
             return
@@ -2783,9 +2745,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             return QIcon(":icons/tab_converter_bw.png")
 
-
+    def is_cashshuffle_enabled(self):
+        plugin = self.gui_object.plugins.find_plugin("shuffle")
+        return bool(self.config.get('use_cashshuffle', False) and plugin and plugin.is_enabled())
+    
     def cashshuffle_icon(self):
-        if self.config.get('use_shuffle', False):
+        if self.is_cashshuffle_enabled():
             return QIcon(":icons/cashshuffle_on.png")
         else:
             return QIcon(":icons/cashshuffle_off.png")
@@ -2799,9 +2764,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def toggle_cashaddr_status_bar(self):
         self.toggle_cashaddr(not self.config.get('show_cashaddr', False))
 
-    # def toggle_cashshuffle_status_bar(self):
-    #     self.toggle_cashshuffle()
-
     def toggle_cashaddr_settings(self, state):
         self.toggle_cashaddr(state == Qt.Checked)
 
@@ -2813,10 +2775,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def toggle_cashshuffle(self):
         p = self.gui_object.plugins.toggle_internal_plugin("shuffle")
-        self.config.set_key('use_shuffle', bool(p))
-        self.wallet.storage.put('use_cashshuffle', bool(p))
+        self.config.set_key('use_cashshuffle', bool(p))
         if p:
+            # NB: all plugins get this message whenever one is toggled so be sure your plugin guards against multiple calls!
             run_hook('init_qt', self.gui_object)
+        self.statusBar().showMessage(_("CashShuffle {}").format(_("ENABLED") if p else _("disabled")), 2500)
 
 
     def settings_dialog(self):
@@ -3361,3 +3324,34 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_('CPFP no longer valid'))
             return
         self.show_transaction(new_tx)
+
+    def do_cash_shuffle_popup(self):
+        if ElectrumWindow.did_ask_cashshuffle or not self.wallet:
+            return
+        has_cashshuffle = self.is_cashshuffle_enabled()
+        shuffle_noprompt = self.config.get('shuffle_noprompt2', False)
+        if not has_cashshuffle and not shuffle_noprompt:
+            ElectrumWindow.did_ask_cashshuffle = True
+            d = WindowModalDialog(self, title=_('Would you like to turn on CashShuffle?'))
+            d.setMinimumSize(400, 200)
+            vbox = QVBoxLayout(d)
+            notice = QLabel(_("""
+                NOTICE: CashShuffle is disabled.
+
+                If you enable it, Electron Cash will shuffle your coins for greater privacy.
+                Would you like to turn this feature on?
+
+                (You can always toggle it later using the CashShuffle button in the lower right).
+                """))
+            notice.setWordWrap(True)
+            vbox.addWidget(notice)
+
+            csnoprompt_cb = QCheckBox(_('Don\'t ask me again'))
+            vbox.addWidget(csnoprompt_cb)
+            vbox.addStretch(1)
+            sweep_button = OkButton(d, _('Enable CashShuffle'))
+            vbox.addLayout(Buttons(CancelButton(d, _("No")), sweep_button))
+            if d.exec_():
+                self.toggle_cashshuffle()
+            if csnoprompt_cb.isChecked():
+                self.config.set_key('shuffle_noprompt2', True)

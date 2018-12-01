@@ -236,6 +236,7 @@ class BackgroundShufflingThread(threading.Thread):
         self.ssl = network_settings.get("ssl", None)
         self.network = network_settings.get("network", None)
         self.fee = fee
+        self.lock = threading.Lock()
         self.password = password
         self.threads = {scale:None for scale in self.scales}
         self.loggers = {scale:Channel(switch_timeout=1) for scale in self.scales}
@@ -243,6 +244,13 @@ class BackgroundShufflingThread(threading.Thread):
         self.watchdogs = dict() # will be property initialized in run()
         self.threads_timer = None # will be initialized in run()
 
+    def set_password(self, password):
+        with self.lock:
+            self.password = password
+
+    def get_password(self):
+        with self.lock:
+            return self.password
 
     def run(self):
         # NB: these need to be created within this thread to inherit its daemonic property

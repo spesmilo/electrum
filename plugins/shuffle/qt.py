@@ -266,14 +266,20 @@ class Plugin(BasePlugin):
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.windows = []
+        self.initted = False
 
     @hook
     def init_qt(self, gui):
+        if self.initted:
+            return
         for window in gui.windows:
             self.on_new_window(window)
+        self.initted = True
 
     @hook
     def on_new_window(self, window):
+        title = window.windowTitle() if window and window.windowTitle() else "UNKNOWN WINDOW"
+        self.print_error("Window {} adding, performing window-specific startup code".format(title))
         password = None
         while window.wallet.has_password():
             name = window.wallet.basename()
@@ -322,9 +328,11 @@ class Plugin(BasePlugin):
     def on_close(self):
         for window in self.windows.copy():
             self.on_close_window(window)
+        self.print_error("Plugin closed")
 
     @hook
     def on_close_window(self, window):
+        title = window.windowTitle() if window and window.windowTitle() else "UNKNOWN WINDOW"
         if getattr(window, "background_process", None):
             window.background_process.join()
             while window.background_process.is_alive():
@@ -332,6 +340,7 @@ class Plugin(BasePlugin):
                 self.print_error("INFINITE LOOP!! FIXME!")
                 pass
             window.background_process = None
+            self.print_error("Window {} closed, ended shuffling for its wallet".format(title))
         restore_utxo_list(window)
         restore_wallet(window.wallet)
         if window.console.namespace.get("start_background_shuffling", None):
@@ -340,9 +349,16 @@ class Plugin(BasePlugin):
         window.update_cashshuffle_icon()
         try:
             self.windows.remove(window)
+            self.print_error("Window {} removed".format(title))
         except ValueError:
+            self.print_error("Window {} not found in window list!".format(title))
             pass
 
+    @hook
+    def on_new_password(self, window, old, new):
+        if getattr(window, 'background_process', None):
+            self.print_error("Got new password for wallet {} informing background process...".format(window.wallet.basename() if window.wallet else 'UNKNOWN'))
+            window.background_process.set_password(new)
 
     # def update(self, window):
     #     self.windows.append(window)
