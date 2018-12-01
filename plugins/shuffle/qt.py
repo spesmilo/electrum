@@ -320,8 +320,7 @@ class Plugin(BasePlugin):
 
 
     def on_close(self):
-        windows = self.windows.copy()
-        for window in windows:
+        for window in self.windows.copy():
             self.on_close_window(window)
 
     @hook
