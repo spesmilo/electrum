@@ -20,7 +20,8 @@ class ProtocolThread(threading.Thread):
                  amount, fee, sk, sks, inputs, pubk,
                  addr_new, change, logger=None, ssl=False):
 
-        threading.Thread.__init__(self)
+        super(ProtocolThread, self).__init__()
+        self.daemon = True
         self.host = host
         self.port = port
         self.ssl = ssl
@@ -45,7 +46,6 @@ class ProtocolThread(threading.Thread):
         self.all_inputs = {}
         self.addr_new = addr_new
         self.change = change
-        self.deamon = True
         self.protocol = None
         self.network = network
         self.tx = None
@@ -190,7 +190,7 @@ class ProtocolThread(threading.Thread):
     def join(self, timeout=None):
         "This method Joins the protocol thread"
         self.stop()
-        threading.Thread.join(self, timeout)
+        super().join(timeout)
 
 
 def is_protocol_done(pThread):
@@ -225,7 +225,8 @@ class BackgroundShufflingThread(threading.Thread):
 
     def __init__(self, wallet, network_settings,
                  period = 10, logger = None, fee=1000, password=None, watchdog_period=300):
-        threading.Thread.__init__(self)
+        super(BackgroundShufflingThread, self).__init__()
+        self.daemon = True
         self.watchdog_period = watchdog_period
         self.period = period
         self.logger = logger
@@ -238,12 +239,16 @@ class BackgroundShufflingThread(threading.Thread):
         self.password = password
         self.threads = {scale:None for scale in self.scales}
         self.loggers = {scale:Channel(switch_timeout=1) for scale in self.scales}
-        self.watchdogs = {scale:threading.Timer(self.watchdog_period, lambda x: self.watchdog_checkout(x), [scale]) for scale in self.scales}
         self.stopper = threading.Event()
-        self.threads_timer = threading.Timer(self.period, self.check_for_threads)
+        self.watchdogs = dict() # will be property initialized in run()
+        self.threads_timer = None # will be initialized in run()
 
 
     def run(self):
+        # NB: these need to be created within this thread to inherit its daemonic property
+        self.watchdogs = {scale:threading.Timer(self.watchdog_period, lambda x: self.watchdog_checkout(x), [scale]) for scale in self.scales}
+        self.threads_timer = threading.Timer(self.period, self.check_for_threads)
+
         self.threads_timer.start()
         if self.logger:
             self.logger.send("started", "MAINLOG")
@@ -377,4 +382,4 @@ class BackgroundShufflingThread(threading.Thread):
         for scale in self.scales:
             if self.threads[scale]:
                 self.threads[scale].join()
-        threading.Thread.join(self)
+        super().join()

@@ -31,6 +31,7 @@ class Commutator(threading.Thread):
     def __init__(self, income, outcome, logger=ChannelWithPrint(),
                  buffsize=4096, timeout=1, switch_timeout=0.1, ssl=False):
         super(Commutator, self).__init__()
+        self.daemon = True
         self.income = income
         self.outcome = outcome
         self.logger = logger
@@ -67,7 +68,7 @@ class Commutator(threading.Thread):
     def join(self, timeout=None):
         self.alive.clear()
         self.socket.close()
-        threading.Thread.join(self, timeout)
+        super().join(timeout)
 
 
     def connect(self, host, port):

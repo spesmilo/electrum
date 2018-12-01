@@ -328,6 +328,8 @@ class Plugin(BasePlugin):
         if getattr(window, "background_process", None):
             window.background_process.join()
             while window.background_process.is_alive():
+                # this code should never be reached.
+                self.print_error("INFINITE LOOP!! FIXME!")
                 pass
             window.background_process = None
         restore_utxo_list(window)
