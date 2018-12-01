@@ -2780,6 +2780,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # NB: all plugins get this message whenever one is toggled so be sure your plugin guards against multiple calls!
             run_hook('init_qt', self.gui_object)
         self.statusBar().showMessage(_("CashShuffle {}").format(_("ENABLED") if p else _("disabled")), 2500)
+        self.update_cashshuffle_icon()
 
 
     def settings_dialog(self):

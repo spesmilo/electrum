@@ -35,7 +35,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
-from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout, QLineEdit, QHBoxLayout, QWidget, QCheckBox, QMenu, QComboBox, QMessageBox, QTreeWidgetItemIterator
+from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout, QLineEdit, QHBoxLayout, QWidget, QCheckBox, QMenu, QComboBox, QTreeWidgetItemIterator
 
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
@@ -289,17 +289,20 @@ class Plugin(BasePlugin):
         title = window.windowTitle() if window and window.windowTitle() else "UNKNOWN WINDOW"
         self.print_error("Window '{}' is a new window, performing window-specific startup code".format(title))
         password = None
+        name = window.wallet.basename()
+        if hasattr(window.wallet, 'is_watching_only') and window.wallet.is_watching_only():
+            window.toggle_cashshuffle()
+            window.show_warning("{} {}".format(
+                _("This wallet is watching-only."),
+                _("It cannot be used with CashShuffle, closing plugin.")), parent=window)
+            return
         while window.wallet.has_password():
-            name = window.wallet.basename()
             msg = _("CashShuffle requires access to '{}'.").format(name) + "\n" +  _('Please enter your password')
             password = PasswordDialog(parent=None, msg=msg).run()
             if password is None:
                 # User cancelled password input
-                msgBox = QMessageBox(parent=window)
-                msgBox.setText(_("Can't get password, closing plugin."))
-                msgBox.exec_()
-                window.gui_object.plugins.toggle_internal_plugin('shuffle')
-                window.update_cashshuffle_icon()
+                window.toggle_cashshuffle()
+                window.show_error(_("Can't get password, closing plugin."), parent=window)
                 return
             try:
                 window.wallet.check_password(password)
@@ -319,10 +322,8 @@ class Plugin(BasePlugin):
         if not network_settings:
             network_settings = self.settings_dialog(window, msg=_("Please choose a CashShuffle server"))
         if not network_settings:
-            msgBox = QMessageBox(parent=window)
-            msgBox.setText(_("Can't get network, closing plugin."))
-            msgBox.exec_()
-            window.gui_object.plugins.toggle_internal_plugin('shuffle')
+            window.toggle_cashshuffle()
+            window.show_error(_("Can't get network, closing plugin."), parent=window)
             return
         network_settings['host'] = network_settings.pop('server')
         network_settings["network"] = window.network
