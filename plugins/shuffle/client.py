@@ -260,7 +260,7 @@ class BackgroundShufflingThread(threading.Thread):
         self.threads_timer.start()
         if self.logger:
             self.logger.send("started", "MAINLOG")
-            self.logger.send(self.password, "MAINLOG")
+            self.logger.send(self.get_password(), "MAINLOG")
         while not self.stopper.is_set():
             for scale in self.scales:
                 if self.threads[scale]:
@@ -332,7 +332,7 @@ class BackgroundShufflingThread(threading.Thread):
         inputs= {}
         sks = {}
         public_key = self.wallet.get_public_key(coin['address'])
-        private_key = self.wallet.export_private_key(coin['address'], self.password)
+        private_key = self.wallet.export_private_key(coin['address'], self.get_password())
         sk = regenerate_key(deserialize_privkey(private_key)[1])
         inputs[public_key] = ["{}:{}".format(coin['prevout_hash'],coin['prevout_n'])]
         sks[public_key] = sk

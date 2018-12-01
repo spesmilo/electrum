@@ -28,6 +28,7 @@ from __future__ import absolute_import
 
 import os
 import json
+import copy
 from functools import partial
 
 from PyQt5.QtGui import *
@@ -181,11 +182,13 @@ class ServersList(QComboBox):
             pass
         self.servers_list = r
 
-    def setItems(self):
+    def setItems(self, selected = None):
         for server in self.servers_list:
             ssl = self.servers_list[server].get('ssl')
             item = server + ('   [ssl enabled]' if ssl else '   [ssl disabled]')
             self.addItem(item)
+            if selected and selected == server:
+                self.setCurrentIndex(self.count()-1)
 
     def get_current_server(self):
         current_server = self.currentText().split(' ')[0]
@@ -272,14 +275,18 @@ class Plugin(BasePlugin):
     def init_qt(self, gui):
         if self.initted:
             return
+        self.print_error("Initializing...")
+        ct = 0
         for window in gui.windows:
             self.on_new_window(window)
+            ct += 1
         self.initted = True
+        self.print_error("Initialized (had {} extant windows).".format(ct))
 
     @hook
     def on_new_window(self, window):
         title = window.windowTitle() if window and window.windowTitle() else "UNKNOWN WINDOW"
-        self.print_error("Window {} adding, performing window-specific startup code".format(title))
+        self.print_error("Window '{}' is a new window, performing window-specific startup code".format(title))
         password = None
         while window.wallet.has_password():
             name = window.wallet.basename()
@@ -307,9 +314,9 @@ class Plugin(BasePlugin):
         # console modification
         window.console.updateNamespace({"start_background_shuffling": lambda *args, **kwargs: start_background_shuffling(window, *args, **kwargs)})
         window.utxo_list.update()
-        network_settings = window.wallet.storage.get("cashshuffle_server", None)
+        network_settings = copy.deepcopy(window.config.get("cashshuffle_server", None))
         if not network_settings:
-            network_settings = self.settings_dialog(window, msg=_("Choose the server, please"))
+            network_settings = self.settings_dialog(window, msg=_("Please choose a CashShuffle server"))
         if not network_settings:
             msgBox = QMessageBox(parent=window)
             msgBox.setText(_("Can't get network, closing plugin."))
@@ -342,7 +349,7 @@ class Plugin(BasePlugin):
                 self.print_error("INFINITE LOOP!! FIXME!")
                 pass
             window.background_process = None
-            self.print_error("Window {} closed, ended shuffling for its wallet".format(title))
+            self.print_error("Window '{}' closed, ended shuffling for its wallet".format(title))
         restore_utxo_list(window)
         restore_wallet(window.wallet)
         if window.console.namespace.get("start_background_shuffling", None):
@@ -351,9 +358,9 @@ class Plugin(BasePlugin):
         window.update_cashshuffle_icon()
         try:
             self.windows.remove(window)
-            self.print_error("Window {} removed".format(title))
+            self.print_error("Window '{}' removed".format(title))
         except ValueError:
-            self.print_error("Window {} not found in window list!".format(title))
+            self.print_error("Window '{}' not found in window list!".format(title))
             pass
 
     @hook
@@ -378,7 +385,14 @@ class Plugin(BasePlugin):
         vbox.addLayout(grid)
 
         serverList=ServersList(parent=d)
-        serverList.setItems()
+        srv = None
+        if self.windows:
+            try:
+                srv = self.windows[0].config.get("cashshuffle_server", None)
+                srv = srv["server"] if isinstance(srv, dict) else None
+            except KeyError:
+                pass
+        serverList.setItems(srv)
 
         grid.addWidget(QLabel('Servers'), 0, 0)
         grid.addWidget(serverList, 0, 1)
@@ -391,8 +405,9 @@ class Plugin(BasePlugin):
             return
         else:
             network_settings = serverList.get_current_server()
+            ns = copy.deepcopy(network_settings)
             for wdw in self.windows:
-                wdw.wallet.storage.put("cashshuffle_server", network_settings)
+                wdw.config.set_key("cashshuffle_server", ns)
             return network_settings
 
 
