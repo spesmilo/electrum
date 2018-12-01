@@ -1048,12 +1048,11 @@ class Abstract_Wallet(PrintError):
 
             coin_chooser = coinchooser.CoinChooserPrivacy()
             shuffled_coins = None
-            cashshuffle_enabled = config.get('use_shuffle')  # optional features
+            cashshuffle_enabled = config.get('use_cashshuffle')  # optional features
             if cashshuffle_enabled:
-                shuffled_coins=self.storage.get('shuffled_coins')
+                shuffled_coins = self.storage.get('shuffled_coins')
             tx  = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
-                                      fee_estimator, self.dust_threshold(),shuffled_coins)
-            #print ("cashshuffle warning is ",cashshuffle_warning)
+                                      fee_estimator, self.dust_threshold(), shuffled_coins)
 
         else:
             sendable = sum(map(lambda x:x['value'], inputs))
