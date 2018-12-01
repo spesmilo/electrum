@@ -729,10 +729,6 @@ class Abstract_Wallet(PrintError):
 
 
     def cashshuffle_add_utxo_to_list(self,txid,prevout_n,value, outputs):
-        # print ("MY TEST txid is ",txid,"prevout_n is ",prevout_n," value is ",value)
-        # raw_tx = self.network.synchronous_get(('blockchain.transaction.get',[txid]))
-        # tx = Transaction(raw_tx)
-        # outputs = tx.outputs()
         num_outputs_standard_bitcoin = 0
         num_outputs_standard_deci_bitcoin = 0
         num_outputs_standard_centi_bitcoin = 0
@@ -1126,25 +1122,26 @@ class Abstract_Wallet(PrintError):
             Note that if passing prevout:n strings as input, 'is_mine()' status is not checked for the specified coin.
             Also note that coin-level freezing is set/unset independent of address-level freezing, however both must
             be satisfied for a coin to be defined as spendable. '''
-        ok = 0
-        for utxo in utxos:
-            if isinstance(utxo, str):
-                if freeze:
-                    self.frozen_coins |= { utxo }
-                else:
-                    self.frozen_coins -= { utxo }
-                ok += 1
-            elif isinstance(utxo, dict) and self.is_mine(utxo['address']):
-                txo = "{}:{}".format(utxo['prevout_hash'], utxo['prevout_n'])
-                if freeze:
-                    self.frozen_coins |= { txo }
-                else:
-                    self.frozen_coins -= { txo }
-                utxo['is_frozen_coin'] = bool(freeze)
-                ok += 1
-        if ok:
-            self.storage.put('frozen_coins', list(self.frozen_coins))
-        return ok
+        with self.lock:
+            ok = 0
+            for utxo in utxos:
+                if isinstance(utxo, str):
+                    if freeze:
+                        self.frozen_coins |= { utxo }
+                    else:
+                        self.frozen_coins -= { utxo }
+                    ok += 1
+                elif isinstance(utxo, dict) and self.is_mine(utxo['address']):
+                    txo = "{}:{}".format(utxo['prevout_hash'], utxo['prevout_n'])
+                    if freeze:
+                        self.frozen_coins |= { txo }
+                    else:
+                        self.frozen_coins -= { txo }
+                    utxo['is_frozen_coin'] = bool(freeze)
+                    ok += 1
+            if ok:
+                self.storage.put('frozen_coins', list(self.frozen_coins))
+            return ok
 
     def prepare_for_verifier(self):
         # review transactions that are in the history

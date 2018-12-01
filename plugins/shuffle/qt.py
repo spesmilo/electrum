@@ -98,8 +98,8 @@ def is_coin_shuffled(wallet, coin):
         return None
 
 def get_shuffled_coins(wallet):
-    utxos = wallet.get_utxos()
-    transactions = wallet.storage.get("transactions")
+    with self.wallet.transaction_lock:
+        utxos = wallet.get_utxos()
     return [utxo for utxo in utxos if wallet.is_coin_shuffled(utxo)]
 
 def my_custom_item_setup(utxo_list, utxo, name, item):
@@ -388,8 +388,7 @@ class Plugin(BasePlugin):
         srv = None
         if self.windows:
             try:
-                srv = self.windows[0].config.get("cashshuffle_server", None)
-                srv = srv["server"] if isinstance(srv, dict) else None
+                srv = self.windows[0].config.get("cashshuffle_server", dict())["server"]
             except KeyError:
                 pass
         serverList.setItems(srv)
