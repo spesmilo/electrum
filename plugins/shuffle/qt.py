@@ -102,6 +102,8 @@ def get_shuffled_coins(wallet):
     return [utxo for utxo in utxos if wallet.is_coin_shuffled(utxo)]
 
 def my_custom_item_setup(utxo_list, utxo, name, item):
+    if not hasattr(utxo_list.wallet, 'is_coin_shuffled'):
+        return
     if utxo_list.wallet.is_coin_shuffled(utxo):  # is it optimal to do so?
         item.setText(5, "shuffled")
         item.setData(5, Qt.UserRole+1, "shuffled")
@@ -318,18 +320,27 @@ class Plugin(BasePlugin):
 
 
     def on_close(self):
-        for window in self.windows:
-            if getattr(window, "background_process", None):
-                window.background_process.join()
-                while window.background_process.is_alive():
-                    pass
-                window.background_process = None
-            restore_utxo_list(window)
-            restore_wallet(window.wallet)
-            if window.console.namespace.get("start_background_shuffling", None):
-                del window.console.namespace["start_background_shuffling"]
-            window.utxo_list.update()
-            window.update_cashshuffle_icon()
+        windows = self.windows.copy()
+        for window in windows:
+            self.on_close_window(window)
+
+    @hook
+    def on_close_window(self, window):
+        if getattr(window, "background_process", None):
+            window.background_process.join()
+            while window.background_process.is_alive():
+                pass
+            window.background_process = None
+        restore_utxo_list(window)
+        restore_wallet(window.wallet)
+        if window.console.namespace.get("start_background_shuffling", None):
+            del window.console.namespace["start_background_shuffling"]
+        window.utxo_list.update()
+        window.update_cashshuffle_icon()
+        try:
+            self.windows.remove(window)
+        except ValueError:
+            pass
 
 
     # def update(self, window):
