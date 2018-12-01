@@ -322,12 +322,14 @@ class Plugin(BasePlugin):
 
     @hook
     def utxo_list_item_setup(self, utxo_list, x, name, item):
+        if not self.initted: return
         return my_custom_item_setup(utxo_list, x, name, item)
 
 
     def on_close(self):
         for window in self.windows.copy():
             self.on_close_window(window)
+        self.initted = False
         self.print_error("Plugin closed")
 
     @hook
