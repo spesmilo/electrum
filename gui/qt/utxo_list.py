@@ -95,10 +95,11 @@ class UTXOList(MyTreeWidget):
         if len(selected) == 1:
             # single selection, offer them the "Details" option and also coin/address "freeze" status, if any
             txid = list(selected.keys())[0].split(':')[0]
-            label = self.wallet.get_label(txid)
             frozen_flags = list(selected.values())[0]
             tx = self.wallet.transactions.get(txid)
-            menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, label))
+            if tx:
+                label = self.wallet.get_label(txid)
+                menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, label))
             act = None
             needsep = True
             if 'c' in frozen_flags:
