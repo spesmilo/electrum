@@ -85,7 +85,12 @@ class Coin(object):
         amounts = {}
         try:
             for player in all_inputs:
-                coins[player] = self.get_coins(all_inputs[player])
+                inputs_coins = self.get_coins(all_inputs[player])
+                # if there is no coins on input it terminates the process
+                if inputs_coins:
+                    coins[player] = inputs_coins
+                else:
+                    return None
         except:
             return None
         for player in coins:
