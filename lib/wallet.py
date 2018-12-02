@@ -1043,10 +1043,7 @@ class Abstract_Wallet(PrintError):
             max_change = self.max_change_outputs if self.multiple_change else 1
 
             coin_chooser = coinchooser.CoinChooserPrivacy()
-            shuffled_coins = None
-            cashshuffle_enabled = config.get('use_cashshuffle')  # optional features
-            if cashshuffle_enabled:
-                shuffled_coins = self.storage.get('shuffled_coins')
+            shuffled_coins = self.storage.get('shuffled_coins', None)
             tx  = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
                                       fee_estimator, self.dust_threshold(), shuffled_coins)
 
