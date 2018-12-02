@@ -121,7 +121,9 @@ class HistoryList(MyTreeWidget):
         else:
             tx_hash = item.data(0, Qt.UserRole)
             tx = self.wallet.transactions.get(tx_hash)
-            self.parent.show_transaction(tx)
+            if tx:
+                label = self.wallet.get_label(tx_hash) or None
+                self.parent.show_transaction(tx, label)
 
     def update_labels(self):
         root = self.invisibleRootItem()

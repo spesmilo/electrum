@@ -26,7 +26,7 @@
 
 from __future__ import absolute_import
 
-import os
+import os, sys
 import json
 import copy
 from functools import partial
@@ -35,7 +35,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
-from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout, QLineEdit, QHBoxLayout, QWidget, QCheckBox, QMenu, QComboBox, QMessageBox, QTreeWidgetItemIterator
+from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout, QLineEdit, QHBoxLayout, QWidget, QCheckBox, QMenu, QComboBox, QTreeWidgetItemIterator
 
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
@@ -106,9 +106,13 @@ def get_shuffled_coins(wallet):
 def my_custom_item_setup(utxo_list, utxo, name, item):
     if not hasattr(utxo_list.wallet, 'is_coin_shuffled'):
         return
-    if utxo_list.wallet.is_coin_shuffled(utxo):  # is it optimal to do so?
+    frozenstring = item.data(0, Qt.UserRole+1) or ""
+    if utxo_list.wallet.is_coin_shuffled(utxo):  # already shuffled
         item.setText(5, "shuffled")
         item.setData(5, Qt.UserRole+1, "shuffled")
+    elif frozenstring.find("a") > -1 or frozenstring.find("c") > -1:
+        item.setText(5, "user frozen")
+        item.setData(5, Qt.UserRole+1, "user frozen")
     elif utxo['height'] <= 0: # not_confirmed
         item.setText(5, "not confirmed")
         item.setData(5, Qt.UserRole+1, "not confirmed")
@@ -284,22 +288,44 @@ class Plugin(BasePlugin):
         self.initted = True
         self.print_error("Initialized (had {} extant windows).".format(ct))
 
+    def window_has_cashshuffle(self, window):
+        return window in self.windows
+
+    def window_wants_cashshuffle(self, window):
+        return window.wallet.storage.get("cashshuffle_enabled", False)
+
+    def window_set_wants_cashshuffle(self, window, b):
+        window.wallet.storage.put("cashshuffle_enabled", bool(b))
+
+    def window_set_cashshuffle(self, window, b):
+        if not b and self.window_has_cashshuffle(window):
+            self.on_close_window(window)
+        elif b and not self.window_has_cashshuffle(window):
+            self._enable_for_window(window)
+        self.window_set_wants_cashshuffle(window, b)
+
     @hook
     def on_new_window(self, window):
+        if window.wallet and not self.window_has_cashshuffle(window) and self.window_wants_cashshuffle(window):
+            self._enable_for_window(window)
+
+    def _enable_for_window(self, window):
+        if not window.is_wallet_cashshuffle_compatible():
+            # wallet is watching-only, multisig, or hardware so.. mark it permanently for no cashshuffle
+            self.window_set_cashshuffle(window, False)
+            return
         title = window.windowTitle() if window and window.windowTitle() else "UNKNOWN WINDOW"
-        self.print_error("Window '{}' is a new window, performing window-specific startup code".format(title))
+        self.print_error("Window '{}' registered, performing window-specific startup code".format(title))
         password = None
+        name = window.wallet.basename()
         while window.wallet.has_password():
-            name = window.wallet.basename()
             msg = _("CashShuffle requires access to '{}'.").format(name) + "\n" +  _('Please enter your password')
-            password = PasswordDialog(parent=None, msg=msg).run()
+            dlgParent = None if sys.platform == 'darwin' else window
+            password = PasswordDialog(parent=dlgParent, msg=msg).run()
             if password is None:
                 # User cancelled password input
-                msgBox = QMessageBox(parent=window)
-                msgBox.setText(_("Can't get password, closing plugin."))
-                msgBox.exec_()
-                window.gui_object.plugins.toggle_internal_plugin('shuffle')
-                window.update_cashshuffle_icon()
+                self.window_set_cashshuffle(window, False)
+                window.show_error(_("Can't get password, disabling for this wallet."), parent=window)
                 return
             try:
                 window.wallet.check_password(password)
@@ -307,41 +333,44 @@ class Plugin(BasePlugin):
             except Exception as e:
                 window.show_error(str(e), parent=window)
                 continue
+        network_settings = copy.deepcopy(window.config.get("cashshuffle_server", None))
+        if not network_settings:
+            network_settings = self.settings_dialog(None, msg=_("Please choose a CashShuffle server"))
+        if not network_settings:
+            self.window_set_cashshuffle(window, False)
+            window.show_error(_("Can't get network, disabling CashShuffle."), parent=window)
+            return
+        ns_in = copy.deepcopy(network_settings)
+        network_settings['host'] = network_settings.pop('server')
+        network_settings["network"] = window.network
         window.update_cashshuffle_icon()
         window.cs_tab = None
-        self.windows.append(window)
         modify_utxo_list(window)
         modify_wallet(window.wallet)
+        self.windows.append(window)
+        self.save_network_settings(ns_in) # nb this needs to be called after the window is added
+        window.update_status()
         # console modification
         window.console.updateNamespace({"start_background_shuffling": lambda *args, **kwargs: start_background_shuffling(window, *args, **kwargs)})
         window.utxo_list.update()
-        network_settings = copy.deepcopy(window.config.get("cashshuffle_server", None))
-        if not network_settings:
-            network_settings = self.settings_dialog(window, msg=_("Please choose a CashShuffle server"))
-        if not network_settings:
-            msgBox = QMessageBox(parent=window)
-            msgBox.setText(_("Can't get network, closing plugin."))
-            msgBox.exec_()
-            window.gui_object.plugins.toggle_internal_plugin('shuffle')
-            return
-        network_settings['host'] = network_settings.pop('server')
-        network_settings["network"] = window.network
         start_background_shuffling(window, network_settings, period = 10, password=password)
 
     @hook
     def utxo_list_item_setup(self, utxo_list, x, name, item):
-        if not self.initted: return
         return my_custom_item_setup(utxo_list, x, name, item)
 
 
     def on_close(self):
         for window in self.windows.copy():
             self.on_close_window(window)
+            window.update_status()
         self.initted = False
         self.print_error("Plugin closed")
 
     @hook
     def on_close_window(self, window):
+        if window not in self.windows:
+            return
         title = window.windowTitle() if window and window.windowTitle() else "UNKNOWN WINDOW"
         if getattr(window, "background_process", None):
             window.background_process.join()
@@ -356,13 +385,9 @@ class Plugin(BasePlugin):
         if window.console.namespace.get("start_background_shuffling", None):
             del window.console.namespace["start_background_shuffling"]
         window.utxo_list.update()
-        window.update_cashshuffle_icon()
-        try:
-            self.windows.remove(window)
-            self.print_error("Window '{}' removed".format(title))
-        except ValueError:
-            self.print_error("Window '{}' not found in window list!".format(title))
-            pass
+        window.update_status()
+        self.windows.remove(window)
+        self.print_error("Window '{}' removed".format(title))
 
     @hook
     def on_new_password(self, window, old, new):
@@ -374,13 +399,14 @@ class Plugin(BasePlugin):
     #     self.windows.append(window)
 
     def settings_dialog(self, window, msg=None):
+        dlgParent = None if sys.platform == 'darwin' else window
 
-        d = WindowModalDialog(window, _("CashShuffle settings"))
+        d = WindowModalDialog(dlgParent, _("CashShuffle settings"))
         d.setMinimumSize(500, 200)
 
         vbox = QVBoxLayout(d)
         if not msg:
-            msg = _("Choose CashShuffle Server from List\nChanges will take effect after restarting the plugin")
+            msg = _("Choose a CashShuffle server from the list.\nChanges will take effect after restarting the plugin.")
         vbox.addWidget(QLabel(_(msg)))
         grid = QGridLayout()
         vbox.addLayout(grid)
@@ -405,10 +431,17 @@ class Plugin(BasePlugin):
             return
         else:
             network_settings = serverList.get_current_server()
-            ns = copy.deepcopy(network_settings)
-            for wdw in self.windows:
-                wdw.config.set_key("cashshuffle_server", ns)
+            self.save_network_settings(network_settings)
             return network_settings
+
+
+    def save_network_settings(self, network_settings):
+        ns = copy.deepcopy(network_settings)
+        saved = set()
+        for wdw in self.windows:
+            if wdw.config not in saved: # paranoia
+                wdw.config.set_key("cashshuffle_server", ns)
+                saved.add(wdw.config)
 
 
     def settings_widget(self, window):

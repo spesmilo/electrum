@@ -170,14 +170,14 @@ class CoinChooserBase(PrintError):
         return change, dust
 
     def make_tx(self, coins, outputs, change_addrs, fee_estimator,
-                dust_threshold,shuffled_coins = None):
+                dust_threshold, shuffled_coins = None):
         '''Select unspent coins to spend to pay outputs.  If the change is
         greater than dust_threshold (after adding the change output to
         the transaction) it is kept, otherwise none is sent and it is
         added to the transaction fee.'''
  
         if shuffled_coins is not None:
-            
+
             #set a higher dust threshold because we don't want to leave "taint bombs" lying around the wallet.
             dust_threshold=10000
 
@@ -195,7 +195,7 @@ class CoinChooserBase(PrintError):
             ### Loop through all shuffled first
 
             #Build a list (sorted by amount) of all shuffled UTXO by combining available coins with those designated as shuffled in the wallet file.
-            sorted_shuffled_coins = list(filter(lambda coin: "{}:{}".format(coin["prevout_hash"], coin['prevout_n']) in shuffled_coins,coins)) 
+            sorted_shuffled_coins = list(filter(lambda coin: "{}:{}".format(coin["prevout_hash"], coin['prevout_n']) in shuffled_coins, coins)) 
             sorted_shuffled_coins.sort(reverse=True, key=lambda coin:coin['value'])
 
             total_input=0
@@ -217,7 +217,7 @@ class CoinChooserBase(PrintError):
                     change, dust = self.change_outputs(tx, change_addrs, fee, dust_threshold) 
                     total_output_adjusted=total_output_adjusted+my_estimated_fee 
                     
-            if total_input>=total_output_adjusted:
+            if total_input >= total_output_adjusted:
                   inputs_chosen_done=1
             else:
                 #all shuffled are not enough, try all unshuffled...
@@ -260,7 +260,7 @@ class CoinChooserBase(PrintError):
                             total_output_adjusted=total_output
                             total_output_adjusted=total_output_adjusted+my_estimated_fee   
                             tx.warning_message="You are using both shuffled and unshuffled UTXO."
-            if total_input>=total_output_adjusted:
+            if total_input >= total_output_adjusted:
                     inputs_chosen_done=1
                     tx.add_outputs(change)
                     tx.ephemeral['dust_to_fee'] = dust
