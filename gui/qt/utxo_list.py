@@ -98,7 +98,7 @@ class UTXOList(MyTreeWidget):
             frozen_flags = list(selected.values())[0]
             tx = self.wallet.transactions.get(txid)
             if tx:
-                label = self.wallet.get_label(txid)
+                label = self.wallet.get_label(txid) or None
                 menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, label))
             act = None
             needsep = True
