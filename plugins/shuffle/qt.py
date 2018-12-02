@@ -33,9 +33,7 @@ from functools import partial
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-import PyQt5.QtCore as QtCore
-import PyQt5.QtGui as QtGui
-from PyQt5.QtWidgets import QVBoxLayout, QLabel, QGridLayout, QLineEdit, QHBoxLayout, QWidget, QCheckBox, QMenu, QComboBox, QTreeWidgetItemIterator
+from PyQt5.QtWidgets import *
 
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
@@ -161,45 +159,6 @@ def update_coin_status(window, coin_name, msg):
     else:
         if msg == "stopped":
             window.utxo_list.in_progress = {}
-
-
-class ServersList(QComboBox):
-
-    def __init__(self, parent=None):
-        QComboBox.__init__(self, parent)
-        self.servers_path = "servers.json"
-        self.servers_list = None
-        self.load_servers_list()
-
-    def load_servers_list(self):
-        r = {}
-        try:
-            zips = __file__.find(".zip")
-            if zips == -1:
-                with open(os.path.join(os.path.dirname(__file__), self.servers_path), 'r') as f:
-                    r = json.loads(f.read())
-            else:
-                from zipfile import ZipFile
-                zip_file = ZipFile(__file__[: zips + 4])
-                with zip_file.open("shuffle/" + self.servers_path) as f:
-                    r = json.loads(f.read().decode())
-        except:
-            pass
-        self.servers_list = r
-
-    def setItems(self, selected = None):
-        for server in self.servers_list:
-            ssl = self.servers_list[server].get('ssl')
-            item = server + ('   [ssl enabled]' if ssl else '   [ssl disabled]')
-            self.addItem(item)
-            if selected and selected == server:
-                self.setCurrentIndex(self.count()-1)
-
-    def get_current_server(self):
-        current_server = self.currentText().split(' ')[0]
-        server = self.servers_list.get(current_server)
-        server["server"] = current_server
-        return server
 
 
 
@@ -399,6 +358,55 @@ class Plugin(BasePlugin):
     #     self.windows.append(window)
 
     def settings_dialog(self, window, msg=None):
+        def setup_combo_box(cb, selected = {}):
+            #
+            def load_servers(servers_path):
+                r = {}
+                try:
+                    zips = __file__.find(".zip")
+                    if zips == -1:
+                        with open(os.path.join(os.path.dirname(__file__), servers_path), 'r') as f:
+                            r = json.loads(f.read())
+                    else:
+                        from zipfile import ZipFile
+                        zip_file = ZipFile(__file__[: zips + 4])
+                        with zip_file.open("shuffle/" + servers_path) as f:
+                            r = json.loads(f.read().decode())
+                except:
+                    self.print_error("Error loading server list from {}: {}", servers_path, sys.exc_info()[1])
+                return r
+            # /
+            servers = load_servers("servers.json")
+            selIdx = -1
+            for host, d0 in sorted(servers.items()):
+                d = d0.copy()
+                d['server'] = host
+                item = host + (' [ssl]' if d['ssl'] else '')
+                cb.addItem(item, d)
+                if selected and selected == d:
+                    selIdx = cb.count()-1
+            if selIdx > -1:
+                cb.setCurrentIndex(selIdx)
+            elif selected and len(selected) == 4:
+                cb.addItem(_("(Custom)"), selected.copy())
+                cb.setCurrentIndex(cb.count()-1)
+        # /
+        def from_combobox(cb, le, sb1, sb2, chk):
+            d = cb.currentData()
+            if not isinstance(d, dict): return
+            host, port, info, ssl = d.get('server'), d.get('port'), d.get('info'), d.get('ssl')
+            le.setText(host)
+            sb1.setValue(port)
+            sb2.setValue(info)
+            chk.setChecked(ssl)
+        def get_form(le, sb1, sb2, chk):
+            return {
+                'server': le.text(),
+                'port'  : sb1.value(),
+                'info'  : sb2.value(),
+                'ssl'   : chk.isChecked()
+            }
+
         dlgParent = None if sys.platform == 'darwin' else window
 
         d = WindowModalDialog(dlgParent, _("CashShuffle settings"))
@@ -407,22 +415,52 @@ class Plugin(BasePlugin):
         vbox = QVBoxLayout(d)
         if not msg:
             msg = _("Choose a CashShuffle server from the list.\nChanges will take effect after restarting the plugin.")
-        vbox.addWidget(QLabel(_(msg)))
+        vbox.addWidget(QLabel(msg))
         grid = QGridLayout()
         vbox.addLayout(grid)
 
-        serverList=ServersList(parent=d)
-        srv = None
+        serverCB = QComboBox()
+        srv, port, info, ssl = "", 8080, 8081, False
+        selected = dict()
         if self.windows:
             try:
-                srv = self.windows[0].config.get("cashshuffle_server", dict())["server"]
+                # try and pre-populate from config
+                current = self.windows[0].config.get("cashshuffle_server", dict())
+                srv = current["server"]
+                port = current["port"]
+                info = current["info"]
+                ssl = current["ssl"]
+                selected = current
             except KeyError:
                 pass
-        serverList.setItems(srv)
+            
+        setup_combo_box(serverCB, selected = selected)
 
         grid.addWidget(QLabel('Servers'), 0, 0)
-        grid.addWidget(serverList, 0, 1)
+        grid.addWidget(serverCB, 0, 1)
 
+        grid.addWidget(QLabel(_("Host")), 1, 0)
+
+        hbox = QHBoxLayout()
+        grid.addLayout(hbox, 1, 1, 1, 2)
+        grid.setColumnStretch(2, 1)
+        srvLe = QLineEdit(srv)
+        hbox.addWidget(srvLe)
+        hbox.addWidget(QLabel(_("P:")))
+        portSb = QSpinBox(); portSb.setRange(1, 65534); #portSb.setPrefix("P: ")
+        portSb.setValue(port)
+        hbox.addWidget(portSb)
+        hbox.addWidget(QLabel(_("I:")))
+        infoSb = QSpinBox(); infoSb.setRange(1, 65534); #infoSb.setPrefix("I: ")
+        infoSb.setValue(info)
+        hbox.addWidget(infoSb)
+        sslChk = QCheckBox(_("SSL"))
+        sslChk.setChecked(ssl)
+        hbox.addWidget(sslChk)
+
+        serverCB.currentIndexChanged.connect(lambda x: from_combobox(serverCB, srvLe, portSb, infoSb, sslChk))
+        if not srv: from_combobox(serverCB, srvLe, portSb, infoSb, sslChk) # had no config'd server, just take whatever the current combo box is for form fields
+        
         vbox.addStretch()
         vbox.addLayout(Buttons(CloseButton(d), OkButton(d)))
 
@@ -430,7 +468,8 @@ class Plugin(BasePlugin):
         if not d.exec_():
             return
         else:
-            network_settings = serverList.get_current_server()
+            network_settings = get_form(srvLe, portSb, infoSb, sslChk)
+            self.print_error("Saving network settings: {}".format(network_settings))
             self.save_network_settings(network_settings)
             return network_settings
 
