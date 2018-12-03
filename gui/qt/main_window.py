@@ -3215,9 +3215,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.gui_object.close_window(self)
 
     def internal_plugins_dialog(self):
-        # bugs on macOS Qt make this dialog possibly interfere with other windows and lead to a buggy state
-        dlgParent = None if sys.platform == 'darwin' else self
-        self.internalpluginsdialog = d = WindowModalDialog(dlgParent, _('Optional Features'))
+        self.internalpluginsdialog = d = WindowModalDialog(self, _('Optional Features'))
 
         plugins = self.gui_object.plugins
 
@@ -3247,6 +3245,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 grid.addWidget(widget, i, 1)
             if widget:
                 widget.setEnabled(bool(p and p.is_enabled()))
+                if not p:
+                    # Need to delete settings widget because keeping it around causes bugs as it points to a now-dead plugin instance
+                    widget.hide(); widget.setParent(None); widget.deleteLater(); widget = None
+                    settings_widgets.pop(name)
 
         def do_toggle(cb, name, i):
             p = plugins.toggle_internal_plugin(name)
@@ -3280,11 +3282,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.setRowStretch(len(plugins.internal_plugin_metadata.values()), 1)
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
+        # clean up after it's done
+        self.internalpluginsdialog.deleteLater()
+        self.internalpluginsdialog = None
 
     def external_plugins_dialog(self):
         from . import external_plugins_window
         self.externalpluginsdialog = d = external_plugins_window.ExternalPluginsDialog(self, _('Plugin Manager'))
         d.exec_()
+        # clean up after it's done
+        self.externalpluginsdialog.deleteLater()
+        self.externalpluginsdialog = None
 
     def cpfp(self, parent_tx, new_tx):
         total_size = parent_tx.estimated_size() + new_tx.estimated_size()
@@ -3385,3 +3393,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.toggle_cashshuffle()
             if csnoprompt_cb.isChecked():
                 self.config.set_key('shuffle_noprompt2', True)
+
+    _restart_timer = None
+    def restart_cashshuffle(self, msg = None):
+        def ask_then_restart():
+            self._restart_timer.deleteLater(); self._restart_timer = None
+            # NB: we need to make this question a top-level window, hence we don't use self.question() which has issues/bugs on Mac
+            if self.question("{}{}".format(msg + "\n\n" if msg else "", _("Restart the CashShuffle plugin now?"))):
+                p = self.gui_object.plugins.toggle_internal_plugin("shuffle") or self.gui_object.plugins.toggle_internal_plugin("shuffle")
+                p.init_qt(self.gui_object)
+                self.statusBar().showMessage(_("CashShuffle restarted"), 2500)
+        if self._restart_timer:
+            self._restart_timer.stop()
+            self._restart_timer.deleteLater()
+        self._restart_timer = QTimer(self); self._restart_timer.setSingleShot(True)
+        self._restart_timer.timeout.connect(ask_then_restart)
+        self._restart_timer.start(100)
+        if self.internalpluginsdialog and self.internalpluginsdialog.isVisible():
+            self.internalpluginsdialog.reject()

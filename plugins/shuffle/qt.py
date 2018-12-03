@@ -40,6 +40,7 @@ from electroncash.i18n import _
 from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton
 from electroncash_gui.qt.util import OkButton, WindowModalDialog
 from electroncash_gui.qt.password_dialog import PasswordDialog
+from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash.address import Address
 from electroncash.transaction import Transaction
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread
@@ -294,7 +295,7 @@ class Plugin(BasePlugin):
                 continue
         network_settings = copy.deepcopy(window.config.get("cashshuffle_server", None))
         if not network_settings:
-            network_settings = self.settings_dialog(None, msg=_("Please choose a CashShuffle server"))
+            network_settings = self.settings_dialog(window, msg=_("Please choose a CashShuffle server"), restart_ask = False)
         if not network_settings:
             self.window_set_cashshuffle(window, False)
             window.show_error(_("Can't get network, disabling CashShuffle."), parent=window)
@@ -357,23 +358,26 @@ class Plugin(BasePlugin):
     # def update(self, window):
     #     self.windows.append(window)
 
-    def settings_dialog(self, window, msg=None):
+    def settings_dialog(self, window, msg=None, restart_ask = True):
+        assert window and (isinstance(window, ElectrumWindow) or isinstance(window.parent(), ElectrumWindow))
+        if not isinstance(window, ElectrumWindow):
+            window = window.parent()
         def setup_combo_box(cb, selected = {}):
             #
-            def load_servers(servers_path):
+            def load_servers(path):
                 r = {}
                 try:
                     zips = __file__.find(".zip")
                     if zips == -1:
-                        with open(os.path.join(os.path.dirname(__file__), servers_path), 'r') as f:
+                        with open(os.path.join(os.path.dirname(__file__), path), 'r') as f:
                             r = json.loads(f.read())
                     else:
                         from zipfile import ZipFile
                         zip_file = ZipFile(__file__[: zips + 4])
-                        with zip_file.open("shuffle/" + servers_path) as f:
+                        with zip_file.open("shuffle/" + path) as f:
                             r = json.loads(f.read().decode())
                 except:
-                    self.print_error("Error loading server list from {}: {}", servers_path, sys.exc_info()[1])
+                    self.print_error("Error loading server list from {}: {}", path, str(sys.exc_info()[1]))
                 return r
             # /
             servers = load_servers("servers.json")
@@ -385,20 +389,27 @@ class Plugin(BasePlugin):
                 cb.addItem(item, d)
                 if selected and selected == d:
                     selIdx = cb.count()-1
+
+            cb.addItem(_("(Custom)"))
             if selIdx > -1:
                 cb.setCurrentIndex(selIdx)
             elif selected and len(selected) == 4:
-                cb.addItem(_("(Custom)"), selected.copy())
-                cb.setCurrentIndex(cb.count()-1)
+                custIdx = cb.count()-1
+                cb.setItemData(custIdx, selected.copy())
+                cb.setCurrentIndex(custIdx)
+                return True
+            return False
         # /
         def from_combobox(cb, le, sb1, sb2, chk):
             d = cb.currentData()
-            if not isinstance(d, dict): return
-            host, port, info, ssl = d.get('server'), d.get('port'), d.get('info'), d.get('ssl')
-            le.setText(host)
-            sb1.setValue(port)
-            sb2.setValue(info)
-            chk.setChecked(ssl)
+            if isinstance(d, dict):
+                host, port, info, ssl = d.get('server'), d.get('port'), d.get('info'), d.get('ssl')
+                le.setText(host)
+                sb1.setValue(port)
+                sb2.setValue(info)
+                chk.setChecked(ssl)
+            en = cb.currentIndex() == cb.count()-1
+            le.setEnabled(en); sb1.setEnabled(en); sb2.setEnabled(en); chk.setEnabled(en)
         def get_form(le, sb1, sb2, chk):
             return {
                 'server': le.text(),
@@ -407,14 +418,15 @@ class Plugin(BasePlugin):
                 'ssl'   : chk.isChecked()
             }
 
-        dlgParent = None if sys.platform == 'darwin' else window
+        dlgParent = None
 
         d = WindowModalDialog(dlgParent, _("CashShuffle settings"))
+        d.setWindowModality(Qt.ApplicationModal)
         d.setMinimumSize(500, 200)
 
         vbox = QVBoxLayout(d)
         if not msg:
-            msg = _("Choose a CashShuffle server from the list.\nChanges will take effect after restarting the plugin.")
+            msg = _("Choose a CashShuffle server from the list.\nChanges will require the CashShuffle plugin to restart.")
         vbox.addWidget(QLabel(msg))
         grid = QGridLayout()
         vbox.addLayout(grid)
@@ -422,17 +434,16 @@ class Plugin(BasePlugin):
         serverCB = QComboBox()
         srv, port, info, ssl = "", 8080, 8081, False
         selected = dict()
-        if self.windows:
-            try:
-                # try and pre-populate from config
-                current = self.windows[0].config.get("cashshuffle_server", dict())
-                srv = current["server"]
-                port = current["port"]
-                info = current["info"]
-                ssl = current["ssl"]
-                selected = current
-            except KeyError:
-                pass
+        try:
+            # try and pre-populate from config
+            current = window.config.get("cashshuffle_server", dict())
+            srv = current["server"]
+            port = current["port"]
+            info = current["info"]
+            ssl = current["ssl"]
+            selected = current
+        except KeyError:
+            pass
             
         setup_combo_box(serverCB, selected = selected)
 
@@ -459,19 +470,41 @@ class Plugin(BasePlugin):
         hbox.addWidget(sslChk)
 
         serverCB.currentIndexChanged.connect(lambda x: from_combobox(serverCB, srvLe, portSb, infoSb, sslChk))
-        if not srv: from_combobox(serverCB, srvLe, portSb, infoSb, sslChk) # had no config'd server, just take whatever the current combo box is for form fields
+        from_combobox(serverCB, srvLe, portSb, infoSb, sslChk)
         
         vbox.addStretch()
         vbox.addLayout(Buttons(CloseButton(d), OkButton(d)))
 
 
-        if not d.exec_():
-            return
-        else:
-            network_settings = get_form(srvLe, portSb, infoSb, sslChk)
-            self.print_error("Saving network settings: {}".format(network_settings))
-            self.save_network_settings(network_settings)
-            return network_settings
+        server_ok = False
+        ns = None
+        while not server_ok:
+            if not d.exec_():
+                return
+            else:
+                ns = get_form(srvLe, portSb, infoSb, sslChk)
+                def check_server_connectivity(host, port, stat_port, ssl):
+                    secure = "s" if ssl else ""
+                    stat_endpoint = "http{}://{}:{}/stats".format(secure, host, stat_port)
+                    try:
+                        import requests, socket
+                        res = requests.get(stat_endpoint, verify=False, timeout=3.0)
+                        self.print_error("{}:{}{} got response: PoolSize = {}".format(host, stat_port, secure, res.json().get("PoolSize", None)))
+                        socket.create_connection((host, port), 1.5).close() # test connectivity to port
+                        return True
+                    except:
+                        self.print_error("Connectivity test got exception: {}".format(str(sys.exc_info()[1])))
+                        return False
+                if not check_server_connectivity(ns.get("server"), ns.get("port"), ns.get("info"), ns.get("ssl")):
+                    server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
+                else:
+                    server_ok = True
+        if ns:
+            self.print_error("Saving network settings: {}".format(ns))
+            self.save_network_settings(ns)
+            if restart_ask and ns != selected:
+                window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the change to take effect."))
+        return ns
 
 
     def save_network_settings(self, network_settings):
