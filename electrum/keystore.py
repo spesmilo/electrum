@@ -35,7 +35,7 @@ from .bip32 import (bip32_public_derivation, deserialize_xpub, CKD_pub,
                     bip32_private_key, bip32_derivation, BIP32_PRIME,
                     is_xpub, is_xprv)
 from .ecc import string_to_number, number_to_string
-from .crypto import pw_decode, pw_encode, sha256d
+from .crypto import (pw_decode, pw_encode, sha256d, PW_HASH_VERSION_LATEST)
 from .util import (PrintError, InvalidPassword, hfu, WalletFileException,
                    BitcoinException, bh2u, bfh, print_error, inv_dict)
 from .mnemonic import Mnemonic, load_wordlist
@@ -92,8 +92,9 @@ class KeyStore(PrintError):
 
 class Software_KeyStore(KeyStore):
 
-    def __init__(self):
+    def __init__(self, d):
         KeyStore.__init__(self)
+        self.pw_hash_version = d.get('pw_hash_version', 1)
 
     def may_have_password(self):
         return not self.is_watching_only()
@@ -122,6 +123,12 @@ class Software_KeyStore(KeyStore):
         if keypairs:
             tx.sign(keypairs)
 
+    def update_password(self, old_password, new_password):
+        raise NotImplementedError()  # implemented by subclasses
+
+    def check_password(self, password):
+        raise NotImplementedError()  # implemented by subclasses
+
 
 class Imported_KeyStore(Software_KeyStore):
     # keystore for imported private keys
@@ -129,7 +136,7 @@ class Imported_KeyStore(Software_KeyStore):
     type = 'imported'
 
     def __init__(self, d):
-        Software_KeyStore.__init__(self)
+        Software_KeyStore.__init__(self, d)
         self.keypairs = d.get('keypairs', {})
 
     def is_deterministic(self):
@@ -142,6 +149,7 @@ class Imported_KeyStore(Software_KeyStore):
         return {
             'type': self.type,
             'keypairs': self.keypairs,
+            'pw_hash_version': self.pw_hash_version,
         }
 
     def can_import(self):
@@ -161,14 +169,14 @@ class Imported_KeyStore(Software_KeyStore):
         # there will only be one pubkey-privkey pair for it in self.keypairs,
         # and the privkey will encode a txin_type but that txin_type cannot be trusted.
         # Removing keys complicates this further.
-        self.keypairs[pubkey] = pw_encode(serialized_privkey, password)
+        self.keypairs[pubkey] = pw_encode(serialized_privkey, password, version=self.pw_hash_version)
         return txin_type, pubkey
 
     def delete_imported_key(self, key):
         self.keypairs.pop(key)
 
     def get_private_key(self, pubkey, password):
-        sec = pw_decode(self.keypairs[pubkey], password)
+        sec = pw_decode(self.keypairs[pubkey], password, version=self.pw_hash_version)
         txin_type, privkey, compressed = deserialize_privkey(sec)
         # this checks the password
         if pubkey != ecc.ECPrivkey(privkey).get_public_key_hex(compressed=compressed):
@@ -189,16 +197,17 @@ class Imported_KeyStore(Software_KeyStore):
         if new_password == '':
             new_password = None
         for k, v in self.keypairs.items():
-            b = pw_decode(v, old_password)
-            c = pw_encode(b, new_password)
+            b = pw_decode(v, old_password, version=self.pw_hash_version)
+            c = pw_encode(b, new_password, version=PW_HASH_VERSION_LATEST)
             self.keypairs[k] = c
+        self.pw_hash_version = PW_HASH_VERSION_LATEST
 
 
 
 class Deterministic_KeyStore(Software_KeyStore):
 
     def __init__(self, d):
-        Software_KeyStore.__init__(self)
+        Software_KeyStore.__init__(self, d)
         self.seed = d.get('seed', '')
         self.passphrase = d.get('passphrase', '')
 
@@ -206,12 +215,14 @@ class Deterministic_KeyStore(Software_KeyStore):
         return True
 
     def dump(self):
-        d = {}
+        d = {
+            'type': self.type,
+            'pw_hash_version': self.pw_hash_version,
+        }
         if self.seed:
             d['seed'] = self.seed
         if self.passphrase:
             d['passphrase'] = self.passphrase
-        d['type'] = self.type
         return d
 
     def has_seed(self):
@@ -226,10 +237,13 @@ class Deterministic_KeyStore(Software_KeyStore):
         self.seed = self.format_seed(seed)
 
     def get_seed(self, password):
-        return pw_decode(self.seed, password)
+        return pw_decode(self.seed, password, version=self.pw_hash_version)
 
     def get_passphrase(self, password):
-        return pw_decode(self.passphrase, password) if self.passphrase else ''
+        if self.passphrase:
+            return pw_decode(self.passphrase, password, version=self.pw_hash_version)
+        else:
+            return ''
 
 
 class Xpub:
@@ -312,10 +326,10 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         return d
 
     def get_master_private_key(self, password):
-        return pw_decode(self.xprv, password)
+        return pw_decode(self.xprv, password, version=self.pw_hash_version)
 
     def check_password(self, password):
-        xprv = pw_decode(self.xprv, password)
+        xprv = pw_decode(self.xprv, password, version=self.pw_hash_version)
         if deserialize_xprv(xprv)[4] != deserialize_xpub(self.xpub)[4]:
             raise InvalidPassword()
 
@@ -325,13 +339,14 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
             new_password = None
         if self.has_seed():
             decoded = self.get_seed(old_password)
-            self.seed = pw_encode(decoded, new_password)
+            self.seed = pw_encode(decoded, new_password, version=PW_HASH_VERSION_LATEST)
         if self.passphrase:
             decoded = self.get_passphrase(old_password)
-            self.passphrase = pw_encode(decoded, new_password)
+            self.passphrase = pw_encode(decoded, new_password, version=PW_HASH_VERSION_LATEST)
         if self.xprv is not None:
-            b = pw_decode(self.xprv, old_password)
-            self.xprv = pw_encode(b, new_password)
+            b = pw_decode(self.xprv, old_password, version=self.pw_hash_version)
+            self.xprv = pw_encode(b, new_password, version=PW_HASH_VERSION_LATEST)
+        self.pw_hash_version = PW_HASH_VERSION_LATEST
 
     def is_watching_only(self):
         return self.xprv is None
@@ -362,7 +377,7 @@ class Old_KeyStore(Deterministic_KeyStore):
         self.mpk = d.get('mpk')
 
     def get_hex_seed(self, password):
-        return pw_decode(self.seed, password).encode('utf8')
+        return pw_decode(self.seed, password, version=self.pw_hash_version).encode('utf8')
 
     def dump(self):
         d = Deterministic_KeyStore.dump(self)
@@ -484,8 +499,9 @@ class Old_KeyStore(Deterministic_KeyStore):
         if new_password == '':
             new_password = None
         if self.has_seed():
-            decoded = pw_decode(self.seed, old_password)
-            self.seed = pw_encode(decoded, new_password)
+            decoded = pw_decode(self.seed, old_password, version=self.pw_hash_version)
+            self.seed = pw_encode(decoded, new_password, version=PW_HASH_VERSION_LATEST)
+        self.pw_hash_version = PW_HASH_VERSION_LATEST
 
 
 

@@ -4,7 +4,7 @@
 #
 
 try:
-    from electrum.crypto import sha256d, EncodeAES, DecodeAES
+    from electrum.crypto import sha256d, EncodeAES_base64, DecodeAES_base64
     from electrum.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh,
                                   is_address)
     from electrum.bip32 import serialize_xpub, deserialize_xpub
@@ -396,10 +396,10 @@ class DigitalBitbox_Client():
         reply = ""
         try:
             secret = sha256d(self.password)
-            msg = EncodeAES(secret, msg)
+            msg = EncodeAES_base64(secret, msg)
             reply = self.hid_send_plain(msg)
             if 'ciphertext' in reply:
-                reply = DecodeAES(secret, ''.join(reply["ciphertext"]))
+                reply = DecodeAES_base64(secret, ''.join(reply["ciphertext"]))
                 reply = to_string(reply, 'utf8')
                 reply = json.loads(reply)
             if 'error' in reply:
@@ -716,7 +716,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
         key_s = base64.b64decode(self.digitalbitbox_config['encryptionprivkey'])
         args = 'c=data&s=0&dt=0&uuid=%s&pl=%s' % (
             self.digitalbitbox_config['comserverchannelid'],
-            EncodeAES(key_s, json.dumps(payload).encode('ascii')).decode('ascii'),
+            EncodeAES_base64(key_s, json.dumps(payload).encode('ascii')).decode('ascii'),
         )
         try:
             requests.post(url, args)

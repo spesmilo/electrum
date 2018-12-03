@@ -2,6 +2,8 @@
 
 pushd ./electrum/gui/kivy/
 
+make theming
+
 if [[ -n "$1"  && "$1" == "release" ]] ; then
     echo -n Keystore Password:
     read -s password

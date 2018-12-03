@@ -200,7 +200,7 @@ class BaseWizard(object):
             self.storage.put('keystore', k.dump())
             w = Imported_Wallet(self.storage)
             keys = keystore.get_private_keys(text)
-            good_inputs, bad_inputs = w.import_private_keys(keys, None)
+            good_inputs, bad_inputs = w.import_private_keys(keys, None, write_to_disk=False)
             self.keystores.append(w.keystore)
         else:
             return self.terminate()
@@ -283,7 +283,9 @@ class BaseWizard(object):
         for name, info in devices:
             state = _("initialized") if info.initialized else _("wiped")
             label = info.label or _("An unnamed {}").format(name)
-            descr = f"{label} [{name}, {state}, {info.device.transport_ui_string}]"
+            try: transport_str = info.device.transport_ui_string[:20]
+            except: transport_str = 'unknown transport'
+            descr = f"{label} [{name}, {state}, {transport_str}]"
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
         self.choice_dialog(title=title, message=msg, choices=choices, run_next= lambda *args: self.on_device(*args, purpose=purpose))
@@ -508,6 +510,7 @@ class BaseWizard(object):
 
     def on_password(self, password, *, encrypt_storage,
                     storage_enc_version=STO_EV_USER_PW, encrypt_keystore):
+        assert not self.storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
         self.storage.set_keystore_encryption(bool(password) and encrypt_keystore)
         if encrypt_storage:
             self.storage.set_password(password, enc_version=storage_enc_version)

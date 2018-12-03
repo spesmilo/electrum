@@ -182,7 +182,7 @@ class Abstract_Wallet(AddressSynchronizer):
         self.invoices = InvoiceStore(self.storage)
         self.contacts = Contacts(self.storage)
 
-        self.coin_price_cache = {}
+        self._coin_price_cache = {}
 
     def load_and_cleanup(self):
         self.load_keystore()
@@ -247,24 +247,37 @@ class Abstract_Wallet(AddressSynchronizer):
             self.storage.put('labels', self.labels)
         return changed
 
-    def set_fiat_value(self, txid, ccy, text):
+    def set_fiat_value(self, txid, ccy, text, fx, value_sat):
         if txid not in self.transactions:
             return
-        if not text:
+        # since fx is inserting the thousands separator,
+        # and not util, also have fx remove it
+        text = fx.remove_thousands_separator(text)
+        def_fiat = self.default_fiat_value(txid, fx, value_sat)
+        formatted = fx.ccy_amount_str(def_fiat, commas=False)
+        def_fiat_rounded = Decimal(formatted)
+        reset = not text
+        if not reset:
+            try:
+                text_dec = Decimal(text)
+                text_dec_rounded = Decimal(fx.ccy_amount_str(text_dec, commas=False))
+                reset = text_dec_rounded == def_fiat_rounded
+            except:
+                # garbage. not resetting, but not saving either
+                return False
+        if reset:
             d = self.fiat_value.get(ccy, {})
             if d and txid in d:
                 d.pop(txid)
             else:
-                return
+                # avoid saving empty dict
+                return True
         else:
-            try:
-                Decimal(text)
-            except:
-                return
-        if ccy not in self.fiat_value:
-            self.fiat_value[ccy] = {}
-        self.fiat_value[ccy][txid] = text
+            if ccy not in self.fiat_value:
+                self.fiat_value[ccy] = {}
+            self.fiat_value[ccy][txid] = text
         self.storage.put('fiat_value', self.fiat_value)
+        return reset
 
     def get_fiat_value(self, txid, ccy):
         fiat_value = self.fiat_value.get(ccy, {}).get(txid)
@@ -423,21 +436,11 @@ class Abstract_Wallet(AddressSynchronizer):
                 income += value
             # fiat computations
             if fx and fx.is_enabled() and fx.get_history_config():
-                fiat_value = self.get_fiat_value(tx_hash, fx.ccy)
-                fiat_default = fiat_value is None
-                fiat_rate = self.price_at_timestamp(tx_hash, fx.timestamp_rate)
-                fiat_value = fiat_value if fiat_value is not None else value / Decimal(COIN) * fiat_rate
-                fiat_fee = tx_fee / Decimal(COIN) * fiat_rate if tx_fee is not None else None
-                item['fiat_value'] = Fiat(fiat_value, fx.ccy)
-                item['fiat_fee'] = Fiat(fiat_fee, fx.ccy) if fiat_fee else None
-                item['fiat_default'] = fiat_default
+                fiat_fields = self.get_tx_item_fiat(tx_hash, value, fx, tx_fee)
+                fiat_value = fiat_fields['fiat_value'].value
+                item.update(fiat_fields)
                 if value < 0:
-                    acquisition_price = - value / Decimal(COIN) * self.average_price(tx_hash, fx.timestamp_rate, fx.ccy)
-                    liquidation_price = - fiat_value
-                    item['acquisition_price'] = Fiat(acquisition_price, fx.ccy)
-                    cg = liquidation_price - acquisition_price
-                    item['capital_gain'] = Fiat(cg, fx.ccy)
-                    capital_gains += cg
+                    capital_gains += fiat_fields['capital_gain'].value
                     fiat_expenditures += -fiat_value
                 else:
                     fiat_income += fiat_value
@@ -477,6 +480,27 @@ class Abstract_Wallet(AddressSynchronizer):
             'transactions': out,
             'summary': summary
         }
+
+    def default_fiat_value(self, tx_hash, fx, value_sat):
+        return value_sat / Decimal(COIN) * self.price_at_timestamp(tx_hash, fx.timestamp_rate)
+
+    def get_tx_item_fiat(self, tx_hash, value, fx, tx_fee):
+        item = {}
+        fiat_value = self.get_fiat_value(tx_hash, fx.ccy)
+        fiat_default = fiat_value is None
+        fiat_rate = self.price_at_timestamp(tx_hash, fx.timestamp_rate)
+        fiat_value = fiat_value if fiat_value is not None else self.default_fiat_value(tx_hash, fx, value)
+        fiat_fee = tx_fee / Decimal(COIN) * fiat_rate if tx_fee is not None else None
+        item['fiat_value'] = Fiat(fiat_value, fx.ccy)
+        item['fiat_fee'] = Fiat(fiat_fee, fx.ccy) if fiat_fee else None
+        item['fiat_default'] = fiat_default
+        if value < 0:
+            acquisition_price = - value / Decimal(COIN) * self.average_price(tx_hash, fx.timestamp_rate, fx.ccy)
+            liquidation_price = - fiat_value
+            item['acquisition_price'] = Fiat(acquisition_price, fx.ccy)
+            cg = liquidation_price - acquisition_price
+            item['capital_gain'] = Fiat(cg, fx.ccy)
+        return item
 
     def get_label(self, tx_hash):
         label = self.labels.get(tx_hash, '')
@@ -1154,6 +1178,9 @@ class Abstract_Wallet(AddressSynchronizer):
                 total_price += self.coin_price(ser.split(':')[0], price_func, ccy, v)
         return total_price / (input_value/Decimal(COIN))
 
+    def clear_coin_price_cache(self):
+        self._coin_price_cache = {}
+
     def coin_price(self, txid, price_func, ccy, txin_value):
         """
         Acquisition price of a coin.
@@ -1162,13 +1189,12 @@ class Abstract_Wallet(AddressSynchronizer):
         if txin_value is None:
             return Decimal('NaN')
         cache_key = "{}:{}:{}".format(str(txid), str(ccy), str(txin_value))
-        result = self.coin_price_cache.get(cache_key, None)
+        result = self._coin_price_cache.get(cache_key, None)
         if result is not None:
             return result
         if self.txi.get(txid, {}) != {}:
             result = self.average_price(txid, price_func, ccy) * txin_value/Decimal(COIN)
-            if not result.is_nan():
-                self.coin_price_cache[cache_key] = result
+            self._coin_price_cache[cache_key] = result
             return result
         else:
             fiat_value = self.get_fiat_value(txid, ccy)
@@ -1353,8 +1379,8 @@ class Imported_Wallet(Simple_Wallet):
     def get_public_key(self, address):
         return self.addresses[address].get('pubkey')
 
-    def import_private_keys(self, keys: List[str], password: Optional[str]) -> Tuple[List[str],
-                                                                                     List[Tuple[str, str]]]:
+    def import_private_keys(self, keys: List[str], password: Optional[str],
+                            write_to_disk=True) -> Tuple[List[str], List[Tuple[str, str]]]:
         good_addr = []  # type: List[str]
         bad_keys = []  # type: List[Tuple[str, str]]
         for key in keys:
@@ -1372,7 +1398,7 @@ class Imported_Wallet(Simple_Wallet):
             self.add_address(addr)
         self.save_keystore()
         self.save_addresses()
-        self.save_transactions(write=True)
+        self.save_transactions(write=write_to_disk)
         return good_addr, bad_keys
 
     def import_private_key(self, key: str, password: Optional[str]) -> str:

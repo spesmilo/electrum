@@ -32,7 +32,7 @@ Qt interface, install the Qt dependencies::
     sudo apt-get install python3-pyqt5
 
 If you downloaded the official package (tar.gz), you can run
-Electrum from its root directory, without installing it on your
+Electrum from its root directory without installing it on your
 system; all the python dependencies are included in the 'packages'
 directory. To run Electrum from its root directory, just do::
 
@@ -44,7 +44,7 @@ You can also install Electrum on your system, by running this command::
     python3 -m pip install .[fast]
 
 This will download and install the Python dependencies used by
-Electrum, instead of using the 'packages' directory.
+Electrum instead of using the 'packages' directory.
 The 'fast' extra contains some optional dependencies that we think
 are often useful but they are not strictly needed.
 
@@ -101,7 +101,7 @@ This directory contains the python dependencies used by Electrum.
 Mac OS X / macOS
 --------
 
-See `contrib/build-osx/`.
+See `contrib/osx/`.
 
 Windows
 -------

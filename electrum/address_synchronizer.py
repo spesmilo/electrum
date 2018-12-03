@@ -717,12 +717,15 @@ class AddressSynchronizer(PrintError):
             return None
         if hasattr(tx, '_cached_fee'):
             return tx._cached_fee
-        is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
-        if fee is None:
-            txid = tx.txid()
-            fee = self.tx_fees.get(txid)
-        if fee is not None:
-            tx._cached_fee = fee
+        with self.lock, self.transaction_lock:
+            is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
+            if fee is None:
+                txid = tx.txid()
+                fee = self.tx_fees.get(txid)
+            # cache fees. if wallet is synced, cache all;
+            # otherwise only cache non-None, as None can still change while syncing
+            if self.up_to_date or fee is not None:
+                tx._cached_fee = fee
         return fee
 
     def get_addr_io(self, address):

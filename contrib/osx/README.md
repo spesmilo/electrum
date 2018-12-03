@@ -14,7 +14,7 @@ Before starting, make sure that the Xcode command line tools are installed (e.g.
 
 
     cd electrum
-    ./contrib/build-osx/make_osx
+    ./contrib/osx/make_osx
     
 This creates a folder named Electrum.app.
 
@@ -33,4 +33,4 @@ Copy the Electrum.app directory over and install the dependencies, e.g.:
 Then you can just invoke `package.sh` with the path to the app:
 
     cd electrum
-    ./contrib/build-osx/package.sh ~/Electrum.app/
+    ./contrib/osx/package.sh ~/Electrum.app/

@@ -1,3 +1,15 @@
+# Release 3.3 - (Hodler's Edition)
+
+ * The network layer has been rewritten using asyncio.
+ * Follow blockchain that has the most work, not length.
+ * New wallet creation defaults to native segwit (bech32).
+ * RBF batching (option): If the wallet has an unconfirmed RBF
+   transaction, new payments will be added to that transaction,
+   instead of creating new transactions.
+ * OSX: support QR code scanner.
+ * Android APK: Use API 28, and do not use external storage.
+
+
 # Release 3.2.3 - (September 3, 2018)
 
  * hardware wallet: the Safe-T mini from Archos is now supported.
