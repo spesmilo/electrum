@@ -65,8 +65,9 @@ class Contacts(dict):
 
     def pop(self, key):
         if key in self.keys():
-            dict.pop(self, key)
+            res = dict.pop(self, key)
             self.save()
+            return res
 
     def resolve(self, k):
         if bitcoin.is_address(k):
