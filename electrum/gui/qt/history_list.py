@@ -97,7 +97,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.blue_brush = QBrush(QColor("#1E1EFF"))
         self.red_brush = QBrush(QColor("#BC1E1E"))
         self.monospace_font = QFont(MONOSPACE_FONT)
-        self.default_color = self.parent.app.palette().text().color()
         self.config = parent.config
         AcceptFileDragDrop.__init__(self, ".txn")
         self.setSortingEnabled(True)
@@ -399,7 +398,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         cap_gains = self.parent.fx.get_history_capital_gains_config()
         items = self.txid_to_items[txid]
         self.ensure_fields_available(items, 7 if cap_gains else 5, txid)
-        items[5].setForeground(self.blue_brush if not row['fiat_default'] and row['fiat_value'] else self.default_color)
+        if not row['fiat_default'] and row['fiat_value']:
+            items[5].setForeground(self.blue_brush)
         value_str = self.parent.fx.format_fiat(row['fiat_value'].value)
         items[5].setText(value_str)
         items[5].setData(row['fiat_value'].value, self.SORT_ROLE)
