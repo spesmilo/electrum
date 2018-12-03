@@ -104,9 +104,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.end_timestamp = None
         self.years = []
         self.create_toolbar_buttons()
-        self.wallet = None
-
-        root = self.std_model.invisibleRootItem()
 
         self.wallet = self.parent.wallet  # type: Abstract_Wallet
         fx = self.parent.fx
@@ -144,7 +141,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             self.editable_columns -= {5}
         col_count = self.std_model.columnCount()
         diff = col_count-len(headers)
-        grew = False
         if col_count > len(headers):
             if diff == 2:
                 self.std_model.removeColumns(6, diff)
@@ -155,7 +151,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 while len(items) > col_count:
                     items.pop()
         elif col_count < len(headers):
-            grew = True
             self.std_model.clear()
             self.txid_to_items.clear()
             self.transactions.clear()
@@ -300,11 +295,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         tx_mined_status = TxMinedStatus(height, conf, timestamp, None)
         status, status_str = self.wallet.get_tx_status(tx_hash, tx_mined_status)
         has_invoice = self.wallet.invoices.paid.get(tx_hash)
-        icon = self.icon_cache.get(":icons/" + TX_ICONS[status])
         v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)
         balance_str = self.parent.format_amount(balance, whitespaces=True)
         entry = ['', status_str, label, v_str, balance_str]
-        fiat_value = None
         item = [QStandardItem(e) for e in entry]
         item[3].setData(value, self.SORT_ROLE)
         item[4].setData(balance, self.SORT_ROLE)
@@ -316,11 +309,11 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             item[2].setForeground(self.red_brush)
             item[3].setForeground(self.red_brush)
         self.txid_to_items[tx_hash] = item
-        self.update_item(tx_hash, self.parent.wallet.get_tx_height(tx_hash))
+        self.update_item(tx_hash, self.wallet.get_tx_height(tx_hash))
         source_row_idx = self.std_model.rowCount()
         self.std_model.insertRow(source_row_idx, item)
         new_idx = self.std_model.index(source_row_idx, 0)
-        history = self.parent.fx.show_history()
+        history = fx.show_history()
         if history:
             self.update_fiat(tx_hash, tx_item)
         self.hide_row(self.proxy.mapFromSource(new_idx).row())
@@ -344,7 +337,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
 
     @profiler
     def update(self):
-        self.wallet = self.parent.wallet  # type: Abstract_Wallet
         fx = self.parent.fx
         r = self.wallet.get_full_history(domain=self.get_domain(), from_timestamp=None, to_timestamp=None, fx=fx)
         seen = set()
@@ -374,7 +366,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             old = self.transactions[txid]
             if old == row:
                 continue
-            self.update_item(txid, self.parent.wallet.get_tx_height(txid))
+            self.update_item(txid, self.wallet.get_tx_height(txid))
             if history:
                 self.update_fiat(txid, row)
             balance_str = self.parent.format_amount(row['balance'].value, whitespaces=True)
@@ -422,16 +414,16 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         key = item.data(self.TX_HASH_ROLE)
         # fixme
         if column == 2:
-            self.parent.wallet.set_label(key, text)
+            self.wallet.set_label(key, text)
             self.update_labels()
             self.parent.update_completions()
         elif column == 5:
             tx_item = self.transactions[key]
-            self.parent.wallet.set_fiat_value(key, self.parent.fx.ccy, text, self.parent.fx, tx_item['value'].value)
+            self.wallet.set_fiat_value(key, self.parent.fx.ccy, text, self.parent.fx, tx_item['value'].value)
             value = tx_item['value'].value
             if value is not None:
                 fee = tx_item['fee']
-                fiat_fields = self.parent.wallet.get_tx_item_fiat(key, value, self.parent.fx, fee.value if fee else None)
+                fiat_fields = self.wallet.get_tx_item_fiat(key, value, self.parent.fx, fee.value if fee else None)
                 tx_item.update(fiat_fields)
                 self.update_fiat(key, tx_item)
         else:
@@ -463,8 +455,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             item.setText(label)
 
     def update_item(self, tx_hash, tx_mined_status):
-        if self.wallet is None:
-            return
         conf = tx_mined_status.conf
         status, status_str = self.wallet.get_tx_status(tx_hash, tx_mined_status)
         icon = self.icon_cache.get(":icons/" +  TX_ICONS[status])

@@ -4,8 +4,7 @@ import sys
 import platform
 import queue
 from functools import partial
-from typing import NamedTuple, Callable, Optional
-from abc import abstractmethod
+from typing import NamedTuple, Callable, Optional, TYPE_CHECKING
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -14,6 +13,9 @@ from PyQt5.QtWidgets import *
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
+
+if TYPE_CHECKING:
+    from .main_window import ElectrumWindow
 
 
 if platform.system() == 'Windows':
@@ -401,7 +403,7 @@ class ElectrumItemDelegate(QStyledItemDelegate):
 
 class MyTreeView(QTreeView):
 
-    def __init__(self, parent, create_menu, stretch_column=None, editable_columns=None):
+    def __init__(self, parent: 'ElectrumWindow', create_menu, stretch_column=None, editable_columns=None):
         super().__init__(parent)
         self.parent = parent
         self.config = self.parent.config
@@ -513,13 +515,12 @@ class MyTreeView(QTreeView):
         if self.current_filter:
             self.filter(self.current_filter)
 
-    @abstractmethod
     def should_hide(self, row):
         """
         row_num is for self.model(). So if there is a proxy, it is the row number
         in that!
         """
-        pass
+        return False
 
     def item_from_coordinate(self, row_num, column):
         if isinstance(self.model(), QSortFilterProxyModel):
