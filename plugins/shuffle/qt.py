@@ -26,9 +26,7 @@
 
 from __future__ import absolute_import
 
-import os, sys
-import json
-import copy
+import os, sys, json, copy
 from functools import partial
 
 from PyQt5.QtGui import *
@@ -44,33 +42,6 @@ from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash.address import Address
 from electroncash.transaction import Transaction
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread
-
-# class SimpleLogger(object):
-#
-#     def __init__(self, logchan = None):
-#         self.pThread = None
-#         self.logchan = logchan
-#
-#     def send(self, message):
-#         if not self.logchan == None:
-#             self.logchan.send(message)
-#         if message.startswith("Error"):
-#             self.pThread.done.set()t
-
-#         elif message.startswith("Blame"):
-#             if "insufficient" in message:
-#                 pass
-#             elif "wrong hash" in message:
-#                 pass
-#             else:
-#                 self.pThread.done.set()
-
-
-# def set_coins(win, selected):
-#     checked_utxos = [utxo.replace(":","") for utxo in selected]
-#     win.parent.cs_tab.coinshuffle_inputs_list.setItems(win.wallet, checked_utxos=checked_utxos)
-#     win.parent.cs_tab.check_sufficient_ammount()
-#     win.parent.tabs.setCurrentWidget(win.parent.cs_tab)
 
 
 def is_coin_shuffled(wallet, coin, txs=None):
@@ -308,7 +279,6 @@ class Plugin(BasePlugin):
         modify_utxo_list(window)
         modify_wallet(window.wallet)
         self.windows.append(window)
-        self.save_network_settings(ns_in) # nb this needs to be called after the window is added
         window.update_status()
         # console modification
         window.console.updateNamespace({"start_background_shuffling": lambda *args, **kwargs: start_background_shuffling(window, *args, **kwargs)})
@@ -354,9 +324,6 @@ class Plugin(BasePlugin):
         if getattr(window, 'background_process', None):
             self.print_error("Got new password for wallet {} informing background process...".format(window.wallet.basename() if window.wallet else 'UNKNOWN'))
             window.background_process.set_password(new)
-
-    # def update(self, window):
-    #     self.windows.append(window)
 
     def settings_dialog(self, window, msg=None, restart_ask = True):
         assert window and (isinstance(window, ElectrumWindow) or isinstance(window.parent(), ElectrumWindow))
@@ -417,10 +384,8 @@ class Plugin(BasePlugin):
                 'info'  : sb2.value(),
                 'ssl'   : chk.isChecked()
             }
-
-        dlgParent = None
-
-        d = WindowModalDialog(dlgParent, _("CashShuffle settings"))
+        # /
+        d = WindowModalDialog(None, _("CashShuffle Settings"))
         d.setWindowModality(Qt.ApplicationModal)
         d.setMinimumSize(500, 200)
 
@@ -458,11 +423,11 @@ class Plugin(BasePlugin):
         srvLe = QLineEdit(srv)
         hbox.addWidget(srvLe)
         hbox.addWidget(QLabel(_("P:")))
-        portSb = QSpinBox(); portSb.setRange(1, 65534); #portSb.setPrefix("P: ")
+        portSb = QSpinBox(); portSb.setRange(1, 65534)
         portSb.setValue(port)
         hbox.addWidget(portSb)
         hbox.addWidget(QLabel(_("I:")))
-        infoSb = QSpinBox(); infoSb.setRange(1, 65534); #infoSb.setPrefix("I: ")
+        infoSb = QSpinBox(); infoSb.setRange(1, 65534)
         infoSb.setValue(info)
         hbox.addWidget(infoSb)
         sslChk = QCheckBox(_("SSL"))
@@ -495,25 +460,22 @@ class Plugin(BasePlugin):
                     except:
                         self.print_error("Connectivity test got exception: {}".format(str(sys.exc_info()[1])))
                         return False
+                # /
                 if not check_server_connectivity(ns.get("server"), ns.get("port"), ns.get("info"), ns.get("ssl")):
                     server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
                 else:
                     server_ok = True
         if ns:
             self.print_error("Saving network settings: {}".format(ns))
-            self.save_network_settings(ns)
+            self.save_network_settings(window, ns)
             if restart_ask and ns != selected:
-                window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the change to take effect."))
+                window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
         return ns
 
 
-    def save_network_settings(self, network_settings):
+    def save_network_settings(self, window, network_settings):
         ns = copy.deepcopy(network_settings)
-        saved = set()
-        for wdw in self.windows:
-            if wdw.config not in saved: # paranoia
-                wdw.config.set_key("cashshuffle_server", ns)
-                saved.add(wdw.config)
+        window.config.set_key("cashshuffle_server", ns)
 
 
     def settings_widget(self, window):
