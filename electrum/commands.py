@@ -176,7 +176,7 @@ class Commands:
             storage.put('keystore', k.dump())
             wallet = Imported_Wallet(storage)
             keys = keystore.get_private_keys(text)
-            good_inputs, bad_inputs = wallet.import_private_keys(keys, password)
+            good_inputs, bad_inputs = wallet.import_private_keys(keys, None)
             # FIXME tell user about bad_inputs
             if not good_inputs:
                 raise Exception("None of the given privkeys can be imported")
