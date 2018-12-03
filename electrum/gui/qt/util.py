@@ -468,15 +468,12 @@ class MyTreeView(QTreeView):
         pt.setX(50)
         self.customContextMenuRequested.emit(pt)
 
-    def createEditor(self, parent, option, index):
+    def createEditor(self, parent, option, idx):
         self.editor = QStyledItemDelegate.createEditor(self.itemDelegate(),
-                                                       parent, option, index)
-        persistent = QPersistentModelIndex(index)
-        user_role = index.data(Qt.UserRole)
+                                                       parent, option, idx)
+        item = self.item_from_coordinate(idx.row(), idx.column())
+        user_role = item.data(Qt.UserRole)
         assert user_role is not None
-        idx = QModelIndex(persistent)
-        index = self.proxy.mapToSource(idx)
-        item = self.std_model.itemFromIndex(index)
         prior_text = item.text()
         def editing_finished():
             # Long-time QT bug - pressing Enter to finish editing signals
@@ -524,6 +521,14 @@ class MyTreeView(QTreeView):
         """
         pass
 
+    def item_from_coordinate(self, row_num, column):
+        if isinstance(self.model(), QSortFilterProxyModel):
+            idx = self.model().mapToSource(self.model().index(row_num, column))
+            return self.model().sourceModel().itemFromIndex(idx)
+        else:
+            idx = self.model().index(row_num, column)
+            return self.model().itemFromIndex(idx)
+
     def hide_row(self, row_num):
         """
         row_num is for self.model(). So if there is a proxy, it is the row number
@@ -535,12 +540,7 @@ class MyTreeView(QTreeView):
             self.setRowHidden(row_num, QModelIndex(), False)
             return
         for column in self.filter_columns:
-            if isinstance(self.model(), QSortFilterProxyModel):
-                idx = self.model().mapToSource(self.model().index(row_num, column))
-                item = self.model().sourceModel().itemFromIndex(idx)
-            else:
-                idx = self.model().index(row_num, column)
-                item = self.model().itemFromIndex(idx)
+            item = self.item_from_coordinate(row_num, column)
             txt = item.text().lower()
             if self.current_filter in txt:
                 # the filter matched, but the date filter might apply

@@ -75,8 +75,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
 
     def should_hide(self, proxy_row):
         if self.start_timestamp and self.end_timestamp:
-            source_idx = self.proxy.mapToSource(self.proxy.index(proxy_row, 0))
-            item = self.std_model.itemFromIndex(source_idx)
+            item = self.item_from_coordinate(proxy_row, 0)
             txid = item.data(self.TX_HASH_ROLE)
             date = self.transactions[txid]['date']
             if date:
@@ -418,9 +417,8 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         # TODO update unconfirmed tx'es
 
     def on_edited(self, index, user_role, text):
-        column = index.column()
-        index = self.proxy.mapToSource(index)
-        item = self.std_model.itemFromIndex(index)
+        row, column = index.row(), index.column()
+        item = self.item_from_coordinate(row, column)
         key = item.data(self.TX_HASH_ROLE)
         # fixme
         if column == 2:
@@ -441,7 +439,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
 
     def mouseDoubleClickEvent(self, event: QMouseEvent):
         idx = self.indexAt(event.pos())
-        item = self.std_model.itemFromIndex(self.proxy.mapToSource(idx))
+        item = self.item_from_coordinate(idx.row(), idx.column())
         if not item or item.isEditable():
             super().mouseDoubleClickEvent(event)
         elif item:
