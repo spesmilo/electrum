@@ -330,21 +330,20 @@ class Plugin(BasePlugin):
         if not isinstance(window, ElectrumWindow):
             window = window.parent()
         def setup_combo_box(cb, selected = {}):
-            #
-            def load_servers(path):
+            def load_servers(fname):
                 r = {}
                 try:
                     zips = __file__.find(".zip")
                     if zips == -1:
-                        with open(os.path.join(os.path.dirname(__file__), path), 'r') as f:
+                        with open(os.path.join(os.path.dirname(__file__), fname), 'r') as f:
                             r = json.loads(f.read())
                     else:
                         from zipfile import ZipFile
                         zip_file = ZipFile(__file__[: zips + 4])
-                        with zip_file.open("shuffle/" + path) as f:
+                        with zip_file.open("shuffle/" + fname) as f:
                             r = json.loads(f.read().decode())
                 except:
-                    self.print_error("Error loading server list from {}: {}", path, str(sys.exc_info()[1]))
+                    self.print_error("Error loading server list from {}: {}", fname, str(sys.exc_info()[1]))
                 return r
             # /
             servers = load_servers("servers.json")
@@ -396,43 +395,30 @@ class Plugin(BasePlugin):
         grid = QGridLayout()
         vbox.addLayout(grid)
 
-        serverCB = QComboBox()
-        srv, port, info, ssl = "", 8080, 8081, False
+        serverCB = QComboBox(d)
         selected = dict()
         try:
             # try and pre-populate from config
             current = window.config.get("cashshuffle_server", dict())
-            srv = current["server"]
-            port = current["port"]
-            info = current["info"]
-            ssl = current["ssl"]
+            dummy = (current["server"], current["port"], current["info"], current["ssl"]); del dummy;
             selected = current
         except KeyError:
             pass
             
         setup_combo_box(serverCB, selected = selected)
 
-        grid.addWidget(QLabel('Servers'), 0, 0)
+        grid.addWidget(QLabel(_('Servers'), d), 0, 0)
         grid.addWidget(serverCB, 0, 1)
 
-        grid.addWidget(QLabel(_("Host")), 1, 0)
+        grid.addWidget(QLabel(_("Host"), d), 1, 0)
 
-        hbox = QHBoxLayout()
-        grid.addLayout(hbox, 1, 1, 1, 2)
-        grid.setColumnStretch(2, 1)
-        srvLe = QLineEdit(srv)
-        hbox.addWidget(srvLe)
+        hbox = QHBoxLayout(); grid.addLayout(hbox, 1, 1, 1, 2); grid.setColumnStretch(2, 1)
+        srvLe = QLineEdit(d); hbox.addWidget(srvLe)
         hbox.addWidget(QLabel(_("P:")))
-        portSb = QSpinBox(); portSb.setRange(1, 65534)
-        portSb.setValue(port)
-        hbox.addWidget(portSb)
+        portSb = QSpinBox(d); portSb.setRange(1, 65535); hbox.addWidget(portSb)
         hbox.addWidget(QLabel(_("I:")))
-        infoSb = QSpinBox(); infoSb.setRange(1, 65534)
-        infoSb.setValue(info)
-        hbox.addWidget(infoSb)
-        sslChk = QCheckBox(_("SSL"))
-        sslChk.setChecked(ssl)
-        hbox.addWidget(sslChk)
+        infoSb = QSpinBox(d); infoSb.setRange(1, 65535); hbox.addWidget(infoSb)
+        sslChk = QCheckBox(_("SSL"), d); hbox.addWidget(sslChk)
 
         serverCB.currentIndexChanged.connect(lambda x: from_combobox(serverCB, srvLe, portSb, infoSb, sslChk))
         from_combobox(serverCB, srvLe, portSb, infoSb, sslChk)
@@ -448,33 +434,32 @@ class Plugin(BasePlugin):
                 return
             else:
                 ns = get_form(srvLe, portSb, infoSb, sslChk)
-                def check_server_connectivity(host, port, stat_port, ssl):
-                    secure = "s" if ssl else ""
-                    stat_endpoint = "http{}://{}:{}/stats".format(secure, host, stat_port)
-                    try:
-                        import requests, socket
-                        res = requests.get(stat_endpoint, verify=False, timeout=3.0)
-                        self.print_error("{}:{}{} got response: PoolSize = {}".format(host, stat_port, secure, res.json().get("PoolSize", None)))
-                        socket.create_connection((host, port), 1.5).close() # test connectivity to port
-                        return True
-                    except:
-                        self.print_error("Connectivity test got exception: {}".format(str(sys.exc_info()[1])))
-                        return False
-                # /
-                if not check_server_connectivity(ns.get("server"), ns.get("port"), ns.get("info"), ns.get("ssl")):
+                if not self.check_server_connectivity(ns.get("server"), ns.get("port"), ns.get("info"), ns.get("ssl")):
                     server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
                 else:
                     server_ok = True
         if ns:
-            self.print_error("Saving network settings: {}".format(ns))
             self.save_network_settings(window, ns)
             if restart_ask and ns != selected:
                 window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
         return ns
 
+    def check_server_connectivity(self, host, port, stat_port, ssl):
+        secure = "s" if ssl else ""
+        stat_endpoint = "http{}://{}:{}/stats".format(secure, host, stat_port)
+        try:
+            import requests, socket
+            res = requests.get(stat_endpoint, verify=False, timeout=3.0)
+            self.print_error("{}:{}{} got response: PoolSize = {}".format(host, stat_port, secure, res.json().get("PoolSize", None)))
+            socket.create_connection((host, port), 1.5).close() # test connectivity to port
+            return True
+        except:
+            self.print_error("Connectivity test got exception: {}".format(str(sys.exc_info()[1])))
+        return False
 
     def save_network_settings(self, window, network_settings):
         ns = copy.deepcopy(network_settings)
+        self.print_error("Saving network settings: {}".format(ns))
         window.config.set_key("cashshuffle_server", ns)
 
 
