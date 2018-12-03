@@ -66,6 +66,7 @@ class AddressDialog(WindowModalDialog):
             for pubkey in pubkeys:
                 pubkey_e = ButtonsLineEdit(pubkey)
                 pubkey_e.addCopyButton(self.app)
+                pubkey_e.setReadOnly(True)
                 vbox.addWidget(pubkey_e)
 
         try:
