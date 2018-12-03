@@ -449,9 +449,17 @@ class Plugin(BasePlugin):
         stat_endpoint = "http{}://{}:{}/stats".format(secure, host, stat_port)
         try:
             import requests, socket
-            res = requests.get(stat_endpoint, verify=False, timeout=3.0)
-            self.print_error("{}:{}{} got response: PoolSize = {}".format(host, stat_port, secure, res.json().get("PoolSize", None)))
-            socket.create_connection((host, port), 1.5).close() # test connectivity to port
+            try:
+                prog = QProgressDialog(_("Checking server..."), None, 0, 3, None)
+                prog.setWindowModality(Qt.ApplicationModal); prog.setMinimumDuration(0); prog.setValue(1)
+                QApplication.instance().processEvents(QEventLoop.ExcludeUserInputEvents|QEventLoop.ExcludeSocketNotifiers, 1) # this forces the window to be shown
+                res = requests.get(stat_endpoint, verify=False, timeout=3.0)
+                prog.setValue(2)
+                self.print_error("{}:{}{} got response: PoolSize = {}".format(host, stat_port, secure, res.json().get("PoolSize", None)))
+                socket.create_connection((host, port), 3.0).close() # test connectivity to port
+                prog.setValue(3)
+            finally:
+                prog.close(); prog.deleteLater()
             return True
         except:
             self.print_error("Connectivity test got exception: {}".format(str(sys.exc_info()[1])))
