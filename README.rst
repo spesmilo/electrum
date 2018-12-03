@@ -25,7 +25,7 @@ Qt interface, install the Qt dependencies::
     sudo apt-get install python3-pyqt5
 
 If you downloaded the official package (tar.gz), you can run
-Electrum-LTC from its root directory, without installing it on your
+Electrum-LTC from its root directory without installing it on your
 system; all the python dependencies are included in the 'packages'
 directory. To run Electrum-LTC from its root directory, just do::
 
@@ -37,7 +37,7 @@ You can also install Electrum-LTC on your system, by running this command::
     python3 -m pip install .[fast]
 
 This will download and install the Python dependencies used by
-Electrum-LTC, instead of using the 'packages' directory.
+Electrum-LTC instead of using the 'packages' directory.
 The 'fast' extra contains some optional dependencies that we think
 are often useful but they are not strictly needed.
 
