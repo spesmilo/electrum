@@ -555,10 +555,15 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.parent.show_message(_("Your wallet history has been successfully exported."))
 
     def do_export_history(self, file_name, is_csv):
-        history = self.transactions.values()
+        hist = self.wallet.get_full_history(domain=self.get_domain(),
+                                            from_timestamp=None,
+                                            to_timestamp=None,
+                                            fx=self.parent.fx,
+                                            show_fees=True)
+        txns = hist['transactions']
         lines = []
         if is_csv:
-            for item in history:
+            for item in txns:
                 lines.append([item['txid'],
                               item.get('label', ''),
                               item['confirmations'],
@@ -583,4 +588,4 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                     transaction.writerow(line)
             else:
                 from electrum.util import json_encode
-                f.write(json_encode(history))
+                f.write(json_encode(txns))

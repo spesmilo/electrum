@@ -394,7 +394,8 @@ class Abstract_Wallet(AddressSynchronizer):
         return balance
 
     @profiler
-    def get_full_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None, show_addresses=False):
+    def get_full_history(self, domain=None, from_timestamp=None, to_timestamp=None,
+                         fx=None, show_addresses=False, show_fees=False):
         out = []
         income = 0
         expenditures = 0
@@ -420,8 +421,10 @@ class Abstract_Wallet(AddressSynchronizer):
                 'date': timestamp_to_datetime(timestamp),
                 'label': self.get_label(tx_hash),
             }
-            tx_fee = self.get_tx_fee(tx)
-            item['fee'] = Satoshis(tx_fee) if tx_fee is not None else None
+            tx_fee = None
+            if show_fees:
+                tx_fee = self.get_tx_fee(tx)
+                item['fee'] = Satoshis(tx_fee) if tx_fee is not None else None
             if show_addresses:
                 item['inputs'] = list(map(lambda x: dict((k, x[k]) for k in ('prevout_hash', 'prevout_n')), tx.inputs()))
                 item['outputs'] = list(map(lambda x:{'address':x.address, 'value':Satoshis(x.value)},

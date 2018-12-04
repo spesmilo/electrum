@@ -520,9 +520,12 @@ class Commands:
         return tx.as_dict()
 
     @command('w')
-    def history(self, year=None, show_addresses=False, show_fiat=False):
+    def history(self, year=None, show_addresses=False, show_fiat=False, show_fees=False):
         """Wallet history. Returns the transaction history of your wallet."""
-        kwargs = {'show_addresses': show_addresses}
+        kwargs = {
+            'show_addresses': show_addresses,
+            'show_fees': show_fees,
+        }
         if year:
             import time
             start_date = datetime.datetime(year, 1, 1)
@@ -808,6 +811,7 @@ command_options = {
     'paid':        (None, "Show only paid requests."),
     'show_addresses': (None, "Show input and output addresses"),
     'show_fiat':   (None, "Show fiat value of transactions"),
+    'show_fees':   (None, "Show miner fees paid by transactions"),
     'year':        (None, "Show history for a given year"),
     'fee_method':  (None, "Fee estimation method to use"),
     'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position")
