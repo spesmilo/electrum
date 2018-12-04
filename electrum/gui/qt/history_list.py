@@ -31,7 +31,7 @@ from collections import OrderedDict
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
-from electrum.util import block_explorer_URL, profiler, print_error, TxMinedStatus, Fiat
+from electrum.util import block_explorer_URL, profiler, print_error, TxMinedStatus, OrderedDictWithIndex
 
 from .util import *
 
@@ -92,7 +92,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.setModel(self.proxy)
 
         self.txid_to_items = {}
-        self.transactions = OrderedDict()
+        self.transactions = OrderedDictWithIndex()
         self.summary = {}
         self.blue_brush = QBrush(QColor("#1E1EFF"))
         self.red_brush = QBrush(QColor("#BC1E1E"))
@@ -311,7 +311,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
 
     def ensure_fields_available(self, items, idx, txid):
         while len(items) < idx + 1:
-            row = list(self.transactions.keys()).index(txid)
+            row = self.transactions.get_pos_of_key(txid)
             qidx = self.std_model.index(row, len(items))
             assert qidx.isValid(), (self.std_model.columnCount(), idx)
             item = self.std_model.itemFromIndex(qidx)
@@ -334,7 +334,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             txid = row['txid']
             if txid not in self.transactions:
                 self.transactions[txid] = row
-                self.transactions.move_to_end(txid, last=True)
                 self.insert_tx(row)
                 return
             else:
@@ -344,7 +343,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             seen.add(txid)
             if txid not in self.transactions:
                 self.transactions[txid] = row
-                self.transactions.move_to_end(txid, last=True)
                 self.insert_tx(row)
                 continue
             old = self.transactions[txid]
