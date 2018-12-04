@@ -93,14 +93,20 @@ class Round(object):
             2. trying to parse the incoming message
             3. store the packets from message to inbox[phase][from_key]
         """
+        val = None
         try:
             val = self.inchan.recv()
-            if val is None:
-                return None
-            else:
+        except:
+            # if we failed on reading inchan for timeout or whatever then return None
+            return None
+        if val is None:
+            return None
+        else:
+            try:
                 self.messages.packets.ParseFromString(val)
-        except Exception:
-            self.logchan.send('Decoding Error!')
+            except Exception:
+                self.logchan.send('Decoding Error!')
+                return None
         phase = self.messages.get_phase()
         from_key = self.messages.get_from_key()
         self.check_for_signatures()

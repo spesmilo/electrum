@@ -7,7 +7,7 @@ import time
 class Channel(queue.Queue):
     "simple Queue wrapper for using recv and send"
 
-    def __init__(self, switch_timeout=None):
+    def __init__(self, switch_timeout=1):
         queue.Queue.__init__(self)
         self.switch_timeout = switch_timeout
 
