@@ -104,26 +104,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.end_timestamp = None
         self.years = []
         self.create_toolbar_buttons()
-
         self.wallet = self.parent.wallet  # type: Abstract_Wallet
-        fx = self.parent.fx
-        r = self.wallet.get_full_history(domain=self.get_domain(), from_timestamp=None, to_timestamp=None, fx=fx)
-        self.transactions.update([(x['txid'], x) for x in r['transactions']])
-        self.summary = r['summary']
-        if not self.years and self.transactions:
-            start_date = next(iter(self.transactions.values())).get('date') or date.today()
-            end_date = next(iter(reversed(self.transactions.values()))).get('date') or date.today()
-            self.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
-            self.period_combo.insertItems(1, self.years)
-        if fx: fx.history_used_spot = False
         self.refresh_headers()
-        for tx_item in self.transactions.values():
-            self.insert_tx(tx_item)
         self.sortByColumn(0, Qt.AscendingOrder)
-
-    #def on_activated(self, idx: QModelIndex):
-    #    # TODO use siblingAtColumn when min Qt version is >=5.11
-    #    self.edit(idx.sibling(idx.row(), 2))
 
     def format_date(self, d):
         return str(datetime.date(d.year, d.month, d.day)) if d else _('None')
@@ -338,6 +321,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
     @profiler
     def update(self):
         fx = self.parent.fx
+        if fx: fx.history_used_spot = False
         r = self.wallet.get_full_history(domain=self.get_domain(), from_timestamp=None, to_timestamp=None, fx=fx)
         seen = set()
         history = fx.show_history()
@@ -385,6 +369,13 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 assert removed_txid == txid, (idx, removed)
                 removed += 1
         self.apply_filter()
+        # update summary
+        self.summary = r['summary']
+        if not self.years and self.transactions:
+            start_date = next(iter(self.transactions.values())).get('date') or date.today()
+            end_date = next(iter(reversed(self.transactions.values()))).get('date') or date.today()
+            self.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
+            self.period_combo.insertItems(1, self.years)
 
     def update_fiat(self, txid, row):
         cap_gains = self.parent.fx.get_history_capital_gains_config()
