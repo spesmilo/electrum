@@ -1,9 +1,6 @@
 import asyncio
-import base64
 import shutil
 import tempfile
-from base64 import b64decode
-from pprint import pprint
 from typing import Sequence
 from unittest import mock
 
@@ -12,14 +9,12 @@ from electrum import Transaction
 from electrum import storage, bitcoin, keystore, PSBT
 from electrum.address_synchronizer import TX_HEIGHT_UNCONFIRMED
 from electrum.plugins.trustedcoin import trustedcoin
-from electrum.transaction import TxOutput, ImmutableTransaction
+from electrum.transaction import TxOutput
 from electrum.util import bfh, bh2u
 from electrum.wallet import sweep, Multisig_Wallet, Standard_Wallet, Imported_Wallet
-
 from . import SequentialTestCase
 from . import TestCaseForTestnet
 from .test_bitcoin import needs_test_with_all_ecc_implementations
-
 
 UNICODE_HORROR_HEX = 'e282bf20f09f988020f09f98882020202020e3818620e38191e3819fe381be20e3828fe3828b2077cda2cda2cd9d68cda16fcda2cda120ccb8cda26bccb5cd9f6eccb4cd98c7ab77ccb8cc9b73cd9820cc80cc8177cd98cda2e1b8a9ccb561d289cca1cda27420cca7cc9568cc816fccb572cd8fccb5726f7273cca120ccb6cda1cda06cc4afccb665cd9fcd9f20ccb6cd9d696ecda220cd8f74cc9568ccb7cca1cd9f6520cd9fcd9f64cc9b61cd9c72cc95cda16bcca2cca820cda168ccb465cd8f61ccb7cca2cca17274cc81cd8f20ccb4ccb7cda0c3b2ccb5ccb666ccb82075cca7cd986ec3adcc9bcd9c63cda2cd8f6fccb7cd8f64ccb8cda265cca1cd9d3fcd9e'
 UNICODE_HORROR = bfh(UNICODE_HORROR_HEX).decode('utf-8')
@@ -1070,7 +1065,6 @@ class TestWalletSending(TestCaseForTestnetWithDisposableStore):
         )
 
 
-
 class TestWalletOfflineSigning(TestCaseForTestnet):
 
     @classmethod
@@ -1146,24 +1140,25 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
 
         # create unsigned tx
         outputs = [TxOutput(bitcoin.TYPE_ADDRESS, 'tb1qp0mv2sxsyxxfj5gl0332f9uyez93su9cf26757', 2500000)]
-        tx = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
-        tx.set_rbf(True)
-        tx.locktime = 1325340
+        psbt = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
+        psbt.glob.unsigned_tx.version = 1
+        psbt.glob.unsigned_tx.set_rbf(True)
+        psbt.glob.unsigned_tx.locktime = 1325340
 
-        self.assertFalse(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
-        self.assertEqual(1, len(tx.inputs()))
-        tx_copy = Transaction(tx.serialize())
-        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
+        self.assertFalse(psbt.is_complete())
+        self.assertFalse(psbt.is_segwit())
+        self.assertEqual(1, len(psbt.glob.unsigned_tx.inputs()))
+        psbt_copy = PSBT.from_raw(psbt.serialize())
+        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(psbt_copy.glob.unsigned_tx.inputs()[0])))
 
-        self.assertEqual(tx.txid(), tx_copy.txid())
+        self.assertEqual(psbt.txid(), psbt_copy.txid())
 
         # sign tx
-        tx = wallet_offline.process_psbt(tx_copy, password=None)
-        self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
-        self.assertEqual('d9c21696eca80321933e7444ca928aaf25eeda81aaa2f4e5c085d4d0a9cf7aa7', tx.txid())
-        self.assertEqual('d9c21696eca80321933e7444ca928aaf25eeda81aaa2f4e5c085d4d0a9cf7aa7', tx.wtxid())
+        psbt = wallet_offline.process_psbt(psbt_copy, password=None)
+        self.assertTrue(psbt.is_complete())
+        self.assertFalse(psbt.is_segwit())
+        self.assertEqual('d9c21696eca80321933e7444ca928aaf25eeda81aaa2f4e5c085d4d0a9cf7aa7', psbt.txid())
+        self.assertEqual('d9c21696eca80321933e7444ca928aaf25eeda81aaa2f4e5c085d4d0a9cf7aa7', psbt.wtxid())
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
@@ -1187,25 +1182,25 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         # create unsigned tx
         outputs = [TxOutput(bitcoin.TYPE_ADDRESS, 'tb1qp0mv2sxsyxxfj5gl0332f9uyez93su9cf26757', 2500000)]
         psbt = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
-        tx.set_rbf(True)
-        tx.glob.unsigned_tx.set_rbf(True)
-        tx.locktime = 1325341
+        psbt.glob.unsigned_tx.version = 1
+        psbt.glob.unsigned_tx.set_rbf(True)
+        psbt.glob.unsigned_tx.locktime = 1325341
 
-        self.assertFalse(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
-        self.assertEqual(1, len(tx.inputs()))
-        tx_copy = Transaction(tx.serialize())
-        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
+        self.assertFalse(psbt.is_complete())
+        self.assertTrue(psbt.is_segwit())
+        self.assertEqual(1, len(psbt.glob.unsigned_tx.inputs()))
+        psbt_copy = PSBT.from_raw(psbt.serialize())
+        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(psbt_copy.glob.unsigned_tx.inputs()[0])))
 
-        self.assertEqual('3f0d188519237478258ad2bf881643618635d11c2bb95512e830fcf2eda3c522', tx_copy.txid())
-        self.assertEqual(tx.txid(), tx_copy.txid())
+        self.assertEqual(None, psbt_copy.txid())
+        self.assertEqual(psbt.txid(), psbt_copy.txid())
 
         # sign tx
-        tx = wallet_offline.process_psbt(tx_copy, password=None)
-        self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
-        self.assertEqual('3f0d188519237478258ad2bf881643618635d11c2bb95512e830fcf2eda3c522', tx.txid())
-        self.assertEqual('27b78ec072a403b0545258e7a1a8d494e4b6fd48bf77f4251a12160c92207cbc', tx.wtxid())
+        psbt = wallet_offline.process_psbt(psbt_copy, password=None)
+        self.assertTrue(psbt.is_complete())
+        self.assertTrue(psbt.is_segwit())
+        self.assertEqual('3f0d188519237478258ad2bf881643618635d11c2bb95512e830fcf2eda3c522', psbt.txid())
+        self.assertEqual('27b78ec072a403b0545258e7a1a8d494e4b6fd48bf77f4251a12160c92207cbc', psbt.wtxid())
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
@@ -1228,25 +1223,26 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
 
         # create unsigned tx
         outputs = [TxOutput(bitcoin.TYPE_ADDRESS, 'tb1qp0mv2sxsyxxfj5gl0332f9uyez93su9cf26757', 2500000)]
-        tx = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
-        tx.set_rbf(True)
-        tx.locktime = 1325341
+        psbt = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
+        psbt.glob.unsigned_tx.version = 1
+        psbt.glob.unsigned_tx.set_rbf(True)
+        psbt.glob.unsigned_tx.locktime = 1325341
 
-        self.assertFalse(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
-        self.assertEqual(1, len(tx.inputs()))
-        tx_copy = Transaction(tx.serialize())
-        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
+        self.assertFalse(psbt.is_complete())
+        self.assertTrue(psbt.is_segwit())
+        self.assertEqual(1, len(psbt.glob.unsigned_tx.inputs()))
+        psbt_copy = PSBT.from_raw(psbt.serialize())
+        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(psbt_copy.glob.unsigned_tx.inputs()[0])))
 
-        self.assertEqual('ee76c0c6da87f0eb5ab4d1ae05d3942512dcd3c4c42518f9d3619e74400cfc1f', tx_copy.txid())
-        self.assertEqual(tx.txid(), tx_copy.txid())
+        self.assertEqual(None, psbt_copy.txid())
+        self.assertEqual(psbt.txid(), psbt_copy.txid())
 
         # sign tx
-        tx = wallet_offline.process_psbt(tx_copy, password=None)
-        self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
-        self.assertEqual('ee76c0c6da87f0eb5ab4d1ae05d3942512dcd3c4c42518f9d3619e74400cfc1f', tx.txid())
-        self.assertEqual('729c2e40a2fccd6b731407c01ed304119c1ac329bdf9baae5b642d916c5f3272', tx.wtxid())
+        psbt = wallet_offline.process_psbt(psbt_copy, password=None)
+        self.assertTrue(psbt.is_complete())
+        self.assertTrue(psbt.is_segwit())
+        self.assertEqual('ee76c0c6da87f0eb5ab4d1ae05d3942512dcd3c4c42518f9d3619e74400cfc1f', psbt.txid())
+        self.assertEqual('729c2e40a2fccd6b731407c01ed304119c1ac329bdf9baae5b642d916c5f3272', psbt.wtxid())
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
@@ -1264,23 +1260,24 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
 
         # create unsigned tx
         outputs = [TxOutput(bitcoin.TYPE_ADDRESS, 'tb1quk7ahlhr3qmjndy0uvu9y9hxfesrtahtta9ghm', 2500000)]
-        tx = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
-        tx.set_rbf(True)
-        tx.locktime = 1325340
+        psbt = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
+        psbt.glob.unsigned_tx.version = 1
+        psbt.glob.unsigned_tx.set_rbf(True)
+        psbt.glob.unsigned_tx.locktime = 1325340
 
-        self.assertFalse(tx.is_complete())
-        self.assertEqual(1, len(tx.inputs()))
-        tx_copy = Transaction(tx.serialize())
-        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
+        self.assertFalse(psbt.is_complete())
+        self.assertEqual(1, len(psbt.glob.unsigned_tx.inputs()))
+        psbt_copy = PSBT.from_raw(psbt.serialize())
+        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(psbt_copy.glob.unsigned_tx.inputs()[0])))
 
-        self.assertEqual(tx.txid(), tx_copy.txid())
+        self.assertEqual(psbt.txid(), psbt_copy.txid())
 
         # sign tx
-        tx = wallet_offline.process_psbt(tx_copy, password=None)
-        self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
-        self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', tx.txid())
-        self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', tx.wtxid())
+        psbt = wallet_offline.process_psbt(psbt_copy, password=None)
+        self.assertTrue(psbt.is_complete())
+        self.assertFalse(psbt.is_segwit())
+        self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', psbt.txid())
+        self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', psbt.wtxid())
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
@@ -1298,23 +1295,24 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
 
         # create unsigned tx
         outputs = [TxOutput(bitcoin.TYPE_ADDRESS, 'tb1quk7ahlhr3qmjndy0uvu9y9hxfesrtahtta9ghm', 2500000)]
-        tx = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
-        tx.set_rbf(True)
-        tx.locktime = 1325340
+        psbt = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
+        psbt.glob.unsigned_tx.version = 1
+        psbt.glob.unsigned_tx.set_rbf(True)
+        psbt.glob.unsigned_tx.locktime = 1325340
 
-        self.assertFalse(tx.is_complete())
-        self.assertEqual(1, len(tx.inputs()))
-        tx_copy = Transaction(tx.serialize())
-        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
+        self.assertFalse(psbt.is_complete())
+        self.assertEqual(1, len(psbt.glob.unsigned_tx.inputs()))
+        psbt_copy = PSBT.from_raw(psbt.serialize())
+        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(psbt_copy.glob.unsigned_tx.inputs()[0])))
 
-        self.assertEqual(tx.txid(), tx_copy.txid())
+        self.assertEqual(psbt.txid(), psbt_copy.txid())
 
         # sign tx
-        tx = wallet_offline.process_psbt(tx_copy, password=None)
-        self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
-        self.assertEqual('7642816d051aa3b333b6564bb6e44fe3a5885bfe7db9860dfbc9973a5c9a6562', tx.txid())
-        self.assertEqual('9bb9949974954613945756c48ca5525cd5cba1b667ccb10c7a53e1ed076a1117', tx.wtxid())
+        psbt = wallet_offline.process_psbt(psbt_copy, password=None)
+        self.assertTrue(psbt.is_complete())
+        self.assertTrue(psbt.is_segwit())
+        self.assertEqual('7642816d051aa3b333b6564bb6e44fe3a5885bfe7db9860dfbc9973a5c9a6562', psbt.txid())
+        self.assertEqual('9bb9949974954613945756c48ca5525cd5cba1b667ccb10c7a53e1ed076a1117', psbt.wtxid())
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
@@ -1332,23 +1330,24 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
 
         # create unsigned tx
         outputs = [TxOutput(bitcoin.TYPE_ADDRESS, 'tb1quk7ahlhr3qmjndy0uvu9y9hxfesrtahtta9ghm', 2500000)]
-        tx = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
-        tx.set_rbf(True)
-        tx.locktime = 1325340
+        psbt = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
+        psbt.glob.unsigned_tx.version = 1
+        psbt.glob.unsigned_tx.set_rbf(True)
+        psbt.glob.unsigned_tx.locktime = 1325340
 
-        self.assertFalse(tx.is_complete())
-        self.assertEqual(1, len(tx.inputs()))
-        tx_copy = Transaction(tx.serialize())
-        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
+        self.assertFalse(psbt.is_complete())
+        self.assertEqual(1, len(psbt.glob.unsigned_tx.inputs()))
+        psbt_copy = PSBT.from_raw(psbt.serialize())
+        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(psbt_copy.glob.unsigned_tx.inputs()[0])))
 
-        self.assertEqual(tx.txid(), tx_copy.txid())
+        self.assertEqual(psbt.txid(), psbt_copy.txid())
 
         # sign tx
-        tx = wallet_offline.process_psbt(tx_copy, password=None)
-        self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
-        self.assertEqual('f8039bd85279f2b5698f15d47f2e338d067d09af391bd8a19467aa94d03f280c', tx.txid())
-        self.assertEqual('3b7cc3c3352bbb43ddc086487ac696e09f2863c3d9e8636721851b8008a83ffa', tx.wtxid())
+        psbt = wallet_offline.process_psbt(psbt_copy, password=None)
+        self.assertTrue(psbt.is_complete())
+        self.assertTrue(psbt.is_segwit())
+        self.assertEqual('f8039bd85279f2b5698f15d47f2e338d067d09af391bd8a19467aa94d03f280c', psbt.txid())
+        self.assertEqual('3b7cc3c3352bbb43ddc086487ac696e09f2863c3d9e8636721851b8008a83ffa', psbt.wtxid())
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
@@ -1369,23 +1368,24 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
 
         # create unsigned tx
         outputs = [TxOutput(bitcoin.TYPE_ADDRESS, 'tb1quk7ahlhr3qmjndy0uvu9y9hxfesrtahtta9ghm', 2500000)]
-        tx = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
-        tx.set_rbf(True)
-        tx.locktime = 1325340
+        psbt = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
+        psbt.glob.unsigned_tx.version = 1
+        psbt.glob.unsigned_tx.set_rbf(True)
+        psbt.glob.unsigned_tx.locktime = 1325340
 
-        self.assertFalse(tx.is_complete())
-        self.assertEqual(1, len(tx.inputs()))
-        tx_copy = Transaction(tx.serialize())
-        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
+        self.assertFalse(psbt.is_complete())
+        self.assertEqual(1, len(psbt.glob.unsigned_tx.inputs()))
+        psbt_copy = PSBT.from_raw(psbt.serialize())
+        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(psbt_copy.glob.unsigned_tx.inputs()[0])))
 
-        self.assertEqual(tx.txid(), tx_copy.txid())
+        self.assertEqual(psbt.txid(), psbt_copy.txid())
 
         # sign tx
-        tx = wallet_offline.process_psbt(tx_copy, password=None)
-        self.assertTrue(tx.is_complete())
-        self.assertFalse(tx.is_segwit())
-        self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', tx.txid())
-        self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', tx.wtxid())
+        psbt = wallet_offline.process_psbt(psbt_copy, password=None)
+        self.assertTrue(psbt.is_complete())
+        self.assertFalse(psbt.is_segwit())
+        self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', psbt.txid())
+        self.assertEqual('e56da664631b8c666c6df38ec80c954c4ac3c4f56f040faf0070e4681e937fc4', psbt.wtxid())
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
@@ -1406,23 +1406,24 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
 
         # create unsigned tx
         outputs = [TxOutput(bitcoin.TYPE_ADDRESS, 'tb1quk7ahlhr3qmjndy0uvu9y9hxfesrtahtta9ghm', 2500000)]
-        tx = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
-        tx.set_rbf(True)
-        tx.locktime = 1325340
+        psbt = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
+        psbt.glob.unsigned_tx.version = 1
+        psbt.glob.unsigned_tx.set_rbf(True)
+        psbt.glob.unsigned_tx.locktime = 1325340
 
-        self.assertFalse(tx.is_complete())
-        self.assertEqual(1, len(tx.inputs()))
-        tx_copy = Transaction(tx.serialize())
-        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
+        self.assertFalse(psbt.is_complete())
+        self.assertEqual(1, len(psbt.glob.unsigned_tx.inputs()))
+        psbt_copy = PSBT.from_raw(psbt.serialize())
+        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(psbt_copy.glob.unsigned_tx.inputs()[0])))
 
-        self.assertEqual(tx.txid(), tx_copy.txid())
+        self.assertEqual(psbt.txid(), psbt_copy.txid())
 
         # sign tx
-        tx = wallet_offline.process_psbt(tx_copy, password=None)
-        self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
-        self.assertEqual('7642816d051aa3b333b6564bb6e44fe3a5885bfe7db9860dfbc9973a5c9a6562', tx.txid())
-        self.assertEqual('9bb9949974954613945756c48ca5525cd5cba1b667ccb10c7a53e1ed076a1117', tx.wtxid())
+        psbt = wallet_offline.process_psbt(psbt_copy, password=None)
+        self.assertTrue(psbt.is_complete())
+        self.assertTrue(psbt.is_segwit())
+        self.assertEqual('7642816d051aa3b333b6564bb6e44fe3a5885bfe7db9860dfbc9973a5c9a6562', psbt.txid())
+        self.assertEqual('9bb9949974954613945756c48ca5525cd5cba1b667ccb10c7a53e1ed076a1117', psbt.wtxid())
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
@@ -1443,23 +1444,24 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
 
         # create unsigned tx
         outputs = [TxOutput(bitcoin.TYPE_ADDRESS, 'tb1quk7ahlhr3qmjndy0uvu9y9hxfesrtahtta9ghm', 2500000)]
-        tx = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
-        tx.set_rbf(True)
-        tx.locktime = 1325340
+        psbt = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
+        psbt.glob.unsigned_tx.version = 1
+        psbt.glob.unsigned_tx.set_rbf(True)
+        psbt.glob.unsigned_tx.locktime = 1325340
 
-        self.assertFalse(tx.is_complete())
-        self.assertEqual(1, len(tx.inputs()))
-        tx_copy = Transaction(tx.serialize())
-        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
+        self.assertFalse(psbt.is_complete())
+        self.assertEqual(1, len(psbt.glob.unsigned_tx.inputs()))
+        psbt_copy = PSBT.from_raw(psbt.serialize())
+        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(psbt_copy.glob.unsigned_tx.inputs()[0])))
 
-        self.assertEqual(tx.txid(), tx_copy.txid())
+        self.assertEqual(psbt.txid(), psbt_copy.txid())
 
         # sign tx
-        tx = wallet_offline.process_psbt(tx_copy, password=None)
-        self.assertTrue(tx.is_complete())
-        self.assertTrue(tx.is_segwit())
-        self.assertEqual('f8039bd85279f2b5698f15d47f2e338d067d09af391bd8a19467aa94d03f280c', tx.txid())
-        self.assertEqual('3b7cc3c3352bbb43ddc086487ac696e09f2863c3d9e8636721851b8008a83ffa', tx.wtxid())
+        psbt = wallet_offline.process_psbt(psbt_copy, password=None)
+        self.assertTrue(psbt.is_complete())
+        self.assertTrue(psbt.is_segwit())
+        self.assertEqual('f8039bd85279f2b5698f15d47f2e338d067d09af391bd8a19467aa94d03f280c', psbt.txid())
+        self.assertEqual('3b7cc3c3352bbb43ddc086487ac696e09f2863c3d9e8636721851b8008a83ffa', psbt.wtxid())
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
@@ -1551,32 +1553,33 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
 
         # create unsigned tx
         outputs = [TxOutput(bitcoin.TYPE_ADDRESS, '2N8CtJRwxb2GCaiWWdSHLZHHLoZy53CCyxf', 2500000)]
-        tx = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
-        tx.set_rbf(True)
-        tx.locktime = 1325504
+        psbt = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
+        psbt.glob.unsigned_tx.version = 1
+        psbt.glob.unsigned_tx.set_rbf(True)
+        psbt.glob.unsigned_tx.locktime = 1325504
 
-        self.assertFalse(tx.is_complete())
-        self.assertEqual(1, len(tx.inputs()))
-        tx_copy = Transaction(tx.serialize())
-        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
+        self.assertFalse(psbt.is_complete())
+        self.assertEqual(1, len(psbt.glob.unsigned_tx.inputs()))
+        psbt_copy = PSBT.from_raw(psbt.serialize())
+        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(psbt_copy.glob.unsigned_tx.inputs()[0])))
 
-        self.assertEqual(tx.txid(), tx_copy.txid())
+        self.assertEqual(psbt.txid(), psbt_copy.txid())
 
         # sign tx - first
-        tx = wallet_offline1.process_psbt(tx_copy, password=None)
-        self.assertFalse(tx.is_complete())
-        self.assertEqual('6a58a51591142429203b62b6ddf6b799a6926882efac229998c51bee6c3573eb', tx.txid())
-        tx = Transaction(tx.serialize())
+        psbt = wallet_offline1.process_psbt(psbt_copy, password=None)
+        self.assertFalse(psbt.is_complete())
+        self.assertEqual(None, psbt.txid())
+        psbt = PSBT.from_raw(psbt.serialize())
 
         # sign tx - second
-        tx = wallet_offline2.process_psbt(tx, password=None)
-        self.assertTrue(tx.is_complete())
-        tx = Transaction(tx.serialize())
+        psbt = wallet_offline2.process_psbt(psbt, password=None)
+        self.assertTrue(psbt.is_complete())
+        psbt = PSBT.from_raw(psbt.serialize())
 
         self.assertEqual('010000000001013eee274625ae78394847614a8bf513558bb6bd514dfd16855cb856e1e96d355401000000232200206ee8d4bb1277b7dbe1d4e49b880993aa993f417a9101cb23865c7c7258732704fdffffff02a02526000000000017a914a4189ef02c95cfe36f8e880c6cb54dff0837b22687585d72000000000017a91400698bd11c38f887f17c99846d9be96321fbf98987040047304402205a9dd9eb5676196893fb08f60079a2e9f567ee39614075d8c5d9fab0f11cbbc7022039640855188ebb7bccd9e3f00b397a888766d42d00d006f1ca7457c15449285f014730440220234f6648c5741eb195f0f4cd645298a10ce02f6ef557d05df93331e21c4f58cb022058ce2af0de1c238c4a8dd3b3c7a9a0da6e381ddad7593cddfc0480f9fe5baadf0147522102975c00f6af579f9a1d283f1e5a43032deadbab2308aef30fb307c0cfe54777462102d3f47041b424a84898e315cc8ef58190f6aec79c178c12de0790890ba7166e9c52aec0391400',
-                         str(tx))
-        self.assertEqual('6a58a51591142429203b62b6ddf6b799a6926882efac229998c51bee6c3573eb', tx.txid())
-        self.assertEqual('96d0bca1001778c54e4c3a07929fab5562c5b5a23fd1ca3aa3870cc5df2bf97d', tx.wtxid())
+                         psbt.serialize_final())
+        self.assertEqual('6a58a51591142429203b62b6ddf6b799a6926882efac229998c51bee6c3573eb', psbt.txid())
+        self.assertEqual('96d0bca1001778c54e4c3a07929fab5562c5b5a23fd1ca3aa3870cc5df2bf97d', psbt.wtxid())
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
@@ -1611,31 +1614,32 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
         # create unsigned tx
         outputs = [TxOutput(bitcoin.TYPE_ADDRESS, '2MyoZVy8T1t94yLmyKu8DP1SmbWvnxbkwRA', 2500000)]
         psbt = wallet_online.create_psbt(outputs=outputs, config=self.config, fee=5000)
-        tx.set_rbf(True)
-        tx.locktime = 1325505
+        psbt.glob.unsigned_tx.version = 1
+        psbt.glob.unsigned_tx.set_rbf(True)
+        psbt.glob.unsigned_tx.locktime = 1325505
 
-        self.assertFalse(tx.is_complete())
-        self.assertEqual(1, len(tx.inputs()))
-        tx_copy = Transaction(tx.serialize())
-        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
+        self.assertFalse(psbt.is_complete())
+        self.assertEqual(1, len(psbt.glob.unsigned_tx.inputs()))
+        psbt_copy = PSBT.from_raw(psbt.serialize())
+        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(psbt_copy.glob.unsigned_tx.inputs()[0])))
 
-        self.assertEqual(tx.txid(), tx_copy.txid())
+        self.assertEqual(psbt.txid(), psbt_copy.txid())
 
         # sign tx - first
-        tx = wallet_offline1.process_psbt(tx_copy, password=None)
-        self.assertFalse(tx.is_complete())
-        self.assertEqual('32e946761b4e718c1fa8d044db9e72d5831f6395eb284faf2fb5c4af0743e501', tx.txid())
-        tx = Transaction(tx.serialize())
+        psbt = wallet_offline1.process_psbt(psbt_copy, password=None)
+        self.assertFalse(psbt.is_complete())
+        self.assertEqual(None, psbt.txid())
+        psbt = PSBT.from_raw(psbt.serialize())
 
         # sign tx - second
-        tx = wallet_offline2.process_psbt(tx, password=None)
-        self.assertTrue(tx.is_complete())
-        tx = Transaction(tx.serialize())
+        psbt = wallet_offline2.process_psbt(psbt, password=None)
+        self.assertTrue(psbt.is_complete())
+        psbt = PSBT.from_raw(psbt.serialize())
 
         self.assertEqual('01000000000101a36fa6d72cb8aadf795097ff18609e278db156ce14f39ddd27023d08b97a3a640000000000fdffffff02a02526000000000017a91447ee5a659f6ffb53f7e3afc1681b6415f3c00fa187585d7200000000002200203c43ac80d6e3015cf378bf6bac0c22456723d6050bef324ec641e7762440c63c04004730440220629d89626585f563202e6b38ceddc26ccd00737e0b7ee4239b9266ef9174ea2f02200b74828399a2e35ed46c9b484af4817438d5fea890606ebb201b821944db1fdc0147304402205d1a59c84c419992069e9764a7992abca6a812cc5dfd4f0d6515d4283e660ce802202597a38899f31545aaf305629bd488f36bf54e4a05fe983932cafbb3906efb8f016952210223f815ab09f6bfc8519165c5232947ae89d9d43d678fb3486f3b28382a2371fa210273c529c2c9a99592f2066cebc2172a48991af2b471cb726b9df78c6497ce984e2102aa8fc578b445a1e4257be6b978fcece92980def98dce0e1eb89e7364635ae94153aec1391400',
-                         str(tx))
-        self.assertEqual('32e946761b4e718c1fa8d044db9e72d5831f6395eb284faf2fb5c4af0743e501', tx.txid())
-        self.assertEqual('4376fa5f1f6cb37b1f3956175d3bd4ef6882169294802b250a3c672f3ff431c1', tx.wtxid())
+                         psbt.serialize_final())
+        self.assertEqual('32e946761b4e718c1fa8d044db9e72d5831f6395eb284faf2fb5c4af0743e501', psbt.txid())
+        self.assertEqual('4376fa5f1f6cb37b1f3956175d3bd4ef6882169294802b250a3c672f3ff431c1', psbt.wtxid())
 
 
 class TestWalletHistory_SimpleRandomOrder(TestCaseForTestnet):

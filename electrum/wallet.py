@@ -1059,10 +1059,12 @@ class Abstract_Wallet(AddressSynchronizer):
         - redeem_script
         - bip32_derivation
         """
-        # if tx.is_complete():
-        #     return
-        # for txin in tx.inputs():
-        #     self.add_input_info(txin)
+        for inp in psbt.input_sections:
+            utxo = inp.non_witness_utxo
+            if not utxo:
+                continue
+            self.receive_tx_callback(utxo.txid(), utxo, TX_HEIGHT_UNCONFIRMED)
+
         tx = psbt.glob.unsigned_tx
         full_utxos = [self.transactions.get(utxo['prevout_hash']) for utxo in tx.inputs()]
         full_utxos = [tx_to_immutable(tx) if tx else None for tx in full_utxos]  # type: List[ImmutableTransaction]
