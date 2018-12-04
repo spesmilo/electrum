@@ -1070,8 +1070,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.address_list.update()
         self.clear_receive_tab()
         self.request_list.update()
-        items = self.request_list.findItems(key, Qt.UserRole|Qt.MatchContains|Qt.MatchRecursive, column=0)
-        self.request_list.setCurrentItem(items[0])
 
     def create_bitcoin_request(self, amount, message, expiration):
         addr = self.wallet.get_unused_address()

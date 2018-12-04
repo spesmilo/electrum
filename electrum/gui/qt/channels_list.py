@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import traceback
 import asyncio
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtWidgets import *
 
 from electrum.util import inv_dict, bh2u, bfh
@@ -9,16 +9,17 @@ from electrum.i18n import _
 from electrum.lnchan import Channel
 from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError
 
-from .util import MyTreeWidget, SortableTreeWidgetItem, WindowModalDialog, Buttons, OkButton, CancelButton
+from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton
 from .amountedit import BTCAmountEdit
 from .channel_details import ChannelDetailsDialog
 
-class ChannelsList(MyTreeWidget):
+class ChannelsList(MyTreeView):
     update_rows = QtCore.pyqtSignal()
     update_single_row = QtCore.pyqtSignal(Channel)
 
     def __init__(self, parent):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [_('Node ID'), _('Balance'), _('Remote'), _('Status')], 0)
+        super().__init__(parent, self.create_menu, 0)
+        self.setModel(QtGui.QStandardItemModel(self))
         self.main_window = parent
         self.update_rows.connect(self.do_update_rows)
         self.update_single_row.connect(self.do_update_single_row)
@@ -46,10 +47,11 @@ class ChannelsList(MyTreeWidget):
         network = self.parent.network
         lnworker = self.parent.wallet.lnworker
         menu = QMenu()
-        item = self.currentItem()
+        idx = self.selectionModel().currentIndex()
+        item = self.model().itemFromIndex(idx)
         if not item:
             return
-        channel_id = item.data(0, QtCore.Qt.UserRole)
+        channel_id = idx.sibling(idx.row(), 0).data(QtCore.Qt.UserRole)
         def on_success(txid):
             self.main_window.show_error('Channel closed' + '\n' + txid)
         def on_failure(exc_info):
@@ -77,19 +79,20 @@ class ChannelsList(MyTreeWidget):
 
     @QtCore.pyqtSlot(Channel)
     def do_update_single_row(self, chan):
-        for i in range(self.topLevelItemCount()):
-            item = self.topLevelItem(i)
-            if item.data(0, QtCore.Qt.UserRole) == chan.channel_id:
-                for i, v in enumerate(self.format_fields(chan)):
-                    item.setData(i, QtCore.Qt.DisplayRole, v)
+        for row in range(self.model().rowCount()):
+            item = self.model().item(row,0)
+            if item.data(QtCore.Qt.UserRole) == chan.channel_id:
+                for column, v in enumerate(self.format_fields(chan)):
+                    self.model().item(row, column).setData(v, QtCore.Qt.DisplayRole)
 
     @QtCore.pyqtSlot()
     def do_update_rows(self):
-        self.clear()
+        self.model().clear()
+        self.update_headers([_('Node ID'), _('Balance'), _('Remote'), _('Status')])
         for chan in self.parent.wallet.lnworker.channels.values():
-            item = SortableTreeWidgetItem(self.format_fields(chan))
-            item.setData(0, QtCore.Qt.UserRole, chan.channel_id)
-            self.insertTopLevelItem(0, item)
+            items = [QtGui.QStandardItem(x) for x in self.format_fields(chan)]
+            items[0].setData(chan.channel_id, QtCore.Qt.UserRole)
+            self.model().insertRow(0, items)
 
     def get_toolbar(self):
         b = QPushButton(_('Open Channel'))
