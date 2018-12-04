@@ -38,6 +38,7 @@ from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
 from .i18n import _
 from .lnrouter import RouteEdge, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
+from .lnsweep import create_sweeptxs_for_our_latest_ctx, create_sweeptxs_for_their_latest_ctx
 
 if TYPE_CHECKING:
     from .network import Network
@@ -88,7 +89,8 @@ class LNWorker(PrintError):
         self._add_peers_from_config()
         # wait until we see confirmations
         self.network.register_callback(self.on_network_update, ['wallet_updated', 'network_updated', 'verified', 'fee'])  # thread safe
-        self.network.register_callback(self.on_channel_txo, ['channel_txo'])
+        self.network.register_callback(self.on_channel_open, ['channel_open'])
+        self.network.register_callback(self.on_channel_closed, ['channel_closed'])
         asyncio.run_coroutine_threadsafe(self.network.main_taskgroup.spawn(self.main_loop()), self.network.asyncio_loop)
         self.first_timestamp_requested = None
 
@@ -282,21 +284,75 @@ class LNWorker(PrintError):
             return True, conf
         return False, conf
 
-    def on_channel_txo(self, event, txo, is_spent: bool):
+    def channel_by_txo(self, txo):
         with self.lock:
             channels = list(self.channels.values())
         for chan in channels:
             if chan.funding_outpoint.to_str() == txo:
-                break
-        else:
+                return chan
+
+    def on_channel_open(self, event, funding_outpoint):
+        chan = self.channel_by_txo(funding_outpoint)
+        if not chan:
             return
-        chan.set_funding_txo_spentness(is_spent)
-        if is_spent:
-            if chan.get_state() != 'FORCE_CLOSING':
-                chan.set_state("CLOSED")
-                self.on_channels_updated()
-            self.channel_db.remove_channel(chan.short_channel_id)
+        self.print_error('on_channel_open', funding_outpoint)
+        chan.set_funding_txo_spentness(False)
+        # send event to GUI
         self.network.trigger_callback('channel', chan)
+
+    @log_exceptions
+    async def on_channel_closed(self, event, funding_outpoint, txid, spenders):
+        chan = self.channel_by_txo(funding_outpoint)
+        if not chan:
+            return
+        self.print_error('on_channel_closed', funding_outpoint)
+        chan.set_funding_txo_spentness(True)
+        if chan.get_state() != 'FORCE_CLOSING':
+            chan.set_state("CLOSED")
+            self.on_channels_updated()
+        self.network.trigger_callback('channel', chan)
+        # remove from channel_db
+        self.channel_db.remove_channel(chan.short_channel_id)
+        # sweep
+        our_ctx = chan.local_commitment
+        their_ctx = chan.remote_commitment
+        if txid == our_ctx.txid():
+            self.print_error('we force closed', funding_outpoint)
+            # we force closed
+            encumbered_sweeptxs = create_sweeptxs_for_our_latest_ctx(chan, our_ctx, chan.sweep_address)
+        elif txid == their_ctx.txid():
+            self.print_error('they force closed', funding_outpoint)
+            # they force closed
+            encumbered_sweeptxs = create_sweeptxs_for_their_latest_ctx(chan, their_ctx, chan.sweep_address)
+        else:
+            # cooperative close or breach
+            self.print_error('not sure who closed', funding_outpoint)
+            encumbered_sweeptxs = []
+
+        local_height = self.network.get_local_height()
+        for prev_txid, e_tx in encumbered_sweeptxs:
+            spender = spenders.get(prev_txid + ':0') # we assume output index is 0
+            if spender is not None:
+                self.print_error('prev_tx already spent', prev_txid)
+                continue
+            num_conf = self.network.lnwatcher.get_tx_height(prev_txid).conf
+            broadcast = True
+            if e_tx.cltv_expiry:
+                if local_height > e_tx.cltv_expiry:
+                    self.print_error(e_tx.name, 'CLTV ({} > {}) fulfilled'.format(local_height, e_tx.cltv_expiry))
+                else:
+                    self.print_error(e_tx.name, 'waiting for {}: CLTV ({} > {}), funding outpoint {} and tx {}'
+                                     .format(e_tx.name, local_height, e_tx.cltv_expiry, funding_outpoint[:8], prev_txid[:8]))
+                    broadcast = False
+            if e_tx.csv_delay:
+                if num_conf < e_tx.csv_delay:
+                    self.print_error(e_tx.name, 'waiting for {}: CSV ({} >= {}), funding outpoint {} and tx {}'
+                                     .format(e_tx.name, num_conf, e_tx.csv_delay, funding_outpoint[:8], prev_txid[:8]))
+                    broadcast = False
+            if broadcast:
+                if not await self.network.lnwatcher.broadcast_or_log(funding_outpoint, e_tx):
+                    self.print_error(e_tx.name, f'could not publish encumbered tx: {str(e_tx)}, prev_txid: {prev_txid}, local_height', local_height)
+
 
     @log_exceptions
     async def on_network_update(self, event, *args):
