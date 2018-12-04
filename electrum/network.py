@@ -33,19 +33,17 @@ import threading
 import time
 import traceback
 from collections import defaultdict
-from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple, Union
+from typing import NamedTuple, Optional, Sequence, List, Dict, Tuple
 
 import dns
 import dns.resolver
 from aiorpcx import TaskGroup
 
+from . import bitcoin
 from . import blockchain
 from . import constants
 from . import util
 from .bitcoin import COIN
-from . import constants
-from . import blockchain
-from . import bitcoin
 from .blockchain import Blockchain, HEADER_SIZE
 from .interface import Interface, serialize_server, deserialize_server, RequestTimedOut
 from .simple_config import SimpleConfig

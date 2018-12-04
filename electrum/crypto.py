@@ -31,10 +31,8 @@ from typing import Union
 
 import pyaes
 
-from .util import assert_bytes, InvalidPassword, to_bytes, to_string
-from .util import assert_bytes, InvalidPassword, to_bytes, to_string
 from .i18n import _
-
+from .util import assert_bytes, InvalidPassword, to_bytes, to_string
 
 try:
     from Cryptodome.Cipher import AES

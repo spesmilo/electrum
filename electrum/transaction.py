@@ -194,8 +194,6 @@ class Transaction:
         elif txin['type'] == 'p2pk':
             pubkey = pubkeys[0]
             return bitcoin.public_key_to_p2pk_script(pubkey)
-        elif txin['type'] == 'p2sc':
-            return txin['redeem_script']
         else:
             raise TypeError('Unknown txin type', txin['type'])
 
@@ -624,38 +622,38 @@ class StandardTransaction(Transaction):
         txin['preimage_script'] = script
         return script
 
-    def redeem_script(self, i: int):
-        txin = self._inputs[i]
-        inp = self._parent_psbt._parent.input_sections[i]
-        _type = txin['type']
-        if _type == 'coinbase':
-            return txin['redeem_script']
-
-        if txin.get('redeem_script') is not None:
-            return txin['redeem_script']
-
-        pubkeys = sorted(list(inp.bip32_derivation.keys()))
-
-        script = None
-        if _type == 'p2pk':
-            script = ''
-        elif _type == 'p2sh':
-            script = multisig_script(pubkeys, txin['num_sig'])
-        elif _type == 'p2pkh':
-            script = pubkeys[0]
-        elif _type in ['p2wpkh', 'p2wsh']:
-            script = self.preimage_script(txin)
-        elif _type == 'p2wpkh-p2sh':
-            pubkey = safe_parse_pubkey(pubkeys[0])
-            script = bitcoin.p2wpkh_nested_script(pubkey)
-        elif _type == 'p2wsh-p2sh':
-            witness_script = self.preimage_script(txin)
-            script = bitcoin.p2wsh_nested_script(witness_script)
-        elif _type == 'address':
-            script = bitcoin.address_to_script(txin['address'])
-        elif _type == 'unknown':
-            raise Exception('Cannot generate unknown script')
-        return script
+    # def redeem_script(self, i: int):
+    #     txin = self._inputs[i]
+    #     inp = self._parent_psbt._parent.input_sections[i]
+    #     _type = txin['type']
+    #     if _type == 'coinbase':
+    #         return txin['redeem_script']
+    #
+    #     if txin.get('redeem_script') is not None:
+    #         return txin['redeem_script']
+    #
+    #     pubkeys = sorted(list(inp.bip32_derivation.keys()))
+    #
+    #     script = None
+    #     if _type == 'p2pk':
+    #         script = ''
+    #     elif _type == 'p2sh':
+    #         script = multisig_script(pubkeys, txin['num_sig'])
+    #     elif _type == 'p2pkh':
+    #         script = pubkeys[0]
+    #     elif _type in ['p2wpkh', 'p2wsh']:
+    #         script = self.preimage_script(txin)
+    #     elif _type == 'p2wpkh-p2sh':
+    #         pubkey = safe_parse_pubkey(pubkeys[0])
+    #         script = bitcoin.p2wpkh_nested_script(pubkey)
+    #     elif _type == 'p2wsh-p2sh':
+    #         witness_script = self.preimage_script(txin)
+    #         script = bitcoin.p2wsh_nested_script(witness_script)
+    #     elif _type == 'address':
+    #         script = bitcoin.address_to_script(txin['address'])
+    #     elif _type == 'unknown':
+    #         raise Exception('Cannot generate unknown script')
+    #     return script
 
     def serialize_witness_psbt(self, psbt, i: int, estimate_size=False) -> str:
         txin = self._inputs[i]
@@ -677,12 +675,12 @@ class StandardTransaction(Transaction):
             if estimate_size:
                 signatures = [inp.partial_sig.get(pk, '00' * 0x48) for pk in pubkeys]
             else:
-                signatures = [inp.partial_sig.get(pk) for pk in pubkeys]
+                signatures = [inp.partial_sig.get(pk,) for pk in pubkeys]
             if _type in ['p2wpkh', 'p2wpkh-p2sh']:
                 witness = construct_witness([signatures[0], pubkeys[0]])
             elif _type in ['p2wsh', 'p2wsh-p2sh']:
                 witness_script = multisig_script(pubkeys, txin['num_sig'])
-                witness = construct_witness([0] + signatures + [witness_script])
+                witness = construct_witness([0] + list(filter(None, signatures)) + [witness_script])
             else:
                 witness = txin.get('witness', '00')
 
@@ -699,7 +697,7 @@ class StandardTransaction(Transaction):
         return witness_size
 
     def get_siglist(self, inp, txin, estimate_size):
-        keys = sorted(inp.partial_sig.keys())
+        keys = sorted(inp.bip32_derivation.keys())
         pubkeys = sorted(list(inp.bip32_derivation.keys()))
         num_sig = txin.get('num_sig', 1)
 
@@ -709,7 +707,7 @@ class StandardTransaction(Transaction):
             sig_list = ["00" * 0x48] * num_sig
         else:
             pk_list = keys
-            sig_list = [inp.partial_sig.get(key) for key in keys]
+            sig_list = [inp.partial_sig.get(key, '') for key in keys]
 
         return pk_list, sig_list
 
@@ -730,7 +728,7 @@ class StandardTransaction(Transaction):
         pubkeys, sig_list = self.get_siglist(inp, txin, estimate_size)
 
         if attach_signatures:
-            script = ''.join(push_script(sig) for sig in sig_list)
+            script = ''.join(push_script(sig) for sig in sig_list if sig)
         else:
             script = ''
 
@@ -743,15 +741,15 @@ class StandardTransaction(Transaction):
             # put op_0 before script
             if attach_signatures:
                 script = '00' + script
-            redeem_script = multisig_script(pubkeys, txin['num_sig'])
+            # redeem_script = multisig_script(pubkeys, txin['num_sig'])
+            redeem_script = inp.redeem_script
             script += push_script(redeem_script)
         elif _type == 'p2pkh':
             script += push_script(pubkeys[0])
         elif _type in ['p2wpkh', 'p2wsh']:
             return ''
         elif _type == 'p2wpkh-p2sh':
-            pubkey = safe_parse_pubkey(pubkeys[0])
-            scriptSig = bitcoin.p2wpkh_nested_script(pubkey)
+            scriptSig = bitcoin.p2wpkh_nested_script(pubkeys[0])
             return push_script(scriptSig)
         elif _type == 'p2wsh-p2sh':
             if estimate_size:

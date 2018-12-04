@@ -13,12 +13,12 @@ from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               is_b58_address, address_to_scripthash, is_minikey,
                               is_compressed_privkey, seed_type, EncodeBase58Check,
                               script_num_to_hex, push_script, add_number_to_script, int_to_hex)
-from electrum.crypto import sha256d
+from electrum.crypto import sha256d, KNOWN_PW_HASH_VERSIONS
 from electrum.ecc import number_to_string
 from electrum.keystore import xtype_from_derivation
 from electrum.storage import WalletStorage
 from electrum.transaction_utils import opcodes
-from electrum.util import bfh, bh2u
+from electrum.util import bfh, bh2u, InvalidPassword
 from . import FAST_TESTS
 from . import SequentialTestCase
 from . import TestCaseForTestnet

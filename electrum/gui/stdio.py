@@ -193,18 +193,18 @@ class ElectrumGui:
             if c == "n": return
 
         try:
-            tx = self.wallet.mktx([TxOutput(TYPE_ADDRESS, self.str_recipient, amount)],
-                                  password, self.config, fee)
+            psbt = self.wallet.create_psbt([TxOutput(TYPE_ADDRESS, self.str_recipient, amount)], self.config, fee)
+            self.wallet.process_psbt(psbt, password)
         except Exception as e:
             print(str(e))
             return
 
         if self.str_description:
-            self.wallet.labels[tx.txid()] = self.str_description
+            self.wallet.labels[psbt.txid()] = self.str_description
 
         print(_("Please wait..."))
         try:
-            self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+            self.network.run_from_another_thread(self.network.broadcast_transaction(psbt))
         except Exception as e:
             print(repr(e))
         else:

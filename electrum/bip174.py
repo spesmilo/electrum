@@ -8,7 +8,7 @@ from .bip32 import convert_raw_uint32_to_bip32_path, convert_bip32_path_to_list_
 from .bitcoin import varint_to_int, var_int, int_to_hex, push_script
 from .transaction import StandardTransaction, Transaction, ImmutableTransaction
 from .transaction_utils import get_num_sig, TxOutput, pay_script, PSBT_TXN_HEADER_MAGIC, SerializationError
-from .util import bh2u, bfh, BitcoinException
+from .util import bh2u, bfh, BitcoinException, print_error
 
 """
 Note that you can check public methods and its verified signatures and return values in test_psbt.py
@@ -421,15 +421,13 @@ class PSBTInput(PSBTSection):
         if possible, used to construct final signatures and cleanup
         """
 
-        # TODO: witness
+        txin = self._parent.glob.unsigned_tx.inputs()[self.index]
         if self.is_complete():
-            if not self.is_segwit() and (self.final_scriptsig is None):
+            if self.final_scriptsig is None:
                 keys = sorted(self.partial_sig.keys())
-                script = ''
-                if len(keys) > 1:  # multisig bug workaround check
-                    script += '00'
-                script += ''.join(push_script(self.partial_sig[key]) for key in keys)
-                self.final_scriptsig = script + push_script(self.redeem_script)
+                script = self._parent.glob.unsigned_tx.input_script(txin, attach_signatures=True)
+                # self.final_scriptsig = script + push_script(self.redeem_script)
+                self.final_scriptsig = script
 
             if self.is_segwit() and (self.final_scriptwitness is None):
                 keys = sorted(self.partial_sig.keys())
@@ -548,6 +546,10 @@ class PSBT:
             x_pubkeys = txin.pop('x_pubkeys', [])
             signatures = txin.pop('signatures', [])
             for i, x_pubkey in enumerate(x_pubkeys):
+                # skip old mpk keys, because they not bip32 compatible
+                if x_pubkey[:2] == 'fe':
+                    continue
+
                 xpub, s = parse_xpubkey(x_pubkey)
                 if xpub is None:
                     continue
@@ -765,6 +767,7 @@ class PSBT:
             if not info:
                 continue
             inp = self.input_sections[i]
+            txin = self.glob.unsigned_tx.inputs()[i]
 
             inp.partial_sig.update(info.get('partial_sig', {}))
             inp.bip32_derivation.update(info.get('bip32_derivation', {}))
@@ -777,12 +780,7 @@ class PSBT:
                 inp.redeem_script = info.get('redeem_script')
             if info.get('sighash_type'):
                 inp.sighash_type = info.get('sighash_type')
-            if inp.is_segwit():
-                # try to generate script, if we have enough data
-                try:
-                    inp.witness_script = self.glob.unsigned_tx.input_script(i)
-                except:
-                    pass
+
         self.validate()
 
     def update_outputs(self, outputs_meta):
@@ -828,7 +826,9 @@ class PSBT:
                 txo = inp.non_witness_utxo.outputs()[txin['prevout_n']]
                 txin['value'] = txo.value
             if inp.witness_utxo:
-                # TODO: parse segwit value
+                # TODO: parse segwit value better
+                # read uint64 from serialized txo
+                txin['value'] = int.from_bytes(bfh(inp.witness_utxo[:16]), 'little')
                 pass
 
     def finalizer_check(self):
@@ -849,14 +849,17 @@ class PSBT:
         utxo = self.glob.unsigned_tx
         inputs_meta = []
         for i, txin in enumerate(utxo.inputs()):
+            redeem_script = None
+            witness_script = None
             inp = self.input_sections[i]
-            if inp.redeem_script:
-                continue
-            try:
-                redeem_script = utxo.redeem_script(i)
-            except Exception as e:
-                continue
-            inputs_meta.append({'redeem_script': redeem_script})  # remove push_script op
+            if inp.is_segwit():
+                witness_script = self.glob.unsigned_tx.input_script(txin)
+            if not inp.redeem_script:
+                try:
+                    redeem_script = utxo.preimage_script(txin)
+                except Exception as e:
+                    print_error(e)
+            inputs_meta.append({'redeem_script': redeem_script, 'witness_script': witness_script})  # remove push_script op
         self.update_inputs(inputs_meta)
 
     def signature_count(self):
@@ -894,6 +897,11 @@ class PSBT:
         txos, outputs = zip(*t)
         self.glob.unsigned_tx._outputs = txos
         self.output_sections = outputs
+
+        for i, inp in enumerate(self.input_sections):
+            inp.index = i
+        for i, out in enumerate(self.output_sections):
+            out.index = i
 
     def remove_signatures(self):
         for inp in self.input_sections:

@@ -357,18 +357,18 @@ class ElectrumGui:
         else:
             password = None
         try:
-            tx = self.wallet.mktx([TxOutput(TYPE_ADDRESS, self.str_recipient, amount)],
-                                  password, self.config, fee)
+            psbt = self.wallet.create_psbt([TxOutput(TYPE_ADDRESS, self.str_recipient, amount)], self.config, fee)
+            self.wallet.process_psbt(psbt, password)
         except Exception as e:
             self.show_message(str(e))
             return
 
         if self.str_description:
-            self.wallet.labels[tx.txid()] = self.str_description
+            self.wallet.labels[psbt.txid()] = self.str_description
 
         self.show_message(_("Please wait..."), getchar=False)
         try:
-            self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+            self.network.run_from_another_thread(self.network.broadcast_transaction(psbt))
         except Exception as e:
             self.show_message(repr(e))
         else:
