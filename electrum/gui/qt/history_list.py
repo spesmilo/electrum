@@ -461,7 +461,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         org_idx: QModelIndex = self.indexAt(position)
         idx = self.proxy.mapToSource(org_idx)
         item: QStandardItem = self.std_model.itemFromIndex(idx)
-        assert item, 'create_menu: index not found in model'
+        if not item:
+            # can happen e.g. before list is populated for the first time
+            return
         tx_hash = idx.data(self.TX_HASH_ROLE)
         column = idx.column()
         assert tx_hash, "create_menu: no tx hash"
