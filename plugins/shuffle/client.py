@@ -225,7 +225,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
     ]
 
     def __init__(self, wallet, network_settings,
-                 period = 10, logger = None, fee=1000, password=None, watchdog_period=300):
+                 period = 10, logger = None, fee=300, password=None, watchdog_period=300):
         super(BackgroundShufflingThread, self).__init__()
         self.daemon = True
         self.watchdog_period = watchdog_period
