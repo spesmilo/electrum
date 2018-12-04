@@ -130,15 +130,35 @@ class UserCancelled(Exception):
     '''An exception that is suppressed from the user'''
     pass
 
-class Satoshis(NamedTuple):
-    value: int
+
+# note: this is not a NamedTuple as then its json encoding cannot be customized
+class Satoshis(object):
+    __slots__ = ('value',)
+
+    def __new__(cls, value):
+        self = super(Satoshis, cls).__new__(cls)
+        self.value = value
+        return self
+
+    def __repr__(self):
+        return 'Satoshis(%d)'%self.value
 
     def __str__(self):
         return format_satoshis(self.value) + " BTC"
 
-class Fiat(NamedTuple):
-    value: Optional[Decimal]
-    ccy: str
+
+# note: this is not a NamedTuple as then its json encoding cannot be customized
+class Fiat(object):
+    __slots__ = ('value', 'ccy')
+
+    def __new__(cls, value, ccy):
+        self = super(Fiat, cls).__new__(cls)
+        self.ccy = ccy
+        self.value = value
+        return self
+
+    def __repr__(self):
+        return 'Fiat(%s)'% self.__str__()
 
     def __str__(self):
         if self.value is None or self.value.is_nan():
@@ -146,8 +166,10 @@ class Fiat(NamedTuple):
         else:
             return "{:.2f}".format(self.value) + ' ' + self.ccy
 
+
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
+        # note: this does not get called for namedtuples :(  https://bugs.python.org/issue30343
         from .transaction import Transaction
         if isinstance(obj, Transaction):
             return obj.as_dict()
