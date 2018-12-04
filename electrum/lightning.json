@@ -630,7 +630,7 @@
   "payload": {
    "incoming_htlc_amt": {
     "position": "0",
-    "length": "4"
+    "length": "8"
    }
   }
  },
