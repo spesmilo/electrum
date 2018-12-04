@@ -103,9 +103,10 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
             privkey=other_revocation_privkey,
             is_revocation=True)
         return direct_sweep_tx, secondstage_sweep_tx, htlc_tx
+    ctn = extract_ctn_from_tx_and_chan(ctx, chan)
+    assert ctn == chan.config[REMOTE].ctn
     # received HTLCs, in their ctx
-    # TODO consider carefully if "included_htlcs" is what we need here
-    received_htlcs = list(chan.included_htlcs(REMOTE, LOCAL))  # type: List[UpdateAddHtlc]
+    received_htlcs = chan.included_htlcs(REMOTE, LOCAL, False)
     for htlc in received_htlcs:
         direct_sweep_tx, secondstage_sweep_tx, htlc_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=True)
         if direct_sweep_tx:
@@ -113,8 +114,7 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
         if secondstage_sweep_tx:
             txs.append((htlc_tx.txid(), EncumberedTransaction(f'their_htlctx_{bh2u(htlc.payment_hash)}', secondstage_sweep_tx, csv_delay=0, cltv_expiry=0)))
     # offered HTLCs, in their ctx
-    # TODO consider carefully if "included_htlcs" is what we need here
-    offered_htlcs = list(chan.included_htlcs(REMOTE, REMOTE))  # type: List[UpdateAddHtlc]
+    offered_htlcs = chan.included_htlcs(REMOTE, REMOTE, False)
     for htlc in offered_htlcs:
         direct_sweep_tx, secondstage_sweep_tx, htlc_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=False)
         if direct_sweep_tx:

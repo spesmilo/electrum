@@ -635,6 +635,18 @@ class Channel(PrintError):
     def htlcs(self, subject, only_pending):
         """
         only_pending: require the htlc's settlement to be pending (needs additional signatures/acks)
+
+        sets returned with True and False are disjunct
+
+        only_pending true:
+           skipped if settled or failed
+           <=>
+           included if not settled and not failed
+        only_pending false:
+           skipped if not (settled or failed)
+           <=>
+           included if not not (settled or failed)
+           included if settled or failed
         """
         update_log = self.log[subject]
         res = []
