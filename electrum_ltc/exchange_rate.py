@@ -196,9 +196,9 @@ class Coinbase(ExchangeBase):
 
     async def get_rates(self, ccy):
         json = await self.get_json('api.coinbase.com',
-                                   '/v2/exchange-rates?currency=LTC')
-        rates = json['data']['rates']
-        return dict([(k, Decimal(rates[k])) for k in rates])
+                             '/v2/exchange-rates?currency=LTC')
+        return {ccy: Decimal(rate) for (ccy, rate) in json["data"]["rates"].items()}
+
 
 
 class CoinSpot(ExchangeBase):
