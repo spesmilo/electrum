@@ -64,12 +64,20 @@ class Commutator(threading.Thread):
                     self.outcome.put_nowait(response)
                     self.debug('recv')
                 else:
+                    # FIXME:
+                    # Aside from wasting resources to poll, this spends 100ms sleeping meaning latency to socket receives is up to 100ms.
+                    # If each client wastes an average of 50ms of time on socket receives for each protocol message
+                    # -- then all that wasted time will add up collectively and make all cashshuffles take longer for all users.
+                    # Consider a large transaction with 20 or 30 shuffles in it -- 50 ms * 30 = 1.5 seconds of JUST WAITING that could be
+                    # avoided.
+                    # -Calin
                     time.sleep(self.switch_timeout)
                     continue
 
     def join(self, timeout=None):
         self.alive.clear()
-        super().join()
+        if self.is_alive():
+            super().join()
         if self.socket:
             self.socket.close()
 

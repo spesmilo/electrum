@@ -176,7 +176,7 @@ class ProtocolThread(threading.Thread, PrintError):
         except:
             self.logger.send("Error: cannot gather the keys")
         self.start_protocol()
-        self.commutator.join()
+        if self.commutator.is_alive(): self.commutator.join()
 
 
     def stop(self):
@@ -287,7 +287,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
 
     def get_coin_for_shuffling(self, scale):
         if not getattr(self.wallet, "is_coin_shuffled", None):
-            self.join()
+            if self.is_alive(): self.join()
             return None
         with self.wallet.lock:
             with self.wallet.transaction_lock:
@@ -310,7 +310,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         coins_for_shuffling -= {sender}
         self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
         self.logger.send(message, sender)
-        self.threads[scale].join()
+        if self.threads[scale].is_alive(): self.threads[scale].join()
         with self.loggers[scale].mutex:
             self.loggers[scale].queue.clear()
         self.threads[scale] = None
