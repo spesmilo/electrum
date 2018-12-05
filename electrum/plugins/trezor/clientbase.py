@@ -2,12 +2,12 @@ import time
 from struct import pack
 
 from electrum.i18n import _
-from electrum.util import PrintError, UserCancelled
+from electrum.util import PrintError, UserCancelled, UserFacingException
 from electrum.keystore import bip39_normalize_passphrase
 from electrum.bip32 import serialize_xpub, convert_bip32_path_to_list_of_uint32 as parse_path
 
 from trezorlib.client import TrezorClient
-from trezorlib.exceptions import TrezorFailure, Cancelled
+from trezorlib.exceptions import TrezorFailure, Cancelled, OutdatedFirmwareError
 from trezorlib.messages import WordRequestType, FailureType, RecoveryDeviceType
 import trezorlib.btc
 import trezorlib.device
@@ -66,6 +66,8 @@ class TrezorClientBase(PrintError):
                 raise UserCancelled from exc_value
             elif issubclass(exc_type, TrezorFailure):
                 raise RuntimeError(exc_value.message) from exc_value
+            elif issubclass(exc_type, OutdatedFirmwareError):
+                raise UserFacingException(exc_value) from exc_value
             else:
                 return False
         return True
@@ -163,12 +165,10 @@ class TrezorClientBase(PrintError):
         self.print_error("closing client")
         self.clear_session()
 
-    def firmware_version(self):
-        f = self.features
-        return (f.major_version, f.minor_version, f.patch_version)
-
-    def atleast_version(self, major, minor=0, patch=0):
-        return self.firmware_version() >= (major, minor, patch)
+    def is_uptodate(self):
+        if self.client.is_outdated():
+            return False
+        return self.client.version >= self.plugin.minimum_firmware
 
     def get_trezor_model(self):
         """Returns '1' for Trezor One, 'T' for Trezor T."""

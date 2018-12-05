@@ -141,20 +141,7 @@ class TrezorPlugin(HW_PluginBase):
 
         self.print_error("connected to device at", device.path)
         # note that this call can still raise!
-        client = TrezorClientBase(transport, handler, self)
-
-        if not client.atleast_version(*self.minimum_firmware):
-            msg = (_('Outdated {} firmware for device labelled {}. Please '
-                     'download the updated firmware from {}')
-                   .format(self.device, client.label(), self.firmware_URL))
-            self.print_error(msg)
-            if handler:
-                handler.show_error(msg)
-            else:
-                raise UserFacingException(msg)
-            return None
-
-        return client
+        return TrezorClientBase(transport, handler, self)
 
     def get_client(self, keystore, force_pair=True):
         devmgr = self.device_manager()
@@ -265,6 +252,13 @@ class TrezorPlugin(HW_PluginBase):
         if client is None:
             raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
                                       _('Make sure it is in the correct state.'))
+
+        if not client.is_uptodate():
+            msg = (_('Outdated {} firmware for device labelled {}. Please '
+                     'download the updated firmware from {}')
+                   .format(self.device, client.label(), self.firmware_URL))
+            raise UserFacingException(msg)
+
         # fixme: we should use: client.handler = wizard
         client.handler = self.create_handler(wizard)
         if not device_info.initialized:
