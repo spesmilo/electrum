@@ -3,6 +3,7 @@ import ssl
 import threading
 import queue
 import time
+from electroncash.util import PrintError
 
 class Channel(queue.Queue):
     "simple Queue wrapper for using recv and send"
@@ -14,27 +15,36 @@ class Channel(queue.Queue):
     def send(self, message):
         self.put(message, True, timeout=self.switch_timeout)
 
+    def send_nowait(self, m):
+        self.put_nowait(m)
+
     def recv(self):
         return self.get(timeout=self.switch_timeout)
 
-class ChannelWithPrint(queue.Queue):
+    def recv_nowait(self):
+        return self.get_nowait()
+
+class ChannelWithPrint(Channel, PrintError):
     "Simple channel for logging"
+    def __init__(self, switch_timeout = None):
+        super().__init__(switch_timeout)
+
     def send(self, message):
-        print(message)
-        self.put(message)
+        self.print_error(message)
+        super().send(message)
 
-    def recv(self):
-        return self.get()
+    def send_nowait(self, message):
+        self.print_error(message)
+        super().send_nowait(message)
 
-class Commutator(threading.Thread):
+class Commutator(threading.Thread, PrintError):
     """Class for decoupling of send and recv ops."""
-    def __init__(self, income, outcome, logger=ChannelWithPrint(),
+    def __init__(self, income, outcome,
                  buffsize=4096, timeout=1, switch_timeout=0.1, ssl=False):
         super(Commutator, self).__init__()
         self.daemon = True
         self.income = income
         self.outcome = outcome
-        self.logger = logger
         self.alive = threading.Event()
         self.alive.set()
         self.socket = None
@@ -44,42 +54,26 @@ class Commutator(threading.Thread):
         self.switch_timeout = switch_timeout
         self.ssl = ssl
         self.response = b''
-        # self.debug = True
-
-    def debug(self, obj):
-        if self.logger:
-            self.logger.put(str(obj))
 
     def run(self):
-        while self.alive.isSet():
-            if not self.income.empty():
-                msg = self.income.get_nowait()
-                if msg is not None:
-                    self._send(msg)
-                    self.debug('send!')
-            else:
-                # FIXME: this code is quite problematic and wastes resources by polling the socket. -Calin
-                response = self._recv()
-                if response:
-                    self.outcome.put_nowait(response)
-                    self.debug('recv')
+        try:
+            while self.alive.isSet():
+                if not self.income.empty():
+                    msg = self.income.get_nowait()
+                    if msg is not None:
+                        self._send(msg)
                 else:
-                    # FIXME:
-                    # Aside from wasting resources to poll, this spends 100ms sleeping meaning latency to socket receives is up to 100ms.
-                    # If each client wastes an average of 50ms of time on socket receives for each protocol message
-                    # -- then all that wasted time will add up collectively and make all cashshuffles take longer for all users.
-                    # Consider a large transaction with 20 or 30 shuffles in it -- 50 ms * 30 = 1.5 seconds of JUST WAITING that could be
-                    # avoided.
-                    # -Calin
-                    time.sleep(self.switch_timeout)
-                    continue
+                    response = self._recv() # blocks for 0.1 ms
+                    if response:
+                        self.outcome.put_nowait(response)
+        except OSError as e:
+            self.print_error("Socket Error in run, exiting thread: {}".format(str(e)))
 
     def join(self, timeout=None):
         self.alive.clear()
         if self.is_alive():
             super().join()
-        if self.socket:
-            self.socket.close()
+        self.close()
 
 
     def connect(self, host, port):
@@ -93,11 +87,9 @@ class Commutator(threading.Thread):
                 self.socket = bare_socket
             self.socket.settimeout(self.timeout)
             self.socket.connect((host, port))
-            self.socket.settimeout(0)
-            self.socket.setblocking(0)
-            self.debug('connected')
-        except IOError as error:
-            self.logger.put(str(error))
+            self.socket.settimeout(self.switch_timeout) # blocking socket with a timeout
+        except OSError as error:
+            self.print_error("Socket Error on connect: {}".format(str(error)))
             raise error
 
     def _send(self, msg):
@@ -106,8 +98,12 @@ class Commutator(threading.Thread):
         self.socket.sendall(message)
 
     def close(self):
-        self.socket.close()
-        self.debug('closed')
+        if self.socket:
+            try:
+                self.socket.close()
+            except OSError:
+                pass # already closed
+
 
     def _recv(self):
         while True:
@@ -126,5 +122,5 @@ class Commutator(threading.Thread):
                     message_part = self.socket.recv(self.MAX_BLOCK_SIZE)
                     if message_part:
                         self.response += message_part
-                except socket.error:
+                except socket.timeout:
                     return None

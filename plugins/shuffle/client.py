@@ -279,9 +279,10 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
             self.logger.send("started", "MAINLOG")
             self.logger.send(self.get_password(), "MAINLOG")
         while not self.stopper.is_set():
+            # WHAT IS THIS?!?! This is a busy loop!! FIX ME!! -Calin
             for scale in self.scales:
                 if self.threads[scale]:
-                    self.prosess_protocol_messages(scale)
+                    self.process_protocol_messages(scale)
             time.sleep(0.01)
         self.print_error("Stopped")
 
@@ -316,7 +317,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         self.threads[scale] = None
 
 
-    def prosess_protocol_messages(self, scale):
+    def process_protocol_messages(self, scale):
         # try:
         if self.loggers[scale].empty():
             return None
@@ -380,7 +381,9 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
                 self.threads[scale].commutator.timeout = 5
 
     def check_for_threads(self):
+        if self.stopper.is_set(): return
         for scale in self.scales:
+            # race condition here with watchdog_chekout
             if not self.threads[scale]:
                 coin = self.get_coin_for_shuffling(scale)
                 if coin:
@@ -399,8 +402,11 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         self.threads_timer.start()
 
     def watchdog_checkout(self, scale):
+        if self.stopper.is_set(): return
+        # race condition here with check_for_threads
         if self.threads[scale]:
             self.stop_protocol_thread(scale, "restart thread")
+        # race condition here with join()
         self.watchdogs[scale] = threading.Timer(self.watchdog_period, lambda x: self.watchdog_checkout(x), [scale])
         self.watchdogs[scale].start()
 
@@ -408,9 +414,9 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         self.stopper.set()
         self.threads_timer.cancel()
         for scale in self.watchdogs:
+            # race condition here with watchdog_checkout
             self.watchdogs[scale].cancel()
         if self.logger:
-            # FIXME: Can this hang?
             self.logger.send("stopped", "MAINLOG")
         for scale in self.scales:
             if self.threads[scale] and self.threads[scale].is_alive():
