@@ -246,10 +246,9 @@ class BTCParalelo(ExchangeBase):
 class Coinbase(ExchangeBase):
 
     async def get_rates(self, ccy):
-        json = await self.get_json('coinbase.com',
-                             '/api/v1/currencies/exchange_rates')
-        return dict([(r[7:].upper(), Decimal(json[r]))
-                     for r in json if r.startswith('btc_to_')])
+        json = await self.get_json('api.coinbase.com',
+                             '/v2/exchange-rates?currency=BTC')
+        return {ccy: Decimal(rate) for (ccy, rate) in json["data"]["rates"].items()}
 
 
 class CoinDesk(ExchangeBase):
