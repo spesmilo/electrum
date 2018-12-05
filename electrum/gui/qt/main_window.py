@@ -73,6 +73,7 @@ from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
 from .util import *
 from .installwizard import WIF_HELP_TEXT
+from .history_list import HistoryList, HistoryModel
 
 
 class StatusBarButton(QPushButton):
@@ -230,8 +231,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         Exception_Hook(self)
 
     def on_fx_history(self):
-        self.history_list.refresh_headers()
-        self.history_list.update()
+        self.history_model.refresh('fx_history')
         self.address_list.update()
 
     def on_quotes(self, b):
@@ -246,7 +246,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         edit.textEdited.emit(edit.text())
         # History tab needs updating if it used spot
         if self.fx.history_used_spot:
-            self.history_list.update()
+            self.history_model.refresh('fx_quotes')
 
     def toggle_tab(self, tab):
         show = not self.config.get('show_{}_tab'.format(tab.tab_name), False)
@@ -345,7 +345,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         elif event == 'verified':
             wallet, tx_hash, tx_mined_status = args
             if wallet == self.wallet:
-                self.history_list.update_item(tx_hash, tx_mined_status)
+                self.history_model.update_item(tx_hash, tx_mined_status)
         elif event == 'fee':
             if self.config.is_dynfee():
                 self.fee_slider.update()
@@ -354,7 +354,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if self.config.is_dynfee():
                 self.fee_slider.update()
                 self.do_update_fee()
-            self.history_list.update_on_new_fee_histogram()
+            self.history_model.refresh('fee_histogram')
         else:
             self.print_error("unexpected network_qt signal:", event, args)
 
@@ -799,7 +799,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             wallet = self.wallet
         if wallet != self.wallet:
             return
-        self.history_list.update()
+        self.history_model.refresh('update_tabs')
         self.request_list.update()
         self.address_list.update()
         self.utxo_list.update()
@@ -808,8 +808,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_completions()
 
     def create_history_tab(self):
-        from .history_list import HistoryList
-        self.history_list = l = HistoryList(self)
+        self.history_model = HistoryModel(self)
+        self.history_list = l = HistoryList(self, self.history_model)
         l.searchable_list = l
         toolbar = l.create_toolbar(self.config)
         toolbar_shown = self.config.get('show_toolbar_history', False)
@@ -3022,7 +3022,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if not self.fx: return
             self.fx.set_history_config(checked)
             update_exchanges()
-            self.history_list.refresh_headers()
+            self.history_model.refresh('on_history')
             if self.fx.is_enabled() and checked:
                 self.fx.trigger_update()
             update_history_capgains_cb()
@@ -3030,7 +3030,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def on_history_capgains(checked):
             if not self.fx: return
             self.fx.set_history_capital_gains_config(checked)
-            self.history_list.refresh_headers()
+            self.history_model.refresh('on_history_capgains')
 
         def on_fiat_address(checked):
             if not self.fx: return

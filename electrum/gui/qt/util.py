@@ -449,9 +449,8 @@ class MyTreeView(QTreeView):
             assert set_current.isValid()
             self.selectionModel().select(QModelIndex(set_current), QItemSelectionModel.SelectCurrent)
 
-    def update_headers(self, headers, model=None):
-        if model is None:
-            model = self.model()
+    def update_headers(self, headers):
+        model = self.model()
         model.setHorizontalHeaderLabels(headers)
         self.header().setStretchLastSection(False)
         for col in range(len(headers)):
@@ -473,11 +472,9 @@ class MyTreeView(QTreeView):
     def createEditor(self, parent, option, idx):
         self.editor = QStyledItemDelegate.createEditor(self.itemDelegate(),
                                                        parent, option, idx)
-        item = self.item_from_coordinate(idx.row(), idx.column())
-        user_role = item.data(Qt.UserRole)
-        assert user_role is not None
-        prior_text = item.text()
+        prior_text, user_role = self.text_txid_from_coordinate(idx.row(), idx.column())
         def editing_finished():
+            print("editing finished")
             # Long-time QT bug - pressing Enter to finish editing signals
             # editingFinished twice.  If the item changed the sequence is
             # Enter key:  editingFinished, on_change, editingFinished
@@ -487,12 +484,16 @@ class MyTreeView(QTreeView):
             if self.editor is None:
                 return
             if self.editor.text() == prior_text:
+                print("unchanged ignore any 2nd call")
                 self.editor = None # Unchanged - ignore any 2nd call
                 return
-            if item.text() == prior_text:
-                return # Buggy first call on Enter key, item not yet updated
             if not idx.isValid():
+                print("idx not valid")
                 return
+            new_text, _ = self.text_txid_from_coordinate(idx.row(), idx.column())
+            if new_text == prior_text:
+                print("buggy first call", new_text, prior_text)
+                return # Buggy first call on Enter key, item not yet updated
             self.on_edited(idx, user_role, self.editor.text())
             self.editor = None
         self.editor.editingFinished.connect(editing_finished)
@@ -511,10 +512,6 @@ class MyTreeView(QTreeView):
         self.parent.history_list.update_labels()
         self.parent.update_completions()
 
-    def apply_filter(self):
-        if self.current_filter:
-            self.filter(self.current_filter)
-
     def should_hide(self, row):
         """
         row_num is for self.model(). So if there is a proxy, it is the row number
@@ -522,13 +519,11 @@ class MyTreeView(QTreeView):
         """
         return False
 
-    def item_from_coordinate(self, row_num, column):
-        if isinstance(self.model(), QSortFilterProxyModel):
-            idx = self.model().mapToSource(self.model().index(row_num, column))
-            return self.model().sourceModel().itemFromIndex(idx)
-        else:
-            idx = self.model().index(row_num, column)
-            return self.model().itemFromIndex(idx)
+    def text_txid_from_coordinate(self, row_num, column):
+        assert not isinstance(self.model(), QSortFilterProxyModel)
+        idx = self.model().index(row_num, column)
+        item = self.model().itemFromIndex(idx)
+        return item.text(), item.data(Qt.UserRole)
 
     def hide_row(self, row_num):
         """
@@ -541,8 +536,8 @@ class MyTreeView(QTreeView):
             self.setRowHidden(row_num, QModelIndex(), False)
             return
         for column in self.filter_columns:
-            item = self.item_from_coordinate(row_num, column)
-            txt = item.text().lower()
+            txt, _ = self.text_txid_from_coordinate(row_num, column)
+            txt = txt.lower()
             if self.current_filter in txt:
                 # the filter matched, but the date filter might apply
                 self.setRowHidden(row_num, QModelIndex(), bool(should_hide))

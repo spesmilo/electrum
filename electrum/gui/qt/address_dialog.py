@@ -30,9 +30,16 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
 from .util import *
-from .history_list import HistoryList
+from .history_list import HistoryList, HistoryModel
 from .qrtextedit import ShowQRTextEdit
 
+class AddressHistoryModel(HistoryModel):
+    def __init__(self, parent, address):
+        super().__init__(parent)
+        self.address = address
+
+    def get_domain(self):
+        return [self.address]
 
 class AddressDialog(WindowModalDialog):
 
@@ -80,16 +87,13 @@ class AddressDialog(WindowModalDialog):
             vbox.addWidget(redeem_e)
 
         vbox.addWidget(QLabel(_("History")))
-        self.hw = HistoryList(self.parent)
-        self.hw.get_domain = self.get_domain
+        addr_hist_model = AddressHistoryModel(self.parent, self.address)
+        self.hw = HistoryList(self.parent, addr_hist_model)
         vbox.addWidget(self.hw)
 
         vbox.addLayout(Buttons(CloseButton(self)))
         self.format_amount = self.parent.format_amount
-        self.hw.update()
-
-    def get_domain(self):
-        return [self.address]
+        addr_hist_model.refresh('address dialog constructor')
 
     def show_qr(self):
         text = self.address
