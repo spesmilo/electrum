@@ -36,7 +36,7 @@ from electrum_ltc.util import block_explorer_URL, profiler, print_error, TxMined
 from .util import *
 
 if TYPE_CHECKING:
-    from electrum.wallet import Abstract_Wallet
+    from electrum_ltc.wallet import Abstract_Wallet
 
 try:
     from electrum_ltc.plot import plot_history, NothingToPlotException
