@@ -1034,6 +1034,47 @@ class TestWalletOfflineSigning(TestCaseForTestnet):
 
     @needs_test_with_all_ecc_implementations
     @mock.patch.object(storage.WalletStorage, '_write')
+    def test_sending_offline_old_electrum_seed_online_mpk(self, mock_write):
+        wallet_offline = WalletIntegrityHelper.create_standard_wallet(
+            keystore.from_seed('alone body father children lead goodbye phone twist exist grass kick join', '', False),
+            gap_limit=4
+        )
+        wallet_online = WalletIntegrityHelper.create_standard_wallet(
+            keystore.from_master_key('cd805ed20aec61c7a8b409c121c6ba60a9221f46d20edbc2be83ebd91460e97937cd7d782e77c1cb08364c6bc1c98bc040fdad53f22f29f7d3a85c8e51f9c875'),
+            gap_limit=4
+        )
+
+        # bootstrap wallet_online
+        funding_tx = Transaction('01000000000101161115f8d8110001aa0883989487f9c7a2faf4451038e4305c7594c5236cbb490100000000fdffffff0338117a0000000000160014c1d7b2ded7017cbde837aab36c1e7b2a3952a57800127a00000000001600143e2ab71fc9738ce16fbe6b3b1c210a68c12db84180969800000000001976a91424b64d981d621c227716b51479faf33019371f4688ac0247304402207a5efc6d970f6a5fdcd1933f68b353b4bf2904743f9f1dc3e9177d8754074baf02202eed707e661493bc450357f12cd7a8b8c610c7cb32ded10516c2933a2ba4346a01210287dce03f594fd889726b13a12970237992a0094a5c9f4eebcca6d50d454b39e9ff121600')
+        funding_txid = funding_tx.txid()
+        self.assertEqual('3b9e0581602f4656cb04633dac13662bc62d9f5191caa15cc901dcc76e430856', funding_txid)
+        wallet_online.receive_tx_callback(funding_txid, funding_tx, TX_HEIGHT_UNCONFIRMED)
+
+        # create unsigned tx
+        outputs = [TxOutput(bitcoin.TYPE_ADDRESS, 'tb1qyw3c0rvn6kk2c688y3dygvckn57525y8qnxt3a', 2500000)]
+        tx = wallet_online.mktx(outputs=outputs, password=None, config=self.config, fee=5000)
+        tx.set_rbf(True)
+        tx.locktime = 1446655
+
+        self.assertFalse(tx.is_complete())
+        self.assertFalse(tx.is_segwit())
+        self.assertEqual(1, len(tx.inputs()))
+        tx_copy = Transaction(tx.serialize())
+        self.assertTrue(wallet_online.is_mine(wallet_online.get_txin_address(tx_copy.inputs()[0])))
+
+        self.assertEqual(tx.txid(), tx_copy.txid())
+
+        # sign tx
+        tx = wallet_offline.sign_transaction(tx_copy, password=None)
+        self.assertTrue(tx.is_complete())
+        self.assertFalse(tx.is_segwit())
+        self.assertEqual('01000000015608436ec7dc01c95ca1ca91519f2dc62b6613ac3d6304cb56462f6081059e3b020000008b483045022100e3489a26b47412c617a77024db8f51c68ed13950d147425bdbc7d64d95477ce2022009d09a6f011a47f827ae6655a828c79b1cf43f7c89ab4f8bb36f175ba8298d8a014104e79eb77f2f3f989f5e9d090bc0af50afeb0d5bd6ec916f2022c5629ed022e84a87584ef647d69f073ea314a0f0c110ebe24ad64bc1922a10819ea264fc3f35f5fdffffff02a02526000000000016001423a3878d93d5acac68e7245a4433169d3d455087585d7200000000001976a914b6a6bbbc4cf9da58786a8acc58291e218d52130688acff121600',
+                         str(tx))
+        self.assertEqual('5a88637fe51fc1780f61383d7d8cb44e6209dbc99e102a0efcfcbe877d203d7d', tx.txid())
+        self.assertEqual('5a88637fe51fc1780f61383d7d8cb44e6209dbc99e102a0efcfcbe877d203d7d', tx.wtxid())
+
+    @needs_test_with_all_ecc_implementations
+    @mock.patch.object(storage.WalletStorage, '_write')
     def test_sending_offline_xprv_online_xpub_p2pkh(self, mock_write):
         wallet_offline = WalletIntegrityHelper.create_standard_wallet(
             # bip39: "qwe", der: m/44'/1'/0'
