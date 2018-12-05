@@ -303,11 +303,8 @@ class Plugin(BasePlugin):
             return
         title = window.windowTitle() if window and window.windowTitle() else "UNKNOWN WINDOW"
         if getattr(window, "background_process", None):
+            self.print_error("Joining background_process...")
             window.background_process.join()
-            while window.background_process.is_alive():
-                # this code should never be reached.
-                self.print_error("INFINITE LOOP!! FIXME!")
-                pass
             window.background_process = None
             self.print_error("Window '{}' closed, ended shuffling for its wallet".format(title))
         restore_utxo_list(window)

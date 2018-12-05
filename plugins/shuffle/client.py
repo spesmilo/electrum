@@ -28,7 +28,7 @@ class ProtocolThread(threading.Thread, PrintError):
         self.ssl = ssl
         self.messages = Messages()
         self.income = Channel()
-        self.outcome = Channel(switch_timeout=None)
+        self.outcome = Channel()
         if not logger:
             self.logger = ChannelWithPrint()
         else:
@@ -176,8 +176,7 @@ class ProtocolThread(threading.Thread, PrintError):
         except:
             self.logger.send("Error: cannot gather the keys")
         self.start_protocol()
-        if self.commutator.is_alive():
-            self.commutator.join()
+        self.commutator.join()
 
 
     def stop(self):
@@ -185,13 +184,23 @@ class ProtocolThread(threading.Thread, PrintError):
         if self.execution_thread:
             self.protocol.done = True
         self.done.set()
-        self.outcome.send(None)
+        # forces stuck channels to wake up and see the done event
+        self.outcome.put_nowait(None)
+        self.income.put_nowait(None)
+        if self.commutator.is_alive():
+            self.commutator.join()
+            self.print_error("Joined commutator")
+        if self.execution_thread and self.execution_thread.is_alive():
+            self.execution_thread.join()
+            self.print_error("Joined execution thread")
 
 
     def join(self, timeout=None):
         "This method Joins the protocol thread"
         self.stop()
-        super().join(timeout)
+        if self.is_alive():
+            super().join()
+            self.print_error("Joined self")
 
 
 def is_protocol_done(pThread):
@@ -296,13 +305,12 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
     def stop_protocol_thread(self, scale, message):
         sender = list(self.threads[scale].inputs.values())[0][0]
         self.wallet.set_frozen_coin_state([sender], False)
+        # FIXME: potential race condition here! -Calin
         coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
         coins_for_shuffling -= {sender}
         self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
         self.logger.send(message, sender)
         self.threads[scale].join()
-        while self.threads[scale].is_alive():
-            pass
         with self.loggers[scale].mutex:
             self.loggers[scale].queue.clear()
         self.threads[scale] = None
@@ -402,8 +410,12 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         for scale in self.watchdogs:
             self.watchdogs[scale].cancel()
         if self.logger:
+            # FIXME: Can this hang?
             self.logger.send("stopped", "MAINLOG")
         for scale in self.scales:
-            if self.threads[scale]:
+            if self.threads[scale] and self.threads[scale].is_alive():
+                self.print_error("Joining ProtocolThread[{}]...".format(scale))
                 self.threads[scale].join()
-        super().join()
+        if self.is_alive():
+            self.print_error("Joining self...")
+            super().join()

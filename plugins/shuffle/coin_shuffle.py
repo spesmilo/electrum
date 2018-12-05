@@ -33,11 +33,11 @@ class Round(object):
             if self.vk in players.values():
                 self.me = {players[player] : player for player in players}[self.vk]
             else:
-                self.logchan.send('Error: publick key is not in the players list')
+                self.logchan.send('Error: public key is not in the players list')
                 self.done = True
                 return
         else:
-            self.logchan.send('Error: same publick keys appears in the pool!')
+            self.logchan.send('Error: same public keys appear in the pool!')
             self.done = True
             return
         self.encryption_keys = dict()

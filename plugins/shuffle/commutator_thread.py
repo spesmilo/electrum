@@ -7,7 +7,7 @@ import time
 class Channel(queue.Queue):
     "simple Queue wrapper for using recv and send"
 
-    def __init__(self, switch_timeout=1):
+    def __init__(self, switch_timeout=None):
         queue.Queue.__init__(self)
         self.switch_timeout = switch_timeout
 
@@ -54,9 +54,11 @@ class Commutator(threading.Thread):
         while self.alive.isSet():
             if not self.income.empty():
                 msg = self.income.get_nowait()
-                self._send(msg)
-                self.debug('send!')
+                if msg is not None:
+                    self._send(msg)
+                    self.debug('send!')
             else:
+                # FIXME: this code is quite problematic and wastes resources by polling the socket. -Calin
                 response = self._recv()
                 if response:
                     self.outcome.put_nowait(response)
@@ -67,8 +69,9 @@ class Commutator(threading.Thread):
 
     def join(self, timeout=None):
         self.alive.clear()
-        self.socket.close()
-        super().join(timeout)
+        super().join()
+        if self.socket:
+            self.socket.close()
 
 
     def connect(self, host, port):
