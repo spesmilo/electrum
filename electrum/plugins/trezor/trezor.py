@@ -267,10 +267,9 @@ class TrezorPlugin(HW_PluginBase):
                                       _('Make sure it is in the correct state.'))
         # fixme: we should use: client.handler = wizard
         client.handler = self.create_handler(wizard)
-        creating = not device_info.initialized
-        if creating:
+        if not device_info.initialized:
             self.initialize_device(device_id, wizard, client.handler)
-        client.get_xpub('m', 'standard', creating)
+        client.get_xpub('m', 'standard', creating=True)
         client.used()
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
