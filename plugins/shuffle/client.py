@@ -28,7 +28,7 @@ class ProtocolThread(threading.Thread, PrintError):
         self.ssl = ssl
         self.messages = Messages()
         self.income = Channel()
-        self.outcome = Channel()
+        self.outcome = Channel(switch_timeout=None)
         if not logger:
             self.logger = ChannelWithPrint()
         else:
