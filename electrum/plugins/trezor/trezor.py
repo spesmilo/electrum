@@ -37,13 +37,15 @@ except Exception as e:
     RECOVERY_TYPE_SCRAMBLED_WORDS, RECOVERY_TYPE_MATRIX = range(2)
 
 
-# TREZOR initialization methods
+# Trezor initialization methods
 TIM_NEW, TIM_RECOVER = range(2)
+
+TREZOR_PRODUCT_KEY = 'Trezor'
 
 
 class TrezorKeyStore(Hardware_KeyStore):
     hw_type = 'trezor'
-    device = 'TREZOR'
+    device = TREZOR_PRODUCT_KEY
 
     def get_derivation(self):
         return self.derivation
@@ -97,7 +99,7 @@ class TrezorPlugin(HW_PluginBase):
     minimum_library = (0, 11, 0)
     maximum_library = (0, 12)
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
-    DEVICE_IDS = ('TREZOR',)
+    DEVICE_IDS = (TREZOR_PRODUCT_KEY,)
 
     MAX_LABEL_LEN = 32
 
@@ -122,7 +124,7 @@ class TrezorPlugin(HW_PluginBase):
         return [Device(path=d.get_path(),
                        interface_number=-1,
                        id_=d.get_path(),
-                       product_key='TREZOR',
+                       product_key=TREZOR_PRODUCT_KEY,
                        usage_page=0,
                        transport_ui_string=d.get_path())
                 for d in devices]
