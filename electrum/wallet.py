@@ -239,7 +239,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 self.labels[name] = text
                 changed = True
         else:
-            if old_text:
+            if old_text is not None:
                 self.labels.pop(name)
                 changed = True
         if changed:

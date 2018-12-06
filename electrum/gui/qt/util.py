@@ -398,8 +398,23 @@ def filename_field(parent, config, defaultname, select_msg):
     return vbox, filename_e, b1
 
 class ElectrumItemDelegate(QStyledItemDelegate):
-    def createEditor(self, parent, option, index):
-        return self.parent().createEditor(parent, option, index)
+    def __init__(self, tv):
+        super().__init__(tv)
+        self.tv = tv
+        self.opened = None
+        def on_closeEditor(editor: QLineEdit, hint):
+            self.opened = None
+        def on_commitData(editor: QLineEdit):
+            new_text = editor.text()
+            idx = QModelIndex(self.opened)
+            _prior_text, user_role = self.tv.text_txid_from_coordinate(idx.row(), idx.column())
+            self.tv.on_edited(idx, user_role, new_text)
+        self.closeEditor.connect(on_closeEditor)
+        self.commitData.connect(on_commitData)
+
+    def createEditor(self, parent, option, idx):
+        self.opened = QPersistentModelIndex(idx)
+        return super().createEditor(parent, option, idx)
 
 class MyTreeView(QTreeView):
 
@@ -415,8 +430,6 @@ class MyTreeView(QTreeView):
         self.icon_cache = IconCache()
 
         # Control which columns are editable
-        self.editor = None
-        self.pending_update = False
         if editable_columns is None:
             editable_columns = {stretch_column}
         else:
@@ -458,7 +471,9 @@ class MyTreeView(QTreeView):
             self.header().setSectionResizeMode(col, sm)
 
     def keyPressEvent(self, event):
-        if event.key() in [ Qt.Key_F2, Qt.Key_Return ] and self.editor is None:
+        if self.itemDelegate().opened:
+            return
+        if event.key() in [ Qt.Key_F2, Qt.Key_Return ]:
             self.on_activated(self.selectionModel().currentIndex())
             return
         super().keyPressEvent(event)
@@ -468,36 +483,6 @@ class MyTreeView(QTreeView):
         pt = self.visualRect(idx).bottomLeft()
         pt.setX(50)
         self.customContextMenuRequested.emit(pt)
-
-    def createEditor(self, parent, option, idx):
-        self.editor = QStyledItemDelegate.createEditor(self.itemDelegate(),
-                                                       parent, option, idx)
-        prior_text, user_role = self.text_txid_from_coordinate(idx.row(), idx.column())
-        def editing_finished():
-            print("editing finished")
-            # Long-time QT bug - pressing Enter to finish editing signals
-            # editingFinished twice.  If the item changed the sequence is
-            # Enter key:  editingFinished, on_change, editingFinished
-            # Mouse: on_change, editingFinished
-            # This mess is the cleanest way to ensure we make the
-            # on_edited callback with the updated item
-            if self.editor is None:
-                return
-            if self.editor.text() == prior_text:
-                print("unchanged ignore any 2nd call")
-                self.editor = None # Unchanged - ignore any 2nd call
-                return
-            if not idx.isValid():
-                print("idx not valid")
-                return
-            new_text, _ = self.text_txid_from_coordinate(idx.row(), idx.column())
-            if new_text == prior_text:
-                print("buggy first call", new_text, prior_text)
-                return # Buggy first call on Enter key, item not yet updated
-            self.on_edited(idx, user_role, self.editor.text())
-            self.editor = None
-        self.editor.editingFinished.connect(editing_finished)
-        return self.editor
 
     def edit(self, idx, trigger=QAbstractItemView.AllEditTriggers, event=None):
         """
@@ -509,7 +494,7 @@ class MyTreeView(QTreeView):
 
     def on_edited(self, idx: QModelIndex, user_role, text):
         self.parent.wallet.set_label(user_role, text)
-        self.parent.history_list.update_labels()
+        self.parent.history_model.refresh('on_edited in MyTreeView')
         self.parent.update_completions()
 
     def should_hide(self, row):
@@ -523,7 +508,10 @@ class MyTreeView(QTreeView):
         assert not isinstance(self.model(), QSortFilterProxyModel)
         idx = self.model().index(row_num, column)
         item = self.model().itemFromIndex(idx)
-        return item.text(), item.data(Qt.UserRole)
+        user_role = item.data(Qt.UserRole)
+        # check that we didn't forget to set UserRole on an editable field
+        assert user_role is not None, (row_num, column)
+        return item.text(), user_role
 
     def hide_row(self, row_num):
         """

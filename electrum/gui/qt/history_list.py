@@ -67,9 +67,6 @@ class HistorySortModel(QSortFilterProxyModel):
             return False
         return item1.value() < item2.value()
 
-# requires PyQt5 5.11
-indexIsValid = QAbstractItemModel.CheckIndexOptions(QAbstractItemModel.CheckIndexOption.IndexIsValid.value)
-
 class HistoryModel(QAbstractItemModel):
     def __init__(self, parent):
         super().__init__(parent)
@@ -80,14 +77,15 @@ class HistoryModel(QAbstractItemModel):
         return 8
 
     def rowCount(self, parent: QModelIndex):
-        l = len(self.transactions)
-        return l
+        return len(self.transactions)
 
     def index(self, row: int, column: int, parent : QModelIndex):
         return self.createIndex(row,column)
 
     def data(self, index: QModelIndex, role: Qt.ItemDataRole):
-        assert self.checkIndex(index, indexIsValid)
+        # requires PyQt5 5.11
+        # indexIsValid = QAbstractItemModel.CheckIndexOptions(QAbstractItemModel.CheckIndexOption.IndexIsValid.value)
+        # assert self.checkIndex(index, indexIsValid)
         assert index.isValid()
         tx_item = self.transactions[index.row()]
         tx_hash = tx_item['txid']
@@ -169,6 +167,10 @@ class HistoryModel(QAbstractItemModel):
         return self.parent.wallet.get_addresses()
 
     def refresh(self, reason: str):
+        selected = self.parent.history_list.selectionModel().currentIndex()
+        selected_row = None
+        if selected:
+            selected_row = selected.row()
         fx = self.parent.fx
         if fx: fx.history_used_spot = False
         r = self.parent.wallet.get_full_history(domain=self.get_domain(), from_timestamp=None, to_timestamp=None, fx=fx)
@@ -182,6 +184,8 @@ class HistoryModel(QAbstractItemModel):
         self.beginInsertRows(QModelIndex(), 0, len(r['transactions'])-1)
         self.transactions = r['transactions']
         self.endInsertRows()
+        if selected_row:
+            self.parent.history_list.selectionModel().select(self.createIndex(selected_row, 0), QItemSelectionModel.Rows | QItemSelectionModel.SelectCurrent)
         f = self.parent.history_list.current_filter
         if f:
             self.parent.history_list.filter(f)
@@ -279,7 +283,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.proxy.setSourceModel(model)
         self.setModel(self.proxy)
 
-        self.summary = {}
         self.config = parent.config
         AcceptFileDragDrop.__init__(self, ".txn")
         self.setSortingEnabled(True)
@@ -374,7 +377,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return datetime.datetime(date.year, date.month, date.day)
 
     def show_summary(self):
-        h = self.summary
+        h = self.model().sourceModel().summary
         if not h:
             self.parent.show_message(_("Nothing to summarize."))
             return
@@ -425,7 +428,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             self.parent.show_message(str(e))
 
     def on_edited(self, index, user_role, text):
-        print("on_edited")
+        index = self.model().mapToSource(index)
         row, column = index.row(), index.column()
         tx_item = self.hm.transactions[row]
         key = tx_item['txid']
@@ -438,7 +441,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             self.wallet.set_fiat_value(key, self.parent.fx.ccy, text, self.parent.fx, tx_item['value'].value)
             value = tx_item['value'].value
             if value is not None:
-                self.hm.update_fiat(row, self.model().mapToSource(index))
+                self.hm.update_fiat(row, index)
         else:
             assert False
 
@@ -472,7 +475,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             column_data = tx_item['txid']
         else:
             column_title = self.hm.headerData(column, Qt.Horizontal, Qt.DisplayRole)
-            column_data = str(self.hm.data(idx, Qt.DisplayRole))
+            column_data = self.hm.data(idx, Qt.DisplayRole).value()
         tx_hash = tx_item['txid']
         tx = self.wallet.transactions[tx_hash]
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
@@ -595,4 +598,4 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
     def text_txid_from_coordinate(self, row, col):
         idx = self.model().mapToSource(self.model().index(row, col))
         tx_item = self.hm.transactions[idx.row()]
-        return str(self.hm.data(idx, Qt.DisplayRole)), tx_item['txid']
+        return self.hm.data(idx, Qt.DisplayRole).value(), tx_item['txid']
