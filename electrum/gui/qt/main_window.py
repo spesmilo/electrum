@@ -1336,12 +1336,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 _type, addr = self.get_payto_or_dummy()
                 outputs = [TxOutput(_type, addr, amount)]
             is_sweep = bool(self.tx_external_keypairs)
-            make_tx = lambda fee_est: \
+            make_psbt = lambda fee_est: \
                 self.wallet.make_psbt(
                     self.get_coins(), outputs, self.config,
                     fixed_fee=fee_est, is_sweep=is_sweep)
             try:
-                tx = make_tx(fee_estimator)
+                psbt = make_psbt(fee_estimator)  # type: PSBT
+                tx = psbt.glob.unsigned_tx  # type: StandardTransaction
                 self.not_enough_funds = False
             except (NotEnoughFunds, NoDynamicFeeEstimates) as e:
                 if not freeze_fee:
@@ -1354,7 +1355,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.not_enough_funds = True
                 elif isinstance(e, NoDynamicFeeEstimates):
                     try:
-                        psbt = make_tx(0)  # type: PSBT
+                        psbt = make_psbt(0)  # type: PSBT
                         tx = psbt.glob.unsigned_tx  # type: StandardTransaction
                         size = tx.estimated_size()
                         self.size_e.setAmount(size)

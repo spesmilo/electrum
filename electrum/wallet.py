@@ -1069,14 +1069,19 @@ class Abstract_Wallet(AddressSynchronizer):
         - redeem_script
         - bip32_derivation
         """
+        # to correctly populate data, wallet should know about inputs,
+        # so we temporary push input transactions to wallet for this step
         to_del = []
         for inp in psbt.input_sections:
             utxo = inp.non_witness_utxo
             if not utxo:
                 continue
-            self.transactions[utxo.txid()] = utxo
-            to_del.append(utxo.txid())
-            self.receive_tx_callback(utxo.txid(), utxo, TX_HEIGHT_UNCONFIRMED)
+            txid = utxo.txid()
+            # add only unseen transactions
+            if self.transactions.get(txid):
+                continue
+            to_del.append(txid)
+            self.receive_tx_callback(txid, utxo, TX_HEIGHT_UNCONFIRMED)
 
         tx = psbt.glob.unsigned_tx
         full_utxos = [self.transactions.get(utxo['prevout_hash']) for utxo in tx.inputs()]
@@ -1106,8 +1111,9 @@ class Abstract_Wallet(AddressSynchronizer):
 
         # adding redeem_script to inputs
         psbt.generate_redeem_scripts()
-        for i in to_del:
-            self.transactions.pop(i)
+        # remove temporary transactions
+        for txid in to_del:
+            self.remove_transaction(txid)
 
     def add_input_info_to_all_inputs(self, tx):
         if tx.is_complete():
