@@ -37,6 +37,14 @@ class ChannelWithPrint(Channel, PrintError):
         self.print_error(message)
         super().send_nowait(message)
 
+class ChannelSendLambda:
+    ''' Channel work-alike that just forwards sends to a lambda x '''
+    def __init__(self, func):
+        self.func = func
+
+    def send(self, message):
+        self.func(message)
+
 class Commutator(threading.Thread, PrintError):
     """Class for decoupling of send and recv ops."""
     def __init__(self, income, outcome,

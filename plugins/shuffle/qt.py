@@ -146,7 +146,7 @@ class electrum_console_logger(QObject):
         self.gotMessage.emit(msg, sender)
 
 
-def start_background_shuffling(window, network_settings, period = 1, password=None):
+def start_background_shuffling(window, network_settings, period = 10, password=None):
     logger = electrum_console_logger()
     logger.gotMessage.connect(lambda msg, sender: update_coin_status(window, sender, msg))
 
