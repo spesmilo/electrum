@@ -302,7 +302,7 @@ class TrezorPlugin(HW_PluginBase):
         raise ValueError('unexpected txin type: {}'.format(electrum_txin_type))
 
     def sign_transaction(self, keystore, tx, prev_tx, xpub_path):
-        prev_tx = { txhash: self.electrum_tx_to_txtype(tx, xpub_path) for txhash, tx in prev_tx.items() }
+        prev_tx = { bfh(txhash): self.electrum_tx_to_txtype(tx, xpub_path) for txhash, tx in prev_tx.items() }
         client = self.get_client(keystore)
         inputs = self.tx_inputs(tx, xpub_path, True)
         outputs = self.tx_outputs(keystore.get_derivation(), tx)
