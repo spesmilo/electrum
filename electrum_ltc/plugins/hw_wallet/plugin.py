@@ -86,22 +86,34 @@ class HW_PluginBase(BasePlugin):
 
         Returns 'unknown' if library is found but cannot determine version.
         Raises 'ImportError' if library is not found.
+        Raises 'LibraryFoundButUnusable' if found but there was some problem (includes version num).
         """
         raise NotImplementedError()
 
     def check_libraries_available(self) -> bool:
+        def version_str(t):
+            return ".".join(str(i) for i in t)
+
         try:
+            # this might raise ImportError or LibraryFoundButUnusable
             library_version = self.get_library_version()
+            # if no exception so far, we might still raise LibraryFoundButUnusable
+            if (library_version == 'unknown'
+                    or versiontuple(library_version) < self.minimum_library
+                    or hasattr(self, "maximum_library") and versiontuple(library_version) >= self.maximum_library):
+                raise LibraryFoundButUnusable(library_version=library_version)
         except ImportError:
             return False
-        if library_version == 'unknown' or \
-                versiontuple(library_version) < self.minimum_library:
+        except LibraryFoundButUnusable as e:
+            library_version = e.library_version
+            max_version_str = version_str(self.maximum_library) if hasattr(self, "maximum_library") else "inf"
             self.libraries_available_message = (
-                    _("Library version for '{}' is too old.").format(self.name)
-                    + '\nInstalled: {}, Needed: {}'
-                    .format(library_version, self.minimum_library))
+                    _("Library version for '{}' is incompatible.").format(self.name)
+                    + '\nInstalled: {}, Needed: {} <= x < {}'
+                    .format(library_version, version_str(self.minimum_library), max_version_str))
             self.print_stderr(self.libraries_available_message)
             return False
+
         return True
 
     def get_library_not_available_message(self) -> str:
@@ -143,3 +155,8 @@ def only_hook_if_libraries_available(func):
         if not self.libraries_available: return None
         return func(self, *args, **kwargs)
     return wrapper
+
+
+class LibraryFoundButUnusable(Exception):
+    def __init__(self, library_version='unknown'):
+        self.library_version = library_version

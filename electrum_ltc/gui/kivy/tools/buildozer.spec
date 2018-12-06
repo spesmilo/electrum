@@ -57,7 +57,7 @@ android.permissions = INTERNET, CAMERA
 # (int) Android API to use
 android.api = 28
 
-# (int) Minimum API required (8 = Android 2.2 devices)
+# (int) Minimum API required. You will need to set the android.ndk_api to be as low as this value.
 android.minapi = 21
 
 # (int) Android SDK version to use
@@ -65,6 +65,9 @@ android.sdk = 24
 
 # (str) Android NDK version to use
 android.ndk = 14b
+
+# (int) Android NDK API to use (optional). This is the minimum API your app will support.
+android.ndk_api = 21
 
 # (bool) Use --private data storage (True) or --dir public storage (False)
 android.private_storage = True
@@ -145,7 +148,7 @@ p4a.source_dir = /opt/python-for-android
 [buildozer]
 
 # (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
-log_level = 2
+log_level = 1
 
 
 # -----------------------------------------------------------------------------
