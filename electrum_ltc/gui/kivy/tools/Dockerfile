@@ -56,10 +56,10 @@ RUN apt -y update -qq \
 RUN yes | "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" --licenses > /dev/null
 
 # download platforms, API, build tools
-RUN "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "platforms;android-24" && \
-    "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "platforms;android-28" && \
-    "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "build-tools;28.0.3" && \
-    "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "extras;android;m2repository" && \
+RUN "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "platforms;android-24" > /dev/null && \
+    "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "platforms;android-28" > /dev/null && \
+    "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "build-tools;28.0.3" > /dev/null && \
+    "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "extras;android;m2repository" > /dev/null && \
     chmod +x "${ANDROID_SDK_HOME}/tools/bin/avdmanager"
 
 
