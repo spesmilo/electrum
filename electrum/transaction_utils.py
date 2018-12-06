@@ -7,7 +7,7 @@ from . import bitcoin
 from . import constants
 from . import ecc
 from . import segwit_addr
-from .bip32 import xpubkey_to_pubkey, xpubkey_to_address
+from .xpubkey_utils import xpubkey_to_address, xpubkey_to_pubkey
 from .bitcoin import hash_encode, var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN, op_push, int_to_hex, \
     b58_address_to_hash160, TYPE_PUBKEY, TYPE_ADDRESS, hash160_to_p2pkh, hash160_to_p2sh, \
     hash_to_segwit_addr, TYPE_SCRIPT
@@ -169,11 +169,11 @@ class OPPushDataGeneric:
                or (isinstance(item, type) and issubclass(item, cls))
 
 
+# note that this does not include x_pubkeys !
 OPPushDataPubkey = OPPushDataGeneric(lambda x: x in (33, 65))
 
 
 def match_decoded(decoded, to_match):
-    # note that this does not include x_pubkeys !
     if decoded is None:
         return False
     if len(decoded) != len(to_match):
@@ -618,14 +618,6 @@ def serialize_witness(txin, estimate_size=False) -> str:
 
 
 def is_segwit_input(txin, guess_for_address=False):
-    _type = txin['type']
-    if _type == 'address' and guess_for_address:
-        _type = guess_txintype_from_address(txin['address'])
-    has_nonzero_witness = txin.get('witness', '00') not in ('00', None)
-    return is_segwit_inputtype(_type) or has_nonzero_witness
-
-
-def is_segwit_input_psbt(inp, txin, guess_for_address=False):
     _type = txin['type']
     if _type == 'address' and guess_for_address:
         _type = guess_txintype_from_address(txin['address'])

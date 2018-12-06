@@ -4,11 +4,12 @@ from copy import deepcopy
 from typing import Union, Optional, List
 
 from .bip32 import convert_raw_uint32_to_bip32_path, convert_bip32_path_to_list_of_uint32, convert_uint32_to_bip32_path, \
-    parse_xpubkey, xpub_to_bip32_psbt
-from .bitcoin import varint_to_int, var_int, int_to_hex, push_script
+    xpub_to_bip32_psbt
+from .bitcoin import varint_to_int, var_int, int_to_hex
 from .transaction import StandardTransaction, Transaction, ImmutableTransaction
 from .transaction_utils import get_num_sig, TxOutput, pay_script, PSBT_TXN_HEADER_MAGIC, SerializationError
 from .util import bh2u, bfh, BitcoinException, print_error
+from .xpubkey_utils import parse_xpubkey
 
 """
 Note that you can check public methods and its verified signatures and return values in test_psbt.py
@@ -37,7 +38,7 @@ def _validate_bip32(bip32_derivation):
     for k, v in bip32_derivation.items():
         if isinstance(v, bytes):
             # v = _validate_bip32(k, v)
-            if len(k) != 66:
+            if len(k) not in (66, 130):
                 raise SerializationError('Invalid key value')
             fpr, raw_path = v[:4], v[4:]
             bip32_path = convert_raw_uint32_to_bip32_path(raw_path)
@@ -47,7 +48,7 @@ def _validate_bip32(bip32_derivation):
                 'bip32_path': bip32_path,
             }
         if isinstance(v, dict):
-            if len(k) != 66:
+            if len(k) not in (66, 130):
                 raise SerializationError('Invalid key value')
             assert v.get('master_fingerprint')
             assert v.get('bip32_path')
@@ -296,7 +297,7 @@ class PSBTInput(PSBTSection):
                 pass
             if isinstance(self.partial_sig, dict):
                 for k, v in self.partial_sig.items():
-                    if len(k) != 66:
+                    if len(k) not in (66, 130):
                         raise SerializationError('Invalid key value')
                     if isinstance(v, bytes):
                         self.partial_sig[k] = bh2u(v)
@@ -424,15 +425,11 @@ class PSBTInput(PSBTSection):
         txin = self._parent.glob.unsigned_tx.inputs()[self.index]
         if self.is_complete():
             if self.final_scriptsig is None:
-                keys = sorted(self.partial_sig.keys())
                 script = self._parent.glob.unsigned_tx.input_script(txin, attach_signatures=True)
-                # self.final_scriptsig = script + push_script(self.redeem_script)
                 self.final_scriptsig = script
 
             if self.is_segwit() and (self.final_scriptwitness is None):
-                keys = sorted(self.partial_sig.keys())
-                # script = construct_witness([self.partial_sig[keys[0]], keys[0]])  # TODO: multisig?
-                script = self._parent.glob.unsigned_tx.serialize_witness_psbt(None, self.index)
+                script = self._parent.glob.unsigned_tx.serialize_witness(self.index)
                 self.final_scriptwitness = script
 
         if self.final_scriptsig or self.final_scriptwitness:
@@ -621,7 +618,7 @@ class PSBT:
 
         inputs_data = PSBT.strip_utxo(tx)
         # signature data extracted, now can cast to Standard
-        tx = StandardTransaction(tx.inputs(), tx.outputs(), locktime=tx.locktime)
+        tx = StandardTransaction(tx.inputs(), tx.outputs(), locktime=tx.locktime, version=tx.version)
 
         glob = PSBTGlobal(tx.serialize(witness=False))
         inputs = [PSBTInput(**inputs_data[i]) for i in range(glob.num_inputs)]
@@ -859,7 +856,8 @@ class PSBT:
                     redeem_script = utxo.preimage_script(txin)
                 except Exception as e:
                     print_error(e)
-            inputs_meta.append({'redeem_script': redeem_script, 'witness_script': witness_script})  # remove push_script op
+            inputs_meta.append(
+                {'redeem_script': redeem_script, 'witness_script': witness_script})  # remove push_script op
         self.update_inputs(inputs_meta)
 
     def signature_count(self):

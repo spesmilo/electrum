@@ -45,7 +45,7 @@ from electrum.i18n import _
 from electrum.network import Network
 from electrum.plugin import run_hook
 from electrum.simple_config import SimpleConfig
-from electrum.transaction import Transaction, TxOutput
+from electrum.transaction import Transaction, TxOutput, StandardTransaction
 from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            format_satoshis_plain, NotEnoughFunds, PrintError,
                            UserCancelled, NoDynamicFeeEstimates, profiler,

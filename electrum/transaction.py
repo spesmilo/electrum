@@ -25,7 +25,7 @@
 import base64
 import sys
 import traceback
-from typing import Sequence
+from typing import Sequence, Dict
 
 from . import bitcoin
 from .bitcoin import *
@@ -33,8 +33,8 @@ from .transaction_utils import deserialize, is_segwit_input, serialize_input, \
     serialize_output, pay_script, virtual_size_from_weight, serialize_witness, serialize_outpoint, \
     parse_input, parse_output, parse_witness, is_txin_complete, get_siglist, \
     guess_txintype_from_address, multisig_script, safe_parse_pubkey, get_sorted_pubkeys, TxOutput, \
-    is_input_value_needed, construct_witness, is_segwit_input_psbt, TxOutputForUI, PARTIAL_TXN_HEADER_MAGIC, \
-    BCDataStream, SerializationError
+    is_input_value_needed, construct_witness, TxOutputForUI, PARTIAL_TXN_HEADER_MAGIC, \
+    BCDataStream, SerializationError, TxOutputHwInfo
 from .util import print_error
 
 # Note: The deserialization code originally comes from ABE.
@@ -484,11 +484,9 @@ class ImmutableTransaction(Transaction):
         script_sig = txin.get('scriptSig', '')
         return script_sig
 
-    def get_witness(self, i: int) -> str:
+    def get_serialized_output(self, i: int) -> str:
         txo = self.outputs()[i]
         witness = serialize_output(txo)
-        if witness == '':
-            witness = '00'
         return witness
 
     def sign(self, keypairs, detached_signatures=False) -> dict:
@@ -655,12 +653,12 @@ class StandardTransaction(Transaction):
     #         raise Exception('Cannot generate unknown script')
     #     return script
 
-    def serialize_witness_psbt(self, psbt, i: int, estimate_size=False) -> str:
+    def serialize_witness(self, i: int, estimate_size=False) -> str:
         txin = self._inputs[i]
         inp = self._parent_psbt._parent.input_sections[i]
         _type = txin['type']
 
-        if not is_segwit_input_psbt(inp, txin) and not is_input_value_needed(txin):
+        if not is_segwit_input(txin) and not is_input_value_needed(txin):
             return '00'
         if _type == 'coinbase':
             return txin['witness']
@@ -692,7 +690,7 @@ class StandardTransaction(Transaction):
         if not self.is_segwit(guess_for_address=estimate):
             return 0
         inputs = self.inputs()
-        witness = ''.join(self.serialize_witness_psbt(None, i, estimate) for i, txin in enumerate(inputs))
+        witness = ''.join(self.serialize_witness(i, estimate) for i, txin in enumerate(inputs))
         witness_size = len(witness) // 2 + 2  # include marker and flag
         return witness_size
 
@@ -792,7 +790,7 @@ class StandardTransaction(Transaction):
             marker = '00'
             flag = '01'
             if estimate_size:
-                witness = ''.join(self.serialize_witness_psbt(None, i, True) for i, _ in enumerate(self.inputs()))
+                witness = ''.join(self.serialize_witness(i, True) for i, _ in enumerate(self.inputs()))
             else:
                 witness = ''.join(inp.final_scriptwitness or '' for inp in self._parent_psbt._parent.input_sections)
             return nVersion + marker + flag + txins + txouts + witness + nLocktime

@@ -7,7 +7,8 @@ from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.bip32 import deserialize_xpub
 from electrum.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
 from electrum.i18n import _
-from electrum.keystore import Hardware_KeyStore, parse_xpubkey
+from electrum.keystore import Hardware_KeyStore
+from electrum.xpubkey_utils import parse_xpubkey
 from electrum.plugin import Device
 from electrum.transaction import deserialize
 from electrum.transaction_utils import is_segwit_input

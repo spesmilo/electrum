@@ -29,9 +29,8 @@ from . import bip32
 from . import bitcoin
 from .bip174 import PSBT
 from .bip32 import (bip32_public_derivation, deserialize_xpub, bip32_root, deserialize_xprv, bip32_private_derivation,
-                    bip32_private_key, is_xpub, is_xprv, bip32_derivation, BIP32_PRIME, get_pubkey_from_xpub,
-                    convert_bip32_path_to_list_of_uint32, parse_xpubkey, old_get_pubkey_from_mpk, old_get_sequence,
-                    old_parse_xpubkey, xpub_to_bip32_psbt)
+                    bip32_private_key, is_xpub, is_xprv, bip32_derivation, BIP32_PRIME,
+                    convert_bip32_path_to_list_of_uint32, xpub_to_bip32_psbt, get_pubkey_from_xpub)
 from .bitcoin import *
 from .crypto import (pw_decode, pw_encode, PW_HASH_VERSION_LATEST)
 from .ecc import string_to_number, number_to_string, ECPubkey
@@ -40,6 +39,7 @@ from .plugin import run_hook
 from .transaction import Transaction
 from .util import (PrintError, InvalidPassword, hfu, WalletFileException,
                    BitcoinException, bh2u, bfh, print_error, inv_dict)
+from .xpubkey_utils import old_parse_xpubkey, old_get_sequence, old_get_pubkey_from_mpk, parse_xpubkey
 
 
 class KeyStore(PrintError):
@@ -332,30 +332,10 @@ class Xpub:
         s = ''.join(map(lambda x: bitcoin.int_to_hex(x, 2), (c, i)))
         return 'ff' + bh2u(bitcoin.DecodeBase58Check(self.xpub)) + s
 
-    @classmethod
-    def parse_xpubkey(self, pubkey):
-        # type + xpub + derivation
-        assert pubkey[0:2] == 'ff'
-        pk = bfh(pubkey)
-        # xpub:
-        pk = pk[1:]
-        xkey = bitcoin.EncodeBase58Check(pk[0:78])
-        # derivation:
-        dd = pk[78:]
-        s = []
-        # FIXME: due to an oversight, levels in the derivation are only
-        # allocated 2 bytes, instead of 4 (in bip32)
-        while dd:
-            n = int(bitcoin.rev_hex(bh2u(dd[0:2])), 16)
-            dd = dd[2:]
-            s.append(n)
-        assert len(s) == 2
-        return xkey, s
-
     def _get_pubkey_derivation(self, x_pubkey) -> Optional[List[int]]:
         if x_pubkey[0:2] != 'ff':
             return
-        xpub, derivation = self.parse_xpubkey(x_pubkey)
+        xpub, derivation = parse_xpubkey(x_pubkey)
         if self.xpub != xpub:
             return
         return derivation
@@ -557,7 +537,7 @@ class Old_KeyStore(Deterministic_KeyStore):
     def get_pubkey_derivation_for_psbt(self, derivation_path):
         sequence = convert_bip32_path_to_list_of_uint32(derivation_path)
         assert len(sequence) == 2
-        pubkey = ECPubkey(bfh(self.derive_pubkey(sequence[0], sequence[1]))).get_public_key_hex(compressed=True)
+        pubkey = ECPubkey(bfh(self.derive_pubkey(sequence[0], sequence[1]))).get_public_key_hex(compressed=False)
         return pubkey, {
             'master_fingerprint': self.master_fingerprint,
             'bip32_path': derivation_path

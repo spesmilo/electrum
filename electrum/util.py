@@ -22,11 +22,6 @@
 # SOFTWARE.
 import asyncio
 import binascii
-import os, sys, re, json
-import struct
-from collections import defaultdict, OrderedDict
-from typing import NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable
-from datetime import datetime
 import builtins
 import decimal
 import hmac
@@ -35,6 +30,7 @@ import json
 import os
 import re
 import stat
+import struct
 import sys
 import threading
 import time
@@ -43,12 +39,11 @@ import urllib
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from datetime import datetime
 from decimal import Decimal
 from locale import localeconv
-from typing import NamedTuple, Optional
-from typing import Union, TYPE_CHECKING, Tuple, Callable
+from typing import NamedTuple, Optional, Union, TYPE_CHECKING, Tuple, Callable
 
 import aiohttp
 from aiohttp_socks import SocksConnector, SocksVer

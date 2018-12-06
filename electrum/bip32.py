@@ -3,15 +3,12 @@
 # file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 import hashlib
-from typing import List, Tuple
-
-from ecdsa.util import string_to_number
+from typing import List
 
 from . import constants
 from . import ecc
-from .bitcoin import rev_hex, int_to_hex, EncodeBase58Check, DecodeBase58Check, fingerprint160, public_key_to_p2pkh, \
-    script_to_address
-from .crypto import hash_160, hmac_oneshot, sha256d
+from .bitcoin import rev_hex, int_to_hex, EncodeBase58Check, DecodeBase58Check, fingerprint160
+from .crypto import hash_160, hmac_oneshot
 from .util import bfh, bh2u, BitcoinException, print_error
 
 BIP32_PRIME = 0x80000000
@@ -298,88 +295,11 @@ def bip32_private_key(sequence, k, chain):
     return k
 
 
-def is_xpubkey(x_pubkey):
-    return x_pubkey[0:2] == 'ff'
-
-
-def old_parse_xpubkey(x_pubkey):
-    assert x_pubkey[0:2] == 'fe'
-    pk = x_pubkey[2:]
-    mpk = pk[0:128]
-    dd = pk[128:]
-    s = []
-    while dd:
-        n = int(rev_hex(dd[0:4]), 16)
-        dd = dd[4:]
-        s.append(n)
-    assert len(s) == 2
-    return mpk, s
-
-
-def old_get_sequence(mpk, for_change, n):
-    return string_to_number(sha256d(("%d:%d:" % (n, for_change)).encode('ascii') + bfh(mpk)))
-
-
-def old_get_pubkey_from_mpk(mpk, for_change, n) -> str:
-    z = old_get_sequence(mpk, for_change, n)
-    master_public_key = ecc.ECPubkey(bfh('04' + mpk))
-    public_key = master_public_key + z * ecc.generator()
-    return public_key.get_public_key_hex(compressed=False)
-
-
 def get_pubkey_from_xpub(xpub, sequence) -> str:
     _, _, _, _, c, cK = deserialize_xpub(xpub)
     for i in sequence:
         cK, c = CKD_pub(cK, c, i)
     return bh2u(cK)
-
-
-def parse_xpubkey(x_pubkey: str):
-    # type + xpub + derivation
-    if x_pubkey[0:2] == 'fe':
-        mpk, s = old_parse_xpubkey(x_pubkey)
-        xkey = old_get_pubkey_from_mpk(mpk, *s)
-        cK = bfh(ecc.ECPubkey(bfh(xkey)).get_public_key_hex(compressed=True))
-        xkey = xpub_from_pubkey('standard', cK)
-        return xkey, s
-    elif x_pubkey[0:2] == 'ff':
-        pk = bfh(x_pubkey)
-        pk = pk[1:]
-        xkey = EncodeBase58Check(pk[0:78])
-        dd = pk[78:]
-        s = []
-        while dd:
-            n = int(rev_hex(bh2u(dd[0:2])), 16)
-            dd = dd[2:]
-            s.append(n)
-        assert len(s) == 2
-        return xkey, s
-    else:
-        return None, None
-
-
-def xpubkey_to_address(x_pubkey) -> Tuple[str, str]:
-    if x_pubkey[0:2] == 'fd':
-        address = script_to_address(x_pubkey[2:])
-        return x_pubkey, address
-    if x_pubkey[0:2] in ['02', '03', '04']:
-        pubkey = x_pubkey
-    elif x_pubkey[0:2] == 'ff':
-        xpub, s = parse_xpubkey(x_pubkey)
-        pubkey = get_pubkey_from_xpub(xpub, s)
-    elif x_pubkey[0:2] == 'fe':
-        mpk, s = old_parse_xpubkey(x_pubkey)
-        pubkey = old_get_pubkey_from_mpk(mpk, s[0], s[1])
-    else:
-        raise BitcoinException("Cannot parse pubkey. prefix: {}".format(x_pubkey[0:2]))
-    if pubkey:
-        address = public_key_to_p2pkh(bfh(pubkey))
-    return pubkey, address
-
-
-def xpubkey_to_pubkey(x_pubkey: str):
-    pubkey, address = xpubkey_to_address(x_pubkey)
-    return pubkey
 
 
 def xpub_to_bip32_psbt(xpub: str, derivation_path: str):

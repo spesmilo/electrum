@@ -739,6 +739,7 @@ class Abstract_Wallet(AddressSynchronizer):
                   config,
                   fixed_fee=None,
                   change_addr=None,
+                  is_sweep=False
                   ) -> PSBT:
         # check outputs
         i_max = None
@@ -944,6 +945,15 @@ class Abstract_Wallet(AddressSynchronizer):
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('could not find suitable outputs'))
         locktime = self.get_local_height()
         psbt_new = PSBT.from_io(inputs, outputs)
+        # TODO: copy more info?
+        info = [
+            {
+                'non_witness_utxo': inp.non_witness_utxo,
+                'witness_utxo': inp.witness_utxo,
+                'bip32_derivation': inp.bip32_derivation,
+            } for inp in psbt.input_sections
+        ]
+        psbt_new.update_inputs(info)
         psbt_new.glob.unsigned_tx.locktime = locktime
         self.add_info_to_psbt(psbt_new)
         return psbt_new
@@ -1059,10 +1069,13 @@ class Abstract_Wallet(AddressSynchronizer):
         - redeem_script
         - bip32_derivation
         """
+        to_del = []
         for inp in psbt.input_sections:
             utxo = inp.non_witness_utxo
             if not utxo:
                 continue
+            self.transactions[utxo.txid()] = utxo
+            to_del.append(utxo.txid())
             self.receive_tx_callback(utxo.txid(), utxo, TX_HEIGHT_UNCONFIRMED)
 
         tx = psbt.glob.unsigned_tx
@@ -1074,10 +1087,9 @@ class Abstract_Wallet(AddressSynchronizer):
         for i, utxo in enumerate(full_utxos):
             if not utxo:
                 continue
-            inp = psbt.input_sections[i]
             txin = tx.inputs()[i]  # corresponding global txin
             if is_segwit_input(txin):
-                witness = utxo.get_witness(txin['prevout_n'])
+                witness = utxo.get_serialized_output(txin['prevout_n'])
                 if witness != '00':
                     sig_info[i]['witness_utxo'] = witness
             else:
@@ -1094,6 +1106,8 @@ class Abstract_Wallet(AddressSynchronizer):
 
         # adding redeem_script to inputs
         psbt.generate_redeem_scripts()
+        for i in to_del:
+            self.transactions.pop(i)
 
     def add_input_info_to_all_inputs(self, tx):
         if tx.is_complete():
@@ -1106,16 +1120,14 @@ class Abstract_Wallet(AddressSynchronizer):
             txin = psbt.glob.unsigned_tx.inputs()[i]
             address = txin['address']
             if self.is_mine(address):
-                return True
-                # TODO:
                 txin['type'] = self.get_txin_type(address)
                 # segwit needs value to sign
                 if txin.get('value') is None and is_input_value_needed(txin):
                     received, spent = self.get_addr_io(address)
                     item = received.get(txin['prevout_hash'] + ':%d' % txin['prevout_n'])
-                    tx_height, value, is_cb = item
-                    txin['value'] = value
-                self.add_input_sig_info(txin, address)
+                    if item:
+                        tx_height, value, is_cb = item
+                        txin['value'] = value
 
     def can_sign(self, tx: Union[PSBT, Transaction]):
         if tx.is_complete():

@@ -8,7 +8,8 @@ from electrum.bip32 import deserialize_xpub
 from electrum import constants
 from electrum.i18n import _
 from electrum.transaction import deserialize, Transaction
-from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
+from electrum.keystore import Hardware_KeyStore
+from electrum.xpubkey_utils import parse_xpubkey, is_xpubkey
 from electrum.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
