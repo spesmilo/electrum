@@ -9,7 +9,7 @@ from electrum.i18n import _
 from electrum.plugin import Device
 from electrum.transaction import deserialize, Transaction
 from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
-from electrum.base_wizard import ScriptTypeNotSupported
+from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data
@@ -265,7 +265,8 @@ class TrezorPlugin(HW_PluginBase):
         client.handler = self.create_handler(wizard)
         if not device_info.initialized:
             self.initialize_device(device_id, wizard, client.handler)
-        client.get_xpub('m', 'standard', creating=True)
+        is_creating_wallet = purpose == HWD_SETUP_NEW_WALLET
+        client.get_xpub('m', 'standard', creating=is_creating_wallet)
         client.used()
 
     def get_xpub(self, device_id, derivation, xtype, wizard):
