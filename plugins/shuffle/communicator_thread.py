@@ -37,6 +37,10 @@ class ChannelWithPrint(Channel, PrintError):
         self.print_error(message)
         super().send_nowait(message)
 
+    def diagnostic_name(self):
+        n = super().diagnostic_name()
+        return "{} ({})".format(n, threading.get_ident())
+
 class ChannelSendLambda:
     ''' Channel work-alike that just forwards sends to a lambda x '''
     def __init__(self, func):
@@ -45,11 +49,11 @@ class ChannelSendLambda:
     def send(self, message):
         self.func(message)
 
-class Commutator(threading.Thread, PrintError):
+class Communicator(threading.Thread, PrintError):
     """Class for decoupling of send and recv ops."""
     def __init__(self, income, outcome,
                  buffsize=4096, timeout=1, switch_timeout=0.1, ssl=False):
-        super(Commutator, self).__init__()
+        super(Communicator, self).__init__()
         self.daemon = True
         self.income = income
         self.outcome = outcome
@@ -71,11 +75,12 @@ class Commutator(threading.Thread, PrintError):
                     if msg is not None:
                         self._send(msg)
                 else:
-                    response = self._recv() # blocks for 0.1 ms
+                    response = self._recv() # blocks for 0.1 s
                     if response:
                         self.outcome.put_nowait(response)
         except OSError as e:
             self.print_error("Socket Error in run, exiting thread: {}".format(str(e)))
+            self.alive.clear()
 
     def join(self, timeout=None):
         self.alive.clear()
@@ -132,3 +137,7 @@ class Commutator(threading.Thread, PrintError):
                         self.response += message_part
                 except socket.timeout:
                     return None
+
+    def diagnostic_name(self):
+        n = super().diagnostic_name()
+        return "{} ({})".format(n, threading.get_ident())

@@ -9,9 +9,11 @@ from electroncash.util import PrintError
 from .coin import Coin
 from .crypto import Crypto
 from .messages import Messages
-from .commutator_thread import Commutator, Channel, ChannelWithPrint, ChannelSendLambda
+from .communicator_thread import Communicator, Channel, ChannelWithPrint, ChannelSendLambda
 # from .phase import Phase
 from .coin_shuffle import Round
+
+ERR_SERVER_CONNECT = "Error: cannot connect to server"
 
 class ProtocolThread(threading.Thread, PrintError):
     """
@@ -33,7 +35,7 @@ class ProtocolThread(threading.Thread, PrintError):
             self.logger = ChannelWithPrint()
         else:
             self.logger = logger
-        self.commutator = Commutator(self.income, self.outcome, ssl=ssl)
+        self.comm = Communicator(self.income, self.outcome, ssl=ssl)
         self.vk = pubk
         self.session = None
         self.number = None
@@ -84,7 +86,6 @@ class ProtocolThread(threading.Thread, PrintError):
             if self.done.is_set():
                 break
             if req is None:
-                time.sleep(0.1)
                 continue
             try:
                 self.messages.packets.ParseFromString(req)
@@ -152,14 +153,13 @@ class ProtocolThread(threading.Thread, PrintError):
         self.done.wait()
         self.execution_thread.join()
 
-
     def run(self):
         "this method trying to run the round and catch possible problems with it"
         try:
-            self.commutator.connect(self.host, self.port)
-            self.commutator.start()
+            self.comm.connect(self.host, self.port)
+            self.comm.start()
         except:
-            self.logger.send("Error: cannot connect to server")
+            self.logger.send(ERR_SERVER_CONNECT)
         try:
             self.register_on_the_pool()
         except:
@@ -177,7 +177,7 @@ class ProtocolThread(threading.Thread, PrintError):
         except:
             self.logger.send("Error: cannot gather the keys")
         self.start_protocol()
-        if self.commutator.is_alive(): self.commutator.join()
+        if self.comm.is_alive(): self.comm.join()
 
 
     def stop(self):
@@ -188,9 +188,9 @@ class ProtocolThread(threading.Thread, PrintError):
         # forces stuck channels to wake up and see the done event
         self.outcome.put_nowait(None)
         self.income.put_nowait(None)
-        if self.commutator.is_alive():
-            self.commutator.join()
-            self.print_error("Joined commutator")
+        if self.comm.is_alive():
+            self.comm.join()
+            self.print_error("Joined comm.")
         if self.execution_thread and self.execution_thread.is_alive():
             self.execution_thread.join()
             self.print_error("Joined execution thread")
@@ -202,6 +202,10 @@ class ProtocolThread(threading.Thread, PrintError):
         if self.is_alive():
             super().join()
             self.print_error("Joined self")
+
+    def diagnostic_name(self):
+        n = super().diagnostic_name()
+        return "{}, Scale: {} ({})".format(n, self.amount, threading.get_ident())
 
 
 def is_protocol_done(pThread):
@@ -267,7 +271,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
     def diagnostic_name(self):
         n = super().diagnostic_name()
         if self.wallet:
-            n = n + " '" + self.wallet.basename() + "'"
+            n = n + " (" + str(threading.get_ident()) + ")" + " '" + self.wallet.basename() + "'"
         return n
 
     def run(self):
@@ -298,7 +302,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
                 if thr == thr_now:
                     self.stop_protocol_thread(scale, message)
                 else:
-                    self.print_error("WARNING: Stale stop_thread message for Scale: '{}' Coin: '{}', ignoring!".format(scale,sender))
+                    self.print_error("WARNING: Stale stop_thread message for Scale: '{}' Coin: '{}', thread not in list, ignoring!".format(scale,sender))
             elif self.logger:
                 self.print_error("--> Fwd msg to Qt for: Scale='{}' Sender='{}' Msg='{}'".format(scale, sender, message))
                 self.logger.send(message, sender)
@@ -347,10 +351,13 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
         with self.lock:
             thr = self.threads[scale]
         if not thr:
-            self.print_error("FATAL: Thread for scale {} not FOUND! FIXME!!".format(scale))
+            self.print_error("WARNING: Thread for scale {} not FOUND! Ignoring...  (Message = '{}')".format(scale, message))
             return
         self.print_error("Scale: {} Message: '{}'".format(scale, message))
         if message.startswith("Error"):
+            if message.find(ERR_SERVER_CONNECT) != -1:
+                # tell Qt about failure to connect
+                fwd_message(thr, message)
             signal_stop_thread(thr, message) # sends request to shared channel. our thread will join
         elif message.endswith("complete protocol"):
             signal_stop_thread(thr, message) # sends request to shared channel
@@ -398,7 +405,7 @@ class BackgroundShufflingThread(threading.Thread, PrintError):
             self.threads[scale] = ProtocolThread(self.host, self.port, self.network, utxo_name, 
                                                  scale, self.fee, id_sk, sks, inputs, id_pub, output, change,
                                                  logger=self.loggers[scale], ssl=self.ssl)
-            self.threads[scale].commutator.timeout = 5
+            self.threads[scale].comm.timeout = 5
             self.threads[scale].start()
 
     def check_for_threads(self):

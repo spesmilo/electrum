@@ -41,7 +41,7 @@ from electroncash_gui.qt.password_dialog import PasswordDialog
 from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash.address import Address
 from electroncash.transaction import Transaction
-from electroncash_plugins.shuffle.client import BackgroundShufflingThread
+from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT
 
 
 def is_coin_shuffled(wallet, coin, txs=None):
@@ -120,6 +120,8 @@ def update_coin_status(window, coin_name, msg):
             if coin_name in window.utxo_list.in_progress:
                 del window.utxo_list.in_progress[coin_name]
                 window.utxo_list.update()
+            if msg.find(ERR_SERVER_CONNECT) != -1:
+                window.cashshuffle_set_flag(1) # 1 means server connection issue
         elif msg.endswith("complete protocol"):
             if coin_name in window.utxo_list.in_progress:
                 del window.utxo_list.in_progress[coin_name]
@@ -128,6 +130,10 @@ def update_coin_status(window, coin_name, msg):
             if coin_name in window.utxo_list.in_progress:
                 del window.utxo_list.in_progress[coin_name]
                 window.utxo_list.update()
+
+        if not msg.startswith("Error"):
+            window.cashshuffle_set_flag(0) # 0 means ok
+
     else:
         if msg == "stopped":
             window.utxo_list.in_progress = {}

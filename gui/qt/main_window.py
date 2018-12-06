@@ -2018,7 +2018,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.cashshuffle_status_button = StatusBarButton(
             self.cashshuffle_icon(),
-            _("Toggle CashShuffle On or Off"),
+            '', # ToolTip will be set in update_cashshuffle code
             self.toggle_cashshuffle
         )
         sb.addPermanentWidget(self.cashshuffle_status_button)
@@ -2766,12 +2766,23 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     
     def cashshuffle_icon(self):
         if self.is_cashshuffle_enabled():
-            return QIcon(":icons/cashshuffle_on.png")
+            if self._cash_shuffle_flag == 1:
+                return QIcon(":icons/cashshuffle_on_error.png")
+            else:
+                return QIcon(":icons/cashshuffle_on.png")
         else:
+            self._cash_shuffle_flag = 0
             return QIcon(":icons/cashshuffle_off.png")
 
     def update_cashshuffle_icon(self):
         self.cashshuffle_status_button.setIcon(self.cashshuffle_icon())
+        if self._cash_shuffle_flag == 0:
+            b = self.is_cashshuffle_enabled()
+            self.cashshuffle_status_button.setStatusTip(_("CashShuffle {}").format(_("ENABLED") if b else _("disabled")))
+            self.cashshuffle_status_button.setToolTip(_("Toggle CashShuffle On or Off"))
+        elif self._cash_shuffle_flag == 1: # Network server error
+            self.cashshuffle_status_button.setStatusTip(_('CashShuffle Error: Could not connect to server'))
+            self.cashshuffle_status_button.setToolTip(_('Click to select a different CashShuffle server'))
 
     def toggle_cashshuffle(self):
         if not self.is_wallet_cashshuffle_compatible():
@@ -2779,10 +2790,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         plugins = self.gui_object.plugins
         p0 = plugins.get_internal_plugin("shuffle", force_load=False)
+        if p0 and self._cash_shuffle_flag == 1:
+            # short-cut -- had error -- bring up settings window
+            p0.settings_dialog(self, _("There was a problem connecting to this server.\nPlease choose a different CashShuffle server."))
+            return
         p = p0 or plugins.enable_internal_plugin("shuffle")
         if not p:
             raise RuntimeError("Could not find CashShuffle plugin")
         enable_flag = not p.window_has_cashshuffle(self)
+        self._cash_shuffle_flag = 0
         if not p0:
             # plugin was not loaded -- so flag window as wanting cashshuffle and do init
             p.window_set_wants_cashshuffle(self, enable_flag)
@@ -2790,9 +2806,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             # plugin was already started -- just add the window to the plugin
             p.window_set_cashshuffle(self, enable_flag)
-        b = self.is_cashshuffle_enabled()
-        self.statusBar().showMessage(_("CashShuffle {}").format(_("ENABLED") if b else _("disabled")), 2500)
         self.update_cashshuffle_icon()
+        self.statusBar().showMessage(self.cashshuffle_status_button.statusTip(), 2500)
 
 
     def settings_dialog(self):
@@ -3411,3 +3426,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self._restart_timer.start(100)
         if self.internalpluginsdialog and self.internalpluginsdialog.isVisible():
             self.internalpluginsdialog.reject()
+
+    _cash_shuffle_flag = 0
+    def cashshuffle_set_flag(self, flag):
+        self.print_error("Cash Shuffle flag is now {}".format(flag))
+        wasTip, was = self.cashshuffle_status_button.statusTip(), self._cash_shuffle_flag
+        self._cash_shuffle_flag = int(flag)
+        self.update_status()
+        if was != self._cash_shuffle_flag and self.cashshuffle_status_button.statusTip() != wasTip:
+            self.statusBar().showMessage(self.cashshuffle_status_button.statusTip(), 7500)
