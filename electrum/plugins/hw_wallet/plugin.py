@@ -90,6 +90,9 @@ class HW_PluginBase(BasePlugin):
         raise NotImplementedError()
 
     def check_libraries_available(self) -> bool:
+        def version_str(t):
+            return ".".join(str(i) for i in t)
+
         try:
             library_version = self.get_library_version()
         except ImportError:
@@ -99,9 +102,18 @@ class HW_PluginBase(BasePlugin):
             self.libraries_available_message = (
                     _("Library version for '{}' is too old.").format(self.name)
                     + '\nInstalled: {}, Needed: {}'
-                    .format(library_version, self.minimum_library))
+                    .format(library_version, version_str(self.minimum_library)))
             self.print_stderr(self.libraries_available_message)
             return False
+        elif hasattr(self, "maximum_library") and \
+                versiontuple(library_version) >= self.maximum_library:
+            self.libraries_available_message = (
+                    _("Library version for '{}' is incompatible.").format(self.name)
+                    + '\nInstalled: {}, Needed: less than {}'
+                    .format(library_version, version_str(self.maximum_library)))
+            self.print_stderr(self.libraries_available_message)
+            return False
+
         return True
 
     def get_library_not_available_message(self) -> str:
