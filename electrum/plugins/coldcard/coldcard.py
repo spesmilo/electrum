@@ -17,6 +17,7 @@ from electrum.util import print_error, bfh, bh2u, versiontuple, UserFacingExcept
 from electrum.base_wizard import ScriptTypeNotSupported
 
 from ..hw_wallet import HW_PluginBase
+from ..hw_wallet.plugin import LibraryFoundButUnusable
 
 try:
     import hid
@@ -610,7 +611,7 @@ class ColdcardPlugin(HW_PluginBase):
     def __init__(self, parent, config, name):
         HW_PluginBase.__init__(self, parent, config, name)
 
-        self.libraries_available = self.check_libraries_available() and requirements_ok
+        self.libraries_available = self.check_libraries_available()
         if not self.libraries_available:
             return
 
@@ -620,9 +621,13 @@ class ColdcardPlugin(HW_PluginBase):
     def get_library_version(self):
         import ckcc
         try:
-            return ckcc.__version__
+            version = ckcc.__version__
         except AttributeError:
-            return 'unknown'
+            version = 'unknown'
+        if requirements_ok:
+            return version
+        else:
+            raise LibraryFoundButUnusable(library_version=version)
 
     def detect_simulator(self):
         # if there is a simulator running on this machine,

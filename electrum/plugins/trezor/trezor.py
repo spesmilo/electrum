@@ -12,7 +12,8 @@ from electrum.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
 from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
 
 from ..hw_wallet import HW_PluginBase
-from ..hw_wallet.plugin import is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data
+from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
+                                LibraryFoundButUnusable)
 
 try:
     import trezorlib
@@ -112,12 +113,15 @@ class TrezorPlugin(HW_PluginBase):
         self.device_manager().register_enumerate_func(self.enumerate)
 
     def get_library_version(self):
-        if not TREZORLIB:
-            raise ImportError
+        import trezorlib
         try:
-            return trezorlib.__version__
+            version = trezorlib.__version__
         except Exception:
-            return 'unknown'
+            version = 'unknown'
+        if TREZORLIB:
+            return version
+        else:
+            raise LibraryFoundButUnusable(library_version=version)
 
     def enumerate(self):
         devices = trezorlib.transport.enumerate_devices()
