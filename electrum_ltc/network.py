@@ -38,9 +38,12 @@ import traceback
 import dns
 import dns.resolver
 from aiorpcx import TaskGroup
+from aiohttp import ClientResponse
 
 from . import util
-from .util import PrintError, print_error, log_exceptions, ignore_exceptions, bfh, SilentTaskGroup
+from .util import (PrintError, print_error, log_exceptions, ignore_exceptions,
+                   bfh, SilentTaskGroup, make_aiohttp_session)
+
 from .bitcoin import COIN
 from . import constants
 from . import blockchain
@@ -903,3 +906,34 @@ class Network(PrintError):
                     await self.interface.group.spawn(self._request_fee_estimates, self.interface)
 
             await asyncio.sleep(0.1)
+
+
+    async def _send_http_on_proxy(self, method: str, url: str, params: str = None, body: bytes = None, json: dict = None, headers=None, on_finish=None):
+        async def default_on_finish(resp: ClientResponse):
+            resp.raise_for_status()
+            return await resp.text()
+        if headers is None:
+            headers = {}
+        if on_finish is None:
+            on_finish = default_on_finish
+        async with make_aiohttp_session(self.proxy) as session:
+            if method == 'get':
+                async with session.get(url, params=params, headers=headers) as resp:
+                    return await on_finish(resp)
+            elif method == 'post':
+                assert body is not None or json is not None, 'body or json must be supplied if method is post'
+                if body is not None:
+                    async with session.post(url, data=body, headers=headers) as resp:
+                        return await on_finish(resp)
+                elif json is not None:
+                    async with session.post(url, json=json, headers=headers) as resp:
+                        return await on_finish(resp)
+            else:
+                assert False
+
+    @staticmethod
+    def send_http_on_proxy(method, url, **kwargs):
+        network = Network.get_instance()
+        assert network._loop_thread is not threading.currentThread()
+        coro = asyncio.run_coroutine_threadsafe(network._send_http_on_proxy(method, url, **kwargs), network.asyncio_loop)
+        return coro.result(5)

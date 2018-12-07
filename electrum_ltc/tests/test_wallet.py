@@ -11,7 +11,7 @@ from io import StringIO
 from electrum_ltc.storage import WalletStorage, FINAL_SEED_VERSION
 from electrum_ltc.wallet import Abstract_Wallet
 from electrum_ltc.exchange_rate import ExchangeBase, FxThread
-from electrum_ltc.util import TxMinedStatus
+from electrum_ltc.util import TxMinedInfo
 from electrum_ltc.bitcoin import COIN
 
 from . import SequentialTestCase
@@ -99,7 +99,7 @@ class FakeWallet:
     def get_tx_height(self, txid):
         # because we use a current timestamp, and history is empty,
         # FxThread.history_rate will use spot prices
-        return TxMinedStatus(height=10, conf=10, timestamp=time.time(), header_hash='def')
+        return TxMinedInfo(height=10, conf=10, timestamp=int(time.time()), header_hash='def')
 
     default_fiat_value = Abstract_Wallet.default_fiat_value
     price_at_timestamp = Abstract_Wallet.price_at_timestamp
