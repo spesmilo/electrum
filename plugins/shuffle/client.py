@@ -358,7 +358,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             if self.wallet.is_up_to_date():
                 coins = self.wallet.get_utxos(exclude_frozen=True, confirmed_only=True )
                 unshuffled_coins = [coin for coin in coins if not self.wallet.is_coin_shuffled(coin)]
-                upper_amount = scale*10
+                upper_amount = scale*10 + self.fee
                 lower_amount = scale + self.fee
                 unshuffled_coins_on_scale = [coin for coin in unshuffled_coins if coin['value'] < upper_amount and coin['value'] >= lower_amount]
                 unshuffled_coins_on_scale.sort(key=lambda x: x['value']*100000000 + (100000000-x['height']))

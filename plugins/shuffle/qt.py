@@ -47,26 +47,39 @@ from electroncash_plugins.shuffle.comms import query_server_for_shuffle_port
 
 def is_coin_shuffled(wallet, coin, txs=None):
     txs = txs or wallet.storage.get("transactions", {})
-    coin_out_n = coin['prevout_n']
-    if coin['prevout_hash'] in txs:
-        tx = Transaction(txs[coin['prevout_hash']])
-        outputs = tx.outputs()
-        inputs_len = len(tx.inputs())
-        outputs_groups = {}
-        for out_n, output in enumerate(outputs):
-            amount = output[2]
-            if outputs_groups.get(amount):
-                outputs_groups[amount].append(out_n)
-            else:
-                outputs_groups[amount] = [out_n]
-        for amount in outputs_groups:
-            group_len = len(outputs_groups[amount])
-            if group_len > 2 and amount in [10000, 100000, 1000000, 10000000, 100000000]:
-                if coin_out_n in outputs_groups[amount] and inputs_len >= group_len:
-                    return True
-        return False
-    else:
-        return None
+    cache = getattr(wallet, "_is_shuffled_cache", dict())
+    tx_id, n = coin['prevout_hash'], coin['prevout_n']
+    name = "{}:{}".format(tx_id, n)
+    answer = cache.get(name, None)
+    if answer is not None:
+        # check cache, if cache hit, return answer and avoid the lookup below
+        return answer
+    def doChk():
+        if tx_id in txs:
+            tx = Transaction(txs[tx_id])
+            outputs = tx.outputs()
+            inputs_len = len(tx.inputs())
+            outputs_groups = {}
+            for out_n, output in enumerate(outputs):
+                amount = output[2]
+                if outputs_groups.get(amount):
+                    outputs_groups[amount].append(out_n)
+                else:
+                    outputs_groups[amount] = [out_n]
+            for amount in outputs_groups:
+                group_len = len(outputs_groups[amount])
+                if group_len > 2 and amount in BackgroundShufflingThread.scales:
+                    if n in outputs_groups[amount] and inputs_len >= group_len:
+                        return True
+            return False
+        else:
+            return None
+    # /doChk
+    answer = doChk()
+    if answer is not None:
+        # cache the answer iff it's a definitive answer True/False only
+        cache[name] = answer
+    return answer
 
 def get_shuffled_coins(wallet):
     with self.wallet.transaction_lock:
@@ -189,6 +202,7 @@ def unfreeze_frozen_by_shuffling(wallet):
 def modify_wallet(wallet):
     wallet.is_coin_shuffled = lambda coin: is_coin_shuffled(wallet, coin)
     wallet.get_shuffled_coins = lambda: get_shuffled_coins(wallet)
+    wallet._is_shuffled_cache = dict()
     unfreeze_frozen_by_shuffling(wallet)
 
 def restore_wallet(wallet):
@@ -196,6 +210,8 @@ def restore_wallet(wallet):
         delattr(wallet, "is_coin_shuffled")
     if getattr(wallet, "get_shuffled_coins", None):
         delattr(wallet, "get_shuffled_coins")
+    if getattr(wallet, "_is_shuffled_cache", None):
+        delattr(wallet, "_is_shuffled_cache")
     unfreeze_frozen_by_shuffling(wallet)
 
 
