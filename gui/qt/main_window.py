@@ -3429,9 +3429,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     _cash_shuffle_flag = 0
     def cashshuffle_set_flag(self, flag):
+        flag = int(flag)
+        changed = flag != self._cash_shuffle_flag
+        if not changed:
+            return
         self.print_error("Cash Shuffle flag is now {}".format(flag))
-        wasTip, was = self.cashshuffle_status_button.statusTip(), self._cash_shuffle_flag
-        self._cash_shuffle_flag = int(flag)
+        oldTip = self.cashshuffle_status_button.statusTip()
+        self._cash_shuffle_flag = flag
         self.update_status()
-        if was != self._cash_shuffle_flag and self.cashshuffle_status_button.statusTip() != wasTip:
-            self.statusBar().showMessage(self.cashshuffle_status_button.statusTip(), 7500)
+        newTip = self.cashshuffle_status_button.statusTip()
+        if newTip != oldTip:
+            self.statusBar().showMessage(newTip, 7500)

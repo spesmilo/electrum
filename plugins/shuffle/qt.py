@@ -45,8 +45,7 @@ from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_S
 from electroncash_plugins.shuffle.comms import query_server_for_shuffle_port
 
 
-def is_coin_shuffled(wallet, coin, txs=None):
-    txs = txs or wallet.storage.get("transactions", {})
+def is_coin_shuffled(wallet, coin, txs_in=None):
     cache = getattr(wallet, "_is_shuffled_cache", dict())
     tx_id, n = coin['prevout_hash'], coin['prevout_n']
     name = "{}:{}".format(tx_id, n)
@@ -55,6 +54,7 @@ def is_coin_shuffled(wallet, coin, txs=None):
         # check cache, if cache hit, return answer and avoid the lookup below
         return answer
     def doChk():
+        txs = txs_in or wallet.storage.get("transactions", {})
         if tx_id in txs:
             tx = Transaction(txs[tx_id])
             outputs = tx.outputs()
@@ -104,11 +104,11 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
         item.setText(5, "in queue")
         item.setData(5, Qt.UserRole+1, "in queue")
     elif utxo['value'] >= 1000000000: # too big
-        item.setText(5, "too big coin")
-        item.setData(5, Qt.UserRole+1, "too big coin")
+        item.setText(5, "coin too big")
+        item.setData(5, Qt.UserRole+1, "coin too big")
     elif utxo['value'] <= 10000: # dust
-        item.setText(5, "too small coin")
-        item.setData(5, Qt.UserRole+1, "too small coin")
+        item.setText(5, "coin too small")
+        item.setData(5, Qt.UserRole+1, "coin too small")
 
     if utxo_list.in_progress.get(name) == 'in progress': # in progress
         item.setText(5, "in progress")
