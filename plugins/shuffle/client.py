@@ -350,7 +350,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             else:
                 signal_stop_thread(thr, message)
 
-    def make_protocol_thread(self, scale):
+    def _make_protocol_thread(self, scale):
         def get_coin_for_shuffling(scale):
             # NB: all locks must be held when this is called
             if not getattr(self.wallet, "is_coin_shuffled", None):
@@ -378,7 +378,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                         # This shouldn't normally happen but can if the user JUST changed their password in the GUI thread
                         # and we didn't yet get informed of the new password.  In which case we give up for now and 10 seconds later
                         # (the next 'period' time), this coin will be picked up again.
-                        return
+                        raise RuntimeWarning('Invalid Password caught when trying to export a private key -- if this keeps happening tell the devs!')
                     coin_to_freeze = coin['prevout_hash'] + ":" + str(coin['prevout_n'])
                     self.wallet.set_frozen_coin_state([coin_to_freeze], True)
                     coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
@@ -413,15 +413,16 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
     def check_for_threads(self):
         if self.stop_flg.is_set(): return
-        try:
-            with self.lock:
+        with self.lock:
+            try:
                 for scale in self.scales:
                     if not self.threads[scale]:
-                        self.make_protocol_thread(scale)
+                        self._make_protocol_thread(scale)
+            except RuntimeWarning as e:
+                self.print_error("check_for_threads error: {}".format(str(e)))
+            finally:
                 self.threads_timer = threading.Timer(self.period, self.check_for_threads)
                 self.threads_timer.start()
-        except RuntimeWarning as e:
-            self.print_error("check_for_threads error: {}".format(str(e)))
 
     def join(self):
         with self.lock:
