@@ -3,35 +3,36 @@
 # digitalbitbox.com
 #
 
-try:
-    from electrum.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
-    from electrum.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh,
-                                  is_address)
-    from electrum.bip32 import serialize_xpub, deserialize_xpub
-    from electrum import ecc
-    from electrum.ecc import msg_magic
-    from electrum.wallet import Standard_Wallet
-    from electrum import constants
-    from electrum.transaction import Transaction
-    from electrum.i18n import _
-    from electrum.keystore import Hardware_KeyStore
-    from ..hw_wallet import HW_PluginBase
-    from electrum.util import print_error, to_string, UserCancelled, UserFacingException
-    from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
+import base64
+import binascii
+import hashlib
+import hmac
+import json
+import math
+import os
+import re
+import struct
+import sys
+import time
 
-    import time
+from electrum.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
+from electrum.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh,
+                              is_address)
+from electrum.bip32 import serialize_xpub, deserialize_xpub
+from electrum import ecc
+from electrum.ecc import msg_magic
+from electrum.wallet import Standard_Wallet
+from electrum import constants
+from electrum.transaction import Transaction
+from electrum.i18n import _
+from electrum.keystore import Hardware_KeyStore
+from ..hw_wallet import HW_PluginBase
+from electrum.util import print_error, to_string, UserCancelled, UserFacingException
+from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
+from electrum.network import Network
+
+try:
     import hid
-    import json
-    import math
-    import binascii
-    import struct
-    import hashlib
-    import requests
-    import base64
-    import os
-    import sys
-    import re
-    import hmac
     DIGIBOX = True
 except ImportError as e:
     DIGIBOX = False
@@ -744,9 +745,10 @@ class DigitalBitboxPlugin(HW_PluginBase):
             EncodeAES_base64(key_s, json.dumps(payload).encode('ascii')).decode('ascii'),
         )
         try:
-            requests.post(url, args)
+            text = Network.send_http_on_proxy('post', url, body=args.encode('ascii'), headers={'content-type': 'application/x-www-form-urlencoded'})
+            print_error('digitalbitbox reply from server', text)
         except Exception as e:
-            self.handler.show_error(str(e))
+            self.handler.show_error(repr(e)) # repr because str(Exception()) == ''
 
 
     def get_xpub(self, device_id, derivation, xtype, wizard):

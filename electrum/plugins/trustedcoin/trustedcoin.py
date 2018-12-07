@@ -31,6 +31,7 @@ import hashlib
 
 from urllib.parse import urljoin
 from urllib.parse import quote
+from aiohttp import ClientResponse
 
 from electrum import ecc, constants, keystore, version, bip32
 from electrum.bitcoin import TYPE_ADDRESS, is_new_seed, public_key_to_p2pkh
@@ -42,7 +43,7 @@ from electrum.mnemonic import Mnemonic
 from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum.i18n import _
 from electrum.plugin import BasePlugin, hook
-from electrum.util import NotEnoughFunds, make_aiohttp_session
+from electrum.util import NotEnoughFunds
 from electrum.storage import STO_EV_USER_PW
 from electrum.network import Network
 
@@ -108,14 +109,7 @@ class TrustedCoinCosignerClient(object):
         self.debug = False
         self.user_agent = user_agent
 
-    def send_request(self, method, relative_url, data=None):
-        network = Network.get_instance()
-        if network:
-            return asyncio.run_coroutine_threadsafe(self._send_request(method, relative_url, data), network.asyncio_loop).result()
-        else:
-            raise ErrorConnectingServer('You are offline.')
-
-    async def handle_response(self, resp):
+    async def handle_response(self, resp: ClientResponse):
         if resp.status != 200:
             try:
                 r = await resp.json()
@@ -128,7 +122,10 @@ class TrustedCoinCosignerClient(object):
         except:
             return await resp.text()
 
-    async def _send_request(self, method, relative_url, data):
+    def send_request(self, method, relative_url, data=None):
+        network = Network.get_instance()
+        if not network:
+            raise ErrorConnectingServer('You are offline.')
         url = urljoin(self.base_url, relative_url)
         if self.debug:
             print('%s %s %s' % (method, url, data))
@@ -136,16 +133,12 @@ class TrustedCoinCosignerClient(object):
         if self.user_agent:
             headers['user-agent'] = self.user_agent
         try:
-            proxy = Network.get_instance().proxy
-            async with make_aiohttp_session(proxy) as session:
-                if method == 'get':
-                    async with session.get(url, params=data, headers=headers) as resp:
-                        return await self.handle_response(resp)
-                elif method == 'post':
-                    async with session.post(url, json=data, headers=headers) as resp:
-                        return await self.handle_response(resp)
-                else:
-                    assert False
+            if method == 'get':
+                return Network.send_http_on_proxy(method, url, params=data, headers=headers, on_finish=self.handle_response)
+            elif method == 'post':
+                return Network.send_http_on_proxy(method, url, json=data, headers=headers, on_finish=self.handle_response)
+            else:
+                assert False
         except TrustedCoinException:
             raise
         except Exception as e:
@@ -434,7 +427,7 @@ class TrustedCoinPlugin(BasePlugin):
         try:
             billing_info = server.get(wallet.get_user_id()[1])
         except ErrorConnectingServer as e:
-            self.print_error('cannot connect to TrustedCoin server: {}'.format(e))
+            self.print_error('cannot connect to TrustedCoin server: {}'.format(repr(e)))
             return
         billing_index = billing_info['billing_index']
         billing_address = make_billing_address(wallet, billing_index)
