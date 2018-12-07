@@ -31,7 +31,7 @@ from collections import OrderedDict
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
-from electrum.util import block_explorer_URL, profiler, print_error, TxMinedStatus, OrderedDictWithIndex
+from electrum.util import block_explorer_URL, profiler, print_error, TxMinedInfo, OrderedDictWithIndex
 
 from .util import *
 
@@ -275,7 +275,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         value = tx_item['value'].value
         balance = tx_item['balance'].value
         label = tx_item['label']
-        tx_mined_status = TxMinedStatus(height, conf, timestamp, None)
+        tx_mined_status = TxMinedInfo(height=height, conf=conf, timestamp=timestamp)
         status, status_str = self.wallet.get_tx_status(tx_hash, tx_mined_status)
         has_invoice = self.wallet.invoices.paid.get(tx_hash)
         v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)

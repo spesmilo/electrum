@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Dict, Optional
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
-from .util import PrintError, profiler, bfh, VerifiedTxInfo, TxMinedStatus
+from .util import PrintError, profiler, bfh, TxMinedInfo
 from .transaction import Transaction, TxOutput
 from .synchronizer import Synchronizer
 from .verifier import SPV
@@ -70,11 +70,15 @@ class AddressSynchronizer(PrintError):
         self.transaction_lock = threading.RLock()
         # address -> list(txid, height)
         self.history = storage.get('addr_history',{})
-        # Verified transactions.  txid -> VerifiedTxInfo.  Access with self.lock.
+        # Verified transactions.  txid -> TxMinedInfo.  Access with self.lock.
         verified_tx = storage.get('verified_tx3', {})
-        self.verified_tx = {}
+        self.verified_tx = {}  # type: Dict[str, TxMinedInfo]
         for txid, (height, timestamp, txpos, header_hash) in verified_tx.items():
-            self.verified_tx[txid] = VerifiedTxInfo(height, timestamp, txpos, header_hash)
+            self.verified_tx[txid] = TxMinedInfo(height=height,
+                                                 conf=None,
+                                                 timestamp=timestamp,
+                                                 txpos=txpos,
+                                                 header_hash=header_hash)
         # Transactions pending verification.  txid -> tx_height. Access with self.lock.
         self.unverified_tx = defaultdict(int)
         # true when synchronized
@@ -562,7 +566,7 @@ class AddressSynchronizer(PrintError):
             if new_height == tx_height:
                 self.unverified_tx.pop(tx_hash, None)
 
-    def add_verified_tx(self, tx_hash: str, info: VerifiedTxInfo):
+    def add_verified_tx(self, tx_hash: str, info: TxMinedInfo):
         # Remove from the unverified map and add to the verified map
         with self.lock:
             self.unverified_tx.pop(tx_hash, None)
@@ -605,19 +609,18 @@ class AddressSynchronizer(PrintError):
             return cached_local_height
         return self.network.get_local_height() if self.network else self.storage.get('stored_height', 0)
 
-    def get_tx_height(self, tx_hash: str) -> TxMinedStatus:
-        """ Given a transaction, returns (height, conf, timestamp, header_hash) """
+    def get_tx_height(self, tx_hash: str) -> TxMinedInfo:
         with self.lock:
             if tx_hash in self.verified_tx:
                 info = self.verified_tx[tx_hash]
                 conf = max(self.get_local_height() - info.height + 1, 0)
-                return TxMinedStatus(info.height, conf, info.timestamp, info.header_hash)
+                return info._replace(conf=conf)
             elif tx_hash in self.unverified_tx:
                 height = self.unverified_tx[tx_hash]
-                return TxMinedStatus(height, 0, None, None)
+                return TxMinedInfo(height=height, conf=0)
             else:
                 # local transaction
-                return TxMinedStatus(TX_HEIGHT_LOCAL, 0, None, None)
+                return TxMinedInfo(height=TX_HEIGHT_LOCAL, conf=0)
 
     def set_up_to_date(self, up_to_date):
         with self.lock:

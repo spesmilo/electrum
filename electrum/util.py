@@ -879,18 +879,12 @@ def ignore_exceptions(func):
     return wrapper
 
 
-class TxMinedStatus(NamedTuple):
-    height: int
-    conf: int
-    timestamp: Optional[int]
-    header_hash: Optional[str]
-
-
-class VerifiedTxInfo(NamedTuple):
-    height: int
-    timestamp: int
-    txpos: int
-    header_hash: str
+class TxMinedInfo(NamedTuple):
+    height: int                        # height of block that mined tx
+    conf: Optional[int] = None         # number of confirmations (None means unknown)
+    timestamp: Optional[int] = None    # timestamp of block that mined tx
+    txpos: Optional[int] = None        # position of tx in serialized block
+    header_hash: Optional[str] = None  # hash of block that mined tx
 
 
 def make_aiohttp_session(proxy: dict, headers=None, timeout=None):
