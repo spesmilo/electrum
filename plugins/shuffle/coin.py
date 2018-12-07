@@ -9,8 +9,6 @@ import ecdsa
 
 def address_from_public_key(public_key):
     "get address from public key"
-    # return Address.from_string(public_key_to_p2pkh(bytes.fromhex(public_key))).to_ui_string()
-    # return Address.from_pubkey(public_key).to_ui_string()
     return Address.from_pubkey(public_key)
 
 
