@@ -1,4 +1,6 @@
-class Round(object):
+from .client import PrintErrorThread
+
+class Round(PrintErrorThread):
     """
     A single round of the protocol. It is possible that the players may go through
     several failed rounds until they have eliminated malicious players.
@@ -29,17 +31,6 @@ class Round(object):
         self.players = players
         self.number_of_players = len(players)
         self.vk = pubkey
-        if self.number_of_players == len(set(players.values())):
-            if self.vk in players.values():
-                self.me = {players[player] : player for player in players}[self.vk]
-            else:
-                self.logchan.send('Error: public key is not in the players list')
-                self.done = True
-                return
-        else:
-            self.logchan.send('Error: same public keys appear in the pool!')
-            self.done = True
-            return
         self.encryption_keys = dict()
         self.new_addresses = []
         self.addr_new = addr_new
@@ -51,6 +42,17 @@ class Round(object):
         self.transaction = None
         self.tx = None
         self.done = None
+        if self.number_of_players == len(set(players.values())):
+            if self.vk in players.values():
+                self.me = {players[player] : player for player in players}[self.vk]
+            else:
+                self.logchan.send('Error: public key is not in the players list')
+                self.done = True
+                return
+        else:
+            self.logchan.send('Error: same public keys appear in the pool!')
+            self.done = True
+            return
 
 # Entry point of the protocol
     def start_protocol(self):
@@ -79,9 +81,13 @@ class Round(object):
         it process the the incoming messages (process inbox).
         It does it in the loop until done flag will be rised
         """
-        while not self.done:
-            if self.inchan_to_inbox():
-                self.process_inbox()
+        try:
+            while not self.done:
+                if self.inchan_to_inbox():
+                    self.process_inbox()
+        except OSError as e: # Socket closed or timed out
+            self.print_error(str(e))
+            self.logchan.send("Socket closed or timed out")
 
 # General processing of incoming messages
     def inchan_to_inbox(self):
@@ -93,20 +99,13 @@ class Round(object):
             2. trying to parse the incoming message
             3. store the packets from message to inbox[phase][from_key]
         """
-        val = None
+        val = self.inchan.recv()
         try:
-            val = self.inchan.recv()
-        except:
-            # if we failed on reading inchan for timeout or whatever then return None
+            self.messages.packets.ParseFromString(val)
+        except Exception as e:
+            self.print_error("Decoding error: {}".format(str(error)))
+            self.logchan.send('Decoding Error!')
             return None
-        if val is None:
-            return None
-        else:
-            try:
-                self.messages.packets.ParseFromString(val)
-            except Exception:
-                self.logchan.send('Decoding Error!')
-                return None
         phase = self.messages.get_phase()
         from_key = self.messages.get_from_key()
         self.check_for_signatures()

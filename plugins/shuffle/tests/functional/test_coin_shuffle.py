@@ -9,7 +9,7 @@ from electroncash_plugins.shuffle.crypto import Crypto
 from electroncash_plugins.shuffle.messages import Messages
 from electroncash_plugins.shuffle.coin_shuffle import Round
 from electroncash_plugins.shuffle.tests.test import testNetwork, random_sk, make_fake_public_key, make_fake_address, fake_hash
-from electroncash_plugins.shuffle.communicator_thread import Channel, ChannelWithPrint
+from electroncash_plugins.shuffle.comms import Channel, ChannelWithPrint
 # from electroncash_plugins.shuffle.phase import Phase
 
 

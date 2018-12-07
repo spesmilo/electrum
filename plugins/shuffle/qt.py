@@ -159,7 +159,8 @@ def start_background_shuffling(window, network_settings, period = 10, password=N
     window.background_process = BackgroundShufflingThread(window.wallet, network_settings,
                                                           logger=logger,
                                                           period=period,
-                                                          password=password)
+                                                          password=password,
+                                                          timeout = 300.0)
     window.background_process.start()
 
 def modify_utxo_list(window):
@@ -203,7 +204,7 @@ class Plugin(BasePlugin):
         return 'CashShuffle'
 
     def description(self):
-        return _("Configure CashShuffle Protocol")
+        return _("CashShuffle Protocol")
 
     def is_available(self):
         return True

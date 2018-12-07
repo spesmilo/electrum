@@ -18,7 +18,7 @@ imp.load_module('electroncash_plugins', *imp.find_module('plugins'))
 from electroncash.address import Address
 from electroncash.util import InvalidPassword
 from electroncash_plugins.shuffle.client import ProtocolThread
-from electroncash_plugins.shuffle.communicator_thread import (ChannelWithPrint, Channel)
+from electroncash_plugins.shuffle.comms import (ChannelWithPrint, Channel)
 from electroncash_plugins.shuffle.coin import Coin
 from electroncash_plugins.shuffle.crypto import Crypto
 # from electroncash_plugins.shuffle.phase import Phase
