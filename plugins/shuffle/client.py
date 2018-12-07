@@ -393,16 +393,16 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                     sks[public_key] = sk
                     id_sk = generate_random_sk()
                     id_pub = id_sk.GetPubKey(True).hex()
-                    addresses_on_threads = [Address.from_string(self.threads[scale].addr_new)
-                                            for scale, thr in self.threads.items() if thr]
+                    addresses_on_threads = [Address.from_string(thr.addr_new)
+                                            for sc, thr in self.threads.items() if thr]
                     output = None
                     for address in self.wallet.get_unused_addresses():
                         if address not in addresses_on_threads:
                             output = address.to_storage_string()
                             break
                     output = output or self.wallet.create_new_address(for_change = False).to_storage_string()
-                    change_in_threads = [Address.from_string(self.threads[scale].change)
-                                         for scale, thr in self.threads.items() if thr]
+                    change_in_threads = [Address.from_string(thr.change)
+                                         for sc, thr in self.threads.items() if thr]
                     change = None
                     for address in self.wallet.get_change_addresses():
                         if address not in change_in_threads and not self.wallet.get_address_history(address):
