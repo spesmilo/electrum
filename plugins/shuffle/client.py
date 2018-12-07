@@ -289,10 +289,12 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             sender = thr.coin
             if killme:
                 with self.lock:
-                    if thr == self.threads[scale]:
-                        self.stop_protocol_thread(scale, message)
-                    else:
-                        self.print_error("WARNING: Stale stop_thread message for Scale: '{}' Coin: '{}', thread not in list, ignoring!".format(scale,sender))
+                    # this is still wonky here. Race conditions aren't avoided 100% of the time. But I suppose this is "good enough" until we rework the whole thread ownership/creation scheme
+                    curr_thr = self.threads[scale]
+                if thr == curr_thr:
+                    self.stop_protocol_thread(scale, message)
+                else:
+                    self.print_error("WARNING: Stale stop_thread message for Scale: '{}' Coin: '{}', thread not in list, ignoring!".format(scale,sender))
             elif self.logger:
                 self.print_error("--> Fwd msg to Qt for: Scale='{}' Sender='{}' Msg='{}'".format(scale, sender, message))
                 self.logger.send(message, sender)
@@ -300,14 +302,15 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     def stop_protocol_thread(self, scale, message):
         self.print_error("Stop protocol thread for scale: {}".format(scale))
         with self.lock:
-            sender = list(self.threads[scale].inputs.values())[0][0]
-            with self.wallet.lock:
-                self.wallet.set_frozen_coin_state([sender], False)
-                coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
-                coins_for_shuffling -= {sender}
-                self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
-            self.logger.send(message, sender)
             thr = self.threads[scale]
+            sender = thr and list(thr.inputs.values())[0][0]
+            if sender:
+                with self.wallet.lock:
+                    self.wallet.set_frozen_coin_state([sender], False)
+                    coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
+                    coins_for_shuffling -= {sender}
+                    self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
+                self.logger.send(message, sender)
             self.threads[scale] = None
         if thr and thr.is_alive(): thr.join()
 
