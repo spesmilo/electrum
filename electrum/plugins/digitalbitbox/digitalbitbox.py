@@ -129,8 +129,8 @@ class DigitalBitbox_Client():
         return False
 
 
-    def stretch_key(self, key):
-        return to_hexstr(hashlib.pbkdf2_hmac('sha512', key.encode('utf-8'), b'Digital Bitbox', iterations = 20480))
+    def stretch_key(self, key: bytes):
+        return to_hexstr(hashlib.pbkdf2_hmac('sha512', key, b'Digital Bitbox', iterations = 20480))
 
 
     def backup_password_dialog(self):
