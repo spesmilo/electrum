@@ -16,7 +16,7 @@ from .coin import Coin
 from .crypto import Crypto
 from .messages import Messages
 from .coin_shuffle import Round
-from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm
+from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_server_for_shuffle_port
 
 ERR_SERVER_CONNECT = "Error: cannot connect to server"
 
@@ -230,7 +230,8 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.logger = logger
         self.wallet = wallet
         self.host = network_settings.get("host", None)
-        self.port = network_settings.get("port", None)
+        self.info_port = network_settings.get("info", None)
+        self.port = 8080 # default value -- will get set to real value from server's stat port in run() method
         self.ssl = network_settings.get("ssl", None)
         self.network = network_settings.get("network", None)
         self.fee = fee
@@ -256,8 +257,19 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             n = n + " <" + self.wallet.basename() + ">"
         return n
 
+    def query_server_port(self):
+        try:
+            self.port = query_server_for_shuffle_port(self.host, self.info_port, self.ssl, timeout=self.period)
+            self.print_error("Server {}:{} told us that it has shufflePort={}".format(self.host, self.info_port, self.port))
+        except BaseException as e:
+            self.print_error("Exception: {}".format(str(e)))
+            self.print_error("Could not query shuffle port for server {}:{} -- defaulting to {}".format(self.host, self.info_port, self.port))
+
     def run(self):
         self.print_error("Started")
+
+        self.query_server_port()
+
         # NB: these need to be created within this thread to inherit its daemonic property
         self.threads_timer = threading.Timer(self.period, self.check_for_threads)
 

@@ -42,6 +42,7 @@ from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash.address import Address
 from electroncash.transaction import Transaction
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT
+from electroncash_plugins.shuffle.comms import query_server_for_shuffle_port
 
 
 def is_coin_shuffled(wallet, coin, txs=None):
@@ -271,14 +272,14 @@ class Plugin(BasePlugin):
             except Exception as e:
                 window.show_error(str(e), parent=window)
                 continue
-        network_settings = copy.deepcopy(window.config.get("cashshuffle_server", None))
+        network_settings = copy.deepcopy(window.config.get("cashshuffle_server_v1", None))
         if not network_settings:
             network_settings = self.settings_dialog(window, msg=_("Please choose a CashShuffle server"), restart_ask = False)
         if not network_settings:
             self.window_set_cashshuffle(window, False)
             window.show_error(_("Can't get network, disabling CashShuffle."), parent=window)
             return
-        ns_in = copy.deepcopy(network_settings)
+        network_settings = copy.deepcopy(network_settings)
         network_settings['host'] = network_settings.pop('server')
         network_settings["network"] = window.network
         window.update_cashshuffle_icon()
@@ -363,28 +364,26 @@ class Plugin(BasePlugin):
             cb.addItem(_("(Custom)"))
             if selIdx > -1:
                 cb.setCurrentIndex(selIdx)
-            elif selected and len(selected) == 4:
+            elif selected and len(selected) == 3:
                 custIdx = cb.count()-1
                 cb.setItemData(custIdx, selected.copy())
                 cb.setCurrentIndex(custIdx)
                 return True
             return False
         # /
-        def from_combobox(cb, le, sb1, sb2, chk):
+        def from_combobox(cb, le, sb, chk):
             d = cb.currentData()
             if isinstance(d, dict):
-                host, port, info, ssl = d.get('server'), d.get('port'), d.get('info'), d.get('ssl')
+                host, info, ssl = d.get('server'), d.get('info'), d.get('ssl')
                 le.setText(host)
-                sb1.setValue(port)
-                sb2.setValue(info)
+                sb.setValue(info)
                 chk.setChecked(ssl)
             en = cb.currentIndex() == cb.count()-1
-            le.setEnabled(en); sb1.setEnabled(en); sb2.setEnabled(en); chk.setEnabled(en)
-        def get_form(le, sb1, sb2, chk):
+            le.setEnabled(en); sb.setEnabled(en); chk.setEnabled(en)
+        def get_form(le, sb, chk):
             return {
                 'server': le.text(),
-                'port'  : sb1.value(),
-                'info'  : sb2.value(),
+                'info'  : sb.value(),
                 'ssl'   : chk.isChecked()
             }
         # /
@@ -403,8 +402,8 @@ class Plugin(BasePlugin):
         selected = dict()
         try:
             # try and pre-populate from config
-            current = window.config.get("cashshuffle_server", dict())
-            dummy = (current["server"], current["port"], current["info"], current["ssl"]); del dummy;
+            current = window.config.get("cashshuffle_server_v1", dict())
+            dummy = (current["server"], current["info"], current["ssl"]); del dummy;
             selected = current
         except KeyError:
             pass
@@ -420,12 +419,10 @@ class Plugin(BasePlugin):
         srvLe = QLineEdit(d); hbox.addWidget(srvLe)
         hbox.addWidget(QLabel(_("P:")))
         portSb = QSpinBox(d); portSb.setRange(1, 65535); hbox.addWidget(portSb)
-        hbox.addWidget(QLabel(_("I:")))
-        infoSb = QSpinBox(d); infoSb.setRange(1, 65535); hbox.addWidget(infoSb)
         sslChk = QCheckBox(_("SSL"), d); hbox.addWidget(sslChk)
 
-        serverCB.currentIndexChanged.connect(lambda x: from_combobox(serverCB, srvLe, portSb, infoSb, sslChk))
-        from_combobox(serverCB, srvLe, portSb, infoSb, sslChk)
+        serverCB.currentIndexChanged.connect(lambda x: from_combobox(serverCB, srvLe, portSb, sslChk))
+        from_combobox(serverCB, srvLe, portSb, sslChk)
         
         vbox.addStretch()
         vbox.addLayout(Buttons(CloseButton(d), OkButton(d)))
@@ -437,8 +434,8 @@ class Plugin(BasePlugin):
             if not d.exec_():
                 return
             else:
-                ns = get_form(srvLe, portSb, infoSb, sslChk)
-                if not self.check_server_connectivity(ns.get("server"), ns.get("port"), ns.get("info"), ns.get("ssl")):
+                ns = get_form(srvLe, portSb, sslChk)
+                if not self.check_server_connectivity(ns.get("server"), ns.get("info"), ns.get("ssl")):
                     server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
                 else:
                     server_ok = True
@@ -448,18 +445,16 @@ class Plugin(BasePlugin):
                 window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
         return ns
 
-    def check_server_connectivity(self, host, port, stat_port, ssl):
-        secure = "s" if ssl else ""
-        stat_endpoint = "http{}://{}:{}/stats".format(secure, host, stat_port)
+    def check_server_connectivity(self, host, stat_port, ssl):
         try:
-            import requests, socket
+            import socket
             try:
                 prog = QProgressDialog(_("Checking server..."), None, 0, 3, None)
                 prog.setWindowModality(Qt.ApplicationModal); prog.setMinimumDuration(0); prog.setValue(1)
                 QApplication.instance().processEvents(QEventLoop.ExcludeUserInputEvents|QEventLoop.ExcludeSocketNotifiers, 1) # this forces the window to be shown
-                res = requests.get(stat_endpoint, verify=False, timeout=3.0)
+                port = query_server_for_shuffle_port(host, stat_port, ssl)
                 prog.setValue(2)
-                self.print_error("{}:{}{} got response: PoolSize = {}".format(host, stat_port, secure, res.json().get("PoolSize", None)))
+                self.print_error("{}:{}{} got response: shufflePort = {}".format(host, stat_port, 's' if ssl else '', port))
                 socket.create_connection((host, port), 3.0).close() # test connectivity to port
                 prog.setValue(3)
             finally:
@@ -472,7 +467,7 @@ class Plugin(BasePlugin):
     def save_network_settings(self, window, network_settings):
         ns = copy.deepcopy(network_settings)
         self.print_error("Saving network settings: {}".format(ns))
-        window.config.set_key("cashshuffle_server", ns)
+        window.config.set_key("cashshuffle_server_v1", ns)
 
 
     def settings_widget(self, window):

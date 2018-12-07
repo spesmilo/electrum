@@ -1,4 +1,4 @@
-import socket, ssl, threading, queue, time
+import socket, ssl, threading, queue, time, requests
 from .client import PrintErrorThread
 
 class Channel(queue.Queue):
@@ -100,3 +100,10 @@ class Comm(PrintErrorThread):
         if self.socket:
             self.socket.close()
 
+
+def query_server_for_shuffle_port(host : str, stat_port : int, ssl : bool, timeout : float = 3.0) -> int:
+    ''' May raise OSError, ValueError, TypeError if there are connectivity or other issues '''
+    secure = "s" if ssl else ""
+    stat_endpoint = "http{}://{}:{}/stats".format(secure, host, stat_port)
+    res = requests.get(stat_endpoint, verify=False, timeout=timeout)
+    return int(res.json()["shufflePort"])

@@ -1,13 +1,11 @@
 {
   "shuffle.imaginary.cash":
   {
-    "port" : 8080,
     "ssl"  : true,
     "info" : 8081
   },
   "cashshuffle.tartarusgroup.com":
   {
-    "port" : 8080,
     "ssl"  : false,
     "info" : 8081
   }
