@@ -448,7 +448,11 @@ class AddressSynchronizer(PrintError):
 
     def save_verified_tx(self, write=False):
         with self.lock:
-            self.storage.put('verified_tx3', self.verified_tx)
+            verified_tx_to_save = {}
+            for txid, tx_info in self.verified_tx.items():
+                verified_tx_to_save[txid] = (tx_info.height, tx_info.timestamp,
+                                             tx_info.txpos, tx_info.header_hash)
+            self.storage.put('verified_tx3', verified_tx_to_save)
             if write:
                 self.storage.write()
 
