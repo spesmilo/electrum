@@ -26,7 +26,7 @@
 import webbrowser
 import datetime
 from datetime import date
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple, Dict
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
@@ -72,6 +72,7 @@ class HistoryModel(QAbstractItemModel):
         super().__init__(parent)
         self.parent = parent
         self.transactions = []
+        self.tx_status_cache = {}  # type: Dict[str, Tuple[int, str]]
 
     def columnCount(self, parent: QModelIndex):
         return 8
@@ -79,25 +80,27 @@ class HistoryModel(QAbstractItemModel):
     def rowCount(self, parent: QModelIndex):
         return len(self.transactions)
 
-    def index(self, row: int, column: int, parent : QModelIndex):
-        return self.createIndex(row,column)
+    def index(self, row: int, column: int, parent: QModelIndex):
+        return self.createIndex(row, column)
 
     def data(self, index: QModelIndex, role: Qt.ItemDataRole):
         # requires PyQt5 5.11
         # indexIsValid = QAbstractItemModel.CheckIndexOptions(QAbstractItemModel.CheckIndexOption.IndexIsValid.value)
         # assert self.checkIndex(index, indexIsValid)
         assert index.isValid()
+        col = index.column()
         tx_item = self.transactions[index.row()]
         tx_hash = tx_item['txid']
-        height = tx_item['height']
         conf = tx_item['confirmations']
-        timestamp = tx_item['timestamp']
-        tx_mined_info = TxMinedInfo(height=height, conf=conf, timestamp=timestamp)
-        status, status_str = self.parent.wallet.get_tx_status(tx_hash, tx_mined_info)
+        try:
+            status, status_str = self.tx_status_cache[tx_hash]
+        except KeyError:
+            tx_mined_status = TxMinedInfo(height=tx_item['height'], conf=conf, timestamp=tx_item['timestamp'])
+            status, status_str = self.parent.wallet.get_tx_status(tx_hash, tx_mined_status)
         if role == Qt.UserRole:
             # for sorting
             d = {
-                0: (status, conf),
+                0: (status, conf),  # FIXME tx_pos needed as tie-breaker
                 1: status_str,
                 2: tx_item['label'],
                 3: tx_item['value'].value,
@@ -106,46 +109,46 @@ class HistoryModel(QAbstractItemModel):
                 6: tx_item['acquisition_price'].value if 'acquisition_price' in tx_item else None,
                 7: tx_item['capital_gain'].value if 'capital_gain' in tx_item else None,
             }
-            return QVariant(d[index.column()])
+            return QVariant(d[col])
         if role not in (Qt.DisplayRole, Qt.EditRole):
-            if index.column() == 0 and role == Qt.DecorationRole:
+            if col == 0 and role == Qt.DecorationRole:
                 return QVariant(self.parent.history_list.icon_cache.get(":icons/" +  TX_ICONS[status]))
-            elif index.column() == 0 and role == Qt.ToolTipRole:
+            elif col == 0 and role == Qt.ToolTipRole:
                 return QVariant(str(conf) + _(" confirmation" + ("s" if conf != 1 else "")))
-            elif index.column() > 2 and role == Qt.TextAlignmentRole:
+            elif col > 2 and role == Qt.TextAlignmentRole:
                 return QVariant(Qt.AlignRight | Qt.AlignVCenter)
-            elif index.column() != 1 and role == Qt.FontRole:
+            elif col != 1 and role == Qt.FontRole:
                 monospace_font = QFont(MONOSPACE_FONT)
                 return QVariant(monospace_font)
-            elif index.column() == 2 and role == Qt.DecorationRole and self.parent.wallet.invoices.paid.get(tx_hash):
+            elif col == 2 and role == Qt.DecorationRole and self.parent.wallet.invoices.paid.get(tx_hash):
                 return QVariant(self.parent.history_list.icon_cache.get(":icons/seal"))
-            elif index.column() in (2, 3) and role == Qt.ForegroundRole and tx_item['value'].value < 0:
+            elif col in (2, 3) and role == Qt.ForegroundRole and tx_item['value'].value < 0:
                 red_brush = QBrush(QColor("#BC1E1E"))
                 return QVariant(red_brush)
-            elif index.column() == 5 and role == Qt.ForegroundRole and not tx_item.get('fiat_default') and tx_item.get('fiat_value') is not None:
+            elif col == 5 and role == Qt.ForegroundRole and not tx_item.get('fiat_default') and tx_item.get('fiat_value') is not None:
                 blue_brush = QBrush(QColor("#1E1EFF"))
                 return QVariant(blue_brush)
             return None
-        if index.column() == 1:
+        if col == 1:
             return QVariant(status_str)
-        elif index.column() == 2:
+        elif col == 2:
             return QVariant(tx_item['label'])
-        elif index.column() == 3:
+        elif col == 3:
             value = tx_item['value'].value
             v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)
             return QVariant(v_str)
-        elif index.column() == 4:
+        elif col == 4:
             balance = tx_item['balance'].value
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             return QVariant(balance_str)
-        elif index.column() == 5 and 'fiat_value' in tx_item:
+        elif col == 5 and 'fiat_value' in tx_item:
             value_str = self.parent.fx.format_fiat(tx_item['fiat_value'].value)
             return QVariant(value_str)
-        elif index.column() == 6 and tx_item['value'].value < 0 and 'acquisition_price' in tx_item:
+        elif col == 6 and tx_item['value'].value < 0 and 'acquisition_price' in tx_item:
             # fixme: should use is_mine
             acq = tx_item['acquisition_price'].value
             return QVariant(self.parent.fx.format_fiat(acq))
-        elif index.column() == 7 and 'capital_gain' in tx_item:
+        elif col == 7 and 'capital_gain' in tx_item:
             cg = tx_item['capital_gain'].value
             return QVariant(self.parent.fx.format_fiat(cg))
         return None
@@ -199,6 +202,15 @@ class HistoryModel(QAbstractItemModel):
                 end_date = self.transactions[-1].get('date') or end_date
             self.parent.history_list.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
             self.parent.history_list.period_combo.insertItems(1, self.parent.history_list.years)
+        # update tx_status_cache
+        self.tx_status_cache.clear()
+        for tx_item in self.transactions:
+            txid = tx_item['txid']
+            height = tx_item['height']
+            conf = tx_item['confirmations']
+            timestamp = tx_item['timestamp']
+            tx_mined_status = TxMinedInfo(height=height, conf=conf, timestamp=timestamp)
+            self.tx_status_cache[txid] = self.parent.wallet.get_tx_status(txid, tx_mined_status)
 
         history = self.parent.fx.show_history()
         cap_gains = self.parent.fx.get_history_capital_gains_config()
