@@ -92,6 +92,7 @@ class HistoryModel(QAbstractItemModel):
         tx_item = self.transactions[index.row()]
         tx_hash = tx_item['txid']
         conf = tx_item['confirmations']
+        txpos = tx_item['txpos_in_block'] or 0
         try:
             status, status_str = self.tx_status_cache[tx_hash]
         except KeyError:
@@ -100,7 +101,7 @@ class HistoryModel(QAbstractItemModel):
         if role == Qt.UserRole:
             # for sorting
             d = {
-                0: (status, conf),  # FIXME tx_pos needed as tie-breaker
+                0: (status, conf, -txpos),
                 1: status_str,
                 2: tx_item['label'],
                 3: tx_item['value'].value,
@@ -206,10 +207,9 @@ class HistoryModel(QAbstractItemModel):
         self.tx_status_cache.clear()
         for tx_item in self.transactions:
             txid = tx_item['txid']
-            height = tx_item['height']
-            conf = tx_item['confirmations']
-            timestamp = tx_item['timestamp']
-            tx_mined_status = TxMinedInfo(height=height, conf=conf, timestamp=timestamp)
+            tx_mined_status = TxMinedInfo(height=tx_item['height'],
+                                          conf=tx_item['confirmations'],
+                                          timestamp=tx_item['timestamp'])
             self.tx_status_cache[txid] = self.parent.wallet.get_tx_status(txid, tx_mined_status)
 
         history = self.parent.fx.show_history()

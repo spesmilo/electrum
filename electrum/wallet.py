@@ -420,6 +420,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 'balance': Satoshis(balance),
                 'date': timestamp_to_datetime(timestamp),
                 'label': self.get_label(tx_hash),
+                'txpos_in_block': tx_mined_status.txpos,
             }
             tx_fee = None
             if show_fees:
