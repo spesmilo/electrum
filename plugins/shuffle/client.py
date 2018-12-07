@@ -393,18 +393,22 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                     sks[public_key] = sk
                     id_sk = generate_random_sk()
                     id_pub = id_sk.GetPubKey(True).hex()
-                    address_on_threads = [Address.from_string(self.threads[scale].addr_new)
-                                          for scale in self.threads
-                                          if self.threads[scale]]
-                    output = [address for address in self.wallet.get_unused_addresses()
-                              if address not in address_on_threads]
-                    output = output[0].to_storage_string() if output else self.wallet.create_new_address(for_change = False).to_storage_string()
-                    changes_in_threads = [Address.from_string(self.threads[scale].change) for scale in self.threads if self.threads[scale]]
-                    fresh_changes = [address for address in self.wallet.get_change_addresses()
-                                     if not self.wallet.get_address_history(address) and
-                                        address not in changes_in_threads]
-                    change_addr = fresh_changes[0] if fresh_changes else self.wallet.create_new_address(for_change=True)
-                    change = change_addr.to_storage_string()
+                    addresses_on_threads = [Address.from_string(self.threads[scale].addr_new)
+                                            for scale, thr in self.threads.items() if thr]
+                    output = None
+                    for address in self.wallet.get_unused_addresses():
+                        if address not in addresses_on_threads:
+                            output = address.to_storage_string()
+                            break
+                    output = output or self.wallet.create_new_address(for_change = False).to_storage_string()
+                    change_in_threads = [Address.from_string(self.threads[scale].change)
+                                         for scale, thr in self.threads.items() if thr]
+                    change = None
+                    for address in self.wallet.get_change_addresses():
+                        if address not in change_in_threads and not self.wallet.get_address_history(address):
+                            change = address.to_storage_string()
+                            break
+                    change = change or self.wallet.create_new_address(for_change = True).to_storage_string()
             self.print_error("Scale {} Coin {} OutAddr {} Change {} make_protocol_thread".format(scale, utxo_name, output, change))
             self.threads[scale] = ProtocolThread(self.host, self.port, self.network, utxo_name, 
                                                  scale, self.fee, id_sk, sks, inputs, id_pub, output, change,
