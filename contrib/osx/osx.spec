@@ -42,6 +42,7 @@ datas += [(electrum + "contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.a
 
 # Add libusb so Trezor will work
 binaries = [(electrum + "contrib/osx/libusb-1.0.dylib", ".")]
+binaries += [(electrum + "contrib/osx/libsecp256k1.0.dylib", ".")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]

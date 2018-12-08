@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!-- Workaround for excessive left margin (https://issuetracker.google.com/issues/111662669),
+     which will be fixed in androidx.preference version 1.1.0.
+
+     From https://stackoverflow.com/a/52960668.-->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <bool name="config_materialPreferenceIconSpaceReserved" tools:ignore="MissingDefaultResource,PrivateResource">false</bool>
+    <dimen name="preference_category_padding_start" tools:ignore="MissingDefaultResource,PrivateResource">0dp</dimen>
+</resources>

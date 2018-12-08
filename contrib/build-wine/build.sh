@@ -13,6 +13,11 @@ echo "Clearing $here/build and $here/dist..."
 rm "$here"/build/* -rf
 rm "$here"/dist/* -rf
 
+rm -fr /tmp/electrum-build
+mkdir -p /tmp/electrum-build
+
+$here/build-secp256k1.sh || exit 1
+
 $here/prepare-wine.sh && \
 $here/prepare-pyinstaller.sh || exit 1
 

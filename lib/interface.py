@@ -260,7 +260,7 @@ class Interface(util.PrintError):
 
     def __init__(self, server, socket):
         self.server = server
-        self.host, _, _ = server.rsplit(':', 2)
+        self.host, self.port, _ = server.rsplit(':', 2)
         self.socket = socket
 
         self.pipe = util.SocketPipe(socket)
@@ -274,6 +274,12 @@ class Interface(util.PrintError):
         
         self.mode = None
         
+    def __repr__(self):
+        return "<{}.{} {}>".format(__name__, type(self).__name__, self.format_address())
+
+    def format_address(self):
+        return "{}:{}".format(self.host, self.port)
+
     def set_mode(self, mode):
         self.print_error("set_mode({})".format(mode))
         self.mode = mode

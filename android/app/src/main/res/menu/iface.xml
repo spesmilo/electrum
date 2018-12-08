@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/menuUseAsServer"
+        android:title="@string/use_as"/>
+
+    <item
+        android:id="@+id/menuDisconnect"
+        android:title="@string/disconnect"/>
+
+</menu>

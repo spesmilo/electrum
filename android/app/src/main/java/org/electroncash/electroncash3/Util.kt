@@ -1,6 +1,5 @@
 package org.electroncash.electroncash3
 
-import android.app.NotificationManager
 import android.content.ClipboardManager
 import android.content.Context
 import android.databinding.DataBindingUtil
@@ -8,10 +7,15 @@ import android.databinding.ViewDataBinding
 import android.support.v4.app.DialogFragment
 import android.support.v4.app.FragmentActivity
 import android.support.v4.content.ContextCompat
+import android.support.v7.widget.DividerItemDecoration
+import android.support.v7.widget.LinearLayoutManager
 import android.support.v7.widget.RecyclerView
 import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
 import android.view.ViewGroup
-import android.view.inputmethod.InputMethodManager
+import android.widget.ArrayAdapter
+import android.widget.PopupMenu
 import android.widget.Toast
 import kotlin.reflect.KClass
 
@@ -21,15 +25,28 @@ val UNIT_MBCH = 100000L
 var unitSize = UNIT_BCH  // TODO: make unit configurable
 var unitName = "BCH"     //
 
-fun toSatoshis(s: String, unit: Long = unitSize) : Long? {
+val libBitcoin by lazy { libMod("bitcoin") }
+val libUtil by lazy { libMod("util") }
+
+
+fun toSatoshis(s: String, unit: Long = unitSize) : Long {
+    if (s.isEmpty()) {
+        throw ToastException(R.string.enter_amount)
+    }
     try {
         return Math.round(s.toDouble() * unit)
-    } catch (e: NumberFormatException) { return null }
+    } catch (e: NumberFormatException) {
+        throw ToastException(R.string.Invalid_amount)
+    }
 }
 
 fun formatSatoshis(amount: Long, unit: Long = unitSize): String {
     val places = Math.log10(unit.toDouble()).toInt()
-    return "%.${places}f".format(amount.toDouble() / unit)
+    var result = "%.${places}f".format(amount.toDouble() / unit).trimEnd('0')
+    if (result.endsWith(".")) {
+        result += "0"
+    }
+    return result
 }
 
 
@@ -84,19 +101,23 @@ fun toast(resId: Int, duration: Int = Toast.LENGTH_SHORT, key: String? = null) {
 }
 
 
-val SERVICES = mapOf(
-    ClipboardManager::class to Context.CLIPBOARD_SERVICE,
-    InputMethodManager::class to Context.INPUT_METHOD_SERVICE,
-    NotificationManager::class to Context.NOTIFICATION_SERVICE
-)
-
-fun <T: Any> getSystemService(kcls: KClass<T>): T {
-    // TODO: do this once we move to support library version 28 (28.0.0-rc02 breaks the layout
-    // editor in Android Studio 3.1):
-    // return ContextCompat.getSystemService(app, kcls.java)!!
-    return app.getSystemService(SERVICES.get(kcls)!!) as T
+fun copyToClipboard(text: CharSequence) {
+    @Suppress("DEPRECATION")
+    (getSystemService(ClipboardManager::class)).text = text
+    toast(R.string.text_copied_to_clipboard)
 }
 
+
+fun <T: Any> getSystemService(kcls: KClass<T>): T {
+    return ContextCompat.getSystemService(app, kcls.java)!!
+}
+
+
+fun setupVerticalList(rv: RecyclerView) {
+    rv.layoutManager = LinearLayoutManager(rv.context)
+    rv.addItemDecoration(DividerItemDecoration(rv.context, DividerItemDecoration.VERTICAL))
+
+}
 
 // Based on https://medium.com/google-developers/android-data-binding-recyclerview-db7c40d9f0e4
 abstract class BoundAdapter<Model: Any>(val layoutId: Int)
@@ -126,4 +147,33 @@ class BoundViewHolder<Model: Any>(val binding: ViewDataBinding)
     : RecyclerView.ViewHolder(binding.root) {
 
     lateinit var item: Model
+}
+
+
+class MenuAdapter(context: Context, val menu: Menu)
+    : ArrayAdapter<String>(context, android.R.layout.simple_spinner_item, menuToList(menu)) {
+    init {
+        setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+    }
+
+    constructor(context: Context, menuId: Int)
+        : this(context, inflateMenu(context, menuId))
+
+    override fun getItemId(position: Int): Long {
+        return menu.getItem(position).itemId.toLong()
+    }
+}
+
+fun inflateMenu(context: Context, menuId: Int) : Menu {
+    val menu = PopupMenu(context, null).menu
+    MenuInflater(context).inflate(menuId, menu)
+    return menu
+}
+
+private fun menuToList(menu: Menu): List<String> {
+    val result = ArrayList<String>()
+    for (i in 0 until menu.size()) {
+        result.add(menu.getItem(i).title.toString())
+    }
+    return result
 }

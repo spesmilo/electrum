@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest package="org.electroncash.electroncash3"
+<manifest xmlns:tools="http://schemas.android.com/tools"
+    package="org.electroncash.electroncash3"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
 
     <application
         android:name=".App"
@@ -10,19 +12,29 @@
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+        android:theme="@style/AppTheme"
+        tools:ignore="AllowBackup,GoogleAppIndexingWarning">
+
         <activity
             android:name=".ECConsoleActivity"
             android:label="@string/console"
             android:launchMode="singleInstance"/>
-        <activity android:name=".SplashActivity">
+        
+        <activity
+            android:name=".MainActivity"
+            android:theme="@style/AppTheme.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <!-- On some devices it forces landscape by default. -->
         <activity
-            android:name=".MainActivity"/>
+            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:screenOrientation="unspecified"
+            tools:replace="screenOrientation" />
+
         <activity
             android:name=".CrashhubDialog"
             android:process=":acra"

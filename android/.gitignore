@@ -6,4 +6,5 @@
 .DS_Store
 /build
 /captures
+/keystore.jks
 .externalNativeBuild

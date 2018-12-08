@@ -1,0 +1,6 @@
+**/__pycache__
+**/Dockerfile
+
+.git
+.tox
+android/**/build

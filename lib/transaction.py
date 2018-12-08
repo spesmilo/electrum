@@ -695,13 +695,14 @@ class Transaction:
     @profiler
     def estimated_size(self):
         '''Return an estimated tx size in bytes.'''
-        return len(self.serialize(True)) / 2 if not self.is_complete() or self.raw is None else len(self.raw) / 2 # ASCII hex string
+        return (len(self.serialize(True)) // 2 if not self.is_complete() or self.raw is None
+                else len(self.raw) // 2)  # ASCII hex string
 
     @classmethod
     def estimated_input_size(self, txin):
         '''Return an estimated of serialized input size in bytes.'''
         script = self.input_script(txin, True)
-        return len(self.serialize_input(txin, script, True)) / 2
+        return len(self.serialize_input(txin, script, True)) // 2  # ASCII hex string
 
     def signature_count(self):
         r = 0

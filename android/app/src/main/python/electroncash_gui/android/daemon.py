@@ -5,13 +5,8 @@ import sys
 import threading
 
 
-# Stop Java-created threads from being marked as daemon. An exception is made for the thread
-# that Python was started on, but that is now a transient background thread and not the main
-# Java thread.
-#
-# TODO remove once this is incorporated into Chaquopy. Also remove the reference to this module
-# in Splash.kt, which is there to make sure this code is executed before any DummyThreads are
-# created.
+# Stop Java-created threads from being marked as daemon.
+# TODO: remove once this is incorporated into Chaquopy.
 DummyThread_init_original = threading._DummyThread.__init__
 def DummyThread_init(self):
     DummyThread_init_original(self)

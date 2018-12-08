@@ -33,6 +33,9 @@ from . import bitcoin
 from .networks import NetworkConstants
 from .util import format_satoshis_plain
 
+
+DEFAULT_EXPLORER = "Blockchair.com"
+
 mainnet_block_explorers = {
     'Bitcoin.com': ('https://explorer.bitcoin.com/bch',
                     Address.FMT_CASHADDR,
@@ -69,7 +72,7 @@ def BE_tuple(config):
     return BE_info().get(BE_from_config(config))
 
 def BE_from_config(config):
-    return config.get('block_explorer', 'Blockchair.com')
+    return config.get('block_explorer', DEFAULT_EXPLORER)
 
 def BE_URL(config, kind, item):
     be_tuple = BE_tuple(config)

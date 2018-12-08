@@ -15,6 +15,7 @@ BUILDDIR=/tmp/electron-cash-build
 PACKAGE=Electron-Cash
 GIT_REPO_ACCT=https://github.com/Electron-Cash
 GIT_REPO=$GIT_REPO_ACCT/Electron-Cash
+LIBSECP_VERSION=452d8e4d2a2f9f1b5be6b02e18f1ba102e5ca0b4
 
 which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
 
@@ -79,6 +80,18 @@ curl https://homebrew.bintray.com/bottles/libusb-1.0.21.el_capitan.bottle.tar.gz
 tar xz --directory $BUILDDIR
 cp $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib contrib/osx
 DoCodeSignMaybe "libusb" "contrib/osx/libusb-1.0.dylib" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+
+info "Building libsecp256k1"
+git clone https://github.com/bitcoin-core/secp256k1 $BUILDDIR/secp256k1
+pushd $BUILDDIR/secp256k1
+git reset --hard $LIBSECP_VERSION
+git clean -f -x -q
+./autogen.sh
+./configure --enable-module-recovery --enable-experimental --enable-module-ecdh --disable-jni --with-bignum=no
+make
+popd
+cp -fp $BUILDDIR/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx
+DoCodeSignMaybe "libsecp256k1" "contrib/osx/libsecp256k1.0.dylib" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 info "Building CalinsQRReader..."
 d=contrib/osx/CalinsQRReader
