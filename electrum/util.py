@@ -146,6 +146,12 @@ class Satoshis(object):
     def __str__(self):
         return format_satoshis(self.value) + " BTC"
 
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __ne__(self, other):
+        return not (self == other)
+
 
 # note: this is not a NamedTuple as then its json encoding cannot be customized
 class Fiat(object):
@@ -165,6 +171,12 @@ class Fiat(object):
             return _('No Data')
         else:
             return "{:.2f}".format(self.value) + ' ' + self.ccy
+
+    def __eq__(self, other):
+        return self.ccy == other.ccy and self.value == other.value
+
+    def __ne__(self, other):
+        return not (self == other)
 
 
 class MyEncoder(json.JSONEncoder):
