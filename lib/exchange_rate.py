@@ -12,7 +12,7 @@ from decimal import Decimal
 
 from .bitcoin import COIN
 from .i18n import _
-from .util import PrintError, ThreadJob
+from .util import PrintError, ThreadJob, print_error
 
 
 DEFAULT_ENABLED = False
@@ -283,9 +283,9 @@ def get_exchanges_and_currencies():
         exchange = klass(None, None)
         try:
             d[name] = exchange.get_currencies()
-            print(name, "ok")
+            print_error(name, "ok")
         except:
-            print(name, "error")
+            print_error(name, "error")
             continue
     with open(path, 'w', encoding='utf-8') as f:
         f.write(json.dumps(d, indent=4, sort_keys=True))

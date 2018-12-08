@@ -196,7 +196,7 @@ def do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
     # ecdsa.ellipticcurve.Point.__add__ = ...  # TODO??
 
     _patched_functions.monkey_patching_active = True
-    print_error('[ecc] info: libsecp256k1 library found and will be used for ecdsa signing operations.')
+    #print_error('[ecc] info: libsecp256k1 library found and will be used for ecdsa signing operations.')
 
 
 def undo_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1():
