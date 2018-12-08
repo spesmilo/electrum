@@ -76,6 +76,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
+        self.view = None  # type: HistoryList  # set by caller! FIXME...
         self.transactions = OrderedDictWithIndex()
         self.tx_status_cache = {}  # type: Dict[str, Tuple[int, str]]
 
@@ -121,7 +122,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
             return QVariant(d[col])
         if role not in (Qt.DisplayRole, Qt.EditRole):
             if col == 0 and role == Qt.DecorationRole:
-                return QVariant(self.parent.history_list.icon_cache.get(":icons/" +  TX_ICONS[status]))
+                return QVariant(self.view.icon_cache.get(":icons/" +  TX_ICONS[status]))
             elif col == 0 and role == Qt.ToolTipRole:
                 return QVariant(str(conf) + _(" confirmation" + ("s" if conf != 1 else "")))
             elif col > 2 and role == Qt.TextAlignmentRole:
@@ -130,7 +131,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
                 monospace_font = QFont(MONOSPACE_FONT)
                 return QVariant(monospace_font)
             elif col == 2 and role == Qt.DecorationRole and self.parent.wallet.invoices.paid.get(tx_hash):
-                return QVariant(self.parent.history_list.icon_cache.get(":icons/seal"))
+                return QVariant(self.view.icon_cache.get(":icons/seal"))
             elif col in (2, 3) and role == Qt.ForegroundRole and tx_item['value'].value < 0:
                 red_brush = QBrush(QColor("#BC1E1E"))
                 return QVariant(red_brush)
@@ -181,7 +182,8 @@ class HistoryModel(QAbstractItemModel, PrintError):
     def refresh(self, reason: str):
         self.print_error(f"refreshing... reason: {reason}")
         assert self.parent.gui_thread == threading.current_thread(), 'must be called from GUI thread'
-        selected = self.parent.history_list.selectionModel().currentIndex()
+        assert self.view, 'view not set'
+        selected = self.view.selectionModel().currentIndex()
         selected_row = None
         if selected:
             selected_row = selected.row()
@@ -201,20 +203,20 @@ class HistoryModel(QAbstractItemModel, PrintError):
             self.transactions[txid] = tx_item
         self.endInsertRows()
         if selected_row:
-            self.parent.history_list.selectionModel().select(self.createIndex(selected_row, 0), QItemSelectionModel.Rows | QItemSelectionModel.SelectCurrent)
-        f = self.parent.history_list.current_filter
+            self.view.selectionModel().select(self.createIndex(selected_row, 0), QItemSelectionModel.Rows | QItemSelectionModel.SelectCurrent)
+        f = self.view.current_filter
         if f:
-            self.parent.history_list.filter(f)
+            self.view.filter(f)
         # update summary
         self.summary = r['summary']
-        if not self.parent.history_list.years and self.transactions:
+        if not self.view.years and self.transactions:
             start_date = date.today()
             end_date = date.today()
             if len(self.transactions) > 0:
                 start_date = self.transactions.value_from_pos(0).get('date') or start_date
                 end_date = self.transactions.value_from_pos(len(self.transactions) - 1).get('date') or end_date
-            self.parent.history_list.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
-            self.parent.history_list.period_combo.insertItems(1, self.parent.history_list.years)
+            self.view.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
+            self.view.period_combo.insertItems(1, self.view.years)
         # update tx_status_cache
         self.tx_status_cache.clear()
         for txid, tx_item in self.transactions.items():
@@ -223,8 +225,8 @@ class HistoryModel(QAbstractItemModel, PrintError):
 
         history = self.parent.fx.show_history()
         cap_gains = self.parent.fx.get_history_capital_gains_config()
-        hide = self.parent.history_list.hideColumn
-        show = self.parent.history_list.showColumn
+        hide = self.view.hideColumn
+        show = self.view.showColumn
         if history and cap_gains:
             show(5)
             show(6)
@@ -276,9 +278,8 @@ class HistoryModel(QAbstractItemModel, PrintError):
         fiat_cg_title = 'n/a fiat capital gains'
         if fx and fx.show_history():
             fiat_title = '%s '%fx.ccy + _('Value')
-            if fx.get_history_capital_gains_config():
-                fiat_acq_title = '%s '%fx.ccy + _('Acquisition price')
-                fiat_cg_title =  '%s '%fx.ccy + _('Capital Gains')
+            fiat_acq_title = '%s '%fx.ccy + _('Acquisition price')
+            fiat_cg_title =  '%s '%fx.ccy + _('Capital Gains')
         return {
             0: '',
             1: _('Date'),
@@ -292,7 +293,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
 
     def flags(self, idx):
         extra_flags = Qt.NoItemFlags # type: Qt.ItemFlag
-        if idx.column() in self.parent.history_list.editable_columns:
+        if idx.column() in self.view.editable_columns:
             extra_flags |= Qt.ItemIsEditable
         return super().flags(idx) | extra_flags
 

@@ -812,6 +812,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def create_history_tab(self):
         self.history_model = HistoryModel(self)
         self.history_list = l = HistoryList(self, self.history_model)
+        self.history_model.view = self.history_list
         l.searchable_list = l
         toolbar = l.create_toolbar(self.config)
         toolbar_shown = self.config.get('show_toolbar_history', False)
