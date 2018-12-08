@@ -105,7 +105,7 @@ class Round(PrintErrorThread):
             self.messages.packets.ParseFromString(val)
         except Exception as e:
             self.print_error("Decoding error: {}".format(str(error)))
-            self.logchan.send('Decoding Error!')
+            self.logchan.send('Error: Decoding error: {}'.format(str(error)))
             return None
         phase = self.messages.get_phase()
         from_key = self.messages.get_from_key()
@@ -281,7 +281,7 @@ class Round(PrintErrorThread):
                                                                    self.new_addresses,
                                                                    self.change_addresses)
             if self.transaction == None:
-                self.logchan.send("Error: blockchain network fault!")
+                self.logchan.send("Error: Could not make unsigned transaction")
                 self.done = True
                 return
             signatures = self.coin.get_transaction_signature(self.transaction, self.inputs[self.vk], self.sks)
@@ -631,7 +631,7 @@ class Round(PrintErrorThread):
         for player in self.inputs:
             is_funds_sufficient = self.coin.check_inputs_for_sufficient_funds(self.inputs[player], self.amount + self.fee)
             if is_funds_sufficient == None:
-                self.logchan.send("Error: blockchain network fault!")
+                self.logchan.send("Error: Check inputs for sufficient funds failed!")
                 self.done = True
                 return None
             elif not is_funds_sufficient:
