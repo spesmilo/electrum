@@ -1529,9 +1529,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         #if fee > confirm_rate * tx.estimated_size() / 1000:
         #    msg.append(_('Warning') + ': ' + _("The fee for this transaction seems unusually high."))
 
-        if tx.warning_message is not None:
-            msg.append(_('Warning') + ': ' + _(tx.warning_message))
-
         if (fee < (tx.estimated_size())):
             msg.append(_('Warning') + ': ' + _("You're using a fee less than 1000 sats/kb.  It may take a very long time to confirm."))
 
