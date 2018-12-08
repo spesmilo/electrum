@@ -249,7 +249,7 @@ def unfreeze_frozen_by_shuffling(wallet):
     coins_frozen_by_shuffling = wallet.storage.get("coins_frozen_by_shuffling", list())
     if coins_frozen_by_shuffling:
         wallet.set_frozen_coin_state(coins_frozen_by_shuffling, False)
-    wallet.storage.put("coins_frozen_by_shuffling", list())
+    wallet.storage.put("coins_frozen_by_shuffling", None) # deletes key altogether from storage
 
 
 
