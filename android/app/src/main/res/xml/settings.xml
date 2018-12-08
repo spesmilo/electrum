@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!-- Settings which are have defaults in the back end should not be given defaults here.
+     Instead, use Settings.setDefaultValues to get the defaults from the back end. -->
+
+<PreferenceScreen xmlns:tools="http://schemas.android.com/tools"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <PreferenceCategory android:title="@string/network">
+        <SwitchPreference
+            android:key="auto_connect"
+            android:title="@string/select_server_automatically"
+            android:disableDependentsState="true"/>
+        <org.electroncash.electroncash3.ServerPreference
+            android:key="server"
+            android:title="@string/server"
+            android:dependency="auto_connect"/>
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/appearance">
+        <ListPreference
+            android:key="block_explorer"
+            android:title="@string/online_block"
+            tools:summary="Blockchair.com"/>
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/fiat">
+        <SwitchPreference
+            android:key="use_exchange_rate"
+            android:title="@string/enabled"
+            tools:defaultValue="true"/>
+        <ListPreference
+            android:dependency="use_exchange_rate"
+            android:key="currency"
+            android:title="@string/fiat_currency"
+            tools:summary="USD"/>
+        <ListPreference
+            android:dependency="use_exchange_rate"
+            android:key="use_exchange"
+            android:title="@string/source"
+            tools:summary="BitStamp"/>
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/advanced">
+        <Preference
+            android:key="console"
+            android:title="@string/console"/>
+    </PreferenceCategory>
+
+</PreferenceScreen>

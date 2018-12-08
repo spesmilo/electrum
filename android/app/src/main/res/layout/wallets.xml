@@ -45,13 +45,13 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="4dp"
-                android:textAppearance="@style/Value.Large"
+                android:textAppearance="@style/Heavy"
+                android:textSize="28sp"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintStart_toStartOf="@+id/tvWalletName"
                 app:layout_constraintTop_toBottomOf="@+id/tvWalletName"
-                tools:text="0.12345678"/>
+                tools:text="@string/test_value"/>
 
-        <!-- TODO make unit configurable -->
             <TextView
                 android:id="@+id/tvBalanceUnit"
                 android:layout_width="wrap_content"
@@ -60,7 +60,17 @@
                 android:layout_marginStart="4dp"
                 app:layout_constraintBaseline_toBaselineOf="@+id/tvBalance"
                 app:layout_constraintStart_toEndOf="@+id/tvBalance"
-                tools:text="@string/bch"/>
+                tools:text="BCH"/>
+
+            <TextView
+                android:id="@+id/tvFiat"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="4dp"
+                android:layout_marginStart="4dp"
+                app:layout_constraintBaseline_toBaselineOf="@+id/tvBalanceUnit"
+                app:layout_constraintStart_toEndOf="@+id/tvBalanceUnit"
+                tools:text="(9.87 USD)"/>
 
             <ImageView
                 android:id="@+id/imageView2"
@@ -74,49 +84,32 @@
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
-                app:srcCompat="@drawable/ic_chevron_down_black_36dp"/>
+                app:srcCompat="@drawable/ic_chevron_down_36dp"/>
         </android.support.constraint.ConstraintLayout>
 
         <android.support.v7.widget.RecyclerView
             android:id="@+id/rvTransactions"
+            style="@style/List.WithFAB"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:layout_marginBottom="8dp"
             android:layout_marginTop="8dp"
-            android:scrollbars="vertical"
-            app:layout_constraintBottom_toTopOf="@+id/btnSend"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/walletPanel"
-            tools:itemCount="2"
-            tools:listitem="@layout/transaction"/>
+            tools:itemCount="3"
+            tools:listitem="@layout/transaction_list"/>
 
-        <Button
+        <android.support.design.widget.FloatingActionButton
             android:id="@+id/btnSend"
-            android:layout_width="0dp"
+            style="@style/FAB.Main"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:layout_marginLeft="8dp"
-            android:layout_marginStart="8dp"
-            android:text="@string/send"
-            android:enabled="@{model.walletName != null}"
+            android:src="@drawable/ic_send_24dp"
+            android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@+id/btnReceive"
-            app:layout_constraintHorizontal_bias="0.5"
-            app:layout_constraintHorizontal_chainStyle="spread_inside"
-            app:layout_constraintStart_toStartOf="parent"/>
-
-        <Button
-            android:id="@+id/btnReceive"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:layout_marginRight="8dp"
-            android:text="@string/receive"
-            android:enabled="@{model.walletName != null}"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHorizontal_bias="0.5"
-            app:layout_constraintStart_toEndOf="@+id/btnSend"
-            app:layout_constraintTop_toTopOf="@+id/btnSend"/>
+            tools:visibility="visible"/>
+
     </android.support.constraint.ConstraintLayout>
 </layout>

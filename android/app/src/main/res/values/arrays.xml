@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- See electroncash_gui/android/addresses.py. -->
+    <string-array name="address_type">
+        <item>@string/default_</item>
+        <item>@string/receiving</item>
+        <item>@string/change</item>
+    </string-array>
+
+</resources>

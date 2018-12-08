@@ -205,6 +205,12 @@ class Blockchain(util.PrintError):
         with self.lock:
             self.update_size()
 
+    def __repr__(self):
+        return "<{}.{} {}>".format(__name__, type(self).__name__, self.format_base())
+
+    def format_base(self):
+        return "{}@{}".format(self.get_name(), self.get_base_height())
+
     def parent(self):
         return blockchains[self.parent_base_height]
 

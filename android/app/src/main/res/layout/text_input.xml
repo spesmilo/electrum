@@ -7,7 +7,7 @@
     android:layout_height="match_parent">
 
     <TextView
-        android:id="@+id/tvSeedLabel"
+        android:id="@+id/tvPrompt"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginEnd="24dp"
@@ -18,18 +18,19 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        tools:text="@string/please_enter"/>
+        tools:text="@string/please_enter_your_seed_phrase"/>
 
     <EditText
-        android:id="@+id/etSeed"
+        android:id="@+id/etInput"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
-        android:inputType="textMultiLine"
+        android:fontFamily="sans-serif"
+        android:inputType="textMultiLine|textVisiblePassword"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="@+id/tvSeedLabel"
-        app:layout_constraintStart_toStartOf="@+id/tvSeedLabel"
-        app:layout_constraintTop_toBottomOf="@+id/tvSeedLabel"
+        app:layout_constraintEnd_toEndOf="@+id/tvPrompt"
+        app:layout_constraintStart_toStartOf="@+id/tvPrompt"
+        app:layout_constraintTop_toBottomOf="@+id/tvPrompt"
         app:layout_constraintVertical_bias="0.0"
-        tools:text="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor"/>
+        tools:text="@string/lorem"/>
 </android.support.constraint.ConstraintLayout>

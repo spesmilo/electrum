@@ -1,33 +1,71 @@
 <resources>
 
-    <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
-        <!-- Customize your theme here. -->
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
+
+        <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
+        <item name="spinnerStyle">@style/Widget.AppCompat.Spinner.Underlined</item>
     </style>
 
-    <style name="Address">
+    <!-- See https://plus.google.com/+AndroidDevelopers/posts/Z1Wwainpjhd -->
+    <style name="AppTheme.Splash">
+        <item name="android:windowBackground">@drawable/splash</item>
+    </style>
+
+    <style name="List">
+        <item name="android:scrollbars">vertical</item>
+    </style>
+
+    <style name="List.WithFAB">
+        <item name="android:paddingBottom">88dp</item>  <!-- 56dp button plus 16dp top and bottom margins -->
+        <item name="android:clipToPadding">false</item>
+        <item name="android:scrollbarStyle">outsideOverlay</item>
+    </style>
+
+    <style name="Clickable">
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:background">?android:attr/selectableItemBackground</item>
+    </style>
+
+    <!-- FloatingActionButton -->
+    <style name="FAB">
+        <item name="android:tint">#FFFFFF</item>
+    </style>
+    <style name="FAB.Main">
+        <item name="android:layout_marginRight">16dp</item>
+        <item name="android:layout_marginBottom">16dp</item>
+        <item name="fabSize">normal</item>
+    </style>
+    <style name="FAB.Dialog">
+        <item name="fabSize">mini</item>
+    </style>
+
+    <!-- Field importances (use with `textAppearance`). -->
+    <style name="Light">
+        <!-- Currently the same as the default appearance. -->
+        <item name="android:textColor">?android:textColorSecondary</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+    <style name="Medium">
         <item name="android:textColor">?android:textColorPrimary</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+    <style name="Heavy">
+        <item name="android:textColor">?android:textColorPrimary</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- Field types (use with `style`).-->
+    <style name="Address">
+        <item name="android:singleLine">true</item>
         <item name="android:ellipsize">middle</item>
     </style>
-    <style name="Value">
-        <item name="android:textColor">?android:textColorPrimary</item>
-        <item name="android:textStyle">bold</item>
+    <style name="Description">
         <item name="android:singleLine">true</item>
-        <item name="android:ellipsize">end</item>
     </style>
-    <style name="Value.Small">
-        <item name="android:textSize">18sp</item>
-    </style>
-    <style name="Value.Large">
-        <item name="android:textSize">28sp</item>
-    </style>
-    <style name="Timestamp">
-        <item name="android:textColor">?android:textColorPrimary</item>
-        <item name="android:textSize">16sp</item>
-    </style>
-
 
 </resources>

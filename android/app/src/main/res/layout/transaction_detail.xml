@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <android.support.constraint.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="24dp"
+        android:layout_marginRight="24dp">
+
+        <TextView
+            android:id="@+id/tvTitle"
+            style="?android:windowTitleStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginRight="8dp"
+            android:layout_marginTop="20dp"
+            android:maxLines="3"
+            android:singleLine="false"
+            android:text="@string/transaction"
+            app:layout_constraintEnd_toStartOf="@+id/btnExplore"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"/>
+
+        <android.support.design.widget.FloatingActionButton
+            android:id="@+id/btnExplore"
+            style="@style/FAB.Dialog"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginRight="8dp"
+            android:layout_marginTop="14dp"
+            android:clickable="true"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/btnCopy"
+            app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/ic_browser_24dp"/>
+
+        <android.support.design.widget.FloatingActionButton
+            android:id="@+id/btnCopy"
+            style="@style/FAB.Dialog"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/btnExplore"
+            app:srcCompat="@drawable/ic_copy_24dp"/>
+
+    </android.support.constraint.ConstraintLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginLeft="24dp"
+        android:layout_marginRight="24dp"
+        android:layout_weight="1">
+
+        <android.support.constraint.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/textView18"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ID"
+                app:layout_constraintBaseline_toBaselineOf="@+id/tvTxid"
+                app:layout_constraintStart_toStartOf="parent"/>
+
+            <TextView
+                android:id="@+id/tvTxid"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="6dp"
+                android:layout_marginStart="6dp"
+                android:layout_marginTop="4dp"
+                android:textAppearance="@style/Medium"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@+id/barrier5"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:text="@string/test_txid"/>
+
+            <TextView
+                android:id="@+id/textView14"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/date"
+                app:layout_constraintBaseline_toBaselineOf="@+id/tvTimestamp"
+                app:layout_constraintStart_toStartOf="@+id/textView18"/>
+
+            <TextView
+                android:id="@+id/tvTimestamp"
+                style="@style/Address"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="6dp"
+                android:layout_marginStart="6dp"
+                android:layout_marginTop="6dp"
+                android:textAppearance="@style/Medium"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@+id/barrier5"
+                app:layout_constraintTop_toBottomOf="@+id/tvTxid"
+                tools:text="@string/test_timestamp"/>
+
+            <TextView
+                android:id="@+id/textView12"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/status"
+                app:layout_constraintBaseline_toBaselineOf="@+id/tvStatus"
+                app:layout_constraintStart_toStartOf="@+id/textView14"/>
+
+            <TextView
+                android:id="@+id/tvStatus"
+                style="@style/Address"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="6dp"
+                android:layout_marginStart="6dp"
+                android:layout_marginTop="6dp"
+                android:textAppearance="@style/Medium"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@+id/barrier5"
+                app:layout_constraintTop_toBottomOf="@+id/tvTimestamp"
+                tools:text="@string/test_status"/>
+
+            <TextView
+                android:id="@+id/textView16"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/size_nocolon"
+                app:layout_constraintBaseline_toBaselineOf="@+id/tvSize"
+                app:layout_constraintStart_toStartOf="@+id/textView12"/>
+
+            <TextView
+                android:id="@+id/tvSize"
+                style="@style/Address"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="6dp"
+                android:layout_marginStart="6dp"
+                android:layout_marginTop="6dp"
+                android:textAppearance="@style/Medium"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@+id/barrier5"
+                app:layout_constraintTop_toBottomOf="@+id/tvStatus"
+                tools:text="234 bytes"/>
+
+            <TextView
+                android:id="@+id/textView17"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/mining_fee"
+                app:layout_constraintBaseline_toBaselineOf="@+id/tvFee"
+                app:layout_constraintStart_toStartOf="@+id/textView16"/>
+
+            <TextView
+                android:id="@+id/tvFee"
+                style="@style/Address"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="6dp"
+                android:layout_marginStart="6dp"
+                android:layout_marginTop="6dp"
+                android:textAppearance="@style/Medium"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@+id/barrier5"
+                app:layout_constraintTop_toBottomOf="@+id/tvSize"
+                tools:text="@string/test_fee"/>
+
+            <android.support.constraint.Barrier
+                android:id="@+id/barrier5"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:barrierDirection="right"
+                app:constraint_referenced_ids="textView14,textView12,textView16,textView17,textView18"
+                tools:layout_editor_absoluteX="336dp"/>
+
+        </android.support.constraint.ConstraintLayout>
+    </ScrollView>
+</LinearLayout>

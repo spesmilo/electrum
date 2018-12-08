@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".WalletsFragment">
+    <data>
+        <variable
+            name="model"
+            type="org.electroncash.electroncash3.RequestModel"/>
+    </data>
+
+    <android.support.constraint.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        style="@style/Clickable">
+
+        <TextView
+            android:id="@+id/tvValue"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginLeft="16dp"
+            android:layout_marginRight="8dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:text="@{model.amount}"
+            android:textAppearance="@style/Heavy"
+            app:layout_constraintEnd_toStartOf="@+id/tvTimestamp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="@string/test_value"/>
+
+        <TextView
+            android:id="@+id/tvTimestamp"
+            style="@style/Address"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:layout_marginRight="16dp"
+            android:text="@{model.timestamp}"
+            android:textAppearance="@style/Medium"
+            app:layout_constraintBaseline_toBaselineOf="@+id/tvValue"
+            app:layout_constraintEnd_toEndOf="parent"
+            tools:text="@string/test_timestamp"/>
+
+        <TextView
+            android:id="@+id/tvDescription"
+            style="@style/Description"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginRight="8dp"
+            android:text="@{model.description}"
+            android:textAppearance="@style/Medium"
+            app:layout_constraintBaseline_toBaselineOf="@+id/tvStatus"
+            app:layout_constraintEnd_toStartOf="@+id/tvStatus"
+            app:layout_constraintHorizontal_bias="1.0"
+            app:layout_constraintStart_toStartOf="@+id/tvValue"
+            tools:text="@string/lorem"/>
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:layout_marginTop="4dp"
+            android:text="@{model.status}"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="@+id/tvTimestamp"
+            app:layout_constraintTop_toBottomOf="@+id/tvTimestamp"
+            app:layout_constraintVertical_bias="0.0"
+            tools:text="@string/pending"/>
+
+    </android.support.constraint.ConstraintLayout>
+</layout>

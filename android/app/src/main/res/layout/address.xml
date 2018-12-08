@@ -11,7 +11,8 @@
 
     <android.support.constraint.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        style="@style/Clickable">
 
         <TextView
             android:id="@+id/tvAddress"
@@ -25,16 +26,18 @@
             android:layout_marginTop="8dp"
             android:singleLine="true"
             android:text="@{model.addrString}"
+            android:textAppearance="@style/Medium"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            tools:text="qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy"/>
+            tools:text="@string/test_address"/>
 
         <TextView
             android:id="@+id/tvType"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
+            android:layout_marginTop="4dp"
             android:text="@{@stringArray/address_type[model.type]}"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="@+id/tvAddress"

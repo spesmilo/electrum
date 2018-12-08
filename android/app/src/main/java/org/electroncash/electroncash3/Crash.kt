@@ -3,38 +3,17 @@ package org.electroncash.electroncash3
 import android.content.Context
 import android.view.View
 import android.widget.TextView
-import org.acra.ACRA
 import org.acra.config.CoreConfiguration
-import org.acra.config.CoreConfigurationBuilder
 import org.acra.data.CrashReportData
 import org.acra.data.StringFormat
 import org.acra.dialog.CrashReportDialog
 import org.acra.file.CrashReportPersister
 import org.acra.interaction.DialogInteraction
-import org.acra.scheduler.SchedulerStarter
 import org.acra.sender.HttpSender
 import org.acra.sender.ReportSender
 import org.acra.sender.ReportSenderFactory
-import org.acra.util.ApplicationStartupProcessor
 import org.json.JSONObject
 import java.io.File
-
-
-lateinit var acraConfig: CoreConfiguration
-
-fun initAcra(app: App) {
-    // If the user neither approves nor dismisses a report, ACRA will by default show it again
-    // the next time the app starts. But its dialog will appear over the SplashActivity, and
-    // then be hidden a few seconds later by the MainActivity. The `false` parameter below
-    // prevents this; we will call `checkAcra` later once the UI has stabilized.
-    acraConfig = CoreConfigurationBuilder(app).build()
-    ACRA.init(app, acraConfig, false)
-}
-
-fun checkAcra() {
-    ApplicationStartupProcessor(app, acraConfig, SchedulerStarter(app, acraConfig))
-        .checkReports(true)
-}
 
 
 val DIALOG_TEMPLATE =  ("%s %s\n\n" +       // Message
@@ -65,9 +44,7 @@ class CrashhubDialog : CrashReportDialog() {
 
 class CrashhubSenderFactory : ReportSenderFactory {
     override fun create(context: Context, config: CoreConfiguration): ReportSender {
-        // TODO switch to Marcel's server https://crashhub.electroncash.org/crash once
-        // it's back online.
-        return CrashhubSender(config, "https://crashhubtest.bauerj.eu/crash")
+        return CrashhubSender(config, "https://crashhub.electroncash.org/crash")
     }
 }
 

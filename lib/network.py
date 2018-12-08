@@ -45,6 +45,7 @@ from . import blockchain
 from .version import PACKAGE_VERSION, PROTOCOL_VERSION
 
 
+DEFAULT_AUTO_CONNECT = True
 NODES_RETRY_INTERVAL = 60
 SERVER_RETRY_INTERVAL = 10
 
@@ -178,18 +179,9 @@ class Network(util.DaemonThread):
         if self.blockchain_index not in self.blockchains.keys():
             self.blockchain_index = 0
         # Server for addresses and transactions
-        self.default_server = self.config.get('server', None)
         self.blacklisted_servers = set(self.config.get('server_blacklist', []))
         self.print_error("server blacklist: {}".format(self.blacklisted_servers))
-        # Sanitize default server
-        if self.default_server:
-            try:
-                deserialize_server(self.default_server)
-            except:
-                self.print_error('Warning: failed to parse server-string; falling back to random.')
-                self.default_server = None
-        if not self.default_server or self.default_server in self.blacklisted_servers:
-            self.default_server = pick_random_server()
+        self.default_server = self.get_config_server()
 
         self.lock = threading.Lock()
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
@@ -236,7 +228,7 @@ class Network(util.DaemonThread):
         # to or have an ongoing connection with
         self.interface = None                   # note: needs self.interface_lock
         self.interfaces = {}                    # note: needs self.interface_lock
-        self.auto_connect = self.config.get('auto_connect', True)
+        self.auto_connect = self.config.get('auto_connect', DEFAULT_AUTO_CONNECT)
         self.connecting = set()
         self.requested_chunks = set()
         self.socket_queue = queue.Queue()
@@ -464,6 +456,13 @@ class Network(util.DaemonThread):
         self.socket_queue = queue.Queue()
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
+        try:
+            self.save_parameters(host, port, protocol, proxy, auto_connect)
+        except ValueError:
+            return
+        self.load_parameters()
+
+    def save_parameters(self, host, port, protocol, proxy, auto_connect):
         proxy_str = serialize_proxy(proxy)
         server = serialize_server(host, port, protocol)
         # sanitize parameters
@@ -473,14 +472,19 @@ class Network(util.DaemonThread):
                 proxy_modes.index(proxy["mode"]) + 1
                 int(proxy['port'])
         except:
-            return
+            raise ValueError("invalid server or proxy")
+
         self.config.set_key('auto_connect', auto_connect, False)
         self.config.set_key("proxy", proxy_str, False)
         self.config.set_key("server", server, True)
-        # abort if changes were not allowed by config
         if self.config.get('server') != server or self.config.get('proxy') != proxy_str:
-            return
-        self.auto_connect = auto_connect
+            raise ValueError("changes were not allowed by config")
+
+    def load_parameters(self):
+        server = self.get_config_server()
+        protocol = deserialize_server(server)[2]
+        proxy = deserialize_proxy(self.config.get('proxy'))
+        self.auto_connect = self.config.get('auto_connect', DEFAULT_AUTO_CONNECT)
         if self.proxy != proxy or self.protocol != protocol:
             # Restart the network defaulting to the given server
             self.stop_network()
@@ -491,6 +495,18 @@ class Network(util.DaemonThread):
         else:
             self.switch_lagging_interface()
             self.notify('updated')
+
+    def get_config_server(self):
+        server = self.config.get('server', None)
+        if server:
+            try:
+                deserialize_server(server)
+            except:
+                self.print_error('Warning: failed to parse server-string; falling back to random.')
+                server = None
+        if (not server) or (server in self.blacklisted_servers):
+            server = pick_random_server()
+        return server
 
     def switch_to_random_interface(self):
         '''Switch to a random connected server other than the current one'''

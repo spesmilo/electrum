@@ -1,7 +1,5 @@
 package org.electroncash.electroncash3
 
-import android.app.Application
-import android.arch.lifecycle.AndroidViewModel
 import android.arch.lifecycle.MutableLiveData
 import com.chaquo.python.Kwarg
 import com.chaquo.python.PyException
@@ -14,20 +12,25 @@ val py by lazy {
     Python.start(AndroidPlatform(app))
     Python.getInstance()
 }
-val libMod by lazy { py.getModule("electroncash")!! }
-val daemonMod by lazy {
-    val mod =  py.getModule("electroncash_gui.android.daemon")!!
-    mod.callAttr("set_excepthook", mainHandler)
-    mod
-}
+fun libMod(name: String) = py.getModule("electroncash.$name")!!
+fun guiMod(name: String) = py.getModule("electroncash_gui.android.$name")!!
+
+val guiDaemon by lazy { guiMod("daemon") }
 
 val WATCHDOG_INTERVAL = 1000L
 
+lateinit var daemonModel: DaemonModel
+val daemonUpdate = MutableLiveData<Unit>().apply { value = Unit }
 
-class DaemonModel(val app: Application) : AndroidViewModel(app) {
-    val consoleMod = py.getModule("electroncash_gui.android.ec_console")
 
-    val commands = consoleMod.callAttr("AllCommands")!!
+fun initDaemon() {
+    guiDaemon.callAttr("set_excepthook", mainHandler)
+    daemonModel = DaemonModel()
+}
+
+
+class DaemonModel {
+    val commands = guiConsole.callAttr("AndroidCommands", app)!!
     val config = commands.get("config")!!
     val daemon = commands.get("daemon")!!
     val network = commands.get("network")!!
@@ -37,6 +40,7 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     lateinit var callback: Runnable
     lateinit var watchdog: Runnable
 
+    // TODO get rid of these: see onCallback.
     val netStatus = MutableLiveData<NetworkStatus>()
     val walletName = MutableLiveData<String>()
     val walletBalance = MutableLiveData<Long>()
@@ -44,10 +48,9 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
     val addresses = MutableLiveData<PyObject>()
 
     init {
-        checkAcra()
         initCallback()
-        network.callAttr("register_callback", daemonMod.callAttr("make_callback", this),
-                         consoleMod.get("CALLBACKS"))
+        network.callAttr("register_callback", guiDaemon.callAttr("make_callback", this),
+                         guiConsole.get("CALLBACKS"))
         commands.callAttr("start")
 
         // This is still necessary even with the excepthook, in case a thread exits
@@ -83,7 +86,7 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
                     walletBalance.value = null
                 }
                 transactions.value = wallet.callAttr("export_history")
-                addresses.value = modAddresses.callAttr("get_addresses", wallet)
+                addresses.value = guiAddresses.callAttr("get_addresses", wallet)
             } else {
                 for (ld in listOf(walletName, walletBalance, transactions, addresses)) {
                     ld.value = null
@@ -93,19 +96,20 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
         onCallback("ui_create")  // Set initial LiveData values.
     }
 
+    // TODO: migrate everything to daemonUpdate (no need to distinguish between callback types
+    // yet). Then get rid of the other LiveDatas above, and distribute the content of
+    // initCallback to the places which actually use the data. Callback floods will be
+    // mitigated automatically, and only the on-screen data will be queried.
+    //
     // This will sometimes be called on the main thread and sometimes on the network thread.
     fun onCallback(event: String) {
-        mainHandler.removeCallbacks(callback)  // Mitigate callback floods.
-        mainHandler.post(callback)
-    }
-
-    // TODO: when the app is off-screen, the device is rotated, and the app is resumed, all
-    // ViewModels are incorrectly recreated. This is said to be fixed in support library version
-    // 28 (https://stackoverflow.com/a/51475630), but we're not using that yet because the
-    // current pre-release breaks the layout editor in Android Studio 3.1.
-    override fun onCleared() {
-        mainHandler.removeCallbacks(watchdog)
-        commands.callAttr("stop")
+        if (EXCHANGE_CALLBACKS.contains(event)) {
+            fiatUpdate.postValue(Unit)
+        } else {
+            daemonUpdate.postValue(Unit)
+            mainHandler.removeCallbacks(callback)  // Mitigate callback floods.
+            mainHandler.post(callback)
+        }
     }
 
     // TODO remove once Chaquopy provides better syntax.
@@ -119,8 +123,12 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
         return names
     }
 
+    fun createWallet(name: String, password: String, kwargName: String, kwargValue: String) {
+        commands.callAttr("create", name, password, Kwarg(kwargName, kwargValue))
+    }
+
     /** If the password is wrong, throws PyException with the type InvalidPassword. */
-    fun loadWallet(name: String, password: String?) {
+    fun loadWallet(name: String, password: String) {
         val prevName = walletName.value
         commands.callAttr("load_wallet", name, password)
         if (prevName != null && prevName != name) {
@@ -128,26 +136,37 @@ class DaemonModel(val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun makeTx(address: String, amount: Long, password: String? = null,
+    fun makeTx(address: String, amount: Long?, password: String? = null,
                unsigned: Boolean = false): PyObject {
-        if (address.isEmpty()) {
-            throw ToastException(R.string.enter_or)
-        }
-        try {
-            libMod["address"]!!["Address"]!!.callAttr("from_string", address)
-        } catch (e: PyException) {
-            throw if (e.message!!.startsWith("AddressError"))
-                ToastException(R.string.invalid_address) else e
-        }
-        if (amount <= 0) throw ToastException(R.string.invalid_amount)
+        makeAddress(address)
 
-        val outputs = arrayOf(arrayOf(address, formatSatoshis(amount, UNIT_BCH)))
+        val amountStr: String
+        if (amount == null) {
+            amountStr = "!"
+        } else {
+            if (amount <= 0) throw ToastException(R.string.Invalid_amount)
+            amountStr = formatSatoshis(amount, UNIT_BCH)
+        }
+
+        val outputs = arrayOf(arrayOf(address, amountStr))
         try {
             return commands.callAttr("_mktx", outputs, Kwarg("password", password),
                                      Kwarg("unsigned", unsigned))
         } catch (e: PyException) {
             throw if (e.message!!.startsWith("NotEnoughFunds"))
                 ToastException(R.string.insufficient_funds) else e
+        }
+    }
+
+    fun makeAddress(addrStr: String): PyObject {
+        if (addrStr.isEmpty()) {
+            throw ToastException(R.string.enter_or)
+        }
+        try {
+            return clsAddress.callAttr("from_string", addrStr)
+        } catch (e: PyException) {
+            throw if (e.message!!.startsWith("AddressError"))
+                ToastException(R.string.invalid_address) else e
         }
     }
 }

@@ -5,23 +5,23 @@ import os
 from os.path import dirname, exists, join
 import unittest
 
-from electroncash import commands, daemon, keystore, tests, util, version
-from electroncash import main  # electron-cash script, renamed by build.gradle.
-from electroncash.simple_config import SimpleConfig
+from electroncash import commands, daemon, keystore, tests, simple_config, util, version
 from electroncash.storage import WalletStorage
-from electroncash.wallet import Wallet
+from electroncash.wallet import (ImportedAddressWallet, ImportedPrivkeyWallet, Standard_Wallet,
+                                 Wallet)
+
+from android.preference import PreferenceManager
 
 
-# Too noisy: "servers", "interfaces"
-# Unused: "on_quotes", "on_history"
-CALLBACKS = ["updated", "new_transaction", "status", "banner", "verified", "fee"]
+CALLBACKS = ["banner", "fee", "interfaces", "new_transaction", "on_history", "on_quotes",
+             "servers", "status", "updated", "verified"]
 
 
-class ECConsole(InteractiveConsole):
+class AndroidConsole(InteractiveConsole):
     """`interact` must be run on a background thread, because it blocks waiting for input.
     """
-    def __init__(self, context, cmds):
-        namespace = dict(c=cmds, context=context.getApplicationContext())
+    def __init__(self, app, cmds):
+        namespace = dict(c=cmds, context=app)
         namespace.update({name: CommandWrapper(cmds, name) for name in all_commands})
         namespace.update(help=Help())
         InteractiveConsole.__init__(self, locals=namespace)
@@ -67,9 +67,9 @@ class Help:
 
 
 # Adds additional commands which aren't available over JSON RPC.
-class AllCommands(commands.Commands):
-    def __init__(self):
-        super().__init__(SimpleConfig({"verbose": True}), wallet=None, network=None)
+class AndroidCommands(commands.Commands):
+    def __init__(self, app):
+        super().__init__(AndroidConfig(app), wallet=None, network=None)
         fd, server = daemon.get_fd_or_server(self.config)
         if not fd:
             raise Exception("Daemon already running")  # Same wording as in daemon.py.
@@ -137,25 +137,25 @@ class AllCommands(commands.Commands):
             self.wallet = None
             self.network.notify("updated")
 
-    def create(self, name, password=None, seed=None):
+    def create(self, name, password, seed=None, addresses=None, privkeys=None):
         """Create or restore a new wallet"""
         path = self._wallet_path(name)
         if exists(path):
             raise FileExistsError(path)
         storage = WalletStorage(path)
 
-        if seed is None:
-            seed = self.make_seed()
-            print("Your wallet generation seed is:\n\"%s\"" % seed)
-        storage.put('keystore', keystore.from_seed(seed, "", False).dump())
-        storage.put('wallet_type', 'standard')
-        wallet = Wallet(storage)
+        if addresses:
+            wallet = ImportedAddressWallet.from_text(storage, addresses)
+        elif privkeys:
+            wallet = ImportedPrivkeyWallet.from_text(storage, privkeys)
+        else:
+            if seed is None:
+                seed = self.make_seed()
+                print("Your wallet generation seed is:\n\"%s\"" % seed)
+            storage.put('keystore', keystore.from_seed(seed, "", False).dump())
+            wallet = Standard_Wallet(storage)
 
-        if password is None:
-            password = main.prompt_password(
-                "Password (hit return if you do not wish to encrypt your wallet):")
         wallet.update_password(None, password, True)
-        storage.write()
 
     # END commands from the argparse interface.
 
@@ -197,6 +197,38 @@ class AllCommands(commands.Commands):
 
 
 all_commands = commands.known_commands.copy()
-for name, func in vars(AllCommands).items():
+for name, func in vars(AndroidCommands).items():
     if not name.startswith("_"):
         all_commands[name] = commands.Command(func, "")
+
+
+SP_SET_METHODS = {
+    bool: "putBoolean",
+    float: "putFloat",
+    int: "putLong",
+    str: "putString",
+}
+
+# We store the config in the SharedPreferences because it's very easy to base an Android
+# settings UI on that. The reverse approach would be harder (using PreferenceDataStore to make
+# the settings UI access an Electron Cash config file).
+class AndroidConfig(simple_config.SimpleConfig):
+    def __init__(self, app):
+        self.sp = PreferenceManager.getDefaultSharedPreferences(app)
+        super().__init__()
+
+    def get(self, key, default=None):
+        return self.sp.getAll().get(key) if self.sp.contains(key) else default
+
+    def set_key(self, key, value, save=None):
+        spe = self.sp.edit()
+        if value is None:
+            # We can't store null in SharedPreferences, but the default value in `get` means
+            # removing the setting will have the same result.
+            spe.remove(key)
+        else:
+            set_method = SP_SET_METHODS.get(type(value))
+            if not set_method:
+                raise TypeError("Don't know how to set value of type " + type(value).__name__)
+            getattr(spe, set_method)(key, value)
+        spe.apply()
