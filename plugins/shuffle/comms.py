@@ -98,6 +98,7 @@ class Comm(PrintErrorThread):
 
     def close(self):
         if self.socket:
+            self.socket.shutdown(socket.SHUT_RDWR)
             self.socket.close()
 
 
