@@ -675,23 +675,25 @@ class Abstract_Wallet(PrintError):
 
     def get_utxos(self, domain = None, exclude_frozen = False, mature = False, confirmed_only = False):
         ''' Note that exclude_frozen = True checks for BOTH address-level and coin-level frozen status. '''
-        coins = []
-        if domain is None:
-            domain = self.get_addresses()
-        if exclude_frozen:
-            domain = set(domain) - self.frozen_addresses
-        for addr in domain:
-            utxos = self.get_addr_utxo(addr)
-            for x in utxos.values():
-                if exclude_frozen and x['is_frozen_coin']:
-                    continue
-                if confirmed_only and x['height'] <= 0:
-                    continue
-                if mature and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
-                    continue
-                coins.append(x)
-                continue
-        return coins
+        with self.lock:
+            with self.transaction_lock:
+                coins = []
+                if domain is None:
+                    domain = self.get_addresses()
+                if exclude_frozen:
+                    domain = set(domain) - self.frozen_addresses
+                for addr in domain:
+                    utxos = self.get_addr_utxo(addr)
+                    for x in utxos.values():
+                        if exclude_frozen and x['is_frozen_coin']:
+                            continue
+                        if confirmed_only and x['height'] <= 0:
+                            continue
+                        if mature and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
+                            continue
+                        coins.append(x)
+                        continue
+                return coins
 
     def dummy_address(self):
         return self.get_receiving_addresses()[0]

@@ -350,83 +350,84 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             else:
                 signal_stop_thread(thr, message)
 
-    def _make_protocol_thread(self, scale):
-        def get_coin_for_shuffling(scale):
-            # NB: all locks must be held when this is called
+    # NB: all locks must be held when this is called
+    def _make_protocol_thread(self, scale, coins):
+        def get_coin_for_shuffling(scale, coins):
             if not getattr(self.wallet, "is_coin_shuffled", None):
                 raise RuntimeWarning('Wallet lacks is_coin_shuffled method!')
-            if self.wallet.is_up_to_date():
-                coins = self.wallet.get_utxos(exclude_frozen=True, confirmed_only=True )
-                unshuffled_coins = [coin for coin in coins if not self.wallet.is_coin_shuffled(coin)]
-                upper_amount = scale*10 + self.fee
-                lower_amount = scale + self.fee
-                unshuffled_coins_on_scale = [coin for coin in unshuffled_coins if coin['value'] < upper_amount and coin['value'] >= lower_amount]
-                unshuffled_coins_on_scale.sort(key=lambda x: x['value']*100000000 + (100000000-x['height']))
-                if unshuffled_coins_on_scale:
-                    return unshuffled_coins_on_scale[-1]
+            unshuffled_coins = [coin for coin in coins if not self.wallet.is_coin_shuffled(coin)]
+            upper_amount = scale*10 + self.fee
+            lower_amount = scale + self.fee
+            unshuffled_coins_on_scale = [coin for coin in unshuffled_coins if coin['value'] < upper_amount and coin['value'] >= lower_amount]
+            unshuffled_coins_on_scale.sort(key=lambda x: x['value']*100000000 + (100000000-x['height']))
+            if unshuffled_coins_on_scale:
+                return unshuffled_coins_on_scale[-1]
             return None
         # /
-        with self.lock:
-            with self.wallet.lock:
-                with self.wallet.transaction_lock:
-                    coin = get_coin_for_shuffling(scale)
-                    if not coin:
-                        return
-                    try:
-                        private_key = self.wallet.export_private_key(coin['address'], self.get_password())
-                    except InvalidPassword:
-                        # This shouldn't normally happen but can if the user JUST changed their password in the GUI thread
-                        # and we didn't yet get informed of the new password.  In which case we give up for now and 10 seconds later
-                        # (the next 'period' time), this coin will be picked up again.
-                        raise RuntimeWarning('Invalid Password caught when trying to export a private key -- if this keeps happening tell the devs!')
-                    coin_to_freeze = coin['prevout_hash'] + ":" + str(coin['prevout_n'])
-                    self.wallet.set_frozen_coin_state([coin_to_freeze], True)
-                    coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
-                    coins_for_shuffling |= {coin_to_freeze}
-                    self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
-                    inputs= {}
-                    sks = {}
-                    public_key = self.wallet.get_public_key(coin['address'])
-                    sk = regenerate_key(deserialize_privkey(private_key)[1])
-                    utxo_name = "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
-                    inputs[public_key] = [utxo_name]
-                    sks[public_key] = sk
-                    id_sk = generate_random_sk()
-                    id_pub = id_sk.GetPubKey(True).hex()
-                    addresses_on_threads = [Address.from_string(thr.addr_new)
-                                            for sc, thr in self.threads.items() if thr]
-                    output = None
-                    for address in self.wallet.get_unused_addresses():
-                        if address not in addresses_on_threads:
-                            output = address.to_storage_string()
-                            break
-                    output = output or self.wallet.create_new_address(for_change = False).to_storage_string()
-                    change_in_threads = [Address.from_string(thr.change)
-                                         for sc, thr in self.threads.items() if thr]
-                    change = None
-                    for address in self.wallet.get_change_addresses():
-                        if address not in change_in_threads and not self.wallet.get_address_history(address):
-                            change = address.to_storage_string()
-                            break
-                    change = change or self.wallet.create_new_address(for_change = True).to_storage_string()
-            self.print_error("Scale {} Coin {} OutAddr {} Change {} make_protocol_thread".format(scale, utxo_name, output, change))
-            self.threads[scale] = ProtocolThread(self.host, self.port, self.network, utxo_name, 
-                                                 scale, self.fee, id_sk, sks, inputs, id_pub, output, change,
-                                                 logger=self.loggers[scale], ssl=self.ssl, comm_timeout = self.timeout)
-            self.threads[scale].start()
+        coin = get_coin_for_shuffling(scale, coins)
+        if not coin:
+            return
+        try:
+            private_key = self.wallet.export_private_key(coin['address'], self.get_password())
+        except InvalidPassword:
+            # This shouldn't normally happen but can if the user JUST changed their password in the GUI thread
+            # and we didn't yet get informed of the new password.  In which case we give up for now and 10 seconds later
+            # (the next 'period' time), this coin will be picked up again.
+            raise RuntimeWarning('Invalid Password caught when trying to export a private key -- if this keeps happening tell the devs!')
+        utxo_name = "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
+        self.wallet.set_frozen_coin_state([utxo_name], True)
+        coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
+        coins_for_shuffling |= {utxo_name}
+        self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
+        inputs = {}
+        sks = {}
+        public_key = self.wallet.get_public_key(coin['address'])
+        sk = regenerate_key(deserialize_privkey(private_key)[1])
+        inputs[public_key] = [utxo_name]
+        sks[public_key] = sk
+        id_sk = generate_random_sk()
+        id_pub = id_sk.GetPubKey(True).hex()
+        addresses_on_threads = [Address.from_string(thr.addr_new)
+                                for sc, thr in self.threads.items() if thr]
+        output = None
+        for address in self.wallet.get_unused_addresses():
+            if address not in addresses_on_threads:
+                output = address.to_storage_string()
+                break
+        output = output or self.wallet.create_new_address(for_change = False).to_storage_string()
+        change_in_threads = [Address.from_string(thr.change)
+                             for sc, thr in self.threads.items() if thr]
+        change = None
+        for address in self.wallet.get_change_addresses():
+            if address not in change_in_threads and not self.wallet.get_address_history(address):
+                change = address.to_storage_string()
+                break
+        change = change or self.wallet.create_new_address(for_change = True).to_storage_string()
+        self.print_error("Scale {} Coin {} OutAddr {} Change {} make_protocol_thread".format(scale, utxo_name, output, change))
+        self.threads[scale] = ProtocolThread(self.host, self.port, self.network, utxo_name,
+                                             scale, self.fee, id_sk, sks, inputs, id_pub, output, change,
+                                             logger=self.loggers[scale], ssl=self.ssl, comm_timeout = self.timeout)
+        self.threads[scale].start()
+        coins.remove(coin)
 
     def check_for_threads(self):
         if self.stop_flg.is_set(): return
         with self.lock:
-            try:
-                for scale in self.scales:
-                    if not self.threads[scale]:
-                        self._make_protocol_thread(scale)
-            except RuntimeWarning as e:
-                self.print_error("check_for_threads error: {}".format(str(e)))
-            finally:
-                self.threads_timer = threading.Timer(self.period, self.check_for_threads)
-                self.threads_timer.start()
+            with self.wallet.lock:
+                with self.wallet.transaction_lock:
+                    try:
+                        #TODO FIXME XXX -- perhaps also add a mechanism to detect when coins that are in the queue or are being shuffled get reorged or spent
+                        if self.wallet.is_up_to_date():
+                            coins = self.wallet.get_utxos(exclude_frozen = True, confirmed_only = True, mature = True)
+                            for scale in self.scales:
+                                if not coins: break # coins mutates as we iterate so check that we still have candidate coins
+                                if not self.threads[scale]:
+                                    self._make_protocol_thread(scale, coins)
+                    except RuntimeWarning as e:
+                        self.print_error("check_for_threads error: {}".format(str(e)))
+                    finally:
+                        self.threads_timer = threading.Timer(self.period, self.check_for_threads)
+                        self.threads_timer.start()
 
     def join(self):
         with self.lock:

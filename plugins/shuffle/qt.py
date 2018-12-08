@@ -41,6 +41,7 @@ from electroncash_gui.qt.util import OkButton, WindowModalDialog
 from electroncash_gui.qt.password_dialog import PasswordDialog
 from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash.address import Address
+from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.transaction import Transaction
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT
 from electroncash_plugins.shuffle.comms import query_server_for_shuffle_port
@@ -82,9 +83,8 @@ def is_coin_shuffled(wallet, coin, txs_in=None):
         cache[name] = answer
     return answer
 
-def get_shuffled_coins(wallet):
-    with self.wallet.transaction_lock:
-        utxos = wallet.get_utxos()
+def get_shuffled_coins(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
+    utxos = wallet.get_utxos(exclude_frozen = exclude_frozen, mature = mature, confirmed_only = confirmed_only)
     txs = self.wallet.storage.get("transactions", {})
     return [utxo for utxo in utxos if wallet.is_coin_shuffled(utxo, txs)]
 
@@ -101,6 +101,9 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
     elif utxo['height'] <= 0: # not_confirmed
         item.setText(5, "not confirmed")
         item.setData(5, Qt.UserRole+1, "not confirmed")
+    elif utxo['coinbase'] and (utxo['height'] + COINBASE_MATURITY > utxo_list.wallet.get_local_height()): # maturity check
+        item.setText(5, "not mature")
+        item.setData(5, Qt.UserRole+1, "not mature")
     elif utxo['value'] > 10000 and utxo['value']<1000000000: # queued_labels
         item.setText(5, "in queue")
         item.setData(5, Qt.UserRole+1, "in queue")
