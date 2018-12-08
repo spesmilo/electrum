@@ -89,7 +89,7 @@ class AddressDialog(WindowModalDialog):
         vbox.addWidget(QLabel(_("History")))
         addr_hist_model = AddressHistoryModel(self.parent, self.address)
         self.hw = HistoryList(self.parent, addr_hist_model)
-        addr_hist_model.view = self.hw
+        addr_hist_model.set_view(self.hw)
         vbox.addWidget(self.hw)
 
         vbox.addLayout(Buttons(CloseButton(self)))

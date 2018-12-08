@@ -76,9 +76,15 @@ class HistoryModel(QAbstractItemModel, PrintError):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
-        self.view = None  # type: HistoryList  # set by caller! FIXME...
+        self.view = None  # type: HistoryList
         self.transactions = OrderedDictWithIndex()
         self.tx_status_cache = {}  # type: Dict[str, Tuple[int, str]]
+
+    def set_view(self, history_list: 'HistoryList'):
+        # FIXME HistoryModel and HistoryList mutually depend on each other.
+        # After constructing both, this method needs to be called.
+        self.view = history_list  # type: HistoryList
+        self.set_visibility_of_columns()
 
     def columnCount(self, parent: QModelIndex):
         return self.NUM_COLUMNS
