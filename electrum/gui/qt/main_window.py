@@ -114,6 +114,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.gui_object = gui_object
         self.config = config = gui_object.config  # type: SimpleConfig
+        self.gui_thread = gui_object.gui_thread
 
         self.setup_exception_hook()
 

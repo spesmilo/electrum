@@ -27,10 +27,12 @@ import webbrowser
 import datetime
 from datetime import date
 from typing import TYPE_CHECKING, Tuple, Dict
+import threading
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
-from electrum.util import block_explorer_URL, profiler, print_error, TxMinedInfo
+from electrum.util import (block_explorer_URL, profiler, print_error, TxMinedInfo,
+                           PrintError)
 
 from .util import *
 
@@ -67,7 +69,8 @@ class HistorySortModel(QSortFilterProxyModel):
             return False
         return item1.value() < item2.value()
 
-class HistoryModel(QAbstractItemModel):
+class HistoryModel(QAbstractItemModel, PrintError):
+
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
@@ -171,6 +174,8 @@ class HistoryModel(QAbstractItemModel):
         return self.parent.wallet.get_addresses()
 
     def refresh(self, reason: str):
+        self.print_error(f"refreshing... reason: {reason}")
+        assert self.parent.gui_thread == threading.current_thread(), 'must be called from GUI thread'
         selected = self.parent.history_list.selectionModel().currentIndex()
         selected_row = None
         if selected:
@@ -288,7 +293,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                     return True
             return False
 
-    def __init__(self, parent, model):
+    def __init__(self, parent, model: HistoryModel):
         super().__init__(parent, self.create_menu, 2)
         self.hm = model
         self.proxy = HistorySortModel(self)
