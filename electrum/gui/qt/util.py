@@ -407,7 +407,10 @@ class ElectrumItemDelegate(QStyledItemDelegate):
         def on_commitData(editor: QLineEdit):
             new_text = editor.text()
             idx = QModelIndex(self.opened)
-            _prior_text, user_role = self.tv.text_txid_from_coordinate(idx.row(), idx.column())
+            row, col = idx.row(), idx.column()
+            _prior_text, user_role = self.tv.text_txid_from_coordinate(row, col)
+            # check that we didn't forget to set UserRole on an editable field
+            assert user_role is not None, (row, col)
             self.tv.on_edited(idx, user_role, new_text)
         self.closeEditor.connect(on_closeEditor)
         self.commitData.connect(on_commitData)
@@ -509,8 +512,6 @@ class MyTreeView(QTreeView):
         idx = self.model().index(row_num, column)
         item = self.model().itemFromIndex(idx)
         user_role = item.data(Qt.UserRole)
-        # check that we didn't forget to set UserRole on an editable field
-        assert user_role is not None, (row_num, column)
         return item.text(), user_role
 
     def hide_row(self, row_num):
