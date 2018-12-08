@@ -75,4 +75,8 @@ class Plugin(LabelsPlugin):
 
     @hook
     def on_close_window(self, window):
+        try:
+            self.obj.labels_changed_signal.disconnect(window.update_tabs)
+        except TypeError:
+            pass  # 'method' object is not connected
         self.stop_wallet(window.wallet)

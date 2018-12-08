@@ -794,7 +794,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_tabs()
 
-    def update_tabs(self):
+    def update_tabs(self, wallet=None):
+        if wallet is None:
+            wallet = self.wallet
+        if wallet != self.wallet:
+            return
         self.history_list.update()
         self.request_list.update()
         self.address_list.update()
