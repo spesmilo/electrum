@@ -333,7 +333,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 # tell Qt about failure to connect
                 fwd_message(thr, message)
             signal_stop_thread(thr, message) # sends request to shared channel. our thread will join
-        elif message.endswith(" shuffle_txid"): # TXID message -- forward to GUI so it can call "set_label"
+        elif message.startswith("shuffle_txid:"): # TXID message -- forward to GUI so it can call "set_label"
             fwd_message(thr, message)
         elif message.endswith("complete protocol"):
             signal_stop_thread(thr, message) # sends request to shared channel

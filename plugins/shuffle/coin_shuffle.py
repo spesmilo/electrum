@@ -326,14 +326,14 @@ class Round(PrintErrorThread):
                         return
                     self.signatures.update(player_signatures)
             self.coin.add_transaction_signatures(self.transaction, self.signatures)
-            msg, status = self.coin.broadcast_transaction(self.transaction)
-            if msg == None and status == None:
+            res, status = self.coin.broadcast_transaction(self.transaction)
+            if not res:
                 self.logchan.send("Error: blockchain network fault!")
+                self.print_error("Error broadcasting tx: res='{}' status='{}'".format(res, status))
             else:
-                self.log_message(str(status))
                 self.tx = self.transaction
                 if self.tx.txid():
-                    self.log_message("{} shuffle_txid".format(self.tx.txid()))
+                    self.logchan.send("shuffle_txid: {}".format(self.tx.txid()))
                 self.log_message("complete protocol")
             self.done = True
 

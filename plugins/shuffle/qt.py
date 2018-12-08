@@ -127,13 +127,7 @@ def update_coin_status(window, coin_name, msg):
         return
     #print_error("[shuffle] wallet={}; Coin {} Message '{}'".format(window.wallet.basename(), coin_name, msg.strip()))
     if coin_name not in ("MAINLOG", "PROTOCOL"):
-        if msg.endswith(" shuffle_txid"): # TXID message -- call "set_label"
-            words = msg.split()
-            if len(words) >= 2:
-                txid = words[-2]
-                window.wallet.set_label(txid, _("CashShuffle Transaction"))
-                window.update_wallet()
-        elif msg.startswith("Player") and coin_name not in window.utxo_list.in_progress:
+        if msg.startswith("Player") and coin_name not in window.utxo_list.in_progress:
             if "get session number" in msg:
                 window.utxo_list.in_progress[coin_name] = 'wait for others'
                 window.utxo_list.update()
@@ -155,6 +149,12 @@ def update_coin_status(window, coin_name, msg):
             if coin_name in window.utxo_list.in_progress:
                 del window.utxo_list.in_progress[coin_name]
                 window.utxo_list.update()
+        elif msg.startswith("shuffle_txid:"): # TXID message -- call "set_label"
+            words = msg.split()
+            if len(words) >= 2:
+                txid = words[1]
+                window.wallet.set_label(txid, _("CashShuffle"))
+                window.update_wallet()
 
         if not msg.startswith("Error"):
             window.cashshuffle_set_flag(0) # 0 means ok

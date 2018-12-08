@@ -6,6 +6,7 @@ from electroncash.bitcoin import (
 from electroncash.transaction import Transaction, int_to_hex
 from electroncash.address import Address
 import ecdsa
+from .client import PrintErrorThread
 
 def address_from_public_key(public_key):
     "get address from public key"
@@ -14,7 +15,7 @@ def address_from_public_key(public_key):
 
 
 
-class Coin(object):
+class Coin(PrintErrorThread):
     """
     it is a class for interaction with blockchain interaction
     will be fake functions for now
@@ -165,10 +166,13 @@ class Coin(object):
             return False
 
     def broadcast_transaction(self, transaction):
-        try:
-            return self.network.broadcast_transaction(transaction)
-        except:
-            return None, None
+        err = "Not connected."
+        if self.network and self.network.is_connected():
+            try:
+                return self.network.broadcast_transaction(transaction)
+            except BaseException as e:
+                err = "Exception on broadcast: {}".format(err)
+        return False, err
 
     def verify_signature(self, signature, message, verification_key):
         "This method verifies signature of message"
