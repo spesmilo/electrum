@@ -1,4 +1,5 @@
 from .client import PrintErrorThread
+from electroncash.util import profiler
 
 class Round(PrintErrorThread):
     """
@@ -586,6 +587,7 @@ class Round(PrintErrorThread):
 
 # Functions for working with messages
 
+    @profiler
     def check_for_signatures(self):
         """
         Check for signature in packets in the messages objec.
@@ -662,6 +664,7 @@ class Round(PrintErrorThread):
                 return False
             return False
 
+    @profiler
     def broadcast_new_key(self):
         """Broadcasts the encryption keys for phase 2 (Shufflings)"""
         self.phase = 'Announcement'
