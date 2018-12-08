@@ -247,8 +247,15 @@ class HistoryModel(QAbstractItemModel, PrintError):
         tx_item.update(fiat_fields)
         self.dataChanged.emit(idx, idx, [Qt.DisplayRole, Qt.ForegroundRole])
 
-    def update_item(self, *args):
-        self.refresh('update_item')
+    def update_tx_mined_status(self, tx_hash: str, tx_mined_info: TxMinedInfo):
+        self.tx_status_cache[tx_hash] = self.parent.wallet.get_tx_status(tx_hash, tx_mined_info)
+        try:
+            row = self.transactions.pos_from_key(tx_hash)
+        except KeyError:
+            return
+        topLeft = self.createIndex(row, 0)
+        bottomRight = self.createIndex(row, self.NUM_COLUMNS-1)
+        self.dataChanged.emit(topLeft, bottomRight)
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: Qt.ItemDataRole):
         assert orientation == Qt.Horizontal
