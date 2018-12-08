@@ -257,6 +257,15 @@ class HistoryModel(QAbstractItemModel, PrintError):
         bottomRight = self.createIndex(row, self.NUM_COLUMNS-1)
         self.dataChanged.emit(topLeft, bottomRight)
 
+    def on_fee_histogram(self):
+        for tx_hash, tx_item in self.transactions.items():
+            tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
+            if tx_mined_info.conf > 0:
+                # note: we could actually break here if we wanted to rely on the order of txns in self.transactions
+                continue
+            self.tx_status_cache[tx_hash] = self.parent.wallet.get_tx_status(tx_hash, tx_mined_info)
+            self.update_tx_mined_status(tx_hash, tx_mined_info)
+
     def headerData(self, section: int, orientation: Qt.Orientation, role: Qt.ItemDataRole):
         assert orientation == Qt.Horizontal
         if role != Qt.DisplayRole:
