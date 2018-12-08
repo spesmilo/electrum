@@ -113,6 +113,11 @@ cp libusb/MS32/dll/libusb-1.0.dll $WINEPREFIX/drive_c/python$PYTHON_VERSION/
 #unzip -o upx.zip
 #cp upx*/upx.exe .
 
+# libsecp256k1
+mkdir -p $WINEPREFIX/drive_c/tmp
+cp /tmp/electrum-build/secp256k1/libsecp256k1.dll $WINEPREFIX/drive_c/tmp/
+
+
 # add dlls needed for pyinstaller:
 cp $WINEPREFIX/drive_c/python$PYTHON_VERSION/Lib/site-packages/PyQt5/Qt/bin/* $WINEPREFIX/drive_c/python$PYTHON_VERSION/
 
