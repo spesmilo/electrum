@@ -532,7 +532,7 @@ class MyTreeView(QTreeView):
                 self.setRowHidden(row_num, QModelIndex(), bool(should_hide))
                 break
         else:
-            # we did not find the filter in any columns, show the item
+            # we did not find the filter in any columns, hide the item
             self.setRowHidden(row_num, QModelIndex(), True)
 
     def filter(self, p):

@@ -71,7 +71,7 @@ class HistorySortModel(QSortFilterProxyModel):
 
 class HistoryModel(QAbstractItemModel, PrintError):
 
-    NUM_COLUMNS = 8
+    NUM_COLUMNS = 9
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -118,6 +118,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
                 5: tx_item['fiat_value'].value if 'fiat_value' in tx_item else None,
                 6: tx_item['acquisition_price'].value if 'acquisition_price' in tx_item else None,
                 7: tx_item['capital_gain'].value if 'capital_gain' in tx_item else None,
+                8: tx_hash,
             }
             return QVariant(d[col])
         if role not in (Qt.DisplayRole, Qt.EditRole):
@@ -161,6 +162,8 @@ class HistoryModel(QAbstractItemModel, PrintError):
         elif col == 7 and 'capital_gain' in tx_item:
             cg = tx_item['capital_gain'].value
             return QVariant(self.parent.fx.format_fiat(cg))
+        elif col == 8:
+            return QVariant(tx_hash)
         return None
 
     def parent(self, index: QModelIndex):
@@ -222,11 +225,16 @@ class HistoryModel(QAbstractItemModel, PrintError):
         for txid, tx_item in self.transactions.items():
             tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
             self.tx_status_cache[txid] = self.parent.wallet.get_tx_status(txid, tx_mined_info)
+        self.set_visibility_of_columns()
 
-        history = self.parent.fx.show_history()
-        cap_gains = self.parent.fx.get_history_capital_gains_config()
+    def set_visibility_of_columns(self):
         hide = self.view.hideColumn
         show = self.view.showColumn
+        # txid
+        hide(8)
+        # fiat
+        history = self.parent.fx.show_history()
+        cap_gains = self.parent.fx.get_history_capital_gains_config()
         if history and cap_gains:
             show(5)
             show(6)
@@ -289,6 +297,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
             5: fiat_title,
             6: fiat_acq_title,
             7: fiat_cg_title,
+            8: 'TXID',
         }[section]
 
     def flags(self, idx):
@@ -305,7 +314,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
         return tx_mined_info
 
 class HistoryList(MyTreeView, AcceptFileDragDrop):
-    filter_columns = [1, 2, 3]  # Date, Description, Amount
+    filter_columns = [1, 2, 3, 8]  # Date, Description, Amount, TXID
 
     def tx_item_from_proxy_row(self, proxy_row):
         hm_idx = self.model().mapToSource(self.model().index(proxy_row, 0))
@@ -340,7 +349,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.editable_columns |= {5}
 
         self.header().setStretchLastSection(False)
-        for col in range(8):
+        for col in range(HistoryModel.NUM_COLUMNS):
             sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
             self.header().setSectionResizeMode(col, sm)
 
