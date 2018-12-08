@@ -355,7 +355,10 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         def get_coin_for_shuffling(scale, coins):
             if not getattr(self.wallet, "is_coin_shuffled", None):
                 raise RuntimeWarning('Wallet lacks is_coin_shuffled method!')
-            unshuffled_coins = [coin for coin in coins if not self.wallet.is_coin_shuffled(coin)]
+            unshuffled_coins = [coin for coin in coins
+                                # Note: the 'is False' is intentional -- we are interested in coins that we know for SURE are not shuffled.
+                                # is_coin_shuffled() also returns None in cases where the tx isn't in the history (a rare occurrence)
+                                if self.wallet.is_coin_shuffled(coin) is False]
             upper_amount = scale*10 + self.fee
             lower_amount = scale + self.fee
             unshuffled_coins_on_scale = [coin for coin in unshuffled_coins if coin['value'] < upper_amount and coin['value'] >= lower_amount]

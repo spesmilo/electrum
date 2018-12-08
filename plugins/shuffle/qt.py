@@ -56,9 +56,14 @@ def is_coin_shuffled(wallet, coin, txs_in=None):
         # check cache, if cache hit, return answer and avoid the lookup below
         return answer
     def doChk():
-        txs = txs_in or wallet.storage.get("transactions", {})
+        if txs_in:
+            txs = txs_in
+        else:
+            with wallet.lock:
+                with wallet.transaction_lock:
+                    txs = wallet.transactions
         if tx_id in txs:
-            tx = Transaction(txs[tx_id])
+            tx = txs[tx_id]
             outputs = tx.outputs()
             inputs_len = len(tx.inputs())
             outputs_groups = {}
@@ -84,8 +89,10 @@ def is_coin_shuffled(wallet, coin, txs_in=None):
     return answer
 
 def get_shuffled_coins(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
-    utxos = wallet.get_utxos(exclude_frozen = exclude_frozen, mature = mature, confirmed_only = confirmed_only)
-    txs = self.wallet.storage.get("transactions", {})
+    with wallet.lock:
+        with wallet.transaction_lock:
+            utxos = wallet.get_utxos(exclude_frozen = exclude_frozen, mature = mature, confirmed_only = confirmed_only)
+            txs = self.wallet.transactions
     return [utxo for utxo in utxos if wallet.is_coin_shuffled(utxo, txs)]
 
 def my_custom_item_setup(utxo_list, utxo, name, item):
