@@ -98,6 +98,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
         tx_hash = tx_item['txid']
         conf = tx_item['confirmations']
         txpos = tx_item['txpos_in_block'] or 0
+        height = tx_item['height']
         try:
             status, status_str = self.tx_status_cache[tx_hash]
         except KeyError:
@@ -106,7 +107,9 @@ class HistoryModel(QAbstractItemModel, PrintError):
         if role == Qt.UserRole:
             # for sorting
             d = {
-                0: (status, conf, -txpos),
+                # height breaks ties for unverified txns
+                # txpos breaks ties for verified same block txns
+                0: (status, conf, -height, -txpos),
                 1: status_str,
                 2: tx_item['label'],
                 3: tx_item['value'].value,
