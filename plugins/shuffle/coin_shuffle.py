@@ -330,8 +330,10 @@ class Round(PrintErrorThread):
                 self.logchan.send("Error: blockchain network fault!")
             else:
                 self.log_message(str(status))
-                self.log_message("complete protocol")
                 self.tx = self.transaction
+                if self.tx.txid():
+                    self.log_message("{} shuffle_txid".format(self.tx.txid()))
+                self.log_message("complete protocol")
             self.done = True
 
 #Processing the Blame phases

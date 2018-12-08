@@ -173,7 +173,6 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
             return
         self.start_protocol()
 
-
     def stop(self):
         "This method stops the protocol threads"
         if self.execution_thread:
@@ -334,6 +333,10 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 # tell Qt about failure to connect
                 fwd_message(thr, message)
             signal_stop_thread(thr, message) # sends request to shared channel. our thread will join
+        elif message.endswith(" shuffle_txid"):
+            l = message.split()
+            txid = l[-2] if len(l) >= 2 else ''
+            if txid: self.wallet.set_label(txid, "CashShuffle Transaction")
         elif message.endswith("complete protocol"):
             signal_stop_thread(thr, message) # sends request to shared channel
         elif message.startswith("Player"):
