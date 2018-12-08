@@ -1007,7 +1007,9 @@ class OrderedDictWithIndex(OrderedDict):
     Note: very inefficient to modify contents, except to add new items.
     """
 
-    _key_to_pos = {}
+    def __init__(self):
+        super().__init__()
+        self._key_to_pos = {}
 
     def _recalc_key_to_pos(self):
         self._key_to_pos = {key: pos for (pos, key) in enumerate(self.keys())}
