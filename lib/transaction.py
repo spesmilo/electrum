@@ -413,7 +413,6 @@ class Transaction:
         self._outputs = None
         self.locktime = 0
         self.version = 1
-        self.warning_message = None
         
         # Ephemeral meta-data used internally to keep track of interesting things.
         # This is currently written-to by coinchooser to tell UI code about 'dust_to_fee', which

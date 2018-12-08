@@ -104,8 +104,6 @@ class CoinChooserBase(PrintError):
         return penalty
 
     def change_amounts(self, tx, count, fee_estimator, dust_threshold):
-        
-
         # Break change up if bigger than max_change
         output_amounts = [o[2] for o in tx.outputs()]
         # Don't split change of less than 0.02 BTC
@@ -113,8 +111,8 @@ class CoinChooserBase(PrintError):
 
         # Use N change outputs
         for n in range(1, count + 1):
-            # How much is left if we add this many change outputs?  
-            change_amount = max(0, tx.get_fee() - fee_estimator(n))  
+            # How much is left if we add this many change outputs?
+            change_amount = max(0, tx.get_fee() - fee_estimator(n))
             if change_amount // n <= max_change:
                 break
 
@@ -132,7 +130,6 @@ class CoinChooserBase(PrintError):
         # Calculate change; randomize it a bit if using more than 1 output
         remaining = change_amount
         amounts = []
-
         while n > 1:
             average = remaining / n
             amount = self.p.randint(int(average * 0.7), int(average * 1.3))
@@ -154,8 +151,7 @@ class CoinChooserBase(PrintError):
 
     def change_outputs(self, tx, change_addrs, fee_estimator, dust_threshold):
         amounts = self.change_amounts(tx, len(change_addrs), fee_estimator,
-                                      dust_threshold) 
-
+                                      dust_threshold)
         assert min(amounts) >= 0
         assert len(change_addrs) >= len(amounts)
         # If change is above dust threshold after accounting for the
@@ -170,116 +166,18 @@ class CoinChooserBase(PrintError):
         return change, dust
 
     def make_tx(self, coins, outputs, change_addrs, fee_estimator,
-                dust_threshold, shuffled_coins = None):
+                dust_threshold):
         '''Select unspent coins to spend to pay outputs.  If the change is
         greater than dust_threshold (after adding the change output to
         the transaction) it is kept, otherwise none is sent and it is
         added to the transaction fee.'''
- 
-        if shuffled_coins is not None:
 
-            #set a higher dust threshold because we don't want to leave "taint bombs" lying around the wallet.
-            dust_threshold=10000
-
-            #counter
-            num_inputs=0
-            num_outputs=0
-     
-            #Get total outputs
-            total_output=0
-            for output in outputs:
-                total_output+=output[2]
-                num_outputs+=1        
-
-
-            ### Loop through all shuffled first
-
-            #Build a list (sorted by amount) of all shuffled UTXO by combining available coins with those designated as shuffled in the wallet file.
-            sorted_shuffled_coins = list(filter(lambda coin: "{}:{}".format(coin["prevout_hash"], coin['prevout_n']) in shuffled_coins, coins)) 
-            sorted_shuffled_coins.sort(reverse=True, key=lambda coin:coin['value'])
-
-            total_input=0
-            tx = Transaction.from_io([], outputs)
-            base_size = tx.estimated_size()
-            total_output_adjusted=total_output
-            for coin in sorted_shuffled_coins:
-                if total_output_adjusted>total_input:
-                    
-                    #Add inputs 
-                    tx.add_inputs([coin])
-                    num_inputs+=1
-                    total_input+=coin['value']
-                    #Add change outputs
-                    my_estimated_fee=44+(180*num_inputs)+(34*(num_outputs+1))
-
-                    tx_size = base_size + 180*num_inputs
-                    fee = lambda count: fee_estimator(tx_size + count * 34) 
-                    change, dust = self.change_outputs(tx, change_addrs, fee, dust_threshold) 
-                    total_output_adjusted=total_output_adjusted+my_estimated_fee 
-                    
-            if total_input >= total_output_adjusted:
-                  inputs_chosen_done=1
-            else:
-                #all shuffled are not enough, try all unshuffled...
-                #Build a list (sorted by amount) of all UNshuffled UTXO by combining available coins with those designated as shuffled in the wallet file.
-                sorted_unshuffled_coins = list(filter(lambda coin: "{}:{}".format(coin["prevout_hash"], coin['prevout_n']) not in shuffled_coins,coins))
-                sorted_unshuffled_coins.sort(reverse=True, key=lambda coin:coin['value'])
-                total_input=0
-                tx = Transaction.from_io([], outputs)
-                for coin in sorted_unshuffled_coins:
-                    if total_output_adjusted>total_input: 
-                        #Add inputs
-                        tx.add_inputs([coin])
-                        num_inputs+=1
-                        total_input+=coin['value']
-                        #Add change outputs
-                        my_estimated_fee=44+(180*num_inputs)+(34*(num_outputs+1))
-
-                        tx_size = base_size + 180*num_inputs
-                        fee = lambda count: fee_estimator(tx_size + count * 34)
-                        change, dust = self.change_outputs(tx, change_addrs, fee, dust_threshold)
-                        total_output_adjusted=total_output  
-                        total_output_adjusted=total_output_adjusted+my_estimated_fee  
-                        tx.warning_message="You are using unshuffled UTXO."
-                if total_input>=total_output_adjusted:
-                    inputs_chosen_done=1
-                else:           
-                    #if still not enough, add back in shuffled...
-                    for coin in sorted_shuffled_coins:
-                        if total_output_adjusted>total_input: 
-                            #Add inputs
-                            tx.add_inputs([coin])
-                            num_inputs+=1
-                            total_input+=coin['value'] 
-                            #Add change outputs
-                            my_estimated_fee=44+(180*num_inputs)+(34*(num_outputs+1))
-
-                            tx_size = base_size + 180*num_inputs
-                            fee = lambda count: fee_estimator(tx_size + count * 34) 
-                            change, dust = self.change_outputs(tx, change_addrs, fee, dust_threshold) 
-                            total_output_adjusted=total_output
-                            total_output_adjusted=total_output_adjusted+my_estimated_fee   
-                            tx.warning_message="You are using both shuffled and unshuffled UTXO."
-            if total_input >= total_output_adjusted:
-                    inputs_chosen_done=1
-                    tx.add_outputs(change)
-                    tx.ephemeral['dust_to_fee'] = dust
-            else:
-                raise NotEnoughFunds()
-
- 
-                
-            return tx
-        
-        ### Non Cash Shuffle below ... 
- 
-
-        # Copy the ouputs so when adding change we don't modify "outputs"
-        tx = Transaction.from_io([], outputs)
         # Deterministic randomness from coins
         utxos = [c['prevout_hash'] + str(c['prevout_n']) for c in coins]
         self.p = PRNG(''.join(sorted(utxos)))
 
+        # Copy the ouputs so when adding change we don't modify "outputs"
+        tx = Transaction.from_io([], outputs)
         # Size of the transaction with no inputs and no change
         base_size = tx.estimated_size()
         spent_amount = tx.output_value()
@@ -291,32 +189,24 @@ class CoinChooserBase(PrintError):
             total_size = sum(bucket.size for bucket in buckets) + base_size
             return total_input >= spent_amount + fee_estimator(total_size)
 
-    
- 
         # Collect the coins into buckets, choose a subset of the buckets
         buckets = self.bucketize_coins(coins)
- 
         buckets = self.choose_buckets(buckets, sufficient_funds,
                                       self.penalty_func(tx))
-
-         
 
         tx.add_inputs([coin for b in buckets for coin in b.coins])
         tx_size = base_size + sum(bucket.size for bucket in buckets)
 
-        
-        
         # This takes a count of change outputs and returns a tx fee;
         # each pay-to-bitcoin-address output serializes as 34 bytes
         fee = lambda count: fee_estimator(tx_size + count * 34)
         change, dust = self.change_outputs(tx, change_addrs, fee, dust_threshold)
- 
         tx.add_outputs(change)
         tx.ephemeral['dust_to_fee'] = dust
 
         self.print_error("using %d inputs" % len(tx.inputs()))
         self.print_error("using buckets:", [bucket.desc for bucket in buckets])
-       
+
         return tx
 
     def choose_buckets(self, buckets, sufficient_funds, penalty_func):

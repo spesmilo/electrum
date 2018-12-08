@@ -62,7 +62,6 @@ from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .paymentrequest import InvoiceStore
 from .contacts import Contacts
 
-
 TX_STATUS = [
     _('Unconfirmed parent'),
     _('Low fee'),
@@ -150,7 +149,6 @@ def sweep(privkeys, network, config, recipient, fee=None, imax=100):
     tx.BIP_LI01_sort()
     tx.sign(keypairs)
     return tx
-
 
 
 class Abstract_Wallet(PrintError):
@@ -727,36 +725,6 @@ class Abstract_Wallet(PrintError):
         assert isinstance(address, Address)
         return self._history.get(address, [])
 
-
-    def cashshuffle_add_utxo_to_list(self,txid,prevout_n,value, outputs):
-        num_outputs_standard_bitcoin = 0
-        num_outputs_standard_deci_bitcoin = 0
-        num_outputs_standard_centi_bitcoin = 0
-        num_outputs_standard_milli_bitcoin = 0
-        num_outputs_standard_hectomicro_bitcoin = 0
-
-        for output in outputs:
-            amount = output[2]
-            if amount==100000000:
-                num_outputs_standard_bitcoin+=1
-            if amount==10000000:
-                num_outputs_standard_deci_bitcoin+=1
-            if amount==1000000:
-                num_outputs_standard_centi_bitcoin+=1
-            if amount==100000:
-                num_outputs_standard_milli_bitcoin+=1
-            if amount==10000:
-                num_outputs_standard_hectomicro_bitcoin+=1
-
-        if num_outputs_standard_bitcoin > 2 or num_outputs_standard_deci_bitcoin > 2 or num_outputs_standard_centi_bitcoin > 2 or num_outputs_standard_milli_bitcoin > 2 or num_outputs_standard_hectomicro_bitcoin >2:
-            if value == 100000000 or value == 10000000 or value == 1000000 or value == 100000 or value == 10000:
-                shuffled_coins = set(self.storage.get('shuffled_coins',[]))
-                coinstring=txid+":"+str(prevout_n)
-                shuffled_coins.add(coinstring)
-                self.storage.put('shuffled_coins', list(shuffled_coins))
-                self.storage.write()
-        return True
-
     def add_transaction(self, tx_hash, tx):
         is_coinbase = tx.inputs()[0]['type'] == 'coinbase'
         with self.transaction_lock:
@@ -785,7 +753,6 @@ class Abstract_Wallet(PrintError):
             for n, txo in enumerate(tx.outputs()):
                 ser = tx_hash + ':%d'%n
                 _type, addr, v = txo
-                self.cashshuffle_add_utxo_to_list(prevout_hash,prevout_n,v, tx.outputs())
                 if self.is_mine(addr):
                     if not addr in d:
                         d[addr] = []
@@ -800,7 +767,6 @@ class Abstract_Wallet(PrintError):
                     dd[addr].append((ser, v))
             # save
             self.transactions[tx_hash] = tx
-
 
     def remove_transaction(self, tx_hash):
         with self.transaction_lock:
@@ -1041,11 +1007,9 @@ class Abstract_Wallet(PrintError):
         if i_max is None:
             # Let the coin chooser select the coins to spend
             max_change = self.max_change_outputs if self.multiple_change else 1
-
             coin_chooser = coinchooser.CoinChooserPrivacy()
-            shuffled_coins = self.storage.get('shuffled_coins', None)
             tx  = coin_chooser.make_tx(inputs, outputs, change_addrs[:max_change],
-                                      fee_estimator, self.dust_threshold(), shuffled_coins)
+                                      fee_estimator, self.dust_threshold())
 
         else:
             sendable = sum(map(lambda x:x['value'], inputs))
