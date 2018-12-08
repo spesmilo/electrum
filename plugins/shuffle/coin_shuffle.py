@@ -68,9 +68,13 @@ class Round(PrintErrorThread):
         assert (self.amount > 0), "Wrong amount for transction"
         self.log_message("begins CoinShuffle protocol " + " with " +
                          str(self.number_of_players) + " players.")
-        if self.blame_insufficient_funds():
-            self.broadcast_new_key()
-        self.protocol_loop()
+        try:
+            if self.blame_insufficient_funds():
+                self.broadcast_new_key()
+            self.protocol_loop()
+        except OSError as e: # Socket closed or timed out
+            self.print_error(str(e))
+            self.logchan.send("Error: Socket closed or timed out")
 
 # Main Loop
     def protocol_loop(self):
@@ -81,13 +85,9 @@ class Round(PrintErrorThread):
         it process the the incoming messages (process inbox).
         It does it in the loop until done flag will be rised
         """
-        try:
-            while not self.done:
-                if self.inchan_to_inbox():
-                    self.process_inbox()
-        except OSError as e: # Socket closed or timed out
-            self.print_error(str(e))
-            self.logchan.send("Socket closed or timed out")
+        while not self.done:
+            if self.inchan_to_inbox():
+                self.process_inbox()
 
 # General processing of incoming messages
     def inchan_to_inbox(self):

@@ -295,7 +295,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 else:
                     self.print_error("WARNING: Stale stop_thread message for Scale: '{}' Coin: '{}', thread not in list, ignoring!".format(scale,sender))
             elif self.logger:
-                self.print_error("--> Fwd msg to Qt for: Scale='{}' Sender='{}' Msg='{}'".format(scale, sender, message))
+                #self.print_error("--> Fwd msg to Qt for: Scale='{}' Sender='{}' Msg='{}'".format(scale, sender, message.strip()))
                 self.logger.send(message, sender)
 
     def stop_protocol_thread(self, scale, message):
@@ -327,16 +327,14 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         if not thr:
             self.print_error("WARNING: Thread for scale {} not FOUND! Ignoring...  (Message = '{}')".format(scale, message))
             return
-        self.print_error("Scale: {} Message: '{}'".format(scale, message))
+        self.print_error("Scale: {} Message: '{}'".format(scale, message.strip()))
         if message.startswith("Error"):
             if message.find(ERR_SERVER_CONNECT) != -1:
                 # tell Qt about failure to connect
                 fwd_message(thr, message)
             signal_stop_thread(thr, message) # sends request to shared channel. our thread will join
-        elif message.endswith(" shuffle_txid"):
-            l = message.split()
-            txid = l[-2] if len(l) >= 2 else ''
-            if txid: self.wallet.set_label(txid, "CashShuffle Transaction")
+        elif message.endswith(" shuffle_txid"): # TXID message -- forward to GUI so it can call "set_label"
+            fwd_message(thr, message)
         elif message.endswith("complete protocol"):
             signal_stop_thread(thr, message) # sends request to shared channel
         elif message.startswith("Player"):

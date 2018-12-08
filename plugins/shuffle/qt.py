@@ -35,7 +35,7 @@ from PyQt5.QtWidgets import *
 
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
-from electroncash.util import print_error
+from electroncash.util import print_error, profiler
 from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton
 from electroncash_gui.qt.util import OkButton, WindowModalDialog
 from electroncash_gui.qt.password_dialog import PasswordDialog
@@ -45,7 +45,6 @@ from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.transaction import Transaction
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT
 from electroncash_plugins.shuffle.comms import query_server_for_shuffle_port
-
 
 def is_coin_shuffled(wallet, coin, txs_in=None):
     cache = getattr(wallet, "_is_shuffled_cache", dict())
@@ -88,6 +87,7 @@ def is_coin_shuffled(wallet, coin, txs_in=None):
         cache[name] = answer
     return answer
 
+@profiler
 def get_shuffled_coins(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
     with wallet.lock:
         with wallet.transaction_lock:
@@ -101,39 +101,36 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
     frozenstring = item.data(0, Qt.UserRole+1) or ""
     if utxo_list.wallet.is_coin_shuffled(utxo):  # already shuffled
         item.setText(5, "shuffled")
-        item.setData(5, Qt.UserRole+1, "shuffled")
     elif frozenstring.find("a") > -1 or frozenstring.find("c") > -1:
         item.setText(5, "user frozen")
-        item.setData(5, Qt.UserRole+1, "user frozen")
     elif utxo['height'] <= 0: # not_confirmed
         item.setText(5, "not confirmed")
-        item.setData(5, Qt.UserRole+1, "not confirmed")
     elif utxo['coinbase'] and (utxo['height'] + COINBASE_MATURITY > utxo_list.wallet.get_local_height()): # maturity check
         item.setText(5, "not mature")
-        item.setData(5, Qt.UserRole+1, "not mature")
     elif utxo['value'] > 10000 and utxo['value']<1000000000: # queued_labels
         item.setText(5, "in queue")
-        item.setData(5, Qt.UserRole+1, "in queue")
     elif utxo['value'] >= 1000000000: # too big
         item.setText(5, "coin too big")
-        item.setData(5, Qt.UserRole+1, "coin too big")
     elif utxo['value'] <= 10000: # dust
         item.setText(5, "coin too small")
-        item.setData(5, Qt.UserRole+1, "coin too small")
 
     if utxo_list.in_progress.get(name) == 'in progress': # in progress
         item.setText(5, "in progress")
-        item.setData(5, Qt.UserRole+1, "in progress")
     if utxo_list.in_progress.get(name) == "wait for others": # wait for others
         item.setText(5, "wait for others")
-        item.setData(5, Qt.UserRole+1, "wait for others")
-
 
 def update_coin_status(window, coin_name, msg):
     if getattr(window.utxo_list, "in_progress", None) is None:
         return
-    if coin_name not in ["MAINLOG", "PROTOCOL"]:
-        if msg.startswith("Player") and coin_name not in window.utxo_list.in_progress:
+    #print_error("[shuffle] wallet={}; Coin {} Message '{}'".format(window.wallet.basename(), coin_name, msg.strip()))
+    if coin_name not in ("MAINLOG", "PROTOCOL"):
+        if msg.endswith(" shuffle_txid"): # TXID message -- call "set_label"
+            words = msg.split()
+            if len(words) >= 2:
+                txid = words[-2]
+                window.wallet.set_label(txid, _("CashShuffle Transaction"))
+                window.update_wallet()
+        elif msg.startswith("Player") and coin_name not in window.utxo_list.in_progress:
             if "get session number" in msg:
                 window.utxo_list.in_progress[coin_name] = 'wait for others'
                 window.utxo_list.update()
@@ -151,7 +148,7 @@ def update_coin_status(window, coin_name, msg):
             if coin_name in window.utxo_list.in_progress:
                 del window.utxo_list.in_progress[coin_name]
                 window.utxo_list.update()
-        elif msg.startswith("Blame") and "insufficient" not in message and "wrong hash" not in message:
+        elif msg.startswith("Blame") and "insufficient" not in msg and "wrong hash" not in msg:
             if coin_name in window.utxo_list.in_progress:
                 del window.utxo_list.in_progress[coin_name]
                 window.utxo_list.update()
