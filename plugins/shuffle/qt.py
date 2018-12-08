@@ -35,6 +35,7 @@ from PyQt5.QtWidgets import *
 
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
+from electroncash.util import print_error
 from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton
 from electroncash_gui.qt.util import OkButton, WindowModalDialog
 from electroncash_gui.qt.password_dialog import PasswordDialog
@@ -119,7 +120,7 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
 
 
 def update_coin_status(window, coin_name, msg):
-    if getattr(window.utxo_list, "in_progress", None) == None:
+    if getattr(window.utxo_list, "in_progress", None) is None:
         return
     if coin_name not in ["MAINLOG", "PROTOCOL"]:
         if msg.startswith("Player") and coin_name not in window.utxo_list.in_progress:
@@ -177,42 +178,79 @@ def start_background_shuffling(window, network_settings, period = 10, password=N
                                                           timeout = 300.0)
     window.background_process.start()
 
-def modify_utxo_list(window):
-    header = window.utxo_list.headerItem()
-    header_labels = [header.text(i) for i in range(header.columnCount())]
-    header_labels.append(_("Shuffle status"))
-    window.utxo_list.update_headers(header_labels)
-    window.utxo_list.in_progress = {}
+def monkey_patches_apply(window):
+    def patch_window(window):
+        if getattr(window, '_shuffle_patched_', None):
+            return
+        window.background_process = None
+        window._shuffle_patched_ = True
+        print_error("[shuffle] Patched window")
 
-def restore_utxo_list(window):
-    header = window.utxo_list.headerItem()
-    header_labels = [header.text(i) for i in range(header.columnCount())]
-    del header_labels[-1]
-    window.utxo_list.update_headers(header_labels)
-    window.utxo_list.in_progress = None
-    delattr(window.utxo_list, "in_progress")
+    def patch_utxo_list(utxo_list):
+        if getattr(utxo_list, '_shuffle_patched_', None):
+            return
+        header = utxo_list.headerItem()
+        header_labels = [header.text(i) for i in range(header.columnCount())]
+        header_labels.append(_("Shuffle status"))
+        utxo_list.update_headers(header_labels)
+        utxo_list.in_progress = {}
+        utxo_list._shuffle_patched_ = True
+        print_error("[shuffle] Patched utxo_list")
 
+    def patch_wallet(wallet):
+        if getattr(wallet, '_shuffle_patched_', None):
+            return
+        wallet.is_coin_shuffled = lambda coin: is_coin_shuffled(wallet, coin)
+        wallet.get_shuffled_coins = lambda: get_shuffled_coins(wallet)
+        wallet._is_shuffled_cache = dict()
+        unfreeze_frozen_by_shuffling(wallet)
+        wallet._shuffle_patched_ = True
+        print_error("[shuffle] Patched wallet")
+
+    patch_wallet(window.wallet)
+    patch_utxo_list(window.utxo_list)
+    patch_window(window)
+
+def monkey_patches_remove(window):
+    def restore_window(window):
+        if not getattr(window, '_shuffle_patched_', None):
+            return
+        delattr(window, 'background_process')
+        delattr(window, '_shuffle_patched_')
+        print_error("[shuffle] Unpatched window")
+
+    def restore_utxo_list(utxo_list):
+        if not getattr(utxo_list, '_shuffle_patched_', None):
+            return
+        header = utxo_list.headerItem()
+        header_labels = [header.text(i) for i in range(header.columnCount())]
+        del header_labels[-1]
+        utxo_list.update_headers(header_labels)
+        utxo_list.in_progress = None
+        delattr(window.utxo_list, "in_progress")
+        delattr(window.utxo_list, '_shuffle_patched_')
+        print_error("[shuffle] Unpatched utxo_list")
+
+    def restore_wallet(wallet):
+        if not getattr(wallet, '_shuffle_patched_', None):
+            return
+        delattr(wallet, "is_coin_shuffled")
+        delattr(wallet, "get_shuffled_coins")
+        delattr(wallet, "_is_shuffled_cache")
+        delattr(wallet, '_shuffle_patched_')
+        unfreeze_frozen_by_shuffling(wallet)
+        print_error("[shuffle] Unpatched wallet")
+
+    restore_window(window)
+    restore_utxo_list(window.utxo_list)
+    restore_wallet(window.wallet)
 
 def unfreeze_frozen_by_shuffling(wallet):
-    coins_frozen_by_shuffling = wallet.storage.get("coins_frozen_by_shuffling", [])
+    coins_frozen_by_shuffling = wallet.storage.get("coins_frozen_by_shuffling", list())
     if coins_frozen_by_shuffling:
         wallet.set_frozen_coin_state(coins_frozen_by_shuffling, False)
-    wallet.storage.put("coins_frozen_by_shuffling", None)
+    wallet.storage.put("coins_frozen_by_shuffling", list())
 
-def modify_wallet(wallet):
-    wallet.is_coin_shuffled = lambda coin: is_coin_shuffled(wallet, coin)
-    wallet.get_shuffled_coins = lambda: get_shuffled_coins(wallet)
-    wallet._is_shuffled_cache = dict()
-    unfreeze_frozen_by_shuffling(wallet)
-
-def restore_wallet(wallet):
-    if getattr(wallet, "is_coin_shuffled", None):
-        delattr(wallet, "is_coin_shuffled")
-    if getattr(wallet, "get_shuffled_coins", None):
-        delattr(wallet, "get_shuffled_coins")
-    if getattr(wallet, "_is_shuffled_cache", None):
-        delattr(wallet, "_is_shuffled_cache")
-    unfreeze_frozen_by_shuffling(wallet)
 
 
 class Plugin(BasePlugin):
@@ -298,14 +336,9 @@ class Plugin(BasePlugin):
         network_settings = copy.deepcopy(network_settings)
         network_settings['host'] = network_settings.pop('server')
         network_settings["network"] = window.network
-        window.update_cashshuffle_icon()
-        window.cs_tab = None
-        modify_utxo_list(window)
-        modify_wallet(window.wallet)
+        monkey_patches_apply(window)
         self.windows.append(window)
         window.update_status()
-        # console modification
-        window.console.updateNamespace({"start_background_shuffling": lambda *args, **kwargs: start_background_shuffling(window, *args, **kwargs)})
         window.utxo_list.update()
         start_background_shuffling(window, network_settings, period = 10, password=password)
 
@@ -326,18 +359,15 @@ class Plugin(BasePlugin):
         if window not in self.windows:
             return
         title = window.windowTitle() if window and window.windowTitle() else "UNKNOWN WINDOW"
-        if getattr(window, "background_process", None):
+        if window.background_process:
             self.print_error("Joining background_process...")
             window.background_process.join()
             window.background_process = None
             self.print_error("Window '{}' closed, ended shuffling for its wallet".format(title))
-        restore_utxo_list(window)
-        restore_wallet(window.wallet)
-        if window.console.namespace.get("start_background_shuffling", None):
-            del window.console.namespace["start_background_shuffling"]
+        self.windows.remove(window)
+        monkey_patches_remove(window)
         window.utxo_list.update()
         window.update_status()
-        self.windows.remove(window)
         self.print_error("Window '{}' removed".format(title))
 
     @hook
