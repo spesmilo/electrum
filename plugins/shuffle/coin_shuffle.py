@@ -499,6 +499,7 @@ class Round(PrintErrorThread):
                     self.inbox = {self.messages.phases[phase]:{} for phase in self.messages.phases}
                     self.broadcast_new_key()
 
+    @profiler
     def check_for_shuffling(self):
         """
         This function implemets checking for shuffling form messages after shuffling failureself.

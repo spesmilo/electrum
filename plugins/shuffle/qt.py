@@ -100,24 +100,27 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
         return
     frozenstring = item.data(0, Qt.UserRole+1) or ""
     if utxo_list.wallet.is_coin_shuffled(utxo):  # already shuffled
-        item.setText(5, "shuffled")
+        item.setText(5, _("Shuffled"))
     elif frozenstring.find("a") > -1 or frozenstring.find("c") > -1:
-        item.setText(5, "user frozen")
+        item.setText(5, _("User frozen"))
     elif utxo['height'] <= 0: # not_confirmed
-        item.setText(5, "not confirmed")
+        item.setText(5, _("Unconfirmed"))
     elif utxo['coinbase'] and (utxo['height'] + COINBASE_MATURITY > utxo_list.wallet.get_local_height()): # maturity check
-        item.setText(5, "not mature")
+        item.setText(5, _("Not mature"))
     elif utxo['value'] > 10000 and utxo['value']<1000000000: # queued_labels
-        item.setText(5, "in queue")
+        if utxo_list.wallet.network and utxo_list.wallet.network.is_connected():
+            item.setText(5, _("In queue"))
+        else:
+            item.setText(5, _("Offline"))
     elif utxo['value'] >= 1000000000: # too big
-        item.setText(5, "coin too big")
+        item.setText(5, _("Too big"))
     elif utxo['value'] <= 10000: # dust
-        item.setText(5, "coin too small")
+        item.setText(5, _("Too small"))
 
     if utxo_list.in_progress.get(name) == 'in progress': # in progress
-        item.setText(5, "in progress")
+        item.setText(5, _("In progress"))
     if utxo_list.in_progress.get(name) == "wait for others": # wait for others
-        item.setText(5, "wait for others")
+        item.setText(5, _("Wait for others"))
 
 def update_coin_status(window, coin_name, msg):
     if getattr(window.utxo_list, "in_progress", None) is None:

@@ -421,7 +421,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 with self.wallet.transaction_lock:
                     try:
                         #TODO FIXME XXX -- perhaps also add a mechanism to detect when coins that are in the queue or are being shuffled get reorged or spent
-                        if self.wallet.is_up_to_date():
+                        if self.wallet.is_up_to_date() and self.wallet.network and self.wallet.network.is_connected():
                             coins = self.wallet.get_utxos(exclude_frozen = True, confirmed_only = True, mature = True)
                             for scale in self.scales:
                                 if not coins: break # coins mutates as we iterate so check that we still have candidate coins
