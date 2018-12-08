@@ -1010,46 +1010,54 @@ class OrderedDictWithIndex(OrderedDict):
     def __init__(self):
         super().__init__()
         self._key_to_pos = {}
+        self._pos_to_key = {}
 
-    def _recalc_key_to_pos(self):
+    def _recalc_index(self):
         self._key_to_pos = {key: pos for (pos, key) in enumerate(self.keys())}
+        self._pos_to_key = {pos: key for (pos, key) in enumerate(self.keys())}
 
-    def get_pos_of_key(self, key):
+    def pos_from_key(self, key):
         return self._key_to_pos[key]
+
+    def value_from_pos(self, pos):
+        key = self._pos_to_key[pos]
+        return self[key]
 
     def popitem(self, *args, **kwargs):
         ret = super().popitem(*args, **kwargs)
-        self._recalc_key_to_pos()
+        self._recalc_index()
         return ret
 
     def move_to_end(self, *args, **kwargs):
         ret = super().move_to_end(*args, **kwargs)
-        self._recalc_key_to_pos()
+        self._recalc_index()
         return ret
 
     def clear(self):
         ret = super().clear()
-        self._recalc_key_to_pos()
+        self._recalc_index()
         return ret
 
     def pop(self, *args, **kwargs):
         ret = super().pop(*args, **kwargs)
-        self._recalc_key_to_pos()
+        self._recalc_index()
         return ret
 
     def update(self, *args, **kwargs):
         ret = super().update(*args, **kwargs)
-        self._recalc_key_to_pos()
+        self._recalc_index()
         return ret
 
     def __delitem__(self, *args, **kwargs):
         ret = super().__delitem__(*args, **kwargs)
-        self._recalc_key_to_pos()
+        self._recalc_index()
         return ret
 
     def __setitem__(self, key, *args, **kwargs):
         is_new_key = key not in self
         ret = super().__setitem__(key, *args, **kwargs)
         if is_new_key:
-            self._key_to_pos[key] = len(self) - 1
+            pos = len(self) - 1
+            self._key_to_pos[key] = pos
+            self._pos_to_key[pos] = key
         return ret

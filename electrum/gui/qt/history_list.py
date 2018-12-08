@@ -32,7 +32,7 @@ import threading
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
 from electrum.util import (block_explorer_URL, profiler, print_error, TxMinedInfo,
-                           PrintError)
+                           OrderedDictWithIndex, PrintError)
 
 from .util import *
 
@@ -71,14 +71,16 @@ class HistorySortModel(QSortFilterProxyModel):
 
 class HistoryModel(QAbstractItemModel, PrintError):
 
+    NUM_COLUMNS = 8
+
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
-        self.transactions = []
+        self.transactions = OrderedDictWithIndex()
         self.tx_status_cache = {}  # type: Dict[str, Tuple[int, str]]
 
     def columnCount(self, parent: QModelIndex):
-        return 8
+        return self.NUM_COLUMNS
 
     def rowCount(self, parent: QModelIndex):
         return len(self.transactions)
@@ -92,15 +94,15 @@ class HistoryModel(QAbstractItemModel, PrintError):
         # assert self.checkIndex(index, indexIsValid)
         assert index.isValid()
         col = index.column()
-        tx_item = self.transactions[index.row()]
+        tx_item = self.transactions.value_from_pos(index.row())
         tx_hash = tx_item['txid']
         conf = tx_item['confirmations']
         txpos = tx_item['txpos_in_block'] or 0
         try:
             status, status_str = self.tx_status_cache[tx_hash]
         except KeyError:
-            tx_mined_status = TxMinedInfo(height=tx_item['height'], conf=conf, timestamp=tx_item['timestamp'])
-            status, status_str = self.parent.wallet.get_tx_status(tx_hash, tx_mined_status)
+            tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
+            status, status_str = self.parent.wallet.get_tx_status(tx_hash, tx_mined_info)
         if role == Qt.UserRole:
             # for sorting
             d = {
@@ -164,7 +166,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
         return not index.isValid()
 
     def update_label(self, row):
-        tx_item = self.transactions[row]
+        tx_item = self.transactions.value_from_pos(row)
         tx_item['label'] = self.parent.wallet.get_label(tx_item['txid'])
         topLeft = bottomRight = self.createIndex(row, 2)
         self.dataChanged.emit(topLeft, bottomRight, [Qt.DisplayRole])
@@ -183,7 +185,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
         fx = self.parent.fx
         if fx: fx.history_used_spot = False
         r = self.parent.wallet.get_full_history(domain=self.get_domain(), from_timestamp=None, to_timestamp=None, fx=fx)
-        if r['transactions'] == self.transactions:
+        if r['transactions'] == list(self.transactions.values()):
             return
         old_length = len(self.transactions)
         if old_length != 0:
@@ -191,7 +193,9 @@ class HistoryModel(QAbstractItemModel, PrintError):
             self.transactions.clear()
             self.endRemoveRows()
         self.beginInsertRows(QModelIndex(), 0, len(r['transactions'])-1)
-        self.transactions = r['transactions']
+        for tx_item in r['transactions']:
+            txid = tx_item['txid']
+            self.transactions[txid] = tx_item
         self.endInsertRows()
         if selected_row:
             self.parent.history_list.selectionModel().select(self.createIndex(selected_row, 0), QItemSelectionModel.Rows | QItemSelectionModel.SelectCurrent)
@@ -204,18 +208,15 @@ class HistoryModel(QAbstractItemModel, PrintError):
             start_date = date.today()
             end_date = date.today()
             if len(self.transactions) > 0:
-                start_date = self.transactions[0].get('date') or start_date
-                end_date = self.transactions[-1].get('date') or end_date
+                start_date = self.transactions.value_from_pos(0).get('date') or start_date
+                end_date = self.transactions.value_from_pos(len(self.transactions) - 1).get('date') or end_date
             self.parent.history_list.years = [str(i) for i in range(start_date.year, end_date.year + 1)]
             self.parent.history_list.period_combo.insertItems(1, self.parent.history_list.years)
         # update tx_status_cache
         self.tx_status_cache.clear()
-        for tx_item in self.transactions:
-            txid = tx_item['txid']
-            tx_mined_status = TxMinedInfo(height=tx_item['height'],
-                                          conf=tx_item['confirmations'],
-                                          timestamp=tx_item['timestamp'])
-            self.tx_status_cache[txid] = self.parent.wallet.get_tx_status(txid, tx_mined_status)
+        for txid, tx_item in self.transactions.items():
+            tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
+            self.tx_status_cache[txid] = self.parent.wallet.get_tx_status(txid, tx_mined_info)
 
         history = self.parent.fx.show_history()
         cap_gains = self.parent.fx.get_history_capital_gains_config()
@@ -235,7 +236,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
             hide(7)
 
     def update_fiat(self, row, idx):
-        tx_item = self.transactions[row]
+        tx_item = self.transactions.value_from_pos(row)
         key = tx_item['txid']
         fee = tx_item.get('fee')
         value = tx_item['value'].value
@@ -276,12 +277,19 @@ class HistoryModel(QAbstractItemModel, PrintError):
             extra_flags |= Qt.ItemIsEditable
         return super().flags(idx) | extra_flags
 
+    @staticmethod
+    def tx_mined_info_from_tx_item(tx_item):
+        tx_mined_info = TxMinedInfo(height=tx_item['height'],
+                                    conf=tx_item['confirmations'],
+                                    timestamp=tx_item['timestamp'])
+        return tx_mined_info
+
 class HistoryList(MyTreeView, AcceptFileDragDrop):
     filter_columns = [1, 2, 3]  # Date, Description, Amount
 
     def tx_item_from_proxy_row(self, proxy_row):
         hm_idx = self.model().mapToSource(self.model().index(proxy_row, 0))
-        return self.hm.transactions[hm_idx.row()]
+        return self.hm.transactions.value_from_pos(hm_idx.row())
 
     def should_hide(self, proxy_row):
         if self.start_timestamp and self.end_timestamp:
@@ -439,7 +447,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 _("Perhaps some dependencies are missing...") + " (matplotlib?)")
             return
         try:
-            plt = plot_history(list(self.transactions.values()))
+            plt = plot_history(list(self.hm.transactions.values()))
             plt.show()
         except NothingToPlotException as e:
             self.parent.show_message(str(e))
@@ -447,7 +455,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
     def on_edited(self, index, user_role, text):
         index = self.model().mapToSource(index)
         row, column = index.row(), index.column()
-        tx_item = self.hm.transactions[row]
+        tx_item = self.hm.transactions.value_from_pos(row)
         key = tx_item['txid']
         # fixme
         if column == 2:
@@ -485,7 +493,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         if not idx.isValid():
             # can happen e.g. before list is populated for the first time
             return
-        tx_item = self.hm.transactions[idx.row()]
+        tx_item = self.hm.transactions.value_from_pos(idx.row())
         column = idx.column()
         if column == 0:
             column_title = _('Transaction ID')
@@ -614,5 +622,5 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
 
     def text_txid_from_coordinate(self, row, col):
         idx = self.model().mapToSource(self.model().index(row, col))
-        tx_item = self.hm.transactions[idx.row()]
+        tx_item = self.hm.transactions.value_from_pos(idx.row())
         return self.hm.data(idx, Qt.DisplayRole).value(), tx_item['txid']
