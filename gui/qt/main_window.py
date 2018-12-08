@@ -215,7 +215,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # update fee slider in case we missed the callback
         self.fee_slider.update()
         self.load_wallet(wallet)
-
         self.connect_slots(gui_object.timer)
         self.fetch_alias()
 
