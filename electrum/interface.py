@@ -247,7 +247,7 @@ class Interface(PrintError):
         return sslc
 
     def handle_disconnect(func):
-        async def wrapper_func(self, *args, **kwargs):
+        async def wrapper_func(self: 'Interface', *args, **kwargs):
             try:
                 return await func(self, *args, **kwargs)
             except GracefulDisconnect as e:
@@ -380,7 +380,9 @@ class Interface(PrintError):
             await self.session.send_request('server.ping')
 
     async def close(self):
-        await self.group.cancel_remaining()
+        if self.session:
+            await self.session.close()
+        # monitor_connection will cancel tasks
 
     async def run_fetch_blocks(self):
         header_queue = asyncio.Queue()
