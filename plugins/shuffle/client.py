@@ -154,6 +154,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         self.done.wait()
         self.execution_thread.join()
 
+    @not_time_to_die
     def run(self):
         "this method trying to run the round and catch possible problems with it"
         try:
@@ -175,11 +176,12 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
 
     def stop(self):
         "This method stops the protocol threads"
-        if self.execution_thread:
+        if self.protocol:
             self.protocol.done = True
         self.done.set()
         self.comm.close()
         if self.execution_thread and self.execution_thread.is_alive():
+            self.protocol.done = True
             self.execution_thread.join()
             self.print_error("Joined execution thread")
 
@@ -230,7 +232,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.wallet = wallet
         self.host = network_settings.get("host", None)
         self.info_port = network_settings.get("info", None)
-        self.port = 8080 # default value -- will get set to real value from server's stat port in run() method
+        self.port = 1337 # default value -- will get set to real value from server's stat port in run() method
         self.ssl = network_settings.get("ssl", None)
         self.network = network_settings.get("network", None)
         self.fee = fee

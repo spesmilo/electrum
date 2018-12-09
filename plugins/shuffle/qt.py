@@ -359,7 +359,7 @@ class Plugin(BasePlugin):
         self.windows.append(window)
         window.update_status()
         window.utxo_list.update()
-        start_background_shuffling(window, network_settings, period = 10, password=password)
+        start_background_shuffling(window, network_settings, period = 10.0, password=password)
 
     @hook
     def utxo_list_item_setup(self, utxo_list, x, name, item):
@@ -506,7 +506,7 @@ class Plugin(BasePlugin):
                     server_ok = True
         if ns:
             self.save_network_settings(window, ns)
-            if restart_ask and ns != selected:
+            if restart_ask: #and ns != selected:
                 window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
         return ns
 

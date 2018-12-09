@@ -76,6 +76,8 @@ class Round(PrintErrorThread):
         except OSError as e: # Socket closed or timed out
             self.print_error(str(e))
             self.logchan.send("Error: Socket closed or timed out")
+        finally:
+            self.done = True
 
 # Main Loop
     def protocol_loop(self):
