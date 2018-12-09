@@ -1,6 +1,6 @@
 FROM ubuntu:18.04
 
-ENV VERSION 1.0.2
+ENV VERSION 1.0.6
 
 RUN set -x \
     && apt-get update \
