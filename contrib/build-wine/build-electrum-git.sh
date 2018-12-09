@@ -47,7 +47,7 @@ pushd electrum-locale
 for i in ./locale/*; do
     dir=$i/LC_MESSAGES
     mkdir -p $dir
-    msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
+    msgfmt --output-file=$dir/electron-cash.mo $i/electron-cash.po || true
 done
 popd
 
