@@ -50,19 +50,17 @@ from electrum.storage import STO_EV_USER_PW
 from electrum.network import Network
 
 def get_signing_xpub(xtype):
-    if xtype == 'standard':
-        if constants.net.TESTNET:
-            return "tpubD6NzVbkrYhZ4XdmyJQcCPjQfg6RXVUzGFhPjZ7uvRC8JLcS7Hw1i7UTpyhp9grHpak4TyK2hzBJrujDVLXQ6qB5tNpVx9rC6ixijUXadnmY"
-        else:
-            return "xpub661MyMwAqRbcGnMkaTx2594P9EDuiEqMq25PM2aeG6UmwzaohgA6uDmNsvSUV8ubqwA3Wpste1hg69XHgjUuCD5HLcEp2QPzyV1HMrPppsL"
-    elif xtype == 'p2wsh':
-        # TODO these are temp xpubs
-        if constants.net.TESTNET:
-            return "Vpub5fcdcgEwTJmbmqAktuK8Kyq92fMf7sWkcP6oqAii2tG47dNbfkGEGUbfS9NuZaRywLkHE6EmUksrqo32ZL3ouLN1HTar6oRiHpDzKMAF1tf"
-        else:
-            return "Zpub6xwgqLvc42wXB1wEELTdALD9iXwStMUkGqBgxkJFYumaL2dWgNvUkjEDWyDFZD3fZuDWDzd1KQJ4NwVHS7hs6H6QkpNYSShfNiUZsgMdtNg"
+    if not constants.net.TESTNET:
+        xpub = "xpub661MyMwAqRbcGnMkaTx2594P9EDuiEqMq25PM2aeG6UmwzaohgA6uDmNsvSUV8ubqwA3Wpste1hg69XHgjUuCD5HLcEp2QPzyV1HMrPppsL"
     else:
+        xpub = "tpubD6NzVbkrYhZ4XdmyJQcCPjQfg6RXVUzGFhPjZ7uvRC8JLcS7Hw1i7UTpyhp9grHpak4TyK2hzBJrujDVLXQ6qB5tNpVx9rC6ixijUXadnmY"
+    if xtype not in ('standard', 'p2wsh'):
         raise NotImplementedError('xtype: {}'.format(xtype))
+    if xtype == 'standard':
+        return xpub
+    _, depth, fingerprint, child_number, c, cK = bip32.deserialize_xpub(xpub)
+    xpub = bip32.serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
+    return xpub
 
 def get_billing_xpub():
     if constants.net.TESTNET:
@@ -249,11 +247,11 @@ class Wallet_2fa(Multisig_Wallet):
         self.plugin = None  # type: TrustedCoinPlugin
 
     def _load_billing_addresses(self):
-        # type: Dict[str, Dict[int, str]]  # addr_type -> index -> addr
-        self._billing_addresses = {
+        billing_addresses = {
             'legacy': self.storage.get('trustedcoin_billing_addresses', {}),
             'segwit': self.storage.get('trustedcoin_billing_addresses_segwit', {})
         }
+        self._billing_addresses = {}  # type: Dict[str, Dict[int, str]]  # addr_type -> index -> addr
         self._billing_addresses_set = set()  # set of addrs
         for addr_type, d in list(billing_addresses.items()):
             self._billing_addresses[addr_type] = {}
