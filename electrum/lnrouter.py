@@ -352,6 +352,10 @@ class ChannelDB(JsonDB):
         # number of channels
         return len(self._id_to_channel_info)
 
+    def capacity(self):
+        # capacity of the network
+        return sum(c.capacity_sat for c in self._id_to_channel_info.values())
+
     def get_channel_info(self, channel_id: bytes) -> Optional[ChannelInfo]:
         return self._id_to_channel_info.get(channel_id, None)
 
