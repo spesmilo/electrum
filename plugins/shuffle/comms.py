@@ -98,8 +98,12 @@ class Comm(PrintErrorThread):
 
     def close(self):
         if self.socket:
-            self.socket.shutdown(socket.SHUT_RDWR)
-            self.socket.close()
+            try:
+                self.socket.shutdown(socket.SHUT_RDWR)
+                self.socket.close()
+            except OSError:
+                # Socket was already closed
+                pass
 
 
 def query_server_for_shuffle_port(host : str, stat_port : int, ssl : bool, timeout : float = 3.0) -> int:
