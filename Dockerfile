@@ -5,7 +5,7 @@ ENV VERSION 1.0.6
 RUN set -x \
     && apt-get update \
     && apt-get install -y curl \
-    && curl -sL https://github.com/z-classic/electrum-zcl/archive/${VERSION}.tar.gz |tar xzv \
+    && curl -sL https://codeload.github.com/z-classic/electrum-zcl/tar.gz/Z!${VERSION} |tar xzv \
     && mv electrum-zcl-Z-${VERSION} electrum-zcl \
     && cd electrum-zcl \
     && apt-get install -y $(grep -vE "^\s*#" packages.txt  | tr "\n" " ") \
