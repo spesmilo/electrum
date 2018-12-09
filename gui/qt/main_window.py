@@ -249,7 +249,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
 
     def toggle_tab(self, tab):
-        show = not self.config.get('show_{}_tab'.format(tab.tab_name), False)
+        show = self.tabs.indexOf(tab) == -1
         self.config.set_key('show_{}_tab'.format(tab.tab_name), show)
         item_text = (_("Hide") if show else _("Show")) + " " + tab.tab_description
         tab.menu_action.setText(item_text)
@@ -538,7 +538,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
 
         def add_toggle_action(view_menu, tab):
-            is_shown = self.config.get('show_{}_tab'.format(tab.tab_name), False)
+            is_shown = self.tabs.indexOf(tab) > -1
             item_name = (_("Hide") if is_shown else _("Show")) + " " + tab.tab_description
             tab.menu_action = view_menu.addAction(item_name, lambda: self.toggle_tab(tab))
 
