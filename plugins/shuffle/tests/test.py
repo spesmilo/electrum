@@ -32,6 +32,7 @@ class testNetwork(object):
     "simple class for emulating the network. You can make your own utxo pool for test"
     def __init__(self):
         self.coins = {}
+        self.should_be_connected = True
 
     def add_coin(self, address, value, height = 0, tx_pos = 0, tx_hash = ''):
         if not self.coins.get(address):
@@ -47,14 +48,16 @@ class testNetwork(object):
         else:
             return []
 
-
     def broadcast_transaction(self, tx):
         return True, "done"
 
+    def is_connected(self):
+        return self.should_be_connected    
+
 class testThread(ProtocolThread):
-    def __init__(self, host, port, network, amount, fee, sk, sks, inputs, pubk, addr_new, change, logger = None, ssl = False):
+    def __init__(self, host, port, network, coin_name ,amount, fee, sk, sks, inputs, pubk, addr_new, change, logger = None, ssl = False):
         # host, port, network, amount, fee, sk, sks, inputs, pubk, addr_new, change, logger=None, ssl=False
-        super(testThread, self).__init__(host, port, network, amount, fee, sk, sks, inputs, pubk, addr_new, change, logger = logger, ssl = ssl)
+        super(testThread, self).__init__(host, port, network, coin_name, amount, fee, sk, sks, inputs, pubk, addr_new, change, logger = logger, ssl = ssl)
 
     @classmethod
     def from_private_key(cls, priv_key, coin_hash, host, port, network, amount, fee, addr_new, change, ssl=False, logger = None):
@@ -63,7 +66,7 @@ class testThread(ProtocolThread):
         pubk = sk.get_public_key(compressed)
         sks = {pubk:sk}
         inputs = {pubkey:[coin_hash]}
-        return cls(host, port, network, amount, fee, sk, sks, inputs, pubk, addr_new, change, ssl=ssl, logger = logger)
+        return cls(host, port, network, coin_hash ,amount, fee, sk, sks, inputs, pubk, addr_new, change, ssl=ssl, logger = logger)
 
     # @classmethod
     # def from_sk(cls, sk, sks, pubk, inputs, host, port, network, amount, fee, addr_new, change, compressed = True, logger = None):
@@ -515,7 +518,7 @@ class TestProtocolCase(unittest.TestCase):
                     self.network.add_coin(Address.from_pubkey(pubk), coin_amount, tx_hash=coin_hash)
             player["sk"] = random_sk()
             player["pubk"] = player["sk"].get_public_key()
-        protocolThreads = [testThread(self.HOST, self.PORT, self.network, self.amount,  self.fee,
+        protocolThreads = [testThread(self.HOST, self.PORT, self.network, "x" ,self.amount,  self.fee,
                                       player["sk"], player["sks"], player["inputs"], player["pubk"],
                                       self.get_random_address(), self.get_random_address(), logger = player['channel'])
                                       for player in players]
