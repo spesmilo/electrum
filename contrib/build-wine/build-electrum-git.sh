@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NAME_ROOT=electrum
+NAME_ROOT=Electron-Cash
 PYTHON_VERSION=3.5.4
 
 CHECKOUT_TAG=3.3.2
@@ -47,7 +47,7 @@ pushd electrum-locale
 for i in ./locale/*; do
     dir=$i/LC_MESSAGES
     mkdir -p $dir
-    msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
+    msgfmt --output-file=$dir/electron-cash.mo $i/electron-cash.po || true
 done
 popd
 
@@ -96,11 +96,11 @@ popd
 
 
 # build NSIS installer
-# $VERSION could be passed to the electrum.nsi script, but this would require some rewriting in the script iself.
-wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electrum.nsi
+# $VERSION could be passed to the electron-cash.nsi script, but this would require some rewriting in the script iself.
+wine "$WINEPREFIX/drive_c/Program Files (x86)/NSIS/makensis.exe" /DPRODUCT_VERSION=$VERSION electron-cash.nsi
 
 cd dist
-mv electrum-setup.exe $NAME_ROOT-$VERSION-setup.exe
+mv Electron-Cash-setup.exe $NAME_ROOT-$VERSION-setup.exe
 
 cd ../../..
 if [ -d packages -a -e gui/qt/icons_rc.py ] ; then
