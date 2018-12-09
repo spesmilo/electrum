@@ -4,7 +4,7 @@ import sys
 import platform
 import queue
 from collections import namedtuple
-from functools import partial
+from functools import partial, wraps
 
 from electroncash.i18n import _
 from electroncash.address import Address
@@ -653,6 +653,51 @@ class OPReturnError(Exception):
 
 class OPReturnTooLarge(OPReturnError):
     """ thrown when the OP_RETURN for a tx is >220 bytes """
+
+def rate_limited(rate):
+    """ A Function decorator for rate-limiting GUI event callbacks. Argument
+        rate in seconds is the minimum allowed time between subsequent calls of
+        this instance of the function. Calls that arrive more frequently than
+        rate seconds will be collated into a single call that is deferred onto
+        a QTimer. It is preferable to use this decorator on QObject subclass
+        instance methods. This decorator is particularly useful in limiting
+        frequent calls to GUI update functions.
+        (See on_fx_quotes and on_fx_history in main_window.py for an example). """
+    def wrapper0(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            assert args and isinstance(args[0], object), "@rate_limited decorator may only be used with object instance methods"
+            slf = args[0]
+            n = func.__name__
+            n_last = "__{}__last_ts__rate_limited".format(n) # last ts, stored as attribute of object
+            n_timer = "__{}__timer__rate_limited".format(n) # QTimer, stored as attribute of object
+            if not hasattr(slf, n_last): setattr(slf, n_last, 0.0)
+            if not hasattr(slf, n_timer): setattr(slf, n_timer, None)
+            def doIt():
+                setattr(slf, n_last, time.time())
+                t = getattr(slf, n_timer)
+                if t:
+                    t.stop(); t.deleteLater(); setattr(slf, n_timer, None); del t
+                #print(n,"calling!")
+                func(*args, **kwargs)
+            now = time.time()
+            diff = float(rate) - (now - getattr(slf, n_last))
+            if not getattr(slf, n_timer):
+                if diff <= 0:
+                    #print(n,"calling directly")
+                    doIt()
+                else:
+                    t = QTimer(slf if isinstance(slf, QObject) else None)
+                    t.timeout.connect(doIt)
+                    t.setSingleShot(True)
+                    t.start(diff*1e3)
+                    setattr(slf, n_timer, t)
+                    #print(n,"deferring")
+            else:
+                pass
+                #print(n,"ignoring (already scheduled)")
+        return wrapper
+    return wrapper0
 
 
 if __name__ == "__main__":

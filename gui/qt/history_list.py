@@ -70,6 +70,10 @@ class HistoryList(MyTreeWidget):
     def get_domain(self):
         '''Replaced in address_dialog.py'''
         return self.wallet.get_addresses()
+
+    @rate_limited(1.0) # We rate limit the history list refresh no more than once every second
+    def update(self):
+        super().update()
         
     @profiler
     def on_update(self):
