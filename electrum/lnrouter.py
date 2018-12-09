@@ -454,7 +454,7 @@ class ChannelDB(JsonDB):
         try:
             channel_info = self._id_to_channel_info[short_channel_id]
         except KeyError:
-            self.print_error('cannot find channel {}'.format(short_channel_id))
+            self.print_error(f'remove_channel: cannot find channel {bh2u(short_channel_id)}')
             return
         self._id_to_channel_info.pop(short_channel_id, None)
         for node in (channel_info.node_id_1, channel_info.node_id_2):
