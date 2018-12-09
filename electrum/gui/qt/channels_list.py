@@ -9,7 +9,7 @@ from electrum.i18n import _
 from electrum.lnchan import Channel
 from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError
 
-from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton
+from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton
 from .amountedit import BTCAmountEdit
 from .channel_details import ChannelDetailsDialog
 
@@ -95,12 +95,11 @@ class ChannelsList(MyTreeView):
             self.model().insertRow(0, items)
 
     def get_toolbar(self):
-        b = QPushButton(_('Open Channel'))
-        b.clicked.connect(self.new_channel_dialog)
         h = QHBoxLayout()
         h.addWidget(self.status)
         h.addStretch()
-        h.addWidget(b)
+        h.addWidget(EnterButton(_('Statistics'), self.statistics_dialog))
+        h.addWidget(EnterButton(_('Open Channel'), self.new_channel_dialog))
         return h
 
     def update_status(self):
@@ -108,8 +107,27 @@ class ChannelsList(MyTreeView):
         num_nodes = len(channel_db.nodes)
         num_channels = len(channel_db)
         num_peers = len(self.parent.wallet.lnworker.peers)
-        self.status.setText(_('{} peers, {} nodes, {} channels')
-                            .format(num_peers, num_nodes, num_channels))
+        msg = _('{} peers, {} nodes, {} channels.').format(num_peers, num_nodes, num_channels)
+        self.status.setText(msg)
+
+    def statistics_dialog(self):
+        channel_db = self.parent.network.channel_db
+        num_nodes = len(channel_db.nodes)
+        num_channels = len(channel_db)
+        capacity = self.parent.format_amount(channel_db.capacity()) + ' '+ self.parent.base_unit()
+        d = WindowModalDialog(self.parent, _('Lightning Network Statistics'))
+        d.setMinimumWidth(400)
+        vbox = QVBoxLayout(d)
+        h = QGridLayout()
+        h.addWidget(QLabel(_('Nodes') + ':'), 0, 0)
+        h.addWidget(QLabel('{}'.format(num_nodes)), 0, 1)
+        h.addWidget(QLabel(_('Channels') + ':'), 1, 0)
+        h.addWidget(QLabel('{}'.format(num_channels)), 1, 1)
+        h.addWidget(QLabel(_('Capacity') + ':'), 2, 0)
+        h.addWidget(QLabel(capacity), 2, 1)
+        vbox.addLayout(h)
+        vbox.addLayout(Buttons(OkButton(d)))
+        d.exec_()
 
     def new_channel_dialog(self):
         lnworker = self.parent.wallet.lnworker
