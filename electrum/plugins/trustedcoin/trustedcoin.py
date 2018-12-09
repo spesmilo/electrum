@@ -249,8 +249,11 @@ class Wallet_2fa(Multisig_Wallet):
         self.plugin = None  # type: TrustedCoinPlugin
 
     def _load_billing_addresses(self):
-        billing_addresses = self.storage.get('trustedcoin_billing_addresses', {})
-        self._billing_addresses = defaultdict(dict)  # type: Dict[str, Dict[int, str]]  # addr_type -> index -> addr
+        # type: Dict[str, Dict[int, str]]  # addr_type -> index -> addr
+        self._billing_addresses = {
+            'legacy': self.storage.get('trustedcoin_billing_addresses', {}),
+            'segwit': self.storage.get('trustedcoin_billing_addresses_segwit', {})
+        }
         self._billing_addresses_set = set()  # set of addrs
         for addr_type, d in list(billing_addresses.items()):
             self._billing_addresses[addr_type] = {}
@@ -349,7 +352,8 @@ class Wallet_2fa(Multisig_Wallet):
         billing_addresses_of_this_type[billing_index] = address
         self._billing_addresses_set.add(address)
         self._billing_addresses[addr_type] = billing_addresses_of_this_type
-        self.storage.put('trustedcoin_billing_addresses', self._billing_addresses)
+        self.storage.put('trustedcoin_billing_addresses', self._billing_addresses['legacy'])
+        self.storage.put('trustedcoin_billing_addresses_segwit', self._billing_addresses['segwit'])
         # FIXME this often runs in a daemon thread, where storage.write will fail
         self.storage.write()
 
