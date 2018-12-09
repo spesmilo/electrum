@@ -3353,26 +3353,26 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             d = WindowModalDialog(self, title=_('Would you like to turn on CashShuffle?'))
             d.setMinimumSize(400, 200)
             vbox = QVBoxLayout(d)
-            notice = QLabel(_("""
-                {}
-
-                If you enable it, Electron Cash will shuffle your coins for greater privacy.
-                However, you will pay fractions of a penny per shuffle in transaction fees.
-
-                Would you like to turn this feature on for this wallet?
-
-                (You can always toggle it later using the CashShuffle button in the lower right).
-                """).format(
-                _("CashShuffle is disabled for this wallet.") if not cashshuffle_flag else _("CashShuffle is disabled.")
-                ))
+            message = '''
+            <img src=":icons/cash_shuffle5.png" align="left" width=150 />
+            <br clear="left" />
+            <big>{}</big>
+            <p>{}</p>
+            <p>{}</p>
+            <p>{}</p>
+            '''.format(_("CashShuffle is disabled for this wallet.") if not cashshuffle_flag else _("CashShuffle is disabled."),
+                       _("If you enable it, Electron Cash will shuffle your coins for greater privacy. However, you will pay fractions of a penny per shuffle in transaction fees."),
+                       _("Would you like to enable CashShuffle for this wallet?"),
+                       _("(You can always toggle it later using the CashShuffle button)"))
+            notice = QLabel(message)
             notice.setWordWrap(True)
             vbox.addWidget(notice)
 
-            csnoprompt_cb = QCheckBox(_('Don\'t ask me again'))
-            vbox.addWidget(csnoprompt_cb)
             vbox.addStretch(1)
             sweep_button = OkButton(d, _('Enable CashShuffle'))
             vbox.addLayout(Buttons(CancelButton(d, _("Not now")), sweep_button))
+            csnoprompt_cb = QCheckBox(_("Don't ask me again")); f = csnoprompt_cb.font(); f.setPointSize(10); csnoprompt_cb.setFont(f)
+            vbox.addWidget(csnoprompt_cb)
             if d.exec_():
                 self.toggle_cashshuffle()
             if csnoprompt_cb.isChecked():
