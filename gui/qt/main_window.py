@@ -3371,7 +3371,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             vbox.addStretch(1)
             sweep_button = OkButton(d, _('Enable CashShuffle'))
             vbox.addLayout(Buttons(CancelButton(d, _("Not now")), sweep_button))
-            csnoprompt_cb = QCheckBox(_("Don't ask me again")); f = csnoprompt_cb.font(); f.setPointSize(10); csnoprompt_cb.setFont(f)
+            csnoprompt_cb = QCheckBox(_("Don't ask me again"));
+            f = csnoprompt_cb.font(); f.setPointSize(8 if sys.platform.startswith('win') else 10); csnoprompt_cb.setFont(f)
             vbox.addWidget(csnoprompt_cb)
             if d.exec_():
                 self.toggle_cashshuffle()
