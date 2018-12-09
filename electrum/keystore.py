@@ -116,12 +116,17 @@ class Software_KeyStore(KeyStore):
         # Raise if password is not correct.
         self.check_password(password)
         # Add private keys
-        keypairs = self.get_tx_derivations(tx)
-        for k, v in keypairs.items():
-            keypairs[k] = self.get_private_key(v, password)
+        xpubkey_to_der = self.get_tx_derivations(tx)
+        keypairs = self.get_keypairs(xpubkey_to_der, password)
         # Sign
         if keypairs:
             tx.sign(keypairs)
+
+    def get_keypairs(self, xpubkey_to_der: dict, password):
+        keypairs = {}
+        for x_pubkey, der in xpubkey_to_der.items():
+            keypairs[x_pubkey] = self.get_private_key(der, password)
+        return keypairs
 
     def update_password(self, old_password, new_password):
         raise NotImplementedError()  # implemented by subclasses
@@ -360,11 +365,19 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
         self.add_xprv(xprv)
 
-    def get_private_key(self, sequence, password):
-        xprv = self.get_master_private_key(password)
+    def get_private_key(self, sequence, password, *, xprv=None):
+        if xprv is None:
+            xprv = self.get_master_private_key(password)
         _, _, _, _, c, k = deserialize_xprv(xprv)
         pk = bip32_private_key(sequence, k, c)
         return pk, True
+
+    def get_keypairs(self, xpubkey_to_der: dict, password):
+        keypairs = {}
+        xprv = self.get_master_private_key(password)
+        for x_pubkey, der in xpubkey_to_der.items():
+            keypairs[x_pubkey] = self.get_private_key(der, password, xprv=xprv)
+        return keypairs
 
 
 
@@ -445,13 +458,21 @@ class Old_KeyStore(Deterministic_KeyStore):
         pk = number_to_string(secexp, ecc.CURVE_ORDER)
         return pk
 
-    def get_private_key(self, sequence, password):
-        seed = self.get_hex_seed(password)
-        self.check_seed(seed)
+    def get_private_key(self, sequence, password, *, hex_seed=None):
+        if hex_seed is None:
+            hex_seed = self.get_hex_seed(password)
+        self.check_seed(hex_seed)
         for_change, n = sequence
-        secexp = self.stretch_key(seed)
+        secexp = self.stretch_key(hex_seed)
         pk = self.get_private_key_from_stretched_exponent(for_change, n, secexp)
         return pk, False
+
+    def get_keypairs(self, xpubkey_to_der: dict, password):
+        keypairs = {}
+        hex_seed = self.get_hex_seed(password)
+        for x_pubkey, der in xpubkey_to_der.items():
+            keypairs[x_pubkey] = self.get_private_key(der, password, hex_seed=hex_seed)
+        return keypairs
 
     def check_seed(self, seed):
         secexp = self.stretch_key(seed)
