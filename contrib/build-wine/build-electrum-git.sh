@@ -1,14 +1,13 @@
 #!/bin/bash
 
 NAME_ROOT=electrum
-PYTHON_VERSION=3.6.6
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
 export PYTHONDONTWRITEBYTECODE=1
 export PYTHONHASHSEED=22
 
-PYHOME=c:/python$PYTHON_VERSION
+PYHOME=c:/python3
 PYTHON="wine $PYHOME/python.exe -OO -B"
 
 
@@ -60,7 +59,7 @@ cd ..
 rm -rf dist/
 
 # build standalone and portable versions
-wine "C:/python$PYTHON_VERSION/scripts/pyinstaller.exe" --noconfirm --ascii --clean --name $NAME_ROOT-$VERSION -w deterministic.spec
+wine "$PYHOME/scripts/pyinstaller.exe" --noconfirm --ascii --clean --name $NAME_ROOT-$VERSION -w deterministic.spec
 
 # set timestamps in dist, in order to make the installer reproducible
 pushd dist
