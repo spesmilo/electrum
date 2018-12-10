@@ -28,6 +28,7 @@ import datetime
 from datetime import date
 from typing import TYPE_CHECKING, Tuple, Dict
 import threading
+from enum import IntEnum
 
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
@@ -59,6 +60,17 @@ TX_ICONS = [
     "confirmed.png",
 ]
 
+class HistoryColumns(IntEnum):
+    STATUS_ICON = 0
+    STATUS_TEXT = 1
+    DESCRIPTION = 2
+    COIN_VALUE = 3
+    RUNNING_COIN_BALANCE = 4
+    FIAT_VALUE = 5
+    FIAT_ACQ_PRICE = 6
+    FIAT_CAP_GAINS = 7
+    TXID = 8
+
 class HistorySortModel(QSortFilterProxyModel):
     def lessThan(self, source_left: QModelIndex, source_right: QModelIndex):
         item1 = self.sourceModel().data(source_left, Qt.UserRole)
@@ -70,8 +82,6 @@ class HistorySortModel(QSortFilterProxyModel):
         return item1.value() < item2.value()
 
 class HistoryModel(QAbstractItemModel, PrintError):
-
-    NUM_COLUMNS = 9
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -87,7 +97,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
         self.set_visibility_of_columns()
 
     def columnCount(self, parent: QModelIndex):
-        return self.NUM_COLUMNS
+        return len(HistoryColumns)
 
     def rowCount(self, parent: QModelIndex):
         return len(self.transactions)
@@ -113,61 +123,69 @@ class HistoryModel(QAbstractItemModel, PrintError):
         if role == Qt.UserRole:
             # for sorting
             d = {
-                # height breaks ties for unverified txns
-                # txpos breaks ties for verified same block txns
-                0: (status, conf, -height, -txpos),
-                1: status_str,
-                2: tx_item['label'],
-                3: tx_item['value'].value,
-                4: tx_item['balance'].value,
-                5: tx_item['fiat_value'].value if 'fiat_value' in tx_item else None,
-                6: tx_item['acquisition_price'].value if 'acquisition_price' in tx_item else None,
-                7: tx_item['capital_gain'].value if 'capital_gain' in tx_item else None,
-                8: tx_hash,
+                HistoryColumns.STATUS_ICON:
+                    # height breaks ties for unverified txns
+                    # txpos breaks ties for verified same block txns
+                    (status, conf, -height, -txpos),
+                HistoryColumns.STATUS_TEXT: status_str,
+                HistoryColumns.DESCRIPTION: tx_item['label'],
+                HistoryColumns.COIN_VALUE:  tx_item['value'].value,
+                HistoryColumns.RUNNING_COIN_BALANCE: tx_item['balance'].value,
+                HistoryColumns.FIAT_VALUE:
+                    tx_item['fiat_value'].value if 'fiat_value' in tx_item else None,
+                HistoryColumns.FIAT_ACQ_PRICE:
+                    tx_item['acquisition_price'].value if 'acquisition_price' in tx_item else None,
+                HistoryColumns.FIAT_CAP_GAINS:
+                    tx_item['capital_gain'].value if 'capital_gain' in tx_item else None,
+                HistoryColumns.TXID: tx_hash,
             }
             return QVariant(d[col])
         if role not in (Qt.DisplayRole, Qt.EditRole):
-            if col == 0 and role == Qt.DecorationRole:
+            if col == HistoryColumns.STATUS_ICON and role == Qt.DecorationRole:
                 return QVariant(self.view.icon_cache.get(":icons/" +  TX_ICONS[status]))
-            elif col == 0 and role == Qt.ToolTipRole:
+            elif col == HistoryColumns.STATUS_ICON and role == Qt.ToolTipRole:
                 return QVariant(str(conf) + _(" confirmation" + ("s" if conf != 1 else "")))
-            elif col > 2 and role == Qt.TextAlignmentRole:
+            elif col > HistoryColumns.DESCRIPTION and role == Qt.TextAlignmentRole:
                 return QVariant(Qt.AlignRight | Qt.AlignVCenter)
-            elif col != 1 and role == Qt.FontRole:
+            elif col != HistoryColumns.STATUS_TEXT and role == Qt.FontRole:
                 monospace_font = QFont(MONOSPACE_FONT)
                 return QVariant(monospace_font)
-            elif col == 2 and role == Qt.DecorationRole and self.parent.wallet.invoices.paid.get(tx_hash):
+            elif col == HistoryColumns.DESCRIPTION and role == Qt.DecorationRole \
+                    and self.parent.wallet.invoices.paid.get(tx_hash):
                 return QVariant(self.view.icon_cache.get(":icons/seal"))
-            elif col in (2, 3) and role == Qt.ForegroundRole and tx_item['value'].value < 0:
+            elif col in (HistoryColumns.DESCRIPTION, HistoryColumns.COIN_VALUE) \
+                    and role == Qt.ForegroundRole and tx_item['value'].value < 0:
                 red_brush = QBrush(QColor("#BC1E1E"))
                 return QVariant(red_brush)
-            elif col == 5 and role == Qt.ForegroundRole and not tx_item.get('fiat_default') and tx_item.get('fiat_value') is not None:
+            elif col == HistoryColumns.FIAT_VALUE and role == Qt.ForegroundRole \
+                    and not tx_item.get('fiat_default') and tx_item.get('fiat_value') is not None:
                 blue_brush = QBrush(QColor("#1E1EFF"))
                 return QVariant(blue_brush)
             return None
-        if col == 1:
+        if col == HistoryColumns.STATUS_TEXT:
             return QVariant(status_str)
-        elif col == 2:
+        elif col == HistoryColumns.DESCRIPTION:
             return QVariant(tx_item['label'])
-        elif col == 3:
+        elif col == HistoryColumns.COIN_VALUE:
             value = tx_item['value'].value
             v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)
             return QVariant(v_str)
-        elif col == 4:
+        elif col == HistoryColumns.RUNNING_COIN_BALANCE:
             balance = tx_item['balance'].value
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             return QVariant(balance_str)
-        elif col == 5 and 'fiat_value' in tx_item:
+        elif col == HistoryColumns.FIAT_VALUE and 'fiat_value' in tx_item:
             value_str = self.parent.fx.format_fiat(tx_item['fiat_value'].value)
             return QVariant(value_str)
-        elif col == 6 and tx_item['value'].value < 0 and 'acquisition_price' in tx_item:
+        elif col == HistoryColumns.FIAT_ACQ_PRICE and \
+                tx_item['value'].value < 0 and 'acquisition_price' in tx_item:
             # fixme: should use is_mine
             acq = tx_item['acquisition_price'].value
             return QVariant(self.parent.fx.format_fiat(acq))
-        elif col == 7 and 'capital_gain' in tx_item:
+        elif col == HistoryColumns.FIAT_CAP_GAINS and 'capital_gain' in tx_item:
             cg = tx_item['capital_gain'].value
             return QVariant(self.parent.fx.format_fiat(cg))
-        elif col == 8:
+        elif col == HistoryColumns.TXID:
             return QVariant(tx_hash)
         return None
 
@@ -234,25 +252,16 @@ class HistoryModel(QAbstractItemModel, PrintError):
             self.tx_status_cache[txid] = self.parent.wallet.get_tx_status(txid, tx_mined_info)
 
     def set_visibility_of_columns(self):
-        hide = self.view.hideColumn
-        show = self.view.showColumn
+        def set_visible(col: int, b: bool):
+            self.view.showColumn(col) if b else self.view.hideColumn(col)
         # txid
-        hide(8)
+        set_visible(HistoryColumns.TXID, False)
         # fiat
         history = self.parent.fx.show_history()
         cap_gains = self.parent.fx.get_history_capital_gains_config()
-        if history and cap_gains:
-            show(5)
-            show(6)
-            show(7)
-        elif history:
-            show(5)
-            hide(6)
-            hide(7)
-        else:
-            hide(5)
-            hide(6)
-            hide(7)
+        set_visible(HistoryColumns.FIAT_VALUE, history)
+        set_visible(HistoryColumns.FIAT_ACQ_PRICE, history and cap_gains)
+        set_visible(HistoryColumns.FIAT_CAP_GAINS, history and cap_gains)
 
     def update_fiat(self, row, idx):
         tx_item = self.transactions.value_from_pos(row)
@@ -270,7 +279,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
         except KeyError:
             return
         topLeft = self.createIndex(row, 0)
-        bottomRight = self.createIndex(row, self.NUM_COLUMNS-1)
+        bottomRight = self.createIndex(row, len(HistoryColumns) - 1)
         self.dataChanged.emit(topLeft, bottomRight)
 
     def on_fee_histogram(self):
@@ -295,15 +304,15 @@ class HistoryModel(QAbstractItemModel, PrintError):
             fiat_acq_title = '%s '%fx.ccy + _('Acquisition price')
             fiat_cg_title =  '%s '%fx.ccy + _('Capital Gains')
         return {
-            0: '',
-            1: _('Date'),
-            2: _('Description'),
-            3: _('Amount'),
-            4: _('Balance'),
-            5: fiat_title,
-            6: fiat_acq_title,
-            7: fiat_cg_title,
-            8: 'TXID',
+            HistoryColumns.STATUS_ICON: '',
+            HistoryColumns.STATUS_TEXT: _('Date'),
+            HistoryColumns.DESCRIPTION: _('Description'),
+            HistoryColumns.COIN_VALUE: _('Amount'),
+            HistoryColumns.RUNNING_COIN_BALANCE: _('Balance'),
+            HistoryColumns.FIAT_VALUE: fiat_title,
+            HistoryColumns.FIAT_ACQ_PRICE: fiat_acq_title,
+            HistoryColumns.FIAT_CAP_GAINS: fiat_cg_title,
+            HistoryColumns.TXID: 'TXID',
         }[section]
 
     def flags(self, idx):
@@ -320,7 +329,10 @@ class HistoryModel(QAbstractItemModel, PrintError):
         return tx_mined_info
 
 class HistoryList(MyTreeView, AcceptFileDragDrop):
-    filter_columns = [1, 2, 3, 8]  # Date, Description, Amount, TXID
+    filter_columns = [HistoryColumns.STATUS_TEXT,
+                      HistoryColumns.DESCRIPTION,
+                      HistoryColumns.COIN_VALUE,
+                      HistoryColumns.TXID]
 
     def tx_item_from_proxy_row(self, proxy_row):
         hm_idx = self.model().mapToSource(self.model().index(proxy_row, 0))
@@ -337,7 +349,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return False
 
     def __init__(self, parent, model: HistoryModel):
-        super().__init__(parent, self.create_menu, 2)
+        super().__init__(parent, self.create_menu, stretch_column=HistoryColumns.DESCRIPTION)
         self.hm = model
         self.proxy = HistorySortModel(self)
         self.proxy.setSourceModel(model)
@@ -351,11 +363,11 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         self.years = []
         self.create_toolbar_buttons()
         self.wallet = self.parent.wallet  # type: Abstract_Wallet
-        self.sortByColumn(0, Qt.AscendingOrder)
-        self.editable_columns |= {5}
+        self.sortByColumn(HistoryColumns.STATUS_ICON, Qt.AscendingOrder)
+        self.editable_columns |= {HistoryColumns.FIAT_VALUE}
 
         self.header().setStretchLastSection(False)
-        for col in range(HistoryModel.NUM_COLUMNS):
+        for col in HistoryColumns:
             sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
             self.header().setSectionResizeMode(col, sm)
 
@@ -489,12 +501,11 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         row, column = index.row(), index.column()
         tx_item = self.hm.transactions.value_from_pos(row)
         key = tx_item['txid']
-        # fixme
-        if column == 2:
+        if column == HistoryColumns.DESCRIPTION:
             if self.wallet.set_label(key, text): #changed
                 self.hm.update_label(row)
                 self.parent.update_completions()
-        elif column == 5:
+        elif column == HistoryColumns.FIAT_VALUE:
             self.wallet.set_fiat_value(key, self.parent.fx.ccy, text, self.parent.fx, tx_item['value'].value)
             value = tx_item['value'].value
             if value is not None:
@@ -527,7 +538,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return
         tx_item = self.hm.transactions.value_from_pos(idx.row())
         column = idx.column()
-        if column == 0:
+        if column == HistoryColumns.STATUS_ICON:
             column_title = _('Transaction ID')
             column_data = tx_item['txid']
         else:
