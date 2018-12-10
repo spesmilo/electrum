@@ -59,7 +59,7 @@ class Coin(PrintErrorThread):
                     else:
                         return None
             return total >= amount
-        except Exception as e:
+        except:
             return None
 
     def get_coins(self, inputs):
@@ -171,7 +171,7 @@ class Coin(PrintErrorThread):
             try:
                 return self.network.broadcast_transaction(transaction)
             except BaseException as e:
-                err = "Exception on broadcast: {}".format(err)
+                err = "Exception on broadcast: {}".format(str(e))
         return False, err
 
     def verify_signature(self, signature, message, verification_key):
