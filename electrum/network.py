@@ -638,16 +638,16 @@ class Network(PrintError):
         self.recent_servers = self.recent_servers[0:20]
         self._save_recent_servers()
 
-    async def connection_down(self, server):
+    async def connection_down(self, interface: Interface):
         '''A connection to server either went down, or was never made.
         We distinguish by whether it is in self.interfaces.'''
+        if not interface: return
+        server = interface.server
         self.disconnected_servers.add(server)
         if server == self.default_server:
             self._set_status('disconnected')
-        interface = self.interfaces.get(server, None)
-        if interface:
-            await self._close_interface(interface)
-            self.trigger_callback('network_updated')
+        await self._close_interface(interface)
+        self.trigger_callback('network_updated')
 
     @ignore_exceptions  # do not kill main_taskgroup
     @log_exceptions
