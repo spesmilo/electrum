@@ -190,9 +190,6 @@ class Channel(PrintError):
 
         self.pending_fee = None
 
-        self.local_commitment = self.pending_commitment(LOCAL)
-        self.remote_commitment = self.pending_commitment(REMOTE)
-
         self._is_funding_txo_spent = None  # "don't know"
         self._state = None
         if state.get('force_closed', False):
@@ -206,6 +203,10 @@ class Channel(PrintError):
 
         for sub in (LOCAL, REMOTE):
             self.log[sub].locked_in.update(self.log[sub].adds.keys())
+
+        self.local_commitment = self.current_commitment(LOCAL)
+        self.remote_commitment = self.current_commitment(REMOTE)
+
 
     def set_state(self, state: str):
         if self._state == 'FORCE_CLOSING':
@@ -629,6 +630,13 @@ class Channel(PrintError):
         this_point = self.config[REMOTE].next_per_commitment_point if subject == REMOTE else self.points()[1]
         return self.make_commitment(subject, this_point)
 
+    def current_commitment(self, subject):
+        old_local_state = self.config[subject]
+        self.config[subject]=self.config[subject]._replace(ctn=self.config[subject].ctn - 1)
+        r = self.pending_commitment(subject)
+        self.config[subject] = old_local_state
+        return r
+
     def total_msat(self, sub):
         return sum(self.settled[sub])
 
@@ -864,12 +872,7 @@ class Channel(PrintError):
         return sig, closing_tx
 
     def force_close_tx(self):
-        # local_commitment always gives back the next expected local_commitment,
-        # but in this case, we want the current one. So substract one ctn number
-        old_local_state = self.config[LOCAL]
-        self.config[LOCAL]=self.config[LOCAL]._replace(ctn=self.config[LOCAL].ctn - 1)
-        tx = self.pending_commitment(LOCAL)
-        self.config[LOCAL] = old_local_state
+        tx = self.current_commitment(LOCAL)
         tx.sign({bh2u(self.config[LOCAL].multisig_key.pubkey): (self.config[LOCAL].multisig_key.privkey, True)})
         remote_sig = self.config[LOCAL].current_commitment_signature
         remote_sig = ecc.der_sig_from_sig_string(remote_sig) + b"\x01"
