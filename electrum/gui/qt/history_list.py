@@ -188,6 +188,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
         '''Overridden in address_dialog.py'''
         return self.parent.wallet.get_addresses()
 
+    @profiler
     def refresh(self, reason: str):
         self.print_error(f"refreshing... reason: {reason}")
         assert self.parent.gui_thread == threading.current_thread(), 'must be called from GUI thread'
