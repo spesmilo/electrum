@@ -49,12 +49,8 @@ class ContactList(MyTreeView):
 
     def on_edited(self, idx, user_role, text):
         _type, prior_name = self.parent.contacts.pop(user_role)
-
-        # TODO when min Qt >= 5.11, use siblingAtColumn
-        col_1_sibling = idx.sibling(idx.row(), 1)
-        col_1_item = self.model().itemFromIndex(col_1_sibling)
-
-        self.parent.set_contact(text, col_1_item.text())
+        self.parent.set_contact(text, user_role)
+        self.update()
 
     def import_contacts(self):
         import_meta_gui(self.parent, _('contacts'), self.parent.contacts.import_file, self.update)

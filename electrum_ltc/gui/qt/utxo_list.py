@@ -33,7 +33,7 @@ class UTXOList(MyTreeView):
     filter_columns = [0, 1]  # Address, Label
 
     def __init__(self, parent=None):
-        super().__init__(parent, self.create_menu, 1)
+        super().__init__(parent, self.create_menu, 1, editable_columns=[])
         self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)

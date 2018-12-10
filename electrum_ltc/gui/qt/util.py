@@ -398,8 +398,26 @@ def filename_field(parent, config, defaultname, select_msg):
     return vbox, filename_e, b1
 
 class ElectrumItemDelegate(QStyledItemDelegate):
-    def createEditor(self, parent, option, index):
-        return self.parent().createEditor(parent, option, index)
+    def __init__(self, tv):
+        super().__init__(tv)
+        self.tv = tv
+        self.opened = None
+        def on_closeEditor(editor: QLineEdit, hint):
+            self.opened = None
+        def on_commitData(editor: QLineEdit):
+            new_text = editor.text()
+            idx = QModelIndex(self.opened)
+            row, col = idx.row(), idx.column()
+            _prior_text, user_role = self.tv.text_txid_from_coordinate(row, col)
+            # check that we didn't forget to set UserRole on an editable field
+            assert user_role is not None, (row, col)
+            self.tv.on_edited(idx, user_role, new_text)
+        self.closeEditor.connect(on_closeEditor)
+        self.commitData.connect(on_commitData)
+
+    def createEditor(self, parent, option, idx):
+        self.opened = QPersistentModelIndex(idx)
+        return super().createEditor(parent, option, idx)
 
 class MyTreeView(QTreeView):
 
@@ -415,8 +433,6 @@ class MyTreeView(QTreeView):
         self.icon_cache = IconCache()
 
         # Control which columns are editable
-        self.editor = None
-        self.pending_update = False
         if editable_columns is None:
             editable_columns = {stretch_column}
         else:
@@ -427,6 +443,13 @@ class MyTreeView(QTreeView):
 
         self.setRootIsDecorated(False)  # remove left margin
         self.toolbar_shown = False
+
+        # When figuring out the size of columns, Qt by default looks at
+        # the first 1000 rows (at least if resize mode is QHeaderView.ResizeToContents).
+        # This would be REALLY SLOW, and it's not perfect anyway.
+        # So to speed the UI up considerably, set it to
+        # only look at as many rows as currently visible.
+        self.header().setResizeContentsPrecision(0)
 
     def set_editability(self, items):
         for idx, i in enumerate(items):
@@ -449,9 +472,8 @@ class MyTreeView(QTreeView):
             assert set_current.isValid()
             self.selectionModel().select(QModelIndex(set_current), QItemSelectionModel.SelectCurrent)
 
-    def update_headers(self, headers, model=None):
-        if model is None:
-            model = self.model()
+    def update_headers(self, headers):
+        model = self.model()
         model.setHorizontalHeaderLabels(headers)
         self.header().setStretchLastSection(False)
         for col in range(len(headers)):
@@ -459,7 +481,9 @@ class MyTreeView(QTreeView):
             self.header().setSectionResizeMode(col, sm)
 
     def keyPressEvent(self, event):
-        if event.key() in [ Qt.Key_F2, Qt.Key_Return ] and self.editor is None:
+        if self.itemDelegate().opened:
+            return
+        if event.key() in [ Qt.Key_F2, Qt.Key_Return ]:
             self.on_activated(self.selectionModel().currentIndex())
             return
         super().keyPressEvent(event)
@@ -469,34 +493,6 @@ class MyTreeView(QTreeView):
         pt = self.visualRect(idx).bottomLeft()
         pt.setX(50)
         self.customContextMenuRequested.emit(pt)
-
-    def createEditor(self, parent, option, idx):
-        self.editor = QStyledItemDelegate.createEditor(self.itemDelegate(),
-                                                       parent, option, idx)
-        item = self.item_from_coordinate(idx.row(), idx.column())
-        user_role = item.data(Qt.UserRole)
-        assert user_role is not None
-        prior_text = item.text()
-        def editing_finished():
-            # Long-time QT bug - pressing Enter to finish editing signals
-            # editingFinished twice.  If the item changed the sequence is
-            # Enter key:  editingFinished, on_change, editingFinished
-            # Mouse: on_change, editingFinished
-            # This mess is the cleanest way to ensure we make the
-            # on_edited callback with the updated item
-            if self.editor is None:
-                return
-            if self.editor.text() == prior_text:
-                self.editor = None # Unchanged - ignore any 2nd call
-                return
-            if item.text() == prior_text:
-                return # Buggy first call on Enter key, item not yet updated
-            if not idx.isValid():
-                return
-            self.on_edited(idx, user_role, self.editor.text())
-            self.editor = None
-        self.editor.editingFinished.connect(editing_finished)
-        return self.editor
 
     def edit(self, idx, trigger=QAbstractItemView.AllEditTriggers, event=None):
         """
@@ -508,12 +504,8 @@ class MyTreeView(QTreeView):
 
     def on_edited(self, idx: QModelIndex, user_role, text):
         self.parent.wallet.set_label(user_role, text)
-        self.parent.history_list.update_labels()
+        self.parent.history_model.refresh('on_edited in MyTreeView')
         self.parent.update_completions()
-
-    def apply_filter(self):
-        if self.current_filter:
-            self.filter(self.current_filter)
 
     def should_hide(self, row):
         """
@@ -522,13 +514,12 @@ class MyTreeView(QTreeView):
         """
         return False
 
-    def item_from_coordinate(self, row_num, column):
-        if isinstance(self.model(), QSortFilterProxyModel):
-            idx = self.model().mapToSource(self.model().index(row_num, column))
-            return self.model().sourceModel().itemFromIndex(idx)
-        else:
-            idx = self.model().index(row_num, column)
-            return self.model().itemFromIndex(idx)
+    def text_txid_from_coordinate(self, row_num, column):
+        assert not isinstance(self.model(), QSortFilterProxyModel)
+        idx = self.model().index(row_num, column)
+        item = self.model().itemFromIndex(idx)
+        user_role = item.data(Qt.UserRole)
+        return item.text(), user_role
 
     def hide_row(self, row_num):
         """
@@ -541,14 +532,14 @@ class MyTreeView(QTreeView):
             self.setRowHidden(row_num, QModelIndex(), False)
             return
         for column in self.filter_columns:
-            item = self.item_from_coordinate(row_num, column)
-            txt = item.text().lower()
+            txt, _ = self.text_txid_from_coordinate(row_num, column)
+            txt = txt.lower()
             if self.current_filter in txt:
                 # the filter matched, but the date filter might apply
                 self.setRowHidden(row_num, QModelIndex(), bool(should_hide))
                 break
         else:
-            # we did not find the filter in any columns, show the item
+            # we did not find the filter in any columns, hide the item
             self.setRowHidden(row_num, QModelIndex(), True)
 
     def filter(self, p):
