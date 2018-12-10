@@ -363,9 +363,6 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
     def format_date(self, d):
         return str(datetime.date(d.year, d.month, d.day)) if d else _('None')
 
-    def update_headers(self, headers):
-        raise NotImplementedError
-
     def on_combo(self, x):
         s = self.period_combo.itemText(x)
         x = s == _('Custom')

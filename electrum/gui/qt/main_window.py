@@ -2667,7 +2667,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         b = self.fx and self.fx.is_enabled()
         self.fiat_send_e.setVisible(b)
         self.fiat_receive_e.setVisible(b)
-        self.history_list.refresh_headers()
         self.history_list.update()
         self.address_list.refresh_headers()
         self.address_list.update()
