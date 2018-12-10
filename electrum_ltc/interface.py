@@ -253,7 +253,7 @@ class Interface(PrintError):
             except GracefulDisconnect as e:
                 self.print_error("disconnecting gracefully. {}".format(e))
             finally:
-                await self.network.connection_down(self.server)
+                await self.network.connection_down(self)
                 self.got_disconnected.set_result(1)
         return wrapper_func
 
