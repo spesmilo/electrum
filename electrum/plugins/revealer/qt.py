@@ -79,6 +79,8 @@ class Plugin(BasePlugin):
             self.cseed = keystore.get_seed(password)
             if keystore.get_passphrase(password):
                 self.extension = True
+            else:
+                self.extension = False
         except Exception:
             traceback.print_exc(file=sys.stdout)
             return
@@ -103,7 +105,7 @@ class Plugin(BasePlugin):
         logo.setAlignment(Qt.AlignLeft)
         self.hbox.addSpacing(16)
         vbox.addWidget(WWLabel("<b>"+_("Revealer Secret Backup Plugin")+"</b><br>"
-                                    +_("To encrypt your backup, first we need to load some noise.")+"</br>"))
+                                    +_("To encrypt your backup, first we need to load some noise.")+"<br/>"))
         vbox.addSpacing(7)
         bcreate = QPushButton(_("Create a new Revealer"))
         bcreate.setMaximumWidth(181)
@@ -124,7 +126,7 @@ class Plugin(BasePlugin):
         self.next_button.clicked.connect(partial(self.cypherseed_dialog, window))
         vbox.addWidget(
             QLabel("<b>" + _("Warning") + "</b>: " + _("Each revealer should be used only once.")
-                   +"<br>"+_("more info at https://revealer.cc/faq")))
+                   +"<br>"+_("more information at <a href=\"https://revealer.cc/faq\">https://revealer.cc/faq</a>")))
 
         def mk_digital():
             try:
@@ -183,8 +185,9 @@ class Plugin(BasePlugin):
 
     def bcrypt(self, dialog):
         self.rawnoise = False
-        dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at:").format(self.was, self.version, self.code_id),
-                                     "<br/>","<b>", self.base_dir+ self.filename+self.version+"_"+self.code_id,"</b>"]))
+        dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at: ").format(self.was, self.version, self.code_id),
+                                     "<b>", self.base_dir+ self.filename+self.version+"_"+self.code_id,"</b>", "<br/>",
+                                     "<br/>", "<b>", _("Always check you backups.") ]))
         dialog.close()
 
     def ext_warning(self, dialog):
@@ -199,11 +202,11 @@ class Plugin(BasePlugin):
     def customtxt_limits(self):
         txt = self.text.text()
         self.max_chars.setVisible(False)
-        self.char_count.setText("("+str(len(txt))+"/216)")
+        self.char_count.setText("("+str(len(txt))+"/189)")
         if len(txt)>0:
             self.ctext.setEnabled(True)
-        if len(txt) > 216:
-            self.text.setPlainText(self.text.toPlainText()[:216])
+        if len(txt) > 189:
+            self.text.setPlainText(self.text.toPlainText()[:189])
             self.max_chars.setVisible(True)
 
     def t(self):
@@ -227,7 +230,7 @@ class Plugin(BasePlugin):
         logo.setAlignment(Qt.AlignLeft)
         hbox.addSpacing(16)
         self.vbox.addWidget(WWLabel("<b>" + _("Revealer Secret Backup Plugin") + "</b><br>"
-                               + _("Ready to encrypt for revealer ")+self.version+'_'+self.code_id ))
+                               + _("Ready to encrypt for revealer {}").format(self.version+'_'+self.code_id )))
         self.vbox.addSpacing(11)
         hbox.addLayout(self.vbox)
         grid = QGridLayout()
@@ -247,7 +250,7 @@ class Plugin(BasePlugin):
         self.char_count = WWLabel("")
         self.char_count.setAlignment(Qt.AlignRight)
         self.vbox.addWidget(self.char_count)
-        self.max_chars = WWLabel("<font color='red'>" + _("This version supports a maximum of 216 characters.")+"</font>")
+        self.max_chars = WWLabel("<font color='red'>" + _("This version supports a maximum of 189 characters.")+"</font>")
         self.vbox.addWidget(self.max_chars)
         self.max_chars.setVisible(False)
         self.ctext = QPushButton(_("Encrypt custom secret"))
@@ -286,7 +289,7 @@ class Plugin(BasePlugin):
         else:
             fontsize = 12
             linespace = 10
-            max_letters = 23
+            max_letters = 21
             max_lines = 9
             max_words = int(max_letters/4)
 
@@ -387,9 +390,9 @@ class Plugin(BasePlugin):
         else:
             self.filename = self.wallet_name+'_'+ _('seed')+'_'
             self.was = self.wallet_name +' ' + _('seed')
+            if self.extension:
+                self.ext_warning(self.c_dialog)
 
-        if self.extension:
-            self.ext_warning(self.c_dialog)
 
         if not calibration:
             self.toPdf(QImage(cypherseed))
