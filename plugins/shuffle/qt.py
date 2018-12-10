@@ -132,20 +132,21 @@ def update_coin_status(window, coin_name, msg):
     prev_in_progress = window.utxo_list.in_progress.get(coin_name)
 
     if coin_name not in ("MAINLOG", "PROTOCOL"):
-        if msg.startswith("Player") and coin_name not in window.utxo_list.in_progress:
-            if "get session number" in msg:
-                window.utxo_list.in_progress[coin_name] = 'wait for others'
-        elif msg.startswith("Player"):
-            if "begins CoinShuffle protocol" in msg:
-                window.utxo_list.in_progress[coin_name] = 'in progress'
-            elif "reaches phase" in msg:
-                pos = msg.find("reaches phase")
-                parts = msg[pos:].split(' ', 2)
-                try:
-                    phase = int(parts[2])
-                    window.utxo_list.in_progress[coin_name] = 'phase {}'.format(phase)
-                except (IndexError, ValueError):
-                    pass
+        if msg.startswith("Player"):
+            if coin_name not in window.utxo_list.in_progress:
+                if "get session number" in msg:
+                    window.utxo_list.in_progress[coin_name] = 'wait for others'
+            else:
+                if "begins CoinShuffle protocol" in msg:
+                    window.utxo_list.in_progress[coin_name] = 'in progress'
+                elif "reaches phase" in msg:
+                    pos = msg.find("reaches phase")
+                    parts = msg[pos:].split(' ', 2)
+                    try:
+                        phase = int(parts[2])
+                        window.utxo_list.in_progress[coin_name] = 'phase {}'.format(phase)
+                    except (IndexError, ValueError):
+                        pass
         elif msg.startswith("Error"):
             if coin_name in window.utxo_list.in_progress:
                 del window.utxo_list.in_progress[coin_name]
