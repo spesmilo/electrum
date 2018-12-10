@@ -199,6 +199,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
         fx = self.parent.fx
         if fx: fx.history_used_spot = False
         r = self.parent.wallet.get_full_history(domain=self.get_domain(), from_timestamp=None, to_timestamp=None, fx=fx)
+        self.set_visibility_of_columns()
         if r['transactions'] == list(self.transactions.values()):
             return
         old_length = len(self.transactions)
@@ -231,7 +232,6 @@ class HistoryModel(QAbstractItemModel, PrintError):
         for txid, tx_item in self.transactions.items():
             tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
             self.tx_status_cache[txid] = self.parent.wallet.get_tx_status(txid, tx_mined_info)
-        self.set_visibility_of_columns()
 
     def set_visibility_of_columns(self):
         hide = self.view.hideColumn
