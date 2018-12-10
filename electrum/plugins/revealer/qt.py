@@ -1,18 +1,11 @@
 '''
 
 Revealer
-So you have something to hide?
-
-plug-in for the electrum wallet.
-
-Features:
-    - Deep Cold multi-factor backup solution
-    - Safety - One time pad security
-    - Redundancy - Trustless printing & distribution
-    - Encrypt your seedphrase or any secret you want for your revealer
-    - Based on crypto by legendary cryptographers Naor and Shamir
+Do you have something to hide?
+Secret backup plug-in for the electrum wallet.
 
 Tiago Romagnani Silveira, 2017
+
 
 '''
 
@@ -31,6 +24,7 @@ from electrum.i18n import _
 from electrum.util import to_bytes, make_dir
 from electrum.gui.qt.util import *
 from electrum.gui.qt.qrtextedit import ScanQRTextEdit
+from electrum.gui.qt.main_window import StatusBarButton
 
 from .hmac_drbg import DRBG
 
@@ -58,10 +52,8 @@ class Plugin(BasePlugin):
         make_dir(self.base_dir)
 
     @hook
-    def set_seed(self, seed, has_extension, parent):
-        self.cseed = seed.upper()
-        self.has_extension = has_extension
-        parent.addButton(':icons/revealer.png', partial(self.setup_dialog, parent), "Revealer"+_(" secret backup utility"))
+    def revealer_hook(self, parent):
+        parent.addPermanentWidget(StatusBarButton(QIcon(':icons/revealer.png'), "Revealer"+_(" secret backup utility"), partial(self.setup_dialog, parent)))
 
     def requires_settings(self):
         return True
@@ -69,39 +61,70 @@ class Plugin(BasePlugin):
     def settings_widget(self, window):
         return EnterButton(_('Printer Calibration'), partial(self.calibration_dialog, window))
 
+    def password_dialog(self, msg=None, parent=None):
+        from electrum.gui.qt.password_dialog import PasswordDialog
+        parent = parent or self
+        d = PasswordDialog(parent, msg)
+        return d.run()
+
+    def get_seed(self):
+        password = None
+        if self.wallet.has_keystore_encryption():
+            password = self.password_dialog(parent=self.d.parent())
+            if not password:
+                return
+
+        keystore = self.wallet.get_keystore()
+        try:
+            self.cseed = keystore.get_seed(password)
+            if keystore.get_passphrase(password):
+                self.extension = True
+        except Exception:
+            traceback.print_exc(file=sys.stdout)
+            return
+
     def setup_dialog(self, window):
-        self.update_wallet_name(window.parent().parent().wallet)
+        self.wallet = window.parent().wallet
+        self.update_wallet_name(self.wallet)
         self.user_input = False
         self.noise_seed = False
-        self.d = WindowModalDialog(window, "Revealer")
-        self.d.setMinimumWidth(420)
-        vbox = QVBoxLayout(self.d)
-        vbox.addSpacing(21)
-        logo = QLabel()
-        vbox.addWidget(logo)
-        logo.setPixmap(QPixmap(':icons/revealer.png'))
-        logo.setAlignment(Qt.AlignCenter)
-        vbox.addSpacing(42)
 
+        self.d = WindowModalDialog(window, "Setup Dialog")
+        self.d.setMinimumWidth(500)
+        self.d.setMinimumHeight(210)
+        self.d.setMaximumHeight(320)
+        self.d.setContentsMargins(11,11,1,1)
+
+        self.hbox = QHBoxLayout(self.d)
+        vbox = QVBoxLayout()
+        logo = QLabel()
+        self.hbox.addWidget(logo)
+        logo.setPixmap(QPixmap(':icons/revealer.png'))
+        logo.setAlignment(Qt.AlignLeft)
+        self.hbox.addSpacing(16)
+        vbox.addWidget(WWLabel("<b>"+_("Revealer Secret Backup Plugin")+"</b><br>"
+                                    +_("To encrypt your backup, first we need to load some noise.")+"</br>"))
+        vbox.addSpacing(7)
+        bcreate = QPushButton(_("Create a new Revealer"))
+        bcreate.setMaximumWidth(181)
+        bcreate.setDefault(True)
+        vbox.addWidget(bcreate, Qt.AlignCenter)
         self.load_noise = ScanQRTextEdit()
         self.load_noise.setTabChangesFocus(True)
         self.load_noise.textChanged.connect(self.on_edit)
         self.load_noise.setMaximumHeight(33)
-
-        vbox.addWidget(WWLabel("<b>"+_("Enter your physical revealer code:")+"<b>"))
+        self.hbox.addLayout(vbox)
+        vbox.addWidget(WWLabel(_("or type a existing revealer code below and click 'next':")))
         vbox.addWidget(self.load_noise)
-        vbox.addSpacing(11)
-
+        vbox.addSpacing(3)
         self.next_button = QPushButton(_("Next"), self.d)
-        self.next_button.setDefault(True)
         self.next_button.setEnabled(False)
         vbox.addLayout(Buttons(self.next_button))
         self.next_button.clicked.connect(self.d.close)
         self.next_button.clicked.connect(partial(self.cypherseed_dialog, window))
-        vbox.addSpacing(21)
-
-        vbox.addWidget(WWLabel(_("or, alternatively: ")))
-        bcreate = QPushButton(_("Create a digital Revealer"))
+        vbox.addWidget(
+            QLabel("<b>" + _("Warning") + "</b>: " + _("Each revealer should be used only once.")
+                   +"<br>"+_("more info at https://revealer.cc/faq")))
 
         def mk_digital():
             try:
@@ -112,15 +135,6 @@ class Plugin(BasePlugin):
                 self.cypherseed_dialog(window)
 
         bcreate.clicked.connect(mk_digital)
-
-        vbox.addWidget(bcreate)
-        vbox.addSpacing(11)
-        vbox.addWidget(QLabel(''.join([ "<b>"+_("WARNING")+ "</b>:" + _("Printing a revealer and encrypted seed"), '<br/>',
-                                       _("on the same printer is not trustless towards the printer."), '<br/>',
-                                       ])))
-        vbox.addSpacing(11)
-        vbox.addLayout(Buttons(CloseButton(self.d)))
-
         return bool(self.d.exec_())
 
     def get_noise(self):
@@ -174,7 +188,7 @@ class Plugin(BasePlugin):
         dialog.close()
 
     def ext_warning(self, dialog):
-        dialog.show_message(''.join(["<b>",_("Warning: "), "</b>", _("your seed extension will not be included in the encrypted backup.")]))
+        dialog.show_message(''.join(["<b>",_("Warning: "), "</b>", _("your seed extension will ")+"<b>"+_("not")+"</b>"+_(" be included in the encrypted backup.")]))
         dialog.close()
 
     def bdone(self, dialog):
@@ -198,57 +212,49 @@ class Plugin(BasePlugin):
 
     def cypherseed_dialog(self, window):
 
-        d = WindowModalDialog(window, "Revealer")
-        d.setMinimumWidth(420)
-
+        d = WindowModalDialog(window, "Encryption Dialog")
+        d.setMinimumWidth(500)
+        d.setMinimumHeight(210)
+        d.setMaximumHeight(450)
+        d.setContentsMargins(11, 11, 1, 1)
         self.c_dialog = d
 
-        self.vbox = QVBoxLayout(d)
-        self.vbox.addSpacing(21)
-
+        hbox = QHBoxLayout(d)
+        self.vbox = QVBoxLayout()
         logo = QLabel()
-        self.vbox.addWidget(logo)
+        hbox.addWidget(logo)
         logo.setPixmap(QPixmap(':icons/revealer.png'))
-        logo.setAlignment(Qt.AlignCenter)
-        self.vbox.addSpacing(42)
-
+        logo.setAlignment(Qt.AlignLeft)
+        hbox.addSpacing(16)
+        self.vbox.addWidget(WWLabel("<b>" + _("Revealer Secret Backup Plugin") + "</b><br>"
+                               + _("Ready to encrypt for revealer ")+self.version+'_'+self.code_id ))
+        self.vbox.addSpacing(11)
+        hbox.addLayout(self.vbox)
         grid = QGridLayout()
         self.vbox.addLayout(grid)
 
-        cprint = QPushButton(_("Generate encrypted seed backup"))
+        cprint = QPushButton(_("Encrypt ")+self.wallet_name+_("'s seed"))
+        cprint.setMaximumWidth(250)
         cprint.clicked.connect(partial(self.seed_img, True))
         self.vbox.addWidget(cprint)
-        self.vbox.addSpacing(14)
-
-        self.vbox.addWidget(WWLabel(_("OR type any secret below:")))
+        self.vbox.addSpacing(1)
+        self.vbox.addWidget(WWLabel("<b>"+_("OR ")+"</b>"+_("type a custom alphanumerical secret below:")))
         self.text = ScanQRTextEdit()
         self.text.setTabChangesFocus(True)
         self.text.setMaximumHeight(70)
         self.text.textChanged.connect(self.customtxt_limits)
         self.vbox.addWidget(self.text)
-
         self.char_count = WWLabel("")
         self.char_count.setAlignment(Qt.AlignRight)
         self.vbox.addWidget(self.char_count)
-
         self.max_chars = WWLabel("<font color='red'>" + _("This version supports a maximum of 216 characters.")+"</font>")
         self.vbox.addWidget(self.max_chars)
         self.max_chars.setVisible(False)
-
-        self.ctext = QPushButton(_("Generate custom secret encrypted backup"))
+        self.ctext = QPushButton(_("Encrypt custom secret"))
         self.ctext.clicked.connect(self.t)
-
         self.vbox.addWidget(self.ctext)
         self.ctext.setEnabled(False)
-
         self.vbox.addSpacing(11)
-        self.vbox.addWidget(
-                            QLabel(''.join(["<b>" + _("WARNING") + "</b>: " + _("Revealer is a one-time-pad and should be used only once."), '<br/>',
-                            _("Multiple secrets encrypted for the same Revealer can be attacked."), '<br/>',
-                            ])))
-        self.vbox.addSpacing(11)
-
-        self.vbox.addSpacing(21)
         self.vbox.addLayout(Buttons(CloseButton(d)))
         return bool(d.exec_())
 
@@ -259,11 +265,9 @@ class Plugin(BasePlugin):
 
     def seed_img(self, is_seed = True):
 
-        if not self.cseed and self.txt == False:
-            return
-
         if is_seed:
-            txt = self.cseed
+            self.get_seed()
+            txt = self.cseed.upper()
         else:
             txt = self.txt.upper()
 
@@ -328,7 +332,7 @@ class Plugin(BasePlugin):
 
         entropy = binascii.unhexlify(str(format(self.noise_seed, '032x')))
         code_id = binascii.unhexlify(self.version + self.code_id)
-
+        print (self.hex_noise)
         drbg = DRBG(entropy + code_id)
         noise_array=bin(int.from_bytes(drbg.generate(1929), 'big'))[2:]
 
@@ -384,7 +388,7 @@ class Plugin(BasePlugin):
             self.filename = self.wallet_name+'_'+ _('seed')+'_'
             self.was = self.wallet_name +' ' + _('seed')
 
-        if self.has_extension:
+        if self.extension:
             self.ext_warning(self.c_dialog)
 
         if not calibration:
