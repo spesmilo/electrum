@@ -438,14 +438,17 @@ class Interface(PrintError):
         return last, height
 
     async def step(self, height, header=None):
-        assert height != 0
-        assert height <= self.tip, (height, self.tip)
+        assert 0 <= height <= self.tip, (height, self.tip)
         if header is None:
             header = await self.get_block_header(height, 'catchup')
 
         chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
         if chain:
             self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain
+            # note: there is an edge case here that is not handled.
+            # we might know the blockhash (enough for check_header) but
+            # not have the header itself. e.g. regtest chain with only genesis.
+            # this situation resolves itself on the next block
             return 'catchup', height+1
 
         can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)
