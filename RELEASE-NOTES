@@ -23,6 +23,17 @@
    - Trezor: refactoring and compat with python-trezor 0.11
    - Digital BitBox: support firmware v5.0.0
  * fix bitcoin URI handling when app already running (#4796)
+ * Qt listing fixes:
+   - Selection by arrow keys disabled while editing e.g. label
+   - Enter key on unedited value does not pop up context menu
+   - Contacts:
+     - Prevent editing of OpenAlias names
+   - Receive:
+     - Icon for status of payment requests
+     - Disable editing of 'Description' in list, interaction
+       between labels and memo of invoice confusing
+   - Addresses:
+     - Fiat prices would show "No Data" incorrectly upon start
  * Several other minor bugfixes and usability improvements.
 
 
