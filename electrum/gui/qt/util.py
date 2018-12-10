@@ -444,6 +444,13 @@ class MyTreeView(QTreeView):
         self.setRootIsDecorated(False)  # remove left margin
         self.toolbar_shown = False
 
+        # When figuring out the size of columns, Qt by default looks at
+        # the first 1000 rows (at least if resize mode is QHeaderView.ResizeToContents).
+        # This would be REALLY SLOW, and it's not perfect anyway.
+        # So to speed the UI up considerably, set it to
+        # only look at as many rows as currently visible.
+        self.header().setResizeContentsPrecision(0)
+
     def set_editability(self, items):
         for idx, i in enumerate(items):
             i.setEditable(idx in self.editable_columns)

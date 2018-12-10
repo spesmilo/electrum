@@ -96,9 +96,8 @@ class HistoryModel(QAbstractItemModel, PrintError):
         return self.createIndex(row, column)
 
     def data(self, index: QModelIndex, role: Qt.ItemDataRole):
-        # requires PyQt5 5.11
-        # indexIsValid = QAbstractItemModel.CheckIndexOptions(QAbstractItemModel.CheckIndexOption.IndexIsValid.value)
-        # assert self.checkIndex(index, indexIsValid)
+        # note: this method is performance-critical.
+        # it is called a lot, and so must run extremely fast.
         assert index.isValid()
         col = index.column()
         tx_item = self.transactions.value_from_pos(index.row())
