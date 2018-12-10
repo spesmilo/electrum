@@ -105,7 +105,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
     def index(self, row: int, column: int, parent: QModelIndex):
         return self.createIndex(row, column)
 
-    def data(self, index: QModelIndex, role: Qt.ItemDataRole):
+    def data(self, index: QModelIndex, role: Qt.ItemDataRole) -> QVariant:
         # note: this method is performance-critical.
         # it is called a lot, and so must run extremely fast.
         assert index.isValid()
@@ -161,7 +161,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
                     and not tx_item.get('fiat_default') and tx_item.get('fiat_value') is not None:
                 blue_brush = QBrush(QColor("#1E1EFF"))
                 return QVariant(blue_brush)
-            return None
+            return QVariant()
         if col == HistoryColumns.STATUS_TEXT:
             return QVariant(status_str)
         elif col == HistoryColumns.DESCRIPTION:
@@ -187,7 +187,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
             return QVariant(self.parent.fx.format_fiat(cg))
         elif col == HistoryColumns.TXID:
             return QVariant(tx_hash)
-        return None
+        return QVariant()
 
     def parent(self, index: QModelIndex):
         return QModelIndex()
