@@ -100,7 +100,7 @@ class ElectrumGui:
         self.efilter = OpenFileEventFilter(self.windows)
         self.app = QElectrumApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
-        self.timer = Timer()
+        self.timer = QTimer(self.app); self.timer.setSingleShot(False); self.timer.setInterval(500) #msec
         self.nd = None
         self.network_updated_signal_obj = QNetworkUpdatedSignalObject()
         # init tray

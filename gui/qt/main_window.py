@@ -214,7 +214,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # update fee slider in case we missed the callback
         self.fee_slider.update()
         self.load_wallet(wallet)
-        self.connect_slots(gui_object.timer)
+        gui_object.timer.timeout.connect(self.timer_actions)
         self.fetch_alias()
 
     def on_history(self, b):
@@ -654,9 +654,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if fileName and directory != os.path.dirname(fileName):
             self.config.set_key('io_dir', os.path.dirname(fileName), True)
         return fileName
-
-    def connect_slots(self, sender):
-        sender.timer_signal.connect(self.timer_actions)
 
     def timer_actions(self):
         # Note this runs in the GUI thread
@@ -3133,6 +3130,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.qr_window.close()
         self.close_wallet()
 
+        self.gui_object.timer.timeout.disconnect(self.timer_actions)
         self.gui_object.close_window(self)
 
     def internal_plugins_dialog(self):
