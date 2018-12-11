@@ -244,7 +244,6 @@ class Wallet_2fa(Multisig_Wallet):
         self.is_billing = False
         self.billing_info = None
         self._load_billing_addresses()
-        self.plugin = None  # type: TrustedCoinPlugin
 
     def _load_billing_addresses(self):
         billing_addresses = {
