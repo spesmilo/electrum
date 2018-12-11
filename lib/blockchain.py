@@ -87,14 +87,13 @@ def serialize_header(res):
     return s
 
 def deserialize_header(s, height):
-    hex_to_int = lambda s: int('0x' + bh2u(s[::-1]), 16)
     h = {}
-    h['version'] = hex_to_int(s[0:4])
+    h['version'] = int.from_bytes(s[0:4], 'little')
     h['prev_block_hash'] = hash_encode(s[4:36])
     h['merkle_root'] = hash_encode(s[36:68])
-    h['timestamp'] = hex_to_int(s[68:72])
-    h['bits'] = hex_to_int(s[72:76])
-    h['nonce'] = hex_to_int(s[76:80])
+    h['timestamp'] = int.from_bytes(s[68:72], 'little')
+    h['bits'] = int.from_bytes(s[72:76], 'little')
+    h['nonce'] = int.from_bytes(s[76:80], 'little')
     h['block_height'] = height
     return h
 
@@ -143,8 +142,7 @@ def verify_proven_chunk(chunk_base_height, chunk_data):
     prev_header = None
     prev_header_hash = None
     for i in range(header_count):
-        raw_header = chunk.get_header_at_index(i)
-        header = deserialize_header(raw_header, chunk_base_height + i)
+        header = chunk.get_header_at_index(i)
         # Check the chain of hashes for all headers preceding the proven one.
         this_header_hash = hash_header(header)
         if i > 0:
@@ -168,11 +166,13 @@ def root_from_proof(hash, branch, index):
 class HeaderChunk:
     def __init__(self, base_height, data):
         self.base_height = base_height
-        self.data = data
-        self.header_count = len(self.data) // HEADER_SIZE
+        self.header_count = len(data) // HEADER_SIZE
+        self.headers = [deserialize_header(data[i * HEADER_SIZE : (i + 1) * HEADER_SIZE],
+                                           base_height + i)
+                        for i in range(self.header_count)]
 
     def __repr__(self):
-        return "HeaderChunk(base_height={}, data_length={}, header_count={})".format(self.base_height, len(self.data), self.header_count)
+        return "HeaderChunk(base_height={}, header_count={})".format(self.base_height, self.header_count)
 
     def get_count(self):
         return self.header_count
@@ -182,13 +182,10 @@ class HeaderChunk:
 
     def get_header_at_height(self, height):
         assert self.contains_height(height)
-        header_hex = self.get_header_at_index(height - self.base_height)
-        assert len(header_hex) == HEADER_SIZE
-        return header_hex
+        return self.get_header_at_index(height - self.base_height)
 
     def get_header_at_index(self, index):
-        header_offset = index * HEADER_SIZE
-        return self.data[header_offset:header_offset + HEADER_SIZE]
+        return self.headers[index]
 
 class Blockchain(util.PrintError):
     """
@@ -278,8 +275,7 @@ class Blockchain(util.PrintError):
 
         header_count = len(chunk_data) // HEADER_SIZE
         for i in range(header_count):
-            raw_header = chunk.get_header_at_index(i)
-            header = deserialize_header(raw_header, chunk_base_height + i)
+            header = chunk.get_header_at_index(i)
             # Check the chain of hashes and the difficulty.
             bits = self.get_bits(header, chunk)
             self.verify_header(header, prev_header, bits)
@@ -360,8 +356,7 @@ class Blockchain(util.PrintError):
     def read_header(self, height, chunk=None):
         # If the read is done within an outer call with local unstored header data, we first look in the chunk data currently being processed.
         if chunk is not None and chunk.contains_height(height):
-            header = chunk.get_header_at_height(height)
-            return deserialize_header(header, height)
+            return chunk.get_header_at_height(height)
 
         assert self.parent_base_height != self.base_height
         if height < 0:
@@ -560,7 +555,7 @@ class Blockchain(util.PrintError):
             # for. We need to verify that there isn't a split within the chunk, and if
             # there is, indicate the need for the server to fork.
             intersection_height = min(top_height, self.height())
-            chunk_header = deserialize_header(chunk.get_header_at_height(intersection_height), intersection_height)
+            chunk_header = chunk.get_header_at_height(intersection_height)
             our_header = self.read_header(intersection_height)
             if hash_header(chunk_header) != hash_header(our_header):
                 return CHUNK_FORKS
@@ -571,7 +566,7 @@ class Blockchain(util.PrintError):
             # We need to rule out the case where the chunk is actually a fork at the
             # connecting height.
             our_header = self.read_header(self.height())
-            chunk_header = deserialize_header(chunk.get_header_at_height(base_height), base_height)
+            chunk_header = chunk.get_header_at_height(base_height)
             if hash_header(our_header) != chunk_header['prev_block_hash']:
                 return CHUNK_FORKS
 

@@ -938,8 +938,7 @@ class Network(util.DaemonThread):
                 interface.blockchain = None
                 interface.set_mode(Interface.MODE_BACKWARD)
                 interface.bad = request_base_height + actual_header_count - 1
-                bad_header_hex = blockchain.HeaderChunk(request_base_height, chunk_data).get_header_at_height(interface.bad)
-                interface.bad_header = blockchain.deserialize_header(bad_header_hex, interface.bad)
+                interface.bad_header = blockchain.HeaderChunk(request_base_height, chunk_data).get_header_at_height(interface.bad)
                 self.request_header(interface, min(interface.tip, interface.bad - 1))
             return
         else:
