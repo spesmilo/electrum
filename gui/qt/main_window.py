@@ -778,7 +778,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     icon = QIcon(":icons/status_connected.png") if num_chains <= 1 else QIcon(":icons/status_connected_fork.png")
                 else:
                     icon = QIcon(":icons/status_connected_proxy.png") if num_chains <= 1 else QIcon(":icons/status_connected_proxy_fork.png")
-
         else:
             text = _("Not connected")
             icon = QIcon(":icons/status_disconnected.png")

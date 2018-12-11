@@ -435,6 +435,7 @@ class Plugin(BasePlugin):
         if window not in self.windows:
             return
         tot, n = get_shuffled_coin_totals(window.wallet)
+        window.send_tab_shuffle_extra.refresh(tot, n)
         if tot:
             c, u, x = window.wallet.get_balance()
             diff = (c+u+x) - tot
@@ -636,7 +637,6 @@ class SendTabExtra(QFrame):
         super().showEvent(e)
         self.refresh()
 
-    @rate_limited(.25)
     def refresh(self, amount = None, n = None):
         if amount is None or n is None:
             amount, n = get_shuffled_coin_totals(self.wallet)
