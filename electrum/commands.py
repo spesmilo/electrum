@@ -323,7 +323,7 @@ class Commands:
     def deserialize(self, tx):
         """Deserialize a serialized transaction"""
         tx = Transaction(tx)
-        return tx.deserialize()
+        return tx.deserialize(force_full_parse=True)
 
     @command('n')
     def broadcast(self, tx):
