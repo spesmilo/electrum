@@ -40,10 +40,18 @@ class UTXOList(MyTreeWidget):
     def get_name(self, x):
         return x.get('prevout_hash') + ":%d"%x.get('prevout_n')
 
+    @rate_limited(1.0) # performance tweak -- limit updates to no more than oncer per second
+    def update(self):
+        if self.wallet and self.wallet.thread and not self.wallet.thread.isRunning():
+            # short-cut return if window was closed and wallet is stopped
+            return
+        super().update()
+
     def on_update(self):
         prev_selection = self.get_selected() # cache previous selection, if any
         self.clear()
         self.wallet = self.parent.wallet
+        if not self.wallet: return
         self.utxos = self.wallet.get_utxos()
         for x in self.utxos:
             address = x['address']
