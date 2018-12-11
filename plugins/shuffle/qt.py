@@ -158,12 +158,12 @@ def update_coin_status(window, coin_name, msg):
                     new_in_progress = 'phase {}'.format(phase)
                 except (IndexError, ValueError):
                     pass
+            elif msg.endswith("complete protocol"):
+                new_in_progress = None
         elif msg.startswith("Error"):
             new_in_progress = None # flag to remove from progress list
             if msg.find(ERR_SERVER_CONNECT) != -1:
                 window.cashshuffle_set_flag(1) # 1 means server connection issue
-        elif msg.endswith("complete protocol"):
-            new_in_progress = None
         elif msg.startswith("Blame") and "insufficient" not in msg and "wrong hash" not in msg:
             new_in_progress = None
         elif msg.startswith("shuffle_txid:"): # TXID message -- call "set_label"

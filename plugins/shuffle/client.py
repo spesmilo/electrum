@@ -302,7 +302,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.print_error("Stop protocol thread for scale: {}".format(scale))
         with self.lock:
             thr = self.threads[scale]
-            sender = thr and list(thr.inputs.values())[0][0]
+            sender = thr and thr.coin
             if sender:
                 with self.wallet.lock:
                     self.wallet.set_frozen_coin_state([sender], False)
@@ -310,8 +310,14 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                     coins_for_shuffling -= {sender}
                     self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
                 self.logger.send(message, sender)
+            else:
+                self.print_error("No sender! Thr={}".format(str(thr)))
             self.threads[scale] = None
-        if thr and thr.is_alive(): thr.join()
+        if thr:
+            if thr.is_alive(): thr.join()
+            else:
+                thr.stop()
+                self.print_error("Thread already exited; cleaned up.")
 
     def protocol_thread_callback(self, scale, message):
         ''' This callback runs in the ProtocolThread's thread context '''
