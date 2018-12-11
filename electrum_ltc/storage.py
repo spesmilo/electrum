@@ -572,9 +572,7 @@ class WalletStorage(JsonDB):
         # delete verified_tx3 as its structure changed
         if not self._is_upgrade_method_needed(17, 17):
             return
-
         self.put('verified_tx3', None)
-
         self.put('seed_version', 18)
 
     def convert_imported(self):

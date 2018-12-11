@@ -4,7 +4,7 @@ import tempfile
 from typing import Sequence
 import asyncio
 
-from electrum_ltc import storage, bitcoin, keystore
+from electrum_ltc import storage, bitcoin, keystore, bip32
 from electrum_ltc import Transaction
 from electrum_ltc import SimpleConfig
 from electrum_ltc.address_synchronizer import TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT
