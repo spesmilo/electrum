@@ -607,7 +607,7 @@ class SendTabExtra(QFrame):
         l.setVerticalSpacing(12)
         l.setHorizontalSpacing(30)
         l.setContentsMargins(6, 12, 6, 12)
-        msg = "{}\n\n{}\n\n{}".format(_("In order to protect your privacy, when CashShuffle is enable, only shuffled coins can be sent."),
+        msg = "{}\n\n{}\n\n{}".format(_("In order to protect your privacy, when CashShuffle is enabled, only shuffled coins can be sent."),
                                       _("If insufficient shuffled funds are available, you can wait a few minutes as coins are shuffled in the background."),
                                       _("To toggle CashShuffle off, use the CashSuffle icon in the status bar."))
         titleLabel = HelpLabel("<big><b>{}</b></big> <i>{}</i>"
