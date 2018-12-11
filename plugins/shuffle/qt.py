@@ -1,8 +1,7 @@
-
 #!/usr/bin/env python
 #
-# Electrum - Lightweight Bitcoin Client
-# Copyright (C) 2015 Thomas Voegtlin
+# Cash Shuffle - CoinJoin for Bitcoin Cash
+# Copyright (C) 2018 Electron Cash LLC
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
