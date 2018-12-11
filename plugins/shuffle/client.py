@@ -150,7 +150,6 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         )
         if not self.done.is_set():
             self.protocol.start_protocol()
-            self.done.wait()
 
     @not_time_to_die
     def run(self):
@@ -183,13 +182,13 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     def join(self, timeout_ignored=None):
         "This method Joins the protocol thread"
         self.stop()
-        while self.is_alive():
+        if self.is_alive():
             # the below is a work-around to the fact that this whole scheme still has a race condition with respect to the comm class :/
             super().join(2.0)
             if self.is_alive():
-                self.print_error("Could not join self after 2 seconds. Trying again...")
-                self.stop()
-                continue
+                # FIXME -- race condition exists with socket fd after close being reused, thus hanging the recv().
+                self.print_error("Could not join after 2.0 seconds. Leaving the daemon thread in the background running :(")
+                return
             self.print_error("Joined self")
 
     def diagnostic_name(self):

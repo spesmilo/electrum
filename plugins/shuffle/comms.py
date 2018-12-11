@@ -53,6 +53,7 @@ class Comm(PrintErrorThread):
         self.timeout = timeout
         self.recvbuf = b''
         self.ssl = ssl
+        self.connected = False
 
     def connect(self):
         try:
@@ -66,6 +67,7 @@ class Comm(PrintErrorThread):
             self.socket.settimeout(5.0)
             self.socket.connect((self.host, self.port))
             self.socket.settimeout(self.timeout) # blocking socket with a timeout -- when recv times out the enclosing protocol thread exits
+            self.connected = True
         except OSError as error:
             self.print_error("Socket Error on connect: {}".format(str(error)))
             raise error
@@ -73,10 +75,10 @@ class Comm(PrintErrorThread):
     def send(self, msg):
         message_length = len(msg).to_bytes(4, byteorder='big')
         message = self.magic + message_length + msg
-        self.socket.sendall(message)
+        if self.connected: self.socket.sendall(message)
 
     def recv(self):
-        while True:
+        while self.connected:
             if len(self.recvbuf) > 12:
                 magic = self.recvbuf[0:8]
                 if magic == self.magic:
@@ -97,8 +99,9 @@ class Comm(PrintErrorThread):
                     raise e
 
     def close(self):
-        if self.socket:
+        if self.socket and self.connected:
             try:
+                self.connected = False
                 self.socket.shutdown(socket.SHUT_RDWR)
                 self.socket.close()
             except OSError:
