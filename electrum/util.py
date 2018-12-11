@@ -413,6 +413,17 @@ def assert_file_in_datadir_available(path, config_path):
             'Should be at {}'.format(path))
 
 
+def get_new_wallet_name(wallet_folder: str) -> str:
+    i = 1
+    while True:
+        filename = "wallet_%d" % i
+        if filename in os.listdir(wallet_folder):
+            i += 1
+        else:
+            break
+    return filename
+
+
 def assert_bytes(*args):
     """
     porting helper, assert args type

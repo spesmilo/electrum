@@ -44,7 +44,7 @@ from electrum.plugin import run_hook
 from electrum.storage import WalletStorage
 from electrum.base_wizard import GoBack
 from electrum.util import (UserCancelled, PrintError, profiler,
-                           WalletFileException, BitcoinException)
+                           WalletFileException, BitcoinException, get_new_wallet_name)
 
 from .installwizard import InstallWizard
 
@@ -263,6 +263,10 @@ class ElectrumGui(PrintError):
             d = QMessageBox(QMessageBox.Warning, _('Error'),
                             _('Cannot create window for wallet') + ':\n' + str(e))
             d.exec_()
+            if app_is_starting:
+                wallet_dir = os.path.dirname(path)
+                path = os.path.join(wallet_dir, get_new_wallet_name(wallet_dir))
+                self.start_new_window(path, uri)
             return
         if uri:
             w.pay_to_URI(uri)
