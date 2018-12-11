@@ -44,19 +44,6 @@ expiration_values = [
 ]
 
 
-class Timer(QThread):
-    stopped = False
-    timer_signal = pyqtSignal()
-
-    def run(self):
-        while not self.stopped:
-            self.timer_signal.emit()
-            time.sleep(0.5)
-
-    def stop(self):
-        self.stopped = True
-        self.wait()
-
 class EnterButton(QPushButton):
     def __init__(self, text, func):
         QPushButton.__init__(self, text)
