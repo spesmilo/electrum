@@ -36,7 +36,7 @@ def maybe_create_sweeptx_for_their_ctx_to_remote(ctx: Transaction, sweep_address
 
 def maybe_create_sweeptx_for_their_ctx_to_local(ctx: Transaction, revocation_privkey: bytes,
                                                 to_self_delay: int, delayed_pubkey: bytes,
-                                                sweep_address: str) -> Optional[EncumberedTransaction]:
+                                                sweep_address: str) -> Optional[Transaction]:
     revocation_pubkey = ecc.ECPrivkey(revocation_privkey).get_public_key_bytes(compressed=True)
     witness_script = bh2u(make_commitment_output_to_local_witness_script(
         revocation_pubkey, to_self_delay, delayed_pubkey))
@@ -49,8 +49,7 @@ def maybe_create_sweeptx_for_their_ctx_to_local(ctx: Transaction, revocation_pri
                                            witness_script=witness_script,
                                            privkey=revocation_privkey,
                                            is_revocation=True)
-    if sweep_tx is None: return None
-    return EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)
+    return sweep_tx
 
 
 def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction, per_commitment_secret: bytes,
