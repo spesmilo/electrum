@@ -11,7 +11,7 @@ from electrum.plugin import Device
 from electrum.transaction import deserialize
 from electrum.transaction_utils import is_segwit_input
 from electrum.util import bfh, bh2u, UserCancelled, UserFacingException
-from xpubkey_utils import is_xpubkey, parse_xpubkey
+from electrum.xpubkey_utils import is_xpubkey, parse_xpubkey
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import (is_any_tx_output_on_change_branch, trezor_validate_op_return_output_and_get_data,
                                 LibraryFoundButUnusable)

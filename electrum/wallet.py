@@ -644,96 +644,6 @@ class Abstract_Wallet(AddressSynchronizer):
             return tx
         return candidate
 
-    # def make_unsigned_transaction(self, coins, outputs, config, fixed_fee=None, change_addr=None, is_sweep=False):
-    #     print_error('make_unsigned_transaction deprecated')
-    #     # check outputs
-    #     i_max = None
-    #     for i, o in enumerate(outputs):
-    #         if o.type == TYPE_ADDRESS:
-    #             if not is_address(o.address):
-    #                 raise Exception("Invalid bitcoin address: {}".format(o.address))
-    #         if o.value == '!':
-    #             if i_max is not None:
-    #                 raise Exception("More than one output set to spend max")
-    #             i_max = i
-    #
-    #     if fixed_fee is None and config.fee_per_kb() is None:
-    #         raise NoDynamicFeeEstimates()
-    #
-    #     for item in coins:
-    #         self.add_input_info(item)
-    #
-    #     # change address
-    #     # if we leave it empty, coin_chooser will set it
-    #     change_addrs = []
-    #     if change_addr:
-    #         change_addrs = [change_addr]
-    #     elif self.use_change:
-    #         # Recalc and get unused change addresses
-    #         addrs = self.calc_unused_change_addresses()
-    #         # New change addresses are created only after a few
-    #         # confirmations.
-    #         if addrs:
-    #             # if there are any unused, select all
-    #             change_addrs = addrs
-    #         else:
-    #             # if there are none, take one randomly from the last few
-    #             addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
-    #             change_addrs = [random.choice(addrs)] if addrs else []
-    #
-    #     # Fee estimator
-    #     if fixed_fee is None:
-    #         fee_estimator = config.estimate_fee
-    #     elif isinstance(fixed_fee, Number):
-    #         fee_estimator = lambda size: fixed_fee
-    #     elif callable(fixed_fee):
-    #         fee_estimator = fixed_fee
-    #     else:
-    #         raise Exception('Invalid argument fixed_fee: %s' % fixed_fee)
-    #
-    #     if i_max is None:
-    #         # Let the coin chooser select the coins to spend
-    #         max_change = self.max_change_outputs if self.multiple_change else 1
-    #         coin_chooser = coinchooser.get_coin_chooser(config)
-    #         # If there is an unconfirmed RBF tx, merge with it
-    #         base_tx = self.get_unconfirmed_base_tx_for_batching()
-    #         if config.get('batch_rbf', False) and base_tx:
-    #             is_local = self.get_tx_height(base_tx.txid()).height == TX_HEIGHT_LOCAL
-    #             base_tx = Transaction(base_tx.serialize())
-    #             base_tx.deserialize(force_full_parse=True)
-    #             base_tx.remove_signatures()
-    #             base_tx.add_inputs_info(self)
-    #             base_tx_fee = base_tx.get_fee()
-    #             relayfeerate = self.relayfee() / 1000
-    #             original_fee_estimator = fee_estimator
-    #             def fee_estimator(size: int) -> int:
-    #                 lower_bound = base_tx_fee + round(size * relayfeerate)
-    #                 lower_bound = lower_bound if not is_local else 0
-    #                 return max(lower_bound, original_fee_estimator(size))
-    #             txi = base_tx.inputs()
-    #             txo = list(filter(lambda o: not self.is_change(o.address), base_tx.outputs()))
-    #         else:
-    #             txi = []
-    #             txo = []
-    #         tx = coin_chooser.make_tx(coins, txi, outputs[:] + txo, change_addrs[:max_change],
-    #                                   fee_estimator, self.dust_threshold())
-    #     else:
-    #         # FIXME?? this might spend inputs with negative effective value...
-    #         sendable = sum(map(lambda x:x['value'], coins))
-    #         outputs[i_max] = outputs[i_max]._replace(value=0)
-    #         tx = Transaction.from_io(coins, outputs[:])
-    #         fee = fee_estimator(tx.estimated_size())
-    #         amount = sendable - tx.output_value() - fee
-    #         if amount < 0:
-    #             raise NotEnoughFunds()
-    #         outputs[i_max] = outputs[i_max]._replace(value=amount)
-    #         tx = Transaction.from_io(coins, outputs[:])
-    #
-    #     # Timelock tx to current height.
-    #     tx.locktime = self.get_local_height()
-    #     run_hook('make_unsigned_transaction', self, tx)
-    #     return tx
-
     def make_psbt(self,
                   inputs: List[dict],
                   outputs: List[TxOutput],
@@ -827,6 +737,7 @@ class Abstract_Wallet(AddressSynchronizer):
 
         # Timelock tx to current height.
         tx.locktime = self.get_local_height()
+        tx.version = 2
         self.add_input_info_to_all_inputs(tx)
 
         psbt = PSBT.from_raw_tx(tx)
@@ -835,15 +746,6 @@ class Abstract_Wallet(AddressSynchronizer):
 
         run_hook('make_psbt', self, psbt)
         return psbt
-
-    # def mktx(self, outputs, password, config, fee=None, change_addr=None,
-    #          domain=None, rbf=False, nonlocal_only=False) -> PSBT:
-    #     coins = self.get_spendable_coins(domain, config, nonlocal_only=nonlocal_only)
-    #     psbt = self.make_psbt(coins, outputs, config, fee, change_addr)
-    #
-    #     psbt.glob.unsigned_tx.set_rbf(rbf)
-    #     self.sign_transaction(psbt, password)
-    #     return psbt
 
     def create_psbt(self, outputs: List[TxOutput], config, fee=None, change_addr=None, domain=None) -> PSBT:
         """

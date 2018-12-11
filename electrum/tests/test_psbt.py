@@ -486,7 +486,6 @@ class TestWalletPSBTForTestnet(TestCaseForTestnetWithDisposableStore):
         outputs = [
             TxOutput(bitcoin.TYPE_ADDRESS, 'n4Ub9KAbw99bmDdX6KphtZnGwX1ayyk9Z6', funding_output_value - fee_value)]
         psbt = wallet1ro.create_psbt(outputs=outputs, config=self.config, fee=fee_value)
-        psbt.glob.unsigned_tx.version = 2
         wallet1ro.process_psbt(psbt, None)
         raw_psbt = psbt.serialize()
         self.assertFalse(psbt.is_complete())
@@ -537,7 +536,6 @@ class TestWalletPSBTForTestnet(TestCaseForTestnetWithDisposableStore):
             TxOutput(bitcoin.TYPE_ADDRESS, 'n4Ub9KAbw99bmDdX6KphtZnGwX1ayyk9Z6', funding_output_value - fee_value)
         ]
         psbt = wallet.create_psbt(outputs=outputs, config=self.config, fee=fee_value)
-        psbt.glob.unsigned_tx.version = 2
         wallet.process_psbt(psbt, None)
         raw_psbt = psbt.serialize_final()
 
@@ -718,7 +716,6 @@ class TestWalletPSBTForTestnet(TestCaseForTestnetWithDisposableStore):
         ]
 
         psbt = wallet1.create_psbt(outputs=outputs, config=self.config, fee=110)
-        psbt.glob.unsigned_tx.version = 2
         wallet1.process_psbt(psbt, None)
 
         self.assertTrue(psbt.is_complete())
@@ -761,7 +758,6 @@ class TestWalletPSBTForTestnet(TestCaseForTestnetWithDisposableStore):
             TxOutput(bitcoin.TYPE_ADDRESS, 'tb1q95pv46cvrlkvv8wctv7vp9zgegrnq05ln456ekga59alfnlvtd6s0dqllu', 199317)
         ]
         psbt = wallet1.create_psbt(outputs=outputs, config=self.config, fee=225)
-        psbt.glob.unsigned_tx.version = 2
 
         self.assertEqual(
             '70736274ff01005e02000000011a82e3727a15da508456f7cadc490701db2083c0277c4093f862f429eadc00c60000000000feffffff01950a0300000000002200202d02caeb0c1fecc61dd85b3cc09448ca07303e9f9d69acd91da17bf4cfec5b75000000000001012b760b0300000000002200202d02caeb0c1fecc61dd85b3cc09448ca07303e9f9d69acd91da17bf4cfec5b750103040100000001044752210203a3dd52811b9d0f73753b2ee603f256ca7e23b1e4d4e96da6a17283ffdb69de2102ef573eb2f63a7f206a87ddeb283b41e94713a5d188d177524ec07ac45a661b0352ae22060203a3dd52811b9d0f73753b2ee603f256ca7e23b1e4d4e96da6a17283ffdb69de0c42d6c8290000000000000000220602ef573eb2f63a7f206a87ddeb283b41e94713a5d188d177524ec07ac45a661b030c6544063c000000000000000000220202ef573eb2f63a7f206a87ddeb283b41e94713a5d188d177524ec07ac45a661b030c6544063c000000000000000022020203a3dd52811b9d0f73753b2ee603f256ca7e23b1e4d4e96da6a17283ffdb69de0c42d6c829000000000000000000',
@@ -824,7 +820,6 @@ class TestWalletPSBTForTestnet(TestCaseForTestnetWithDisposableStore):
             TxOutput(bitcoin.TYPE_ADDRESS, 'mwo6HkySUUKqDhgpYxj3jUAUJfkP9zm3N3', 199105)
         ]
         psbt = wallet1.create_psbt(outputs=outputs, config=self.config, fee=212)
-        psbt.glob.unsigned_tx.version = 2
 
         self.assertEqual(
             '70736274ff0100550200000001a0ea9692b4623716591e2bf781784b78285330410d324a3455b8bd9617cc581b0000000000feffffff01c1090300000000001976a914b28f577caff55861ace05ea631c91591d898645f88ac000000000001012b950a0300000000002200202d02caeb0c1fecc61dd85b3cc09448ca07303e9f9d69acd91da17bf4cfec5b750103040100000001044752210203a3dd52811b9d0f73753b2ee603f256ca7e23b1e4d4e96da6a17283ffdb69de2102ef573eb2f63a7f206a87ddeb283b41e94713a5d188d177524ec07ac45a661b0352ae22060203a3dd52811b9d0f73753b2ee603f256ca7e23b1e4d4e96da6a17283ffdb69de0c42d6c8290000000000000000220602ef573eb2f63a7f206a87ddeb283b41e94713a5d188d177524ec07ac45a661b030c6544063c00000000000000000000',
@@ -869,7 +864,6 @@ class TestWalletPSBTForTestnet(TestCaseForTestnetWithDisposableStore):
             TxOutput(bitcoin.TYPE_ADDRESS, '2N2HQcR81LuYEXEihpRZt9BRMh6n6VTvWEH', 198783)
         ]
         psbt = wallet.create_psbt(outputs=outputs, config=self.config, fee=322)
-        psbt.glob.unsigned_tx.version = 2
         self.assertEqual(
             '70736274ff0100530200000001721df99f06cd3fd79e83c2f31e2b30aff5609b2f42c485d06f41da9d026a91f90000000000feffffff017f0803000000000017a9146322d4e34bf6b7890f4726be2f7b5d6e628282948700000000000100fd310102000000000101a0ea9692b4623716591e2bf781784b78285330410d324a3455b8bd9617cc581b0000000000feffffff01c1090300000000001976a914b28f577caff55861ace05ea631c91591d898645f88ac040047304402202dcfbbb196e7f1de090313e07ea208531a335b63d164afa392112d6195b3bcdd0220526393b33ca73258ea855c2d55ae4e3594635b09a697567db60c5ab855fc1c9f014730440220326bcb4d973461fb355a2f2ed4afbe650d074a2061a5bdc024f080f2dcc71e1d02202a505ff7ccf4df60800212ea1a25f9a0c8a5b6933923e1579fcb909a43bf06a7014752210203a3dd52811b9d0f73753b2ee603f256ca7e23b1e4d4e96da6a17283ffdb69de2102ef573eb2f63a7f206a87ddeb283b41e94713a5d188d177524ec07ac45a661b0352ae000000000103040100000001041976a914b28f577caff55861ace05ea631c91591d898645f88ac0000',
             bh2u(b64decode(psbt.serialize()))
@@ -916,7 +910,6 @@ class TestWalletPSBTForTestnet(TestCaseForTestnetWithDisposableStore):
             change_addr='tb1qx7er7ckrgc7vxas4r2taw2hcfmaqzljwfcc2qu',
             fee=9887
         )
-        psbt.glob.unsigned_tx.version = 2
 
         self.assertEqual(
             '70736274ff0100d10200000002aa90eadef653c9984087ff83a92c5e82abe1b35d16e7925d6dca60436237e79f0100000000feffffffaa90eadef653c9984087ff83a92c5e82abe1b35d16e7925d6dca60436237e79f0200000000feffffff03a17500000000000016001437b23f62c3463cc376151a97d72af84efa017e4ea0860100000000002200202d02caeb0c1fecc61dd85b3cc09448ca07303e9f9d69acd91da17bf4cfec5b75801a06000000000022002089150b2931add42e4496b2e98634b59fa0c39893448a8878430f62471f1f1aa2000000000001011f400d0300000000001600140a76c30afb1bcbf0dfecefed52877a823f3ef6ea0103040100000001041976a9140a76c30afb1bcbf0dfecefed52877a823f3ef6ea88ac220603cde42a780d35a41d3023fb9713950f49c777e74029859de858cc25c38ee0f7ac0c5396db2200000000000000000001011f203005000000000016001407eaf827305a5f71b8134462754f81613231c1be0103040100000001041976a91407eaf827305a5f71b8134462754f81613231c1be88ac220603f111eee5bcf3dc76c73efd3caa24c0d6a5938127633944cc4751d98bca7f19cb0c5396db22000000000100000000220202718a1ae65facb66d906b995b27e16d0e7f7f7f44d84d28bbdf42d84f0df638be0c5396db220100000001000000000000',
