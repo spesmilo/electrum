@@ -63,7 +63,6 @@ a = Analysis([electrum+ MAIN_SCRIPT,
               electrum+'electrum/commands.py',
               electrum+'electrum/plugins/cosigner_pool/qt.py',
               electrum+'electrum/plugins/email_requests/qt.py',
-              electrum+'electrum/plugins/trezor/client.py',
               electrum+'electrum/plugins/trezor/qt.py',
               electrum+'electrum/plugins/safe_t/client.py',
               electrum+'electrum/plugins/safe_t/qt.py',
@@ -81,6 +80,15 @@ for d in a.datas:
     if 'pyconfig' in d[0]:
         a.datas.remove(d)
         break
+
+# Strip out parts of Qt that we never use. Reduces binary size by tens of MBs. see #4815
+qt_bins2remove=('qtweb', 'qt3d', 'qtgame', 'qtdesigner', 'qtquick', 'qtlocation', 'qttest', 'qtxml')
+print("Removing Qt binaries:", *qt_bins2remove)
+for x in a.binaries.copy():
+    for r in qt_bins2remove:
+        if x[0].lower().startswith(r):
+            a.binaries.remove(x)
+            print('----> Removed x =', x)
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 

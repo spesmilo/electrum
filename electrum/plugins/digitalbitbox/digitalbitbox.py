@@ -3,35 +3,36 @@
 # digitalbitbox.com
 #
 
-try:
-    from electrum.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
-    from electrum.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh,
-                                  is_address)
-    from electrum.bip32 import serialize_xpub, deserialize_xpub
-    from electrum import ecc
-    from electrum.ecc import msg_magic
-    from electrum.wallet import Standard_Wallet
-    from electrum import constants
-    from electrum.transaction import Transaction
-    from electrum.i18n import _
-    from electrum.keystore import Hardware_KeyStore
-    from ..hw_wallet import HW_PluginBase
-    from electrum.util import print_error, to_string, UserCancelled, UserFacingException
-    from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
+import base64
+import binascii
+import hashlib
+import hmac
+import json
+import math
+import os
+import re
+import struct
+import sys
+import time
 
-    import time
+from electrum.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
+from electrum.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh,
+                              is_address)
+from electrum.bip32 import serialize_xpub, deserialize_xpub
+from electrum import ecc
+from electrum.ecc import msg_magic
+from electrum.wallet import Standard_Wallet
+from electrum import constants
+from electrum.transaction import Transaction
+from electrum.i18n import _
+from electrum.keystore import Hardware_KeyStore
+from ..hw_wallet import HW_PluginBase
+from electrum.util import print_error, to_string, UserCancelled, UserFacingException
+from electrum.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
+from electrum.network import Network
+
+try:
     import hid
-    import json
-    import math
-    import binascii
-    import struct
-    import hashlib
-    import requests
-    import base64
-    import os
-    import sys
-    import re
-    import hmac
     DIGIBOX = True
 except ImportError as e:
     DIGIBOX = False
@@ -52,6 +53,9 @@ def derive_keys(x):
     return (h[:32],h[32:])
 
 MIN_MAJOR_VERSION = 5
+
+ENCRYPTION_PRIVKEY_KEY = 'encryptionprivkey'
+CHANNEL_ID_KEY = 'comserverchannelid'
 
 class DigitalBitbox_Client():
 
@@ -129,8 +133,8 @@ class DigitalBitbox_Client():
         return False
 
 
-    def stretch_key(self, key):
-        return to_hexstr(hashlib.pbkdf2_hmac('sha512', key.encode('utf-8'), b'Digital Bitbox', iterations = 20480))
+    def stretch_key(self, key: bytes):
+        return to_hexstr(hashlib.pbkdf2_hmac('sha512', key, b'Digital Bitbox', iterations = 20480))
 
 
     def backup_password_dialog(self):
@@ -280,7 +284,7 @@ class DigitalBitbox_Client():
         except (FileNotFoundError, jsonDecodeError):
             return
 
-        if 'encryptionprivkey' not in dbb_config or 'comserverchannelid' not in dbb_config:
+        if ENCRYPTION_PRIVKEY_KEY not in dbb_config or CHANNEL_ID_KEY not in dbb_config:
             return
 
         choices = [
@@ -294,18 +298,18 @@ class DigitalBitbox_Client():
 
         if reply == 0:
             if self.plugin.is_mobile_paired():
-                del self.plugin.digitalbitbox_config['encryptionprivkey']
-                del self.plugin.digitalbitbox_config['comserverchannelid']
+                del self.plugin.digitalbitbox_config[ENCRYPTION_PRIVKEY_KEY]
+                del self.plugin.digitalbitbox_config[CHANNEL_ID_KEY]
         elif reply == 1:
             # import pairing from dbb app
-            self.plugin.digitalbitbox_config['encryptionprivkey'] = dbb_config['encryptionprivkey']
-            self.plugin.digitalbitbox_config['comserverchannelid'] = dbb_config['comserverchannelid']
+            self.plugin.digitalbitbox_config[ENCRYPTION_PRIVKEY_KEY] = dbb_config[ENCRYPTION_PRIVKEY_KEY]
+            self.plugin.digitalbitbox_config[CHANNEL_ID_KEY] = dbb_config[CHANNEL_ID_KEY]
         self.plugin.config.set_key('digitalbitbox', self.plugin.digitalbitbox_config)
 
     def dbb_generate_wallet(self):
         key = self.stretch_key(self.password)
         filename = ("Electrum-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf")
-        msg = ('{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, 'Digital Bitbox Electrum Plugin')).encode('utf8')
+        msg = ('{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, to_hexstr(os.urandom(32)))).encode('utf8')
         reply = self.hid_send_encrypt(msg)
         if 'error' in reply:
             raise UserFacingException(reply['error']['message'])
@@ -729,21 +733,22 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
 
     def is_mobile_paired(self):
-        return 'encryptionprivkey' in self.digitalbitbox_config
+        return ENCRYPTION_PRIVKEY_KEY in self.digitalbitbox_config
 
 
     def comserver_post_notification(self, payload):
         assert self.is_mobile_paired(), "unexpected mobile pairing error"
         url = 'https://digitalbitbox.com/smartverification/index.php'
-        key_s = base64.b64decode(self.digitalbitbox_config['encryptionprivkey'])
+        key_s = base64.b64decode(self.digitalbitbox_config[ENCRYPTION_PRIVKEY_KEY])
         args = 'c=data&s=0&dt=0&uuid=%s&pl=%s' % (
-            self.digitalbitbox_config['comserverchannelid'],
+            self.digitalbitbox_config[CHANNEL_ID_KEY],
             EncodeAES_base64(key_s, json.dumps(payload).encode('ascii')).decode('ascii'),
         )
         try:
-            requests.post(url, args)
+            text = Network.send_http_on_proxy('post', url, body=args.encode('ascii'), headers={'content-type': 'application/x-www-form-urlencoded'})
+            print_error('digitalbitbox reply from server', text)
         except Exception as e:
-            self.handler.show_error(str(e))
+            self.handler.show_error(repr(e)) # repr because str(Exception()) == ''
 
 
     def get_xpub(self, device_id, derivation, xtype, wizard):

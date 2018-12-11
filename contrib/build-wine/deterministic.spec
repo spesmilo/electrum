@@ -10,8 +10,7 @@ for i, x in enumerate(sys.argv):
 else:
     raise Exception('no name')
 
-PYTHON_VERSION = '3.6.6'
-PYHOME = 'c:/python' + PYTHON_VERSION
+PYHOME = 'c:/python3'
 
 home = 'C:\\electrum\\'
 
@@ -57,7 +56,6 @@ a = Analysis([home+'run_electrum',
               home+'electrum/commands.py',
               home+'electrum/plugins/cosigner_pool/qt.py',
               home+'electrum/plugins/email_requests/qt.py',
-              home+'electrum/plugins/trezor/client.py',
               home+'electrum/plugins/trezor/qt.py',
               home+'electrum/plugins/safe_t/client.py',
               home+'electrum/plugins/safe_t/qt.py',
@@ -78,6 +76,24 @@ for d in a.datas:
     if 'pyconfig' in d[0]:
         a.datas.remove(d)
         break
+
+# Strip out parts of Qt that we never use. Reduces binary size by tens of MBs. see #4815
+qt_bins2remove=('qt5web', 'qt53d', 'qt5game', 'qt5designer', 'qt5quick',
+                'qt5location', 'qt5test', 'qt5xml', r'pyqt5\qt\qml\qtquick')
+print("Removing Qt binaries:", *qt_bins2remove)
+for x in a.binaries.copy():
+    for r in qt_bins2remove:
+        if x[0].lower().startswith(r):
+            a.binaries.remove(x)
+            print('----> Removed x =', x)
+
+qt_data2remove=(r'pyqt5\qt\translations\qtwebengine_locales', )
+print("Removing Qt datas:", *qt_data2remove)
+for x in a.datas.copy():
+    for r in qt_data2remove:
+        if x[0].lower().startswith(r):
+            a.datas.remove(x)
+            print('----> Removed x =', x)
 
 # hotfix for #3171 (pre-Win10 binaries)
 a.binaries = [x for x in a.binaries if not x[1].lower().startswith(r'c:\windows')]

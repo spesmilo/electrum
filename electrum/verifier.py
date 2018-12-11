@@ -26,7 +26,7 @@ from typing import Sequence, Optional, TYPE_CHECKING
 
 import aiorpcx
 
-from .util import bh2u, VerifiedTxInfo, NetworkJobOnDefaultServer
+from .util import bh2u, TxMinedInfo, NetworkJobOnDefaultServer
 from .crypto import sha256d
 from .bitcoin import hash_decode, hash_encode
 from .transaction import Transaction
@@ -124,8 +124,11 @@ class SPV(NetworkJobOnDefaultServer):
         except KeyError: pass
         self.print_error("verified %s" % tx_hash)
         header_hash = hash_header(header)
-        vtx_info = VerifiedTxInfo(tx_height, header.get('timestamp'), pos, header_hash)
-        self.wallet.add_verified_tx(tx_hash, vtx_info)
+        tx_info = TxMinedInfo(height=tx_height,
+                              timestamp=header.get('timestamp'),
+                              txpos=pos,
+                              header_hash=header_hash)
+        self.wallet.add_verified_tx(tx_hash, tx_info)
         if self.is_up_to_date() and self.wallet.is_up_to_date():
             self.wallet.save_verified_tx(write=True)
 

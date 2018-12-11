@@ -319,12 +319,12 @@ class Daemon(DaemonThread):
         DaemonThread.stop(self)
 
     def init_gui(self, config, plugins):
+        threading.current_thread().setName('GUI')
         gui_name = config.get('gui', 'qt')
         if gui_name in ['lite', 'classic']:
             gui_name = 'qt'
         gui = __import__('electrum.gui.' + gui_name, fromlist=['electrum'])
         self.gui = gui.ElectrumGui(config, self, plugins)
-        threading.current_thread().setName('GUI')
         try:
             self.gui.main()
         except BaseException as e:

@@ -247,13 +247,13 @@ class Interface(PrintError):
         return sslc
 
     def handle_disconnect(func):
-        async def wrapper_func(self, *args, **kwargs):
+        async def wrapper_func(self: 'Interface', *args, **kwargs):
             try:
                 return await func(self, *args, **kwargs)
             except GracefulDisconnect as e:
                 self.print_error("disconnecting gracefully. {}".format(e))
             finally:
-                await self.network.connection_down(self.server)
+                await self.network.connection_down(self)
                 self.got_disconnected.set_result(1)
         return wrapper_func
 
@@ -380,7 +380,9 @@ class Interface(PrintError):
             await self.session.send_request('server.ping')
 
     async def close(self):
-        await self.group.cancel_remaining()
+        if self.session:
+            await self.session.close()
+        # monitor_connection will cancel tasks
 
     async def run_fetch_blocks(self):
         header_queue = asyncio.Queue()
@@ -436,14 +438,17 @@ class Interface(PrintError):
         return last, height
 
     async def step(self, height, header=None):
-        assert height != 0
-        assert height <= self.tip, (height, self.tip)
+        assert 0 <= height <= self.tip, (height, self.tip)
         if header is None:
             header = await self.get_block_header(height, 'catchup')
 
         chain = blockchain.check_header(header) if 'mock' not in header else header['mock']['check'](header)
         if chain:
             self.blockchain = chain if isinstance(chain, Blockchain) else self.blockchain
+            # note: there is an edge case here that is not handled.
+            # we might know the blockhash (enough for check_header) but
+            # not have the header itself. e.g. regtest chain with only genesis.
+            # this situation resolves itself on the next block
             return 'catchup', height+1
 
         can_connect = blockchain.can_connect(header) if 'mock' not in header else header['mock']['connect'](height)

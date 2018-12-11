@@ -1,8 +1,8 @@
 from electrum.i18n import _
 
-fullname = 'TREZOR Wallet'
-description = _('Provides support for TREZOR hardware wallet')
+fullname = 'Trezor Wallet'
+description = _('Provides support for Trezor hardware wallet')
 requires = [('trezorlib','github.com/trezor/python-trezor')]
-registers_keystore = ('hardware', 'trezor', _("TREZOR wallet"))
+registers_keystore = ('hardware', 'trezor', _("Trezor wallet"))
 available_for = ['qt', 'cmdline']
 

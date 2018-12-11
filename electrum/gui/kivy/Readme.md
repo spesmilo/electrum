@@ -70,3 +70,7 @@ $ sudo docker run -it --rm \
     --workdir /home/user/wspace/electrum \
     electrum-android-builder-img
 ```
+
+
+### How do I get more verbose logs?
+See `log_level` in `buildozer.spec`

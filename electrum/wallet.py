@@ -41,8 +41,8 @@ from . import bitcoin, coinchooser, paymentrequest, ecc, bip32
 from . import transaction_utils
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED
 from .bip174 import PSBT, SIGHASH_ALL
-from .bip32 import xpub_to_bip32_psbt
-from .bitcoin import COIN, TYPE_ADDRESS, is_address, address_to_script, is_minikey, relayfee, dust_threshold
+from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
+                      is_minikey, relayfee, dust_threshold)
 from .contacts import Contacts
 from .crypto import sha256d
 from .i18n import _
@@ -55,7 +55,7 @@ from .transaction import Transaction, tx_to_immutable, ImmutableTransaction
 from .transaction_utils import TxOutputHwInfo, is_input_value_needed, TxOutput, is_segwit_input
 from .util import (NotEnoughFunds, UserCancelled, profiler, format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, InvalidPassword, format_time, BitcoinException, bh2u, timestamp_to_datetime,
-                   Satoshis, Fiat, print_error)
+                   Satoshis, Fiat, TxMinedInfo)
 
 if TYPE_CHECKING:
     from .network import Network
@@ -233,7 +233,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 self.labels[name] = text
                 changed = True
         else:
-            if old_text:
+            if old_text is not None:
                 self.labels.pop(name)
                 changed = True
         if changed:
@@ -468,6 +468,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 'balance': Satoshis(balance),
                 'date': timestamp_to_datetime(timestamp),
                 'label': self.get_label(tx_hash),
+                'txpos_in_block': tx_mined_status.txpos,
             }
             tx_fee = None
             if show_fees:
@@ -570,11 +571,11 @@ class Abstract_Wallet(AddressSynchronizer):
             return ', '.join(labels)
         return ''
 
-    def get_tx_status(self, tx_hash, tx_mined_status):
+    def get_tx_status(self, tx_hash, tx_mined_info: TxMinedInfo):
         extra = []
-        height = tx_mined_status.height
-        conf = tx_mined_status.conf
-        timestamp = tx_mined_status.timestamp
+        height = tx_mined_info.height
+        conf = tx_mined_info.conf
+        timestamp = tx_mined_info.timestamp
         if conf == 0:
             tx = self.transactions.get(tx_hash)
             if not tx:
@@ -601,7 +602,7 @@ class Abstract_Wallet(AddressSynchronizer):
             elif height == TX_HEIGHT_UNCONFIRMED:
                 status = 0
             else:
-                status = 2
+                status = 2  # not SPV verified
         else:
             status = 3 + min(conf, 6)
         time_str = format_time(timestamp) if timestamp else _("unknown")
