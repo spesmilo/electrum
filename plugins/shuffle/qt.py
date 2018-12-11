@@ -36,8 +36,7 @@ from PyQt5.QtWidgets import *
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
 from electroncash.util import print_error, profiler
-from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton
-from electroncash_gui.qt.util import OkButton, WindowModalDialog
+from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton, HelpLabel, OkButton, WindowModalDialog, rate_limited
 from electroncash_gui.qt.password_dialog import PasswordDialog
 from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash.address import Address
@@ -87,12 +86,24 @@ def is_coin_shuffled(wallet, coin, txs_in=None):
         cache[name] = answer
     return answer
 
+def get_shuffled_coin_totals(wallet):
+    tot = 0
+    n = 0
+    coins = wallet.get_shuffled_coins()
+    for c in coins:
+        tot += c['value']
+        n += 1
+    return tot, n
+
+
 @profiler
 def get_shuffled_coins(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
+    if not hasattr(wallet, 'is_coin_shuffled'):
+        return []
     with wallet.lock:
         with wallet.transaction_lock:
             utxos = wallet.get_utxos(exclude_frozen = exclude_frozen, mature = mature, confirmed_only = confirmed_only)
-            txs = self.wallet.transactions
+            txs = wallet.transactions
     return [utxo for utxo in utxos if wallet.is_coin_shuffled(utxo, txs)]
 
 def my_custom_item_setup(utxo_list, utxo, name, item):
@@ -206,6 +217,7 @@ def monkey_patches_apply(window):
             return
         window.background_process = None
         window._shuffle_patched_ = True
+        window.send_tab_shuffle_extra = SendTabExtra(window)
         print_error("[shuffle] Patched window")
 
     def patch_utxo_list(utxo_list):
@@ -222,8 +234,8 @@ def monkey_patches_apply(window):
     def patch_wallet(wallet):
         if getattr(wallet, '_shuffle_patched_', None):
             return
-        wallet.is_coin_shuffled = lambda coin: is_coin_shuffled(wallet, coin)
-        wallet.get_shuffled_coins = lambda: get_shuffled_coins(wallet)
+        wallet.is_coin_shuffled = lambda coin, txs=None: is_coin_shuffled(wallet, coin, txs)
+        wallet.get_shuffled_coins = lambda *args, **kwargs: get_shuffled_coins(wallet, *args, **kwargs)
         wallet._is_shuffled_cache = dict()
         unfreeze_frozen_by_shuffling(wallet)
         wallet._shuffle_patched_ = True
@@ -237,6 +249,7 @@ def monkey_patches_remove(window):
     def restore_window(window):
         if not getattr(window, '_shuffle_patched_', None):
             return
+        window.send_tab_shuffle_extra.setParent(None); window.send_tab_shuffle_extra.deleteLater(); delattr(window, 'send_tab_shuffle_extra')
         delattr(window, 'background_process')
         delattr(window, '_shuffle_patched_')
         print_error("[shuffle] Unpatched window")
@@ -398,6 +411,37 @@ class Plugin(BasePlugin):
             self.print_error("Got new password for wallet {} informing background process...".format(window.wallet.basename() if window.wallet else 'UNKNOWN'))
             window.background_process.set_password(new)
 
+    @hook
+    def spendable_coin_filter(self, window, coins):
+        if not coins or window not in self.windows:
+            return
+        # in Cash-Shuffle mode we can ONLY spend shuffled coins!
+        for coin in coins.copy():
+            if not is_coin_shuffled(window.wallet, coin):
+                coins.remove(coin)
+
+    @hook
+    def balance_label_extra(self, window):
+        if window not in self.windows:
+            return
+        tot, n = get_shuffled_coin_totals(window.wallet)
+        window.send_tab_shuffle_extra.refresh(tot, n)
+        if n:
+            return _('Shuffled: {} {} in {} Coins').format(window.format_amount(tot).strip(), window.base_unit(), n)
+        return None
+
+    @hook
+    def not_enough_funds_extra(self, window):
+        if window not in self.windows:
+            return
+        tot, n = get_shuffled_coin_totals(window.wallet)
+        if tot:
+            c, u, x = window.wallet.get_balance()
+            diff = (c+u+x) - tot
+            if diff > 0:
+                return _("{} {} are unshuffled").format(window.format_amount(diff).strip(), window.base_unit())
+        return None
+
     def settings_dialog(self, window, msg=None, restart_ask = True):
         assert window and (isinstance(window, ElectrumWindow) or isinstance(window.parent(), ElectrumWindow))
         if not isinstance(window, ElectrumWindow):
@@ -543,3 +587,59 @@ class Plugin(BasePlugin):
 
     def requires_settings(self):
         return True
+
+
+class SendTabExtra(QFrame):
+    ''' Implements a Widget that appears in the main_window 'send tab' to inform the user of shuffled coin status & totals '''
+
+    def __init__(self, window):
+        self.send_tab = window.send_tab
+        self.send_grid = window.send_grid
+        self.wallet = window.wallet
+        self.window = window
+        super().__init__(window.send_tab)
+        self.send_grid.addWidget(self, 0, 0, 1, self.send_grid.columnCount()) # just our luck. row 0 is free!
+        self.setup()
+
+    def setup(self):
+        self.setFrameStyle(QFrame.Panel|QFrame.Sunken)
+        l = QGridLayout(self)
+        l.setVerticalSpacing(12)
+        l.setHorizontalSpacing(30)
+        l.setContentsMargins(6, 12, 6, 12)
+        msg = "{}\n\n{}\n\n{}".format(_("In order to protect your privacy, when CashShuffle is enable, only shuffled coins can be sent."),
+                                      _("If insufficient shuffled funds are available, you can wait a few minutes as coins are shuffled in the background."),
+                                      _("To toggle CashShuffle off, use the CashSuffle icon in the status bar."))
+        titleLabel = HelpLabel("<big><b>{}</b></big> <i>{}</i>"
+                              .format(_("CashShuffle Enabled"),
+                                      _("Only shuffled funds may be sent")), msg)
+        l.addWidget(titleLabel, 0, 1, 1, 3)
+        l.addWidget(HelpLabel("Shuffled funds available:", msg), 1, 1)
+        self.amountLabel = QLabel("") 
+        l.addWidget(self.amountLabel, 1, 2)
+        self.numCoinsLabel = QLabel("")
+        l.addWidget(self.numCoinsLabel, 1, 3)
+        l.setAlignment(titleLabel, Qt.AlignLeft)
+        l.setAlignment(self.numCoinsLabel, Qt.AlignLeft)
+        l.addItem(QSpacerItem(1, 1, QSizePolicy.MinimumExpanding, QSizePolicy.Fixed), 1, 4)
+
+
+        icon = QLabel()
+        icon.setPixmap(QPixmap(":/icons/cash_shuffle5.png").scaledToWidth(100,Qt.SmoothTransformation))
+        l.addWidget(icon, 0, 0, l.rowCount(), 1)
+
+        l.setSizeConstraint(QLayout.SetNoConstraint)
+
+        self.window.history_updated_signal.connect(self.refresh)
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self.refresh()
+
+    @rate_limited(.25)
+    def refresh(self, amount = None, n = None):
+        if amount is None or n is None:
+            amount, n = get_shuffled_coin_totals(self.wallet)
+        self.amountLabel.setText("<b>{}</b> {}".format(self.window.format_amount(amount).strip(), self.window.base_unit()))
+        self.numCoinsLabel.setText(_("<b>{}</b> Coins <small>(UTXOs)</small>").format(n))
+

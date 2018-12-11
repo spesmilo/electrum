@@ -766,6 +766,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if x:
                     text +=  " [%s unmatured]"%(self.format_amount(x, True).strip())
 
+                extra = run_hook("balance_label_extra", self)
+                if isinstance(extra, str) and extra:
+                    text += " [{}]".format(extra)
+
                 # append fiat balance and price
                 if self.fx.is_enabled():
                     text += self.fx.get_fiat_status_text(c + u + x,
@@ -774,6 +778,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     icon = QIcon(":icons/status_connected.png") if num_chains <= 1 else QIcon(":icons/status_connected_fork.png")
                 else:
                     icon = QIcon(":icons/status_connected_proxy.png") if num_chains <= 1 else QIcon(":icons/status_connected_proxy_fork.png")
+
         else:
             text = _("Not connected")
             icon = QIcon(":icons/status_disconnected.png")
@@ -1208,6 +1213,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 c, u, x = self.wallet.get_frozen_balance()
                 if c+u+x:
                     text += ' (' + self.format_amount(c+u+x).strip() + ' ' + self.base_unit() + ' ' +_("are frozen") + ')'
+
+                extra = run_hook("not_enough_funds_extra", self)
+                if isinstance(extra, str) and extra:
+                    text += " ({})".format(extra)
 
             elif self.fee_e.isModified():
                 amt_color, fee_color = ColorScheme.DEFAULT, ColorScheme.DEFAULT
@@ -1825,10 +1834,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.clear_receive_tab()
 
     def get_coins(self, isInvoice = False):
+        coins = []
         if self.pay_from:
-            return self.pay_from
+            coins =  self.pay_from
         else:
-            return self.wallet.get_spendable_coins(None, self.config, isInvoice)
+            coins = self.wallet.get_spendable_coins(None, self.config, isInvoice)
+        run_hook("spendable_coin_filter", self, coins) # may modify coins -- used by CashShuffle if in shuffle = ENABLED mode.
+        return coins
 
     def spend_coins(self, coins):
         self.set_pay_from(coins)
