@@ -3267,8 +3267,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.wallet.thread.stop()
         if self.network:
             self.network.unregister_callback(self.on_network)
-            self.network.unregister_callback(self.on_quotes)
-            self.network.unregister_callback(self.on_history)
         self.config.set_key("is_maximized", self.isMaximized())
         if not self.isMaximized():
             g = self.geometry()
