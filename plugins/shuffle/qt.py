@@ -98,11 +98,12 @@ def get_shuffled_coins(wallet, exclude_frozen = False, mature = False, confirmed
 def my_custom_item_setup(utxo_list, utxo, name, item):
     if not hasattr(utxo_list.wallet, 'is_coin_shuffled'):
         return
+    prog = utxo_list.in_progress.get(name, "")
     frozenstring = item.data(0, Qt.UserRole+1) or ""
     if utxo_list.wallet.is_coin_shuffled(utxo):  # already shuffled
         item.setText(5, _("Shuffled"))
-    elif frozenstring.find("a") > -1 or frozenstring.find("c") > -1:
-        item.setText(5, _("User frozen"))
+    elif not prog and ("a" in frozenstring or "c" in frozenstring):
+        item.setText(5, _("Frozen"))
     elif utxo['height'] <= 0: # not_confirmed
         item.setText(5, _("Unconfirmed"))
     elif utxo['coinbase'] and (utxo['height'] + COINBASE_MATURITY > utxo_list.wallet.get_local_height()): # maturity check
@@ -117,10 +118,9 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
     elif utxo['value'] <= 10000: # dust
         item.setText(5, _("Too small"))
 
-    prog = utxo_list.in_progress.get(name)
     if prog == 'in progress': # in progress
         item.setText(5, _("In progress"))
-    elif prog and prog.startswith('phase '):
+    elif prog.startswith('phase '):
         item.setText(5, _("Phase {}").format(prog.split()[-1]))
     elif prog == "wait for others": # wait for others
         item.setText(5, _("Wait for others"))
@@ -130,34 +130,30 @@ def update_coin_status(window, coin_name, msg):
         return
     #print_error("[shuffle] wallet={}; Coin {} Message '{}'".format(window.wallet.basename(), coin_name, msg.strip()))
     prev_in_progress = window.utxo_list.in_progress.get(coin_name)
+    new_in_progress = prev_in_progress
 
     if coin_name not in ("MAINLOG", "PROTOCOL"):
         if msg.startswith("Player"):
-            if coin_name not in window.utxo_list.in_progress:
-                if "get session number" in msg:
-                    window.utxo_list.in_progress[coin_name] = 'wait for others'
-            else:
-                if "begins CoinShuffle protocol" in msg:
-                    window.utxo_list.in_progress[coin_name] = 'in progress'
-                elif "reaches phase" in msg:
-                    pos = msg.find("reaches phase")
-                    parts = msg[pos:].split(' ', 2)
-                    try:
-                        phase = int(parts[2])
-                        window.utxo_list.in_progress[coin_name] = 'phase {}'.format(phase)
-                    except (IndexError, ValueError):
-                        pass
+            if "get session number" in msg:
+                new_in_progress = 'wait for others'
+            elif "begins CoinShuffle protocol" in msg:
+                new_in_progress = 'in progress'
+            elif "reaches phase" in msg:
+                pos = msg.find("reaches phase")
+                parts = msg[pos:].split(' ', 2)
+                try:
+                    phase = int(parts[2])
+                    new_in_progress = 'phase {}'.format(phase)
+                except (IndexError, ValueError):
+                    pass
         elif msg.startswith("Error"):
-            if coin_name in window.utxo_list.in_progress:
-                del window.utxo_list.in_progress[coin_name]
+            new_in_progress = None # flag to remove from progress list
             if msg.find(ERR_SERVER_CONNECT) != -1:
                 window.cashshuffle_set_flag(1) # 1 means server connection issue
         elif msg.endswith("complete protocol"):
-            if coin_name in window.utxo_list.in_progress:
-                del window.utxo_list.in_progress[coin_name]
+            new_in_progress = None
         elif msg.startswith("Blame") and "insufficient" not in msg and "wrong hash" not in msg:
-            if coin_name in window.utxo_list.in_progress:
-                del window.utxo_list.in_progress[coin_name]
+            new_in_progress = None
         elif msg.startswith("shuffle_txid:"): # TXID message -- call "set_label"
             words = msg.split()
             if len(words) >= 2:
@@ -170,10 +166,14 @@ def update_coin_status(window, coin_name, msg):
 
     else:
         if msg == "stopped":
-            window.utxo_list.in_progress = {}
+            window.utxo_list.in_progress = dict(); new_in_progress = prev_in_progress = None
 
-    if prev_in_progress != window.utxo_list.in_progress.get(coin_name):
-        window.utxo_list.update()
+    if prev_in_progress != new_in_progress:
+        if new_in_progress is None:
+            window.utxo_list.in_progress.pop(coin_name, None)
+        else:
+            window.utxo_list.in_progress[coin_name] = new_in_progress
+            window.utxo_list.update()
 
 class electrum_console_logger(QObject):
 
