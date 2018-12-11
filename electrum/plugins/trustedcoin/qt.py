@@ -195,18 +195,6 @@ class Plugin(TrustedCoinPlugin):
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
-    def on_buy(self, window, k, v, d):
-        d.close()
-        if window.pluginsdialog:
-            window.pluginsdialog.close()
-        wallet = window.wallet
-        uri = "bitcoin:" + wallet.billing_info['billing_address'] + "?message=TrustedCoin %d Prepaid Transactions&amount="%k + str(Decimal(v)/100000000)
-        wallet.is_billing = True
-        window.pay_to_URI(uri)
-        window.payto_e.setFrozen(True)
-        window.message_e.setFrozen(True)
-        window.amount_e.setFrozen(True)
-
     def go_online_dialog(self, wizard):
         msg = [
             _("Your wallet file is: {}.").format(os.path.abspath(wizard.storage.path)),
