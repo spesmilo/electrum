@@ -54,7 +54,6 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         self.protocol = None
         self.network = network
         self.tx = None
-        self.execution_thread = None
         self.done = threading.Event()
 
     def not_time_to_die(func):
@@ -149,10 +148,9 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
             self.sk, self.sks, self.all_inputs, self.vk,
             self.players, self.addr_new, self.change
         )
-        self.execution_thread = threading.Thread(target=self.protocol.start_protocol)
-        self.execution_thread.start()
-        self.done.wait()
-        self.execution_thread.join()
+        if not self.done.is_set():
+            self.protocol.start_protocol()
+            self.done.wait()
 
     @not_time_to_die
     def run(self):
@@ -179,12 +177,8 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         if self.protocol:
             self.protocol.done = True
         self.done.set()
+        self.print_error("Closing comm -- subsequent socket errors are to be expected. :)")
         self.comm.close()
-        if self.execution_thread and self.execution_thread.is_alive():
-            self.protocol.done = True
-            self.execution_thread.join()
-            self.print_error("Joined execution thread")
-
 
     def join(self, timeout=None):
         "This method Joins the protocol thread"
@@ -279,7 +273,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             self.logger.send("started", "MAINLOG")
             self.logger.send(self.get_password(), "MAINLOG")
         while not self.stop_flg.is_set():
-            self.process_shared_chan()
+            self.process_shared_chan() # NB: this blocks indefinitely until a message arrives or we are stopped so the above while loop is acceptable
         self.print_error("Stopped")
 
     def process_shared_chan(self):
@@ -424,10 +418,14 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                     try:
                         #TODO FIXME XXX -- perhaps also add a mechanism to detect when coins that are in the queue or are being shuffled get reorged or spent
                         if self.wallet.is_up_to_date() and self.wallet.network and self.wallet.network.is_connected():
-                            coins = self.wallet.get_utxos(exclude_frozen = True, confirmed_only = True, mature = True)
+                            coins = None
                             for scale in self.scales:
-                                if not coins: break # coins mutates as we iterate so check that we still have candidate coins
-                                if not self.threads[scale]:
+                                thr = self.threads.get(scale)
+                                if not thr:
+                                    if coins is None: # NB: leave this check for None specifically as it has different semantics than coins == []
+                                        # lazy-init of coins here only if there is actual work to do.
+                                        coins = self.wallet.get_utxos(exclude_frozen = True, confirmed_only = True, mature = True)
+                                    if not coins: break # coins mutates as we iterate so check that we still have candidate coins
                                     self._make_protocol_thread(scale, coins)
                     except RuntimeWarning as e:
                         self.print_error("check_for_threads error: {}".format(str(e)))

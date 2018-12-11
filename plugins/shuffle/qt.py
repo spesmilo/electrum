@@ -98,8 +98,10 @@ def get_shuffled_coins(wallet, exclude_frozen = False, mature = False, confirmed
 def my_custom_item_setup(utxo_list, utxo, name, item):
     if not hasattr(utxo_list.wallet, 'is_coin_shuffled'):
         return
+
     prog = utxo_list.in_progress.get(name, "")
     frozenstring = item.data(0, Qt.UserRole+1) or ""
+
     if utxo_list.wallet.is_coin_shuffled(utxo):  # already shuffled
         item.setText(5, _("Shuffled"))
     elif not prog and ("a" in frozenstring or "c" in frozenstring):
