@@ -184,7 +184,12 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         "This method Joins the protocol thread"
         self.stop()
         if self.is_alive():
-            super().join()
+            # the below is a work-around to the fact that this whole scheme still has a race condition with respect to the comm class :/
+            super().join(2.0)
+            if self.is_alive():
+                self.print_error("Could not join self after 2 seconds. Trying with infinite timeout...")
+                self.stop()
+                self.join()
             self.print_error("Joined self")
 
     def diagnostic_name(self):
