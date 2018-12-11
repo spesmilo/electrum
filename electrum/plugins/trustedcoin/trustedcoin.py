@@ -516,8 +516,7 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.show_seed_dialog(run_next=f, seed_text=seed)
 
     @classmethod
-    def get_xkeys(self, seed, passphrase, derivation):
-        t = seed_type(seed)
+    def get_xkeys(self, seed, t, passphrase, derivation):
         assert is_any_2fa_seed_type(t)
         xtype = 'standard' if t == '2fa' else 'p2wsh'
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
@@ -539,11 +538,11 @@ class TrustedCoinPlugin(BasePlugin):
             # the probability of it being < 20 words is about 2^(-(256+12-19*11)) = 2^(-59)
             if passphrase != '':
                 raise Exception('old 2fa seed cannot have passphrase')
-            xprv1, xpub1 = self.get_xkeys(' '.join(words[0:12]), '', "m/")
-            xprv2, xpub2 = self.get_xkeys(' '.join(words[12:]), '', "m/")
+            xprv1, xpub1 = self.get_xkeys(' '.join(words[0:12]), t, '', "m/")
+            xprv2, xpub2 = self.get_xkeys(' '.join(words[12:]), t, '', "m/")
         elif not t == '2fa' or n == 12:
-            xprv1, xpub1 = self.get_xkeys(seed, passphrase, "m/0'/")
-            xprv2, xpub2 = self.get_xkeys(seed, passphrase, "m/1'/")
+            xprv1, xpub1 = self.get_xkeys(seed, t, passphrase, "m/0'/")
+            xprv2, xpub2 = self.get_xkeys(seed, t, passphrase, "m/1'/")
         else:
             raise Exception('unrecognized seed length: {} words'.format(n))
         return xprv1, xpub1, xprv2, xpub2
