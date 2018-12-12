@@ -73,7 +73,7 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
                                                            delayed_pubkey=this_delayed_pubkey,
                                                            sweep_address=sweep_address)
     if sweep_tx:
-        txs.append((None, EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)))
+        txs.append((ctx.txid(), EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)))
     # HTLCs
     def create_sweeptx_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Tuple[Optional[Transaction],
                                                                                       Optional[Transaction],
@@ -151,7 +151,7 @@ def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
                                                                     remote_revocation_pubkey=other_revocation_pubkey,
                                                                     to_self_delay=to_self_delay)
     if sweep_tx:
-        txs.append((None, EncumberedTransaction('our_ctx_to_local', sweep_tx, csv_delay=to_self_delay, cltv_expiry=0)))
+        txs.append((ctx.txid(), EncumberedTransaction('our_ctx_to_local', sweep_tx, csv_delay=to_self_delay, cltv_expiry=0)))
     # HTLCs
     def create_txns_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Tuple[Optional[Transaction], Optional[Transaction]]:
         if is_received_htlc:
@@ -244,13 +244,13 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
                                                                delayed_pubkey=this_delayed_pubkey,
                                                                sweep_address=sweep_address)
         if sweep_tx:
-            txs.append((None, EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)))
+            txs.append((ctx.txid(), EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)))
     # to_remote
     sweep_tx = maybe_create_sweeptx_for_their_ctx_to_remote(ctx=ctx,
                                                             sweep_address=sweep_address,
                                                             our_payment_privkey=other_payment_privkey)
     if sweep_tx:
-        txs.append((None, EncumberedTransaction('their_ctx_to_remote', sweep_tx, csv_delay=0, cltv_expiry=0)))
+        txs.append((ctx.txid(), EncumberedTransaction('their_ctx_to_remote', sweep_tx, csv_delay=0, cltv_expiry=0)))
     # HTLCs
     # from their ctx, we can only redeem HTLCs if the ctx was not revoked,
     # as old HTLCs are not stored. (if it was revoked, then we should have presigned txns
