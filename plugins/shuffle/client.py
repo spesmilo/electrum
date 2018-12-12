@@ -1,8 +1,4 @@
-import time
-import random
-import ecdsa
-import threading
-import requests
+import ecdsa, threading, time
 from electroncash.bitcoin import deserialize_privkey, regenerate_key, EC_KEY, generator_secp256k1, number_to_string
 from electroncash.address import Address
 from electroncash.util import PrintError, InvalidPassword
@@ -223,7 +219,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     )
 
     def __init__(self, wallet, network_settings,
-                 period = 10, logger = None, fee=300, password=None, timeout=300):
+                 period = 10.0, logger = None, fee=300, password=None, timeout=60.0):
         super(BackgroundShufflingThread, self).__init__()
         self.daemon = True
         self.timeout = timeout

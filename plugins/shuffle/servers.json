@@ -2,11 +2,11 @@
   "shuffle.imaginary.cash":
   {
     "ssl"  : true,
-    "info" : 8081
+    "info" : 8080
   },
   "cashshuffle.tartarusgroup.com":
   {
     "ssl"  : false,
-    "info" : 8081
+    "info" : 8080
   }
 }

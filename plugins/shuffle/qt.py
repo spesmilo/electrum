@@ -199,7 +199,7 @@ class electrum_console_logger(QObject):
         self.gotMessage.emit(msg, sender)
 
 
-def start_background_shuffling(window, network_settings, period = 10, password=None):
+def start_background_shuffling(window, network_settings, period = 10.0, password=None, timeout = 60.0):
     logger = electrum_console_logger()
     logger.gotMessage.connect(lambda msg, sender: update_coin_status(window, sender, msg))
 
@@ -207,7 +207,7 @@ def start_background_shuffling(window, network_settings, period = 10, password=N
                                                           logger=logger,
                                                           period=period,
                                                           password=password,
-                                                          timeout = 300.0)
+                                                          timeout = timeout)
     window.background_process.start()
 
 def monkey_patches_apply(window):
@@ -374,7 +374,7 @@ class Plugin(BasePlugin):
         self.windows.append(window)
         window.update_status()
         window.utxo_list.update()
-        start_background_shuffling(window, network_settings, period = 10.0, password=password)
+        start_background_shuffling(window, network_settings, password=password)
 
     @hook
     def utxo_list_item_setup(self, utxo_list, x, name, item):
