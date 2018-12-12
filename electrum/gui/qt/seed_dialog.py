@@ -146,8 +146,12 @@ class SeedLayout(QVBoxLayout):
     def initialize_completer(self):
         english_list = Mnemonic('en').wordlist
         old_list = electrum.old_mnemonic.words
-        self.wordlist = english_list + list(set(old_list) - set(english_list)) #concat both lists
-        self.wordlist.sort()
+
+        # Cryptosteel assumes that the first four letters uniquely identify a
+        # word, which doesn't hold if we include the words in electrum's legacy
+        # seed format. As a compromise, we present the new wordlist first so
+        # that autocomplete prioritizes it.
+        self.wordlist = sorted(english_list) + sorted(list(set(old_list) - set(english_list)))
         self.completer = QCompleter(self.wordlist)
         self.seed_e.set_completer(self.completer)
 
