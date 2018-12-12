@@ -517,7 +517,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         cw = CosignWidget(2, 2)
         m_edit = QSlider(Qt.Horizontal, self)
         n_edit = QSlider(Qt.Horizontal, self)
-        n_edit.setMinimum(2)
+        n_edit.setMinimum(1)
         n_edit.setMaximum(15)
         m_edit.setMinimum(1)
         m_edit.setMaximum(2)
