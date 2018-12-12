@@ -21,6 +21,7 @@ from . import constants
 from . import keystore
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
+from .transaction import Transaction
 from .crypto import sha256
 from .bip32 import bip32_root
 from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
@@ -330,8 +331,11 @@ class LNWorker(PrintError):
             encumbered_sweeptxs = []
 
         local_height = self.network.get_local_height()
-        for prev_txid, e_tx in encumbered_sweeptxs:
-            spender = spenders.get(prev_txid + ':0') # we assume output index is 0
+        for e_tx in encumbered_sweeptxs:
+            txin = e_tx.tx.inputs()[0]
+            prev_txid = txin['prevout_hash']
+            txin_outpoint = Transaction.get_outpoint_from_txin(txin)
+            spender = spenders.get(txin_outpoint)
             if spender is not None:
                 self.print_error('prev_tx already spent', prev_txid)
                 continue
