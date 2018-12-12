@@ -67,12 +67,13 @@ class RequestList(MyTreeView):
     def update(self):
         self.wallet = self.parent.wallet
         # hide receive tab if no receive requests available
-        b = len(self.wallet.receive_requests) > 0
-        self.setVisible(b)
-        self.parent.receive_requests_label.setVisible(b)
-        if not b:
-            self.parent.expires_label.hide()
-            self.parent.expires_combo.show()
+        if self.parent.isVisible():
+            b = len(self.wallet.receive_requests) > 0
+            self.setVisible(b)
+            self.parent.receive_requests_label.setVisible(b)
+            if not b:
+                self.parent.expires_label.hide()
+                self.parent.expires_combo.show()
 
         # update the receive address if necessary
         current_address = self.parent.receive_address_e.text()
