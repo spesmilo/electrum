@@ -835,6 +835,10 @@ def setup_thread_excepthook():
     threading.Thread.__init__ = init
 
 
+def send_exception_to_crash_reporter(e: BaseException):
+    sys.excepthook(type(e), e, e.__traceback__)
+
+
 def versiontuple(v):
     return tuple(map(int, (v.split("."))))
 

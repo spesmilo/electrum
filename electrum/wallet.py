@@ -61,6 +61,7 @@ from .paymentrequest import (PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED,
                              InvoiceStore)
 from .contacts import Contacts
 from .interface import RequestTimedOut
+from .ecc_fast import is_using_fast_ecc
 
 if TYPE_CHECKING:
     from .network import Network
@@ -148,6 +149,11 @@ def sweep(privkeys, network: 'Network', config: 'SimpleConfig', recipient, fee=N
 
 class CannotBumpFee(Exception): pass
 
+
+class InternalAddressCorruption(Exception):
+    def __str__(self):
+        return _("Internal address database inconsistency detected. "
+                 "You should restore from seed.")
 
 
 
@@ -632,6 +638,10 @@ class Abstract_Wallet(AddressSynchronizer):
                 # if there are none, take one randomly from the last few
                 addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
                 change_addrs = [random.choice(addrs)] if addrs else []
+        for addr in change_addrs:
+            # note that change addresses are not necessarily ismine
+            # in which case this is a no-op
+            self.raise_if_cannot_rederive_address(addr)
 
         # Fee estimator
         if fixed_fee is None:
@@ -887,17 +897,33 @@ class Abstract_Wallet(AddressSynchronizer):
                 continue
         return tx
 
+    @profiler
+    def try_detecting_internal_addresses_corruption(self):
+        pass
+
+    def raise_if_cannot_rederive_address(self, addr):
+        pass
+
+    def try_rederiving_returned_address(func):
+        def wrapper(self, *args, **kwargs):
+            addr = func(self, *args, **kwargs)
+            self.raise_if_cannot_rederive_address(addr)
+            return addr
+        return wrapper
+
     def get_unused_addresses(self):
         # fixme: use slots from expired requests
         domain = self.get_receiving_addresses()
         return [addr for addr in domain if not self.history.get(addr)
                 and addr not in self.receive_requests.keys()]
 
+    @try_rederiving_returned_address
     def get_unused_address(self):
         addrs = self.get_unused_addresses()
         if addrs:
             return addrs[0]
 
+    @try_rederiving_returned_address
     def get_receiving_address(self):
         # always return an address
         domain = self.get_receiving_addresses()
@@ -1462,6 +1488,29 @@ class Deterministic_Wallet(Abstract_Wallet):
     def get_change_addresses(self):
         return self.change_addresses
 
+    @profiler
+    def try_detecting_internal_addresses_corruption(self):
+        if not is_using_fast_ecc():
+            self.print_error("internal address corruption test skipped due to missing libsecp256k1")
+            return
+        addresses_all = self.get_addresses()
+        # sample 1: first few
+        addresses_sample1 = addresses_all[:10]
+        # sample2: a few more randomly selected
+        addresses_rand = addresses_all[10:]
+        addresses_sample2 = random.sample(addresses_rand, min(len(addresses_rand), 10))
+        for addr_found in addresses_sample1 + addresses_sample2:
+            self.raise_if_cannot_rederive_address(addr_found)
+
+    def raise_if_cannot_rederive_address(self, addr):
+        if not addr:
+            return
+        if not self.is_mine(addr):
+            return
+        addr_derived = self.derive_address(*self.get_address_index(addr))
+        if addr != addr_derived:
+            raise InternalAddressCorruption()
+
     def get_seed(self, password):
         return self.keystore.get_seed(password)
 
@@ -1515,13 +1564,17 @@ class Deterministic_Wallet(Abstract_Wallet):
         for i, addr in enumerate(self.change_addresses):
             self._addr_to_addr_index[addr] = (True, i)
 
+    def derive_address(self, for_change, n):
+        x = self.derive_pubkeys(for_change, n)
+        address = self.pubkeys_to_address(x)
+        return address
+
     def create_new_address(self, for_change=False):
         assert type(for_change) is bool
         with self.lock:
             addr_list = self.change_addresses if for_change else self.receiving_addresses
             n = len(addr_list)
-            x = self.derive_pubkeys(for_change, n)
-            address = self.pubkeys_to_address(x)
+            address = self.derive_address(for_change, n)
             addr_list.append(address)
             self._addr_to_addr_index[address] = (for_change, n)
             self.save_addresses()

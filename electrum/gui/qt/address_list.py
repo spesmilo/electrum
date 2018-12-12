@@ -28,6 +28,7 @@ from electrum.i18n import _
 from electrum.util import block_explorer_URL
 from electrum.plugin import run_hook
 from electrum.bitcoin import is_address
+from electrum.wallet import InternalAddressCorruption
 
 from .util import *
 
@@ -168,7 +169,7 @@ class AddressList(MyTreeView):
 
             column_title = self.model().horizontalHeaderItem(col).text()
             copy_text = self.model().itemFromIndex(idx).text()
-            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(copy_text))
+            menu.addAction(_("Copy {}").format(column_title), lambda: self.place_text_on_clipboard(copy_text))
             menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             persistent = QPersistentModelIndex(addr_idx)
             menu.addAction(_("Edit {}").format(addr_column_title), lambda p=persistent: self.edit(QModelIndex(p)))
@@ -195,3 +196,12 @@ class AddressList(MyTreeView):
 
         run_hook('receive_menu', menu, addrs, self.wallet)
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def place_text_on_clipboard(self, text):
+        if is_address(text):
+            try:
+                self.wallet.raise_if_cannot_rederive_address(text)
+            except InternalAddressCorruption as e:
+                self.parent.show_error(str(e))
+                raise
+        self.parent.app.clipboard().setText(text)
