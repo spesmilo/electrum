@@ -27,7 +27,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     """
     def __init__(self, host, port, network, coin,
                  amount, fee, sk, sks, inputs, pubk,
-                 addr_new, change, logger=None, ssl=False, comm_timeout = 300.0):
+                 addr_new_addr, change_addr, logger=None, ssl=False, comm_timeout = 300.0):
 
         super(ProtocolThread, self).__init__()
         self.daemon = True
@@ -49,8 +49,10 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         self.sks = sks
         self.inputs = inputs
         self.all_inputs = {}
-        self.addr_new = addr_new
-        self.change = change
+        self.addr_new_addr = addr_new_addr # used by outside code
+        self.addr_new = addr_new_addr.to_storage_string() # used by internal protocol code
+        self.change_addr = change_addr #outside
+        self.change = change_addr.to_storage_string() #inside
         self.protocol = None
         self.network = network
         self.tx = None
@@ -397,23 +399,23 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         sks[public_key] = sk
         id_sk = generate_random_sk()
         id_pub = id_sk.GetPubKey(True).hex()
-        addresses_on_threads = [Address.from_string(thr.addr_new)
+        addresses_on_threads = [thr.addr_new_addr
                                 for sc, thr in self.threads.items() if thr]
         output = None
         for address in self.wallet.get_unused_addresses():
             if address not in addresses_on_threads:
-                output = address.to_storage_string()
+                output = address
                 break
-        output = output or self.wallet.create_new_address(for_change = False).to_storage_string()
-        change_in_threads = [Address.from_string(thr.change)
+        output = output or self.wallet.create_new_address(for_change = False)
+        change_in_threads = [thr.change_addr
                              for sc, thr in self.threads.items() if thr]
         change = None
         for address in self.wallet.get_change_addresses():
             if address not in change_in_threads and not self.wallet.get_address_history(address):
-                change = address.to_storage_string()
+                change = address
                 break
-        change = change or self.wallet.create_new_address(for_change = True).to_storage_string()
-        self.print_error("Scale {} Coin {} OutAddr {} Change {} make_protocol_thread".format(scale, utxo_name, output, change))
+        change = change or self.wallet.create_new_address(for_change = True)
+        self.print_error("Scale {} Coin {} OutAddr {} Change {} make_protocol_thread".format(scale, utxo_name, output.to_storage_string(), change.to_storage_string()))
         self.threads[scale] = ProtocolThread(self.host, self.port, self.network, utxo_name,
                                              scale, self.fee, id_sk, sks, inputs, id_pub, output, change,
                                              logger=self.loggers[scale], ssl=self.ssl, comm_timeout = self.timeout)
