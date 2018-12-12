@@ -136,6 +136,8 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
         item.setText(5, _("Phase {}").format(prog.split()[-1]))
     elif prog == "wait for others": # wait for others
         item.setText(5, _("Wait for others"))
+    elif prog == "completed":
+        item.setText(5, _("Done"))
 
 def update_coin_status(window, coin_name, msg):
     if getattr(window.utxo_list, "in_progress", None) is None:
@@ -159,7 +161,7 @@ def update_coin_status(window, coin_name, msg):
                 except (IndexError, ValueError):
                     pass
             elif msg.endswith("complete protocol"):
-                new_in_progress = None
+                new_in_progress = "completed"  # NB: this means we "leak" statuses as this final status never gets cleaned up. FIXME. there is a race condition anyway between code that picks up UTXOs for shuffling and the wallet code
         elif msg.startswith("Error"):
             new_in_progress = None # flag to remove from progress list
             if msg.find(ERR_SERVER_CONNECT) != -1:
@@ -178,7 +180,7 @@ def update_coin_status(window, coin_name, msg):
 
     else:
         if msg == "stopped":
-            window.utxo_list.in_progress = dict(); new_in_progress = prev_in_progress = None
+            window.utxo_list.in_progress.clear(); new_in_progress = prev_in_progress = None
 
     if prev_in_progress != new_in_progress:
         if new_in_progress is None:
@@ -226,7 +228,7 @@ def monkey_patches_apply(window):
         header_labels = [header.text(i) for i in range(header.columnCount())]
         header_labels.append(_("Shuffle status"))
         utxo_list.update_headers(header_labels)
-        utxo_list.in_progress = {}
+        utxo_list.in_progress = dict()
         utxo_list._shuffle_patched_ = True
         print_error("[shuffle] Patched utxo_list")
 
