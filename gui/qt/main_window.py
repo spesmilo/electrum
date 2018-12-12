@@ -3421,3 +3421,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         newTip = self.cashshuffle_status_button.statusTip()
         if newTip != oldTip:
             self.statusBar().showMessage(newTip, 7500)
+
+    def cashshuffle_get_flag(self):
+        return self._cash_shuffle_flag

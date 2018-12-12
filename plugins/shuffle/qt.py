@@ -42,7 +42,7 @@ from electroncash.address import Address
 from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.transaction import Transaction
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT
-from electroncash_plugins.shuffle.comms import query_server_for_shuffle_port
+from electroncash_plugins.shuffle.comms import query_server_for_stats
 
 def is_coin_shuffled(wallet, coin, txs_in=None):
     cache = getattr(wallet, "_is_shuffled_cache", dict())
@@ -175,7 +175,7 @@ def update_coin_status(window, coin_name, msg):
                 window.wallet.set_label(txid, _("CashShuffle"))
                 window.update_wallet()
 
-        if not msg.startswith("Error"):
+        if not msg.startswith("Error") and not msg.startswith("Exit"):
             window.cashshuffle_set_flag(0) # 0 means ok
 
     else:
@@ -205,7 +205,9 @@ def start_background_shuffling(window, network_settings, period = 10.0, password
     logger = electrum_console_logger()
     logger.gotMessage.connect(lambda msg, sender: update_coin_status(window, sender, msg))
 
-    window.background_process = BackgroundShufflingThread(window.wallet, network_settings,
+    window.background_process = BackgroundShufflingThread(window,
+                                                          window.wallet,
+                                                          network_settings,
                                                           logger=logger,
                                                           period=period,
                                                           password=password,
@@ -566,9 +568,9 @@ class Plugin(BasePlugin):
                 prog = QProgressDialog(_("Checking server..."), None, 0, 3, None)
                 prog.setWindowModality(Qt.ApplicationModal); prog.setMinimumDuration(0); prog.setValue(1)
                 QApplication.instance().processEvents(QEventLoop.ExcludeUserInputEvents|QEventLoop.ExcludeSocketNotifiers, 1) # this forces the window to be shown
-                port = query_server_for_shuffle_port(host, stat_port, ssl)
+                port, poolSize, connections = query_server_for_stats(host, stat_port, ssl)
                 prog.setValue(2)
-                self.print_error("{}:{}{} got response: shufflePort = {}".format(host, stat_port, 's' if ssl else '', port))
+                self.print_error("{}:{}{} got response: shufflePort = {} poolSize = {} connections = {}".format(host, stat_port, 's' if ssl else '', port, poolSize, connections))
                 socket.create_connection((host, port), 3.0).close() # test connectivity to port
                 prog.setValue(3)
             finally:

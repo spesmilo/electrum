@@ -100,6 +100,7 @@ class Comm(PrintErrorThread):
 
     def close(self):
         if self.socket and self.connected:
+            self.print_error("Closing comm -- subsequent socket errors are to be expected. :)")
             try:
                 self.connected = False
                 self.socket.shutdown(socket.SHUT_RDWR)
@@ -108,10 +109,15 @@ class Comm(PrintErrorThread):
                 # Socket was already closed
                 pass
 
+    def diagnostic_name(self):
+        n = super().diagnostic_name() or ""
+        n += " <{}:{}>".format(self.host, self.port)
+        return n
 
-def query_server_for_shuffle_port(host : str, stat_port : int, ssl : bool, timeout : float = 3.0) -> int:
+def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout : float = 3.0) -> int:
     ''' May raise OSError, ValueError, TypeError if there are connectivity or other issues '''
     secure = "s" if ssl else ""
     stat_endpoint = "http{}://{}:{}/stats".format(secure, host, stat_port)
     res = requests.get(stat_endpoint, verify=False, timeout=timeout)
-    return int(res.json()["shufflePort"])
+    json = res.json()
+    return int(json["shufflePort"]), int(json["poolSize"]), int(json["connections"])

@@ -1,4 +1,4 @@
-import ecdsa, threading, time
+import ecdsa, threading, time, queue
 from electroncash.bitcoin import deserialize_privkey, regenerate_key, EC_KEY, generator_secp256k1, number_to_string
 from electroncash.address import Address
 from electroncash.util import PrintError, InvalidPassword
@@ -12,7 +12,7 @@ from .coin import Coin
 from .crypto import Crypto
 from .messages import Messages
 from .coin_shuffle import Round
-from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_server_for_shuffle_port
+from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_server_for_stats
 
 ERR_SERVER_CONNECT = "Error: cannot connect to server"
 
@@ -52,6 +52,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         self.protocol = None
         self.network = network
         self.tx = None
+        self.ts = time.time()
         self.done = threading.Event()
 
     def not_time_to_die(func):
@@ -153,28 +154,30 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     def run(self):
         "this method trying to run the round and catch possible problems with it"
         try:
-            err = ERR_SERVER_CONNECT
-            self.comm.connect()
-            err = "Error: cannot register on the pool"
-            self.register_on_the_pool()
-            err = "Error: cannot complete the pool"
-            self.wait_for_announcment()
-            err = "Error: cannot share the keys"
-            self.share_the_key()
-            err = "Error: cannot gather the keys"
-            self.gather_the_keys()
-        except BaseException as e:
-            self.print_error("Exception in 'run': {}".format(str(e)))
-            self.logger.send(err)
-            return
-        self.start_protocol()
+            try:
+                err = ERR_SERVER_CONNECT
+                self.comm.connect()
+                err = "Error: cannot register on the pool"
+                self.register_on_the_pool()
+                err = "Error: cannot complete the pool"
+                self.wait_for_announcment()
+                err = "Error: cannot share the keys"
+                self.share_the_key()
+                err = "Error: cannot gather the keys"
+                self.gather_the_keys()
+            except BaseException as e:
+                self.print_error("Exception in 'run': {}".format(str(e)))
+                self.logger.send(err)
+                return
+            self.start_protocol()
+        finally:
+            self.logger.send("Exit: Scale '{}' Coin '{}'".format(self.amount, self.coin))
 
     def stop(self):
         "This method stops the protocol threads"
         if self.protocol:
             self.protocol.done = True
         self.done.set()
-        self.print_error("Closing comm -- subsequent socket errors are to be expected. :)")
         self.comm.close()
 
     def join(self, timeout_ignored=None):
@@ -218,27 +221,28 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         10000,
     )
 
-    def __init__(self, wallet, network_settings,
+    def __init__(self, window, wallet, network_settings,
                  period = 10.0, logger = None, fee=300, password=None, timeout=60.0):
-        super(BackgroundShufflingThread, self).__init__()
+        super().__init__()
         self.daemon = True
         self.timeout = timeout
         self.period = period
         self.logger = logger
         self.wallet = wallet
+        self.window = window
         self.host = network_settings.get("host", None)
         self.info_port = network_settings.get("info", None)
         self.port = 1337 # default value -- will get set to real value from server's stat port in run() method
+        self.poolSize = 3 # default value -- will get set to real value from server's stat port in run() method
         self.ssl = network_settings.get("ssl", None)
         self.network = network_settings.get("network", None)
         self.fee = fee
         self.lock = threading.RLock()
         self.password = password
         self.threads = {scale:None for scale in self.scales}
-        self.loggers = {scale:ChannelSendLambda(lambda msg,my_scale=scale: self.protocol_thread_callback(my_scale, msg)) for scale in self.scales}
         self.shared_chan = Channel(switch_timeout=None) # threads write a 3-tuple here: (killme_flg, thr, msg)
         self.stop_flg = threading.Event()
-        self.threads_timer = None # will be initialized in run()
+        self.last_idle_check = 0
 
     def set_password(self, password):
         with self.lock:
@@ -254,70 +258,98 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             n = n + " <" + self.wallet.basename() + ">"
         return n
 
-    def query_server_port(self):
+    def query_server_port(self, timeout = 5.0):
         try:
-            self.port = query_server_for_shuffle_port(self.host, self.info_port, self.ssl, timeout=5.0)
-            self.print_error("Server {}:{} told us that it has shufflePort={}".format(self.host, self.info_port, self.port))
+            self.port, self.poolSize, connections = query_server_for_stats(self.host, self.info_port, self.ssl, timeout)
+            self.print_error("Server {}:{} told us that it has shufflePort={} poolSize={} connections={}".format(self.host, self.info_port, self.port, self.poolSize, connections))
         except BaseException as e:
             self.print_error("Exception: {}".format(str(e)))
             self.print_error("Could not query shuffle port for server {}:{} -- defaulting to {}".format(self.host, self.info_port, self.port))
 
     def run(self):
-        self.print_error("Started")
+        try:
+            self.print_error("Started")
 
-        self.query_server_port()
+            self.query_server_port()
 
-        # NB: these need to be created within this thread to inherit its daemonic property
-        self.threads_timer = threading.Timer(self.period, self.check_for_threads)
-
-        self.threads_timer.start()
-        if self.logger:
             self.logger.send("started", "MAINLOG")
-            self.logger.send(self.get_password(), "MAINLOG")
-        while not self.stop_flg.is_set():
-            self.process_shared_chan() # NB: this blocks indefinitely until a message arrives or we are stopped so the above while loop is acceptable
-        self.print_error("Stopped")
+
+            if not self.wallet.is_up_to_date():
+                time.sleep(3.0) # initial delay to hopefully wait for wallet to be ready
+            while not self.stop_flg.is_set():
+                self.check_for_coins()
+                self.process_shared_chan() # NB: this blocks for up to self.period (default=10) seconds
+                self.check_server_port_ok() # NB: this normally is a noop but if server port is bad, blocks for up to 2.5 seconds
+                self.check_idle_threads()
+            self.print_error("Stopped")
+        finally:
+            self.logger.send("stopped", "MAINLOG")
+
+    def check_server_port_ok(self):
+        if not self.stop_flg.is_set() and self.window.cashshuffle_get_flag() == 1:
+            # bad server flag is set -- try to rediscover the shuffle port in case it changed
+            self.query_server_port(timeout = 2.5)
+
+    def check_idle_threads(self):
+        if self.stop_flg.is_set():
+            return
+        now = time.time()
+        if not self.last_idle_check:
+            self.last_idle_check = now
+            return
+        if now - self.last_idle_check > self.timeout:
+            for scale, thr in self.threads.items():
+                if thr and now - thr.ts > self.timeout:
+                    self.print_error("Thread for scale {} idle timed-out (timeout={}), stopping.".format(scale, self.timeout))
+                    self.stop_protocol_thread(thr, scale, thr.coin, "Error: Thread idle timed out")
 
     def process_shared_chan(self):
-        tup = self.shared_chan.recv()
-        if isinstance(tup, tuple): # may be None on join()
-            killme, thr, message = tup
-            scale = thr.amount
-            sender = thr.coin
-            if killme:
-                with self.lock:
-                    # this is still wonky here. Race conditions aren't avoided 100% of the time. But I suppose this is "good enough" until we rework the whole thread ownership/creation scheme
-                    curr_thr = self.threads[scale]
-                if thr == curr_thr:
-                    self.stop_protocol_thread(scale, message)
-                else:
-                    self.print_error("WARNING: Stale stop_thread message for Scale: '{}' Coin: '{}', thread not in list, ignoring!".format(scale,sender))
-            elif self.logger:
-                #self.print_error("--> Fwd msg to Qt for: Scale='{}' Sender='{}' Msg='{}'".format(scale, sender, message.strip()))
-                self.logger.send(message, sender)
+        try:
+            t0 = time.time()
+            while True:
+                # blocking read of the shared msg queue for up to self.period seconds
+                timeLeft = self.period - (time.time() - t0)
+                if timeLeft <= 0.0:
+                    return
 
-    def stop_protocol_thread(self, scale, message):
+                tup = self.shared_chan.get(timeout=timeLeft)
+
+                if self.stop_flg.is_set():
+                    return
+                if isinstance(tup, tuple): # may be None on join()
+                    killme, thr, message = tup
+                    scale, sender = thr.amount, thr.coin
+                    if killme:
+                        self.stop_protocol_thread(thr, scale, sender, message)
+                    else:
+                        #self.print_error("--> Fwd msg to Qt for: Scale='{}' Sender='{}' Msg='{}'".format(scale, sender, message.strip()))
+                        self.logger.send(message, sender)
+        except queue.Empty:
+            pass
+
+    def stop_protocol_thread(self, thr, scale, sender, message):
         self.print_error("Stop protocol thread for scale: {}".format(scale))
-        with self.lock:
-            thr = self.threads[scale]
-            sender = thr and thr.coin
-            if sender:
-                with self.wallet.lock:
-                    self.wallet.set_frozen_coin_state([sender], False)
-                    coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
-                    coins_for_shuffling -= {sender}
-                    self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
-                self.logger.send(message, sender)
-            else:
-                self.print_error("No sender! Thr={}".format(str(thr)))
+        if sender:
+            with self.wallet.lock:
+                self.wallet.set_frozen_coin_state([sender], False)
+                coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
+                coins_for_shuffling -= {sender}
+                self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
+            self.logger.send(message, sender)
+        else:
+            self.print_error("No sender! Thr={}".format(str(thr)))
+        if thr == self.threads[scale]:
             self.threads[scale] = None
-        if thr:
-            if thr.is_alive(): thr.join()
-            else:
-                thr.stop()
-                self.print_error("Thread already exited; cleaned up.")
+        elif thr.is_alive():
+            self.print_error("WARNING: Stopping thread ({}) which was not in the self.threads dict for scale = {} coin = {}"
+                             .format(str(thr), scale, sender))
+        if thr.is_alive():
+            thr.join()
+        else:
+            thr.stop()
+            self.print_error("Thread already exited; cleaned up.")
 
-    def protocol_thread_callback(self, scale, message):
+    def protocol_thread_callback(self, thr, message):
         ''' This callback runs in the ProtocolThread's thread context '''
         def signal_stop_thread(thr, message):
             ''' Sends the stop request to our run() thread, which will join on this thread context '''
@@ -326,16 +358,10 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         def fwd_message(thr, message):
             #self.print_error("Fwd msg for: Scale='{}' Msg='{}'".format(thr.amount, message))
             self.shared_chan.send((False, thr, message))
-        with self.lock:
-            thr = self.threads[scale]
-        if not thr:
-            self.print_error("WARNING: Thread for scale {} not FOUND! Ignoring...  (Message = '{}')".format(scale, message))
-            return
+        scale = thr.amount
+        thr.ts = time.time()
         self.print_error("Scale: {} Message: '{}'".format(scale, message.strip()))
-        if message.startswith("Error"):
-            if message.find(ERR_SERVER_CONNECT) != -1:
-                # tell Qt about failure to connect
-                fwd_message(thr, message)
+        if message.startswith("Error") or message.startswith("Exit"):
             signal_stop_thread(thr, message) # sends request to shared channel. our thread will join
         elif message.startswith("shuffle_txid:"): # TXID message -- forward to GUI so it can call "set_label"
             fwd_message(thr, message)
@@ -412,46 +438,39 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 break
         change = change or self.wallet.create_new_address(for_change = True)
         self.print_error("Scale {} Coin {} OutAddr {} Change {} make_protocol_thread".format(scale, utxo_name, output.to_storage_string(), change.to_storage_string()))
-        self.threads[scale] = ProtocolThread(self.host, self.port, self.network, utxo_name,
-                                             scale, self.fee, id_sk, sks, inputs, id_pub, output, change,
-                                             logger=self.loggers[scale], ssl=self.ssl, comm_timeout = self.timeout)
-        self.threads[scale].start()
+        thr = ProtocolThread(self.host, self.port, self.network, utxo_name,
+                             scale, self.fee, id_sk, sks, inputs, id_pub, output, change,
+                             logger=None, ssl=self.ssl, comm_timeout = self.timeout)
+        thr.logger = ChannelSendLambda(lambda msg: self.protocol_thread_callback(thr, msg))
+        self.threads[scale] = thr
         coins.remove(coin)
+        thr.start()
 
-    def check_for_threads(self):
+    def check_for_coins(self):
         if self.stop_flg.is_set(): return
-        with self.lock:
-            with self.wallet.lock:
-                with self.wallet.transaction_lock:
-                    try:
-                        #TODO FIXME XXX -- perhaps also add a mechanism to detect when coins that are in the queue or are being shuffled get reorged or spent
-                        if self.wallet.is_up_to_date() and self.wallet.network and self.wallet.network.is_connected():
-                            coins = None
-                            for scale in self.scales:
-                                thr = self.threads.get(scale)
-                                if not thr:
-                                    if coins is None: # NB: leave this check for None specifically as it has different semantics than coins == []
-                                        # lazy-init of coins here only if there is actual work to do.
-                                        coins = self.wallet.get_utxos(exclude_frozen = True, confirmed_only = True, mature = True)
-                                    if not coins: break # coins mutates as we iterate so check that we still have candidate coins
-                                    self._make_protocol_thread(scale, coins)
-                    except RuntimeWarning as e:
-                        self.print_error("check_for_threads error: {}".format(str(e)))
-                    finally:
-                        self.threads_timer = threading.Timer(self.period, self.check_for_threads)
-                        self.threads_timer.start()
+        with self.wallet.lock:
+            with self.wallet.transaction_lock:
+                try:
+                    #TODO FIXME XXX -- perhaps also add a mechanism to detect when coins that are in the queue or are being shuffled get reorged or spent
+                    if self.wallet.is_up_to_date() and self.wallet.network and self.wallet.network.is_connected():
+                        coins = None
+                        for scale, thr in self.threads.items():
+                            if not thr:
+                                if coins is None: # NB: leave this check for None specifically as it has different semantics than coins == []
+                                    # lazy-init of coins here only if there is actual work to do.
+                                    coins = self.wallet.get_utxos(exclude_frozen = True, confirmed_only = True, mature = True)
+                                if not coins: break # coins mutates as we iterate so check that we still have candidate coins
+                                self._make_protocol_thread(scale, coins)
+                except RuntimeWarning as e:
+                    self.print_error("check_for_threads error: {}".format(str(e)))
 
     def join(self):
-        with self.lock:
-            self.stop_flg.set()
-            self.shared_chan.send(None) # wakes our thread up so it can exit when it sees stop_flg is set
-            if self.threads_timer: self.threads_timer.cancel()
-            if self.logger:
-                self.logger.send("stopped", "MAINLOG")
-        for scale in self.scales:
-            if self.threads[scale] and self.threads[scale].is_alive():
-                self.print_error("Joining ProtocolThread[{}]...".format(scale))
-                self.threads[scale].join()
+        self.stop_flg.set()
+        self.shared_chan.send(None) # wakes our thread up so it can exit when it sees stop_flg is set
         if self.is_alive():
             self.print_error("Joining self...")
             super().join()
+        for scale, thr in self.threads.items():
+            if thr and thr.is_alive():
+                self.print_error("Joining ProtocolThread[{}]...".format(scale))
+                thr.join()
