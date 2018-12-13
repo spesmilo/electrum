@@ -181,6 +181,10 @@ def update_coin_status(window, coin_name, msg):
     else:
         if msg == "stopped":
             window.utxo_list.in_progress.clear(); new_in_progress = prev_in_progress = None
+        elif msg.startswith("forget "):
+            words = msg.strip().split()
+            prev_in_progress = 1; new_in_progress = None; coin_name = words[-1] # force the code below to pop the coin that we were asked to forget from the status dict
+
 
     if prev_in_progress != new_in_progress:
         if new_in_progress is None:

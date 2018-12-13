@@ -243,6 +243,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.shared_chan = Channel(switch_timeout=None) # threads write a 3-tuple here: (killme_flg, thr, msg)
         self.stop_flg = threading.Event()
         self.last_idle_check = 0
+        self.done_utxos = dict()
 
     def set_password(self, password):
         with self.lock:
@@ -298,10 +299,16 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             self.last_idle_check = now
             return
         if now - self.last_idle_check > self.timeout:
+            self.last_idle_check = now
             for scale, thr in self.threads.items():
                 if thr and now - thr.ts > self.timeout:
                     self.print_error("Thread for scale {} idle timed-out (timeout={}), stopping.".format(scale, self.timeout))
                     self.stop_protocol_thread(thr, scale, thr.coin, "Error: Thread idle timed out")
+
+            for utxo, ts in self.done_utxos.copy().items():
+                if now - ts > self.timeout:
+                    self.done_utxos.pop(utxo, None)
+                    self.logger.send("forget {}".format(utxo), "MAINLOG")
 
     def process_shared_chan(self):
         try:
@@ -330,6 +337,11 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     def stop_protocol_thread(self, thr, scale, sender, message):
         self.print_error("Stop protocol thread for scale: {}".format(scale))
         if sender:
+            if message.endswith('complete protocol'):
+                # remember this 'just spent' coin for self.timeout amount of
+                # time as a guard to ensure that we wait for the tx to show
+                # up in the wallet before considerng it again for shuffling
+                self.done_utxos[sender] = time.time()
             with self.wallet.lock:
                 self.wallet.set_frozen_coin_state([sender], False)
                 coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
@@ -383,6 +395,8 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
     # NB: all locks must be held when this is called
     def _make_protocol_thread(self, scale, coins):
+        def get_name(coin):
+            return "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
         def get_coin_for_shuffling(scale, coins):
             if not getattr(self.wallet, "is_coin_shuffled", None):
                 raise RuntimeWarning('Wallet lacks is_coin_shuffled method!')
@@ -392,7 +406,8 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                                 if self.wallet.is_coin_shuffled(coin) is False]
             upper_amount = scale*10 + self.fee
             lower_amount = scale + self.fee
-            unshuffled_coins_on_scale = [coin for coin in unshuffled_coins if coin['value'] < upper_amount and coin['value'] >= lower_amount]
+            unshuffled_coins_on_scale = [coin for coin in unshuffled_coins
+                                         if coin['value'] < upper_amount and coin['value'] >= lower_amount and get_name(coin) not in self.done_utxos]
             unshuffled_coins_on_scale.sort(key=lambda x: x['value']*100000000 + (100000000-x['height']))
             if unshuffled_coins_on_scale:
                 return unshuffled_coins_on_scale[-1]
@@ -408,7 +423,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             # and we didn't yet get informed of the new password.  In which case we give up for now and 10 seconds later
             # (the next 'period' time), this coin will be picked up again.
             raise RuntimeWarning('Invalid Password caught when trying to export a private key -- if this keeps happening tell the devs!')
-        utxo_name = "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
+        utxo_name = get_name(coin)
         self.wallet.set_frozen_coin_state([utxo_name], True)
         coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
         coins_for_shuffling |= {utxo_name}
