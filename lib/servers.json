@@ -1,10 +1,4 @@
 {
-    "94.1.159.183": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "abc1.hsmiths.com": {
         "pruning": "-",
         "s": "60002",
@@ -16,12 +10,6 @@
         "s": "50002",
         "version": "1.4"
     },
-    "bch.electrumx.cash": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "bch.imaginary.cash": {
         "pruning": "-",
         "s": "50002",
@@ -29,12 +17,6 @@
         "version": "1.4"
     },
     "bch0.kister.net": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
-    "bitcoincash.quangld.com": {
         "pruning": "-",
         "s": "50002",
         "t": "50001",
@@ -68,18 +50,6 @@
         "pruning": "-",
         "s": "51002",
         "t": "51001",
-        "version": "1.4"
-    },
-    "electroncash.cascharia.com": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
-    "electroncash.dk": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
         "version": "1.4"
     },
     "electroncash.ueo.ch": {
