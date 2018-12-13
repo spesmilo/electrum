@@ -22,6 +22,12 @@
         "t": "50001",
         "version": "1.4"
     },
+    "bitcoincash.quangld.com": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
+        "version": "1.4"
+    },
     "blackie.c3-soft.com": {
         "pruning": "-",
         "s": "50002",
@@ -50,6 +56,12 @@
         "pruning": "-",
         "s": "51002",
         "t": "51001",
+        "version": "1.4"
+    },
+    "electroncash.dk": {
+        "pruning": "-",
+        "s": "50002",
+        "t": "50001",
         "version": "1.4"
     },
     "electroncash.ueo.ch": {
