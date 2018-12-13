@@ -45,7 +45,7 @@ import ssl
 import aiohttp
 from aiohttp_socks import SocksConnector, SocksVer
 from aiorpcx import TaskGroup
-import requests
+import certifi
 
 from .i18n import _
 
@@ -59,7 +59,7 @@ def inv_dict(d):
     return {v: k for k, v in d.items()}
 
 
-ca_path = requests.certs.where()
+ca_path = certifi.where()
 
 
 base_units = {'BTC':8, 'mBTC':5, 'bits':2, 'sat':0}
