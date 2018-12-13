@@ -48,19 +48,6 @@ expiration_values = [
 ]
 
 
-class Timer(QThread):
-    stopped = False
-    timer_signal = pyqtSignal()
-
-    def run(self):
-        while not self.stopped:
-            self.timer_signal.emit()
-            time.sleep(0.5)
-
-    def stop(self):
-        self.stopped = True
-        self.wait()
-
 class EnterButton(QPushButton):
     def __init__(self, text, func):
         QPushButton.__init__(self, text)
@@ -601,6 +588,7 @@ class ButtonsWidget(QWidget):
     def addButton(self, icon_name, on_click, tooltip):
         button = QToolButton(self)
         button.setIcon(QIcon(icon_name))
+        button.setIconSize(QSize(25,25))
         button.setStyleSheet("QToolButton { border: none; hover {border: 1px} pressed {border: 1px} padding: 0px; }")
         button.setVisible(True)
         button.setToolTip(tooltip)

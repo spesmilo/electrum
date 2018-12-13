@@ -33,6 +33,7 @@ from collections import defaultdict
 
 import aiorpcx
 from aiorpcx import RPCSession, Notification
+import requests
 
 from .util import PrintError, ignore_exceptions, log_exceptions, bfh, SilentTaskGroup
 from . import util
@@ -46,6 +47,9 @@ from .i18n import _
 
 if TYPE_CHECKING:
     from .network import Network
+
+
+ca_path = requests.certs.where()
 
 
 class NotificationSession(RPCSession):
@@ -232,7 +236,7 @@ class Interface(PrintError):
             return None
 
         # see if we already have cert for this server; or get it for the first time
-        ca_sslc = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+        ca_sslc = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
         if not self._is_saved_ssl_cert_available():
             await self._try_saving_ssl_cert_for_first_time(ca_sslc)
         # now we have a file saved in our certificate store

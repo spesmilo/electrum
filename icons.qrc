@@ -30,6 +30,8 @@
     <file>icons/revealer_c.png</file>
     <file>icons/qrcode.png</file>
     <file>icons/qrcode_white.png</file>
+    <file>icons/camera_dark.png</file>
+    <file>icons/camera_white.png</file>
     <file>icons/preferences.png</file>
     <file>icons/safe-t_unpaired.png</file>
     <file>icons/safe-t.png</file>
