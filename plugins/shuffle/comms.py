@@ -56,11 +56,11 @@ class Comm(PrintErrorThread):
         self.ssl = ssl
         self.connected = False
 
-    def connect(self):
+    def connect(self, ctimeout = 5.0):
         try:
             bare_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             bare_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            bare_socket.settimeout(5.0)
+            bare_socket.settimeout(ctimeout)
             bare_socket.connect((self.host, self.port))
             if self.ssl:
                 self.socket = ssl.wrap_socket(bare_socket, ssl_version=ssl.PROTOCOL_TLSv1_2,
@@ -115,7 +115,7 @@ class Comm(PrintErrorThread):
         n += " <{}:{}>".format(self.host, self.port)
         return n
 
-def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout : float = 3.0, config = None) -> int:
+def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout = None, config = None):
     ''' May raise OSError, ValueError, TypeError if there are connectivity or other issues '''
 
     proxy = (config and config.get('proxy')) or None
@@ -125,7 +125,7 @@ def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout : fl
         pre = ''
         # proxies format for requests lib is eg:
         # {
-        #   'http'  : 'socks[45]://user:password@host:port'
+        #   'http'  : 'socks[45]://user:password@host:port',
         #   'https' : 'socks[45]://user:password@host:port'
         # }
         # with user:password@ being omitted if no user/password.
@@ -136,6 +136,8 @@ def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout : fl
             'http' : socks,
             'https' : socks
         }
+    if timeout is None:
+        timeout = 3.0 if not proxy else 10.0
     secure = "s" if ssl else ""
     stat_endpoint = "http{}://{}:{}/stats".format(secure, host, stat_port)
     res = requests.get(stat_endpoint, verify=False, timeout=timeout, proxies=proxy)

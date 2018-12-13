@@ -23,12 +23,14 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     """
     def __init__(self, host, port, network, coin,
                  amount, fee, sk, sks, inputs, pubk,
-                 addr_new_addr, change_addr, logger=None, ssl=False, comm_timeout = 300.0):
+                 addr_new_addr, change_addr, logger=None, ssl=False,
+                 comm_timeout = 300.0, ctimeout = 5.0):
 
         super(ProtocolThread, self).__init__()
         self.daemon = True
         self.messages = Messages()
         self.comm = Comm(host, port, ssl=ssl, timeout = comm_timeout)
+        self.ctimeout = ctimeout
         if not logger:
             self.logger = ChannelWithPrint()
         else:
@@ -156,7 +158,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         try:
             try:
                 err = ERR_SERVER_CONNECT
-                self.comm.connect()
+                self.comm.connect(ctimeout = self.ctimeout)
                 err = "Error: cannot register on the pool"
                 self.register_on_the_pool()
                 err = "Error: cannot complete the pool"
@@ -273,7 +275,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         try:
             self.print_error("Started")
 
-            self.query_server_port()
+            self.query_server_port(timeout = 5.0 if not self.config.get('proxy') else 12.5)
 
             self.logger.send("started", "MAINLOG")
 
@@ -294,7 +296,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     def check_server_port_ok(self):
         if not self.stop_flg.is_set() and self.window.cashshuffle_get_flag() == 1:
             # bad server flag is set -- try to rediscover the shuffle port in case it changed
-            self.query_server_port(timeout = 2.5)
+            self.query_server_port(timeout = 2.5 if not self.config.get('proxy') else 7.5)
 
     def check_idle_threads(self):
         if self.stop_flg.is_set():
@@ -474,9 +476,10 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.wallet._addresses_cashshuffle_reserved |= {output, change} # NB: only modify this when holding wallet locks
         self.print_error("Scale {} Coin {} OutAddr {} Change {} make_protocol_thread".format(scale, utxo_name, output.to_storage_string(), change.to_storage_string()))
         #self.print_error("Reserved addresses:", self.wallet._addresses_cashshuffle_reserved)
+        ctimeout = 5.0 if not self.config.get('proxy') else 12.5 # allow for 12.5 second connection timeouts if using a proxy server
         thr = ProtocolThread(self.host, self.port, self.network, utxo_name,
                              scale, self.fee, id_sk, sks, inputs, id_pub, output, change,
-                             logger=None, ssl=self.ssl, comm_timeout = self.timeout)
+                             logger=None, ssl=self.ssl, comm_timeout = self.timeout, ctimeout = ctimeout)
         thr.logger = ChannelSendLambda(lambda msg: self.protocol_thread_callback(thr, msg))
         self.threads[scale] = thr
         coins.remove(coin)
