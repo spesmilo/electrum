@@ -1,5 +1,6 @@
 import socket, ssl, threading, queue, time, requests
 from .client import PrintErrorThread
+from electroncash.network import deserialize_proxy
 
 class Channel(queue.Queue):
     "simple Queue wrapper for using recv and send"
@@ -114,10 +115,29 @@ class Comm(PrintErrorThread):
         n += " <{}:{}>".format(self.host, self.port)
         return n
 
-def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout : float = 3.0) -> int:
+def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout : float = 3.0, config = None) -> int:
     ''' May raise OSError, ValueError, TypeError if there are connectivity or other issues '''
+
+    proxy = (config and config.get('proxy')) or None
+
+    if proxy:
+        proxy = deserialize_proxy(proxy)
+        pre = ''
+        # proxies format for requests lib is eg:
+        # {
+        #   'http'  : 'socks[45]://user:password@host:port'
+        #   'https' : 'socks[45]://user:password@host:port'
+        # }
+        # with user:password@ being omitted if no user/password.
+        if proxy.get('user') and proxy.get('password'):
+            pre = '{}:{}@'.format(proxy.get('user'), proxy.get('password'))
+        socks = '{}://{}{}:{}'.format(proxy.get('mode'), pre, proxy.get('host'), proxy.get('port'))
+        proxy = { # transform it to requests format
+            'http' : socks,
+            'https' : socks
+        }
     secure = "s" if ssl else ""
     stat_endpoint = "http{}://{}:{}/stats".format(secure, host, stat_port)
-    res = requests.get(stat_endpoint, verify=False, timeout=timeout)
+    res = requests.get(stat_endpoint, verify=False, timeout=timeout, proxies=proxy)
     json = res.json()
     return int(json["shufflePort"]), int(json["poolSize"]), int(json["connections"]), json['pools']

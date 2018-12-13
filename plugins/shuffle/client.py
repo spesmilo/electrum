@@ -230,6 +230,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.logger = logger
         self.wallet = wallet
         self.window = window
+        self.config = window.config
         self.host = network_settings.get("host", None)
         self.info_port = network_settings.get("info", None)
         self.port = 1337 # default value -- will get set to real value from server's stat port in run() method
@@ -262,7 +263,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
     def query_server_port(self, timeout = 5.0):
         try:
-            self.port, self.poolSize, connections, pools = query_server_for_stats(self.host, self.info_port, self.ssl, timeout)
+            self.port, self.poolSize, connections, pools = query_server_for_stats(self.host, self.info_port, self.ssl, timeout, config = self.config)
             self.print_error("Server {}:{} told us that it has shufflePort={} poolSize={} connections={}".format(self.host, self.info_port, self.port, self.poolSize, connections))
         except BaseException as e:
             self.print_error("Exception: {}".format(str(e)))

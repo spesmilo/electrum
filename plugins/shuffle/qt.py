@@ -473,7 +473,7 @@ class Plugin(BasePlugin):
                 return
             else:
                 ns = d.get_form()
-                if not self.check_server_connectivity(ns.get("server"), ns.get("info"), ns.get("ssl")):
+                if not self.check_server_connectivity(ns.get("server"), ns.get("info"), ns.get("ssl"), config=window.config):
                     server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
                 else:
                     server_ok = True
@@ -484,14 +484,14 @@ class Plugin(BasePlugin):
         d.deleteLater()
         return ns
 
-    def check_server_connectivity(self, host, stat_port, ssl):
+    def check_server_connectivity(self, host, stat_port, ssl, config = None):
         try:
             import socket
             try:
                 prog = QProgressDialog(_("Checking server..."), None, 0, 3, None)
                 prog.setWindowModality(Qt.ApplicationModal); prog.setMinimumDuration(0); prog.setValue(1)
                 QApplication.instance().processEvents(QEventLoop.ExcludeUserInputEvents|QEventLoop.ExcludeSocketNotifiers, 1) # this forces the window to be shown
-                port, poolSize, connections, pools = query_server_for_stats(host, stat_port, ssl)
+                port, poolSize, connections, pools = query_server_for_stats(host, stat_port, ssl, config = config)
                 prog.setValue(2)
                 self.print_error("{}:{}{} got response: shufflePort = {} poolSize = {} connections = {} pools = {}".format(host, stat_port, 's' if ssl else '', port, poolSize, connections, pools))
                 socket.create_connection((host, port), 3.0).close() # test connectivity to port
