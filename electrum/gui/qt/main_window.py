@@ -2612,20 +2612,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             text = str(keys_e.toPlainText())
             return keystore.get_private_keys(text)
 
-        def on_address(text):
-            # set text color
-            addr = get_address()
-            ss = (ColorScheme.DEFAULT if addr else ColorScheme.RED).as_stylesheet()
-            address_e.setStyleSheet(ss)
-            # if addr looks to be ours, make sure we can re-derive it
-            if addr and self.wallet.is_mine(addr):
-                try:
-                    self.wallet.raise_if_cannot_rederive_address(addr)
-                except InternalAddressCorruption as e:
-                    self.show_error(str(e))
-                    raise
-
         f = lambda: button.setEnabled(get_address() is not None and get_pk() is not None)
+        on_address = lambda text: address_e.setStyleSheet((ColorScheme.DEFAULT if get_address() else ColorScheme.RED).as_stylesheet())
         keys_e.textChanged.connect(f)
         address_e.textChanged.connect(f)
         address_e.textChanged.connect(on_address)
@@ -2633,6 +2621,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if not d.exec_():
             return
         # user pressed "sweep"
+        addr = get_address()
+        try:
+            self.wallet.check_address(addr)
+        except InternalAddressCorruption as e:
+            self.show_error(str(e))
+            raise
         try:
             coins, keypairs = sweep_preparations(get_pk(), self.network)
         except Exception as e:  # FIXME too broad...
@@ -2642,7 +2636,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.do_clear()
         self.tx_external_keypairs = keypairs
         self.spend_coins(coins)
-        self.payto_e.setText(get_address())
+        self.payto_e.setText(addr)
         self.spend_max()
         self.payto_e.setFrozen(True)
         self.amount_e.setFrozen(True)

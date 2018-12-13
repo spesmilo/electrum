@@ -152,8 +152,8 @@ class CannotBumpFee(Exception): pass
 
 class InternalAddressCorruption(Exception):
     def __str__(self):
-        return _("Internal address database inconsistency detected. "
-                 "You should restore from seed.")
+        return _("Wallet file corruption detected. "
+                 "Please restore your wallet from seed, and compare the addresses in both files")
 
 
 
@@ -641,7 +641,7 @@ class Abstract_Wallet(AddressSynchronizer):
         for addr in change_addrs:
             # note that change addresses are not necessarily ismine
             # in which case this is a no-op
-            self.raise_if_cannot_rederive_address(addr)
+            self.check_address(addr)
 
         # Fee estimator
         if fixed_fee is None:
@@ -897,17 +897,16 @@ class Abstract_Wallet(AddressSynchronizer):
                 continue
         return tx
 
-    @profiler
     def try_detecting_internal_addresses_corruption(self):
         pass
 
-    def raise_if_cannot_rederive_address(self, addr):
+    def check_address(self, addr):
         pass
 
-    def try_rederiving_returned_address(func):
+    def check_returned_address(func):
         def wrapper(self, *args, **kwargs):
             addr = func(self, *args, **kwargs)
-            self.raise_if_cannot_rederive_address(addr)
+            self.check_address(addr)
             return addr
         return wrapper
 
@@ -917,13 +916,13 @@ class Abstract_Wallet(AddressSynchronizer):
         return [addr for addr in domain if not self.history.get(addr)
                 and addr not in self.receive_requests.keys()]
 
-    @try_rederiving_returned_address
+    @check_returned_address
     def get_unused_address(self):
         addrs = self.get_unused_addresses()
         if addrs:
             return addrs[0]
 
-    @try_rederiving_returned_address
+    @check_returned_address
     def get_receiving_address(self):
         # always return an address
         domain = self.get_receiving_addresses()
@@ -1500,16 +1499,12 @@ class Deterministic_Wallet(Abstract_Wallet):
         addresses_rand = addresses_all[10:]
         addresses_sample2 = random.sample(addresses_rand, min(len(addresses_rand), 10))
         for addr_found in addresses_sample1 + addresses_sample2:
-            self.raise_if_cannot_rederive_address(addr_found)
+            self.check_address(addr_found)
 
-    def raise_if_cannot_rederive_address(self, addr):
-        if not addr:
-            return
-        if not self.is_mine(addr):
-            return
-        addr_derived = self.derive_address(*self.get_address_index(addr))
-        if addr != addr_derived:
-            raise InternalAddressCorruption()
+    def check_address(self, addr):
+        if addr and self.is_mine(addr):
+            if addr != self.derive_address(*self.get_address_index(addr)):
+                raise InternalAddressCorruption()
 
     def get_seed(self, password):
         return self.keystore.get_seed(password)
@@ -1566,8 +1561,7 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def derive_address(self, for_change, n):
         x = self.derive_pubkeys(for_change, n)
-        address = self.pubkeys_to_address(x)
-        return address
+        return self.pubkeys_to_address(x)
 
     def create_new_address(self, for_change=False):
         assert type(for_change) is bool

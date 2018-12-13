@@ -200,7 +200,7 @@ class AddressList(MyTreeView):
     def place_text_on_clipboard(self, text):
         if is_address(text):
             try:
-                self.wallet.raise_if_cannot_rederive_address(text)
+                self.wallet.check_address(text)
             except InternalAddressCorruption as e:
                 self.parent.show_error(str(e))
                 raise
