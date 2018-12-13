@@ -243,6 +243,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.shared_chan = Channel(switch_timeout=None) # threads write a 3-tuple here: (killme_flg, thr, msg)
         self.stop_flg = threading.Event()
         self.last_idle_check = 0
+        self.had_a_completion_flg = False
         self.done_utxos = dict()
 
     def set_password(self, password):
@@ -279,7 +280,10 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 time.sleep(3.0) # initial delay to hopefully wait for wallet to be ready
             while not self.stop_flg.is_set():
                 self.check_for_coins()
-                self.process_shared_chan() # NB: this blocks for up to self.period (default=10) seconds
+                had_a_completion = self.process_shared_chan() # NB: this blocks for up to self.period (default=10) seconds
+                if had_a_completion:
+                    # force loop to go back to check_for_coins immediately if a thread just successfully ended with a protocol completion
+                    continue
                 self.check_server_port_ok() # NB: this normally is a noop but if server port is bad, blocks for up to 2.5 seconds
                 self.check_idle_threads()
             self.print_error("Stopped")
@@ -328,11 +332,16 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                     scale, sender = thr.amount, thr.coin
                     if killme:
                         self.stop_protocol_thread(thr, scale, sender, message)
+                        if self.had_a_completion_flg:
+                            self.had_a_completion_flg = False
+                            return True # signal calling loop to go to the "check_for_coins" step immediately
                     else:
                         #self.print_error("--> Fwd msg to Qt for: Scale='{}' Sender='{}' Msg='{}'".format(scale, sender, message.strip()))
                         self.logger.send(message, sender)
         except queue.Empty:
             pass
+
+        return False
 
     def stop_protocol_thread(self, thr, scale, sender, message):
         self.print_error("Stop protocol thread for scale: {}".format(scale))
@@ -342,6 +351,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 # time as a guard to ensure that we wait for the tx to show
                 # up in the wallet before considerng it again for shuffling
                 self.done_utxos[sender] = time.time()
+                self.had_a_completion_flg = True
             with self.wallet.lock:
                 self.wallet.set_frozen_coin_state([sender], False)
                 coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
