@@ -262,7 +262,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
     def query_server_port(self, timeout = 5.0):
         try:
-            self.port, self.poolSize, connections = query_server_for_stats(self.host, self.info_port, self.ssl, timeout)
+            self.port, self.poolSize, connections, pools = query_server_for_stats(self.host, self.info_port, self.ssl, timeout)
             self.print_error("Server {}:{} told us that it has shufflePort={} poolSize={} connections={}".format(self.host, self.info_port, self.port, self.poolSize, connections))
         except BaseException as e:
             self.print_error("Exception: {}".format(str(e)))

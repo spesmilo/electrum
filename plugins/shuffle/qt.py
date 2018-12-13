@@ -34,7 +34,7 @@ from PyQt5.QtWidgets import *
 
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
-from electroncash.util import print_error, profiler
+from electroncash.util import print_error, profiler, PrintError
 from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton, HelpLabel, OkButton, WindowModalDialog, rate_limited
 from electroncash_gui.qt.password_dialog import PasswordDialog
 from electroncash_gui.qt.main_window import ElectrumWindow
@@ -463,99 +463,8 @@ class Plugin(BasePlugin):
         assert window and (isinstance(window, ElectrumWindow) or isinstance(window.parent(), ElectrumWindow))
         if not isinstance(window, ElectrumWindow):
             window = window.parent()
-        def setup_combo_box(cb, selected = {}):
-            def load_servers(fname):
-                r = {}
-                try:
-                    zips = __file__.find(".zip")
-                    if zips == -1:
-                        with open(os.path.join(os.path.dirname(__file__), fname), 'r') as f:
-                            r = json.loads(f.read())
-                    else:
-                        from zipfile import ZipFile
-                        zip_file = ZipFile(__file__[: zips + 4])
-                        with zip_file.open("shuffle/" + fname) as f:
-                            r = json.loads(f.read().decode())
-                except:
-                    self.print_error("Error loading server list from {}: {}", fname, str(sys.exc_info()[1]))
-                return r
-            # /
-            servers = load_servers("servers.json")
-            selIdx = -1
-            for host, d0 in sorted(servers.items()):
-                d = d0.copy()
-                d['server'] = host
-                item = host + (' [ssl]' if d['ssl'] else '')
-                cb.addItem(item, d)
-                if selected and selected == d:
-                    selIdx = cb.count()-1
 
-            cb.addItem(_("(Custom)"))
-            if selIdx > -1:
-                cb.setCurrentIndex(selIdx)
-            elif selected and len(selected) == 3:
-                custIdx = cb.count()-1
-                cb.setItemData(custIdx, selected.copy())
-                cb.setCurrentIndex(custIdx)
-                return True
-            return False
-        # /
-        def from_combobox(cb, le, sb, chk):
-            d = cb.currentData()
-            if isinstance(d, dict):
-                host, info, ssl = d.get('server'), d.get('info'), d.get('ssl')
-                le.setText(host)
-                sb.setValue(info)
-                chk.setChecked(ssl)
-            en = cb.currentIndex() == cb.count()-1
-            le.setEnabled(en); sb.setEnabled(en); chk.setEnabled(en)
-        def get_form(le, sb, chk):
-            return {
-                'server': le.text(),
-                'info'  : sb.value(),
-                'ssl'   : chk.isChecked()
-            }
-        # /
-        d = WindowModalDialog(None, _("CashShuffle Settings"))
-        d.setWindowModality(Qt.ApplicationModal)
-        d.setMinimumSize(500, 200)
-
-        vbox = QVBoxLayout(d)
-        if not msg:
-            msg = _("Choose a CashShuffle server from the list.\nChanges will require the CashShuffle plugin to restart.")
-        vbox.addWidget(QLabel(msg))
-        grid = QGridLayout()
-        vbox.addLayout(grid)
-
-        serverCB = QComboBox(d)
-        selected = dict()
-        try:
-            # try and pre-populate from config
-            current = window.config.get("cashshuffle_server_v1", dict())
-            dummy = (current["server"], current["info"], current["ssl"]); del dummy;
-            selected = current
-        except KeyError:
-            pass
-            
-        setup_combo_box(serverCB, selected = selected)
-
-        grid.addWidget(QLabel(_('Servers'), d), 0, 0)
-        grid.addWidget(serverCB, 0, 1)
-
-        grid.addWidget(QLabel(_("Host"), d), 1, 0)
-
-        hbox = QHBoxLayout(); grid.addLayout(hbox, 1, 1, 1, 2); grid.setColumnStretch(2, 1)
-        srvLe = QLineEdit(d); hbox.addWidget(srvLe)
-        hbox.addWidget(QLabel(_("P:")))
-        portSb = QSpinBox(d); portSb.setRange(1, 65535); hbox.addWidget(portSb)
-        sslChk = QCheckBox(_("SSL"), d); hbox.addWidget(sslChk)
-
-        serverCB.currentIndexChanged.connect(lambda x: from_combobox(serverCB, srvLe, portSb, sslChk))
-        from_combobox(serverCB, srvLe, portSb, sslChk)
-        
-        vbox.addStretch()
-        vbox.addLayout(Buttons(CloseButton(d), OkButton(d)))
-
+        d = SettingsDialog(None, _("CashShuffle Settings"), msg, window)
 
         server_ok = False
         ns = None
@@ -563,7 +472,7 @@ class Plugin(BasePlugin):
             if not d.exec_():
                 return
             else:
-                ns = get_form(srvLe, portSb, sslChk)
+                ns = d.get_form()
                 if not self.check_server_connectivity(ns.get("server"), ns.get("info"), ns.get("ssl")):
                     server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
                 else:
@@ -572,6 +481,7 @@ class Plugin(BasePlugin):
             self.save_network_settings(window, ns)
             if restart_ask: #and ns != selected:
                 window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
+        d.deleteLater()
         return ns
 
     def check_server_connectivity(self, host, stat_port, ssl):
@@ -581,9 +491,9 @@ class Plugin(BasePlugin):
                 prog = QProgressDialog(_("Checking server..."), None, 0, 3, None)
                 prog.setWindowModality(Qt.ApplicationModal); prog.setMinimumDuration(0); prog.setValue(1)
                 QApplication.instance().processEvents(QEventLoop.ExcludeUserInputEvents|QEventLoop.ExcludeSocketNotifiers, 1) # this forces the window to be shown
-                port, poolSize, connections = query_server_for_stats(host, stat_port, ssl)
+                port, poolSize, connections, pools = query_server_for_stats(host, stat_port, ssl)
                 prog.setValue(2)
-                self.print_error("{}:{}{} got response: shufflePort = {} poolSize = {} connections = {}".format(host, stat_port, 's' if ssl else '', port, poolSize, connections))
+                self.print_error("{}:{}{} got response: shufflePort = {} poolSize = {} connections = {} pools = {}".format(host, stat_port, 's' if ssl else '', port, poolSize, connections, pools))
                 socket.create_connection((host, port), 3.0).close() # test connectivity to port
                 prog.setValue(3)
             finally:
@@ -632,7 +542,7 @@ class SendTabExtra(QFrame):
                                       _("Only shuffled funds may be sent")), msg)
         l.addWidget(titleLabel, 0, 1, 1, 3)
         l.addWidget(HelpLabel("Shuffled funds available:", msg), 1, 1)
-        self.amountLabel = QLabel("") 
+        self.amountLabel = QLabel("")
         l.addWidget(self.amountLabel, 1, 2)
         self.numCoinsLabel = QLabel("")
         l.addWidget(self.numCoinsLabel, 1, 3)
@@ -658,4 +568,108 @@ class SendTabExtra(QFrame):
             amount, n = get_shuffled_coin_totals(self.wallet)
         self.amountLabel.setText("<b>{}</b> {}".format(self.window.format_amount(amount).strip(), self.window.base_unit()))
         self.numCoinsLabel.setText(_("<b>{}</b> Coins <small>(UTXOs)</small>").format(n))
+
+
+class SettingsDialog(WindowModalDialog, PrintError):
+    def __init__(self, parent, title,
+                 message, window):
+        super().__init__(parent, title)
+        self.setWindowModality(Qt.ApplicationModal)
+        self.setMinimumSize(500, 200)
+        self.setup(message, window)
+    def showEvent(self, e):
+        super().showEvent(e)
+    def hideEvent(self, e):
+        super().hideEvent(e)
+    def closeEvent(self, e):
+        super().closeEvent(e)
+    def from_combobox(self):
+        d = self.cb.currentData()
+        if isinstance(d, dict):
+            host, info, ssl = d.get('server'), d.get('info'), d.get('ssl')
+            self.le.setText(host)
+            self.sb.setValue(info)
+            self.chk.setChecked(ssl)
+        en = self.cb.currentIndex() == self.cb.count()-1
+        self.le.setEnabled(en); self.sb.setEnabled(en); self.chk.setEnabled(en)
+    def get_form(self):
+        return {
+            'server': self.le.text(),
+            'info'  : self.sb.value(),
+            'ssl'   : self.chk.isChecked()
+        }
+    def setup_combo_box(self, selected = {}):
+        def load_servers(fname):
+            r = {}
+            try:
+                zips = __file__.find(".zip")
+                if zips == -1:
+                    with open(os.path.join(os.path.dirname(__file__), fname), 'r') as f:
+                        r = json.loads(f.read())
+                else:
+                    from zipfile import ZipFile
+                    zip_file = ZipFile(__file__[: zips + 4])
+                    with zip_file.open("shuffle/" + fname) as f:
+                        r = json.loads(f.read().decode())
+            except:
+                self.print_error("Error loading server list from {}: {}", fname, str(sys.exc_info()[1]))
+            return r
+        # /
+        servers = load_servers("servers.json")
+        selIdx = -1
+        for host, d0 in sorted(servers.items()):
+            d = d0.copy()
+            d['server'] = host
+            item = host + (' [ssl]' if d['ssl'] else '')
+            self.cb.addItem(item, d)
+            if selected and selected == d:
+                selIdx = self.cb.count()-1
+
+        self.cb.addItem(_("(Custom)"))
+        if selIdx > -1:
+            self.cb.setCurrentIndex(selIdx)
+        elif selected and len(selected) == 3:
+            custIdx = self.cb.count()-1
+            self.cb.setItemData(custIdx, selected.copy())
+            self.cb.setCurrentIndex(custIdx)
+            return True
+        return False
+    def setup(self, msg, window):
+        vbox = QVBoxLayout(self)
+        if not msg:
+            msg = _("Choose a CashShuffle server from the list.\nChanges will require the CashShuffle plugin to restart.")
+        vbox.addWidget(QLabel(msg))
+        grid = QGridLayout()
+        vbox.addLayout(grid)
+
+        self.cb = QComboBox(self)
+        selected = dict()
+        try:
+            # try and pre-populate from config
+            current = window.config.get("cashshuffle_server_v1", dict())
+            dummy = (current["server"], current["info"], current["ssl"]); del dummy;
+            selected = current
+        except KeyError:
+            pass
+
+        self.setup_combo_box(selected = selected)
+
+        grid.addWidget(QLabel(_('Servers'), self), 0, 0)
+        grid.addWidget(self.cb, 0, 1)
+
+        grid.addWidget(QLabel(_("Host"), self), 1, 0)
+
+        hbox = QHBoxLayout(); grid.addLayout(hbox, 1, 1, 1, 2); grid.setColumnStretch(2, 1)
+        self.le = QLineEdit(self); hbox.addWidget(self.le)
+        hbox.addWidget(QLabel(_("P:")))
+        self.sb = QSpinBox(self); self.sb.setRange(1, 65535); hbox.addWidget(self.sb)
+        self.chk = QCheckBox(_("SSL"), self); hbox.addWidget(self.chk)
+
+        self.cb.currentIndexChanged.connect(lambda x='ignored': self.from_combobox())
+        self.from_combobox()
+
+        vbox.addStretch()
+        vbox.addLayout(Buttons(CloseButton(self), OkButton(self)))
+    # /
+# /SettingsDialog
 

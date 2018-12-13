@@ -120,4 +120,4 @@ def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout : fl
     stat_endpoint = "http{}://{}:{}/stats".format(secure, host, stat_port)
     res = requests.get(stat_endpoint, verify=False, timeout=timeout)
     json = res.json()
-    return int(json["shufflePort"]), int(json["poolSize"]), int(json["connections"])
+    return int(json["shufflePort"]), int(json["poolSize"]), int(json["connections"]), json['pools']
