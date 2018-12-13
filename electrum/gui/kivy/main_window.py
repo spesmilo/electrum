@@ -790,7 +790,7 @@ class ElectrumWindow(App):
             notification.notify('Electrum', message,
                             app_icon=icon, app_name='Electrum')
         except ImportError:
-            Logger.Error('Notification: needs plyer; `sudo pip install plyer`')
+            Logger.Error('Notification: needs plyer; `sudo python3 -m pip install plyer`')
 
     def on_pause(self):
         self.pause_time = time.time()
