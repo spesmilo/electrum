@@ -44,6 +44,12 @@ from electroncash.transaction import Transaction
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT
 from electroncash_plugins.shuffle.comms import query_server_for_stats
 
+FEE = 300
+SCALE_0 = sorted(BackgroundShufflingThread.scales)[0]
+SCALE_N = sorted(BackgroundShufflingThread.scales)[-1]
+UPPER_BOUND = SCALE_N*10 + FEE
+LOWER_BOUND = SCALE_0 + FEE
+
 def is_coin_shuffled(wallet, coin, txs_in=None):
     cache = getattr(wallet, "_is_shuffled_cache", dict())
     tx_id, n = coin['prevout_hash'], coin['prevout_n']
@@ -120,14 +126,14 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
         item.setText(5, _("Unconfirmed"))
     elif utxo['coinbase'] and (utxo['height'] + COINBASE_MATURITY > utxo_list.wallet.get_local_height()): # maturity check
         item.setText(5, _("Not mature"))
-    elif utxo['value'] > 10000 and utxo['value']<1000000000: # queued_labels
+    elif utxo['value'] >= LOWER_BOUND and utxo['value'] < UPPER_BOUND: # queued_labels
         if utxo_list.wallet.network and utxo_list.wallet.network.is_connected():
             item.setText(5, _("In queue"))
         else:
             item.setText(5, _("Offline"))
-    elif utxo['value'] >= 1000000000: # too big
+    elif utxo['value'] >= UPPER_BOUND: # too big
         item.setText(5, _("Too big"))
-    elif utxo['value'] <= 10000: # dust
+    elif utxo['value'] < LOWER_BOUND: # dust
         item.setText(5, _("Too small"))
 
     if prog == 'in progress': # in progress
@@ -205,16 +211,17 @@ class electrum_console_logger(QObject):
         self.gotMessage.emit(msg, sender)
 
 
-def start_background_shuffling(window, network_settings, period = 10.0, password=None, timeout = 60.0):
+def start_background_shuffling(window, network_settings, period = 10.0, password = None, timeout = 60.0):
     logger = electrum_console_logger()
     logger.gotMessage.connect(lambda msg, sender: update_coin_status(window, sender, msg))
 
     window.background_process = BackgroundShufflingThread(window,
                                                           window.wallet,
                                                           network_settings,
-                                                          logger=logger,
-                                                          period=period,
-                                                          password=password,
+                                                          logger = logger,
+                                                          fee = FEE,
+                                                          period = period,
+                                                          password = password,
                                                           timeout = timeout)
     window.background_process.start()
 

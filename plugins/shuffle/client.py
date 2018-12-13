@@ -222,7 +222,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     )
 
     def __init__(self, window, wallet, network_settings,
-                 period = 10.0, logger = None, fee=300, password=None, timeout=60.0):
+                 period = 10.0, logger = None, fee = 300, password=None, timeout=60.0):
         super().__init__()
         self.daemon = True
         self.timeout = timeout
