@@ -60,13 +60,13 @@ class Comm(PrintErrorThread):
         try:
             bare_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             bare_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            bare_socket.settimeout(5.0)
+            bare_socket.connect((self.host, self.port))
             if self.ssl:
                 self.socket = ssl.wrap_socket(bare_socket, ssl_version=ssl.PROTOCOL_TLSv1_2,
                                               ciphers="ECDHE-RSA-AES128-GCM-SHA256")
             else:
                 self.socket = bare_socket
-            self.socket.settimeout(5.0)
-            self.socket.connect((self.host, self.port))
             self.socket.settimeout(self.timeout) # blocking socket with a timeout -- when recv times out the enclosing protocol thread exits
             self.connected = True
         except OSError as error:
