@@ -251,6 +251,7 @@ def monkey_patches_apply(window):
         wallet.is_coin_shuffled = lambda coin, txs=None: is_coin_shuffled(wallet, coin, txs)
         wallet.get_shuffled_coins = lambda *args, **kwargs: get_shuffled_coins(wallet, *args, **kwargs)
         wallet._is_shuffled_cache = dict()
+        wallet._addresses_cashshuffle_reserved = set()
         unfreeze_frozen_by_shuffling(wallet)
         wallet._shuffle_patched_ = True
         print_error("[shuffle] Patched wallet")
@@ -283,6 +284,7 @@ def monkey_patches_remove(window):
     def restore_wallet(wallet):
         if not getattr(wallet, '_shuffle_patched_', None):
             return
+        delattr(wallet, '_addresses_cashshuffle_reserved')
         delattr(wallet, "is_coin_shuffled")
         delattr(wallet, "get_shuffled_coins")
         delattr(wallet, "_is_shuffled_cache")
