@@ -882,6 +882,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         from .request_list import RequestList
         self.request_list = RequestList(self)
+        self.request_list.chkVisible()
 
         # layout
         vbox_g = QVBoxLayout()
@@ -1228,6 +1229,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.invoices_label = QLabel(_('Invoices'))
         from .invoice_list import InvoiceList
         self.invoice_list = InvoiceList(self)
+        self.invoice_list.chkVisible()
 
         vbox0 = QVBoxLayout()
         vbox0.addLayout(grid)

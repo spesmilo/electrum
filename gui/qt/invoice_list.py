@@ -54,8 +54,14 @@ class InvoiceList(MyTreeWidget):
             item.setFont(3, QFont(MONOSPACE_FONT))
             self.addTopLevelItem(item)
         self.setCurrentItem(self.topLevelItem(0))
-        self.setVisible(len(inv_list))
-        self.parent.invoices_label.setVisible(len(inv_list))
+        self.chkVisible(inv_list)
+
+    def chkVisible(self, inv_list=None):
+        inv_list = inv_list or self.parent.invoices.unpaid_invoices()
+        b = len(inv_list) > 0 and self.parent.isVisible()
+        self.setVisible(b)
+        self.parent.invoices_label.setVisible(b)
+
 
     def import_invoices(self):
         wallet_folder = self.parent.get_wallet_folder()
