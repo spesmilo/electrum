@@ -1,20 +1,11 @@
 {
-    "180.235.49.196": {
-        "t": "51001",
+    "bch0.kister.net": {
         "s": "51002"
     },
-    "electrum-testnet-abc.criptolayer.net": {
-        "s": "50112"
+    "blackie.c3-soft.com": {
+        "s": "60002"
     },
-    "electrontest.cascharia.com": {
-        "s": "51002"
-    },
-    "bchtestnet.arihanc.com": {
-        "t": "53001",
-        "s": "53002"
-    },
-    "bcht.random.re": {
-        "t": "53001",
-        "s": "53002"
+    "testnet.imaginary.cash": {
+        "s": "50002"
     }
 }
