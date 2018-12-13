@@ -58,8 +58,10 @@ class InvoiceList(MyTreeView):
             item[3].setFont(QFont(MONOSPACE_FONT))
             self.addTopLevelItem(item)
         self.selectionModel().select(self.model().index(0,0), QItemSelectionModel.SelectCurrent)
-        self.setVisible(len(inv_list))
-        self.parent.invoices_label.setVisible(len(inv_list))
+        if self.parent.isVisible():
+            b = len(inv_list) > 0
+            self.setVisible(b)
+            self.parent.invoices_label.setVisible(b)
 
     def import_invoices(self):
         import_meta_gui(self.parent, _('invoices'), self.parent.invoices.import_file, self.update)
