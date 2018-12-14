@@ -1,6 +1,5 @@
 pyaes>=0.1a1
 ecdsa>=0.9
-requests
 qrcode
 protobuf
 dnspython
@@ -9,3 +8,4 @@ qdarkstyle<2.6
 aiorpcx>=0.9,<0.11
 aiohttp
 aiohttp_socks
+certifi

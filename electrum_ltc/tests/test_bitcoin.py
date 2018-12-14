@@ -29,7 +29,7 @@ from . import FAST_TESTS
 try:
     import ecdsa
 except ImportError:
-    sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo pip install ecdsa'")
+    sys.exit("Error: python-ecdsa does not seem to be installed. Try 'sudo python3 -m pip install ecdsa'")
 
 
 def needs_test_with_all_ecc_implementations(func):

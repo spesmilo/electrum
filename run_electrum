@@ -44,13 +44,13 @@ def check_imports():
         import dns
         import pyaes
         import ecdsa
-        import requests
+        import certifi
         import qrcode
         import google.protobuf
         import jsonrpclib
         import aiorpcx
     except ImportError as e:
-        sys.exit("Error: %s. Try 'sudo pip install <module-name>'"%str(e))
+        sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
     # the following imports are for pyinstaller
     from google.protobuf import descriptor
     from google.protobuf import message
@@ -58,7 +58,7 @@ def check_imports():
     from google.protobuf import descriptor_pb2
     from jsonrpclib import SimpleJSONRPCServer
     # make sure that certificates are here
-    assert os.path.exists(requests.utils.DEFAULT_CA_BUNDLE_PATH)
+    assert os.path.exists(certifi.where())
 
 
 if not is_android:

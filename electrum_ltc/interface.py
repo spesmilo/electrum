@@ -33,7 +33,7 @@ from collections import defaultdict
 
 import aiorpcx
 from aiorpcx import RPCSession, Notification
-import requests
+import certifi
 
 from .util import PrintError, ignore_exceptions, log_exceptions, bfh, SilentTaskGroup
 from . import util
@@ -49,7 +49,7 @@ if TYPE_CHECKING:
     from .network import Network
 
 
-ca_path = requests.certs.where()
+ca_path = certifi.where()
 
 
 class NotificationSession(RPCSession):
