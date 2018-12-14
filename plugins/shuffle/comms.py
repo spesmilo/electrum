@@ -92,28 +92,17 @@ class Comm(PrintErrorThread):
                     raise RuntimeError("Bad magic in message: '{}'".format(str(self.recvbuf)))
             else:
                 try:
-                    message_part = self._recv()
-                    if message_part:
-                        self.recvbuf += message_part
+                    self.recvbuf += self._recv() # will always return non-zero data or will raise
                 except socket.timeout as e:
                     self.print_error("Socket timeout ({}): {}".format(self.socket.gettimeout(), str(e)))
                     raise e
 
     def _recv(self):
         if self.connected and self.socket:
-            rd, wr, ex = select.select([self.socket.fileno()], [], [self.socket.fileno()], self.timeout)
-            assert not wr, "Non-empty write file descriptor returned from select!"
-            if ex:
-                self.print_error("Socket exception returned from select!")
-                raise OSError(errno.EIO, "Socket exception returned from select")
-            if rd:
-                ret = self.socket.recv(self.MAX_BLOCK_SIZE) # may raise socket.timeout which calling code catches.
-                if not ret:
-                    # 0 bytes returned means connection reset by peer, as per man 2 recv()
-                    raise OSError(errno.ECONNABORTED, "Connection reset by peer")
-                return ret
-            # else...
-            raise socket.timeout("Socket timeout in select")
+            ret = self.socket.recv(self.MAX_BLOCK_SIZE)
+            if not ret:
+                raise OSError(errno.ECONNABORTED, "Connection reset by peer")
+            return ret
         raise OSError(errno.EINVAL, "_recv called with closed/disconnected socket!")
 
     def close(self):
