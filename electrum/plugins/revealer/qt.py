@@ -21,7 +21,7 @@ from PyQt5.QtPrintSupport import QPrinter
 
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
-from electrum.util import to_bytes, make_dir
+from electrum.util import to_bytes, make_dir, InvalidPassword, UserCancelled
 from electrum.gui.qt.util import *
 from electrum.gui.qt.qrtextedit import ScanQRTextEdit
 from electrum.gui.qt.main_window import StatusBarButton
@@ -29,6 +29,8 @@ from electrum.gui.qt.main_window import StatusBarButton
 from .hmac_drbg import DRBG
 
 class Plugin(BasePlugin):
+
+    MAX_PLAINTEXT_LEN = 189  # chars
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
@@ -51,9 +53,13 @@ class Plugin(BasePlugin):
         self.rawnoise = False
         make_dir(self.base_dir)
 
+        self.extension = False
+
     @hook
-    def revealer_hook(self, parent):
-        parent.addPermanentWidget(StatusBarButton(QIcon(':icons/revealer.png'), "Revealer"+_(" secret backup utility"), partial(self.setup_dialog, parent)))
+    def create_status_bar(self, parent):
+        b = StatusBarButton(QIcon(':icons/revealer.png'), "Revealer "+_("secret backup utility"),
+                            partial(self.setup_dialog, parent))
+        parent.addPermanentWidget(b)
 
     def requires_settings(self):
         return True
@@ -72,18 +78,13 @@ class Plugin(BasePlugin):
         if self.wallet.has_keystore_encryption():
             password = self.password_dialog(parent=self.d.parent())
             if not password:
-                return
+                raise UserCancelled()
 
         keystore = self.wallet.get_keystore()
-        try:
-            self.cseed = keystore.get_seed(password)
-            if keystore.get_passphrase(password):
-                self.extension = True
-            else:
-                self.extension = False
-        except Exception:
-            traceback.print_exc(file=sys.stdout)
+        if not keystore or not keystore.has_seed():
             return
+        self.extension = bool(keystore.get_passphrase(password))
+        return keystore.get_seed(password)
 
     def setup_dialog(self, window):
         self.wallet = window.parent().wallet
@@ -191,7 +192,8 @@ class Plugin(BasePlugin):
         dialog.close()
 
     def ext_warning(self, dialog):
-        dialog.show_message(''.join(["<b>",_("Warning: "), "</b>", _("your seed extension will ")+"<b>"+_("not")+"</b>"+_(" be included in the encrypted backup.")]))
+        dialog.show_message(''.join(["<b>",_("Warning"), ": </b>",
+                                     _("your seed extension will <b>not</b> be included in the encrypted backup.")]))
         dialog.close()
 
     def bdone(self, dialog):
@@ -202,11 +204,11 @@ class Plugin(BasePlugin):
     def customtxt_limits(self):
         txt = self.text.text()
         self.max_chars.setVisible(False)
-        self.char_count.setText("("+str(len(txt))+"/189)")
+        self.char_count.setText(f"({len(txt)}/{self.MAX_PLAINTEXT_LEN})")
         if len(txt)>0:
             self.ctext.setEnabled(True)
-        if len(txt) > 189:
-            self.text.setPlainText(self.text.toPlainText()[:189])
+        if len(txt) > self.MAX_PLAINTEXT_LEN:
+            self.text.setPlainText(txt[:self.MAX_PLAINTEXT_LEN])
             self.max_chars.setVisible(True)
 
     def t(self):
@@ -236,12 +238,12 @@ class Plugin(BasePlugin):
         grid = QGridLayout()
         self.vbox.addLayout(grid)
 
-        cprint = QPushButton(_("Encrypt ")+self.wallet_name+_("'s seed"))
+        cprint = QPushButton(_("Encrypt {}'s seed").format(self.wallet_name))
         cprint.setMaximumWidth(250)
         cprint.clicked.connect(partial(self.seed_img, True))
         self.vbox.addWidget(cprint)
         self.vbox.addSpacing(1)
-        self.vbox.addWidget(WWLabel("<b>"+_("OR ")+"</b>"+_("type a custom alphanumerical secret below:")))
+        self.vbox.addWidget(WWLabel("<b>"+_("OR")+"</b> "+_("type a custom alphanumerical secret below:")))
         self.text = ScanQRTextEdit()
         self.text.setTabChangesFocus(True)
         self.text.setMaximumHeight(70)
@@ -250,7 +252,9 @@ class Plugin(BasePlugin):
         self.char_count = WWLabel("")
         self.char_count.setAlignment(Qt.AlignRight)
         self.vbox.addWidget(self.char_count)
-        self.max_chars = WWLabel("<font color='red'>" + _("This version supports a maximum of 189 characters.")+"</font>")
+        self.max_chars = WWLabel("<font color='red'>"
+                                 + _("This version supports a maximum of {} characters.").format(self.MAX_PLAINTEXT_LEN)
+                                 +"</font>")
         self.vbox.addWidget(self.max_chars)
         self.max_chars.setVisible(False)
         self.ctext = QPushButton(_("Encrypt custom secret"))
@@ -269,8 +273,17 @@ class Plugin(BasePlugin):
     def seed_img(self, is_seed = True):
 
         if is_seed:
-            self.get_seed()
-            txt = self.cseed.upper()
+            try:
+                cseed = self.get_seed()
+            except UserCancelled:
+                return
+            except InvalidPassword as e:
+                self.d.show_error(str(e))
+                return
+            if not cseed:
+                self.d.show_message(_("This wallet has no seed"))
+                return
+            txt = cseed.upper()
         else:
             txt = self.txt.upper()
 
@@ -335,7 +348,7 @@ class Plugin(BasePlugin):
 
         entropy = binascii.unhexlify(str(format(self.noise_seed, '032x')))
         code_id = binascii.unhexlify(self.version + self.code_id)
-        print (self.hex_noise)
+
         drbg = DRBG(entropy + code_id)
         noise_array=bin(int.from_bytes(drbg.generate(1929), 'big'))[2:]
 

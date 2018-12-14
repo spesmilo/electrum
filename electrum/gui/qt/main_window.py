@@ -2014,7 +2014,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.status_button = StatusBarButton(QIcon(":icons/status_disconnected.png"), _("Network"), lambda: self.gui_object.show_network_dialog(self))
         sb.addPermanentWidget(self.status_button)
         run_hook('create_status_bar', sb)
-        run_hook('revealer_hook', sb)
         self.setStatusBar(sb)
 
     def update_lock_icon(self):
