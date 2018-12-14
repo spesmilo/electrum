@@ -193,8 +193,8 @@ class ElectrumWindow(App):
         self._trigger_update_status()
         self._trigger_update_history()
 
+    wallet_name = StringProperty(_('No Wallet'))
     base_unit = AliasProperty(_get_bu, _set_bu)
-    status = StringProperty('')
     fiat_unit = StringProperty('')
 
     def on_fiat_unit(self, a, b):
@@ -307,9 +307,6 @@ class ElectrumWindow(App):
         self._settings_dialog = None
         self._password_dialog = None
         self.fee_status = self.electrum_config.get_fee_status()
-
-    def wallet_name(self):
-        return os.path.basename(self.wallet.storage.path) if self.wallet else ' '
 
     def on_pr(self, pr):
         if not self.wallet:
@@ -547,8 +544,6 @@ class ElectrumWindow(App):
             else:
                 self.load_wallet(wallet)
         else:
-            Logger.debug('Electrum: Wallet not found or action needed. Launching install wizard')
-
             def launch_wizard():
                 storage = WalletStorage(path, manual_upgrades=True)
                 wizard = Factory.InstallWizard(self.electrum_config, self.plugins, storage)
@@ -559,7 +554,6 @@ class ElectrumWindow(App):
                 launch_wizard()
             else:
                 from .uix.dialogs.question import Question
-
                 def handle_answer(b: bool):
                     if b:
                         launch_wizard()
@@ -705,6 +699,7 @@ class ElectrumWindow(App):
         if self.wallet:
             self.stop_wallet()
         self.wallet = wallet
+        self.wallet_name = wallet.basename()
         self.update_wallet()
         # Once GUI has been initialized check if we want to announce something
         # since the callback has been called before the GUI was initialized
@@ -719,13 +714,12 @@ class ElectrumWindow(App):
             send_exception_to_crash_reporter(e)
 
     def update_status(self, *dt):
-        self.num_blocks = self.network.get_local_height()
         if not self.wallet:
-            self.status = _("No Wallet")
             return
         if self.network is None or not self.network.is_connected():
             status = _("Offline")
         elif self.network.is_connected():
+            self.num_blocks = self.network.get_local_height()
             server_height = self.network.get_server_height()
             server_lag = self.num_blocks - server_height
             if not self.wallet.up_to_date or server_height == 0:
@@ -736,12 +730,14 @@ class ElectrumWindow(App):
                 status = ''
         else:
             status = _("Disconnected")
-        self.status = self.wallet.basename() + (' [size=15dp](%s)[/size]'%status if status else '')
-        # balance
-        c, u, x = self.wallet.get_balance()
-        text = self.format_amount(c+x+u)
-        self.balance = str(text.strip()) + ' [size=22dp]%s[/size]'% self.base_unit
-        self.fiat_balance = self.fx.format_amount(c+u+x) + ' [size=22dp]%s[/size]'% self.fx.ccy
+        if status:
+            self.balance = status
+            self.fiat_balance = status
+        else:
+            c, u, x = self.wallet.get_balance()
+            text = self.format_amount(c+x+u)
+            self.balance = str(text.strip()) + ' [size=22dp]%s[/size]'% self.base_unit
+            self.fiat_balance = self.fx.format_amount(c+u+x) + ' [size=22dp]%s[/size]'% self.fx.ccy
 
     def get_max_amount(self):
         from electrum.transaction import TxOutput
