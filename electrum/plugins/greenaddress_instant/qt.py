@@ -26,12 +26,12 @@
 import base64
 import urllib.parse
 import sys
-import requests
 
 from PyQt5.QtWidgets import QApplication, QPushButton
 
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
+from electrum.network import Network
 
 
 class Plugin(BasePlugin):
@@ -89,8 +89,8 @@ class Plugin(BasePlugin):
             sig = base64.b64encode(sig).decode('ascii')
 
             # 2. send the request
-            response = requests.request("GET", ("https://greenaddress.it/verify/?signature=%s&txhash=%s" % (urllib.parse.quote(sig), tx.txid())),
-                                        headers = {'User-Agent': 'Electrum'})
+            url = "https://greenaddress.it/verify/?signature=%s&txhash=%s" % (urllib.parse.quote(sig), tx.txid())
+            response = Network.send_http_on_proxy('get', url, headers = {'User-Agent': 'Electrum'})
             response = response.json()
 
             # 3. display the result
