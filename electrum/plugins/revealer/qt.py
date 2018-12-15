@@ -34,7 +34,7 @@ class Plugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.base_dir = config.electrum_path()+'/revealer/'
+        self.base_dir = os.path.join(config.electrum_path(), 'revealer')
 
         if self.config.get('calibration_h') is None:
             self.config.set_key('calibration_h', 0)
@@ -184,11 +184,20 @@ class Plugin(BasePlugin):
         self.bdone(dialog)
         self.d.close()
 
+    def get_path_to_revealer_file(self, ext: str= '') -> str:
+        filename = self.filename_prefix + self.version + "_" + self.code_id + ext
+        path = os.path.join(self.base_dir, filename)
+        return os.path.normcase(os.path.abspath(path))
+
+    def get_path_to_calibration_file(self):
+        path = os.path.join(self.base_dir, 'calibration.pdf')
+        return os.path.normcase(os.path.abspath(path))
+
     def bcrypt(self, dialog):
         self.rawnoise = False
         dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at: ").format(self.was, self.version, self.code_id),
-                                     "<b>", self.base_dir+ self.filename+self.version+"_"+self.code_id,"</b>", "<br/>",
-                                     "<br/>", "<b>", _("Always check you backups.") ]))
+                                     "<b>", self.get_path_to_revealer_file(), "</b>", "<br/>",
+                                     "<br/>", "<b>", _("Always check you backups.")]))
         dialog.close()
 
     def ext_warning(self, dialog):
@@ -198,7 +207,7 @@ class Plugin(BasePlugin):
 
     def bdone(self, dialog):
         dialog.show_message(''.join([_("Digital Revealer ({}_{}) saved as PNG and PDF at:").format(self.version, self.code_id),
-                                     "<br/>","<b>", self.base_dir + 'revealer_' +self.version + '_'+ self.code_id, '</b>']))
+                                     "<br/>","<b>", self.get_path_to_revealer_file(), '</b>']))
 
 
     def customtxt_limits(self):
@@ -265,10 +274,8 @@ class Plugin(BasePlugin):
         self.vbox.addLayout(Buttons(CloseButton(d)))
         return bool(d.exec_())
 
-
-    def update_wallet_name (self, name):
+    def update_wallet_name(self, name):
         self.wallet_name = str(name)
-        self.base_name = self.base_dir + self.wallet_name
 
     def seed_img(self, is_seed = True):
 
@@ -380,10 +387,10 @@ class Plugin(BasePlugin):
         revealer = revealer.scaled(self.f_size, Qt.KeepAspectRatio)
         revealer = self.overlay_marks(revealer)
 
-        self.filename = 'Revealer - '
-        revealer.save(self.base_dir + self.filename + self.version+'_'+self.code_id + '.png')
+        self.filename_prefix = 'revealer_'
+        revealer.save(self.get_path_to_revealer_file('.png'))
         self.toPdf(QImage(revealer))
-        QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.abspath(self.base_dir + self.filename + self.version+'_'+ self.code_id + '.pdf')))
+        QDesktopServices.openUrl(QUrl.fromLocalFile(self.get_path_to_revealer_file('.pdf')))
 
     def make_cypherseed(self, img, rawnoise, calibration=False, is_seed = True):
         img = img.convertToFormat(QImage.Format_Mono)
@@ -398,19 +405,19 @@ class Plugin(BasePlugin):
         cypherseed = self.overlay_marks(cypherseed, True, calibration)
 
         if not is_seed:
-            self.filename = _('custom_secret')+'_'
+            self.filename_prefix = 'custom_secret_'
             self.was = _('Custom secret')
         else:
-            self.filename = self.wallet_name+'_'+ _('seed')+'_'
-            self.was = self.wallet_name +' ' + _('seed')
+            self.filename_prefix = self.wallet_name + '_seed_'
+            self.was = self.wallet_name + ' ' + _('seed')
             if self.extension:
                 self.ext_warning(self.c_dialog)
 
 
         if not calibration:
             self.toPdf(QImage(cypherseed))
-            QDesktopServices.openUrl (QUrl.fromLocalFile(os.path.abspath(self.base_dir+self.filename+self.version+'_'+self.code_id+'.pdf')))
-            cypherseed.save(self.base_dir + self.filename +self.version + '_'+ self.code_id + '.png')
+            QDesktopServices.openUrl(QUrl.fromLocalFile(self.get_path_to_revealer_file('.pdf')))
+            cypherseed.save(self.get_path_to_revealer_file('.png'))
             self.bcrypt(self.c_dialog)
         return cypherseed
 
@@ -421,7 +428,7 @@ class Plugin(BasePlugin):
         self.make_calnoise()
         img = self.overlay_marks(self.calnoise.scaledToHeight(self.f_size.height()), False, True)
         self.calibration_pdf(img)
-        QDesktopServices.openUrl (QUrl.fromLocalFile(os.path.abspath(self.base_dir+_('calibration')+'.pdf')))
+        QDesktopServices.openUrl(QUrl.fromLocalFile(self.get_path_to_calibration_file()))
         return img
 
     def toPdf(self, image):
@@ -429,7 +436,7 @@ class Plugin(BasePlugin):
         printer.setPaperSize(QSizeF(210, 297), QPrinter.Millimeter)
         printer.setResolution(600)
         printer.setOutputFormat(QPrinter.PdfFormat)
-        printer.setOutputFileName(self.base_dir+self.filename+self.version + '_'+self.code_id+'.pdf')
+        printer.setOutputFileName(self.get_path_to_revealer_file('.pdf'))
         printer.setPageMargins(0,0,0,0,6)
         painter = QPainter()
         painter.begin(printer)
@@ -454,7 +461,7 @@ class Plugin(BasePlugin):
         printer.setPaperSize(QSizeF(210, 297), QPrinter.Millimeter)
         printer.setResolution(600)
         printer.setOutputFormat(QPrinter.PdfFormat)
-        printer.setOutputFileName(self.base_dir+_('calibration')+'.pdf')
+        printer.setOutputFileName(self.get_path_to_calibration_file())
         printer.setPageMargins(0,0,0,0,6)
 
         painter = QPainter()
