@@ -25,7 +25,7 @@
 
 from __future__ import absolute_import
 
-import os, sys, json, copy
+import os, sys, json, copy, socket, time
 from functools import partial
 
 from PyQt5.QtGui import *
@@ -41,7 +41,7 @@ from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash.address import Address
 from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.transaction import Transaction
-from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT
+from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, PrintErrorThread
 from electroncash_plugins.shuffle.comms import query_server_for_stats
 
 FEE = 300
@@ -473,35 +473,16 @@ class Plugin(BasePlugin):
                 return
             else:
                 ns = d.get_form()
-                if not self.check_server_connectivity(ns.get("server"), ns.get("info"), ns.get("ssl"), config=window.config):
+                server_ok = d.serverOk
+                if not server_ok:
                     server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
-                else:
-                    server_ok = True
+
         if ns:
             self.save_network_settings(window, ns)
             if restart_ask: #and ns != selected:
                 window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
         d.deleteLater()
         return ns
-
-    def check_server_connectivity(self, host, stat_port, ssl, config = None):
-        try:
-            import socket
-            try:
-                prog = QProgressDialog(_("Checking server..."), None, 0, 3, None)
-                prog.setWindowModality(Qt.ApplicationModal); prog.setMinimumDuration(0); prog.setValue(1)
-                QApplication.instance().processEvents(QEventLoop.ExcludeUserInputEvents|QEventLoop.ExcludeSocketNotifiers, 1) # this forces the window to be shown
-                port, poolSize, connections, pools = query_server_for_stats(host, stat_port, ssl, config = config)
-                prog.setValue(2)
-                self.print_error("{}:{}{} got response: shufflePort = {} poolSize = {} connections = {} pools = {}".format(host, stat_port, 's' if ssl else '', port, poolSize, connections, pools))
-                socket.create_connection((host, port), 3.0).close() # test connectivity to port
-                prog.setValue(3)
-            finally:
-                prog.close(); prog.deleteLater()
-            return True
-        except:
-            self.print_error("Connectivity test got exception: {}".format(str(sys.exc_info()[1])))
-        return False
 
     def save_network_settings(self, window, network_settings):
         ns = copy.deepcopy(network_settings)
@@ -570,17 +551,30 @@ class SendTabExtra(QFrame):
         self.numCoinsLabel.setText(_("<b>{}</b> Coins <small>(UTXOs)</small>").format(n))
 
 
-class SettingsDialog(WindowModalDialog, PrintError):
+class SettingsDialog(WindowModalDialog, PrintErrorThread):
+    settingsChanged = pyqtSignal(dict)
+    statusChanged = pyqtSignal(dict)
+    formChanged = pyqtSignal()
+
     def __init__(self, parent, title,
                  message, window):
         super().__init__(parent, title)
+        self.config = window.config
+        self.networkChecker = None
+        self.serverOk = None
         self.setWindowModality(Qt.ApplicationModal)
         self.setMinimumSize(500, 200)
         self.setup(message, window)
+
+    #def __del__(self):
+    #    self.print_error("(Instance deleted)")
+
     def showEvent(self, e):
         super().showEvent(e)
+        self.startNetworkChecker()
     def hideEvent(self, e):
         super().hideEvent(e)
+        self.stopNetworkChecker()
     def closeEvent(self, e):
         super().closeEvent(e)
     def from_combobox(self):
@@ -592,12 +586,21 @@ class SettingsDialog(WindowModalDialog, PrintError):
             self.chk.setChecked(ssl)
         en = self.cb.currentIndex() == self.cb.count()-1
         self.le.setEnabled(en); self.sb.setEnabled(en); self.chk.setEnabled(en)
+        self.formChanged.emit()
     def get_form(self):
-        return {
+        ret = {
             'server': self.le.text(),
             'info'  : self.sb.value(),
             'ssl'   : self.chk.isChecked()
         }
+        if self.isVisible():
+            customIdx = self.cb.count()-1
+            if self.cb.currentIndex() == customIdx:
+                # "remember" what they typed into the custom area..
+                d = self.cb.itemData(customIdx)
+                if ret != d:
+                    self.cb.setItemData(customIdx, ret)
+        return ret
     def setup_combo_box(self, selected = {}):
         def load_servers(fname):
             r = {}
@@ -661,15 +664,137 @@ class SettingsDialog(WindowModalDialog, PrintError):
 
         hbox = QHBoxLayout(); grid.addLayout(hbox, 1, 1, 1, 2); grid.setColumnStretch(2, 1)
         self.le = QLineEdit(self); hbox.addWidget(self.le)
-        hbox.addWidget(QLabel(_("P:")))
+        self.le.textEdited.connect(lambda x='ignored': self.formChanged.emit())
+        hbox.addWidget(QLabel(_("P:"), self))
         self.sb = QSpinBox(self); self.sb.setRange(1, 65535); hbox.addWidget(self.sb)
+        self.sb.valueChanged.connect(lambda x='ignored': self.formChanged.emit())
         self.chk = QCheckBox(_("SSL"), self); hbox.addWidget(self.chk)
+        self.chk.toggled.connect(lambda x='ignored': self.formChanged.emit())
 
         self.cb.currentIndexChanged.connect(lambda x='ignored': self.from_combobox())
         self.from_combobox()
 
+        hbox2 = QHBoxLayout()
+        vbox.addLayout(hbox2)
+        self.statusGB = QGroupBox(_("Status"), self)
+        hbox2.addWidget(self.statusGB)
+        hbox3 = QHBoxLayout(self.statusGB)
+        self.statusLabel = QLabel(_(""), self.statusGB)
+        self.statusLabel.setMinimumHeight(50)
+        self.statusLabel.setAlignment(Qt.AlignAbsolute|Qt.AlignTop)
+        hbox3.addWidget(self.statusLabel)
+
         vbox.addStretch()
         vbox.addLayout(Buttons(CloseButton(self), OkButton(self)))
+    def startNetworkChecker(self):
+        if self.networkChecker: return
+
+        def onStatusChanged(d):
+            #self.print_error("status changed", d)
+            if not d:
+                self.statusLabel.setText("<font color=\"blue\"><i>" + _("Checking server...") + "</i></font>")
+                return
+            if d.get('failed'):
+                self.statusLabel.setText("<b>" + _("Status") + ":</b> <font color=\"red\">{}</font>".format(_("Connection failure")))
+                return
+
+            self.serverOk = d['status'] == _('Ok')
+
+            self.statusLabel.setText(
+                '''
+                <b>{}:</b> <i>{}</i><br>
+                <b>{}:</b> <font color="green">{}</font> &nbsp;&nbsp;&nbsp;
+                <small>{}: {} &nbsp;&nbsp;&nbsp; {}: {} &nbsp;&nbsp;&nbsp; {}: {}</small>
+                '''
+                .format(_('Server'), d['host'],
+                        _('Status'), d['status'],
+                        _('Pool size'), d['poolSize'],
+                        _('Connections'),
+                        d['connections'],
+                        _('Active pools'), d['pools'])
+            )
+
+        class NetworkChecker(QThread, PrintErrorThread):
+            ''' Runs in a separate thread, checks the server automatically when the settings form changes
+                and publishes results to GUI thread. '''
+            def __init__(self, parent):
+                assert isinstance(parent, SettingsDialog), "Parent to NetworkChecker must be a settings dialog"
+                super().__init__(parent)
+                self.parent = parent
+                self.timer = None # delay checking server in case user is typing in a new one in the custom box
+            #def __del__(self):
+            #    self.print_error("(Instance deleted)")
+            def run(self): # overrides QThread
+                try:
+                    self.print_error("Started thread.")
+                    def killTimer():
+                        if self.timer:
+                            #self.print_error("killing extant timer...")
+                            self.timer.stop()
+                            self.timer.timeout.disconnect(self.timer._mycon)
+                            self.timer._mycon = None
+                            self.timer.deleteLater()
+                            self.timer = None
+                    def onSettingsChange(d):
+                        killTimer()
+                        #self.print_error("onSettingsChange",d)
+                        self.parent.statusChanged.emit(dict())
+                        try:
+                            port, poolSize, connections, pools = query_server_for_stats(d['server'], d['info'], d['ssl'], config = self.parent.config)
+                            socket.create_connection((d['server'], port), 15.0).close() # test connectivity to port
+                            self.parent.statusChanged.emit({
+                                'host'   : d['server'],
+                                'status' : _('Ok'),
+                                'poolSize' : str(poolSize),
+                                'connections' : str(connections),
+                                'pools' : str(len(pools))
+                            })
+                        except:
+                            #import traceback
+                            #traceback.print_exc()
+                            self.print_error("exception on connect...")
+                            self.parent.statusChanged.emit({'failed' : 'failed'})
+                    def startTimer(d):
+                        #self.print_error("startTimer")
+                        killTimer()
+                        self.timer = QTimer()
+                        self.timer._mycon = self.timer.timeout.connect(lambda: onSettingsChange(d))
+                        self.timer.start(250)
+
+                    c = self.parent.settingsChanged.connect(lambda d: startTimer(d))
+                    super().exec_() # Process thread event loop
+                    killTimer()
+                    self.print_error("Exiting thread...")
+                finally:
+                    self.parent.settingsChanged.disconnect(c)
+                    del c
+            # / run
+        # / NetworkChecker
+
+        self.networkChecker = NetworkChecker(self)
+        self.networkChecker.conn1 = self.statusChanged.connect(lambda d: onStatusChanged(d))
+        def onFormChange():
+            #self.print_error("onFormChange")
+            d = self.get_form()
+            self.settingsChanged.emit(d)
+        self.networkChecker.conn2 = self.formChanged.connect(lambda: onFormChange())
+        self.print_error("Starting network checker...")
+        self.networkChecker.start()
+        QTimer.singleShot(100, lambda: onFormChange())
+
+    def stopNetworkChecker(self):
+        if self.networkChecker:
+            self.networkChecker.quit()
+            if self.networkChecker.conn1:
+                self.statusChanged.disconnect(self.networkChecker.conn1)
+                self.networkChecker.conn1 = None
+            if self.networkChecker.conn2:
+                self.statusChanged.disconnect(self.networkChecker.conn2)
+                self.networkChecker.conn2 = None
+            self.networkChecker.wait()
+            self.networkChecker.deleteLater()
+            self.networkChecker = None
+            self.print_error("Stopped network checker.")
     # /
 # /SettingsDialog
 
