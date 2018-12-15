@@ -691,12 +691,16 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
 
         def onStatusChanged(d):
             #self.print_error("status changed", d)
-            if not d:
+            if not d: # Empty dict means we are connecting
+                self.serverOk = None
                 self.statusLabel.setText("<font color=\"blue\"><i>" + _("Checking server...") + "</i></font>")
                 return
-            if d.get('failed'):
+            if d.get('failed'): # Dict with only 1 key, 'failed' means connecton failed
                 self.statusLabel.setText("<b>" + _("Status") + ":</b> <font color=\"red\">{}</font>".format(_("Connection failure")))
+                self.serverOk = False
                 return
+
+            # any other case has all the below keys defined
 
             self.serverOk = d['status'] == _('Ok')
 
