@@ -26,8 +26,6 @@
 from electrum.i18n import _
 from electrum.mnemonic import Mnemonic
 import electrum.old_mnemonic
-from electrum.plugin import run_hook
-
 
 from .util import *
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
@@ -207,6 +205,4 @@ class SeedDialog(WindowModalDialog):
         title =  _("Your wallet generation seed is:")
         slayout = SeedLayout(title=title, seed=seed, msg=True, passphrase=passphrase)
         vbox.addLayout(slayout)
-        has_extension = True if passphrase else False
-        run_hook('set_seed', seed, has_extension, slayout.seed_e)
         vbox.addLayout(Buttons(CloseButton(self)))
