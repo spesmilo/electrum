@@ -39,7 +39,6 @@ from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
 from .i18n import _
 from .lnrouter import RouteEdge, is_route_sane_to_use
 from .address_synchronizer import TX_HEIGHT_LOCAL
-from .lnsweep import create_sweeptxs_for_our_latest_ctx, create_sweeptxs_for_their_latest_ctx
 
 if TYPE_CHECKING:
     from .network import Network
@@ -78,11 +77,9 @@ class LNWorker(PrintError):
         self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
         self.channels = {}  # type: Dict[bytes, Channel]
         for x in wallet.storage.get("channels", []):
-            c = Channel(x, payment_completed=self.payment_completed)
+            c = Channel(x, sweep_address=self.sweep_address, payment_completed=self.payment_completed)
             self.channels[c.channel_id] = c
-
             c.lnwatcher = network.lnwatcher
-            c.sweep_address = self.sweep_address
         self.invoices = wallet.storage.get('lightning_invoices', {})  # type: Dict[str, Tuple[str,str]]  # RHASH -> (preimage, invoice)
         for chan_id, chan in self.channels.items():
             self.network.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
@@ -314,34 +311,28 @@ class LNWorker(PrintError):
         self.network.trigger_callback('channel', chan)
         # remove from channel_db
         self.channel_db.remove_channel(chan.short_channel_id)
-        # sweep
-        our_ctx = chan.local_commitment
-        their_ctx = chan.remote_commitment
-        if txid == our_ctx.txid():
+        # detect who closed
+        if txid == chan.local_commitment.txid():
             self.print_error('we force closed', funding_outpoint)
-            # we force closed
-            encumbered_sweeptxs = create_sweeptxs_for_our_latest_ctx(chan, our_ctx, chan.sweep_address)
-        elif txid == their_ctx.txid():
+            encumbered_sweeptxs = chan.local_sweeptxs
+        elif txid == chan.remote_commitment.txid():
             self.print_error('they force closed', funding_outpoint)
-            # they force closed
-            encumbered_sweeptxs = create_sweeptxs_for_their_latest_ctx(chan, their_ctx, chan.sweep_address)
+            encumbered_sweeptxs = chan.remote_sweeptxs
         else:
-            # cooperative close or breach
             self.print_error('not sure who closed', funding_outpoint)
-            encumbered_sweeptxs = []
-
-        local_height = self.network.get_local_height()
-        for e_tx in encumbered_sweeptxs:
-            txin = e_tx.tx.inputs()[0]
-            prev_txid = txin['prevout_hash']
-            txin_outpoint = Transaction.get_outpoint_from_txin(txin)
-            spender = spenders.get(txin_outpoint)
-            if spender is not None:
-                self.print_error('prev_tx already spent', prev_txid)
+            return
+        # sweep
+        for prevout, spender in spenders.items():
+            e_tx = encumbered_sweeptxs.get(prevout)
+            if e_tx is None:
                 continue
-            num_conf = self.network.lnwatcher.get_tx_height(prev_txid).conf
+            if spender is not None:
+                self.print_error('outpoint already spent', prevout)
+                continue
+            prev_txid, prev_index = prevout.split(':')
             broadcast = True
             if e_tx.cltv_expiry:
+                local_height = self.network.get_local_height()
                 if local_height > e_tx.cltv_expiry:
                     self.print_error(e_tx.name, 'CLTV ({} > {}) fulfilled'.format(local_height, e_tx.cltv_expiry))
                 else:
@@ -349,13 +340,14 @@ class LNWorker(PrintError):
                                      .format(e_tx.name, local_height, e_tx.cltv_expiry, funding_outpoint[:8], prev_txid[:8]))
                     broadcast = False
             if e_tx.csv_delay:
+                num_conf = self.network.lnwatcher.get_tx_height(prev_txid).conf
                 if num_conf < e_tx.csv_delay:
                     self.print_error(e_tx.name, 'waiting for {}: CSV ({} >= {}), funding outpoint {} and tx {}'
                                      .format(e_tx.name, num_conf, e_tx.csv_delay, funding_outpoint[:8], prev_txid[:8]))
                     broadcast = False
             if broadcast:
                 if not await self.network.lnwatcher.broadcast_or_log(funding_outpoint, e_tx):
-                    self.print_error(e_tx.name, f'could not publish encumbered tx: {str(e_tx)}, prev_txid: {prev_txid}, local_height', local_height)
+                    self.print_error(e_tx.name, f'could not publish encumbered tx: {str(sweep_tx)}, prev_txid: {prev_txid}')
 
 
     @log_exceptions
