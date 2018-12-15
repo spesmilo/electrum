@@ -151,6 +151,8 @@ def update_coin_status(window, coin_name, msg):
     #print_error("[shuffle] wallet={}; Coin {} Message '{}'".format(window.wallet.basename(), coin_name, msg.strip()))
     prev_in_progress = window.utxo_list.in_progress.get(coin_name)
     new_in_progress = prev_in_progress
+    msg = msg or '' # force str
+    coin_name = coin_name or '' # force str
 
     if coin_name not in ("MAINLOG", "PROTOCOL"):
         if msg.startswith("Player"):
@@ -170,7 +172,7 @@ def update_coin_status(window, coin_name, msg):
                 new_in_progress = "completed"  # NB: this means we "leak" statuses as this final status never gets cleaned up. FIXME. there is a race condition anyway between code that picks up UTXOs for shuffling and the wallet code
         elif msg.startswith("Error"):
             new_in_progress = None # flag to remove from progress list
-            if msg.find(ERR_SERVER_CONNECT) != -1:
+            if ERR_SERVER_CONNECT in msg:
                 window.cashshuffle_set_flag(1) # 1 means server connection issue
         elif msg.startswith("Blame") and "insufficient" not in msg and "wrong hash" not in msg:
             new_in_progress = None
@@ -190,6 +192,10 @@ def update_coin_status(window, coin_name, msg):
         elif msg.startswith("forget "):
             words = msg.strip().split()
             prev_in_progress = 1; new_in_progress = None; coin_name = words[-1] # force the code below to pop the coin that we were asked to forget from the status dict
+        elif ERR_SERVER_CONNECT in msg:
+            new_in_progress = None # flag to remove from progress list
+            window.cashshuffle_set_flag(1) # 1 means server connection issue
+
 
 
     if prev_in_progress != new_in_progress:

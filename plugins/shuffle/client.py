@@ -267,15 +267,18 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         try:
             self.port, self.poolSize, connections, pools = query_server_for_stats(self.host, self.info_port, self.ssl, timeout, config = self.config)
             self.print_error("Server {}:{} told us that it has shufflePort={} poolSize={} connections={}".format(self.host, self.info_port, self.port, self.poolSize, connections))
+            return True
         except BaseException as e:
             self.print_error("Exception: {}".format(str(e)))
             self.print_error("Could not query shuffle port for server {}:{} -- defaulting to {}".format(self.host, self.info_port, self.port))
+            return False
 
     def run(self):
         try:
             self.print_error("Started")
 
-            self.query_server_port(timeout = 5.0 if not self.config.get('proxy') else 12.5)
+            if not self.query_server_port(timeout = 5.0 if not self.config.get('proxy') else 12.5):
+                self.logger.send(ERR_SERVER_CONNECT, "MAINLOG")
 
             self.logger.send("started", "MAINLOG")
 
@@ -296,7 +299,8 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     def check_server_port_ok(self):
         if not self.stop_flg.is_set() and self.window.cashshuffle_get_flag() == 1:
             # bad server flag is set -- try to rediscover the shuffle port in case it changed
-            self.query_server_port(timeout = 2.5 if not self.config.get('proxy') else 7.5)
+            if not self.query_server_port(timeout = 2.5 if not self.config.get('proxy') else 7.5):
+                self.logger.send(ERR_SERVER_CONNECT, "MAINLOG")
 
     def check_idle_threads(self):
         if self.stop_flg.is_set():
