@@ -199,7 +199,15 @@ class Plugin(RevealerPlugin):
         self.txt = self.text.text()
         self.seed_img(is_seed=False)
 
+    def warn_old_revealer(self):
+        if self.versioned_seed.version == '0':
+            self.d.show_warning(''.join(
+                ["<b>", _("Warning"), ": </b>",
+                 _("Revealers starting with 0 are not secure due to a vulnerability."), ' ',
+                 _("Proceed at your own risk.")]))
+
     def cypherseed_dialog(self, window):
+        self.warn_old_revealer()
 
         d = WindowModalDialog(window, "Encryption Dialog")
         d.setMinimumWidth(500)
