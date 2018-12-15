@@ -466,29 +466,32 @@ class Plugin(BasePlugin):
         return None
 
     def settings_dialog(self, window, msg=None, restart_ask = True):
-        assert window and (isinstance(window, ElectrumWindow) or isinstance(window.parent(), ElectrumWindow))
-        if not isinstance(window, ElectrumWindow):
-            window = window.parent()
+        d = None
+        try:
+            assert window and (isinstance(window, ElectrumWindow) or isinstance(window.parent(), ElectrumWindow))
+            if not isinstance(window, ElectrumWindow):
+                window = window.parent()
 
-        d = SettingsDialog(None, _("CashShuffle Settings"), msg, window)
+            d = SettingsDialog(None, _("CashShuffle Settings"), msg, window)
 
-        server_ok = False
-        ns = None
-        while not server_ok:
-            if not d.exec_():
-                return
-            else:
-                ns = d.get_form()
-                server_ok = d.serverOk
-                if not server_ok:
-                    server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
+            server_ok = False
+            ns = None
+            while not server_ok:
+                if not d.exec_():
+                    return
+                else:
+                    ns = d.get_form()
+                    server_ok = d.serverOk
+                    if not server_ok:
+                        server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
 
-        if ns:
-            self.save_network_settings(window, ns)
-            if restart_ask: #and ns != selected:
-                window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
-        d.deleteLater()
-        return ns
+            if ns:
+                self.save_network_settings(window, ns)
+                if restart_ask: #and ns != selected:
+                    window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
+            return ns
+        finally:
+            if d: d.deleteLater()
 
     def save_network_settings(self, window, network_settings):
         ns = copy.deepcopy(network_settings)
@@ -692,6 +695,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
 
         vbox.addStretch()
         vbox.addLayout(Buttons(CloseButton(self), OkButton(self)))
+
     def startNetworkChecker(self):
         if self.networkChecker: return
 
