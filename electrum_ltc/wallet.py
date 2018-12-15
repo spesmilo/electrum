@@ -1329,7 +1329,8 @@ class Imported_Wallet(Simple_Wallet):
     def get_change_addresses(self):
         return []
 
-    def import_addresses(self, addresses: List[str]) -> Tuple[List[str], List[Tuple[str, str]]]:
+    def import_addresses(self, addresses: List[str], *,
+                         write_to_disk=True) -> Tuple[List[str], List[Tuple[str, str]]]:
         good_addr = []  # type: List[str]
         bad_addr = []  # type: List[Tuple[str, str]]
         for address in addresses:
@@ -1343,7 +1344,7 @@ class Imported_Wallet(Simple_Wallet):
             self.addresses[address] = {}
             self.add_address(address)
         self.save_addresses()
-        self.save_transactions(write=True)
+        self.save_transactions(write=write_to_disk)
         return good_addr, bad_addr
 
     def import_address(self, address: str) -> str:
@@ -1408,7 +1409,7 @@ class Imported_Wallet(Simple_Wallet):
     def get_public_key(self, address):
         return self.addresses[address].get('pubkey')
 
-    def import_private_keys(self, keys: List[str], password: Optional[str],
+    def import_private_keys(self, keys: List[str], password: Optional[str], *,
                             write_to_disk=True) -> Tuple[List[str], List[Tuple[str, str]]]:
         good_addr = []  # type: List[str]
         bad_keys = []  # type: List[Tuple[str, str]]
