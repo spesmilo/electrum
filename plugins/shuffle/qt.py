@@ -308,8 +308,10 @@ def unfreeze_frozen_by_shuffling(wallet):
     wallet.storage.put("coins_frozen_by_shuffling", None) # deletes key altogether from storage
 
 
-
 class Plugin(BasePlugin):
+
+    gui = None
+    network_dialog = None
 
     def fullname(self):
         return 'CashShuffle'
@@ -330,12 +332,43 @@ class Plugin(BasePlugin):
         if self.initted:
             return
         self.print_error("Initializing...")
+        Plugin.gui = gui
         ct = 0
         for window in gui.windows:
             self.on_new_window(window)
             ct += 1
+        if Plugin.network_dialog != gui.nd:
+            Plugin.network_dialog = gui.nd # each time we are stopped, our module gets re-imported and we lose globals... so try and recapture this singleton
+        self.on_network_dialog(Plugin.network_dialog) # If we have a network dialgog, add self to network dialog
         self.initted = True
         self.print_error("Initialized (had {} extant windows).".format(ct))
+
+    @hook
+    def on_network_dialog(self, nd):
+        self.print_error("OnNetworkDialog", str(nd))
+        Plugin.network_dialog = nd
+        if not nd: return
+        if not hasattr(nd, "__shuffle_settings__") or not nd.__shuffle_settings__:
+            nd.__shuffle_settings__ = st = SettingsTab(nd.nlayout.tabs, None, nd.nlayout.config)
+            nd.nlayout.tabs.addTab(st, _("CashShuffle"))
+            st.applyChanges.connect(Plugin.try_to_apply_network_dialog_settings)
+
+    def del_network_dialog_tab(self):
+        # delete the shuffle settings widget
+        if Plugin.network_dialog and hasattr(Plugin.network_dialog, '__shuffle_settings__'):
+            nd = Plugin.network_dialog
+            st = Plugin.network_dialog.__shuffle_settings__
+            if st:
+                idx = nd.nlayout.tabs.indexOf(st)
+                if idx > -1:
+                    if nd.nlayout.tabs.currentIndex() == idx:
+                        nd.nlayout.tabs.setCurrentIndex(0)
+                    nd.nlayout.tabs.removeTab(idx)
+                st.stopNetworkChecker()
+                st.setParent(None)
+                st = None
+            Plugin.network_dialog.__shuffle_settings__ = None
+            self.print_error("Removed CashShuffle network settings tab")
 
     def window_has_cashshuffle(self, window):
         return window in self.windows
@@ -404,6 +437,7 @@ class Plugin(BasePlugin):
 
 
     def on_close(self):
+        self.del_network_dialog_tab()
         for window in self.windows.copy():
             self.on_close_window(window)
             window.update_status()
@@ -469,7 +503,7 @@ class Plugin(BasePlugin):
         if not isinstance(window, ElectrumWindow):
             window = window.parent()
 
-        d = SettingsDialog(None, _("CashShuffle Settings"), msg, window)
+        d = SettingsDialog(None, _("CashShuffle Settings"), window.config, msg)
         try:
             server_ok = False
             ns = None
@@ -480,21 +514,38 @@ class Plugin(BasePlugin):
                     ns = d.get_form()
                     server_ok = d.serverOk
                     if not server_ok:
-                        server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
+                        server_ok = Plugin.show_bad_server_box()
 
             if ns:
-                self.save_network_settings(window, ns)
-                if restart_ask: #and ns != selected:
+                Plugin.save_network_settings(window.config, ns)
+                if restart_ask:
                     window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
             return ns
         finally:
             d.deleteLater()
             del d
 
-    def save_network_settings(self, window, network_settings):
+    @staticmethod
+    def show_bad_server_box():
+        return bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
+
+    @staticmethod
+    def try_to_apply_network_dialog_settings(settings_tab):
+        ns = settings_tab.get_form()
+        if ns and (settings_tab.serverOk or Plugin.show_bad_server_box()):
+            Plugin.save_network_settings(settings_tab.config, ns)
+            gui = Plugin.gui
+            if gui and gui.windows: # try and find a window...
+                if Plugin.network_dialog and Plugin.network_dialog.isVisible():
+                    Plugin.network_dialog.close()
+                window = gui.windows[-1]
+                window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
+
+    @staticmethod
+    def save_network_settings(config, network_settings):
         ns = copy.deepcopy(network_settings)
-        self.print_error("Saving network settings: {}".format(ns))
-        window.config.set_key("cashshuffle_server_v1", ns)
+        print_error("Saving network settings: {}".format(ns))
+        config.set_key("cashshuffle_server_v1", ns)
 
 
     def settings_widget(self, window):
@@ -563,15 +614,16 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
     statusChanged = pyqtSignal(dict)
     formChanged = pyqtSignal()
 
-    def __init__(self, parent, title,
-                 message, window):
+    def __init__(self, parent, title, config, message=None):
         super().__init__(parent, title)
-        self.config = window.config
+        self.config = config
         self.networkChecker = None
         self.serverOk = None
-        self.setWindowModality(Qt.ApplicationModal)
-        self.setMinimumSize(500, 200)
-        self.setup(message, window)
+        if not isinstance(self, SettingsTab):
+            self.setWindowModality(Qt.ApplicationModal)
+            self.setMinimumSize(500, 200)
+        self.setup(message)
+        # NB: don't enable this as it may cause crashes
         #self.destroyed.connect(lambda x: self.print_error("Destroyed"))
 
     #def __del__(self):
@@ -645,11 +697,13 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
             self.cb.setCurrentIndex(custIdx)
             return True
         return False
-    def setup(self, msg, window):
+    def setup(self, msg):
         vbox = QVBoxLayout(self)
         if not msg:
-            msg = _("Choose a CashShuffle server from the list.\nChanges will require the CashShuffle plugin to restart.")
-        vbox.addWidget(QLabel(msg))
+            msg = _("Choose a CashShuffle server or enter a custom server.\nChanges will require the CashShuffle plugin to restart.")
+        l = QLabel(msg + "\n")
+        l.setAlignment(Qt.AlignHCenter|Qt.AlignTop)
+        vbox.addWidget(l)
         grid = QGridLayout()
         vbox.addLayout(grid)
 
@@ -657,7 +711,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
         selected = dict()
         try:
             # try and pre-populate from config
-            current = window.config.get("cashshuffle_server_v1", dict())
+            current = self.config.get("cashshuffle_server_v1", dict())
             dummy = (current["server"], current["info"], current["ssl"]); del dummy;
             selected = current
         except KeyError:
@@ -692,8 +746,12 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
         self.statusLabel.setAlignment(Qt.AlignAbsolute|Qt.AlignTop)
         hbox3.addWidget(self.statusLabel)
 
-        vbox.addStretch()
-        vbox.addLayout(Buttons(CloseButton(self), OkButton(self)))
+        self.vbox = vbox
+        
+        if not isinstance(self, SettingsTab):
+            vbox.addStretch()
+            buttons = Buttons(CloseButton(self), OkButton(self))
+            vbox.addLayout(buttons)
 
     def startNetworkChecker(self):
         if self.networkChecker: return
@@ -833,3 +891,18 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
     # /
 # /SettingsDialog
 
+class SettingsTab(SettingsDialog):
+    applyChanges = pyqtSignal(object)
+
+    def __init__(self, parent, title, config, message=None):
+        super().__init__(parent, title, config, message)
+        self.setWindowModality(Qt.NonModal)
+        self.setWindowFlags(Qt.Widget) # force non-dialog
+        self.apply = QPushButton(_("Apply"), self)
+        hbox = QHBoxLayout()
+        self.vbox.addLayout(hbox)
+        self.vbox.addStretch()
+        hbox.addStretch(1)
+        hbox.addWidget(self.apply)
+        self.apply.clicked.connect(lambda: self.applyChanges.emit(self))
+# /SettingsTab

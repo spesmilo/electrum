@@ -165,13 +165,15 @@ class ElectrumGui:
             return
         if self.nd:
             self.nd.on_update()
+            run_hook("on_network_dialog", self.nd)
             self.nd.show()
             self.nd.raise_()
             return
         self.nd = NetworkDialog(self.daemon.network, self.config,
                                 self.network_updated_signal_obj)
+        run_hook("on_network_dialog", self.nd)
         self.nd.show()
-
+  
     def create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)
         self.windows.append(w)

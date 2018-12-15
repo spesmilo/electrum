@@ -4,9 +4,9 @@
     "ssl"  : true,
     "info" : 8080
   },
-  "cashshuffle.tartarusgroup.com":
+  "cashshuffle.c3-soft.com":
   {
-    "ssl"  : false,
-    "info" : 8080
+    "ssl"  : true,
+    "info" : 9999
   }
 }
