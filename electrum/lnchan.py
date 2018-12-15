@@ -44,6 +44,7 @@ from .lnutil import funding_output_script, LOCAL, REMOTE, HTLCOwner, make_closin
 from .lnutil import ScriptHtlc, PaymentFailure, calc_onchain_fees, RemoteMisbehaving, make_htlc_output_witness_script
 from .transaction import Transaction
 from .lnsweep import create_sweeptxs_for_their_just_revoked_ctx
+from .lnsweep import create_sweeptxs_for_our_latest_ctx, create_sweeptxs_for_their_latest_ctx
 
 
 class ChannelJsonEncoder(json.JSONEncoder):
@@ -146,10 +147,11 @@ class Channel(PrintError):
         except:
             return super().diagnostic_name()
 
-    def __init__(self, state, name = None, payment_completed : Optional[Callable[[HTLCOwner, UpdateAddHtlc, bytes], None]] = None):
+    def __init__(self, state, sweep_address = None, name = None, payment_completed : Optional[Callable[[HTLCOwner, UpdateAddHtlc, bytes], None]] = None):
         self.preimages = {}
         if not payment_completed:
             payment_completed = lambda this, x, y, z: None
+        self.sweep_address = sweep_address
         self.payment_completed = payment_completed
         assert 'local_state' not in state
         self.config = {}
@@ -203,9 +205,18 @@ class Channel(PrintError):
         for sub in (LOCAL, REMOTE):
             self.log[sub].locked_in.update(self.log[sub].adds.keys())
 
-        # used in lnworker.on_channel_closed
-        self.local_commitment = self.current_commitment(LOCAL)
-        self.remote_commitment = self.current_commitment(REMOTE)
+        self.set_local_commitment(self.current_commitment(LOCAL))
+        self.set_remote_commitment(self.current_commitment(REMOTE))
+
+    def set_local_commitment(self, ctx):
+        self.local_commitment = ctx
+        if self.sweep_address is not None:
+            self.local_sweeptxs = create_sweeptxs_for_our_latest_ctx(self, self.local_commitment, self.sweep_address)
+
+    def set_remote_commitment(self, ctx):
+        self.remote_commitment = ctx
+        if self.sweep_address is not None:
+            self.remote_sweeptxs = create_sweeptxs_for_their_latest_ctx(self, self.remote_commitment, self.sweep_address)
 
     def set_state(self, state: str):
         if self._state == 'FORCE_CLOSING':
@@ -389,7 +400,7 @@ class Channel(PrintError):
             if self.constraints.is_initiator and self.pending_fee[FUNDEE_ACKED]:
                 self.pending_fee[FUNDER_SIGNED] = True
 
-        self.local_commitment = self.pending_commitment(LOCAL)
+        self.set_local_commitment(self.pending_commitment(LOCAL))
 
     def verify_htlc(self, htlc: UpdateAddHtlc, htlc_sigs: Sequence[bytes], we_receive: bool) -> int:
         _, this_point, _ = self.points()
@@ -438,7 +449,7 @@ class Channel(PrintError):
             feerate=new_feerate
         )
 
-        self.local_commitment = self.pending_commitment(LOCAL)
+        self.set_local_commitment(self.pending_commitment(LOCAL))
 
         return RevokeAndAck(last_secret, next_point), "current htlcs"
 
@@ -530,8 +541,8 @@ class Channel(PrintError):
             if self.constraints.is_initiator:
                 self.pending_fee[FUNDEE_ACKED] = True
 
-        self.local_commitment = self.pending_commitment(LOCAL)
-        self.remote_commitment = self.pending_commitment(REMOTE)
+        self.set_local_commitment(self.pending_commitment(LOCAL))
+        self.set_remote_commitment(self.pending_commitment(REMOTE))
         self.remote_commitment_to_be_revoked = prev_remote_commitment
         return received_this_batch, sent_this_batch
 

@@ -1011,6 +1011,9 @@ class Transaction:
         prevout_n = txin['prevout_n']
         return prevout_hash + ':%d' % prevout_n
 
+    def prevout(self, index):
+        return self.get_outpoint_from_txin(self.inputs()[index])
+
     @classmethod
     def serialize_input(self, txin, script):
         # Prev hash and index
