@@ -722,6 +722,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                 super().__init__(parent)
                 self.parent = parent
                 self.timer = None # delay checking server in case user is typing in a new one in the custom box
+                self.timerCon = None
             #def __del__(self):
             #    self.print_error("(Instance deleted)")
             def run(self): # overrides QThread
@@ -731,8 +732,9 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                         if self.timer:
                             #self.print_error("killing extant timer...")
                             self.timer.stop()
-                            self.timer.timeout.disconnect(self.timer._mycon)
-                            self.timer._mycon = None
+                            if self.timerCon:
+                                self.timer.timeout.disconnect(self.timerCon)
+                            self.timeCon = None
                             self.timer.deleteLater()
                             self.timer = None
                     def onSettingsChange(d):
@@ -758,7 +760,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                         #self.print_error("startTimer")
                         killTimer()
                         self.timer = QTimer()
-                        self.timer._mycon = self.timer.timeout.connect(lambda: onSettingsChange(d))
+                        self.timerCon = self.timer.timeout.connect(lambda: onSettingsChange(d))
                         self.timer.start(250)
 
                     c = self.parent.settingsChanged.connect(lambda d: startTimer(d))
