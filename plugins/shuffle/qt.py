@@ -26,7 +26,6 @@
 from __future__ import absolute_import
 
 import os, sys, json, copy, socket, time
-from functools import partial
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -466,32 +465,28 @@ class Plugin(BasePlugin):
         return None
 
     def settings_dialog(self, window, msg=None, restart_ask = True):
-        d = None
-        try:
-            assert window and (isinstance(window, ElectrumWindow) or isinstance(window.parent(), ElectrumWindow))
-            if not isinstance(window, ElectrumWindow):
-                window = window.parent()
+        assert window and (isinstance(window, ElectrumWindow) or isinstance(window.parent(), ElectrumWindow))
+        if not isinstance(window, ElectrumWindow):
+            window = window.parent()
 
-            d = SettingsDialog(None, _("CashShuffle Settings"), msg, window)
+        d = SettingsDialog(None, _("CashShuffle Settings"), msg, window)
 
-            server_ok = False
-            ns = None
-            while not server_ok:
-                if not d.exec_():
-                    return
-                else:
-                    ns = d.get_form()
-                    server_ok = d.serverOk
-                    if not server_ok:
-                        server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
+        server_ok = False
+        ns = None
+        while not server_ok:
+            if not d.exec_():
+                return
+            else:
+                ns = d.get_form()
+                server_ok = d.serverOk
+                if not server_ok:
+                    server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
 
-            if ns:
-                self.save_network_settings(window, ns)
-                if restart_ask: #and ns != selected:
-                    window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
-            return ns
-        finally:
-            if d: d.deleteLater()
+        if ns:
+            self.save_network_settings(window, ns)
+            if restart_ask: #and ns != selected:
+                window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
+        return ns
 
     def save_network_settings(self, window, network_settings):
         ns = copy.deepcopy(network_settings)
@@ -500,7 +495,7 @@ class Plugin(BasePlugin):
 
 
     def settings_widget(self, window):
-        return EnterButton(_('Settings'), partial(self.settings_dialog, window))
+        return EnterButton(_('Settings'), lambda: self.settings_dialog(window))
 
     def requires_settings(self):
         return True
