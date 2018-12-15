@@ -768,7 +768,8 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                     killTimer()
                     self.print_error("Exiting thread...")
                 finally:
-                    self.parent.settingsChanged.disconnect(c)
+                    if c:
+                        self.parent.settingsChanged.disconnect(c)
                     del c
             # / run
         # / NetworkChecker
