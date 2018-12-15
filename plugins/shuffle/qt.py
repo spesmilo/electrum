@@ -470,23 +470,26 @@ class Plugin(BasePlugin):
             window = window.parent()
 
         d = SettingsDialog(None, _("CashShuffle Settings"), msg, window)
+        try:
+            server_ok = False
+            ns = None
+            while not server_ok:
+                if not d.exec_():
+                    return
+                else:
+                    ns = d.get_form()
+                    server_ok = d.serverOk
+                    if not server_ok:
+                        server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
 
-        server_ok = False
-        ns = None
-        while not server_ok:
-            if not d.exec_():
-                return
-            else:
-                ns = d.get_form()
-                server_ok = d.serverOk
-                if not server_ok:
-                    server_ok = bool(QMessageBox.critical(None, _("Error"), _("Unable to connect to the specified server."), QMessageBox.Retry|QMessageBox.Ignore, QMessageBox.Retry) == QMessageBox.Ignore)
-
-        if ns:
-            self.save_network_settings(window, ns)
-            if restart_ask: #and ns != selected:
-                window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
-        return ns
+            if ns:
+                self.save_network_settings(window, ns)
+                if restart_ask: #and ns != selected:
+                    window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
+            return ns
+        finally:
+            d.deleteLater()
+            del d
 
     def save_network_settings(self, window, network_settings):
         ns = copy.deepcopy(network_settings)
@@ -569,6 +572,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
         self.setWindowModality(Qt.ApplicationModal)
         self.setMinimumSize(500, 200)
         self.setup(message, window)
+        #self.destroyed.connect(lambda x: self.print_error("Destroyed"))
 
     #def __del__(self):
     #    self.print_error("(Instance deleted)")
@@ -732,24 +736,14 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                 self.parent = parent
                 self.timer = None # delay checking server in case user is typing in a new one in the custom box
                 self.timerCon = None
+                #self.destroyed.connect(lambda x: self.print_error("Destroyed"))
             #def __del__(self):
             #    self.print_error("(Instance deleted)")
             def run(self): # overrides QThread
                 try:
                     self.print_error("Started thread.")
-                    def killTimer():
-                        if self.timer:
-                            #self.print_error("killing extant timer...")
-                            self.timer.stop()
-                            if self.timerCon:
-                                self.timer.timeout.disconnect(self.timerCon)
-                            self.timeCon = None
-                            self.timer.deleteLater()
-                            self.timer = None
-                    def onSettingsChange(d):
-                        killTimer()
-                        #self.print_error("onSettingsChange",d)
-                        self.parent.statusChanged.emit(dict())
+                    def updateStatus(d):
+                        #self.print_error("updateStatus", d) # XXX
                         try:
                             port, poolSize, connections, pools = query_server_for_stats(d['server'], d['info'], d['ssl'], config = self.parent.config)
                             socket.create_connection((d['server'], port), 5.0).close() # test connectivity to port
@@ -765,13 +759,42 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                             #traceback.print_exc()
                             self.print_error("exception on connect...")
                             self.parent.statusChanged.emit({'failed' : 'failed'})
+                    def onSettingsChange(d):
+                        #self.print_error("onSettingsChange",d) # XXX
+                        self.parent.statusChanged.emit(dict())
+                        updateStatus(d)
+                    def onTimer(t, d):
+                        #self.print_error("onTimer",t.objectName()) # XXX
+                        if t.objectName() == "Virgin Timer":
+                            t.setObjectName("Nonvirgin Timer")
+                            t.setSingleShot(False)
+                            t.start(15000) # fire every 15 seconds to update stats
+                            onSettingsChange(d)
+                        else:
+                            updateStatus(d)
+                    def killTimer():
+                        if self.timer:
+                            #self.print_error("killTimer") # XXX
+                            self.timer.stop()
+                            if self.timerCon:
+                                self.timer.timeout.disconnect(self.timerCon)
+                            self.timeCon = None
+                            self.timer.deleteLater()
+                            self.timer = None
                     def startTimer(d):
-                        #self.print_error("startTimer")
+                        #self.print_error("startTimer",d) # XXX
+                        d = d.copy()
                         killTimer()
-                        self.timer = QTimer()
-                        self.timerCon = self.timer.timeout.connect(lambda: onSettingsChange(d))
+                        class MyTimer(QTimer, PrintErrorThread):
+                            def __init__(self, parent=None):
+                                QTimer.__init__(self, parent)
+                                #self.destroyed.connect(lambda x: self.print_error("Destroyed"))
+                            #def __del__(self):
+                            #    self.print_error("(Instance deleted)")
+                        self.timer = MyTimer(); self.timer.setObjectName("Virgin Timer")
+                        self.timerCon = self.timer.timeout.connect(lambda: onTimer(self.timer,d))
                         self.timer.start(250)
-
+          
                     c = self.parent.settingsChanged.connect(lambda d: startTimer(d))
                     super().exec_() # Process thread event loop
                     killTimer()
@@ -796,13 +819,13 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
 
     def stopNetworkChecker(self):
         if self.networkChecker:
-            self.networkChecker.quit()
             if self.networkChecker.conn1:
                 self.statusChanged.disconnect(self.networkChecker.conn1)
                 self.networkChecker.conn1 = None
             if self.networkChecker.conn2:
                 self.statusChanged.disconnect(self.networkChecker.conn2)
                 self.networkChecker.conn2 = None
+            self.networkChecker.quit()
             self.networkChecker.wait()
             self.networkChecker.deleteLater()
             self.networkChecker = None
