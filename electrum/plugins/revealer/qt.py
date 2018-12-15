@@ -314,12 +314,7 @@ class Plugin(RevealerPlugin):
 
     def make_rawnoise(self, create_revealer=False):
         if not self.user_input:
-            version = self.LATEST_VERSION
-            hex_seed = bh2u(os.urandom(16))
-            checksum = self.code_hashid(version + hex_seed)
-            self.versioned_seed = VersionedSeed(version=version.upper(),
-                                                seed=hex_seed.upper(),
-                                                checksum=checksum.upper())
+            self.versioned_seed = self.gen_random_versioned_seed()
         assert self.versioned_seed
         w, h = self.SIZE
         rawnoise = QImage(w, h, QImage.Format_Mono)

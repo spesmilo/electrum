@@ -1,4 +1,5 @@
 import random
+import os
 from hashlib import sha256
 from typing import NamedTuple, Optional, Dict, Tuple
 
@@ -59,9 +60,9 @@ class RevealerPlugin(BasePlugin):
                              checksum=checksum.upper())
 
     @classmethod
-    def get_noise_map(self, versioned_seed: VersionedSeed) -> Dict[Tuple[int, int], int]:
+    def get_noise_map(cls, versioned_seed: VersionedSeed) -> Dict[Tuple[int, int], int]:
         """Returns a map from (x,y) coordinate to pixel value 0/1, to be used as rawnoise."""
-        w, h = self.SIZE
+        w, h = cls.SIZE
         version  = versioned_seed.version
         hex_seed = versioned_seed.seed
         checksum = versioned_seed.checksum
@@ -76,6 +77,9 @@ class RevealerPlugin(BasePlugin):
             drbg = DRBG(prng_seed)
             num_noise_bytes = 1929  # ~ w*h
             noise_array = bin(int.from_bytes(drbg.generate(num_noise_bytes), 'big'))[2:]
+            # there's an approx 1/1024 chance that the generated number is 'too small'
+            # and we would get IndexError below. easiest backwards compat fix:
+            noise_array += '0' * (w * h - len(noise_array))
             i = 0
             for x in range(w):
                 for y in range(h):
@@ -84,3 +88,18 @@ class RevealerPlugin(BasePlugin):
         else:
             raise Exception(f"unexpected revealer version: {version}")
         return noise_map
+
+    @classmethod
+    def gen_random_versioned_seed(cls):
+        version = cls.LATEST_VERSION
+        hex_seed = bh2u(os.urandom(16))
+        checksum = cls.code_hashid(version + hex_seed)
+        return VersionedSeed(version=version.upper(),
+                             seed=hex_seed.upper(),
+                             checksum=checksum.upper())
+
+
+if __name__ == '__main__':
+    for i in range(10**4):
+        vs = RevealerPlugin.gen_random_versioned_seed()
+        nm = RevealerPlugin.get_noise_map(vs)
