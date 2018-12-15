@@ -743,7 +743,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                         self.parent.statusChanged.emit(dict())
                         try:
                             port, poolSize, connections, pools = query_server_for_stats(d['server'], d['info'], d['ssl'], config = self.parent.config)
-                            socket.create_connection((d['server'], port), 15.0).close() # test connectivity to port
+                            socket.create_connection((d['server'], port), 5.0).close() # test connectivity to port
                             self.parent.statusChanged.emit({
                                 'host'   : d['server'],
                                 'status' : _('Ok'),
