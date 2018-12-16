@@ -989,8 +989,11 @@ class Abstract_Wallet(PrintError):
             if (hasattr(self, 'is_coin_shuffled')
                 and hasattr(self, 'cashshuffle_get_new_change_address')
                 and all([bool(self.is_mine(i['address']) and self.is_coin_shuffled(i)) for i in inputs]) ):
-                # cashshuffle enabled: force a brand new change address if spending shuffled coins together
+                # Cashshuffle enabled: use a brand new change address if spending shuffled coins together and
                 # disregard the "use_change" setting since to preserve privacy we must use a new change adress each time.
+                # Pick and lock a new change address. This "locked" change address will not be used by the shuffle threads.
+                # Note that subsequent calls to this function will return the same change address until that address is involved
+                # in a tx and has a history, at which point a new address will get generated and "locked".
                 change_addrs = [self.cashshuffle_get_new_change_address()]
                 self.print_error("CashShuffle: forcing unique change address",change_addrs[0].to_ui_string())
             else:
