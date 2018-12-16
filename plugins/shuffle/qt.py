@@ -765,7 +765,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
         self.statusGB = QGroupBox(_("Status"), self)
         hbox2.addWidget(self.statusGB)
         hbox3 = QHBoxLayout(self.statusGB)
-        self.statusLabel = QLabel(_(""), self.statusGB)
+        self.statusLabel = QLabel("", self.statusGB)
         self.statusLabel.setMinimumHeight(50)
         self.statusLabel.setAlignment(Qt.AlignAbsolute|Qt.AlignTop)
         hbox3.addWidget(self.statusLabel)
