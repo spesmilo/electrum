@@ -180,7 +180,7 @@ class NewWalletDialog1 : AlertDialogFragment() {
     }
 
     override fun onShowDialog(dialog: AlertDialog) {
-        dialog.spnType.adapter = MenuAdapter(context!!, R.menu.wallet_type)
+        dialog.spnType.adapter = MenuAdapter(app, R.menu.wallet_type)
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
