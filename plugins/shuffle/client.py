@@ -282,7 +282,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
             self.logger.send("started", "MAINLOG")
 
-            if not self.wallet.is_up_to_date():
+            if not self.is_wallet_ready():
                 time.sleep(3.0) # initial delay to hopefully wait for wallet to be ready
             while not self.stop_flg.is_set():
                 self.check_for_coins()
@@ -481,13 +481,18 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         coins.remove(coin)
         thr.start()
 
+    def is_wallet_ready(self):
+        return bool( self.wallet and self.wallet.is_up_to_date()
+                     and self.wallet.network and self.wallet.network.is_connected()
+                     and self.wallet.verifier and self.wallet.verifier.is_up_to_date() )
+
     def check_for_coins(self):
         if self.stop_flg.is_set(): return
         with self.wallet.lock:
             with self.wallet.transaction_lock:
                 try:
                     #TODO FIXME XXX -- perhaps also add a mechanism to detect when coins that are in the queue or are being shuffled get reorged or spent
-                    if self.wallet.is_up_to_date() and self.wallet.network and self.wallet.network.is_connected():
+                    if self.is_wallet_ready():
                         coins = None
                         for scale, thr in self.threads.items():
                             if not thr:
