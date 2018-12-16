@@ -334,8 +334,9 @@ def unfreeze_frozen_by_shuffling(wallet):
 
 class Plugin(BasePlugin):
 
-    gui = None
-    network_dialog = None
+    instance = None       # The extant instance singleton, if any. Variable is cleared on plugin stop.
+    gui = None            # The "gui object" singleton (ElectrumGui) -- a useful refrence to keep around.
+    network_dialog = None # The NetworkDialog window singleton (managed by the ElectrumGui singleton).
 
     def fullname(self):
         return 'CashShuffle'
@@ -356,13 +357,14 @@ class Plugin(BasePlugin):
         if self.initted:
             return
         self.print_error("Initializing...")
+        Plugin.instance = self
         Plugin.gui = gui
+        if Plugin.network_dialog != gui.nd:
+            Plugin.network_dialog = gui.nd # each time we are stopped, our module gets re-imported and we lose globals... so try and recapture this singleton
         ct = 0
         for window in gui.windows:
             self.on_new_window(window)
             ct += 1
-        if Plugin.network_dialog != gui.nd:
-            Plugin.network_dialog = gui.nd # each time we are stopped, our module gets re-imported and we lose globals... so try and recapture this singleton
         self.on_network_dialog(Plugin.network_dialog) # If we have a network dialgog, add self to network dialog
         self.initted = True
         self.print_error("Initialized (had {} extant windows).".format(ct))
@@ -376,6 +378,10 @@ class Plugin(BasePlugin):
             nd.__shuffle_settings__ = st = SettingsTab(nd.nlayout.tabs, None, nd.nlayout.config)
             nd.nlayout.tabs.addTab(st, _("CashShuffle"))
             st.applyChanges.connect(Plugin.try_to_apply_network_dialog_settings)
+        elif nd.__shuffle_settings__:
+            # they may have a fake view if they didn't apply the last settings, refresh the view
+            st = nd.__shuffle_settings__
+            st.refreshFromSettings()
 
     def del_network_dialog_tab(self):
         # delete the shuffle settings widget
@@ -431,7 +437,7 @@ class Plugin(BasePlugin):
             if password is None:
                 # User cancelled password input
                 self.window_set_cashshuffle(window, False)
-                window.show_error(_("Can't get password, disabling for this wallet."), parent=window)
+                window.show_error(_("CashShuffle didn't get the password, disabling for this wallet."), parent=window)
                 return
             try:
                 window.wallet.check_password(password)
@@ -466,6 +472,7 @@ class Plugin(BasePlugin):
             self.on_close_window(window)
             window.update_status()
         self.initted = False
+        Plugin.instance = None
         self.print_error("Plugin closed")
 
     @hook
@@ -557,12 +564,22 @@ class Plugin(BasePlugin):
     def try_to_apply_network_dialog_settings(settings_tab):
         ns = settings_tab.get_form()
         if ns and (settings_tab.serverOk or Plugin.show_bad_server_box()):
-            Plugin.save_network_settings(settings_tab.config, ns)
+            Plugin.save_network_settings(settings_tab.config, ns) # save settings first.
             gui = Plugin.gui
-            if gui and gui.windows: # try and find a window...
-                if Plugin.network_dialog and Plugin.network_dialog.isVisible():
-                    Plugin.network_dialog.close()
+            instance = Plugin.instance
+            window = None
+            # Next, try and get a wallet window to query user for plugin restart. If no window found, that's ok. Restart won't be necessary. :)
+            if instance and instance.windows:
+                # first try and get a window that actually has cashshuffle running, as that's only polite
+                window = instance.windows[-1]
+            elif gui and gui.windows:
+                # If that fails, get any old window...
                 window = gui.windows[-1]
+            # NB: if no window at this point, settings will take effect next time CashShuffle is enabled for a window
+            if window:
+                if Plugin.network_dialog and Plugin.network_dialog.isVisible():
+                    Plugin.network_dialog.close() # Close the network dialog to prevent confusion and visual glitches as plugin reloads.
+                # window will raise itself.
                 window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
 
     @staticmethod
@@ -704,6 +721,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
         # /
         servers = load_servers("servers.json")
         selIdx = -1
+        self.cb.clear()
         for host, d0 in sorted(servers.items()):
             d = d0.copy()
             d['server'] = host
@@ -721,6 +739,18 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
             self.cb.setCurrentIndex(custIdx)
             return True
         return False
+    def refreshFromSettings(self):
+        selected = dict()
+        try:
+            # try and pre-populate from config
+            current = self.config.get("cashshuffle_server_v1", dict())
+            dummy = (current["server"], current["info"], current["ssl"]); del dummy;
+            selected = current
+        except KeyError:
+            pass
+
+        self.setup_combo_box(selected = selected)
+        return selected
     def setup(self, msg):
         vbox = QVBoxLayout(self)
         if not msg:
@@ -732,16 +762,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
         vbox.addLayout(grid)
 
         self.cb = QComboBox(self)
-        selected = dict()
-        try:
-            # try and pre-populate from config
-            current = self.config.get("cashshuffle_server_v1", dict())
-            dummy = (current["server"], current["info"], current["ssl"]); del dummy;
-            selected = current
-        except KeyError:
-            pass
-
-        self.setup_combo_box(selected = selected)
+        self.refreshFromSettings()
 
         grid.addWidget(QLabel(_('Servers'), self), 0, 0)
         grid.addWidget(self.cb, 0, 1)
