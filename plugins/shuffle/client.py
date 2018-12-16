@@ -468,15 +468,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             address = self.wallet.create_new_address(for_change = False)
             if address not in self.wallet._addresses_cashshuffle_reserved:
                 output = address
-        change = None
-        for address in self.wallet.get_change_addresses():
-            if address not in self.wallet._addresses_cashshuffle_reserved and not self.wallet.get_address_history(address):
-                change = address
-                break
-        while not change:
-            address = self.wallet.create_new_address(for_change = False)
-            if address not in self.wallet._addresses_cashshuffle_reserved:
-                change = address
+        change = self.wallet.cashshuffle_get_new_change_address(for_shufflethread=True)
         self.wallet._addresses_cashshuffle_reserved |= {output, change} # NB: only modify this when holding wallet locks
         self.print_error("Scale {} Coin {} OutAddr {} Change {} make_protocol_thread".format(scale, utxo_name, output.to_storage_string(), change.to_storage_string()))
         #self.print_error("Reserved addresses:", self.wallet._addresses_cashshuffle_reserved)

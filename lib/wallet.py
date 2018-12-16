@@ -986,17 +986,25 @@ class Abstract_Wallet(PrintError):
         if change_addr:
             change_addrs = [change_addr]
         else:
-            addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
-            if self.use_change and addrs:
-                # New change addresses are created only after a few
-                # confirmations.  Select the unused addresses within the
-                # gap limit; if none take one at random
-                change_addrs = [addr for addr in addrs if
-                                self.get_num_tx(addr) == 0]
-                if not change_addrs:
-                    change_addrs = [random.choice(addrs)]
+            if (hasattr(self, 'is_coin_shuffled')
+                and hasattr(self, 'cashshuffle_get_new_change_address')
+                and all([bool(self.is_mine(i['address']) and self.is_coin_shuffled(i)) for i in inputs]) ):
+                # cashshuffle enabled: force a brand new change address if spending shuffled coins together
+                # disregard the "use_change" setting since to preserve privacy we must use a new change adress each time.
+                change_addrs = [self.cashshuffle_get_new_change_address()]
+                self.print_error("CashShuffle: forcing unique change address",change_addrs[0].to_ui_string())
             else:
-                change_addrs = [inputs[0]['address']]
+                addrs = self.get_change_addresses()[-self.gap_limit_for_change:]
+                if self.use_change and addrs:
+                    # New change addresses are created only after a few
+                    # confirmations.  Select the unused addresses within the
+                    # gap limit; if none take one at random
+                    change_addrs = [addr for addr in addrs if
+                                    self.get_num_tx(addr) == 0]
+                    if not change_addrs:
+                        change_addrs = [random.choice(addrs)]
+                else:
+                    change_addrs = [inputs[0]['address']]
 
         assert all(isinstance(addr, Address) for addr in change_addrs)
 
