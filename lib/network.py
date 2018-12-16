@@ -444,16 +444,17 @@ class Network(util.DaemonThread):
         self.start_interfaces()
 
     def stop_network(self):
-        self.print_error("stopping network")
-        for interface in list(self.interfaces.values()):
-            self.close_interface(interface)
-        if self.interface:
-            self.close_interface(self.interface)
-        assert self.interface is None
-        assert not self.interfaces
-        self.connecting = set()
-        # Get a new queue - no old pending connections thanks!
-        self.socket_queue = queue.Queue()
+        with self.interface_lock:
+            self.print_error("stopping network")
+            for interface in list(self.interfaces.values()):
+                self.close_interface(interface)
+            if self.interface:
+                self.close_interface(self.interface)
+            assert self.interface is None
+            assert not self.interfaces
+            self.connecting = set()
+            # Get a new queue - no old pending connections thanks!
+            self.socket_queue = queue.Queue()
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         try:
@@ -556,11 +557,12 @@ class Network(util.DaemonThread):
 
     def close_interface(self, interface):
         if interface:
-            if interface.server in self.interfaces:
-                self.interfaces.pop(interface.server)
-            if interface.server == self.default_server:
-                self.interface = None
-            interface.close()
+            with self.interface_lock:
+                if interface.server in self.interfaces:
+                    self.interfaces.pop(interface.server)
+                if interface.server == self.default_server:
+                    self.interface = None
+                interface.close()
 
     def add_recent_server(self, server):
         # list is ordered
@@ -629,7 +631,10 @@ class Network(util.DaemonThread):
                 # and are placed in the unanswered_requests dictionary
                 client_req = self.unanswered_requests.pop(message_id, None)
                 if client_req:
-                    assert interface == self.interface
+                    if interface != self.interface:
+                        self.print_error(("WARNING: got a 'client' response from an interface '{}' that is not self.interface '{}'"
+                                          + " (Probably the default server has been switched). Proceeding gingerly...")
+                                         .format(interface, self.interface))
                     callbacks = [client_req[2]]
                 else:
                     # fixme: will only work for subscriptions
@@ -1144,7 +1149,25 @@ class Network(util.DaemonThread):
                 self.connection_down(interface.server)
                 continue
 
+    def find_bad_fds_and_kill(self):
+        bad = []
+        with self.interface_lock:
+            for s,i in self.interfaces.copy().items():
+                try:
+                    r, w, x = select.select([i],[i],[],0) # non-blocking select to test if fd's are good.
+                except (OSError, ValueError):
+                    i.print_error("Bad file descriptor {}, closing".format(i.fileno()))
+                    self.connection_down(s)
+                    bad.append(i)
+        if bad:
+            self.print_error("{} bad file descriptors detected and shut down: {}".format(len(bad), bad))
+        return bad
+
     def wait_on_sockets(self):
+        def try_to_recover(err):
+            self.print_error("wait_on_sockets: {} raised by select() call.. trying to recover...".format(err))
+            self.find_bad_fds_and_kill()
+
         # Python docs say Windows doesn't like empty selects.
         # Sleep to prevent busy looping
         if not self.interfaces:
@@ -1152,16 +1175,29 @@ class Network(util.DaemonThread):
             return
         with self.interface_lock:
             interfaces = list(self.interfaces.values())
-        rin = [i for i in interfaces]
-        win = [i for i in interfaces if i.num_requests()]
+            rin = [i for i in interfaces if i.fileno() > -1]
+            win = [i for i in interfaces if i.num_requests() and i.fileno() > -1]
         try:
             rout, wout, xout = select.select(rin, win, [], 0.1)
         except socket.error as e:
-            # TODO: py3, get code from e
             code = None
+            if isinstance(e, OSError): # Should always be the case unless ancient python3
+                code = e.errno
             if code == errno.EINTR:
-                return
-            raise
+                return # calling loop will try again later
+            elif code == errno.EBADF:
+                # A filedescriptor was closed from underneath us because we have race conditions in this class. :(
+                # Note that due to race conditions with the gui thread even with the checks above it's entirely possible
+                # for the socket fd to become -1, or to be not -1 but still be invalid/closed.
+                try_to_recover("EBADF")
+                return # calling loop will try again later
+            raise # ruh ruh. user will get a crash dialog screen and network will die. FIXME: figure out a  way to restart network..
+        except ValueError:
+            # Note sometimes select() ends up getting a file descriptor that's -1 because race conditions, in which case it raises
+            # ValueError
+            try_to_recover("ValueError")
+            return # calling loop will try again later
+
         assert not xout
         for interface in wout:
             interface.send_requests()
