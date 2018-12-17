@@ -16,6 +16,8 @@ from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_ser
 
 ERR_SERVER_CONNECT = "Error: cannot connect to server"
 
+def get_name(coin):
+    return "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
 
 class ProtocolThread(threading.Thread, PrintErrorThread):
     """
@@ -248,6 +250,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.last_idle_check = 0
         self.had_a_completion_flg = False
         self.done_utxos = dict()
+        self._paused = False
 
     def set_password(self, password):
         with self.lock:
@@ -262,6 +265,18 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         if self.wallet:
             n = n + " <" + self.wallet.basename() + ">"
         return n
+
+    def set_paused(self, b):
+        b = bool(b)
+        self.shared_chan.put("pause" if b else "unpause") # don't need a lock since we use this shared_chan queue
+
+    def get_paused(self):
+        return self._paused # don't need a lock since python guarantess reads from single vars are atomic, and only the background thread writes
+
+    def tell_gui_to_refresh(self):
+        extra = getattr(self.window, 'send_tab_shuffle_extra', None)
+        if extra:
+            extra.needRefreshSignal.emit()
 
     def query_server_port(self, timeout = 5.0):
         try:
@@ -334,7 +349,10 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
                 if self.stop_flg.is_set():
                     return
+
                 if isinstance(tup, tuple): # may be None on join()
+                    ''' Got a message from the ProtocolThread '''
+
                     killme, thr, message = tup
                     scale, sender = thr.amount, thr.coin
                     if killme:
@@ -345,6 +363,28 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                     else:
                         #self.print_error("--> Fwd msg to Qt for: Scale='{}' Sender='{}' Msg='{}'".format(scale, sender, message.strip()))
                         self.logger.send(message, sender)
+
+                elif isinstance(tup, str):
+                    ''' Got a pause/unpause command from main (GUI) thread '''
+
+                    s = tup
+                    if s == "pause":
+                        # GUI pause of CashShuffle -- immediately stop all threads
+                        if not self._paused:
+                            self._paused = True
+                            ct = 0
+                            for scale, thr in self.threads.copy().items():
+                                if thr:
+                                    self.stop_protocol_thread(thr, scale, thr.coin, "Error: User stop requested")
+                                    ct += 1
+                            if not ct:  # if we actually stopped one, no need to tell gui as the stop_protocol_thread already signalled a refresh
+                                self.tell_gui_to_refresh()
+                    elif s == "unpause":
+                        # Unpause -- the main loop of this thread will continue to create new threads as coins become available
+                        if self._paused:
+                            self._paused = False
+                            self.tell_gui_to_refresh()
+
         except queue.Empty:
             pass
 
@@ -369,6 +409,8 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                     with self.wallet.transaction_lock:
                         self.wallet._addresses_cashshuffle_reserved -= { thr.addr_new_addr, thr.change_addr }
                         #self.print_error("Unreserving", thr.addr_new_addr, thr.change_addr)
+                self.tell_gui_to_refresh()
+
             self.logger.send(message, sender)
         else:
             self.print_error("No sender! Thr={}".format(str(thr)))
@@ -417,8 +459,6 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
     # NB: all locks must be held when this is called
     def _make_protocol_thread(self, scale, coins):
-        def get_name(coin):
-            return "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
         def get_coin_for_shuffling(scale, coins):
             if not getattr(self.wallet, "is_coin_shuffled", None):
                 raise RuntimeWarning('Wallet lacks is_coin_shuffled method!')
@@ -480,6 +520,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.threads[scale] = thr
         coins.remove(coin)
         thr.start()
+        return True
 
     def is_wallet_ready(self):
         return bool( self.wallet and self.wallet.is_up_to_date()
@@ -487,7 +528,8 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                      and self.wallet.verifier and self.wallet.verifier.is_up_to_date() )
 
     def check_for_coins(self):
-        if self.stop_flg.is_set(): return
+        if self.stop_flg.is_set() or self._paused: return
+        need_refresh = False
         with self.wallet.lock:
             with self.wallet.transaction_lock:
                 try:
@@ -500,9 +542,13 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                                     # lazy-init of coins here only if there is actual work to do.
                                     coins = self.wallet.get_utxos(exclude_frozen = True, confirmed_only = True, mature = True)
                                 if not coins: break # coins mutates as we iterate so check that we still have candidate coins
-                                self._make_protocol_thread(scale, coins)
+                                did_start = self._make_protocol_thread(scale, coins)
+                                need_refresh = did_start or need_refresh # once need_refresh is set to True, it remains True
                 except RuntimeWarning as e:
                     self.print_error("check_for_threads error: {}".format(str(e)))
+        if need_refresh:
+            # Ok, at least one thread started, so reserved funds for threads have changed. indicate this in GUI
+            self.tell_gui_to_refresh()
 
     def join(self):
         self.stop_flg.set()

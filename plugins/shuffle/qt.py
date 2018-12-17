@@ -40,7 +40,7 @@ from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash.address import Address
 from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.transaction import Transaction
-from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, PrintErrorThread
+from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, PrintErrorThread, get_name
 from electroncash_plugins.shuffle.comms import query_server_for_stats
 
 FEE = 300
@@ -90,15 +90,24 @@ def is_coin_shuffled(wallet, coin, txs_in=None):
         cache[name] = answer
     return answer
 
-def get_shuffled_coin_totals(wallet):
-    tot = 0
-    n = 0
-    coins = wallet.get_shuffled_coins()
-    for c in coins:
-        tot += c['value']
-        n += 1
-    return tot, n
 
+def get_shuffled_and_unshuffled_coin_totals(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
+    ''' Returns a 3-tuple of tuples of (amount_total, num_utxos) that are 'shuffled', 'unshuffled' and 'unshuffled_but_in_progress', respectively. '''
+    shuf, unshuf, uprog = wallet.get_shuffled_and_unshuffled_coins(exclude_frozen, mature, confirmed_only)
+    ret, lists = [(0,0),(0,0),(0,0)], ( shuf, unshuf, uprog )
+    i = 0
+    for l in lists:
+        tot = 0
+        n = 0
+        for c in l:
+            tot += c['value']
+            n += 1
+        ret[i] = (tot, n)
+        i += 1
+    return tuple(ret)
+
+# Called from either the wallet code or the shufflethread.
+# The wallet code calls this when spending either shuffled-only or unshuffled-only coins in a tx.
 def cashshuffle_get_new_change_address(wallet, for_shufflethread=False):
     with wallet.lock:
         with wallet.transaction_lock:
@@ -121,14 +130,30 @@ def cashshuffle_get_new_change_address(wallet, for_shufflethread=False):
             return change
 
 @profiler
-def get_shuffled_coins(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
-    if not hasattr(wallet, 'is_coin_shuffled'):
-        return []
-    with wallet.lock:
-        with wallet.transaction_lock:
-            utxos = wallet.get_utxos(exclude_frozen = exclude_frozen, mature = mature, confirmed_only = confirmed_only)
-            txs = wallet.transactions
-    return [utxo for utxo in utxos if wallet.is_coin_shuffled(utxo, txs)]
+def get_shuffled_and_unshuffled_coins(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
+    ''' Returns a 3-tupe of mutually exclusive lists: shuffled_utxos, unshuffled_utxos, and unshuffled_but_in_progress '''
+    shuf, unshuf, uprog = [], [], []
+    if hasattr(wallet, 'is_coin_shuffled'):
+        with wallet.lock:
+            with wallet.transaction_lock:
+                coins_frozen_by_shuffling = set(wallet.storage.get("coins_frozen_by_shuffling", list()))
+                utxos = wallet.get_utxos(exclude_frozen = exclude_frozen, mature = mature, confirmed_only = confirmed_only)
+                txs = wallet.transactions
+                for utxo in utxos:
+                    state = wallet.is_coin_shuffled(utxo, txs)
+                    if state:
+                        shuf.append(utxo)
+                    else:
+                        name = get_name(utxo)
+                        if state is not None:
+                            if name not in coins_frozen_by_shuffling:
+                                unshuf.append(utxo)
+                            else:
+                                uprog.append(utxo)
+                        else:
+                            wallet.print_error("Warning: get_shuffled_and_unshuffled_coins got an 'unknown' utxo: {}",name)
+    return shuf, unshuf, uprog
+
 
 def my_custom_item_setup(utxo_list, utxo, name, item):
     if not hasattr(utxo_list.wallet, 'is_coin_shuffled'):
@@ -278,7 +303,7 @@ def monkey_patches_apply(window):
         if getattr(wallet, '_shuffle_patched_', None):
             return
         wallet.is_coin_shuffled = lambda coin, txs=None: is_coin_shuffled(wallet, coin, txs)
-        wallet.get_shuffled_coins = lambda *args, **kwargs: get_shuffled_coins(wallet, *args, **kwargs)
+        wallet.get_shuffled_and_unshuffled_coins = lambda *args, **kwargs: get_shuffled_and_unshuffled_coins(wallet, *args, **kwargs)
         wallet.cashshuffle_get_new_change_address = lambda for_shufflethread=False: cashshuffle_get_new_change_address(wallet,for_shufflethread = for_shufflethread)
         wallet._is_shuffled_cache = dict()
         wallet._addresses_cashshuffle_reserved = set()
@@ -295,7 +320,8 @@ def monkey_patches_remove(window):
     def restore_window(window):
         if not getattr(window, '_shuffle_patched_', None):
             return
-        window.send_tab_shuffle_extra.setParent(None); window.send_tab_shuffle_extra.deleteLater(); delattr(window, 'send_tab_shuffle_extra')
+        window.send_tab_shuffle_extra.setParent(None); window.send_tab_shuffle_extra.deleteLater();
+        delattr(window, 'send_tab_shuffle_extra')
         delattr(window, 'background_process')
         delattr(window, '_shuffle_patched_')
         print_error("[shuffle] Unpatched window")
@@ -318,7 +344,7 @@ def monkey_patches_remove(window):
         delattr(wallet, '_addresses_cashshuffle_reserved')
         delattr(wallet, 'cashshuffle_get_new_change_address')
         delattr(wallet, "is_coin_shuffled")
-        delattr(wallet, "get_shuffled_coins")
+        delattr(wallet, "get_shuffled_and_unshuffled_coins")
         delattr(wallet, "_is_shuffled_cache")
         delattr(wallet, '_shuffle_patched_')
         delattr(wallet, "_last_change")
@@ -505,33 +531,75 @@ class Plugin(BasePlugin):
     def spendable_coin_filter(self, window, coins):
         if not coins or window not in self.windows:
             return
-        # in Cash-Shuffle mode we can ONLY spend shuffled coins!
-        for coin in coins.copy():
-            if not is_coin_shuffled(window.wallet, coin):
-                coins.remove(coin)
+
+        extra = window.send_tab_shuffle_extra
+        spend_mode = extra.spendingMode()
+
+        if spend_mode == extra.SpendingModeShuffled:
+            # in Cash-Shuffle mode + shuffled spending we can ONLY spend shuffled coins!
+            for coin in coins.copy():
+                if not is_coin_shuffled(window.wallet, coin):
+                    coins.remove(coin)
+        elif spend_mode == extra.SpendingModeUnshuffled:
+            # in Cash-Shuffle mode + unshuffled spending we can ONLY spend unshuffled coins!
+            for coin in coins.copy():
+                if is_coin_shuffled(window.wallet, coin):
+                    coins.remove(coin)
+
 
     @hook
     def balance_label_extra(self, window):
         if window not in self.windows:
             return
-        tot, n = get_shuffled_coin_totals(window.wallet)
-        window.send_tab_shuffle_extra.refresh(tot, n)
-        if n:
-            return _('Shuffled: {} {} in {} Coins').format(window.format_amount(tot).strip(), window.base_unit(), n)
+        shuf, unshuf, uprog = get_shuffled_and_unshuffled_coin_totals(window.wallet)
+        totShuf, nShuf = shuf
+        window.send_tab_shuffle_extra.refresh(shuf, unshuf, uprog)
+        if nShuf:
+            return _('Shuffled: {} {} in {} Coins').format(window.format_amount(totShuf).strip(), window.base_unit(), nShuf)
         return None
 
     @hook
     def not_enough_funds_extra(self, window):
         if window not in self.windows:
             return
-        tot, n = get_shuffled_coin_totals(window.wallet)
-        window.send_tab_shuffle_extra.refresh(tot, n)
-        if tot:
-            c, u, x = window.wallet.get_balance()
-            diff = (c+u+x) - tot
-            if diff > 0:
-                return _("{} {} are unshuffled").format(window.format_amount(diff).strip(), window.base_unit())
-        return None
+
+        shuf, unshuf, uprog = get_shuffled_and_unshuffled_coin_totals(window.wallet)
+        totShuf, nShuf, totUnshuf, nUnshuf, totInProg, nInProg = *shuf, *unshuf, *uprog
+
+        extra = window.send_tab_shuffle_extra
+        extra.refresh(shuf, unshuf, uprog)
+
+        spend_mode = extra.spendingMode()
+
+        rets = []
+        if spend_mode == extra.SpendingModeShuffled:
+            if totUnshuf:
+                rets += [_("{} {} are unshuffled").format(window.format_amount(totUnshuf).strip(), window.base_unit())]
+        elif spend_mode == extra.SpendingModeUnshuffled:
+            if totShuf:
+                rets += [_("{} {} are shuffled").format(window.format_amount(totShuf).strip(), window.base_unit())]
+        if totInProg:
+            rets += [_("{} {} are busy shuffling").format(window.format_amount(totInProg).strip(), window.base_unit())]
+
+        return ') ('.join(rets) or None
+
+    @hook
+    def get_change_addrs(self, wallet):
+        for window in self.windows:
+            if wallet == window.wallet:
+                change_addrs = [wallet.cashshuffle_get_new_change_address()]
+                wallet.print_error("CashShuffle: reserving change address",change_addrs[0].to_ui_string())
+                return change_addrs
+
+    @hook
+    def do_clear(self, w):
+        for window in self.windows:
+            if w is window:
+                extra = getattr(w, 'send_tab_shuffle_extra', None)
+                if extra:
+                    extra.do_clear()
+                return
+
 
     def settings_dialog(self, window, msg=None, restart_ask = True):
         assert window and (isinstance(window, ElectrumWindow) or isinstance(window.parent(), ElectrumWindow))
@@ -600,8 +668,10 @@ class Plugin(BasePlugin):
         return True
 
 
-class SendTabExtra(QFrame):
+class SendTabExtra(QFrame, PrintError):
     ''' Implements a Widget that appears in the main_window 'send tab' to inform the user of shuffled coin status & totals '''
+
+    needRefreshSignal = pyqtSignal() # protocol thread uses this signal to tell us that amounts have changed
 
     def __init__(self, window):
         self.send_tab = window.send_tab
@@ -615,43 +685,172 @@ class SendTabExtra(QFrame):
     def setup(self):
         self.setFrameStyle(QFrame.Panel|QFrame.Sunken)
         l = QGridLayout(self)
-        l.setVerticalSpacing(12)
+        l.setVerticalSpacing(6)
         l.setHorizontalSpacing(30)
         l.setContentsMargins(6, 12, 6, 12)
-        msg = "{}\n\n{}\n\n{}".format(_("In order to protect your privacy, when CashShuffle is enabled, only shuffled coins can be sent."),
-                                      _("If insufficient shuffled funds are available, you can wait a few minutes as coins are shuffled in the background."),
-                                      _("To toggle CashShuffle off, use the CashSuffle icon in the status bar."))
-        titleLabel = HelpLabel("<big><b>{}</b></big> <i>{}</i>"
-                              .format(_("CashShuffle Enabled"),
-                                      _("Only shuffled funds may be sent")), msg)
-        l.addWidget(titleLabel, 0, 1, 1, 3)
-        l.addWidget(HelpLabel("Shuffled funds available:", msg), 1, 1)
-        self.amountLabel = QLabel("")
+        self.msg = "{}\n\n{}\n\n{}".format(_("For improved privacy, shuffled coins and unshuffled coins cannot be sent together in the same transaction when CashShuffle is enabled."),
+                                                 _("You may switch between shuffled and unshuffled spending using the radio buttons on the right."),
+                                                 _("If insufficient shuffled funds are available, you can wait a few minutes as coins are shuffled in the background."))
+        self.msg2 = "{}\n\n{}\n\n{}".format(_("For improved privacy, shuffled coins and unshuffled coins cannot be sent together in the same transaction when CashShuffle is enabled."),
+                                            _("You may switch between shuffled and unshuffled spending using the radio buttons on the right."),
+                                            _("Some of your unshuffled funds may be temporarily locked while the shuffle operation is performed. If you want to unlock these funds immediately, you can use the 'Pause Shuffling' button to do so."))
+        self.titleLabel = HelpLabel("", "") # Will be initialized by self.onSpendRadio() below
+        l.addWidget(self.titleLabel, 0, 1, 1, 4)
+        self.spendButtons = QButtonGroup(self)
+        spend_mode = self.wallet.storage.get('shuffle_spend_mode', self.SpendingModeUnknown)
+        # Shuffled
+        self.shufLabel = HelpLabel("Shuffled available:", self.msg)
+        m = _("Shuffled (private) funds")
+        self.shufLabel.setToolTip(m)
+        self.shufLabel.setParent(self)
+        l.addWidget(self.shufLabel, 1, 1)
+        self.amountLabel = QLabel("", self); self.amountLabel.setToolTip(m)
         l.addWidget(self.amountLabel, 1, 2)
-        self.numCoinsLabel = QLabel("")
+        self.numCoinsLabel = QLabel("", self); self.numCoinsLabel.setToolTip(m)
         l.addWidget(self.numCoinsLabel, 1, 3)
-        l.setAlignment(titleLabel, Qt.AlignLeft)
+        self.spendShuffled = QRadioButton(_("Spend Shuffled"), self); self.spendShuffled.setToolTip(_("Spend only your shuffled (private) coins"))
+        l.addWidget(self.spendShuffled, 1, 4)
+        self.spendButtons.addButton(self.spendShuffled)
+        if spend_mode != self.SpendingModeUnshuffled:
+            self.spendShuffled.setChecked(True)
+        # Unshuffled
+        self.unshufLabel = HelpLabel("Unshuffled available:", self.msg2)
+        m = _("Funds that are not yet shuffled")
+        self.unshufLabel.setToolTip(m)
+        self.unshufLabel.setParent(self)
+        l.addWidget(self.unshufLabel, 2, 1)
+        self.amountLabelUnshuf = QLabel("", self); self.amountLabelUnshuf.setToolTip(m)
+        l.addWidget(self.amountLabelUnshuf, 2, 2)
+        self.numCoinsLabelUnshuf = QLabel("", self); self.numCoinsLabelUnshuf.setToolTip(m)
+        l.addWidget(self.numCoinsLabelUnshuf, 2, 3)
+        self.spendUnshuffled = QRadioButton(_("Spend Unshuffled"), self); self.spendUnshuffled.setToolTip(_("Spend only your unshuffled coins"))
+        l.addWidget(self.spendUnshuffled, 2, 4)
+        self.spendButtons.addButton(self.spendUnshuffled)
+        if spend_mode == self.SpendingModeUnshuffled:
+            self.spendUnshuffled.setChecked(True)
+
+        # In Progress
+        self.msg3 = _("Funds that are busy being shuffled are not available for spending until they are shuffled. To spend these funds immediately, use the 'Pause Shuffling' button to temporarily suspend CashShuffle.")
+        self.busyLbl = HelpLabel(_("Busy shuffling:"), self.msg3)
+        self.busyLbl.setParent(self)
+        m = _("Funds currently being shuffled")
+        self.busyLbl.setToolTip(m)
+        l.addWidget(self.busyLbl, 3, 1)
+        self.amountLabelBusy = QLabel("", self); self.amountLabelBusy.setToolTip(m)
+        l.addWidget(self.amountLabelBusy, 3, 2)
+        self.numCoinsLabelBusy = QLabel("", self); self.numCoinsLabelBusy.setToolTip(m)
+        l.addWidget(self.numCoinsLabelBusy, 3, 3)
+        self.pauseBut = QPushButton("", self) # Button text filled in by refresh() call
+        self.pauseBut.setDefault(False); self.pauseBut.setAutoDefault(False); self.pauseBut.setCheckable(True)
+        self.pauseBut.setToolTip(_("Pause/Unpause the background shuffle process (frees up 'busy' coins for spending)"))
+        l.addWidget(self.pauseBut, 3, 4)
+
+        l.setAlignment(self.titleLabel, Qt.AlignLeft)
         l.setAlignment(self.numCoinsLabel, Qt.AlignLeft)
-        l.addItem(QSpacerItem(1, 1, QSizePolicy.MinimumExpanding, QSizePolicy.Fixed), 1, 4)
+        l.setAlignment(self.numCoinsLabelUnshuf, Qt.AlignLeft)
+        l.setAlignment(self.numCoinsLabelBusy, Qt.AlignLeft)
+        l.addItem(QSpacerItem(1, 1, QSizePolicy.MinimumExpanding, QSizePolicy.Fixed), 1, 5)
 
 
-        icon = QLabel()
+        icon = QLabel(self)
         icon.setPixmap(QPixmap(":/icons/cash_shuffle5.png").scaledToWidth(100,Qt.SmoothTransformation))
         l.addWidget(icon, 0, 0, l.rowCount(), 1)
 
         l.setSizeConstraint(QLayout.SetNoConstraint)
 
+
+        self.onSpendRadio() # sets up the title label
+        self.spendButtons.buttonClicked.connect(self.onSpendRadio)
         self.window.history_updated_signal.connect(self.refresh)
+        self.needRefreshSignal.connect(self.refresh)
+        self.needRefreshSignal.connect(self.window.update_fee)
+        self.spendButtons.buttonClicked.connect(lambda x="ignored": self.refresh())
+        self.pauseBut.clicked.connect(self.onClickedPause)
+
+    def onSpendRadio(self, ignored = None):
+        which = self.spendingMode()
+        self.wallet.storage.put("shuffle_spend_mode", which)
+        if which == self.SpendingModeShuffled:
+            self.titleLabel.setText("<big><b>{}</b></big> &nbsp;&nbsp; ({})"
+                                    .format(_("CashShuffle Enabled"), _("Only <b>shuffled</b> funds will be sent")))
+            self.titleLabel.help_text = self.msg
+            self.forceUnpause()
+            self.pauseBut.setDisabled(True)
+        elif which == self.SpendingModeUnshuffled:
+            self.titleLabel.setText("<big><b>{}</b></big> &nbsp;&nbsp; ({})"
+                                    .format(_("CashShuffle Enabled"), _("Only <i>unshuffled</i> funds will be sent")))
+            self.titleLabel.help_text = self.msg2
+            self.pauseBut.setEnabled(bool(self.window.background_process))
+
+        self.window.update_fee()
+
+    def onClickedPause(self, b):
+        if self.window.background_process:
+            self.window.background_process.set_paused(b)
+            # Note: GUI refresh() wil later also set this string but we set it immediately here so UI feel peppier
+            self.pauseBut.setText(_("Pause Shuffling") if not b else _("Shuffling Paused"))
+
+    def do_clear(self): # called by plugin hook do_clear()
+        self.forceUnpause()
+        self.refresh()
+
+    def forceUnpause(self):
+        if self.window.background_process:
+            self.window.background_process.set_paused(False)
+        self.pauseBut.setChecked(False)
+        self.pauseBut.setText(_("Pause Shuffling"))
+
 
     def showEvent(self, e):
         super().showEvent(e)
         self.refresh()
 
-    def refresh(self, amount = None, n = None):
-        if amount is None or n is None:
-            amount, n = get_shuffled_coin_totals(self.wallet)
-        self.amountLabel.setText("<b>{}</b> {}".format(self.window.format_amount(amount).strip(), self.window.base_unit()))
-        self.numCoinsLabel.setText(_("<b>{}</b> Coins <small>(UTXOs)</small>").format(n))
+    def refresh(self, shuf=None, unshuf=None, inprog=None):
+        if shuf is None or unshuf is None or inprog is None:
+            shuf, unshuf, inprog = get_shuffled_and_unshuffled_coin_totals(self.window.wallet)
+        amount, n, amountUnshuf, nUnshuf, amountInProg, nInProg = *shuf, *unshuf, *inprog
+        bt = ( "<b>{}</b> {}", _("<b>{}</b> Coins <small>(UTXOs)</small>") ) # bold text template
+        nt = ( "{} {}", _("{} Coins <small>(UTXOs)</small>") ) # normal text template
+        mode = self.spendingMode()
+        tshuf = bt if mode == self.SpendingModeShuffled else nt # select a template based on mode
+        tunshuf = bt if mode == self.SpendingModeUnshuffled else nt # select a template based on mode
+        self.amountLabel.setText(tshuf[0].format(self.window.format_amount(amount).strip(), self.window.base_unit()))
+        self.numCoinsLabel.setText(tshuf[1].format(n))
+        self.amountLabelUnshuf.setText(tunshuf[0].format(self.window.format_amount(amountUnshuf).strip(), self.window.base_unit()))
+        self.numCoinsLabelUnshuf.setText(tunshuf[1].format(nUnshuf))
+        self.amountLabelBusy.setText(nt[0].format(self.window.format_amount(amountInProg).strip(), self.window.base_unit()))
+        self.numCoinsLabelBusy.setText(nt[1].format(nInProg))
+
+        f = self.spendShuffled.font()
+        f.setBold(bool(mode == self.SpendingModeShuffled))
+        self.spendShuffled.setFont(f)
+
+        f = self.spendUnshuffled.font()
+        f.setBold(bool(mode == self.SpendingModeUnshuffled))
+        self.spendUnshuffled.setFont(f)
+
+        if self.window.background_process:
+            is_paused = self.window.background_process.get_paused()
+            self.pauseBut.setChecked(is_paused)
+        else:
+            self.pauseBut.setChecked(False)
+        self.pauseBut.setText(_("Pause Shuffling") if not self.pauseBut.isChecked() else _("Shuffling Paused"))
+
+        self.pauseBut.setEnabled(bool(self.window.background_process and mode == self.SpendingModeUnshuffled))
+
+
+    SpendingModeShuffled = 1
+    SpendingModeUnshuffled = 2
+    SpendingModeUnknown = 0
+
+    def spendingMode(self):
+        ''' Returns one o the SpendingMode* class constants above '''
+        if hasattr(self.wallet, "_shuffle_patched_"):
+            which = self.spendButtons.checkedButton()
+            if which is self.spendShuffled: return self.SpendingModeShuffled
+            elif which is self.spendUnshuffled: return self.SpendingModeUnshuffled
+        return self.SpendingModeUnknown
+
 
 
 class SettingsDialog(WindowModalDialog, PrintErrorThread):
@@ -796,7 +995,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
         hbox3.addWidget(self.statusLabel)
 
         self.vbox = vbox
-        
+
         if not isinstance(self, SettingsTab):
             vbox.addStretch()
             buttons = Buttons(CloseButton(self), OkButton(self))
@@ -901,7 +1100,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                         self.timer = MyTimer(); self.timer.setObjectName("Virgin Timer")
                         self.timerCon = self.timer.timeout.connect(lambda: onTimer(self.timer,d))
                         self.timer.start(250)
-          
+
                     c = self.parent.settingsChanged.connect(lambda d: startTimer(d))
                     super().exec_() # Process thread event loop
                     killTimer()
