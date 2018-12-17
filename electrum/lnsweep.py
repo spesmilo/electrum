@@ -286,13 +286,13 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
     for htlc in received_htlcs:
         sweep_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=True)
         if sweep_tx:
-            txs[prevout] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', sweep_tx, csv_delay=0, cltv_expiry=htlc.cltv_expiry)
+            txs[sweep_tx.prevout(0)] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', sweep_tx, csv_delay=0, cltv_expiry=htlc.cltv_expiry)
     # offered HTLCs, in their ctx --> "success"
     offered_htlcs = chan.included_htlcs_in_their_latest_ctxs(REMOTE)[ctn]  # type: List[UpdateAddHtlc]
     for htlc in offered_htlcs:
         sweep_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=False)
         if sweep_tx:
-            txs[prevout] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', sweep_tx, csv_delay=0, cltv_expiry=0)
+            txs[sweep_tx.prevout(0)] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', sweep_tx, csv_delay=0, cltv_expiry=0)
     return txs
 
 
