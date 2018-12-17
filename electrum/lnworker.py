@@ -347,7 +347,7 @@ class LNWorker(PrintError):
                     broadcast = False
             if broadcast:
                 if not await self.network.lnwatcher.broadcast_or_log(funding_outpoint, e_tx):
-                    self.print_error(e_tx.name, f'could not publish encumbered tx: {str(sweep_tx)}, prev_txid: {prev_txid}')
+                    self.print_error(e_tx.name, f'could not publish encumbered tx: {str(e_tx)}, prevout: {prevout}')
 
 
     @log_exceptions
