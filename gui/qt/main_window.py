@@ -2791,6 +2791,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             p.window_set_cashshuffle(self, enable_flag)
         self.update_cashshuffle_icon()
         self.statusBar().showMessage(self.cashshuffle_status_button.statusTip(), 2500)
+        if enable_flag and self.config.get("show_utxo_tab") is None:
+            self.toggle_tab(self.utxo_tab) # toggle utxo tab to 'on' if user never specified it should be off.
+
 
 
     def settings_dialog(self):
@@ -3386,8 +3389,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             f = csnoprompt_cb.font(); f.setPointSize(8 if sys.platform.startswith('win') else 10); csnoprompt_cb.setFont(f)
             vbox.addWidget(csnoprompt_cb)
             if d.exec_():
-                if self.config.get("show_utxo_tab") is None:
-                    self.toggle_tab(self.utxo_tab) # toggle utxo tab to 'on' if user never specified it should be off.
                 self.toggle_cashshuffle()
             if csnoprompt_cb.isChecked():
                 self.config.set_key('shuffle_noprompt2', True)

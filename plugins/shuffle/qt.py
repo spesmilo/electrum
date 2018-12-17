@@ -325,6 +325,7 @@ def monkey_patches_remove(window):
         delattr(window, 'background_process')
         delattr(window, '_shuffle_patched_')
         print_error("[shuffle] Unpatched window")
+        # Note that at this point an additional monkey patch: 'window.__disabled_sendtab_extra__' may stick around until the plugin is unloaded altogether
 
     def restore_utxo_list(utxo_list):
         if not getattr(utxo_list, '_shuffle_patched_', None):
@@ -380,6 +381,7 @@ class Plugin(BasePlugin):
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.windows = []
+        self.disabled_windows = [] # this is to manage the "cashshuffle disabled" xtra gui element in the send tab
         self.initted = False
 
     @hook
@@ -441,22 +443,37 @@ class Plugin(BasePlugin):
 
     def window_set_cashshuffle(self, window, b):
         if not b and self.window_has_cashshuffle(window):
-            self.on_close_window(window)
+            self._disable_for_window(window)
         elif b and not self.window_has_cashshuffle(window):
             self._enable_for_window(window)
         self.window_set_wants_cashshuffle(window, b)
 
+    def _window_set_disabled_extra(self, window):
+        self._window_clear_disabled_extra(window)
+        window.__disabled_sendtab_extra__ = SendTabExtraDisabled(window)
+
+    def _window_clear_disabled_extra(self, window):
+        extra = getattr(window, "__disabled_sendtab_extra__", None)
+        if extra:
+            extra.setParent(None) # python will gc this badboy
+            delattr(window, "__disabled_sendtab_extra__")
+            del extra # hopefully object refct goes immediately to 0 and this widget dies quickly.
+            return True
+
     @hook
     def on_new_window(self, window):
-        if window.wallet and not self.window_has_cashshuffle(window) and self.window_wants_cashshuffle(window):
-            self._enable_for_window(window)
-
-    def _enable_for_window(self, window):
         if not window.is_wallet_cashshuffle_compatible():
             # wallet is watching-only, multisig, or hardware so.. mark it permanently for no cashshuffle
             self.window_set_cashshuffle(window, False)
             return
-        title = window.windowTitle() if window and window.windowTitle() else "UNKNOWN WINDOW"
+        if window.wallet and not self.window_has_cashshuffle(window):
+            if self.window_wants_cashshuffle(window):
+                self._enable_for_window(window) or self._window_add_to_disabled(window)
+            else:
+                self._window_add_to_disabled(window)
+
+    def _enable_for_window(self, window):
+        title = window.windowTitle() or "<Unknown>"
         self.print_error("Window '{}' registered, performing window-specific startup code".format(title))
         password = None
         name = window.wallet.basename()
@@ -482,6 +499,7 @@ class Plugin(BasePlugin):
             self.window_set_cashshuffle(window, False)
             window.show_error(_("Can't get network, disabling CashShuffle."), parent=window)
             return
+        self._window_remove_from_disabled(window)
         network_settings = copy.deepcopy(network_settings)
         network_settings['host'] = network_settings.pop('server')
         network_settings["network"] = window.network
@@ -490,6 +508,7 @@ class Plugin(BasePlugin):
         window.update_status()
         window.utxo_list.update()
         start_background_shuffling(window, network_settings, password=password)
+        return True
 
     @hook
     def utxo_list_item_setup(self, utxo_list, x, name, item):
@@ -501,15 +520,29 @@ class Plugin(BasePlugin):
         for window in self.windows.copy():
             self.on_close_window(window)
             window.update_status()
+        for window in self.disabled_windows.copy():
+            self.on_close_window(window)
+            window.update_status()
         self.initted = False
         Plugin.instance = None
         self.print_error("Plugin closed")
+        assert len(self.windows) == 0 and len(self.disabled_windows) == 0, (self.windows, self.disabled_windows)
 
     @hook
     def on_close_window(self, window):
+        def didRemove(window):
+            self.print_error("Window '{}' removed".format(window.windowTitle() or "<Unknown>"))
+        if self._window_remove_from_disabled(window):
+            didRemove(window)
+            return
+        if self._disable_for_window(window, add_to_disabled = False):
+            didRemove(window)
+            return
+
+    def _disable_for_window(self, window, add_to_disabled = True):
         if window not in self.windows:
             return
-        title = window.windowTitle() if window and window.windowTitle() else "UNKNOWN WINDOW"
+        title = window.windowTitle() or "<Unknown>"
         if window.background_process:
             self.print_error("Joining background_process...")
             window.background_process.join()
@@ -519,7 +552,24 @@ class Plugin(BasePlugin):
         monkey_patches_remove(window)
         window.utxo_list.update()
         window.update_status()
-        self.print_error("Window '{}' removed".format(title))
+        self.print_error("Window '{}' disabled".format(title))
+        if add_to_disabled:
+            self._window_add_to_disabled(window)
+        else:
+            self._window_remove_from_disabled(window)
+        return True
+    
+    def _window_add_to_disabled(self, window):
+        if window not in self.disabled_windows:
+            self._window_set_disabled_extra(window)
+            self.disabled_windows.append(window)
+            return True
+
+    def _window_remove_from_disabled(self, window):
+        self._window_clear_disabled_extra(window)
+        if window in self.disabled_windows:
+            self.disabled_windows.remove(window)
+            return True
 
     @hook
     def on_new_password(self, window, old, new):
@@ -667,11 +717,56 @@ class Plugin(BasePlugin):
     def requires_settings(self):
         return True
 
+class SendTabExtraDisabled(QFrame, PrintError):
+    ''' Implements a Widget that appears in the main_window 'send tab' to inform the user CashShuffle was disabled for this wallet '''
+
+    pixmap_cached = None # singleton gets initialized first time an instance of this class is constructed. Contains the cashshuffle_icon5_grayed.png scaled to 100px width
+
+    def __init__(self, window):
+        self.send_tab = window.send_tab
+        self.send_grid = window.send_grid
+        self.wallet = window.wallet
+        self.window = window
+        super().__init__(window.send_tab)
+        self.send_grid.addWidget(self, 0, 0, 1, self.send_grid.columnCount()) # just our luck. row 0 is free!
+        self.setup()
+
+    def setup(self):
+        self.setFrameStyle(QFrame.Panel|QFrame.Sunken)
+        l = QGridLayout(self)
+        l.setVerticalSpacing(6)
+        l.setHorizontalSpacing(30)
+        l.setContentsMargins(6, 6, 6, 6)
+        self.txt = "<big><b>{}</b></big> &nbsp;&nbsp; {}".format(_("CashShuffle Disabled"), _("Your shuffled and unshuffled coins can be mixed and spent together."))
+
+        self.msg = "{}\n\n{}\n\n{}".format(_("When CashShuffle is disabled, your privacy on the blockchain is reduced to traditional levels, and 'chainalysis becomes easier' (your transactions can be associated with one another)."),
+                                           _("This spending mode is the same as previous versions of Electron Cash, which did not offer CashShuffle."),
+                                           _("You may toggle CashShuffle back on at any time using the 'CashShuffle' icon in the status bar."))
+        self.titleLabel = HelpLabel(self.txt, self.msg)
+
+        self.titleLabel.setParent(self)
+        l.addWidget(self.titleLabel, 0, 1, 1, 4)
+
+        l.setAlignment(self.titleLabel, Qt.AlignLeft|Qt.AlignVCenter)
+        l.addItem(QSpacerItem(1, 1, QSizePolicy.MinimumExpanding, QSizePolicy.Fixed), 1, 5)
+
+
+        icon = QLabel(self)
+        if not SendTabExtraDisabled.pixmap_cached:
+            SendTabExtraDisabled.pixmap_cached = QPixmap(":/icons/cash_shuffle5_grayed.png").scaledToWidth(75,Qt.SmoothTransformation)
+        icon.setPixmap(SendTabExtraDisabled.pixmap_cached)
+        icon.setToolTip(_("CashShuffle Disabled"))
+        l.addWidget(icon, 0, 0, l.rowCount(), 1)
+
+        l.setSizeConstraint(QLayout.SetNoConstraint)
+
+
 
 class SendTabExtra(QFrame, PrintError):
     ''' Implements a Widget that appears in the main_window 'send tab' to inform the user of shuffled coin status & totals '''
 
     needRefreshSignal = pyqtSignal() # protocol thread uses this signal to tell us that amounts have changed
+    pixmap_cached = None # singleton gets initialized first time an instance of this class is constructed. Contains the cashshuffle_icon5.png scaled to 100px width
 
     def __init__(self, window):
         self.send_tab = window.send_tab
@@ -695,6 +790,7 @@ class SendTabExtra(QFrame, PrintError):
                                             _("You may switch between shuffled and unshuffled spending using the radio buttons on the right."),
                                             _("Some of your unshuffled funds may be temporarily locked while the shuffle operation is performed. If you want to unlock these funds immediately, you can use the 'Pause Shuffling' button to do so."))
         self.titleLabel = HelpLabel("", "") # Will be initialized by self.onSpendRadio() below
+        self.titleLabel.setParent(self)
         l.addWidget(self.titleLabel, 0, 1, 1, 4)
         self.spendButtons = QButtonGroup(self)
         spend_mode = self.wallet.storage.get('shuffle_spend_mode', self.SpendingModeUnknown)
@@ -753,7 +849,10 @@ class SendTabExtra(QFrame, PrintError):
 
 
         icon = QLabel(self)
-        icon.setPixmap(QPixmap(":/icons/cash_shuffle5.png").scaledToWidth(100,Qt.SmoothTransformation))
+        if not SendTabExtra.pixmap_cached:
+            # cache it and keep it around, since scaling this pixmap wastes CPU cycles each time
+            SendTabExtra.pixmap_cached = QPixmap(":/icons/cash_shuffle5.png").scaledToWidth(125,Qt.SmoothTransformation)
+        icon.setPixmap(SendTabExtra.pixmap_cached)
         l.addWidget(icon, 0, 0, l.rowCount(), 1)
 
         l.setSizeConstraint(QLayout.SetNoConstraint)
