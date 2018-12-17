@@ -868,6 +868,11 @@ class Channel(PrintError):
         tx = self.current_commitment(LOCAL)
         tx.sign({bh2u(self.config[LOCAL].multisig_key.pubkey): (self.config[LOCAL].multisig_key.privkey, True)})
         remote_sig = self.config[LOCAL].current_commitment_signature
+
+        preimage_hex = tx.serialize_preimage(0)
+        pre_hash = sha256d(bfh(preimage_hex))
+        assert ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, remote_sig, pre_hash)
+
         remote_sig = ecc.der_sig_from_sig_string(remote_sig) + b"\x01"
         none_idx = tx._inputs[0]["signatures"].index(None)
         tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
