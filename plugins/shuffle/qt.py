@@ -49,6 +49,7 @@ SCALE_N = sorted(BackgroundShufflingThread.scales)[-1]
 UPPER_BOUND = SCALE_N*10 + FEE
 LOWER_BOUND = SCALE_0 + FEE
 
+
 def is_coin_shuffled(wallet, coin, txs_in=None):
     cache = getattr(wallet, "_is_shuffled_cache", dict())
     tx_id, n = coin['prevout_hash'], coin['prevout_n']
@@ -492,7 +493,7 @@ class Plugin(BasePlugin):
             except Exception as e:
                 window.show_error(str(e), parent=window)
                 continue
-        network_settings = copy.deepcopy(window.config.get("cashshuffle_server_v1", None))
+        network_settings = Plugin.get_network_settings(window.config)
         if not network_settings:
             network_settings = self.settings_dialog(window, msg=_("Please choose a CashShuffle server"), restart_ask = False)
         if not network_settings:
@@ -650,6 +651,23 @@ class Plugin(BasePlugin):
                     extra.do_clear()
                 return
 
+    def restart_all(self):
+        for window in self.windows:
+            bp = window.background_process
+            if bp:
+                password = bp.get_password()
+                network_settings = Plugin.get_network_settings(window.config)
+                if network_settings:
+                    bp.join()
+                    network_settings['host'] = network_settings.pop('server')
+                    network_settings["network"] = window.network
+                    window.background_process = None; del bp
+                    start_background_shuffling(window, network_settings, password=password)
+                    window.print_error("CashShuffle restarted for wallet")
+                else:
+                    window.print_error("ERROR: could not load network settings, FIXME!")
+            else:
+                window.print_error("WARNING: Window lacks a BackgroundProcess, FIXME!")
 
     def settings_dialog(self, window, msg=None, restart_ask = True):
         assert window and (isinstance(window, ElectrumWindow) or isinstance(window.parent(), ElectrumWindow))
@@ -709,7 +727,10 @@ class Plugin(BasePlugin):
         ns = copy.deepcopy(network_settings)
         print_error("Saving network settings: {}".format(ns))
         config.set_key("cashshuffle_server_v1", ns)
-
+        
+    @staticmethod
+    def get_network_settings(config):
+        return copy.deepcopy(config.get("cashshuffle_server_v1", None))
 
     def settings_widget(self, window):
         return EnterButton(_('Settings'), lambda: self.settings_dialog(window))

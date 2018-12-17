@@ -3400,9 +3400,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.raise_()
             # NB: we need to make this question a top-level window, hence we don't use self.question() which has issues/bugs on Mac
             if self.question("{}{}".format(msg + "\n\n" if msg else "", _("Restart the CashShuffle plugin now?"))):
-                p = self.gui_object.plugins.toggle_internal_plugin("shuffle") or self.gui_object.plugins.toggle_internal_plugin("shuffle")
-                p.init_qt(self.gui_object)
-                self.statusBar().showMessage(_("CashShuffle restarted"), 2500)
+                p = self.gui_object.plugins.find_plugin("shuffle")
+                if p:
+                    p.restart_all()
+                    self.statusBar().showMessage(_("CashShuffle restarted"), 2500)
+                else:
+                    self.statusBar().showMessage(_("CashShuffle could not be restarted"), 2500)
         if self._restart_timer:
             self._restart_timer.stop()
             self._restart_timer.deleteLater()
