@@ -662,6 +662,7 @@ class Plugin(BasePlugin):
                     network_settings['host'] = network_settings.pop('server')
                     network_settings["network"] = window.network
                     window.background_process = None; del bp
+                    unfreeze_frozen_by_shuffling(window.wallet)
                     start_background_shuffling(window, network_settings, password=password)
                     window.print_error("CashShuffle restarted for wallet")
                 else:
