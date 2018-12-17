@@ -13,8 +13,8 @@ VERSION=`git describe --tags`
 PYTHON_VERSION=3.6.4
 BUILDDIR=/tmp/electron-cash-build
 PACKAGE=Electron-Cash
-GIT_REPO_ACCT=https://github.com/Electron-Cash
-GIT_REPO=$GIT_REPO_ACCT/Electron-Cash
+GIT_REPO_ACCT=https://github.com/cashshuffle
+GIT_REPO=https://github.com/clifordsymack/Electron-Cash
 LIBSECP_VERSION=452d8e4d2a2f9f1b5be6b02e18f1ba102e5ca0b4
 
 which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
