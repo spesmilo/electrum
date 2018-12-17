@@ -19,6 +19,12 @@ ERR_SERVER_CONNECT = "Error: cannot connect to server"
 def get_name(coin):
     return "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
 
+def unfreeze_frozen_by_shuffling(wallet):
+    coins_frozen_by_shuffling = wallet.storage.get("coins_frozen_by_shuffling", list())
+    if coins_frozen_by_shuffling:
+        wallet.set_frozen_coin_state(coins_frozen_by_shuffling, False)
+    wallet.storage.put("coins_frozen_by_shuffling", None) # deletes key altogether from storage
+
 class ProtocolThread(threading.Thread, PrintErrorThread):
     """
     This class emulate thread with protocol run
@@ -560,3 +566,4 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             if thr and thr.is_alive():
                 self.print_error("Joining ProtocolThread[{}]...".format(scale))
                 thr.join()
+        unfreeze_frozen_by_shuffling(self.wallet)

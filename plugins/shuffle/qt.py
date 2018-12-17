@@ -40,7 +40,7 @@ from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash.address import Address
 from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.transaction import Transaction
-from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, PrintErrorThread, get_name
+from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, PrintErrorThread, get_name, unfreeze_frozen_by_shuffling
 from electroncash_plugins.shuffle.comms import query_server_for_stats
 
 FEE = 300
@@ -357,12 +357,6 @@ def monkey_patches_remove(window):
     restore_utxo_list(window.utxo_list)
     restore_wallet(window.wallet)
 
-def unfreeze_frozen_by_shuffling(wallet):
-    coins_frozen_by_shuffling = wallet.storage.get("coins_frozen_by_shuffling", list())
-    if coins_frozen_by_shuffling:
-        wallet.set_frozen_coin_state(coins_frozen_by_shuffling, False)
-    wallet.storage.put("coins_frozen_by_shuffling", None) # deletes key altogether from storage
-
 
 class Plugin(BasePlugin):
 
@@ -662,7 +656,6 @@ class Plugin(BasePlugin):
                     network_settings['host'] = network_settings.pop('server')
                     network_settings["network"] = window.network
                     window.background_process = None; del bp
-                    unfreeze_frozen_by_shuffling(window.wallet)
                     start_background_shuffling(window, network_settings, password=password)
                     window.print_error("CashShuffle restarted for wallet")
                 else:
