@@ -592,7 +592,7 @@ class Peer(PrintError):
                 "remote_commitment_to_be_revoked": None,
         }
         chan = Channel(chan_dict,
-                       sweep_adddress=self.lnworker.sweep_address,
+                       sweep_address=self.lnworker.sweep_address,
                        payment_completed=self.lnworker.payment_completed)
         chan.lnwatcher = self.lnwatcher
         chan.get_preimage_and_invoice = self.lnworker.get_invoice  # FIXME hack.
