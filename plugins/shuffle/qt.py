@@ -739,7 +739,7 @@ class SendTabExtraDisabled(QFrame, PrintError):
         l.setContentsMargins(6, 6, 6, 6)
         self.txt = "<big><b>{}</b></big> &nbsp;&nbsp; {}".format(_("CashShuffle Disabled"), _("Your shuffled and unshuffled coins can be mixed and spent together."))
 
-        self.msg = "{}\n\n{}\n\n{}".format(_("When CashShuffle is disabled, your privacy on the blockchain is reduced to traditional levels, and 'chainalysis becomes easier' (your transactions can be associated with one another)."),
+        self.msg = "{}\n\n{}\n\n{}".format(_("When CashShuffle is disabled, your privacy on the blockchain is reduced to traditional levels, and 'chainalysis' becomes easier (your transactions can be associated with one another)."),
                                            _("This spending mode is the same as previous versions of Electron Cash, which did not offer CashShuffle."),
                                            _("You may toggle CashShuffle back on at any time using the 'CashShuffle' icon in the status bar."))
         self.titleLabel = HelpLabel(self.txt, self.msg)
