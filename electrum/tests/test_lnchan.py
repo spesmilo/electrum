@@ -237,6 +237,8 @@ class TestChannel(unittest.TestCase):
         # forward since she's sending an outgoing HTLC.
         alice_channel.receive_revocation(bobRevocation)
 
+        alice_channel.force_close_tx()
+
         # test serializing with locked_in htlc
         self.assertEqual(len(alice_channel.to_save()['local_log']), 1)
         alice_channel.serialize()
