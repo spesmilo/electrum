@@ -11,7 +11,7 @@ from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
 from electrum.bip32 import (bip32_root, bip32_public_derivation, bip32_private_derivation,
                             xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
                             is_xpub, convert_bip32_path_to_list_of_uint32)
-from electrum.crypto import sha256d, KNOWN_PW_HASH_VERSIONS
+from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum import ecc, crypto, constants
 from electrum.ecc import number_to_string, string_to_number
 from electrum.transaction import opcodes
@@ -219,7 +219,7 @@ class Test_bitcoin(SequentialTestCase):
         """Make sure AES is homomorphic."""
         payload = u'\u66f4\u7a33\u5b9a\u7684\u4ea4\u6613\u5e73\u53f0'
         password = u'secret'
-        for version in KNOWN_PW_HASH_VERSIONS:
+        for version in SUPPORTED_PW_HASH_VERSIONS:
             enc = crypto.pw_encode(payload, password, version=version)
             dec = crypto.pw_decode(enc, password, version=version)
             self.assertEqual(dec, payload)
@@ -228,7 +228,7 @@ class Test_bitcoin(SequentialTestCase):
     def test_aes_encode_without_password(self):
         """When not passed a password, pw_encode is noop on the payload."""
         payload = u'\u66f4\u7a33\u5b9a\u7684\u4ea4\u6613\u5e73\u53f0'
-        for version in KNOWN_PW_HASH_VERSIONS:
+        for version in SUPPORTED_PW_HASH_VERSIONS:
             enc = crypto.pw_encode(payload, None, version=version)
             self.assertEqual(payload, enc)
 
@@ -236,7 +236,7 @@ class Test_bitcoin(SequentialTestCase):
     def test_aes_deencode_without_password(self):
         """When not passed a password, pw_decode is noop on the payload."""
         payload = u'\u66f4\u7a33\u5b9a\u7684\u4ea4\u6613\u5e73\u53f0'
-        for version in KNOWN_PW_HASH_VERSIONS:
+        for version in SUPPORTED_PW_HASH_VERSIONS:
             enc = crypto.pw_decode(payload, None, version=version)
             self.assertEqual(payload, enc)
 
@@ -246,7 +246,7 @@ class Test_bitcoin(SequentialTestCase):
         payload = u"blah"
         password = u"uber secret"
         wrong_password = u"not the password"
-        for version in KNOWN_PW_HASH_VERSIONS:
+        for version in SUPPORTED_PW_HASH_VERSIONS:
             enc = crypto.pw_encode(payload, password, version=version)
             with self.assertRaises(InvalidPassword):
                 crypto.pw_decode(enc, wrong_password, version=version)
