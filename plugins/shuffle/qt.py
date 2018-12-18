@@ -40,7 +40,7 @@ from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash.address import Address
 from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.transaction import Transaction
-from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, ERR_BAD_SERVER_PREFIX, PrintErrorThread, get_name, unfreeze_frozen_by_shuffling
+from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, ERR_BAD_SERVER_PREFIX, MSG_SERVER_OK, PrintErrorThread, get_name, unfreeze_frozen_by_shuffling
 from electroncash_plugins.shuffle.comms import query_server_for_stats
 
 FEE = 300
@@ -244,6 +244,9 @@ def update_coin_status(window, coin_name, msg):
         elif ERR_SERVER_CONNECT in msg:
             new_in_progress = None # flag to remove from progress list
             window.cashshuffle_set_flag(1) # 1 means server connection issue
+        elif MSG_SERVER_OK in msg:
+            new_in_progress = None
+            window.cashshuffle_set_flag(0) # server is ok now.
 
 
 
@@ -258,17 +261,25 @@ class electrum_console_logger(QObject):
 
     gotMessage = pyqtSignal(str, str)
 
-    def __init__(self, parent=None):
-        super(QObject, self).__init__(parent)
-        self.parent = parent
+    def __init__(self, window):
+        super().__init__(None)
+        self.window = window
+        self.gotMessage.connect(self.gotMsgSlot)
 
     def send(self, msg, sender):
         self.gotMessage.emit(msg, sender)
 
+    def gotMsgSlot(self, msg, sender):
+        update_coin_status(self.window, sender, msg)
+
+    def disconnectAll(self):
+        try:
+            self.gotMessage.disconnect()
+        except:
+            pass
 
 def start_background_shuffling(window, network_settings, period = 10.0, password = None, timeout = 60.0):
-    logger = electrum_console_logger()
-    logger.gotMessage.connect(lambda msg, sender: update_coin_status(window, sender, msg))
+    logger = electrum_console_logger(window)
 
     window.background_process = BackgroundShufflingThread(window,
                                                           window.wallet,
@@ -541,6 +552,7 @@ class Plugin(BasePlugin):
         if window.background_process:
             self.print_error("Joining background_process...")
             window.background_process.join()
+            window.background_process.logger.disconnectAll(); window.background_process.logger.deleteLater()
             window.background_process = None
             self.print_error("Window '{}' closed, ended shuffling for its wallet".format(title))
         self.windows.remove(window)
@@ -653,6 +665,8 @@ class Plugin(BasePlugin):
                 network_settings = Plugin.get_network_settings(window.config)
                 if network_settings:
                     bp.join()
+                    # kill the extant console logger as its existence can cause subtle bugs
+                    bp.logger.disconnectAll(); bp.logger.deleteLater(); bp.logger = None
                     network_settings['host'] = network_settings.pop('server')
                     network_settings["network"] = window.network
                     window.background_process = None; del bp

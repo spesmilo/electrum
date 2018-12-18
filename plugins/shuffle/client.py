@@ -16,6 +16,7 @@ from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_ser
 
 ERR_SERVER_CONNECT = "Error: cannot connect to server"
 ERR_BAD_SERVER_PREFIX = "Error: Bad server:"
+MSG_SERVER_OK = "Ok: Server is ok"
 
 def get_name(coin):
     return "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
@@ -306,8 +307,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         try:
             self.print_error("Started")
 
-            if not self.query_server_port(timeout = 5.0 if not self.config.get('proxy') else 12.5):
-                self.logger.send(ERR_SERVER_CONNECT, "MAINLOG")
+            self._do_query_server(timeout = 5.0 if not self.config.get('proxy') else 12.5)
 
             self.logger.send("started", "MAINLOG")
 
@@ -329,8 +329,16 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     def check_server_port_ok(self):
         if not self.stop_flg.is_set() and self.window.cashshuffle_get_flag() == 1:
             # bad server flag is set -- try to rediscover the shuffle port in case it changed
-            if not self.query_server_port(timeout = 2.5 if not self.config.get('proxy') else 7.5):
-                self.logger.send(ERR_SERVER_CONNECT, "MAINLOG")
+            return self._do_query_server(timeout = 2.5 if not self.config.get('proxy') else 7.5)
+
+    def _do_query_server(self, timeout):
+        if not self.query_server_port(timeout = timeout):
+            self.logger.send(ERR_SERVER_CONNECT, "MAINLOG")
+            return False
+        else:
+            self.logger.send(MSG_SERVER_OK, "MAINLOG")
+            return True
+
 
     def check_idle_threads(self):
         if self.stop_flg.is_set():
