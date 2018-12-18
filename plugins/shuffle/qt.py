@@ -924,8 +924,8 @@ class SendTabExtra(QFrame, PrintError):
         if shuf is None or unshuf is None or inprog is None:
             shuf, unshuf, inprog = get_shuffled_and_unshuffled_coin_totals(self.window.wallet)
         amount, n, amountUnshuf, nUnshuf, amountInProg, nInProg = *shuf, *unshuf, *inprog
-        bt = ( "<b>{}</b> {}", _("<b>{}</b> Coins <small>(UTXOs)</small>") ) # bold text template
-        nt = ( "{} {}", _("{} Coins <small>(UTXOs)</small>") ) # normal text template
+        bt = ( "<b>{}</b> {}", ("<b>{}</b> %s <small>(%s)</small>"%(_("Coins"),_("UTXOs"))) ) # bold text template
+        nt = ( "{} {}", ("{} %s <small>(%s)</small>"%(_("Coins"),_("UTXOs"))) ) # normal text template
         mode = self.spendingMode()
         tshuf = bt if mode == self.SpendingModeShuffled else nt # select a template based on mode
         tunshuf = bt if mode == self.SpendingModeUnshuffled else nt # select a template based on mode
