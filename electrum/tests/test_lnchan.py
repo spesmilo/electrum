@@ -82,7 +82,6 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 per_commitment_secret_seed=seed,
                 funding_locked_received=True,
                 was_announced=False,
-                # just a random signature
                 current_commitment_signature=None,
                 current_htlc_signatures=None,
             ),
@@ -134,19 +133,6 @@ def create_test_channels(feerate=6000, local=None, remote=None):
 
     alice.set_state('OPEN')
     bob.set_state('OPEN')
-
-    #old_bob = bob.config[REMOTE]
-    #bob.config[REMOTE] = bob.config[REMOTE]._replace(ctn=bob.config[REMOTE].ctn)
-    #sig_from_bob = bob.sign_next_commitment()[0]
-    #bob.config[REMOTE] = old_bob
-
-    #old_alice = alice.config[REMOTE]
-    #alice.config[REMOTE] = alice.config[REMOTE]._replace(ctn=alice.config[REMOTE].ctn)
-    #sig_from_alice = alice.sign_next_commitment()[0]
-    #alice.config[REMOTE] = old_alice
-
-    #alice.config[LOCAL] = alice.config[LOCAL]._replace(current_commitment_signature=sig_from_bob)
-    #bob.config[LOCAL] = bob.config[LOCAL]._replace(current_commitment_signature=sig_from_alice)
 
     return alice, bob
 
