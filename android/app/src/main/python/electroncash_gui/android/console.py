@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 from code import InteractiveConsole
+import json
 import os
 from os.path import dirname, exists, join
 import unittest
@@ -218,17 +219,26 @@ class AndroidConfig(simple_config.SimpleConfig):
         super().__init__()
 
     def get(self, key, default=None):
-        return self.sp.getAll().get(key) if self.sp.contains(key) else default
+        if self.sp.contains(key):
+            value = self.sp.getAll().get(key)
+            if value == "<json>":
+                json_value = self.sp.getString(key + ".json", None)
+                if json_value is not None:
+                    value = json.loads(json_value)
+            return value
+        else:
+            return default
 
     def set_key(self, key, value, save=None):
         spe = self.sp.edit()
         if value is None:
-            # We can't store null in SharedPreferences, but the default value in `get` means
-            # removing the setting will have the same result.
             spe.remove(key)
+            spe.remove(key + ".json")
         else:
             set_method = SP_SET_METHODS.get(type(value))
-            if not set_method:
-                raise TypeError("Don't know how to set value of type " + type(value).__name__)
-            getattr(spe, set_method)(key, value)
+            if set_method:
+                getattr(spe, set_method)(key, value)
+            else:
+                spe.putString(key, "<json>")
+                spe.putString(key + ".json", json.dumps(value))
         spe.apply()
