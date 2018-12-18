@@ -2004,6 +2004,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             '', # ToolTip will be set in update_cashshuffle code
             self.toggle_cashshuffle
         )
+        self.cashshuffle_toggle_action = QAction("", self.cashshuffle_status_button) # action text will get set in update_cashshuffle_icon()
+        self.cashshuffle_toggle_action.triggered.connect(lambda x=None: self.toggle_cashshuffle())
+        self.cashshuffle_settings_action = QAction("", self.cashshuffle_status_button)
+        self.cashshuffle_settings_action.triggered.connect(lambda x=None: self.show_cashshuffle_settings())
+        self.cashshuffle_status_button.addAction(self.cashshuffle_toggle_action)
+        sep = QAction(self.cashshuffle_status_button); sep.setSeparator(True)
+        self.cashshuffle_status_button.addAction(sep)
+        self.cashshuffle_status_button.addAction(self.cashshuffle_settings_action)
+        self.cashshuffle_status_button.setContextMenuPolicy(Qt.ActionsContextMenu)
+
         sb.addPermanentWidget(self.cashshuffle_status_button)
 
         self.addr_converter_button = StatusBarButton(
@@ -2742,9 +2752,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         for window in self.gui_object.windows:
             window.cashaddr_toggled_signal.emit()
 
+    def cashshuffle_plugin_if_loaded(self):
+        return self.gui_object.plugins.get_internal_plugin("shuffle", force_load = False)
 
     def is_cashshuffle_enabled(self):
-        plugin = self.gui_object.plugins.find_plugin("shuffle")
+        plugin = self.cashshuffle_plugin_if_loaded()
         return bool(plugin and plugin.is_enabled() and plugin.window_has_cashshuffle(self))
     
     def cashshuffle_icon(self):
@@ -2759,24 +2771,34 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def update_cashshuffle_icon(self):
         self.cashshuffle_status_button.setIcon(self.cashshuffle_icon())
+        loaded = bool(self.cashshuffle_plugin_if_loaded())
+        en = self.is_cashshuffle_enabled()
         if self._cash_shuffle_flag == 0:
-            b = self.is_cashshuffle_enabled()
-            self.cashshuffle_status_button.setStatusTip(_("CashShuffle {}").format(_("ENABLED") if b else _("disabled")))
-            self.cashshuffle_status_button.setToolTip(_("Toggle CashShuffle On or Off"))
+            self.cashshuffle_status_button.setStatusTip(_("CashShuffle ENABLED") if en else _("CashShuffle disabled"))
+            self.cashshuffle_status_button.setToolTip(_("Toggle CashShuffle on/off, right-click for context menu"))
+            self.cashshuffle_toggle_action.setText(_("Enable CashShuffle") if not en else _("Disable CashShuffle"))
+            self.cashshuffle_settings_action.setText(_("CashShuffle Settings..."))
         elif self._cash_shuffle_flag == 1: # Network server error
             self.cashshuffle_status_button.setStatusTip(_('CashShuffle Error: Could not connect to server'))
-            self.cashshuffle_status_button.setToolTip(_('Click to select a different CashShuffle server'))
+            self.cashshuffle_status_button.setToolTip(_('Right-click to select a different CashShuffle server'))
+            self.cashshuffle_settings_action.setText(_("Resolve Server Problem..."))
+        self.cashshuffle_settings_action.setVisible(en or loaded)
+
+    def show_cashshuffle_settings(self):
+        p = self.cashshuffle_plugin_if_loaded()
+        if p:
+            msg = None
+            if self._cash_shuffle_flag == 1:
+                # had error
+                msg = _("There was a problem connecting to this server.\nPlease choose a different CashShuffle server.")
+            p.settings_dialog(self, msg)
 
     def toggle_cashshuffle(self):
         if not self.is_wallet_cashshuffle_compatible():
             self.show_warning(_("This wallet type cannot be used with CashShuffle."), parent=self)
             return
         plugins = self.gui_object.plugins
-        p0 = plugins.get_internal_plugin("shuffle", force_load=False)
-        if p0 and self._cash_shuffle_flag == 1:
-            # short-cut -- had error -- bring up settings window
-            p0.settings_dialog(self, _("There was a problem connecting to this server.\nPlease choose a different CashShuffle server."))
-            return
+        p0 = self.cashshuffle_plugin_if_loaded()
         p = p0 or plugins.enable_internal_plugin("shuffle")
         if not p:
             raise RuntimeError("Could not find CashShuffle plugin")
@@ -3359,7 +3381,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_cash_shuffle_reminder(self):
         if not self.wallet or not self.is_wallet_cashshuffle_compatible():
             return
-        p = self.gui_object.plugins.find_plugin("shuffle")
+        p = self.cashshuffle_plugin_if_loaded()
         cashshuffle_flag = self.wallet.storage.get("cashshuffle_enabled", False)
         enabled = cashshuffle_flag and p and p.is_enabled()
         noprompt = self.config.get('shuffle_noprompt2', False)
@@ -3400,12 +3422,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.raise_()
             # NB: we need to make this question a top-level window, hence we don't use self.question() which has issues/bugs on Mac
             if self.question("{}{}".format(msg + "\n\n" if msg else "", _("Restart the CashShuffle plugin now?"))):
-                p = self.gui_object.plugins.find_plugin("shuffle")
+                p = self.cashshuffle_plugin_if_loaded()
                 if p:
                     p.restart_all()
-                    self.statusBar().showMessage(_("CashShuffle restarted"), 2500)
+                    self.notify(_("CashShuffle restarted"))
                 else:
-                    self.statusBar().showMessage(_("CashShuffle could not be restarted"), 2500)
+                    self.notify(_("CashShuffle could not be restarted"))
         if self._restart_timer:
             self._restart_timer.stop()
             self._restart_timer.deleteLater()

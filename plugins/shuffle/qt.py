@@ -672,6 +672,11 @@ class Plugin(BasePlugin):
                     window.background_process = None; del bp
                     start_background_shuffling(window, network_settings, password=password)
                     window.print_error("CashShuffle restarted for wallet")
+                    nd = Plugin.network_dialog
+                    # force network settings tab to also refresh itself on restart to keep it in synch with other possible settings dialogs
+                    if nd:
+                        st = getattr(nd, "__shuffle_settings__", None)
+                        if st: st.refreshFromSettings()
                 else:
                     window.print_error("ERROR: could not load network settings, FIXME!")
             else:
@@ -725,8 +730,6 @@ class Plugin(BasePlugin):
                 window = gui.windows[-1]
             # NB: if no window at this point, settings will take effect next time CashShuffle is enabled for a window
             if window:
-                if Plugin.network_dialog and Plugin.network_dialog.isVisible():
-                    Plugin.network_dialog.close() # Close the network dialog to prevent confusion and visual glitches as plugin reloads.
                 # window will raise itself.
                 window.restart_cashshuffle(msg = _("CashShuffle must be restarted for the server change to take effect."))
 
