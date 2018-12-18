@@ -147,7 +147,7 @@ class Channel(PrintError):
         except:
             return super().diagnostic_name()
 
-    def __init__(self, state, sweep_address = None, name = None, payment_completed : Optional[Callable[[HTLCOwner, UpdateAddHtlc, bytes], None]] = None):
+    def __init__(self, state, sweep_address = None, name = None, payment_completed : Optional[Callable[[HTLCOwner, UpdateAddHtlc, bytes], None]] = None, local_commitment = None):
         self.preimages = {}
         if not payment_completed:
             payment_completed = lambda this, x, y, z: None
@@ -205,13 +205,20 @@ class Channel(PrintError):
         for sub in (LOCAL, REMOTE):
             self.log[sub].locked_in.update(self.log[sub].adds.keys())
 
-        self.set_local_commitment(self.current_commitment(LOCAL))
+        if local_commitment:
+            local_commitment = Transaction(str(local_commitment))
+            local_commitment.deserialize(True)
+            self.set_local_commitment(local_commitment)
+        else:
+            self.set_local_commitment(self.current_commitment(LOCAL))
         self.set_remote_commitment(self.current_commitment(REMOTE))
 
     def set_local_commitment(self, ctx):
         self.local_commitment = ctx
         if self.sweep_address is not None:
             self.local_sweeptxs = create_sweeptxs_for_our_latest_ctx(self, self.local_commitment, self.sweep_address)
+
+        self.assert_signature_fits(ctx)
 
     def set_remote_commitment(self, ctx):
         self.remote_commitment = ctx
@@ -449,7 +456,9 @@ class Channel(PrintError):
             feerate=new_feerate
         )
 
-        self.set_local_commitment(self.pending_commitment(LOCAL))
+        # since we should not revoke our latest commitment tx,
+        # we do not update self.local_commitment here,
+        # it should instead be updated when we receive a new sig
 
         return RevokeAndAck(last_secret, next_point), "current htlcs"
 
@@ -541,7 +550,6 @@ class Channel(PrintError):
             if self.constraints.is_initiator:
                 self.pending_fee[FUNDEE_ACKED] = True
 
-        self.set_local_commitment(self.pending_commitment(LOCAL))
         self.set_remote_commitment(self.pending_commitment(REMOTE))
         self.remote_commitment_to_be_revoked = prev_remote_commitment
         return received_this_batch, sent_this_batch
@@ -773,7 +781,7 @@ class Channel(PrintError):
                 serialized_channel[k] = v
         dumped = ChannelJsonEncoder().encode(serialized_channel)
         roundtripped = json.loads(dumped)
-        reconstructed = Channel(roundtripped)
+        reconstructed = Channel(roundtripped, local_commitment=self.local_commitment)
         to_save_new = reconstructed.to_save()
         if to_save_new != to_save_ref:
             from pprint import PrettyPrinter
@@ -864,19 +872,26 @@ class Channel(PrintError):
         sig = ecc.sig_string_from_der_sig(der_sig[:-1])
         return sig, closing_tx
 
+    def assert_signature_fits(self, tx):
+        remote_sig = self.config[LOCAL].current_commitment_signature
+        if remote_sig: # only None in test
+            preimage_hex = tx.serialize_preimage(0)
+            pre_hash = sha256d(bfh(preimage_hex))
+            assert ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, remote_sig, pre_hash)
+
     def force_close_tx(self):
-        tx = self.current_commitment(LOCAL)
+        tx = self.local_commitment
+        tx = Transaction(str(tx))
+        tx.deserialize(True)
+        self.assert_signature_fits(tx)
         tx.sign({bh2u(self.config[LOCAL].multisig_key.pubkey): (self.config[LOCAL].multisig_key.privkey, True)})
         remote_sig = self.config[LOCAL].current_commitment_signature
-
-        preimage_hex = tx.serialize_preimage(0)
-        pre_hash = sha256d(bfh(preimage_hex))
-        assert ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, remote_sig, pre_hash)
-
-        remote_sig = ecc.der_sig_from_sig_string(remote_sig) + b"\x01"
-        none_idx = tx._inputs[0]["signatures"].index(None)
-        tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
-        assert tx.is_complete()
+        if remote_sig: # only None in test
+            remote_sig = ecc.der_sig_from_sig_string(remote_sig) + b"\x01"
+            sigs = tx._inputs[0]["signatures"]
+            none_idx = sigs.index(None)
+            tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
+            assert tx.is_complete()
         return tx
 
     def included_htlcs_in_their_latest_ctxs(self, htlc_initiator) -> Dict[int, List[UpdateAddHtlc]]:
