@@ -658,15 +658,22 @@ def rate_limited(rate):
             n = func.__name__
             n_last = "__{}__last_ts__rate_limited".format(n) # last ts, stored as attribute of object
             n_timer = "__{}__timer__rate_limited".format(n) # QTimer, stored as attribute of object
+            n_updated_args = "__{}__saved_args__rate_limited".format(n) # store args,kwargs in a tuple
             if not hasattr(slf, n_last): setattr(slf, n_last, 0.0)
             if not hasattr(slf, n_timer): setattr(slf, n_timer, None)
+            setattr(slf, n_updated_args, (args,kwargs)) # since we're collating, save latest invocation's args
+            #print(n,"args_saved",args,"kwarg_saved",kwargs)
             def doIt():
                 setattr(slf, n_last, time.time())
                 t = getattr(slf, n_timer)
                 if t:
                     t.stop(); t.deleteLater(); setattr(slf, n_timer, None); del t
                 #print(n,"calling!")
-                func(*args, **kwargs)
+                tup = getattr(slf, n_updated_args)
+                args_updated, kwargs_updated = tup
+                #print(n,"args_actually_used",args_updated,"kwarg_actually_used",kwargs_updated)
+                func(*args_updated, **kwargs_updated) # use latest invocation's args
+                setattr(slf, n_updated_args, (tuple(),dict())) # clear saved args
             now = time.time()
             diff = float(rate) - (now - getattr(slf, n_last))
             if not getattr(slf, n_timer):
@@ -676,6 +683,7 @@ def rate_limited(rate):
                 else:
                     t = QTimer(slf if isinstance(slf, QObject) else None)
                     t.timeout.connect(doIt)
+                    #t.destroyed.connect(lambda x=None: print(n,"Timer deallocated"))
                     t.setSingleShot(True)
                     t.start(diff*1e3)
                     setattr(slf, n_timer, t)
