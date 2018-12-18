@@ -83,7 +83,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 funding_locked_received=True,
                 was_announced=False,
                 # just a random signature
-                current_commitment_signature=sig_string_from_der_sig(bytes.fromhex('3046022100c66e112e22b91b96b795a6dd5f4b004f3acccd9a2a31bf104840f256855b7aa3022100e711b868b62d87c7edd95a2370e496b9cb6a38aff13c9f64f9ff2f3b2a0052dd')),
+                current_commitment_signature=None,
                 current_htlc_signatures=None,
             ),
             "constraints":lnbase.ChannelConstraints(
@@ -134,6 +134,20 @@ def create_test_channels(feerate=6000, local=None, remote=None):
 
     alice.set_state('OPEN')
     bob.set_state('OPEN')
+
+    #old_bob = bob.config[REMOTE]
+    #bob.config[REMOTE] = bob.config[REMOTE]._replace(ctn=bob.config[REMOTE].ctn)
+    #sig_from_bob = bob.sign_next_commitment()[0]
+    #bob.config[REMOTE] = old_bob
+
+    #old_alice = alice.config[REMOTE]
+    #alice.config[REMOTE] = alice.config[REMOTE]._replace(ctn=alice.config[REMOTE].ctn)
+    #sig_from_alice = alice.sign_next_commitment()[0]
+    #alice.config[REMOTE] = old_alice
+
+    #alice.config[LOCAL] = alice.config[LOCAL]._replace(current_commitment_signature=sig_from_bob)
+    #bob.config[LOCAL] = bob.config[LOCAL]._replace(current_commitment_signature=sig_from_alice)
+
     return alice, bob
 
 class TestFee(unittest.TestCase):
@@ -204,6 +218,9 @@ class TestChannel(unittest.TestCase):
         self.assertEqual({0: [], 1: []}, alice_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
         self.assertEqual({0: [], 1: []}, bob_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
 
+        # this wouldn't work since we put None in the remote_sig
+        # alice_channel.force_close_tx()
+
         # Next alice commits this change by sending a signature message. Since
         # we expect the messages to be ordered, Bob will receive the HTLC we
         # just sent before he receives this signature, so the signature will
@@ -237,8 +254,6 @@ class TestChannel(unittest.TestCase):
         # forward since she's sending an outgoing HTLC.
         alice_channel.receive_revocation(bobRevocation)
 
-        alice_channel.force_close_tx()
-
         # test serializing with locked_in htlc
         self.assertEqual(len(alice_channel.to_save()['local_log']), 1)
         alice_channel.serialize()
@@ -248,8 +263,14 @@ class TestChannel(unittest.TestCase):
         # the point where she sent her signature, including the HTLC.
         alice_channel.receive_new_commitment(bobSig, bobHtlcSigs)
 
+        tx1 = str(alice_channel.force_close_tx())
+
         # Alice then generates a revocation for bob.
         aliceRevocation, _ = alice_channel.revoke_current_commitment()
+
+        tx2 = str(alice_channel.force_close_tx())
+        # since alice already has the signature for the next one, it doesn't change her force close tx (it was already the newer one)
+        self.assertEqual(tx1, tx2)
 
         # Finally Bob processes Alice's revocation, at this point the new HTLC
         # is fully locked in within both commitment transactions. Bob should
@@ -284,6 +305,10 @@ class TestChannel(unittest.TestCase):
 
         alice_channel.receive_htlc_settle(preimage, self.aliceHtlcIndex)
 
+        tx3 = str(alice_channel.force_close_tx())
+        # just settling a htlc does not change her force close tx
+        self.assertEqual(tx2, tx3)
+
         bobSig2, bobHtlcSigs2 = bob_channel.sign_next_commitment()
 
         self.assertEqual({1: [htlc], 2: []}, alice_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
@@ -292,6 +317,9 @@ class TestChannel(unittest.TestCase):
         self.assertEqual({1: [], 2: []}, bob_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
 
         alice_channel.receive_new_commitment(bobSig2, bobHtlcSigs2)
+
+        tx4 = str(alice_channel.force_close_tx())
+        self.assertNotEqual(tx3, tx4)
 
         aliceRevocation2, _ = alice_channel.revoke_current_commitment()
         aliceSig2, aliceHtlcSigs2 = alice_channel.sign_next_commitment()
@@ -326,7 +354,15 @@ class TestChannel(unittest.TestCase):
 
         alice_channel.update_fee(100000, True)
         bob_channel.update_fee(100000, False)
+
+        tx5 = str(alice_channel.force_close_tx())
+        # sending a fee update does not change her force close tx
+        self.assertEqual(tx4, tx5)
+
         force_state_transition(alice_channel, bob_channel)
+
+        tx6 = str(alice_channel.force_close_tx())
+        self.assertNotEqual(tx5, tx6)
 
         self.htlc_dict['amount_msat'] *= 5
         bob_index = bob_channel.add_htlc(self.htlc_dict)
