@@ -147,7 +147,7 @@ class Channel(PrintError):
         except:
             return super().diagnostic_name()
 
-    def __init__(self, state, sweep_address = None, name = None, payment_completed : Optional[Callable[[HTLCOwner, UpdateAddHtlc, bytes], None]] = None, local_commitment = None):
+    def __init__(self, state, sweep_address = None, name = None, payment_completed : Optional[Callable[[HTLCOwner, UpdateAddHtlc, bytes], None]] = None):
         self.preimages = {}
         if not payment_completed:
             payment_completed = lambda this, x, y, z: None
@@ -205,12 +205,7 @@ class Channel(PrintError):
         for sub in (LOCAL, REMOTE):
             self.log[sub].locked_in.update(self.log[sub].adds.keys())
 
-        if local_commitment:
-            local_commitment = Transaction(str(local_commitment))
-            local_commitment.deserialize(True)
-            self.set_local_commitment(local_commitment)
-        else:
-            self.set_local_commitment(self.current_commitment(LOCAL))
+        self.set_local_commitment(self.current_commitment(LOCAL))
         self.set_remote_commitment(self.current_commitment(REMOTE))
 
     def set_local_commitment(self, ctx):
@@ -781,7 +776,7 @@ class Channel(PrintError):
                 serialized_channel[k] = v
         dumped = ChannelJsonEncoder().encode(serialized_channel)
         roundtripped = json.loads(dumped)
-        reconstructed = Channel(roundtripped, local_commitment=self.local_commitment)
+        reconstructed = Channel(roundtripped)
         to_save_new = reconstructed.to_save()
         if to_save_new != to_save_ref:
             from pprint import PrettyPrinter
@@ -877,7 +872,8 @@ class Channel(PrintError):
         if remote_sig: # only None in test
             preimage_hex = tx.serialize_preimage(0)
             pre_hash = sha256d(bfh(preimage_hex))
-            assert ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, remote_sig, pre_hash)
+            if not ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, remote_sig, pre_hash):
+                self.print_error("WARNING: commitment signature inconsistency, cannot force close")
 
     def force_close_tx(self):
         tx = self.local_commitment
