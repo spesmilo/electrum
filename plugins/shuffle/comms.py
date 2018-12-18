@@ -137,7 +137,10 @@ def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout = No
         # with user:password@ being omitted if no user/password.
         if proxy.get('user') and proxy.get('password'):
             pre = '{}:{}@'.format(proxy.get('user'), proxy.get('password'))
-        socks = '{}://{}{}:{}'.format(proxy.get('mode'), pre, proxy.get('host'), proxy.get('port'))
+        mode = proxy.get('mode')
+        if mode and mode.lower() == "socks5":
+            mode += 'h' # socks5 with hostname resolution on the server side so it works with tor
+        socks = '{}://{}{}:{}'.format(mode, pre, proxy.get('host'), proxy.get('port'))
         proxy = { # transform it to requests format
             'http' : socks,
             'https' : socks
