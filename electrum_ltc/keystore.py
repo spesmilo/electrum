@@ -35,7 +35,8 @@ from .bip32 import (bip32_public_derivation, deserialize_xpub, CKD_pub,
                     bip32_private_key, bip32_derivation, BIP32_PRIME,
                     is_xpub, is_xprv)
 from .ecc import string_to_number, number_to_string
-from .crypto import (pw_decode, pw_encode, sha256d, PW_HASH_VERSION_LATEST)
+from .crypto import (pw_decode, pw_encode, sha256d, PW_HASH_VERSION_LATEST,
+                     SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion)
 from .util import (PrintError, InvalidPassword, hfu, WalletFileException,
                    BitcoinException, bh2u, bfh, print_error, inv_dict)
 from .mnemonic import Mnemonic, load_wordlist
@@ -95,6 +96,8 @@ class Software_KeyStore(KeyStore):
     def __init__(self, d):
         KeyStore.__init__(self)
         self.pw_hash_version = d.get('pw_hash_version', 1)
+        if self.pw_hash_version not in SUPPORTED_PW_HASH_VERSIONS:
+            raise UnsupportedPasswordHashVersion(self.pw_hash_version)
 
     def may_have_password(self):
         return not self.is_watching_only()

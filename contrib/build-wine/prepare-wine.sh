@@ -13,7 +13,7 @@ LIBUSB_FILENAME=libusb-1.0.22.7z
 LIBUSB_URL=https://prdownloads.sourceforge.net/project/libusb/libusb-1.0/libusb-1.0.22/$LIBUSB_FILENAME?download
 LIBUSB_SHA256=671f1a420757b4480e7fadc8313d6fb3cbb75ca00934c417c1efa6e77fb8779b
 
-PYTHON_VERSION=3.6.6
+PYTHON_VERSION=3.6.7
 
 ## These settings probably don't need change
 export WINEPREFIX=/opt/wine64

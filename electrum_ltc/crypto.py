@@ -31,7 +31,7 @@ from typing import Union
 
 import pyaes
 
-from .util import assert_bytes, InvalidPassword, to_bytes, to_string
+from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException
 from .i18n import _
 
 
@@ -116,33 +116,42 @@ def DecodeAES_bytes(secret: bytes, ciphertext: bytes) -> bytes:
     return s
 
 
-PW_HASH_VERSION_LATEST = 2
-KNOWN_PW_HASH_VERSIONS = (1, 2)
+PW_HASH_VERSION_LATEST = 1
+KNOWN_PW_HASH_VERSIONS = (1, 2, )
+SUPPORTED_PW_HASH_VERSIONS = (1, )
 assert PW_HASH_VERSION_LATEST in KNOWN_PW_HASH_VERSIONS
+assert PW_HASH_VERSION_LATEST in SUPPORTED_PW_HASH_VERSIONS
 
 
-class UnexpectedPasswordHashVersion(InvalidPassword):
+class UnexpectedPasswordHashVersion(InvalidPassword, WalletFileException):
     def __init__(self, version):
         self.version = version
 
     def __str__(self):
-        return "{unexpected}: {version}\n{please_update}".format(
+        return "{unexpected}: {version}\n{instruction}".format(
             unexpected=_("Unexpected password hash version"),
             version=self.version,
-            please_update=_('You are most likely using an outdated version of Electrum. Please update.'))
+            instruction=_('You are most likely using an outdated version of Electrum. Please update.'))
 
 
-def _hash_password(password: Union[bytes, str], *, version: int, salt: bytes) -> bytes:
+class UnsupportedPasswordHashVersion(InvalidPassword, WalletFileException):
+    def __init__(self, version):
+        self.version = version
+
+    def __str__(self):
+        return "{unsupported}: {version}\n{instruction}".format(
+            unsupported=_("Unsupported password hash version"),
+            version=self.version,
+            instruction=f"To open this wallet, try 'git checkout password_v{self.version}'.\n"
+                        "Alternatively, restore from seed.")
+
+
+def _hash_password(password: Union[bytes, str], *, version: int) -> bytes:
     pw = to_bytes(password, 'utf8')
+    if version not in SUPPORTED_PW_HASH_VERSIONS:
+        raise UnsupportedPasswordHashVersion(version)
     if version == 1:
         return sha256d(pw)
-    elif version == 2:
-        if not isinstance(salt, bytes) or len(salt) < 16:
-            raise Exception('too weak salt', salt)
-        return hashlib.pbkdf2_hmac(hash_name='sha256',
-                                   password=pw,
-                                   salt=b'ELECTRUM_PW_HASH_V2'+salt,
-                                   iterations=50_000)
     else:
         assert version not in KNOWN_PW_HASH_VERSIONS
         raise UnexpectedPasswordHashVersion(version)
@@ -154,17 +163,9 @@ def pw_encode(data: str, password: Union[bytes, str, None], *, version: int) -> 
     if version not in KNOWN_PW_HASH_VERSIONS:
         raise UnexpectedPasswordHashVersion(version)
     # derive key from password
-    if version == 1:
-        salt = b''
-    elif version == 2:
-        salt = bytes(os.urandom(16))
-    else:
-        assert False, version
-    secret = _hash_password(password, version=version, salt=salt)
+    secret = _hash_password(password, version=version)
     # encrypt given data
-    e = EncodeAES_bytes(secret, to_bytes(data, "utf8"))
-    # return base64(salt + encrypted data)
-    ciphertext = salt + e
+    ciphertext = EncodeAES_bytes(secret, to_bytes(data, "utf8"))
     ciphertext_b64 = base64.b64encode(ciphertext)
     return ciphertext_b64.decode('utf8')
 
@@ -176,13 +177,7 @@ def pw_decode(data: str, password: Union[bytes, str, None], *, version: int) -> 
         raise UnexpectedPasswordHashVersion(version)
     data_bytes = bytes(base64.b64decode(data))
     # derive key from password
-    if version == 1:
-        salt = b''
-    elif version == 2:
-        salt, data_bytes = data_bytes[:16], data_bytes[16:]
-    else:
-        assert False, version
-    secret = _hash_password(password, version=version, salt=salt)
+    secret = _hash_password(password, version=version)
     # decrypt given data
     try:
         d = to_string(DecodeAES_bytes(secret, data_bytes), "utf8")
