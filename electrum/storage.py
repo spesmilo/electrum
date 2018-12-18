@@ -575,6 +575,11 @@ class WalletStorage(JsonDB):
         self.put('verified_tx3', None)
         self.put('seed_version', 18)
 
+    # def convert_version_19(self):
+    #     TODO for "next" upgrade:
+    #       - move "pw_hash_version" from keystore to storage
+    #     pass
+
     def convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
             return

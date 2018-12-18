@@ -31,7 +31,7 @@ from typing import Union
 
 import pyaes
 
-from .util import assert_bytes, InvalidPassword, to_bytes, to_string
+from .util import assert_bytes, InvalidPassword, to_bytes, to_string, WalletFileException
 from .i18n import _
 
 
@@ -123,7 +123,7 @@ assert PW_HASH_VERSION_LATEST in KNOWN_PW_HASH_VERSIONS
 assert PW_HASH_VERSION_LATEST in SUPPORTED_PW_HASH_VERSIONS
 
 
-class UnexpectedPasswordHashVersion(InvalidPassword):
+class UnexpectedPasswordHashVersion(InvalidPassword, WalletFileException):
     def __init__(self, version):
         self.version = version
 
@@ -134,7 +134,7 @@ class UnexpectedPasswordHashVersion(InvalidPassword):
             instruction=_('You are most likely using an outdated version of Electrum. Please update.'))
 
 
-class UnsupportedPasswordHashVersion(InvalidPassword):
+class UnsupportedPasswordHashVersion(InvalidPassword, WalletFileException):
     def __init__(self, version):
         self.version = version
 
