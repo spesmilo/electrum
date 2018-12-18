@@ -1,0 +1,57 @@
+#!/usr/bin/python3
+import re
+import os
+import sys
+
+from electrum.version import ELECTRUM_VERSION, APK_VERSION
+print("version", ELECTRUM_VERSION)
+
+dirname = sys.argv[1]
+print("directory", dirname)
+
+download_page = os.path.join(dirname, "panel-download.html")
+download_template = download_page + ".template"
+
+with open(download_template) as f:
+    string = f.read()
+
+version = version_win = version_mac = version_android = ELECTRUM_VERSION
+string = string.replace("##VERSION##", version)
+string = string.replace("##VERSION_WIN##", version_win)
+string = string.replace("##VERSION_MAC##", version_mac)
+string = string.replace("##VERSION_ANDROID##", version_android)
+string = string.replace("##VERSION_APK##", APK_VERSION)
+
+files = {
+    'tgz': "Electrum-%s.tar.gz" % version,
+    'zip': "Electrum-%s.zip" % version,
+    'mac': "electrum-%s.dmg" % version_mac,
+    'win': "electrum-%s.exe" % version_win,
+    'win_setup': "electrum-%s-setup.exe" % version_win,
+    'win_portable': "electrum-%s-portable.exe" % version_win,
+}
+
+for k, n in files.items():
+    path = "dist/%s"%n
+    link = "https://download.electrum.org/%s/%s"%(version,n)
+    if not os.path.exists(path):
+        os.system("wget -q %s -O %s" % (link, path))
+    if not os.path.getsize(path):
+        os.unlink(path)
+        string = re.sub("<div id=\"%s\">(.*?)</div>"%k, '', string, flags=re.DOTALL + re.MULTILINE)
+        continue
+    sigpath = path + '.asc'
+    siglink = link + '.asc'
+    if not os.path.exists(sigpath):
+        os.system("wget -q %s -O %s" % (siglink, sigpath))
+    if not os.path.getsize(sigpath):
+        os.unlink(sigpath)
+        string = re.sub("<div id=\"%s\">(.*?)</div>"%k, '', string, flags=re.DOTALL + re.MULTILINE)
+        continue
+    if os.system("gpg --verify %s"%sigpath) != 0:
+        raise Exception(sigpath)
+    string = string.replace("##link_%s##"%k, link)
+
+
+with open(download_page,'w') as f:
+    f.write(string)

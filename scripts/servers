@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+
+from electrum import set_verbosity
+from electrum.network import filter_version
+import util, json
+set_verbosity(False)
+
+servers = filter_version(util.get_peers())
+print(json.dumps(servers, sort_keys = True, indent = 4))

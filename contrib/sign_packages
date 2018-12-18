@@ -1,0 +1,18 @@
+#!/usr/bin/python2
+
+import os
+import getpass
+
+if __name__ == '__main__':
+
+    os.chdir("dist")
+    password = getpass.getpass("Password:")
+    for f in os.listdir('.'):
+        if f.endswith('asc'):
+            continue
+        os.system( "gpg --sign --armor --detach --passphrase \"%s\" %s"%(password, f) )
+
+    os.chdir("..")
+
+
+

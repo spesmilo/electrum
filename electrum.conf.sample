@@ -1,0 +1,16 @@
+# Configuration file for the Electrum client
+# Settings defined here are shared across wallets
+#
+# copy this file to /etc/electrum.conf if you want read-only settings
+
+[client]
+server = electrum.novit.ro:50001:t
+proxy = None
+gap_limit = 5
+# booleans use python syntax
+use_change = True
+gui = qt
+num_zeros = 2
+# default transaction fee is in Satoshis
+fee = 10000
+winpos-qt = [799, 226, 877, 435]

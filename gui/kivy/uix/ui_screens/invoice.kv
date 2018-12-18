@@ -1,0 +1,89 @@
+#:import Decimal decimal.Decimal
+
+
+
+Popup:
+    id: popup
+    is_invoice: True
+    amount: 0
+    requestor: ''
+    exp: ''
+    description: ''
+    status: ''
+    signature: ''
+    isaddr: ''
+    fund: 0
+    pk: ''
+    title: _('Invoice') if popup.is_invoice else _('Request')
+    tx_hash: ''
+    BoxLayout:
+        orientation: 'vertical'
+        ScrollView:
+            GridLayout:
+                cols: 1
+                height: self.minimum_height
+                size_hint_y: None
+                padding: '10dp'
+                spacing: '10dp'
+                GridLayout:
+                    cols: 1
+                    size_hint_y: None
+                    height: self.minimum_height
+                    spacing: '10dp'
+                    BoxLabel:
+                        text: (_('Status') if popup.amount or popup.is_invoice or popup.isaddr == 'y' else _('Amount received')) if root.status else ''
+                        value: root.status
+                    BoxLabel:
+                        text: _('Request amount') if root.amount else ''
+                        value: app.format_amount_and_units(root.amount) if root.amount else ''
+                    BoxLabel:
+                        text: _('Requestor') if popup.is_invoice else _('Address')
+                        value: root.requestor
+                    BoxLabel:
+                        text: _('Signature') if root.signature else ''
+                        value: root.signature
+                    BoxLabel:
+                        text: _('Expiration') if root.exp else ''
+                        value: root.exp
+                    BoxLabel:
+                        text: _('Description') if root.description else ''
+                        value: root.description
+                    BoxLabel:
+                        text: _('Balance') if popup.fund else ''
+                        value: app.format_amount_and_units(root.fund) if root.fund else ''
+                    TopLabel:
+                        text: _('Private Key') 
+                    RefLabel:
+                        id: pk_label
+                        touched: True if not self.touched else True
+                        data: root.pk
+
+                TopLabel:
+                    text: _('Outputs') if popup.is_invoice else ''
+                OutputList:
+                    id: output_list
+                TopLabel:
+                    text: _('Transaction ID') if popup.tx_hash else ''
+                TxHashLabel:
+                    data: popup.tx_hash
+                    name: _('Transaction ID')
+        Widget:
+            size_hint: 1, 0.1
+
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Widget:
+                size_hint: 0.5, None
+                height: '48dp'
+            Button:
+                size_hint: 2, None
+                height: '48dp'
+                text: _('Close')
+                on_release: popup.dismiss()
+            Button:
+                size_hint: 2, None
+                height: '48dp'
+                text: _('Hide private key') if pk_label.data else _('Export private key')
+                on_release:
+                    setattr(pk_label, 'data', '') if pk_label.data else popup.export(pk_label, popup.requestor)

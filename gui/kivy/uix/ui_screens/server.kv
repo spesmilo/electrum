@@ -1,0 +1,63 @@
+Popup:
+    id: nd
+    title: _('Server')
+    BoxLayout:
+        orientation: 'vertical'
+        padding: '10dp'
+        spacing: '10dp'
+        TopLabel:
+            text: _("Electrum requests your transaction history from a single server. The returned history is checked against blockchain headers sent by other nodes, using Simple Payment Verification (SPV).")
+            font_size: '6pt'
+        Widget:
+            size_hint: 1, 0.8
+        GridLayout:
+            cols: 2
+            Label:
+                height: '36dp'
+                size_hint_x: 1
+                size_hint_y: None
+                text: _('Host') + ':'
+            TextInput:
+                id: host
+                multiline: False
+                height: '36dp'
+                size_hint_x: 3
+                size_hint_y: None
+                text: app.server_host
+            Label:
+                height: '36dp'
+                size_hint_x: 1
+                size_hint_y: None
+                text: _('Port') + ':'
+            TextInput:
+                id: port
+                multiline: False
+                input_type: 'number'
+                height: '36dp'
+                size_hint_x: 3
+                size_hint_y: None
+                text: app.server_port
+            Widget
+            Button:
+                id: chooser
+                text: _('Choose from peers')
+                height: '36dp'
+                size_hint_x: 0.5
+                size_hint_y: None
+                on_release:
+                    app.choose_server_dialog(root)
+        Widget:
+            size_hint: 1, 0.1
+        BoxLayout:
+            Widget:
+                size_hint: 0.5, None
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('OK')
+                on_release:
+                    host, port, protocol, proxy, auto_connect = app.network.get_parameters()
+                    host = str(root.ids.host.text)
+                    port = str(root.ids.port.text)
+                    app.network.set_parameters(host, port, protocol, proxy, auto_connect)
+                    nd.dismiss()

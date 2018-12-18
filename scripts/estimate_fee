@@ -1,0 +1,5 @@
+#!/usr/bin/env python
+import util, json
+peers = util.get_peers()
+results = util.send_request(peers, 'blockchain.estimatefee', [2])
+print(json.dumps(results, indent=4))

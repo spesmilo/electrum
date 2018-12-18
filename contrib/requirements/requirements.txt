@@ -1,0 +1,10 @@
+pyaes>=0.1a1
+ecdsa>=0.9
+pbkdf2
+requests
+qrcode
+protobuf
+dnspython
+jsonrpclib-pelix
+PySocks>=1.6.6
+qdarkstyle<3.0

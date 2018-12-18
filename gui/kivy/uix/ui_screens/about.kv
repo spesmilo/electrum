@@ -1,0 +1,55 @@
+#:import VERSION electrum.version.ELECTRUM_VERSION
+
+Popup:
+    title: _("About Electrum")
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: '10dp'
+        padding: '10dp'
+        GridLayout:
+            cols: 2
+            spacing: '10dp'
+            TopLabel:
+                text: _('Version')
+                size_hint_x: 0.4
+            TopLabel:
+                text: VERSION
+                size_hint_x: 0.6
+            TopLabel:
+                text: _('Licence')
+                size_hint_x: 0.4
+            TopLabel:
+                text: "MIT Licence"
+                size_hint_x: 0.6
+            TopLabel:
+                text: _('Homepage')
+                size_hint_x: 0.4
+            TopLabel:
+                markup: True
+                text: '[color=6666ff][ref=x]https://electrum.org[/ref][/color]'
+                on_ref_press:
+                    import webbrowser
+                    webbrowser.open("https://electrum.org")
+                size_hint_x: 0.6
+            TopLabel:
+                text: _('Developers')
+                size_hint_x: 0.4
+            TopLabel:
+                text: '\n'.join(['Thomas Voegtlin', 'Neil Booth', 'Akshay Arora'])
+                size_hint_x: 0.6
+        TopLabel:
+            text: _('Distributed by Electrum Technologies GmbH')
+            padding: '0dp', '20dp'
+        Widget:
+            size_hint: None, 0.5
+        BoxLayout:
+            size_hint: 1, None
+            height: '48dp'
+            Widget:
+                size_hint: 0.5, None
+                height: '48dp'
+            Button:
+                size_hint: 0.5, None
+                height: '48dp'
+                text: _('Close')
+                on_release: root.dismiss()

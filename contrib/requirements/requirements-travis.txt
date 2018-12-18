@@ -1,0 +1,3 @@
+tox
+python-coveralls
+tox-travis
