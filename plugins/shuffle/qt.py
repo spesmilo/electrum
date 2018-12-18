@@ -935,6 +935,9 @@ class SendTabExtra(QFrame, PrintError):
 
     @rate_limited(0.250)
     def refresh(self, shuf=None, unshuf=None, inprog=None):
+        if not hasattr(self.window.wallet, '_shuffle_patched_'):
+            # this can happen if this timer fires after the wallet was "un-monkey-patched". It's the price we pay for @rate_limied. :)
+            return
         if shuf is None or unshuf is None or inprog is None:
             shuf, unshuf, inprog = get_shuffled_and_unshuffled_coin_totals(self.window.wallet)
         amount, n, amountUnshuf, nUnshuf, amountInProg, nInProg = *shuf, *unshuf, *inprog
