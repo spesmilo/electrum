@@ -204,3 +204,18 @@ and there is no warning message.
 * More Spanish language translations!
 * Mac: bitcoincash: URLs working
 * Mac: Bitpay URLs working
+
+# Release 3.3.3
+
+* Added native elliptic curve cryptography using libsecp256k1 (1000x speedup on tx signing in some cases)
+* MacOS QR Reader now works.
+* Windows QR Reader now works.
+* Various performance fixes -- app should be able to handle much larger wallets now with many UTXOs
+* Nework layer fixups
+* Updated Checkpoint to the BCH chain.
+* Various minor UI gltiches fixed
+* MacOS binary size significantly reduced
+* Support for OP_RETURN parameters to bitcoincash: URL
+* Allow 1-of-1 multisig wallets
+* Server list update
+
