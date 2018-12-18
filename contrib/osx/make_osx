@@ -94,7 +94,8 @@ info "Building CalinsQRReader..."
 d=contrib/osx/CalinsQRReader
 pushd $d
 rm -fr build
-xcodebuild || fail "Could not build CalinsQRReader"
+# prefer building using xcode ourselves. otherwise fallback to prebuilt binary
+xcodebuild || cp -r prebuilt_qr build || fail "Could not build CalinsQRReader"
 popd
 DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
