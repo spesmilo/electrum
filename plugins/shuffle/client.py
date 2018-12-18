@@ -15,6 +15,7 @@ from .coin_shuffle import Round
 from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_server_for_stats
 
 ERR_SERVER_CONNECT = "Error: cannot connect to server"
+ERR_BAD_SERVER_PREFIX = "Error: Bad server:"
 
 def get_name(coin):
     return "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
@@ -142,7 +143,10 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
             self.logger.send('Player ' +str(self.number)+ " get " + str(len(self.players))+".\n")
         #check if all keys are different
         if len(set(self.players.values())) is not self.number_of_players:
-            self.logger.send('Error: The same keys appears!')
+            self.logger.send('Error: Duplicate keys in player list!')
+            self.done.set()
+        if self.number_of_players < 3:
+            self.logger.send('{} Refusing to play with {} players. Minimum 3 required.'.format(ERR_BAD_SERVER_PREFIX,self.number_of_players))
             self.done.set()
 
     @not_time_to_die
