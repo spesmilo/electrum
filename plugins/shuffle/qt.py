@@ -919,6 +919,7 @@ class SendTabExtra(QFrame, PrintError):
         super().showEvent(e)
         self.refresh()
 
+    @rate_limited(0.250)
     def refresh(self, shuf=None, unshuf=None, inprog=None):
         if shuf is None or unshuf is None or inprog is None:
             shuf, unshuf, inprog = get_shuffled_and_unshuffled_coin_totals(self.window.wallet)

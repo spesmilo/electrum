@@ -20,10 +20,14 @@ def get_name(coin):
     return "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
 
 def unfreeze_frozen_by_shuffling(wallet):
-    coins_frozen_by_shuffling = wallet.storage.get("coins_frozen_by_shuffling", list())
-    if coins_frozen_by_shuffling:
-        wallet.set_frozen_coin_state(coins_frozen_by_shuffling, False)
-    wallet.storage.put("coins_frozen_by_shuffling", None) # deletes key altogether from storage
+    with wallet.lock:
+        with wallet.transaction_lock:
+            coins_frozen_by_shuffling = wallet.storage.get("coins_frozen_by_shuffling", list())
+            if coins_frozen_by_shuffling:
+                l = len(coins_frozen_by_shuffling)
+                if l: wallet.print_error("Freed {} frozen-by-shuffling UTXOs".format(l))
+                wallet.set_frozen_coin_state(coins_frozen_by_shuffling, False)
+            wallet.storage.put("coins_frozen_by_shuffling", None) # deletes key altogether from storage
 
 class ProtocolThread(threading.Thread, PrintErrorThread):
     """
@@ -315,6 +319,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 self.check_idle_threads()
             self.print_error("Stopped")
         finally:
+            self._unreserve_addresses()
             self.logger.send("stopped", "MAINLOG")
 
     def check_server_port_ok(self):
@@ -378,23 +383,45 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                         # GUI pause of CashShuffle -- immediately stop all threads
                         if not self._paused:
                             self._paused = True
-                            ct = 0
-                            for scale, thr in self.threads.copy().items():
-                                if thr:
-                                    self.stop_protocol_thread(thr, scale, thr.coin, "Error: User stop requested")
-                                    ct += 1
+                            ct = self.stop_all_protocol_threads("Error: User stop requested")
                             if not ct:  # if we actually stopped one, no need to tell gui as the stop_protocol_thread already signalled a refresh
                                 self.tell_gui_to_refresh()
+
                     elif s == "unpause":
                         # Unpause -- the main loop of this thread will continue to create new threads as coins become available
                         if self._paused:
                             self._paused = False
                             self.tell_gui_to_refresh()
+                            return True # signal calling loop to check for coins immediately
 
         except queue.Empty:
             pass
 
         return False
+
+    def stop_all_protocol_threads(self, message = "Error: Stop requested"):
+        ''' Normally called from our thread context but may be called from other threads after joining this thread '''
+        ct = 0
+        for scale, thr in self.threads.copy().items():
+            if thr:
+                self.stop_protocol_thread(thr, scale, thr.coin, message)
+                ct += 1
+        self._unreserve_addresses()
+        if ct:
+            self.print_error("Stopped {} extant threads".format(ct))
+        return ct
+    
+    def _unreserve_addresses(self):
+        ''' Normally called from our thread context but may be called from other threads after joining this thread '''
+        with self.wallet.lock:
+            with self.wallet.transaction_lock:
+                l = len(self.wallet._addresses_cashshuffle_reserved)
+                self.wallet._addresses_cashshuffle_reserved.clear()
+                if l: self.print_error("Freed {} reserved addresses".format(l))
+                if self.wallet._last_change:
+                    self.wallet._last_change = None
+                    self.print_error("Freed 'last_change'")
+                unfreeze_frozen_by_shuffling(self.wallet)
 
     def stop_protocol_thread(self, thr, scale, sender, message):
         self.print_error("Stop protocol thread for scale: {}".format(scale))
@@ -557,13 +584,10 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             self.tell_gui_to_refresh()
 
     def join(self):
+        self.set_paused(True) # should auto-kill threads
         self.stop_flg.set()
         self.shared_chan.send(None) # wakes our thread up so it can exit when it sees stop_flg is set
         if self.is_alive():
-            self.print_error("Joining self...")
+            self.print_error("Joining still-running thread...")
             super().join()
-        for scale, thr in self.threads.items():
-            if thr and thr.is_alive():
-                self.print_error("Joining ProtocolThread[{}]...".format(scale))
-                thr.join()
-        unfreeze_frozen_by_shuffling(self.wallet)
+        self.stop_all_protocol_threads() # no-op if no threads still left running
