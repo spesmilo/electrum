@@ -17,7 +17,7 @@ for i, x in enumerate(sys.argv):
 else:
     raise BaseException('no version')
 
-electrum = os.path.abspath(".") + "/"
+home = os.path.abspath(".") + "/"
 block_cipher = None
 
 # see https://github.com/pyinstaller/pyinstaller/issues/2005
@@ -27,42 +27,43 @@ hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 
 datas = [
-    (electrum+'lib/currencies.json', PYPKG),
-    (electrum+'lib/servers.json', PYPKG),
-    (electrum+'lib/wordlist/english.txt', PYPKG + '/wordlist'),
-    (electrum+'lib/locale', PYPKG + '/locale'),
-    (electrum+'plugins', PYPKG + '_plugins'),
+    (home+'lib/currencies.json', PYPKG),
+    (home+'lib/servers.json', PYPKG),
+    (home+'lib/servers_testnet.json', PYPKG),
+    (home+'lib/wordlist/english.txt', PYPKG + '/wordlist'),
+    (home+'lib/locale', PYPKG + '/locale'),
+    (home+'plugins', PYPKG + '_plugins'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('btchip')
 datas += collect_data_files('keepkeylib')
 
 # Add the QR Scanner helper app
-datas += [(electrum + "contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app", "./contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app")]
+datas += [(home + "contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app", "./contrib/osx/CalinsQRReader/build/Release/CalinsQRReader.app")]
 
 # Add libusb so Trezor will work
-binaries = [(electrum + "contrib/osx/libusb-1.0.dylib", ".")]
-binaries += [(electrum + "contrib/osx/libsecp256k1.0.dylib", ".")]
+binaries = [(home + "contrib/osx/libusb-1.0.dylib", ".")]
+binaries += [(home + "contrib/osx/libsecp256k1.0.dylib", ".")]
 
 # Workaround for "Retro Look":
 binaries += [b for b in collect_dynamic_libs('PyQt5') if 'macstyle' in b[0]]
 
 # We don't put these files in to actually include them in the script but to make the Analysis method scan them for imports
-a = Analysis([electrum+MAIN_SCRIPT,
-              electrum+'gui/qt/main_window.py',
-              electrum+'gui/text.py',
-              electrum+'lib/util.py',
-              electrum+'lib/wallet.py',
-              electrum+'lib/simple_config.py',
-              electrum+'lib/bitcoin.py',
-              electrum+'lib/dnssec.py',
-              electrum+'lib/commands.py',
-              electrum+'plugins/cosigner_pool/qt.py',
-              electrum+'plugins/email_requests/qt.py',
-              electrum+'plugins/trezor/client.py',
-              electrum+'plugins/trezor/qt.py',
-              electrum+'plugins/keepkey/qt.py',
-              electrum+'plugins/ledger/qt.py',
+a = Analysis([home+MAIN_SCRIPT,
+              home+'gui/qt/main_window.py',
+              home+'gui/text.py',
+              home+'lib/util.py',
+              home+'lib/wallet.py',
+              home+'lib/simple_config.py',
+              home+'lib/bitcoin.py',
+              home+'lib/dnssec.py',
+              home+'lib/commands.py',
+              home+'plugins/cosigner_pool/qt.py',
+              home+'plugins/email_requests/qt.py',
+              home+'plugins/trezor/client.py',
+              home+'plugins/trezor/qt.py',
+              home+'plugins/keepkey/qt.py',
+              home+'plugins/ledger/qt.py',
               ],
              binaries=binaries,
              datas=datas,
@@ -95,13 +96,13 @@ exe = EXE(pyz,
           debug=False,
           strip=False,
           upx=True,
-          icon=electrum+ICONS_FILE,
+          icon=home+ICONS_FILE,
           console=False)
 
 app = BUNDLE(exe,
              version = VERSION,
              name=PACKAGE + '.app',
-             icon=electrum+ICONS_FILE,
+             icon=home+ICONS_FILE,
              bundle_identifier=None,
              info_plist = {
                  'NSHighResolutionCapable':'True',
