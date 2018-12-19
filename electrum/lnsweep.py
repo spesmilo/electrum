@@ -53,7 +53,7 @@ def maybe_create_sweeptx_for_their_ctx_to_local(ctx: Transaction, revocation_pri
 
 
 def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction, per_commitment_secret: bytes,
-                                               sweep_address: str) -> List[Tuple[Optional[str],EncumberedTransaction]]:
+                                               sweep_address: str) -> Dict[str,EncumberedTransaction]:
     """Presign sweeping transactions using the just received revoked pcs.
     These will only be utilised if the remote breaches.
     Sweep 'lo_local', and all the HTLCs (two cases: directly from ctx, or from HTLC tx).
@@ -65,7 +65,7 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
                                                       per_commitment_secret)
     to_self_delay = other_conf.to_self_delay
     this_delayed_pubkey = derive_pubkey(this_conf.delayed_basepoint.pubkey, pcp)
-    txs = []
+    txs = {}
     # to_local
     sweep_tx = maybe_create_sweeptx_for_their_ctx_to_local(ctx=ctx,
                                                            revocation_privkey=other_revocation_privkey,
@@ -73,7 +73,7 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
                                                            delayed_pubkey=this_delayed_pubkey,
                                                            sweep_address=sweep_address)
     if sweep_tx:
-        txs.append((ctx.txid(), EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)))
+        txs[ctx.txid()] = EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)
     # HTLCs
     def create_sweeptx_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Tuple[Optional[Transaction],
                                                                                       Optional[Transaction],
@@ -109,22 +109,22 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
     for htlc in received_htlcs:
         direct_sweep_tx, secondstage_sweep_tx, htlc_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=True)
         if direct_sweep_tx:
-            txs.append((ctx.txid(), EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', direct_sweep_tx, csv_delay=0, cltv_expiry=0)))
+            txs[ctx.txid()] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', direct_sweep_tx, csv_delay=0, cltv_expiry=0)
         if secondstage_sweep_tx:
-            txs.append((htlc_tx.txid(), EncumberedTransaction(f'their_htlctx_{bh2u(htlc.payment_hash)}', secondstage_sweep_tx, csv_delay=0, cltv_expiry=0)))
+            txs[htlc_tx.txid()] = EncumberedTransaction(f'their_htlctx_{bh2u(htlc.payment_hash)}', secondstage_sweep_tx, csv_delay=0, cltv_expiry=0)
     # offered HTLCs, in their ctx
     offered_htlcs = chan.included_htlcs(REMOTE, REMOTE, False)
     for htlc in offered_htlcs:
         direct_sweep_tx, secondstage_sweep_tx, htlc_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=False)
         if direct_sweep_tx:
-            txs.append((ctx.txid(), EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', direct_sweep_tx, csv_delay=0, cltv_expiry=0)))
+            txs[ctx.txid()] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', direct_sweep_tx, csv_delay=0, cltv_expiry=0)
         if secondstage_sweep_tx:
-            txs.append((htlc_tx.txid(), EncumberedTransaction(f'their_htlctx_{bh2u(htlc.payment_hash)}', secondstage_sweep_tx, csv_delay=0, cltv_expiry=0)))
+            txs[htlc_tx.txid()] = EncumberedTransaction(f'their_htlctx_{bh2u(htlc.payment_hash)}', secondstage_sweep_tx, csv_delay=0, cltv_expiry=0)
     return txs
 
 
 def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
-                                       sweep_address: str) -> List[Tuple[Optional[str],EncumberedTransaction]]:
+                                       sweep_address: str) -> Dict[str,EncumberedTransaction]:
     """Handle the case where we force close unilaterally with our latest ctx.
     Construct sweep txns for 'to_local', and for all HTLCs (2 txns each).
     'to_local' can be swept even if this is a breach (by us),
@@ -198,7 +198,7 @@ def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
 
 
 def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
-                                         sweep_address: str) -> List[Tuple[Optional[str],EncumberedTransaction]]:
+                                         sweep_address: str) -> Dict[str,EncumberedTransaction]:
     """Handle the case when the remote force-closes with their ctx.
     Regardless of it is a breach or not, construct sweep tx for 'to_remote'.
     If it is a breach, also construct sweep tx for 'to_local'.
@@ -218,10 +218,10 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
         try:
             per_commitment_secret = this_conf.revocation_store.retrieve_secret(RevocationStore.START_INDEX - ctn)
         except UnableToDeriveSecret:
-            return []
+            return {}
         their_pcp = ecc.ECPrivkey(per_commitment_secret).get_public_key_bytes(compressed=True)
     else:
-        return []
+        return {}
     # prep
     other_revocation_pubkey = derive_blinded_pubkey(other_conf.revocation_basepoint.pubkey, their_pcp)
     other_htlc_privkey = derive_privkey(secret=int.from_bytes(other_conf.htlc_basepoint.privkey, 'big'),
@@ -244,7 +244,7 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
                                                                delayed_pubkey=this_delayed_pubkey,
                                                                sweep_address=sweep_address)
         if sweep_tx:
-            txs.append(EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0))
+            txs[sweep_tx.prevout(0)] = EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)
     # to_remote
     sweep_tx = maybe_create_sweeptx_for_their_ctx_to_remote(ctx=ctx,
                                                             sweep_address=sweep_address,
