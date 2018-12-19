@@ -49,8 +49,15 @@ class ChannelSendLambda:
     def send(self, message):
         self.func(message)
 
+class BadServerPacketError(Exception):
+    pass
+
 class Comm(PrintErrorThread):
-    def __init__(self, host, port, config, bufsize = 32768, timeout = 300.0, ssl = False):
+    
+    MAX_MSG_LENGTH = 64*1024 # 64kb message length limit on server-side. If we get anything longer it's a malicious server
+
+
+    def __init__(self, host, port, config, bufsize = 32768, timeout = 60.0, ssl = False):
         self.host = host
         self.port = port
         self.config = config
@@ -87,23 +94,40 @@ class Comm(PrintErrorThread):
         if self.connected: self.socket.sendall(message)
 
     def recv(self):
+
+        def LEN():
+            return len(self.recvbuf)
+        def READ():
+            try:
+                self.recvbuf += self._recv() # will always return non-zero data or will raise
+            except socket.timeout as e:
+                self.print_error("Socket timeout ({}): {}".format(self.socket.gettimeout(), str(e)))
+                raise e
+
+        msg_length, magic = None, None
+
         while self.connected:
-            if len(self.recvbuf) > 12:
-                magic = self.recvbuf[0:8]
-                if magic == self.magic:
-                    msg_length = int.from_bytes(self.recvbuf[8:12], byteorder='big')
-                    if len(self.recvbuf[12:]) >= msg_length:
-                        result = self.recvbuf[12: 12 + msg_length]
-                        self.recvbuf = self.recvbuf[12 + msg_length:]
-                        return result
+            if magic is None or msg_length is None:
+                if LEN() <= 12:
+                    READ()
                 else:
-                    raise RuntimeError("Bad magic in message: '{}'".format(str(self.recvbuf)))
+                    magic = self.recvbuf[0:8]
+                    if magic != self.magic:
+                        raise BadServerPacketError("Bad magic in message: '{}'".format(str(self.recvbuf)))
+                    msg_length = int.from_bytes(self.recvbuf[8:12], byteorder='big')
+                    if msg_length > self.MAX_MSG_LENGTH:
+                        raise BadServerPacketError("Got a packet with msg_length={} > {} (max)".format(msg_length,self.MAX_MSG_LENGTH))
+                    elif msg_length <= 0:
+                        raise BadServerPacketError("Got a packet with msg_length={}".format(msg_length))
+                    self.recvbuf = self.recvbuf[12:] # consume packet header, loop will now spend its time in the else clause below..
             else:
-                try:
-                    self.recvbuf += self._recv() # will always return non-zero data or will raise
-                except socket.timeout as e:
-                    self.print_error("Socket timeout ({}): {}".format(self.socket.gettimeout(), str(e)))
-                    raise e
+                if LEN() < msg_length:
+                    READ()
+                else:
+                    ret = self.recvbuf[:msg_length]
+                    self.recvbuf = self.recvbuf[msg_length:] # consume data
+                    return ret
+        raise OSError(errno.ENOTCONN, "Not connected")
 
     def _recv(self):
         if self.connected and self.socket:

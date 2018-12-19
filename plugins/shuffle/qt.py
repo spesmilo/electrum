@@ -230,7 +230,7 @@ def update_coin_status(window, coin_name, msg):
 
         if not msg.startswith("Error") and not msg.startswith("Exit"):
             window.cashshuffle_set_flag(0) # 0 means ok
-        elif new_in_progress in ('wait for others', 'in progress') and prev_in_progress == new_in_progress:
+        elif new_in_progress != 'completed' and prev_in_progress == new_in_progress:
             # thread exit or error without completing protocol, set status back to 'in queue'
             # -- fixes wrong status of 'in progress' and 'waiting for others' being shown in UI for dead threads
             new_in_progress = None

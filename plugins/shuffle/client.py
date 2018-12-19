@@ -3,6 +3,10 @@ from electroncash.bitcoin import deserialize_privkey, regenerate_key, EC_KEY, ge
 from electroncash.address import Address
 from electroncash.util import PrintError, InvalidPassword
 
+ERR_SERVER_CONNECT = "Error: cannot connect to server"
+ERR_BAD_SERVER_PREFIX = "Error: Bad server:"
+MSG_SERVER_OK = "Ok: Server is ok"
+
 class PrintErrorThread(PrintError):
     def diagnostic_name(self):
         n = super().diagnostic_name()
@@ -12,11 +16,7 @@ from .coin import Coin
 from .crypto import Crypto
 from .messages import Messages
 from .coin_shuffle import Round
-from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_server_for_stats, verify_ssl_socket
-
-ERR_SERVER_CONNECT = "Error: cannot connect to server"
-ERR_BAD_SERVER_PREFIX = "Error: Bad server:"
-MSG_SERVER_OK = "Ok: Server is ok"
+from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_server_for_stats, verify_ssl_socket, BadServerPacketError
 
 def get_name(coin):
     return "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
@@ -38,7 +38,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     def __init__(self, host, port, network, coin,
                  amount, fee, sk, sks, inputs, pubk,
                  addr_new_addr, change_addr, logger=None, ssl=False,
-                 comm_timeout = 300.0, ctimeout = 5.0):
+                 comm_timeout = 60.0, ctimeout = 5.0):
 
         super(ProtocolThread, self).__init__()
         self.daemon = True
@@ -184,6 +184,9 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
                 self.share_the_key()
                 err = "Error: cannot gather the keys"
                 self.gather_the_keys()
+            except BadServerPacketError as e:
+                self.logger.send(ERR_BAD_SERVER_PREFIX + ": " + str(e))
+                return
             except BaseException as e:
                 self.print_error("Exception in 'run': {}".format(str(e)))
                 self.logger.send(err)
@@ -448,17 +451,16 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 self.done_utxos[sender] = time.time()
                 self.had_a_completion_flg = True
             with self.wallet.lock:
-                self.wallet.set_frozen_coin_state([sender], False)
-                coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
-                coins_for_shuffling -= {sender}
-                self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
-                if message.startswith("Error"):
-                    # unreserve addresses that were previously reserved iff error
-                    with self.wallet.transaction_lock:
+                with self.wallet.transaction_lock:
+                    self.wallet.set_frozen_coin_state([sender], False)
+                    coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
+                    coins_for_shuffling -= {sender}
+                    self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
+                    if message.startswith("Error"):
+                        # unreserve addresses that were previously reserved iff error
                         self.wallet._addresses_cashshuffle_reserved -= { thr.addr_new_addr, thr.change_addr }
                         #self.print_error("Unreserving", thr.addr_new_addr, thr.change_addr)
-                self.tell_gui_to_refresh()
-
+            self.tell_gui_to_refresh()
             self.logger.send(message, sender)
         else:
             self.print_error("No sender! Thr={}".format(str(thr)))

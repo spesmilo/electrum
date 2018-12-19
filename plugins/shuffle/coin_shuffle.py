@@ -1,4 +1,5 @@
-from .client import PrintErrorThread
+from .client import PrintErrorThread, ERR_BAD_SERVER_PREFIX
+from .comms import BadServerPacketError
 from electroncash.util import profiler
 
 class Round(PrintErrorThread):
@@ -76,6 +77,9 @@ class Round(PrintErrorThread):
         except OSError as e: # Socket closed or timed out
             self.print_error(str(e))
             self.logchan.send("Error: Socket closed or timed out")
+        except BadServerPacketError as e:
+            self.print_error(str(e))
+            self.logchan.send(ERR_BAD_SERVER_PREFIX + (" {}".format(str(e))))
         finally:
             self.done = True
 
@@ -295,7 +299,7 @@ class Round(PrintErrorThread):
 
     def process_verification_and_submission(self):
         """
-        This function implemens processing of messages on verification and submission phase (phase # 5)
+        This function implements processing of messages on verification and submission phase (phase # 5)
 
         It does the follows:
         1. Check if all players send its signatures
