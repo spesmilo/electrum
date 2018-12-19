@@ -1,6 +1,7 @@
 import socket, ssl, threading, queue, time, requests, select, errno
 from .client import PrintErrorThread
 from electroncash.network import deserialize_proxy
+from electroncash.interface import Connection
 
 # Temporary hack to suppress InsecureRequestWarning. Need to actually do a whole song and dance
 # To verify SSL certs. Blergh.  https://urllib3.readthedocs.io/en/latest/user-guide.html#ssl
@@ -49,9 +50,10 @@ class ChannelSendLambda:
         self.func(message)
 
 class Comm(PrintErrorThread):
-    def __init__(self, host, port, bufsize = 32768, timeout = 300.0, ssl = False):
+    def __init__(self, host, port, config, bufsize = 32768, timeout = 300.0, ssl = False):
         self.host = host
         self.port = port
+        self.config = config
         self.socket = None
         self.magic = bytes.fromhex("42bcc32669467873")
         self.MAX_BLOCK_SIZE = bufsize
@@ -62,6 +64,8 @@ class Comm(PrintErrorThread):
 
     def connect(self, ctimeout = 5.0):
         try:
+            if self.ssl and not verify_ssl_socket(self.host, self.port, self.config, timeout = ctimeout):
+                raise OSError(errno.EINVAL, "Failed to verify SSL certificate for {}, aborting".format(self.host))
             bare_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             bare_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             bare_socket.settimeout(ctimeout)
@@ -156,3 +160,18 @@ def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout = No
     res = requests.get(stat_endpoint, verify=False, timeout=timeout, proxies=proxy)
     json = res.json()
     return int(json["shufflePort"]), int(json["poolSize"]), int(json["connections"]), json['pools']
+
+def verify_ssl_socket(host, port, config, timeout = 5.0):
+    server = "{}:{}:s".format(host, port)
+    q = queue.Queue()
+    c = Connection(server, q, config.path)
+    socket = None
+    try:
+        server, socket = q.get(timeout=timeout)
+    except queue.Empty:
+        pass
+    ret = bool(socket and socket.fileno() > -1)
+    if socket: socket.close()
+    del (q,c,socket,server)
+    return ret
+

@@ -41,7 +41,7 @@ from electroncash.address import Address
 from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.transaction import Transaction
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, ERR_BAD_SERVER_PREFIX, MSG_SERVER_OK, PrintErrorThread, get_name, unfreeze_frozen_by_shuffling
-from electroncash_plugins.shuffle.comms import query_server_for_stats
+from electroncash_plugins.shuffle.comms import query_server_for_stats, verify_ssl_socket
 
 FEE = 300
 SCALE_0 = sorted(BackgroundShufflingThread.scales)[0]
@@ -1146,7 +1146,14 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                 self.statusLabel.setText("<font color=\"blue\"><i>" + _("Checking server...") + "</i></font>")
                 return
             if d.get('failed'): # Dict with only 1 key, 'failed' means connecton failed
-                self.statusLabel.setText("<b>" + _("Status") + ":</b> <font color=\"red\">{}</font>".format(_('Server is misconfigured') if d.get('failed') == 'bad' else _("Connection failure")))
+                reason = d['failed']
+                if reason == 'bad':
+                    reason = _("Server is misconfigured")
+                elif reason == 'ssl':
+                    reason = _("Failed to verify SSL certificate")
+                else:
+                    reason = _("Connection failure")
+                self.statusLabel.setText("<b>" + _("Status") + ":</b> <font color=\"red\">{}</font>".format(reason))
                 self.serverOk = False
                 return
 
@@ -1185,13 +1192,17 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                     self.print_error("Started thread.")
                     def updateStatus(d):
                         #self.print_error("updateStatus", d) # XXX
-                        is_bad_server = False
+                        is_bad_server, is_bad_ssl = False, False
                         try:
                             port, poolSize, connections, pools = query_server_for_stats(d['server'], d['info'], d['ssl'], config = self.parent.config)
                             if poolSize < 3:
                                 # hard-coded -- do not accept servers with poolSize < 3
                                 is_bad_server = True
                                 raise RuntimeError("PoolSize must be >=3, got: {}".format(poolSize))
+                            if d['ssl'] and not verify_ssl_socket(d['server'], int(port), self.parent.config):
+                                is_bad_ssl = True
+                                raise RuntimeError("Could not verify SSL server certificate.")
+                                
                             socket.create_connection((d['server'], port), 5.0).close() # test connectivity to port
                             self.parent.statusChanged.emit({
                                 'host'   : d['server'],
@@ -1200,11 +1211,13 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                                 'connections' : str(connections),
                                 'pools' : str(len(pools))
                             })
-                        except:
+                        except BaseException as e:
                             #import traceback
                             #traceback.print_exc()
-                            self.print_error("exception on connect...")
-                            if is_bad_server:
+                            self.print_error("exception on connect:",str(e))
+                            if is_bad_ssl:
+                                self.parent.statusChanged.emit({'failed' : 'ssl'})
+                            elif is_bad_server:
                                 self.parent.statusChanged.emit({'failed' : 'bad'})
                             else:
                                 self.parent.statusChanged.emit({'failed' : 'failed'})

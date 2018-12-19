@@ -43,7 +43,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         super(ProtocolThread, self).__init__()
         self.daemon = True
         self.messages = Messages()
-        self.comm = Comm(host, port, ssl=ssl, timeout = comm_timeout)
+        self.comm = Comm(host, port, network.config, ssl=ssl, timeout = comm_timeout)
         self.ctimeout = ctimeout
         if not logger:
             self.logger = ChannelWithPrint()
