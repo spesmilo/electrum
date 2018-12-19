@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Parameterize
-PYTHON_VERSION=3.6.4
+PYTHON_VERSION=3.6.7
 BUILDDIR=/tmp/electrum-build
 PACKAGE=Electrum
 GIT_REPO=https://github.com/spesmilo/electrum
@@ -73,6 +73,8 @@ info "Downloading libusb..."
 curl https://homebrew.bintray.com/bottles/libusb-1.0.22.el_capitan.bottle.tar.gz | \
 tar xz --directory $BUILDDIR
 cp $BUILDDIR/libusb/1.0.22/lib/libusb-1.0.dylib contrib/osx
+echo "82c368dfd4da017ceb32b12ca885576f325503428a4966cc09302cbd62702493  contrib/osx/libusb-1.0.dylib" | \
+    shasum -a 256 -c || fail "libusb checksum mismatched"
 DoCodeSignMaybe "libusb" "contrib/osx/libusb-1.0.dylib" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 info "Building libsecp256k1"
@@ -92,7 +94,8 @@ info "Building CalinsQRReader..."
 d=contrib/osx/CalinsQRReader
 pushd $d
 rm -fr build
-xcodebuild || fail "Could not build CalinsQRReader"
+# prefer building using xcode ourselves. otherwise fallback to prebuilt binary
+xcodebuild || cp -r prebuilt_qr build || fail "Could not build CalinsQRReader"
 popd
 DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
