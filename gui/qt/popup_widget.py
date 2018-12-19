@@ -9,6 +9,7 @@
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
+import sys
 
 class PopupWidget(QWidget):
 
@@ -30,6 +31,8 @@ class PopupWidget(QWidget):
         '''
         super().__init__(parent)
         self.layout = QGridLayout(self)
+        if sys.platform == 'linux':
+            self.layout.setContentsMargins(20,20,20,20)
         self.animation = QPropertyAnimation()
         self.final_opacity = 1.0
         self.popup_opacity = 1.0

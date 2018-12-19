@@ -3450,7 +3450,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 KillPopupLabel("CashShuffleError")
                 self.show_cashshuffle_settings()
             ShowPopupLabel(name = "CashShuffleError",
-                           text="<center><font color=#ffcccc><b>{}</b></font><br><small>{}</small></center>".format(_("Server Error"),_("Right-click to resolve")),
+                           text="<center><b>{}</b><br><small>{}</small></center>".format(_("Server Error"),_("Right-click to resolve")),
                            target=self.cashshuffle_status_button,
                            timeout=20000, onClick=onClick, onRightClick=onClick)
         else:
