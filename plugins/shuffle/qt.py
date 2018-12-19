@@ -1199,7 +1199,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                                 # hard-coded -- do not accept servers with poolSize < 3
                                 is_bad_server = True
                                 raise RuntimeError("PoolSize must be >=3, got: {}".format(poolSize))
-                            if d['ssl'] and not verify_ssl_socket(d['server'], int(port), self.parent.config):
+                            if d['ssl'] and not verify_ssl_socket(d['server'], int(port), self.parent.config, timeout=7.5):
                                 is_bad_ssl = True
                                 raise RuntimeError("Could not verify SSL server certificate.")
                                 

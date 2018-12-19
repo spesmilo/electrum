@@ -12,7 +12,7 @@ from .coin import Coin
 from .crypto import Crypto
 from .messages import Messages
 from .coin_shuffle import Round
-from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_server_for_stats
+from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_server_for_stats, verify_ssl_socket
 
 ERR_SERVER_CONNECT = "Error: cannot connect to server"
 ERR_BAD_SERVER_PREFIX = "Error: Bad server:"
@@ -296,6 +296,9 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     def query_server_port(self, timeout = 5.0):
         try:
             self.port, self.poolSize, connections, pools = query_server_for_stats(self.host, self.info_port, self.ssl, timeout, config = self.config)
+            if self.ssl and not verify_ssl_socket(self.host, self.port, config=self.config, timeout=timeout):
+                self.print_error("SSL Verification failed")
+                return False
             self.print_error("Server {}:{} told us that it has shufflePort={} poolSize={} connections={}".format(self.host, self.info_port, self.port, self.poolSize, connections))
             return True
         except BaseException as e:
