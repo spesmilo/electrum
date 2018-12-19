@@ -105,7 +105,7 @@ class Round(PrintErrorThread):
         val = self.inchan.recv()
         try:
             self.messages.packets.ParseFromString(val)
-        except Exception as e:
+        except Exception as error:
             self.print_error("Decoding error: {}".format(str(error)))
             self.logchan.send('Error: Decoding error: {}'.format(str(error)))
             return None
