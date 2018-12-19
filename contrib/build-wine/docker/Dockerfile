@@ -12,7 +12,9 @@ RUN dpkg --add-architecture i386 && \
         software-properties-common=0.96.24.32.1 \
         && \
     wget -nc https://dl.winehq.org/wine-builds/Release.key && \
+    wget -nc https://dl.winehq.org/wine-builds/winehq.key && \
     apt-key add Release.key && \
+    apt-key add winehq.key && \
     apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ && \
     apt-get update -q && \
     apt-get install -qy \
