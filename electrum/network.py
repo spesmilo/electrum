@@ -654,6 +654,8 @@ class Network(PrintError):
     async def _run_new_interface(self, server):
         interface = Interface(self, server, self.proxy)
         timeout = 10 if not self.proxy else 20
+        if self.oneserver and not self.auto_connect:
+            timeout = 60
         try:
             await asyncio.wait_for(interface.ready, timeout)
         except BaseException as e:

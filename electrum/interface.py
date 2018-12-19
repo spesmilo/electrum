@@ -59,6 +59,7 @@ class NotificationSession(RPCSession):
         self.subscriptions = defaultdict(list)
         self.cache = {}
         self.in_flight_requests_semaphore = asyncio.Semaphore(100)
+        self.tolerate_slow_server = False
 
     async def handle_request(self, request):
         # note: if server sends malformed request and we raise, the superclass
@@ -77,6 +78,8 @@ class NotificationSession(RPCSession):
         # note: the timeout starts after the request touches the wire!
         if timeout is None:
             timeout = 30
+        if self.tolerate_slow_server:
+            timeout = 180
         # note: the semaphore implementation guarantees no starvation
         async with self.in_flight_requests_semaphore:
             try:
@@ -358,6 +361,7 @@ class Interface(PrintError):
                                      host=self.host, port=self.port,
                                      ssl=sslc, proxy=self.proxy) as session:
             self.session = session  # type: NotificationSession
+            self.session.tolerate_slow_server = self.network.oneserver and not self.network.auto_connect
             try:
                 ver = await session.send_request('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])
             except aiorpcx.jsonrpc.RPCError as e:
