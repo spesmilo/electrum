@@ -179,6 +179,7 @@ class Channel(PrintError):
         # we should not persist txns in this format. we should persist htlcs, and be able to derive
         # any past commitment transaction and use that instead; until then...
         self.remote_commitment_to_be_revoked = Transaction(state["remote_commitment_to_be_revoked"])
+        self.remote_commitment_to_be_revoked.deserialize(True)
 
         self.log = {LOCAL: HtlcChanges.new(), REMOTE: HtlcChanges.new()}
         for strname, subject in [('remote_log', REMOTE), ('local_log', LOCAL)]:
@@ -205,18 +206,16 @@ class Channel(PrintError):
         for sub in (LOCAL, REMOTE):
             self.log[sub].locked_in.update(self.log[sub].adds.keys())
 
-        self.set_local_commitment(self.current_commitment(LOCAL))
-        self.set_remote_commitment(self.current_commitment(REMOTE))
+        self.local_commitment = None
+        self.remote_commitment = None
 
     def set_local_commitment(self, ctx):
         self.local_commitment = ctx
         if self.sweep_address is not None:
             self.local_sweeptxs = create_sweeptxs_for_our_latest_ctx(self, self.local_commitment, self.sweep_address)
 
-        self.assert_signature_fits(ctx)
-
-    def set_remote_commitment(self, ctx):
-        self.remote_commitment = ctx
+    def set_remote_commitment(self):
+        self.remote_commitment = self.current_commitment(REMOTE)
         if self.sweep_address is not None:
             self.remote_sweeptxs = create_sweeptxs_for_their_latest_ctx(self, self.remote_commitment, self.sweep_address)
 
@@ -337,7 +336,8 @@ class Channel(PrintError):
         htlcsigs.sort()
         htlcsigs = [x[1] for x in htlcsigs]
 
-        self.remote_commitment = self.pending_commitment(REMOTE)
+        # TODO should add remote_commitment here and handle
+        # both valid ctx'es in lnwatcher at the same time...
 
         # we can't know if this message arrives.
         # since we shouldn't actually throw away
@@ -402,10 +402,10 @@ class Channel(PrintError):
             if self.constraints.is_initiator and self.pending_fee[FUNDEE_ACKED]:
                 self.pending_fee[FUNDER_SIGNED] = True
 
-        self.set_local_commitment(self.pending_commitment(LOCAL))
+        self.set_local_commitment(self.current_commitment(LOCAL))
 
     def verify_htlc(self, htlc: UpdateAddHtlc, htlc_sigs: Sequence[bytes], we_receive: bool) -> int:
-        _, this_point, _ = self.points()
+        _, this_point, _, _ = self.points()
         _script, htlc_tx = make_htlc_tx_with_open_channel(chan=self,
                                                           pcp=this_point,
                                                           for_us=True,
@@ -430,7 +430,7 @@ class Channel(PrintError):
     def revoke_current_commitment(self):
         self.print_error("revoke_current_commitment")
 
-        last_secret, this_point, next_point = self.points()
+        last_secret, this_point, next_point, _ = self.points()
 
         new_feerate = self.constraints.feerate
 
@@ -466,7 +466,8 @@ class Channel(PrintError):
         this_point = secret_to_pubkey(int.from_bytes(this_secret, 'big'))
         next_secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - next_small_num)
         next_point = secret_to_pubkey(int.from_bytes(next_secret, 'big'))
-        return last_secret, this_point, next_point
+        last_point = secret_to_pubkey(int.from_bytes(last_secret, 'big'))
+        return last_secret, this_point, next_point, last_point
 
     def process_new_revocation_secret(self, per_commitment_secret: bytes):
         if not self.lnwatcher:
@@ -545,7 +546,7 @@ class Channel(PrintError):
             if self.constraints.is_initiator:
                 self.pending_fee[FUNDEE_ACKED] = True
 
-        self.set_remote_commitment(self.pending_commitment(REMOTE))
+        self.set_remote_commitment()
         self.remote_commitment_to_be_revoked = prev_remote_commitment
         return received_this_batch, sent_this_batch
 
@@ -624,14 +625,16 @@ class Channel(PrintError):
 
     def pending_commitment(self, subject):
         this_point = self.config[REMOTE].next_per_commitment_point if subject == REMOTE else self.points()[1]
-        return self.make_commitment(subject, this_point)
+        ctn = self.config[subject].ctn + 1
+        feerate = self.pending_feerate(subject)
+        return self.make_commitment(subject, this_point, ctn, feerate)
 
     def current_commitment(self, subject):
-        old_local_state = self.config[subject]
-        self.config[subject]=self.config[subject]._replace(ctn=self.config[subject].ctn - 1)
-        r = self.pending_commitment(subject)
-        self.config[subject] = old_local_state
-        return r
+        this_point = self.config[REMOTE].current_per_commitment_point if subject == REMOTE else self.points()[3]
+        assert this_point
+        ctn = self.config[subject].ctn
+        feerate = self.constraints.feerate
+        return self.make_commitment(subject, this_point, ctn, feerate)
 
     def total_msat(self, sub):
         return sum(self.settled[sub])
@@ -792,7 +795,9 @@ class Channel(PrintError):
     def __str__(self):
         return str(self.serialize())
 
-    def make_commitment(self, subject, this_point) -> Transaction:
+    def make_commitment(self, subject, this_point, ctn, feerate) -> Transaction:
+        received_htlcs = self.included_htlcs(subject, -subject)
+        sent_htlcs = self.included_htlcs(subject, subject)
         remote_msat, local_msat = self.amounts()
         assert local_msat >= 0, local_msat
         assert remote_msat >= 0, remote_msat
@@ -802,23 +807,20 @@ class Channel(PrintError):
         this_htlc_pubkey = derive_pubkey(this_config.htlc_basepoint.pubkey, this_point)
         other_revocation_pubkey = derive_blinded_pubkey(other_config.revocation_basepoint.pubkey, this_point)
         htlcs = []  # type: List[ScriptHtlc]
-        def append_htlc(htlc: UpdateAddHtlc, is_received_htlc: bool):
-            htlcs.append(ScriptHtlc(make_htlc_output_witness_script(
-                is_received_htlc=is_received_htlc,
-                remote_revocation_pubkey=other_revocation_pubkey,
-                remote_htlc_pubkey=other_htlc_pubkey,
-                local_htlc_pubkey=this_htlc_pubkey,
-                payment_hash=htlc.payment_hash,
-                cltv_expiry=htlc.cltv_expiry), htlc))
-        for htlc in self.included_htlcs(subject, -subject):
-            append_htlc(htlc, is_received_htlc=True)
-        for htlc in self.included_htlcs(subject, subject):
-            append_htlc(htlc, is_received_htlc=False)
+        for is_received_htlc, htlc_list in zip((True, False), (received_htlcs, sent_htlcs)):
+            for htlc in htlc_list:
+                htlcs.append(ScriptHtlc(make_htlc_output_witness_script(
+                    is_received_htlc=is_received_htlc,
+                    remote_revocation_pubkey=other_revocation_pubkey,
+                    remote_htlc_pubkey=other_htlc_pubkey,
+                    local_htlc_pubkey=this_htlc_pubkey,
+                    payment_hash=htlc.payment_hash,
+                    cltv_expiry=htlc.cltv_expiry), htlc))
         if subject != LOCAL:
             remote_msat, local_msat = local_msat, remote_msat
         payment_pubkey = derive_pubkey(other_config.payment_basepoint.pubkey, this_point)
         return make_commitment(
-            self.config[subject].ctn + 1,
+            ctn,
             this_config.multisig_key.pubkey,
             other_config.multisig_key.pubkey,
             payment_pubkey,
@@ -834,7 +836,7 @@ class Channel(PrintError):
             this_config.dust_limit_sat,
             calc_onchain_fees(
                 len(htlcs),
-                self.pending_feerate(subject),
+                feerate,
                 subject == LOCAL,
                 self.constraints.is_initiator,
             ),
@@ -869,25 +871,22 @@ class Channel(PrintError):
 
     def assert_signature_fits(self, tx):
         remote_sig = self.config[LOCAL].current_commitment_signature
-        if remote_sig: # only None in test
-            preimage_hex = tx.serialize_preimage(0)
-            pre_hash = sha256d(bfh(preimage_hex))
-            if not ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, remote_sig, pre_hash):
-                self.print_error("WARNING: commitment signature inconsistency, cannot force close")
+        preimage_hex = tx.serialize_preimage(0)
+        pre_hash = sha256d(bfh(preimage_hex))
+        if ecc.verify_signature(self.config[REMOTE].multisig_key.pubkey, remote_sig, pre_hash):
+            raise Exception("bad commitment chosen")
 
     def force_close_tx(self):
         tx = self.local_commitment
         tx = Transaction(str(tx))
         tx.deserialize(True)
-        self.assert_signature_fits(tx)
         tx.sign({bh2u(self.config[LOCAL].multisig_key.pubkey): (self.config[LOCAL].multisig_key.privkey, True)})
         remote_sig = self.config[LOCAL].current_commitment_signature
-        if remote_sig: # only None in test
-            remote_sig = ecc.der_sig_from_sig_string(remote_sig) + b"\x01"
-            sigs = tx._inputs[0]["signatures"]
-            none_idx = sigs.index(None)
-            tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
-            assert tx.is_complete()
+        remote_sig = ecc.der_sig_from_sig_string(remote_sig) + b"\x01"
+        sigs = tx._inputs[0]["signatures"]
+        none_idx = sigs.index(None)
+        tx.add_signature_to_txin(0, none_idx, bh2u(remote_sig))
+        assert tx.is_complete()
         return tx
 
     def included_htlcs_in_their_latest_ctxs(self, htlc_initiator) -> Dict[int, List[UpdateAddHtlc]]:

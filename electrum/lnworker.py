@@ -78,6 +78,8 @@ class LNWorker(PrintError):
         self.channels = {}  # type: Dict[bytes, Channel]
         for x in wallet.storage.get("channels", []):
             c = Channel(x, sweep_address=self.sweep_address, payment_completed=self.payment_completed)
+            c.set_remote_commitment()
+            c.set_local_commitment(c.current_commitment(LOCAL))
             self.channels[c.channel_id] = c
             c.lnwatcher = network.lnwatcher
         self.invoices = wallet.storage.get('lightning_invoices', {})  # type: Dict[str, Tuple[str,str]]  # RHASH -> (preimage, invoice)

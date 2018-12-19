@@ -517,9 +517,11 @@ class Peer(PrintError):
         # broadcast funding tx
         await self.network.broadcast_transaction(funding_tx)
         chan.remote_commitment_to_be_revoked = chan.pending_commitment(REMOTE)
-        chan.config[REMOTE] = chan.config[REMOTE]._replace(ctn=0)
+        chan.config[REMOTE] = chan.config[REMOTE]._replace(ctn=0, current_per_commitment_point=remote_per_commitment_point, next_per_commitment_point=None)
         chan.config[LOCAL] = chan.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
         chan.set_state('OPENING')
+        chan.set_remote_commitment()
+        chan.set_local_commitment(chan.pending_commitment(LOCAL))
         return chan
 
     async def on_open_channel(self, payload):
@@ -605,7 +607,7 @@ class Peer(PrintError):
         )
         chan.set_state('OPENING')
         chan.remote_commitment_to_be_revoked = chan.pending_commitment(REMOTE)
-        chan.config[REMOTE] = chan.config[REMOTE]._replace(ctn=0)
+        chan.config[REMOTE] = chan.config[REMOTE]._replace(ctn=0, current_per_commitment_point=payload['first_per_commitment_point'], next_per_commitment_point=None)
         chan.config[LOCAL] = chan.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
         self.lnworker.save_channel(chan)
         self.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
@@ -732,7 +734,7 @@ class Peer(PrintError):
         if not chan.config[LOCAL].funding_locked_received:
             our_next_point = chan.config[REMOTE].next_per_commitment_point
             their_next_point = payload["next_per_commitment_point"]
-            new_remote_state = chan.config[REMOTE]._replace(next_per_commitment_point=their_next_point, current_per_commitment_point=our_next_point)
+            new_remote_state = chan.config[REMOTE]._replace(next_per_commitment_point=their_next_point)
             new_local_state = chan.config[LOCAL]._replace(funding_locked_received = True)
             chan.config[REMOTE]=new_remote_state
             chan.config[LOCAL]=new_local_state

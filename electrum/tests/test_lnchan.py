@@ -134,6 +134,17 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     alice.set_state('OPEN')
     bob.set_state('OPEN')
 
+    sig_from_bob = bob.sign_next_commitment()[0]
+    sig_from_alice = alice.sign_next_commitment()[0]
+
+    alice.config[LOCAL] = alice.config[LOCAL]._replace(current_commitment_signature=sig_from_bob)
+    bob.config[LOCAL] = bob.config[LOCAL]._replace(current_commitment_signature=sig_from_alice)
+
+    alice.set_local_commitment(alice.pending_commitment(LOCAL))
+    bob.set_local_commitment(bob.pending_commitment(LOCAL))
+    alice.set_remote_commitment()
+    bob.set_remote_commitment()
+
     return alice, bob
 
 class TestFee(unittest.TestCase):
@@ -204,8 +215,7 @@ class TestChannel(unittest.TestCase):
         self.assertEqual({0: [], 1: []}, alice_channel.included_htlcs_in_their_latest_ctxs(REMOTE))
         self.assertEqual({0: [], 1: []}, bob_channel.included_htlcs_in_their_latest_ctxs(LOCAL))
 
-        # this wouldn't work since we put None in the remote_sig
-        # alice_channel.force_close_tx()
+        tx0 = str(alice_channel.force_close_tx())
 
         # Next alice commits this change by sending a signature message. Since
         # we expect the messages to be ordered, Bob will receive the HTLC we
@@ -250,6 +260,7 @@ class TestChannel(unittest.TestCase):
         alice_channel.receive_new_commitment(bobSig, bobHtlcSigs)
 
         tx1 = str(alice_channel.force_close_tx())
+        self.assertNotEqual(tx0, tx1)
 
         # Alice then generates a revocation for bob.
         aliceRevocation, _ = alice_channel.revoke_current_commitment()
@@ -279,10 +290,12 @@ class TestChannel(unittest.TestCase):
 
         # Both commitment transactions should have three outputs, and one of
         # them should be exactly the amount of the HTLC.
-        self.assertEqual(len(alice_channel.local_commitment.outputs()), 3, "alice should have three commitment outputs, instead have %s"% len(alice_channel.local_commitment.outputs()))
-        self.assertEqual(len(bob_channel.local_commitment.outputs()), 3, "bob should have three commitment outputs, instead have %s"% len(bob_channel.local_commitment.outputs()))
-        self.assertOutputExistsByValue(alice_channel.local_commitment, htlc.amount_msat // 1000)
-        self.assertOutputExistsByValue(bob_channel.local_commitment, htlc.amount_msat // 1000)
+        alice_ctx = alice_channel.pending_commitment(LOCAL)
+        bob_ctx = bob_channel.pending_commitment(LOCAL)
+        self.assertEqual(len(alice_ctx.outputs()), 3, "alice should have three commitment outputs, instead have %s"% len(alice_ctx.outputs()))
+        self.assertEqual(len(bob_ctx.outputs()), 3, "bob should have three commitment outputs, instead have %s"% len(bob_ctx.outputs()))
+        self.assertOutputExistsByValue(alice_ctx, htlc.amount_msat // 1000)
+        self.assertOutputExistsByValue(bob_ctx, htlc.amount_msat // 1000)
 
         # Now we'll repeat a similar exchange, this time with Bob settling the
         # HTLC once he learns of the preimage.
@@ -650,14 +663,16 @@ class TestDust(unittest.TestCase):
         aliceHtlcIndex = alice_channel.add_htlc(htlc)
         bobHtlcIndex = bob_channel.receive_htlc(htlc)
         force_state_transition(alice_channel, bob_channel)
-        self.assertEqual(len(alice_channel.local_commitment.outputs()), 3)
-        self.assertEqual(len(bob_channel.local_commitment.outputs()), 2)
+        alice_ctx = alice_channel.pending_commitment(LOCAL)
+        bob_ctx = bob_channel.pending_commitment(LOCAL)
+        self.assertEqual(len(alice_ctx.outputs()), 3)
+        self.assertEqual(len(bob_ctx.outputs()), 2)
         default_fee = calc_static_fee(0)
         self.assertEqual(bob_channel.pending_local_fee(), default_fee + htlcAmt)
         bob_channel.settle_htlc(paymentPreimage, bobHtlcIndex)
         alice_channel.receive_htlc_settle(paymentPreimage, aliceHtlcIndex)
         force_state_transition(bob_channel, alice_channel)
-        self.assertEqual(len(alice_channel.local_commitment.outputs()), 2)
+        self.assertEqual(len(alice_channel.pending_commitment(LOCAL).outputs()), 2)
         self.assertEqual(alice_channel.total_msat(SENT) // 1000, htlcAmt)
 
 def force_state_transition(chanA, chanB):
