@@ -31,7 +31,7 @@ class PopupWidget(QWidget):
         '''
         super().__init__(parent)
         self.layout = QGridLayout(self)
-        if sys.platform == 'linux':
+        if sys.platform != 'darwin':
             self.layout.setContentsMargins(20,20,20,20)
         self.animation = QPropertyAnimation()
         self.final_opacity = 1.0
