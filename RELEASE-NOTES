@@ -1,4 +1,4 @@
-# Release 3.3.0 - Hodler's Edition (unreleased)
+# Release 3.3.0 - Hodler's Edition (December 19, 2018)
 
  * The network layer has been rewritten using asyncio and aiorpcx.
    In addition to easier maintenance, this makes the client
@@ -7,6 +7,8 @@
  * The blockchain headers and fork handling logic has been generalized.
    Clients by default now follow chain based on most work, not length.
  * New wallet creation defaults to native segwit (bech32).
+ * Segwit 2FA: TrustedCoin now supports native segwit p2wsh
+   two-factor wallets.
  * RBF batching (opt-in): If the wallet has an unconfirmed RBF
    transaction, new payments will be added to that transaction,
    instead of creating new transactions.
@@ -23,17 +25,9 @@
    - Trezor: refactoring and compat with python-trezor 0.11
    - Digital BitBox: support firmware v5.0.0
  * fix bitcoin URI handling when app already running (#4796)
- * Qt listing fixes:
-   - Selection by arrow keys disabled while editing e.g. label
-   - Enter key on unedited value does not pop up context menu
-   - Contacts:
-     - Prevent editing of OpenAlias names
-   - Receive:
-     - Icon for status of payment requests
-     - Disable editing of 'Description' in list, interaction
-       between labels and memo of invoice confusing
-   - Addresses:
-     - Fiat prices would show "No Data" incorrectly upon start
+ * Qt listings rewritten:
+   the History tab now uses QAbstractItemModel, the other tabs use
+   QStandardItemModel. Performance should be better for large wallets.
  * Several other minor bugfixes and usability improvements.
 
 
