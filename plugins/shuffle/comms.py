@@ -2,6 +2,10 @@ import socket, ssl, threading, queue, time, requests, select, errno
 from .client import PrintErrorThread
 from electroncash.network import deserialize_proxy
 
+# Temporary hack to suppress InsecureRequestWarning. Need to actually do a whole song and dance
+# To verify SSL certs. Blergh.  https://urllib3.readthedocs.io/en/latest/user-guide.html#ssl
+requests.urllib3.disable_warnings(requests.urllib3.exceptions.InsecureRequestWarning)
+
 class Channel(queue.Queue):
     "simple Queue wrapper for using recv and send"
 
