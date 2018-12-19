@@ -251,11 +251,16 @@ class BasePlugin(PrintError):
 
     def close(self):
         # remove self from hooks
-        for k in dir(self):
-            if k in hook_names:
-                l = hooks.get(k, [])
-                l.remove((self, getattr(self, k)))
-                hooks[k] = l
+        for attr_name in dir(self):
+            if attr_name in hook_names:
+                # found attribute in self that is also the name of a hook
+                l = hooks.get(attr_name, [])
+                try:
+                    l.remove((self, getattr(self, attr_name)))
+                except ValueError:
+                    # maybe attr name just collided with hook name and was not hook
+                    continue
+                hooks[attr_name] = l
         self.parent.close_plugin(self)
         self.on_close()
 
