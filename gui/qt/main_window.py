@@ -65,6 +65,7 @@ from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
+from .popup_widget import ShowPopupLabel, KillPopupLabel
 
 from .util import *
 
@@ -2804,6 +2805,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             raise RuntimeError("Could not find CashShuffle plugin")
         enable_flag = not p.window_has_cashshuffle(self)
         self._cash_shuffle_flag = 0
+        KillPopupLabel("CashShuffleError")
         if not p0:
             # plugin was not loaded -- so flag window as wanting cashshuffle and do init
             p.window_set_wants_cashshuffle(self, enable_flag)
@@ -3443,6 +3445,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         changed = flag != self._cash_shuffle_flag
         if not changed:
             return
+        if flag:
+            def onClick():
+                KillPopupLabel("CashShuffleError")
+                self.show_cashshuffle_settings()
+            ShowPopupLabel(name = "CashShuffleError",
+                           text="<center><font color=#ffcccc><b>{}</b></font><br><small>{}</small></center>".format(_("Server Error"),_("Right-click to resolve")),
+                           target=self.cashshuffle_status_button,
+                           timeout=20000, onClick=onClick, onRightClick=onClick)
+        else:
+            KillPopupLabel("CashShuffleError")
         self.print_error("Cash Shuffle flag is now {}".format(flag))
         oldTip = self.cashshuffle_status_button.statusTip()
         self._cash_shuffle_flag = flag
@@ -3453,3 +3465,4 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def cashshuffle_get_flag(self):
         return self._cash_shuffle_flag
+
