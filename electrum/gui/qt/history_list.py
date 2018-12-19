@@ -273,22 +273,27 @@ class HistoryModel(QAbstractItemModel, PrintError):
         self.dataChanged.emit(idx, idx, [Qt.DisplayRole, Qt.ForegroundRole])
 
     def update_tx_mined_status(self, tx_hash: str, tx_mined_info: TxMinedInfo):
-        self.tx_status_cache[tx_hash] = self.parent.wallet.get_tx_status(tx_hash, tx_mined_info)
         try:
             row = self.transactions.pos_from_key(tx_hash)
+            tx_item = self.transactions[tx_hash]
         except KeyError:
             return
+        self.tx_status_cache[tx_hash] = self.parent.wallet.get_tx_status(tx_hash, tx_mined_info)
+        tx_item.update({
+            'confirmations':  tx_mined_info.conf,
+            'timestamp':      tx_mined_info.timestamp,
+            'txpos_in_block': tx_mined_info.txpos,
+        })
         topLeft = self.createIndex(row, 0)
         bottomRight = self.createIndex(row, len(HistoryColumns) - 1)
         self.dataChanged.emit(topLeft, bottomRight)
 
     def on_fee_histogram(self):
-        for tx_hash, tx_item in self.transactions.items():
+        for tx_hash, tx_item in list(self.transactions.items()):
             tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
             if tx_mined_info.conf > 0:
                 # note: we could actually break here if we wanted to rely on the order of txns in self.transactions
                 continue
-            self.tx_status_cache[tx_hash] = self.parent.wallet.get_tx_status(tx_hash, tx_mined_info)
             self.update_tx_mined_status(tx_hash, tx_mined_info)
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: Qt.ItemDataRole):
