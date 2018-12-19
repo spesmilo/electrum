@@ -295,15 +295,18 @@ def ShowPopupLabel(text, target, timeout, name="Global", pointer_position=PopupW
     popup.final_opacity = opacity
     popup.setObjectName(str(id(popup)))
     def onDestroyed(x):
+        # NB: even though x and popup are the same object, they will have different id() at this point (I think this is because Qt destructed the python object stub and is passing us a reference to the QWidget base here.)
         xid = None
         try:
             xid = int(x.objectName())
         except (ValueError,TypeError):
             pass
         if xid == id(_extant_popups.get(name, None)):
+            # Clean up the dict entry
             _extant_popups.pop(name, None)
             #print("----> Destroyed and cleaned up:",name)
         else:
+            # Stale object or already removed from dict. No need to clean up the dict entry
             pass
             #print("----> Not found!!")
     popup.destroyed.connect(onDestroyed)

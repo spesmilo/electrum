@@ -2776,7 +2776,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         en = self.is_cashshuffle_enabled()
         if self._cash_shuffle_flag == 0:
             self.cashshuffle_status_button.setStatusTip(_("CashShuffle ENABLED") if en else _("CashShuffle disabled"))
-            self.cashshuffle_status_button.setToolTip(_("Toggle CashShuffle on/off, right-click for context menu"))
+            self.cashshuffle_status_button.setToolTip(_("Toggle CashShuffle\nRight-click for context menu"))
             self.cashshuffle_toggle_action.setText(_("Enable CashShuffle") if not en else _("Disable CashShuffle"))
             self.cashshuffle_settings_action.setText(_("CashShuffle Settings..."))
         elif self._cash_shuffle_flag == 1: # Network server error
@@ -2814,7 +2814,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             # plugin was already started -- just add the window to the plugin
             p.window_set_cashshuffle(self, enable_flag)
         self.update_cashshuffle_icon()
-        self.statusBar().showMessage(self.cashshuffle_status_button.statusTip(), 2500)
+        self.statusBar().showMessage(self.cashshuffle_status_button.statusTip(), 3000)
         if enable_flag and self.config.get("show_utxo_tab") is None:
             self.toggle_tab(self.utxo_tab) # toggle utxo tab to 'on' if user never specified it should be off.
 
