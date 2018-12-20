@@ -1,3 +1,9 @@
+# Release 3.3.1 - (December 20, 2018)
+
+ * Qt: Fix invoices tab crash (#4941)
+ * Android: Minor GUI improvements
+
+
 # Release 3.3.0 - Hodler's Edition (December 19, 2018)
 
  * The network layer has been rewritten using asyncio and aiorpcx.
