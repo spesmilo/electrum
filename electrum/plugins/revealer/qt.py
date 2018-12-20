@@ -201,10 +201,14 @@ class Plugin(RevealerPlugin):
 
     def warn_old_revealer(self):
         if self.versioned_seed.version == '0':
-            self.d.show_warning(''.join(
-                ["<b>", _("Warning"), ": </b>",
-                 _("Revealers starting with 0 are not secure due to a vulnerability."), ' ',
-                 _("Proceed at your own risk.")]))
+            link = "https://revealer.cc/revealer-warning-and-upgrade/"
+            self.d.show_warning(("<b>{warning}: </b>{ver0}<br>"
+                                 "{url}<br>"
+                                 "{risk}")
+                                .format(warning=_("Warning"),
+                                        ver0=_("Revealers starting with 0 are not secure due to a vulnerability."),
+                                        url=_("More info at: {}").format(f'<a href="{link}">{link}</a>'),
+                                        risk=_("Proceed at your own risk.")))
 
     def cypherseed_dialog(self, window):
         self.warn_old_revealer()
