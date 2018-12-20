@@ -7,8 +7,7 @@ from typing import Optional, Dict, List, Tuple, TYPE_CHECKING
 from .util import bfh, bh2u, print_error
 from .bitcoin import TYPE_ADDRESS, redeem_script_to_address, dust_threshold
 from . import ecc
-from .lnutil import (EncumberedTransaction,
-                     make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
+from .lnutil import (make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
                      make_htlc_tx_witness, make_htlc_tx_with_open_channel,
                      LOCAL, REMOTE, make_htlc_output_witness_script, UnknownPaymentHash,
@@ -49,11 +48,12 @@ def maybe_create_sweeptx_for_their_ctx_to_local(ctx: Transaction, revocation_pri
                                            witness_script=witness_script,
                                            privkey=revocation_privkey,
                                            is_revocation=True)
+    if sweep_tx is None: return None
     return sweep_tx
 
 
 def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction, per_commitment_secret: bytes,
-                                               sweep_address: str) -> Dict[str,EncumberedTransaction]:
+                                               sweep_address: str) -> Dict[str,Transaction]:
     """Presign sweeping transactions using the just received revoked pcs.
     These will only be utilised if the remote breaches.
     Sweep 'lo_local', and all the HTLCs (two cases: directly from ctx, or from HTLC tx).
@@ -73,7 +73,7 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
                                                            delayed_pubkey=this_delayed_pubkey,
                                                            sweep_address=sweep_address)
     if sweep_tx:
-        txs[ctx.txid()] = EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)
+        txs[ctx.txid()] = sweep_tx
     # HTLCs
     def create_sweeptx_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Tuple[Optional[Transaction],
                                                                                       Optional[Transaction],
@@ -96,6 +96,8 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
             is_revocation=True)
         # sweep from htlc tx
         secondstage_sweep_tx = create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
+            'their_htlctx_',
+            to_self_delay=0,
             htlc_tx=htlc_tx,
             htlctx_witness_script=htlc_tx_witness_script,
             sweep_address=sweep_address,
@@ -109,22 +111,22 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
     for htlc in received_htlcs:
         direct_sweep_tx, secondstage_sweep_tx, htlc_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=True)
         if direct_sweep_tx:
-            txs[ctx.txid()] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', direct_sweep_tx, csv_delay=0, cltv_expiry=0)
+            txs[ctx.txid()] = direct_sweep_tx
         if secondstage_sweep_tx:
-            txs[htlc_tx.txid()] = EncumberedTransaction(f'their_htlctx_{bh2u(htlc.payment_hash)}', secondstage_sweep_tx, csv_delay=0, cltv_expiry=0)
+            txs[htlc_tx.txid()] = secondstage_sweep_tx
     # offered HTLCs, in their ctx
     offered_htlcs = chan.included_htlcs(REMOTE, REMOTE, False)
     for htlc in offered_htlcs:
         direct_sweep_tx, secondstage_sweep_tx, htlc_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=False)
         if direct_sweep_tx:
-            txs[ctx.txid()] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', direct_sweep_tx, csv_delay=0, cltv_expiry=0)
+            txs[ctx.txid()] = direct_sweep_tx
         if secondstage_sweep_tx:
-            txs[htlc_tx.txid()] = EncumberedTransaction(f'their_htlctx_{bh2u(htlc.payment_hash)}', secondstage_sweep_tx, csv_delay=0, cltv_expiry=0)
+            txs[htlc_tx.txid()] = secondstage_sweep_tx
     return txs
 
 
 def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
-                                       sweep_address: str) -> Dict[str,EncumberedTransaction]:
+                                       sweep_address: str) -> Dict[str,Transaction]:
     """Handle the case where we force close unilaterally with our latest ctx.
     Construct sweep txns for 'to_local', and for all HTLCs (2 txns each).
     'to_local' can be swept even if this is a breach (by us),
@@ -151,7 +153,7 @@ def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
                                                                     remote_revocation_pubkey=other_revocation_pubkey,
                                                                     to_self_delay=to_self_delay)
     if sweep_tx:
-        txs[sweep_tx.prevout(0)] = EncumberedTransaction('our_ctx_to_local', sweep_tx, csv_delay=to_self_delay, cltv_expiry=0)
+        txs[sweep_tx.prevout(0)] = sweep_tx
     # HTLCs
     def create_txns_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Tuple[Optional[Transaction], Optional[Transaction]]:
         if is_received_htlc:
@@ -171,6 +173,7 @@ def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
             preimage=preimage,
             is_received_htlc=is_received_htlc)
         to_wallet_tx = create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
+            'our_ctx_htlc_tx_',
             to_self_delay=to_self_delay,
             htlc_tx=htlc_tx,
             htlctx_witness_script=htlctx_witness_script,
@@ -184,21 +187,21 @@ def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
     for htlc in offered_htlcs:
         htlc_tx, to_wallet_tx = create_txns_for_htlc(htlc, is_received_htlc=False)
         if htlc_tx and to_wallet_tx:
-            txs[to_wallet_tx.prevout(0)] = EncumberedTransaction(f'second_stage_to_wallet_{bh2u(htlc.payment_hash)}', to_wallet_tx, csv_delay=to_self_delay, cltv_expiry=0)
-            txs[htlc_tx.prevout(0)] = EncumberedTransaction(f'our_ctx_htlc_tx_{bh2u(htlc.payment_hash)}', htlc_tx, csv_delay=0, cltv_expiry=htlc.cltv_expiry)
+            txs[to_wallet_tx.prevout(0)] = to_wallet_tx
+            txs[htlc_tx.prevout(0)] = htlc_tx
     # received HTLCs, in our ctx --> "success"
     # TODO consider carefully if "included_htlcs" is what we need here
     received_htlcs = list(chan.included_htlcs(LOCAL, REMOTE))  # type: List[UpdateAddHtlc]
     for htlc in received_htlcs:
         htlc_tx, to_wallet_tx = create_txns_for_htlc(htlc, is_received_htlc=True)
         if htlc_tx and to_wallet_tx:
-            txs[to_wallet_tx.prevout(0)] = EncumberedTransaction(f'second_stage_to_wallet_{bh2u(htlc.payment_hash)}', to_wallet_tx, csv_delay=to_self_delay, cltv_expiry=0)
-            txs[htlc_tx.prevout(0)] = EncumberedTransaction(f'our_ctx_htlc_tx_{bh2u(htlc.payment_hash)}', htlc_tx, csv_delay=0, cltv_expiry=0)
+            txs[to_wallet_tx.prevout(0)] = to_wallet_tx
+            txs[htlc_tx.prevout(0)] = htlc_tx
     return txs
 
 
 def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
-                                         sweep_address: str) -> Dict[str,EncumberedTransaction]:
+                                         sweep_address: str) -> Dict[str,Transaction]:
     """Handle the case when the remote force-closes with their ctx.
     Regardless of it is a breach or not, construct sweep tx for 'to_remote'.
     If it is a breach, also construct sweep tx for 'to_local'.
@@ -244,13 +247,13 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
                                                                delayed_pubkey=this_delayed_pubkey,
                                                                sweep_address=sweep_address)
         if sweep_tx:
-            txs[sweep_tx.prevout(0)] = EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)
+            txs[sweep_tx.prevout(0)] = sweep_tx
     # to_remote
     sweep_tx = maybe_create_sweeptx_for_their_ctx_to_remote(ctx=ctx,
                                                             sweep_address=sweep_address,
                                                             our_payment_privkey=other_payment_privkey)
     if sweep_tx:
-        txs[sweep_tx.prevout(0)] = EncumberedTransaction('their_ctx_to_remote', sweep_tx, csv_delay=0, cltv_expiry=0)
+        txs[sweep_tx.prevout(0)] = sweep_tx
     # HTLCs
     # from their ctx, we can only redeem HTLCs if the ctx was not revoked,
     # as old HTLCs are not stored. (if it was revoked, then we should have presigned txns
@@ -279,20 +282,21 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
             htlc_output_witness_script=htlc_output_witness_script,
             privkey=other_htlc_privkey.get_secret_bytes(),
             preimage=preimage,
-            is_revocation=False)
+            is_revocation=False,
+            cltv_expiry=htlc.cltv_expiry if is_received_htlc else 0)
         return sweep_tx
     # received HTLCs, in their ctx --> "timeout"
     received_htlcs = chan.included_htlcs_in_their_latest_ctxs(LOCAL)[ctn]  # type: List[UpdateAddHtlc]
     for htlc in received_htlcs:
         sweep_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=True)
         if sweep_tx:
-            txs[sweep_tx.prevout(0)] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', sweep_tx, csv_delay=0, cltv_expiry=htlc.cltv_expiry)
+            txs[sweep_tx.prevout(0)] = sweep_tx
     # offered HTLCs, in their ctx --> "success"
     offered_htlcs = chan.included_htlcs_in_their_latest_ctxs(REMOTE)[ctn]  # type: List[UpdateAddHtlc]
     for htlc in offered_htlcs:
         sweep_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=False)
         if sweep_tx:
-            txs[sweep_tx.prevout(0)] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', sweep_tx, csv_delay=0, cltv_expiry=0)
+            txs[sweep_tx.prevout(0)] = sweep_tx
     return txs
 
 
@@ -327,7 +331,9 @@ def create_htlctx_that_spends_from_our_ctx(chan: 'Channel', our_pcp: bytes,
                                                              for_us=True,
                                                              we_receive=is_received_htlc,
                                                              commit=ctx,
-                                                             htlc=htlc)
+                                                             htlc=htlc,
+                                                             name=f'our_ctx_htlc_tx_{bh2u(htlc.payment_hash)}',
+                                                             cltv_expiry=0 if is_received_htlc else htlc.cltv_expiry)
     remote_htlc_sig = chan.get_remote_htlc_sig_for_htlc(htlc, we_receive=is_received_htlc)
     local_htlc_sig = bfh(htlc_tx.sign_txin(0, local_htlc_privkey))
     txin = htlc_tx.inputs()[0]
@@ -339,7 +345,7 @@ def create_htlctx_that_spends_from_our_ctx(chan: 'Channel', our_pcp: bytes,
 def maybe_create_sweeptx_for_their_ctx_htlc(ctx: Transaction, sweep_address: str,
                                             htlc_output_witness_script: bytes,
                                             privkey: bytes, is_revocation: bool,
-                                            preimage: Optional[bytes]) -> Optional[Transaction]:
+                                            preimage: Optional[bytes], cltv_expiry: int = 0) -> Optional[Transaction]:
     htlc_address = redeem_script_to_address('p2wsh', bh2u(htlc_output_witness_script))
     # FIXME handle htlc_address collision
     # also: https://github.com/lightningnetwork/lightning-rfc/issues/448
@@ -351,13 +357,14 @@ def maybe_create_sweeptx_for_their_ctx_htlc(ctx: Transaction, sweep_address: str
                                              preimage=preimage,
                                              output_idx=output_idx,
                                              privkey=privkey,
-                                             is_revocation=is_revocation)
+                                             is_revocation=is_revocation,
+                                             cltv_expiry=cltv_expiry)
     return sweep_tx
 
 
 def create_sweeptx_their_ctx_htlc(ctx: Transaction, witness_script: bytes, sweep_address: str,
                                   preimage: Optional[bytes], output_idx: int,
-                                  privkey: bytes, is_revocation: bool,
+                                  privkey: bytes, is_revocation: bool, cltv_expiry: int,
                                   fee_per_kb: int=None) -> Optional[Transaction]:
     preimage = preimage or b''  # preimage is required iff (not is_revocation and htlc is offered)
     val = ctx.outputs()[output_idx].value
@@ -378,7 +385,7 @@ def create_sweeptx_their_ctx_htlc(ctx: Transaction, witness_script: bytes, sweep
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2)
+    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name=f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', cltv_expiry=cltv_expiry)
 
     sig = bfh(tx.sign_txin(0, privkey))
     if not is_revocation:
@@ -412,7 +419,7 @@ def create_sweeptx_their_ctx_to_remote(sweep_address: str, ctx: Transaction, out
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs)
+    sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, name='their_ctx_to_remote')
     sweep_tx.set_rbf(True)
     sweep_tx.sign({our_payment_pubkey: (our_payment_privkey.get_secret_bytes(), True)})
     if not sweep_tx.is_complete():
@@ -451,7 +458,10 @@ def create_sweeptx_ctx_to_local(sweep_address: str, ctx: Transaction, output_idx
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2)
+    if is_revocation:
+        sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name='their_ctx_to_local')
+    else:
+        sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name='our_ctx_to_local', csv_delay=to_self_delay)
     sig = sweep_tx.sign_txin(0, privkey)
     witness = construct_witness([sig, int(is_revocation), witness_script])
     sweep_tx.inputs()[0]['witness'] = witness
@@ -459,8 +469,9 @@ def create_sweeptx_ctx_to_local(sweep_address: str, ctx: Transaction, output_idx
 
 
 def create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
+        name_prefix: str,
         htlc_tx: Transaction, htlctx_witness_script: bytes, sweep_address: str,
-        privkey: bytes, is_revocation: bool, to_self_delay: int=None,
+        privkey: bytes, is_revocation: bool, to_self_delay: int,
         fee_per_kb: int=None) -> Optional[Transaction]:
     val = htlc_tx.outputs()[0].value
     sweep_inputs = [{
@@ -483,7 +494,7 @@ def create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2)
+    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name=name_prefix + htlc_tx.txid(), csv_delay=to_self_delay)
 
     sig = bfh(tx.sign_txin(0, privkey))
     witness = construct_witness([sig, int(is_revocation), htlctx_witness_script])

@@ -556,7 +556,9 @@ class TestLNUtil(unittest.TestCase):
             witness_script=bh2u(htlc))
         our_htlc_tx = make_htlc_tx(cltv_timeout,
             inputs=our_htlc_tx_inputs,
-            output=our_htlc_tx_output)
+            output=our_htlc_tx_output,
+            name='test',
+            cltv_expiry=0)
 
         local_sig = our_htlc_tx.sign_txin(0, local_privkey[:-1])
 
