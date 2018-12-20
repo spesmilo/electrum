@@ -238,7 +238,7 @@
     padding: dp(12)
     spacing: dp(5)
     screen: None
-    on_release:
+    on_state:
         self.screen.show_menu(args[0]) if self.state == 'down' else self.screen.hide_menu()
     canvas.before:
         Color:
