@@ -22,7 +22,7 @@
 # SOFTWARE.
 
 import binascii
-import os, sys, re, json
+import os, sys, re, json, time
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
@@ -240,14 +240,14 @@ def constant_time_compare(val1, val2):
 
 # decorator that prints execution time
 def profiler(func):
-    def do_profile(func, args, kw_args):
-        n = func.__name__
+    name = func.__qualname__
+    def do_profile(args, kw_args):
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0
-        print_error("[profiler]", n, "%.4f"%t)
+        print_error("[profiler]", name, "%.4f"%t)
         return o
-    return lambda *args, **kw_args: do_profile(func, args, kw_args)
+    return lambda *args, **kw_args: do_profile(args, kw_args)
 
 
 def android_ext_dir():
@@ -350,7 +350,6 @@ def to_bytes(something, encoding='utf8'):
 
 bfh = bytes.fromhex
 hfu = binascii.hexlify
-
 
 def bh2u(x):
     """
@@ -520,10 +519,7 @@ class timeout(Exception):
 TimeoutException = timeout # Future compat. with Electrum codebase/cherrypicking
 
 import socket
-import json
 import ssl
-import time
-
 
 class SocketPipe(PrintError):
     def __init__(self, socket):
