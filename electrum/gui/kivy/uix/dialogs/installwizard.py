@@ -1027,6 +1027,10 @@ class InstallWizard(BaseWizard, Widget):
         Clock.schedule_once(lambda dt: app.show_error(msg))
 
     def request_password(self, run_next, force_disable_encrypt_cb=False):
+        if force_disable_encrypt_cb:
+            # do not request PIN for watching-only wallets
+            run_next(None, False)
+            return
         def on_success(old_pin, pin):
             assert old_pin is None
             run_next(pin, False)
