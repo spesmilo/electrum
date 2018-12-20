@@ -167,6 +167,8 @@ class Network(util.DaemonThread):
           is_connected(), set_parameters(), stop()
     """
 
+    INSTANCE = None # Only 1 Network instance is ever alive during app lifetime (it's a singleton)
+
     def __init__(self, config=None):
         if config is None:
             config = {}  # Do not use mutables as default values!
@@ -232,7 +234,28 @@ class Network(util.DaemonThread):
         self.connecting = set()
         self.requested_chunks = set()
         self.socket_queue = queue.Queue()
+        if Network.INSTANCE:
+            # This happens on iOS which kills and restarts the daemon on app sleep/wake
+            self.print_error("A new instance has started and is replacing the old one.")
+        Network.INSTANCE = self # This implicitly should force stale instances to eventually del
         self.start_network(deserialize_server(self.default_server)[2], deserialize_proxy(self.config.get('proxy')))
+
+    def __del__(self):
+        ''' NB: due to Network.INSTANCE keeping the singleton instance alive,
+            this code isn't normally reached, except for in the iOS
+            implementation, which kills the daemon and the network before app
+            sleep, and creates a new daemon and netwok on app awake. '''
+        if Network.INSTANCE is self: # This check is important for iOS
+            Network.INSTANCE = None # <--- Not normally reached, but here for completeness.
+        else:
+            self.print_error("Stale instance deallocated")
+        if hasattr(super(), '__del__'):
+            super().__del__()
+
+    @staticmethod
+    def get_instance():
+        ''' Returns the extant Network singleton, if any, or None if in offline mode '''
+        return Network.INSTANCE
 
     def register_callback(self, callback, events):
         with self.lock:
@@ -310,6 +333,8 @@ class Network(util.DaemonThread):
         if self.debug:
             self.print_error(interface.host, "-->", method, params, message_id)
         interface.queue_request(method, params, message_id)
+        if self is not Network.INSTANCE:
+            self.print_error("*** WARNING: queueing request on a stale instance!")
         return message_id
 
     def send_subscriptions(self):
@@ -1494,3 +1519,28 @@ class Network(util.DaemonThread):
         invocation = lambda c: self.send([(command, [tx_hash, tx_height])], c)
 
         return Network.__with_default_synchronous_callback(invocation, callback)
+
+    def get_proxies(self):
+        ''' Returns a proxies dictionary suitable to be passed to the requests
+            module, or None if no proxy is set for this instance. '''
+        proxy = self.proxy and self.proxy.copy() # retain a copy in case another thread messes with it
+        if proxy:
+            pre = ''
+            # proxies format for requests lib is eg:
+            # {
+            #   'http'  : 'socks[45]://user:password@host:port',
+            #   'https' : 'socks[45]://user:password@host:port'
+            # }
+            # with user:password@ being omitted if no user/password.
+            if proxy.get('user') and proxy.get('password'):
+                pre = '{}:{}@'.format(proxy.get('user'), proxy.get('password'))
+            mode = proxy.get('mode')
+            if mode and mode.lower() == "socks5":
+                mode += 'h' # socks5 with hostname resolution on the server side so it works with tor & even onion!
+            socks = '{}://{}{}:{}'.format(mode, pre, proxy.get('host'), proxy.get('port'))
+            proxies = { # transform it to requests format
+                'http' : socks,
+                'https' : socks
+            }
+            return proxies
+        return None
