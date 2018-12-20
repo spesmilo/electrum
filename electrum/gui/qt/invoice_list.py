@@ -33,7 +33,7 @@ class InvoiceList(MyTreeView):
     filter_columns = [0, 1, 2, 3]  # Date, Requestor, Description, Amount
 
     def __init__(self, parent):
-        super().__init__(parent, self.create_menu, 2)
+        super().__init__(parent, self.create_menu, stretch_column=2, editable_columns=[])
         self.setSortingEnabled(True)
         self.setColumnWidth(1, 200)
         self.setModel(QStandardItemModel(self))
@@ -44,19 +44,20 @@ class InvoiceList(MyTreeView):
         self.model().clear()
         self.update_headers([_('Expires'), _('Requestor'), _('Description'), _('Amount'), _('Status')])
         self.header().setSectionResizeMode(1, QHeaderView.Interactive)
-        for pr in inv_list:
+        for idx, pr in enumerate(inv_list):
             key = pr.get_id()
             status = self.parent.invoices.get_status(key)
             requestor = pr.get_requestor()
             exp = pr.get_expiration_date()
             date_str = format_time(exp) if exp else _('Never')
             labels = [date_str, requestor, pr.memo, self.parent.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')]
-            item = [QStandardItem(e) for e in labels]
-            item[4].setIcon(self.icon_cache.get(pr_icons.get(status)))
-            item[0].setData(Qt.UserRole, key)
-            item[1].setFont(QFont(MONOSPACE_FONT))
-            item[3].setFont(QFont(MONOSPACE_FONT))
-            self.addTopLevelItem(item)
+            items = [QStandardItem(e) for e in labels]
+            self.set_editability(items)
+            items[4].setIcon(self.icon_cache.get(pr_icons.get(status)))
+            items[0].setData(key, role=Qt.UserRole)
+            items[1].setFont(QFont(MONOSPACE_FONT))
+            items[3].setFont(QFont(MONOSPACE_FONT))
+            self.model().insertRow(idx, items)
         self.selectionModel().select(self.model().index(0,0), QItemSelectionModel.SelectCurrent)
         if self.parent.isVisible():
             b = len(inv_list) > 0
@@ -70,16 +71,17 @@ class InvoiceList(MyTreeView):
         export_meta_gui(self.parent, _('invoices'), self.parent.invoices.export_file)
 
     def create_menu(self, position):
-        menu = QMenu()
-        item = self.itemAt(position)
-        if not item:
+        idx = self.indexAt(position)
+        item = self.model().itemFromIndex(idx)
+        item_col0 = self.model().itemFromIndex(idx.sibling(idx.row(), 0))
+        if not item or not item_col0:
             return
-        key = item.data(0, Qt.UserRole)
-        column = self.currentColumn()
-        column_title = self.headerItem().text(column)
-        column_data = item.text(column)
-        pr = self.parent.invoices.get(key)
+        key = item_col0.data(Qt.UserRole)
+        column = idx.column()
+        column_title = self.model().horizontalHeaderItem(column).text()
+        column_data = item.text()
         status = self.parent.invoices.get_status(key)
+        menu = QMenu(self)
         if column_data:
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
         menu.addAction(_("Details"), lambda: self.parent.show_invoice(key))

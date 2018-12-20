@@ -1929,7 +1929,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             grid.addWidget(QLabel(format_time(expires)), 4, 1)
         vbox.addLayout(grid)
         def do_export():
-            fn = self.getSaveFileName(_("Save invoice to file"), "*.bip70")
+            name = str(key) + '.bip70'
+            fn = self.getSaveFileName(_("Save invoice to file"), name, filter="*.bip70")
             if not fn:
                 return
             with open(fn, 'wb') as f:
