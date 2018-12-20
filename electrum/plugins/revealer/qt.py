@@ -13,27 +13,26 @@ import os
 import random
 import qrcode
 import traceback
-from hashlib import sha256
 from decimal import Decimal
-import binascii
 
 from PyQt5.QtPrintSupport import QPrinter
 
-from electrum.plugin import BasePlugin, hook
+from electrum.plugin import hook
 from electrum.i18n import _
-from electrum.util import to_bytes, make_dir, InvalidPassword, UserCancelled
+from electrum.util import make_dir, InvalidPassword, UserCancelled, bh2u, bfh
 from electrum.gui.qt.util import *
 from electrum.gui.qt.qrtextedit import ScanQRTextEdit
 from electrum.gui.qt.main_window import StatusBarButton
 
-from .hmac_drbg import DRBG
+from .revealer import RevealerPlugin, VersionedSeed
 
-class Plugin(BasePlugin):
+
+class Plugin(RevealerPlugin):
 
     MAX_PLAINTEXT_LEN = 189  # chars
 
     def __init__(self, parent, config, name):
-        BasePlugin.__init__(self, parent, config, name)
+        RevealerPlugin.__init__(self, parent, config, name)
         self.base_dir = os.path.join(config.electrum_path(), 'revealer')
 
         if self.config.get('calibration_h') is None:
@@ -44,8 +43,6 @@ class Plugin(BasePlugin):
         self.calibration_h = self.config.get('calibration_h')
         self.calibration_v = self.config.get('calibration_v')
 
-        self.version = '1'
-        self.size = (159, 97)
         self.f_size = QSize(1014*2, 642*2)
         self.abstand_h = 21
         self.abstand_v = 34
@@ -90,7 +87,6 @@ class Plugin(BasePlugin):
         self.wallet = window.parent().wallet
         self.update_wallet_name(self.wallet)
         self.user_input = False
-        self.noise_seed = False
 
         self.d = WindowModalDialog(window, "Setup Dialog")
         self.d.setMinimumWidth(500)
@@ -145,39 +141,12 @@ class Plugin(BasePlugin):
         return ''.join(text.split()).lower()
 
     def on_edit(self):
-        s = self.get_noise()
-        b = self.is_noise(s)
-        if b:
-            self.noise_seed = s[1:-3]
-            self.user_input = True
-        self.next_button.setEnabled(b)
-
-    def code_hashid(self, txt):
-        x = to_bytes(txt, 'utf8')
-        hash = sha256(x).hexdigest()
-        return hash[-3:].upper()
-
-    def is_noise(self, txt):
-        if (len(txt) >= 34):
-            try:
-                int(txt, 16)
-            except:
-                self.user_input = False
-                return False
-            else:
-                id = self.code_hashid(txt[:-3])
-                if (txt[-3:].upper() == id.upper()):
-                    self.code_id = id
-                    self.user_input = True
-                    return True
-                else:
-                    return False
-        else:
-
-            if (len(txt)>0 and txt[0]=='0'):
-                self.d.show_message(''.join(["<b>",_("Warning: "), "</b>", _("Revealers starting with 0 had a vulnerability and are not supported.")]))
-            self.user_input = False
-            return False
+        txt = self.get_noise()
+        versioned_seed = self.get_versioned_seed_from_user_input(txt)
+        if versioned_seed:
+            self.versioned_seed = versioned_seed
+        self.user_input = bool(versioned_seed)
+        self.next_button.setEnabled(bool(versioned_seed))
 
     def make_digital(self, dialog):
         self.make_rawnoise(True)
@@ -185,7 +154,9 @@ class Plugin(BasePlugin):
         self.d.close()
 
     def get_path_to_revealer_file(self, ext: str= '') -> str:
-        filename = self.filename_prefix + self.version + "_" + self.code_id + ext
+        version = self.versioned_seed.version
+        code_id = self.versioned_seed.checksum
+        filename = self.filename_prefix + version + "_" + code_id + ext
         path = os.path.join(self.base_dir, filename)
         return os.path.normcase(os.path.abspath(path))
 
@@ -195,7 +166,9 @@ class Plugin(BasePlugin):
 
     def bcrypt(self, dialog):
         self.rawnoise = False
-        dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at: ").format(self.was, self.version, self.code_id),
+        version = self.versioned_seed.version
+        code_id = self.versioned_seed.checksum
+        dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at: ").format(self.was, version, code_id),
                                      "<b>", self.get_path_to_revealer_file(), "</b>", "<br/>",
                                      "<br/>", "<b>", _("Always check you backups.")]))
         dialog.close()
@@ -206,7 +179,9 @@ class Plugin(BasePlugin):
         dialog.close()
 
     def bdone(self, dialog):
-        dialog.show_message(''.join([_("Digital Revealer ({}_{}) saved as PNG and PDF at:").format(self.version, self.code_id),
+        version = self.versioned_seed.version
+        code_id = self.versioned_seed.checksum
+        dialog.show_message(''.join([_("Digital Revealer ({}_{}) saved as PNG and PDF at:").format(version, code_id),
                                      "<br/>","<b>", self.get_path_to_revealer_file(), '</b>']))
 
 
@@ -224,7 +199,19 @@ class Plugin(BasePlugin):
         self.txt = self.text.text()
         self.seed_img(is_seed=False)
 
+    def warn_old_revealer(self):
+        if self.versioned_seed.version == '0':
+            link = "https://revealer.cc/revealer-warning-and-upgrade/"
+            self.d.show_warning(("<b>{warning}: </b>{ver0}<br>"
+                                 "{url}<br>"
+                                 "{risk}")
+                                .format(warning=_("Warning"),
+                                        ver0=_("Revealers starting with 0 are not secure due to a vulnerability."),
+                                        url=_("More info at: {}").format(f'<a href="{link}">{link}</a>'),
+                                        risk=_("Proceed at your own risk.")))
+
     def cypherseed_dialog(self, window):
+        self.warn_old_revealer()
 
         d = WindowModalDialog(window, "Encryption Dialog")
         d.setMinimumWidth(500)
@@ -241,7 +228,8 @@ class Plugin(BasePlugin):
         logo.setAlignment(Qt.AlignLeft)
         hbox.addSpacing(16)
         self.vbox.addWidget(WWLabel("<b>" + _("Revealer Secret Backup Plugin") + "</b><br>"
-                               + _("Ready to encrypt for revealer {}").format(self.version+'_'+self.code_id )))
+                               + _("Ready to encrypt for revealer {}")
+                                    .format(self.versioned_seed.version+'_'+self.versioned_seed.checksum)))
         self.vbox.addSpacing(11)
         hbox.addLayout(self.vbox)
         grid = QGridLayout()
@@ -294,7 +282,7 @@ class Plugin(BasePlugin):
         else:
             txt = self.txt.upper()
 
-        img = QImage(self.size[0],self.size[1], QImage.Format_Mono)
+        img = QImage(self.SIZE[0], self.SIZE[1], QImage.Format_Mono)
         bitmap = QBitmap.fromImage(img, Qt.MonoOnly)
         bitmap.fill(Qt.white)
         painter = QPainter()
@@ -325,7 +313,7 @@ class Plugin(BasePlugin):
             while len(' '.join(map(str, temp_seed))) > max_letters:
                nwords = nwords - 1
                temp_seed = seed_array[:nwords]
-            painter.drawText(QRect(0, linespace*n , self.size[0], self.size[1]), Qt.AlignHCenter, ' '.join(map(str, temp_seed)))
+            painter.drawText(QRect(0, linespace*n , self.SIZE[0], self.SIZE[1]), Qt.AlignHCenter, ' '.join(map(str, temp_seed)))
             del seed_array[:nwords]
 
         painter.end()
@@ -337,43 +325,23 @@ class Plugin(BasePlugin):
         return img
 
     def make_rawnoise(self, create_revealer=False):
-        w = self.size[0]
-        h = self.size[1]
+        if not self.user_input:
+            self.versioned_seed = self.gen_random_versioned_seed()
+        assert self.versioned_seed
+        w, h = self.SIZE
         rawnoise = QImage(w, h, QImage.Format_Mono)
 
-        if(self.noise_seed == False):
-            self.noise_seed = random.SystemRandom().getrandbits(128)
-            self.hex_noise = format(self.noise_seed, '032x')
-            self.hex_noise = self.version + str(self.hex_noise)
-
-        if (self.user_input == True):
-            self.noise_seed = int(self.noise_seed, 16)
-            self.hex_noise = self.version + str(format(self.noise_seed, '032x'))
-
-        self.code_id = self.code_hashid(self.hex_noise)
-        self.hex_noise = ' '.join(self.hex_noise[i:i+4] for i in range(0,len(self.hex_noise),4))
-
-        entropy = binascii.unhexlify(str(format(self.noise_seed, '032x')))
-        code_id = binascii.unhexlify(self.version + self.code_id)
-
-        drbg = DRBG(entropy + code_id)
-        noise_array=bin(int.from_bytes(drbg.generate(1929), 'big'))[2:]
-
-        i=0
-        for x in range(w):
-            for y in range(h):
-                rawnoise.setPixel(x,y,int(noise_array[i]))
-                i+=1
+        noise_map = self.get_noise_map(self.versioned_seed)
+        for (x,y), pixel in noise_map.items():
+            rawnoise.setPixel(x, y, pixel)
 
         self.rawnoise = rawnoise
-        if create_revealer==True:
+        if create_revealer:
             self.make_revealer()
-        self.noise_seed = False
 
     def make_calnoise(self):
         random.seed(self.calibration_noise)
-        w = self.size[0]
-        h = self.size[1]
+        w, h = self.SIZE
         rawnoise = QImage(w, h, QImage.Format_Mono)
         for x in range(w):
             for y in range(h):
@@ -422,7 +390,7 @@ class Plugin(BasePlugin):
         return cypherseed
 
     def calibration(self):
-        img = QImage(self.size[0],self.size[1], QImage.Format_Mono)
+        img = QImage(self.SIZE[0], self.SIZE[1], QImage.Format_Mono)
         bitmap = QBitmap.fromImage(img, Qt.MonoOnly)
         bitmap.fill(Qt.black)
         self.make_calnoise()
@@ -586,7 +554,8 @@ class Plugin(BasePlugin):
                                 (base_img.height()-((total_distance_h)))-((border_thick*8)/2)-(border_thick/2)-2)
                 painter.setPen(QColor(0,0,0,255))
                 painter.drawText(QRect(0, base_img.height()-107, base_img.width()-total_distance_h - border_thick - 11,
-                                       base_img.height()-total_distance_h - border_thick), Qt.AlignRight, self.version + '_'+self.code_id)
+                                       base_img.height()-total_distance_h - border_thick), Qt.AlignRight,
+                                 self.versioned_seed.version + '_'+self.versioned_seed.checksum)
                 painter.end()
 
             else: # revealer
@@ -635,12 +604,13 @@ class Plugin(BasePlugin):
                 painter.setPen(QColor(0,0,0,255))
                 painter.drawText(QRect(((base_img.width()/2) +21)-qr_size, base_img.height()-107,
                                        base_img.width()-total_distance_h - border_thick -93,
-                                       base_img.height()-total_distance_h - border_thick), Qt.AlignLeft, self.hex_noise.upper())
+                                       base_img.height()-total_distance_h - border_thick), Qt.AlignLeft, self.versioned_seed.get_ui_string_version_plus_seed())
                 painter.drawText(QRect(0, base_img.height()-107, base_img.width()-total_distance_h - border_thick -3 -qr_size,
-                                       base_img.height()-total_distance_h - border_thick), Qt.AlignRight, self.code_id)
+                                       base_img.height()-total_distance_h - border_thick), Qt.AlignRight, self.versioned_seed.checksum)
 
                 # draw qr code
-                qr_qt = self.paintQR(self.hex_noise.upper() +self.code_id)
+                qr_qt = self.paintQR(self.versioned_seed.get_ui_string_version_plus_seed()
+                                     + self.versioned_seed.checksum)
                 target = QRectF(base_img.width()-65-qr_size,
                                 base_img.height()-65-qr_size,
                                 qr_size, qr_size )
