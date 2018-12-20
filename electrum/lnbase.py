@@ -1197,8 +1197,8 @@ class Peer(PrintError):
             our_fee = their_fee
         # add their signature
         i = chan.get_local_index()
-        closing_tx.add_signature_to_txin(0, i, bh2u(our_sig))
-        closing_tx.add_signature_to_txin(0, 1-i, bh2u(their_sig))
+        closing_tx.add_signature_to_txin(0, i, bh2u(der_sig_from_sig_string(our_sig) + b'\x01'))
+        closing_tx.add_signature_to_txin(0, 1-i, bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
         # broadcast
         await self.network.broadcast_transaction(closing_tx)
         return closing_tx.txid()
