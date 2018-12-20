@@ -650,7 +650,7 @@ class Network(PrintError):
         await self._close_interface(interface)
         self.trigger_callback('network_updated')
 
-    def get_network_timeout_seconds(self, request_type: NetworkTimeout.Generic=NetworkTimeout.Generic):
+    def get_network_timeout_seconds(self, request_type=NetworkTimeout.Generic) -> int:
         if self.oneserver and not self.auto_connect:
             return request_type.MOST_RELAXED
         if self.proxy:
