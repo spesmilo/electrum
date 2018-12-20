@@ -269,10 +269,10 @@ def make_htlc_tx_inputs(htlc_output_txid: str, htlc_output_index: int,
     }]
     return c_inputs
 
-def make_htlc_tx(cltv_timeout, inputs, output):
+def make_htlc_tx(cltv_timeout, inputs, output, name, cltv_expiry):
     assert type(cltv_timeout) is int
     c_outputs = [output]
-    tx = Transaction.from_io(inputs, c_outputs, locktime=cltv_timeout, version=2)
+    tx = Transaction.from_io(inputs, c_outputs, locktime=cltv_timeout, version=2, name=name, cltv_expiry=cltv_expiry)
     return tx
 
 def make_offered_htlc(revocation_pubkey: bytes, remote_htlcpubkey: bytes,
@@ -336,7 +336,7 @@ def get_ordered_channel_configs(chan: 'Channel', for_us: bool) -> Tuple[Union[Lo
 
 def make_htlc_tx_with_open_channel(chan: 'Channel', pcp: bytes, for_us: bool,
                                    we_receive: bool, commit: Transaction,
-                                   htlc: 'UpdateAddHtlc') -> Tuple[bytes, Transaction]:
+                                   htlc: 'UpdateAddHtlc', name: str = None, cltv_expiry: int = 0) -> Tuple[bytes, Transaction]:
     amount_msat, cltv_expiry, payment_hash = htlc.amount_msat, htlc.cltv_expiry, htlc.payment_hash
     conf, other_conf = get_ordered_channel_configs(chan=chan, for_us=for_us)
 
@@ -371,7 +371,8 @@ def make_htlc_tx_with_open_channel(chan: 'Channel', pcp: bytes, for_us: bool,
         witness_script=bh2u(preimage_script))
     if is_htlc_success:
         cltv_expiry = 0
-    htlc_tx = make_htlc_tx(cltv_expiry, inputs=htlc_tx_inputs, output=htlc_tx_output)
+    htlc_tx = make_htlc_tx(cltv_expiry, inputs=htlc_tx_inputs, output=htlc_tx_output,
+        name=name, cltv_expiry=cltv_expiry)
     return script, htlc_tx
 
 def make_funding_input(local_funding_pubkey: bytes, remote_funding_pubkey: bytes,
@@ -637,28 +638,6 @@ class LnKeyFamily(IntEnum):
 
 def generate_keypair(ln_keystore: BIP32_KeyStore, key_family: LnKeyFamily, index: int) -> Keypair:
     return Keypair(*ln_keystore.get_keypair([key_family, 0, index], None))
-
-
-class EncumberedTransaction(NamedTuple("EncumberedTransaction", [('name', str),
-                                                                 ('tx', Transaction),
-                                                                 ('csv_delay', int),
-                                                                 ('cltv_expiry', int),])):
-    def to_json(self) -> dict:
-        return {
-            'name': self.name,
-            'tx': str(self.tx),
-            'csv_delay': self.csv_delay,
-            'cltv_expiry': self.cltv_expiry,
-        }
-
-    @classmethod
-    def from_json(cls, d: dict):
-        d2 = dict(d)
-        d2['tx'] = Transaction(d['tx'])
-        return EncumberedTransaction(**d2)
-
-    def __str__(self):
-        return super().__str__()[:-1] + ", txid: " + self.tx.txid() + ")"
 
 
 NUM_MAX_HOPS_IN_PAYMENT_PATH = 20
