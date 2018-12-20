@@ -639,26 +639,30 @@ def generate_keypair(ln_keystore: BIP32_KeyStore, key_family: LnKeyFamily, index
     return Keypair(*ln_keystore.get_keypair([key_family, 0, index], None))
 
 
-class EncumberedTransaction(NamedTuple("EncumberedTransaction", [('name', str),
-                                                                 ('tx', Transaction),
-                                                                 ('csv_delay', int),
-                                                                 ('cltv_expiry', int),])):
+class LightningTransaction(Transaction):
+    @staticmethod
+    def from_io(inputs, outputs, version: int, name: str, csv_delay: int, cltv_expiry: int):
+        tx = Transaction.from_io(inputs, outputs, version=version)
+        return LightningTransaction.from_tx(tx, name, csv_delay, cltv_expiry)
+
+    def from_tx(self: Transaction, name: str, csv_delay: int, cltv_expiry: int) -> 'LightningTransaction':
+        self.name = name
+        self.csv_delay = csv_delay
+        self.cltv_expiry = cltv_expiry
+        self.to_json = LightningTransaction.to_json
+        return self
+
     def to_json(self) -> dict:
         return {
             'name': self.name,
-            'tx': str(self.tx),
+            'tx': str(self),
             'csv_delay': self.csv_delay,
             'cltv_expiry': self.cltv_expiry,
         }
 
     @classmethod
     def from_json(cls, d: dict):
-        d2 = dict(d)
-        d2['tx'] = Transaction(d['tx'])
-        return EncumberedTransaction(**d2)
-
-    def __str__(self):
-        return super().__str__()[:-1] + ", txid: " + self.tx.txid() + ")"
+        return cls.from_tx(Transaction(d['tx']), d['name'], d['csv_delay'], d['cltv_expiry'])
 
 
 NUM_MAX_HOPS_IN_PAYMENT_PATH = 20

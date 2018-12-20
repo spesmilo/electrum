@@ -7,7 +7,7 @@ from typing import Optional, Dict, List, Tuple, TYPE_CHECKING
 from .util import bfh, bh2u, print_error
 from .bitcoin import TYPE_ADDRESS, redeem_script_to_address, dust_threshold
 from . import ecc
-from .lnutil import (EncumberedTransaction,
+from .lnutil import (LightningTransaction,
                      make_commitment_output_to_remote_address, make_commitment_output_to_local_witness_script,
                      derive_privkey, derive_pubkey, derive_blinded_pubkey, derive_blinded_privkey,
                      make_htlc_tx_witness, make_htlc_tx_with_open_channel,
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 def maybe_create_sweeptx_for_their_ctx_to_remote(ctx: Transaction, sweep_address: str,
-                                                 our_payment_privkey: ecc.ECPrivkey) -> Optional[Transaction]:
+                                                 our_payment_privkey: ecc.ECPrivkey) -> Optional[LightningTransaction]:
     our_payment_pubkey = our_payment_privkey.get_public_key_bytes(compressed=True)
     to_remote_address = make_commitment_output_to_remote_address(our_payment_pubkey)
     output_idx = ctx.get_output_idx_from_address(to_remote_address)
@@ -36,7 +36,7 @@ def maybe_create_sweeptx_for_their_ctx_to_remote(ctx: Transaction, sweep_address
 
 def maybe_create_sweeptx_for_their_ctx_to_local(ctx: Transaction, revocation_privkey: bytes,
                                                 to_self_delay: int, delayed_pubkey: bytes,
-                                                sweep_address: str) -> Optional[Transaction]:
+                                                sweep_address: str) -> Optional[LightningTransaction]:
     revocation_pubkey = ecc.ECPrivkey(revocation_privkey).get_public_key_bytes(compressed=True)
     witness_script = bh2u(make_commitment_output_to_local_witness_script(
         revocation_pubkey, to_self_delay, delayed_pubkey))
@@ -49,11 +49,12 @@ def maybe_create_sweeptx_for_their_ctx_to_local(ctx: Transaction, revocation_pri
                                            witness_script=witness_script,
                                            privkey=revocation_privkey,
                                            is_revocation=True)
-    return sweep_tx
+    if sweep_tx is None: return None
+    return LightningTransaction.from_tx(sweep_tx, 'their_ctx_to_local', 0, 0)
 
 
 def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction, per_commitment_secret: bytes,
-                                               sweep_address: str) -> Dict[str,EncumberedTransaction]:
+                                               sweep_address: str) -> Dict[str,LightningTransaction]:
     """Presign sweeping transactions using the just received revoked pcs.
     These will only be utilised if the remote breaches.
     Sweep 'lo_local', and all the HTLCs (two cases: directly from ctx, or from HTLC tx).
@@ -73,10 +74,10 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
                                                            delayed_pubkey=this_delayed_pubkey,
                                                            sweep_address=sweep_address)
     if sweep_tx:
-        txs[ctx.txid()] = EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)
+        txs[ctx.txid()] = sweep_tx
     # HTLCs
-    def create_sweeptx_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Tuple[Optional[Transaction],
-                                                                                      Optional[Transaction],
+    def create_sweeptx_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Tuple[Optional[LightningTransaction],
+                                                                                      Optional[LightningTransaction],
                                                                                       Transaction]:
         htlc_tx_witness_script, htlc_tx = make_htlc_tx_with_open_channel(chan=chan,
                                                                          pcp=pcp,
@@ -96,6 +97,8 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
             is_revocation=True)
         # sweep from htlc tx
         secondstage_sweep_tx = create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
+            'their_htlctx_',
+            to_self_delay=0,
             htlc_tx=htlc_tx,
             htlctx_witness_script=htlc_tx_witness_script,
             sweep_address=sweep_address,
@@ -109,22 +112,22 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
     for htlc in received_htlcs:
         direct_sweep_tx, secondstage_sweep_tx, htlc_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=True)
         if direct_sweep_tx:
-            txs[ctx.txid()] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', direct_sweep_tx, csv_delay=0, cltv_expiry=0)
+            txs[ctx.txid()] = direct_sweep_tx
         if secondstage_sweep_tx:
-            txs[htlc_tx.txid()] = EncumberedTransaction(f'their_htlctx_{bh2u(htlc.payment_hash)}', secondstage_sweep_tx, csv_delay=0, cltv_expiry=0)
+            txs[htlc_tx.txid()] = secondstage_sweep_tx
     # offered HTLCs, in their ctx
     offered_htlcs = chan.included_htlcs(REMOTE, REMOTE, False)
     for htlc in offered_htlcs:
         direct_sweep_tx, secondstage_sweep_tx, htlc_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=False)
         if direct_sweep_tx:
-            txs[ctx.txid()] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', direct_sweep_tx, csv_delay=0, cltv_expiry=0)
+            txs[ctx.txid()] = direct_sweep_tx
         if secondstage_sweep_tx:
-            txs[htlc_tx.txid()] = EncumberedTransaction(f'their_htlctx_{bh2u(htlc.payment_hash)}', secondstage_sweep_tx, csv_delay=0, cltv_expiry=0)
+            txs[htlc_tx.txid()] = secondstage_sweep_tx
     return txs
 
 
 def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
-                                       sweep_address: str) -> Dict[str,EncumberedTransaction]:
+                                       sweep_address: str) -> Dict[str,LightningTransaction]:
     """Handle the case where we force close unilaterally with our latest ctx.
     Construct sweep txns for 'to_local', and for all HTLCs (2 txns each).
     'to_local' can be swept even if this is a breach (by us),
@@ -151,9 +154,9 @@ def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
                                                                     remote_revocation_pubkey=other_revocation_pubkey,
                                                                     to_self_delay=to_self_delay)
     if sweep_tx:
-        txs[sweep_tx.prevout(0)] = EncumberedTransaction('our_ctx_to_local', sweep_tx, csv_delay=to_self_delay, cltv_expiry=0)
+        txs[sweep_tx.prevout(0)] = sweep_tx
     # HTLCs
-    def create_txns_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Tuple[Optional[Transaction], Optional[Transaction]]:
+    def create_txns_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Tuple[Optional[LightningTransaction], Optional[LightningTransaction]]:
         if is_received_htlc:
             try:
                 preimage, invoice = chan.get_preimage_and_invoice(htlc.payment_hash)
@@ -171,6 +174,7 @@ def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
             preimage=preimage,
             is_received_htlc=is_received_htlc)
         to_wallet_tx = create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
+            'our_ctx_htlc_tx_',
             to_self_delay=to_self_delay,
             htlc_tx=htlc_tx,
             htlctx_witness_script=htlctx_witness_script,
@@ -184,21 +188,21 @@ def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
     for htlc in offered_htlcs:
         htlc_tx, to_wallet_tx = create_txns_for_htlc(htlc, is_received_htlc=False)
         if htlc_tx and to_wallet_tx:
-            txs[to_wallet_tx.prevout(0)] = EncumberedTransaction(f'second_stage_to_wallet_{bh2u(htlc.payment_hash)}', to_wallet_tx, csv_delay=to_self_delay, cltv_expiry=0)
-            txs[htlc_tx.prevout(0)] = EncumberedTransaction(f'our_ctx_htlc_tx_{bh2u(htlc.payment_hash)}', htlc_tx, csv_delay=0, cltv_expiry=htlc.cltv_expiry)
+            txs[to_wallet_tx.prevout(0)] = to_wallet_tx
+            txs[htlc_tx.prevout(0)] = htlc_tx
     # received HTLCs, in our ctx --> "success"
     # TODO consider carefully if "included_htlcs" is what we need here
     received_htlcs = list(chan.included_htlcs(LOCAL, REMOTE))  # type: List[UpdateAddHtlc]
     for htlc in received_htlcs:
         htlc_tx, to_wallet_tx = create_txns_for_htlc(htlc, is_received_htlc=True)
         if htlc_tx and to_wallet_tx:
-            txs[to_wallet_tx.prevout(0)] = EncumberedTransaction(f'second_stage_to_wallet_{bh2u(htlc.payment_hash)}', to_wallet_tx, csv_delay=to_self_delay, cltv_expiry=0)
-            txs[htlc_tx.prevout(0)] = EncumberedTransaction(f'our_ctx_htlc_tx_{bh2u(htlc.payment_hash)}', htlc_tx, csv_delay=0, cltv_expiry=0)
+            txs[to_wallet_tx.prevout(0)] = to_wallet_tx
+            txs[htlc_tx.prevout(0)] = htlc_tx
     return txs
 
 
 def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
-                                         sweep_address: str) -> Dict[str,EncumberedTransaction]:
+                                         sweep_address: str) -> Dict[str,LightningTransaction]:
     """Handle the case when the remote force-closes with their ctx.
     Regardless of it is a breach or not, construct sweep tx for 'to_remote'.
     If it is a breach, also construct sweep tx for 'to_local'.
@@ -244,20 +248,20 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
                                                                delayed_pubkey=this_delayed_pubkey,
                                                                sweep_address=sweep_address)
         if sweep_tx:
-            txs[sweep_tx.prevout(0)] = EncumberedTransaction('their_ctx_to_local', sweep_tx, csv_delay=0, cltv_expiry=0)
+            txs[sweep_tx.prevout(0)] = sweep_tx
     # to_remote
     sweep_tx = maybe_create_sweeptx_for_their_ctx_to_remote(ctx=ctx,
                                                             sweep_address=sweep_address,
                                                             our_payment_privkey=other_payment_privkey)
     if sweep_tx:
-        txs[sweep_tx.prevout(0)] = EncumberedTransaction('their_ctx_to_remote', sweep_tx, csv_delay=0, cltv_expiry=0)
+        txs[sweep_tx.prevout(0)] = sweep_tx
     # HTLCs
     # from their ctx, we can only redeem HTLCs if the ctx was not revoked,
     # as old HTLCs are not stored. (if it was revoked, then we should have presigned txns
     # to handle the breach already; out of scope here)
     if ctn not in (this_conf.ctn, this_conf.ctn + 1):
         return txs
-    def create_sweeptx_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Optional[Transaction]:
+    def create_sweeptx_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Optional[LightningTransaction]:
         if not is_received_htlc:
             try:
                 preimage, invoice = chan.get_preimage_and_invoice(htlc.payment_hash)
@@ -280,25 +284,27 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
             privkey=other_htlc_privkey.get_secret_bytes(),
             preimage=preimage,
             is_revocation=False)
+        if is_received_htlc:
+            sweep_tx.cltv_expiry = htlc.cltv_expiry
         return sweep_tx
     # received HTLCs, in their ctx --> "timeout"
     received_htlcs = chan.included_htlcs_in_their_latest_ctxs(LOCAL)[ctn]  # type: List[UpdateAddHtlc]
     for htlc in received_htlcs:
         sweep_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=True)
         if sweep_tx:
-            txs[sweep_tx.prevout(0)] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', sweep_tx, csv_delay=0, cltv_expiry=htlc.cltv_expiry)
+            txs[sweep_tx.prevout(0)] = sweep_tx
     # offered HTLCs, in their ctx --> "success"
     offered_htlcs = chan.included_htlcs_in_their_latest_ctxs(REMOTE)[ctn]  # type: List[UpdateAddHtlc]
     for htlc in offered_htlcs:
         sweep_tx = create_sweeptx_for_htlc(htlc, is_received_htlc=False)
         if sweep_tx:
-            txs[sweep_tx.prevout(0)] = EncumberedTransaction(f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', sweep_tx, csv_delay=0, cltv_expiry=0)
+            txs[sweep_tx.prevout(0)] = sweep_tx
     return txs
 
 
 def maybe_create_sweeptx_that_spends_to_local_in_our_ctx(
         ctx: Transaction, sweep_address: str, our_localdelayed_privkey: ecc.ECPrivkey,
-        remote_revocation_pubkey: bytes, to_self_delay: int) -> Optional[Transaction]:
+        remote_revocation_pubkey: bytes, to_self_delay: int) -> Optional[LightningTransaction]:
     our_localdelayed_pubkey = our_localdelayed_privkey.get_public_key_bytes(compressed=True)
     to_local_witness_script = bh2u(make_commitment_output_to_local_witness_script(
         remote_revocation_pubkey, to_self_delay, our_localdelayed_pubkey))
@@ -313,13 +319,13 @@ def maybe_create_sweeptx_that_spends_to_local_in_our_ctx(
                                            is_revocation=False,
                                            to_self_delay=to_self_delay)
     if sweep_tx is None: return None
-    return sweep_tx
+    return LightningTransaction.from_tx(sweep_tx, 'our_ctx_to_local', to_self_delay, 0)
 
 
 def create_htlctx_that_spends_from_our_ctx(chan: 'Channel', our_pcp: bytes,
                                            ctx: Transaction, htlc: 'UpdateAddHtlc',
                                            local_htlc_privkey: bytes, preimage: Optional[bytes],
-                                           is_received_htlc: bool) -> Tuple[bytes, Transaction]:
+                                           is_received_htlc: bool) -> Tuple[bytes, LightningTransaction]:
     assert is_received_htlc == bool(preimage), 'preimage is required iff htlc is received'
     preimage = preimage or b''
     witness_script, htlc_tx = make_htlc_tx_with_open_channel(chan=chan,
@@ -333,13 +339,18 @@ def create_htlctx_that_spends_from_our_ctx(chan: 'Channel', our_pcp: bytes,
     txin = htlc_tx.inputs()[0]
     witness_program = bfh(Transaction.get_preimage_script(txin))
     txin['witness'] = bh2u(make_htlc_tx_witness(remote_htlc_sig, local_htlc_sig, preimage, witness_program))
+    htlc_tx = LightningTransaction.from_tx(
+            htlc_tx,
+            name=f'our_ctx_htlc_tx_{bh2u(htlc.payment_hash)}',
+            csv_delay=0,
+            cltv_expiry=0 if is_received_htlc else htlc.cltv_expiry)
     return witness_script, htlc_tx
 
 
 def maybe_create_sweeptx_for_their_ctx_htlc(ctx: Transaction, sweep_address: str,
                                             htlc_output_witness_script: bytes,
                                             privkey: bytes, is_revocation: bool,
-                                            preimage: Optional[bytes]) -> Optional[Transaction]:
+                                            preimage: Optional[bytes]) -> Optional[LightningTransaction]:
     htlc_address = redeem_script_to_address('p2wsh', bh2u(htlc_output_witness_script))
     # FIXME handle htlc_address collision
     # also: https://github.com/lightningnetwork/lightning-rfc/issues/448
@@ -358,7 +369,7 @@ def maybe_create_sweeptx_for_their_ctx_htlc(ctx: Transaction, sweep_address: str
 def create_sweeptx_their_ctx_htlc(ctx: Transaction, witness_script: bytes, sweep_address: str,
                                   preimage: Optional[bytes], output_idx: int,
                                   privkey: bytes, is_revocation: bool,
-                                  fee_per_kb: int=None) -> Optional[Transaction]:
+                                  fee_per_kb: int=None) -> Optional[LightningTransaction]:
     preimage = preimage or b''  # preimage is required iff (not is_revocation and htlc is offered)
     val = ctx.outputs()[output_idx].value
     sweep_inputs = [{
@@ -378,7 +389,7 @@ def create_sweeptx_their_ctx_htlc(ctx: Transaction, witness_script: bytes, sweep
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2)
+    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, csv_delay=0, cltv_expiry=0, name=f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}')
 
     sig = bfh(tx.sign_txin(0, privkey))
     if not is_revocation:
@@ -393,7 +404,7 @@ def create_sweeptx_their_ctx_htlc(ctx: Transaction, witness_script: bytes, sweep
 
 def create_sweeptx_their_ctx_to_remote(sweep_address: str, ctx: Transaction, output_idx: int,
                                        our_payment_privkey: ecc.ECPrivkey,
-                                       fee_per_kb: int=None) -> Optional[Transaction]:
+                                       fee_per_kb: int=None) -> Optional[LightningTransaction]:
     our_payment_pubkey = our_payment_privkey.get_public_key_hex(compressed=True)
     val = ctx.outputs()[output_idx].value
     sweep_inputs = [{
@@ -417,13 +428,13 @@ def create_sweeptx_their_ctx_to_remote(sweep_address: str, ctx: Transaction, out
     sweep_tx.sign({our_payment_pubkey: (our_payment_privkey.get_secret_bytes(), True)})
     if not sweep_tx.is_complete():
         raise Exception('channel close sweep tx is not complete')
-    return sweep_tx
+    return LightningTransaction.from_tx(sweep_tx, 'their_ctx_to_remote', csv_delay=0, cltv_expiry=0)
 
 
 def create_sweeptx_ctx_to_local(sweep_address: str, ctx: Transaction, output_idx: int, witness_script: str,
                                 privkey: bytes, is_revocation: bool,
                                 to_self_delay: int=None,
-                                fee_per_kb: int=None) -> Optional[Transaction]:
+                                fee_per_kb: int=None) -> Optional[LightningTransaction]:
     """Create a txn that sweeps the 'to_local' output of a commitment
     transaction into our wallet.
 
@@ -459,9 +470,10 @@ def create_sweeptx_ctx_to_local(sweep_address: str, ctx: Transaction, output_idx
 
 
 def create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
+        name_prefix: str,
         htlc_tx: Transaction, htlctx_witness_script: bytes, sweep_address: str,
-        privkey: bytes, is_revocation: bool, to_self_delay: int=None,
-        fee_per_kb: int=None) -> Optional[Transaction]:
+        privkey: bytes, is_revocation: bool, to_self_delay: int,
+        fee_per_kb: int=None) -> Optional[LightningTransaction]:
     val = htlc_tx.outputs()[0].value
     sweep_inputs = [{
         'scriptSig': '',
@@ -483,7 +495,7 @@ def create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2)
+    tx = LightningTransaction.from_io(sweep_inputs, sweep_outputs, version=2, name=name_prefix + htlc_tx.txid(), csv_delay=to_self_delay, cltv_expiry=0)
 
     sig = bfh(tx.sign_txin(0, privkey))
     witness = construct_witness([sig, int(is_revocation), htlctx_witness_script])
