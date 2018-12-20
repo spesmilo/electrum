@@ -725,6 +725,9 @@ class Plugin(BasePlugin):
             if instance and instance.windows:
                 # first try and get a window that actually has cashshuffle running, as that's only polite
                 window = instance.windows[-1]
+            elif instance and instance.disabled_windows:
+                # ok, no enabled windows -- next, get a window that is cashshuffle compatible, if any exist
+                window = instance.disabled_windows[-1]
             elif gui and gui.windows:
                 # If that fails, get any old window...
                 window = gui.windows[-1]
