@@ -13,10 +13,10 @@ from typing import NamedTuple, Dict
 import jsonrpclib
 
 from .util import PrintError, bh2u, bfh, log_exceptions, ignore_exceptions
-from .lnutil import EncumberedTransaction
 from . import wallet
 from .storage import WalletStorage
 from .address_synchronizer import AddressSynchronizer, TX_HEIGHT_LOCAL, TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED
+from .transaction import Transaction
 
 if TYPE_CHECKING:
     from .network import Network
@@ -46,14 +46,14 @@ class LNWatcher(AddressSynchronizer):
         self.start_network(network)
         self.lock = threading.RLock()
         self.channel_info = storage.get('channel_info', {})  # access with 'lock'
-        # [funding_outpoint_str][prev_txid] -> set of EncumberedTransaction
+        # [funding_outpoint_str][prev_txid] -> set of Transaction
         # prev_txid is the txid of a tx that is watched for confirmations
         # access with 'lock'
         self.sweepstore = defaultdict(lambda: defaultdict(set))
         for funding_outpoint, ctxs in storage.get('sweepstore', {}).items():
             for txid, set_of_txns in ctxs.items():
                 for e_tx in set_of_txns:
-                    e_tx2 = EncumberedTransaction.from_json(e_tx)
+                    e_tx2 = Transaction.from_dict(e_tx)
                     self.sweepstore[funding_outpoint][txid].add(e_tx2)
 
         self.network.register_callback(self.on_network_update,
@@ -100,7 +100,7 @@ class LNWatcher(AddressSynchronizer):
             for funding_outpoint, ctxs in self.sweepstore.items():
                 sweepstore[funding_outpoint] = {}
                 for prev_txid, set_of_txns in ctxs.items():
-                    sweepstore[funding_outpoint][prev_txid] = [e_tx.to_json() for e_tx in set_of_txns]
+                    sweepstore[funding_outpoint][prev_txid] = [e_tx.as_dict() for e_tx in set_of_txns]
             storage.put('sweepstore', sweepstore)
         storage.write()
 
@@ -184,11 +184,11 @@ class LNWatcher(AddressSynchronizer):
                     self.print_error(e_tx.name, f'could not publish encumbered tx: {str(e_tx)}, prev_txid: {prev_txid}')
 
     async def broadcast_or_log(self, funding_outpoint, e_tx):
-        height = self.get_tx_height(e_tx.tx.txid()).height
+        height = self.get_tx_height(e_tx.txid()).height
         if height != TX_HEIGHT_LOCAL:
             return
         try:
-            txid = await self.network.broadcast_transaction(e_tx.tx)
+            txid = await self.network.broadcast_transaction(e_tx)
         except Exception as e:
             self.print_error(f'broadcast: {e_tx.name}: failure: {repr(e)}')
         else:
@@ -199,7 +199,7 @@ class LNWatcher(AddressSynchronizer):
 
     @with_watchtower
     def add_sweep_tx(self, funding_outpoint: str, prev_txid: str, sweeptx):
-        encumbered_sweeptx = EncumberedTransaction.from_json(sweeptx)
+        encumbered_sweeptx = Transaction.from_dict(sweeptx)
         with self.lock:
             self.sweepstore[funding_outpoint][prev_txid].add(encumbered_sweeptx)
         self.write_to_disk()
