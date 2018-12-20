@@ -13,6 +13,7 @@ from decimal import Decimal
 from .bitcoin import COIN
 from .i18n import _
 from .util import PrintError, ThreadJob, print_error
+from .network import Network
 
 
 DEFAULT_ENABLED = False
@@ -39,14 +40,17 @@ class ExchangeBase(PrintError):
     def get_json(self, site, get_string):
         # APIs must have https
         url = ''.join(['https://', site, get_string])
-        response = requests.request('GET', url, headers={'User-Agent' : 'Electron Cash'}, timeout=10)
+        response = requests.request('GET', url, headers={'User-Agent' : 'Electron Cash'}, timeout=10, proxies=self.proxies())
         return response.json()
 
     def get_csv(self, site, get_string):
         url = ''.join(['https://', site, get_string])
-        response = requests.request('GET', url, headers={'User-Agent' : 'Electron-Cash'})
+        response = requests.request('GET', url, headers={'User-Agent' : 'Electron-Cash'}, proxies=self.proxies())
         reader = csv.DictReader(response.content.decode().split('\n'))
         return list(reader)
+
+    def proxies(self):
+        return (Network.get_instance() and Network.get_instance().get_proxies())
 
     def name(self):
         return self.__class__.__name__
