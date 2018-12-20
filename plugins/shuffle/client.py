@@ -2,6 +2,7 @@ import ecdsa, threading, time, queue
 from electroncash.bitcoin import deserialize_privkey, regenerate_key, EC_KEY, generator_secp256k1, number_to_string
 from electroncash.address import Address
 from electroncash.util import PrintError, InvalidPassword
+from electroncash.network import Network
 
 ERR_SERVER_CONNECT = "Error: cannot connect to server"
 ERR_BAD_SERVER_PREFIX = "Error: Bad server:"
@@ -35,7 +36,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     """
     This class emulate thread with protocol run
     """
-    def __init__(self, host, port, network, coin,
+    def __init__(self, host, port, coin,
                  amount, fee, sk, sks, inputs, pubk,
                  addr_new_addr, change_addr, logger=None, ssl=False,
                  comm_timeout = 60.0, ctimeout = 5.0):
@@ -43,7 +44,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         super(ProtocolThread, self).__init__()
         self.daemon = True
         self.messages = Messages()
-        self.comm = Comm(host, port, network.config, ssl=ssl, timeout = comm_timeout)
+        self.comm = Comm(host, port, ssl=ssl, timeout = comm_timeout)
         self.ctimeout = ctimeout
         if not logger:
             self.logger = ChannelWithPrint()
@@ -66,7 +67,6 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         self.change_addr = change_addr #outside
         self.change = change_addr.to_storage_string() #inside
         self.protocol = None
-        self.network = network
         self.tx = None
         self.ts = time.time()
         self.done = threading.Event()
@@ -153,7 +153,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     @not_time_to_die
     def start_protocol(self):
         "This method starts the protocol thread"
-        coin = Coin(self.network)
+        coin = Coin(Network.get_instance())
         crypto = Crypto()
         self.messages.clear_packets()
         # begin_phase = Phase('Announcement')
@@ -252,13 +252,11 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.logger = logger
         self.wallet = wallet
         self.window = window
-        self.config = window.config
         self.host = network_settings.get("host", None)
         self.info_port = network_settings.get("info", None)
         self.port = 1337 # default value -- will get set to real value from server's stat port in run() method
         self.poolSize = 3 # default value -- will get set to real value from server's stat port in run() method
         self.ssl = network_settings.get("ssl", None)
-        self.network = network_settings.get("network", None)
         self.fee = fee
         self.lock = threading.RLock()
         self.password = password
@@ -298,8 +296,8 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
     def query_server_port(self, timeout = 5.0):
         try:
-            self.port, self.poolSize, connections, pools = query_server_for_stats(self.host, self.info_port, self.ssl, timeout, config = self.config)
-            if self.ssl and not verify_ssl_socket(self.host, self.port, config=self.config, timeout=timeout):
+            self.port, self.poolSize, connections, pools = query_server_for_stats(self.host, self.info_port, self.ssl, timeout)
+            if self.ssl and not verify_ssl_socket(self.host, self.port, timeout=timeout):
                 self.print_error("SSL Verification failed")
                 return False
             self.print_error("Server {}:{} told us that it has shufflePort={} poolSize={} connections={}".format(self.host, self.info_port, self.port, self.poolSize, connections))
@@ -312,8 +310,8 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     def run(self):
         try:
             self.print_error("Started")
-
-            self._do_query_server(timeout = 5.0 if not self.config.get('proxy') else 12.5)
+            
+            self._do_query_server(timeout = 12.5 if (Network.get_instance() and Network.get_instance().get_proxies()) else 5.0)
 
             self.logger.send("started", "MAINLOG")
 
@@ -335,7 +333,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     def check_server_port_ok(self):
         if not self.stop_flg.is_set() and self.window.cashshuffle_get_flag() == 1:
             # bad server flag is set -- try to rediscover the shuffle port in case it changed
-            return self._do_query_server(timeout = 2.5 if not self.config.get('proxy') else 7.5)
+            return self._do_query_server(timeout = 7.5 if (Network.get_instance() and Network.get_instance().get_proxies()) else 2.5)
 
     def _do_query_server(self, timeout):
         if not self.query_server_port(timeout = timeout):
@@ -562,8 +560,8 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.wallet._addresses_cashshuffle_reserved |= {output, change} # NB: only modify this when holding wallet locks
         self.print_error("Scale {} Coin {} OutAddr {} Change {} make_protocol_thread".format(scale, utxo_name, output.to_storage_string(), change.to_storage_string()))
         #self.print_error("Reserved addresses:", self.wallet._addresses_cashshuffle_reserved)
-        ctimeout = 5.0 if not self.config.get('proxy') else 12.5 # allow for 12.5 second connection timeouts if using a proxy server
-        thr = ProtocolThread(self.host, self.port, self.network, utxo_name,
+        ctimeout = 12.5 if (Network.get_instance() and Network.get_instance().get_proxies()) else 5.0 # allow for 12.5 second connection timeouts if using a proxy server
+        thr = ProtocolThread(self.host, self.port, utxo_name,
                              scale, self.fee, id_sk, sks, inputs, id_pub, output, change,
                              logger=None, ssl=self.ssl, comm_timeout = self.timeout, ctimeout = ctimeout)
         thr.logger = ChannelSendLambda(lambda msg: self.protocol_thread_callback(thr, msg))
@@ -575,7 +573,8 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     def is_wallet_ready(self):
         return bool( self.wallet and self.wallet.is_up_to_date()
                      and self.wallet.network and self.wallet.network.is_connected()
-                     and self.wallet.verifier and self.wallet.verifier.is_up_to_date() )
+                     and self.wallet.verifier and self.wallet.verifier.is_up_to_date()
+                     and Network.get_instance() )
 
     def check_for_coins(self):
         if self.stop_flg.is_set() or self._paused: return

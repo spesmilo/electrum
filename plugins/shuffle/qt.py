@@ -34,6 +34,7 @@ from PyQt5.QtWidgets import *
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
 from electroncash.util import print_error, profiler, PrintError
+from electroncash.network import Network
 from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton, HelpLabel, OkButton, WindowModalDialog, rate_limited
 from electroncash_gui.qt.password_dialog import PasswordDialog
 from electroncash_gui.qt.main_window import ElectrumWindow
@@ -508,7 +509,6 @@ class Plugin(BasePlugin):
         self._window_remove_from_disabled(window)
         network_settings = copy.deepcopy(network_settings)
         network_settings['host'] = network_settings.pop('server')
-        network_settings["network"] = window.network
         monkey_patches_apply(window)
         self.windows.append(window)
         window.update_status()
@@ -668,7 +668,6 @@ class Plugin(BasePlugin):
                     # kill the extant console logger as its existence can cause subtle bugs
                     bp.logger.disconnectAll(); bp.logger.deleteLater(); bp.logger = None
                     network_settings['host'] = network_settings.pop('server')
-                    network_settings["network"] = window.network
                     window.background_process = None; del bp
                     start_background_shuffling(window, network_settings, password=password)
                     window.print_error("CashShuffle restarted for wallet")
@@ -1150,7 +1149,9 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                 return
             if d.get('failed'): # Dict with only 1 key, 'failed' means connecton failed
                 reason = d['failed']
-                if reason == 'bad':
+                if reason == 'offline_mode':
+                    reason = _("Electron Cash is in offline mode.")
+                elif reason == 'bad':
                     reason = _("Server is misconfigured")
                 elif reason == 'ssl':
                     reason = _("Failed to verify SSL certificate")
@@ -1195,14 +1196,18 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                     self.print_error("Started thread.")
                     def updateStatus(d):
                         #self.print_error("updateStatus", d) # XXX
-                        is_bad_server, is_bad_ssl = False, False
+                        is_bad_server, is_bad_ssl, is_offline_mode = False, False, False
                         try:
-                            port, poolSize, connections, pools = query_server_for_stats(d['server'], d['info'], d['ssl'], config = self.parent.config)
+                            if not Network.get_instance():
+                                is_offline_mode = True
+                                raise RuntimeError("No network")
+                                
+                            port, poolSize, connections, pools = query_server_for_stats(d['server'], d['info'], d['ssl'])
                             if poolSize < 3:
                                 # hard-coded -- do not accept servers with poolSize < 3
                                 is_bad_server = True
                                 raise RuntimeError("PoolSize must be >=3, got: {}".format(poolSize))
-                            if d['ssl'] and not verify_ssl_socket(d['server'], int(port), self.parent.config, timeout=7.5):
+                            if d['ssl'] and not verify_ssl_socket(d['server'], int(port), timeout=7.5):
                                 is_bad_ssl = True
                                 raise RuntimeError("Could not verify SSL server certificate.")
                                 
@@ -1218,7 +1223,9 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                             #import traceback
                             #traceback.print_exc()
                             self.print_error("exception on connect:",str(e))
-                            if is_bad_ssl:
+                            if is_offline_mode:
+                                self.parent.statusChanged.emit({'failed' : 'offline_mode'})
+                            elif is_bad_ssl:
                                 self.parent.statusChanged.emit({'failed' : 'ssl'})
                             elif is_bad_server:
                                 self.parent.statusChanged.emit({'failed' : 'bad'})

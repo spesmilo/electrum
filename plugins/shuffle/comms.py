@@ -1,7 +1,8 @@
 import socket, ssl, threading, queue, time, requests, select, errno
 from .client import PrintErrorThread
-from electroncash.network import deserialize_proxy
+from electroncash.network import Network
 from electroncash.interface import Connection
+from electroncash.util import print_error
 
 # Temporary hack to suppress InsecureRequestWarning. Need to actually do a whole song and dance
 # To verify SSL certs. Blergh.  https://urllib3.readthedocs.io/en/latest/user-guide.html#ssl
@@ -57,10 +58,9 @@ class Comm(PrintErrorThread):
     MAX_MSG_LENGTH = 64*1024 # 64kb message length limit on server-side. If we get anything longer it's a malicious server
 
 
-    def __init__(self, host, port, config, bufsize = 32768, timeout = 60.0, ssl = False):
+    def __init__(self, host, port, bufsize = 32768, timeout = 60.0, ssl = False):
         self.host = host
         self.port = port
-        self.config = config
         self.socket = None
         self.magic = bytes.fromhex("42bcc32669467873")
         self.MAX_BLOCK_SIZE = bufsize
@@ -71,7 +71,7 @@ class Comm(PrintErrorThread):
 
     def connect(self, ctimeout = 5.0):
         try:
-            if self.ssl and not verify_ssl_socket(self.host, self.port, self.config, timeout = ctimeout):
+            if self.ssl and not verify_ssl_socket(self.host, self.port, timeout = ctimeout):
                 raise OSError(errno.EINVAL, "Failed to verify SSL certificate for {}, aborting".format(self.host))
             bare_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             bare_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -153,42 +153,27 @@ class Comm(PrintErrorThread):
         n += " <{}:{}>".format(self.host, self.port)
         return n
 
-def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout = None, config = None):
+def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout = None):
     ''' May raise OSError, ValueError, TypeError if there are connectivity or other issues '''
 
-    proxy = (config and config.get('proxy')) or None
+    proxies = (Network.get_instance() and Network.get_instance().get_proxies()) or None
 
-    if proxy:
-        proxy = deserialize_proxy(proxy)
-        pre = ''
-        # proxies format for requests lib is eg:
-        # {
-        #   'http'  : 'socks[45]://user:password@host:port',
-        #   'https' : 'socks[45]://user:password@host:port'
-        # }
-        # with user:password@ being omitted if no user/password.
-        if proxy.get('user') and proxy.get('password'):
-            pre = '{}:{}@'.format(proxy.get('user'), proxy.get('password'))
-        mode = proxy.get('mode')
-        if mode and mode.lower() == "socks5":
-            mode += 'h' # socks5 with hostname resolution on the server side so it works with tor
-        socks = '{}://{}{}:{}'.format(mode, pre, proxy.get('host'), proxy.get('port'))
-        proxy = { # transform it to requests format
-            'http' : socks,
-            'https' : socks
-        }
     if timeout is None:
-        timeout = 3.0 if not proxy else 10.0
+        timeout = 3.0 if not proxies else 10.0
     secure = "s" if ssl else ""
     stat_endpoint = "http{}://{}:{}/stats".format(secure, host, stat_port)
-    res = requests.get(stat_endpoint, verify=False, timeout=timeout, proxies=proxy)
+    res = requests.get(stat_endpoint, verify=False, timeout=timeout, proxies=proxies)
     json = res.json()
     return int(json["shufflePort"]), int(json["poolSize"]), int(json["connections"]), json['pools']
 
-def verify_ssl_socket(host, port, config, timeout = 5.0):
+def verify_ssl_socket(host, port, timeout = 5.0):
+    path = (Network.get_instance() and Network.get_instance().config and Network.get_instance().config.path) or None
+    if not path:
+        print_error("verify_ssl_socket: no config path!")
+        return False
     server = "{}:{}:s".format(host, port)
     q = queue.Queue()
-    c = Connection(server, q, config.path)
+    c = Connection(server, q, path)
     socket = None
     try:
         server, socket = q.get(timeout=timeout)
