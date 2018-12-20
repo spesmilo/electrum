@@ -240,12 +240,11 @@ def constant_time_compare(val1, val2):
 
 # decorator that prints execution time
 def profiler(func):
-    name = func.__qualname__
     def do_profile(args, kw_args):
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0
-        print_error("[profiler]", name, "%.4f"%t)
+        print_error("[profiler]", func.__qualname__, "%.4f"%t)
         return o
     return lambda *args, **kw_args: do_profile(args, kw_args)
 
