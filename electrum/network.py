@@ -49,7 +49,8 @@ from . import constants
 from . import blockchain
 from . import bitcoin
 from .blockchain import Blockchain, HEADER_SIZE
-from .interface import Interface, serialize_server, deserialize_server, RequestTimedOut
+from .interface import (Interface, serialize_server, deserialize_server,
+                        RequestTimedOut, NetworkTimeout)
 from .version import PROTOCOL_VERSION
 from .simple_config import SimpleConfig
 
@@ -649,11 +650,18 @@ class Network(PrintError):
         await self._close_interface(interface)
         self.trigger_callback('network_updated')
 
+    def get_network_timeout_seconds(self, request_type=NetworkTimeout.Generic) -> int:
+        if self.oneserver and not self.auto_connect:
+            return request_type.MOST_RELAXED
+        if self.proxy:
+            return request_type.RELAXED
+        return request_type.NORMAL
+
     @ignore_exceptions  # do not kill main_taskgroup
     @log_exceptions
     async def _run_new_interface(self, server):
         interface = Interface(self, server, self.proxy)
-        timeout = 10 if not self.proxy else 20
+        timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
         try:
             await asyncio.wait_for(interface.ready, timeout)
         except BaseException as e:
@@ -724,7 +732,9 @@ class Network(PrintError):
         return await self.interface.session.send_request('blockchain.transaction.get_merkle', [tx_hash, tx_height])
 
     @best_effort_reliable
-    async def broadcast_transaction(self, tx, *, timeout=10):
+    async def broadcast_transaction(self, tx, *, timeout=None):
+        if timeout is None:
+            timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
         out = await self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)], timeout=timeout)
         if out != tx.txid():
             raise Exception(out)
