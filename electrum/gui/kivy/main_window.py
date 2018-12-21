@@ -109,6 +109,13 @@ class ElectrumWindow(App):
     def toggle_oneserver(self, x):
         self.oneserver = not self.oneserver
 
+    proxy_str = StringProperty('')
+    def update_proxy_str(self, proxy: dict):
+        mode = proxy.get('mode')
+        host = proxy.get('host')
+        port = proxy.get('port')
+        self.proxy_str = (host + ':' + port) if mode else _('None')
+
     def choose_server_dialog(self, popup):
         from .uix.dialogs.choice_dialog import ChoiceDialog
         protocol = 's'
@@ -288,6 +295,7 @@ class ElectrumWindow(App):
             self.auto_connect = net_params.auto_connect
             self.oneserver = net_params.oneserver
             self.proxy_config = net_params.proxy if net_params.proxy else {}
+            self.update_proxy_str(self.proxy_config)
 
         self.plugins = kwargs.get('plugins', [])
         self.gui_object = kwargs.get('gui_object', None)
@@ -667,6 +675,7 @@ class ElectrumWindow(App):
         self.tabs = self.root.ids['tabs']
 
     def update_interfaces(self, dt):
+        net_params = self.network.get_parameters()
         self.num_nodes = len(self.network.get_interfaces())
         self.num_chains = len(self.network.get_blockchains())
         chain = self.network.blockchain()
@@ -675,6 +684,10 @@ class ElectrumWindow(App):
         interface = self.network.interface
         if interface:
             self.server_host = interface.host
+        else:
+            self.server_host = str(net_params.host) + ' (connecting...)'
+        self.proxy_config = net_params.proxy or {}
+        self.update_proxy_str(self.proxy_config)
 
     def on_network_event(self, event, *args):
         Logger.info('network event: '+ event)
