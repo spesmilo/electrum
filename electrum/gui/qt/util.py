@@ -190,24 +190,24 @@ class MessageBoxMixin(object):
                             parent, title or '',
                             msg, buttons=Yes|No, defaultButton=No) == Yes
 
-    def show_warning(self, msg, parent=None, title=None):
+    def show_warning(self, msg, parent=None, title=None, **kwargs):
         return self.msg_box(QMessageBox.Warning, parent,
-                            title or _('Warning'), msg)
+                            title or _('Warning'), msg, **kwargs)
 
-    def show_error(self, msg, parent=None):
+    def show_error(self, msg, parent=None, **kwargs):
         return self.msg_box(QMessageBox.Warning, parent,
-                            _('Error'), msg)
+                            _('Error'), msg, **kwargs)
 
-    def show_critical(self, msg, parent=None, title=None):
+    def show_critical(self, msg, parent=None, title=None, **kwargs):
         return self.msg_box(QMessageBox.Critical, parent,
-                            title or _('Critical Error'), msg)
+                            title or _('Critical Error'), msg, **kwargs)
 
-    def show_message(self, msg, parent=None, title=None):
+    def show_message(self, msg, parent=None, title=None, **kwargs):
         return self.msg_box(QMessageBox.Information, parent,
-                            title or _('Information'), msg)
+                            title or _('Information'), msg, **kwargs)
 
     def msg_box(self, icon, parent, title, text, buttons=QMessageBox.Ok,
-                defaultButton=QMessageBox.NoButton):
+                defaultButton=QMessageBox.NoButton, rich_text=False):
         parent = parent or self.top_level_window()
         if type(icon) is QPixmap:
             d = QMessageBox(QMessageBox.Information, title, str(text), buttons, parent)
@@ -216,7 +216,12 @@ class MessageBoxMixin(object):
             d = QMessageBox(icon, title, str(text), buttons, parent)
         d.setWindowModality(Qt.WindowModal)
         d.setDefaultButton(defaultButton)
-        d.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse)
+        if rich_text:
+            d.setTextInteractionFlags(Qt.TextSelectableByMouse| Qt.LinksAccessibleByMouse)
+            d.setTextFormat(Qt.RichText)
+        else:
+            d.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            d.setTextFormat(Qt.PlainText)
         return d.exec_()
 
 class WindowModalDialog(QDialog, MessageBoxMixin):
