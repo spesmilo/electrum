@@ -1,3 +1,9 @@
+# Release 3.3.2 - (December 21, 2018)
+
+ * Fix Qt history export bug
+ * Improve network timeouts
+
+
 # Release 3.3.1 - (December 20, 2018)
 
  * Qt: Fix invoices tab crash (#4941)
