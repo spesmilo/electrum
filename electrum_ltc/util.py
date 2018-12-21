@@ -32,7 +32,6 @@ import urllib
 import threading
 import hmac
 import stat
-import inspect
 from locale import localeconv
 import asyncio
 import urllib.request, urllib.parse, urllib.error
@@ -358,18 +357,8 @@ def constant_time_compare(val1, val2):
 
 # decorator that prints execution time
 def profiler(func):
-    def get_func_name(args):
-        arg_names_from_sig = inspect.getfullargspec(func).args
-        # prepend class name if there is one (and if we can find it)
-        if len(arg_names_from_sig) > 0 and len(args) > 0 \
-                and arg_names_from_sig[0] in ('self', 'cls', 'klass'):
-            classname = args[0].__class__.__name__
-        else:
-            classname = ''
-        name = '{}.{}'.format(classname, func.__name__) if classname else func.__name__
-        return name
     def do_profile(args, kw_args):
-        name = get_func_name(args)
+        name = func.__qualname__
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0

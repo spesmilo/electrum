@@ -112,8 +112,6 @@ done
 # upgrade pip
 $PYTHON -m pip install pip --upgrade
 
-# install PySocks
-$PYTHON -m pip install win_inet_pton==1.0.1
 
 $PYTHON -m pip install -r $here/../deterministic-build/requirements-binaries.txt
 
