@@ -639,32 +639,6 @@ def generate_keypair(ln_keystore: BIP32_KeyStore, key_family: LnKeyFamily, index
     return Keypair(*ln_keystore.get_keypair([key_family, 0, index], None))
 
 
-class LightningTransaction(Transaction):
-    @staticmethod
-    def from_io(inputs, outputs, version: int, name: str, csv_delay: int, cltv_expiry: int):
-        tx = Transaction.from_io(inputs, outputs, version=version)
-        return LightningTransaction.from_tx(tx, name, csv_delay, cltv_expiry)
-
-    def from_tx(self: Transaction, name: str, csv_delay: int, cltv_expiry: int) -> 'LightningTransaction':
-        self.name = name
-        self.csv_delay = csv_delay
-        self.cltv_expiry = cltv_expiry
-        self.to_json = LightningTransaction.to_json
-        return self
-
-    def to_json(self) -> dict:
-        return {
-            'name': self.name,
-            'tx': str(self),
-            'csv_delay': self.csv_delay,
-            'cltv_expiry': self.cltv_expiry,
-        }
-
-    @classmethod
-    def from_json(cls, d: dict):
-        return cls.from_tx(Transaction(d['tx']), d['name'], d['csv_delay'], d['cltv_expiry'])
-
-
 NUM_MAX_HOPS_IN_PAYMENT_PATH = 20
 NUM_MAX_EDGES_IN_PAYMENT_PATH = NUM_MAX_HOPS_IN_PAYMENT_PATH + 1
 
