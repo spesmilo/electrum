@@ -328,6 +328,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.print_error("unexpected network message:", event, args)
 
     def on_network_qt(self, event, args=None):
+        if self.cleaned_up: return
         # Handle a network message in the GUI thread
         if event == 'status':
             self.update_status()
@@ -3124,8 +3125,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.network.unregister_callback(self.on_quotes)
                 self.network.unregister_callback(self.on_history)
         # /
-        _disconnect_signals()
         _disconnect_network_callbacks()
+        _disconnect_signals()
 
     def clean_up(self):
         self.wallet.thread.stop()
