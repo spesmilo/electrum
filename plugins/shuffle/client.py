@@ -586,6 +586,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         return bool( self.wallet and self.wallet.is_up_to_date()
                      and self.wallet.network and self.wallet.network.is_connected()
                      and self.wallet.verifier and self.wallet.verifier.is_up_to_date()
+                     and self.wallet.synchronizer and self.wallet.synchronizer.is_up_to_date()
                      and Network.get_instance() )
 
     def check_for_coins(self):
