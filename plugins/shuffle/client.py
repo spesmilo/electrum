@@ -23,14 +23,13 @@ def get_name(coin):
     return "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
 
 def unfreeze_frozen_by_shuffling(wallet):
-    with wallet.lock:
-        with wallet.transaction_lock:
-            coins_frozen_by_shuffling = wallet.storage.get("coins_frozen_by_shuffling", list())
-            if coins_frozen_by_shuffling:
-                l = len(coins_frozen_by_shuffling)
-                if l: wallet.print_error("Freed {} frozen-by-shuffling UTXOs".format(l))
-                wallet.set_frozen_coin_state(coins_frozen_by_shuffling, False)
-            wallet.storage.put("coins_frozen_by_shuffling", None) # deletes key altogether from storage
+    with wallet.lock, wallet.transaction_lock:
+        coins_frozen_by_shuffling = wallet.storage.get("coins_frozen_by_shuffling", list())
+        if coins_frozen_by_shuffling:
+            l = len(coins_frozen_by_shuffling)
+            if l: wallet.print_error("Freed {} frozen-by-shuffling UTXOs".format(l))
+            wallet.set_frozen_coin_state(coins_frozen_by_shuffling, False)
+        wallet.storage.put("coins_frozen_by_shuffling", None) # deletes key altogether from storage
 
 class ProtocolThread(threading.Thread, PrintErrorThread):
     """
@@ -439,15 +438,14 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     
     def _unreserve_addresses(self):
         ''' Normally called from our thread context but may be called from other threads after joining this thread '''
-        with self.wallet.lock:
-            with self.wallet.transaction_lock:
-                l = len(self.wallet._addresses_cashshuffle_reserved)
-                self.wallet._addresses_cashshuffle_reserved.clear()
-                if l: self.print_error("Freed {} reserved addresses".format(l))
-                if self.wallet._last_change:
-                    self.wallet._last_change = None
-                    self.print_error("Freed 'last_change'")
-                unfreeze_frozen_by_shuffling(self.wallet)
+        with self.wallet.lock, self.wallet.transaction_lock:
+            l = len(self.wallet._addresses_cashshuffle_reserved)
+            self.wallet._addresses_cashshuffle_reserved.clear()
+            if l: self.print_error("Freed {} reserved addresses".format(l))
+            if self.wallet._last_change:
+                self.wallet._last_change = None
+                self.print_error("Freed 'last_change'")
+            unfreeze_frozen_by_shuffling(self.wallet)
 
     def stop_protocol_thread(self, thr, scale, sender, message):
         self.print_error("Stop protocol thread for scale: {}".format(scale))
@@ -459,16 +457,15 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 # up in the wallet before considerng it again for shuffling
                 self.done_utxos[sender] = time.time()
                 retVal = True # indicate to interesteed callers that we had a completion. Our thread loop uses this retval to decide to scan for UTXOs to shuffle immediately.
-            with self.wallet.lock:
-                with self.wallet.transaction_lock:
-                    self.wallet.set_frozen_coin_state([sender], False)
-                    coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
-                    coins_for_shuffling -= {sender}
-                    self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
-                    if message.startswith("Error"):
-                        # unreserve addresses that were previously reserved iff error
-                        self.wallet._addresses_cashshuffle_reserved -= { thr.addr_new_addr, thr.change_addr }
-                        #self.print_error("Unreserving", thr.addr_new_addr, thr.change_addr)
+            with self.wallet.lock, self.wallet.transaction_lock:
+                self.wallet.set_frozen_coin_state([sender], False)
+                coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
+                coins_for_shuffling -= {sender}
+                self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
+                if message.startswith("Error"):
+                    # unreserve addresses that were previously reserved iff error
+                    self.wallet._addresses_cashshuffle_reserved -= { thr.addr_new_addr, thr.change_addr }
+                    #self.print_error("Unreserving", thr.addr_new_addr, thr.change_addr)
             self.tell_gui_to_refresh()
             self.logger.send(message, sender)
         else:
@@ -592,20 +589,19 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     def check_for_coins(self):
         if self.stop_flg.is_set() or self._paused: return
         need_refresh = False
-        with self.wallet.lock:
-            with self.wallet.transaction_lock:
+        with self.wallet.lock, self.wallet.transaction_lock:
+            if self.is_wallet_ready():
                 try:
                     #TODO FIXME XXX -- perhaps also add a mechanism to detect when coins that are in the queue or are being shuffled get reorged or spent
-                    if self.is_wallet_ready():
-                        coins = None
-                        for scale, thr in self.threads.items():
-                            if not thr:
-                                if coins is None: # NB: leave this check for None specifically as it has different semantics than coins == []
-                                    # lazy-init of coins here only if there is actual work to do.
-                                    coins = self.wallet.get_utxos(exclude_frozen = True, confirmed_only = True, mature = True)
-                                if not coins: break # coins mutates as we iterate so check that we still have candidate coins
-                                did_start = self._make_protocol_thread(scale, coins)
-                                need_refresh = did_start or need_refresh # once need_refresh is set to True, it remains True
+                    coins = None
+                    for scale, thr in self.threads.items():
+                        if not thr:
+                            if coins is None: # NB: leave this check for None specifically as it has different semantics than coins == []
+                                # lazy-init of coins here only if there is actual work to do.
+                                coins = self.wallet.get_utxos(exclude_frozen = True, confirmed_only = True, mature = True)
+                            if not coins: break # coins mutates as we iterate so check that we still have candidate coins
+                            did_start = self._make_protocol_thread(scale, coins)
+                            need_refresh = did_start or need_refresh # once need_refresh is set to True, it remains True
                 except RuntimeWarning as e:
                     self.print_error("check_for_threads error: {}".format(str(e)))
         if need_refresh:
