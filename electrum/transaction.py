@@ -1302,9 +1302,9 @@ class Transaction:
     def from_dict(cls, d):
         tx = cls(d['hex'])
         tx.deserialize(True)
-        tx.name = d['name']
-        tx.csv_delay = d['csv_delay']
-        tx.cltv_expiry = d['cltv_expiry']
+        tx.name = d.get('name')
+        tx.csv_delay = d.get('csv_delay', 0)
+        tx.cltv_expiry = d.get('cltv_expiry', 0)
         return tx
 
 
