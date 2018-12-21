@@ -264,7 +264,6 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.shared_chan = Channel(switch_timeout=None) # threads write a 3-tuple here: (killme_flg, thr, msg)
         self.stop_flg = threading.Event()
         self.last_idle_check = 0
-        self.had_a_completion_flg = False
         self.done_utxos = dict()
         self._paused = False
 
@@ -294,49 +293,53 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         if extra:
             extra.needRefreshSignal.emit()
 
-    def query_server_port(self, timeout = 5.0):
-        try:
-            self.port, self.poolSize, connections, pools = query_server_for_stats(self.host, self.info_port, self.ssl, timeout)
-            if self.ssl and not verify_ssl_socket(self.host, self.port, timeout=timeout):
-                self.print_error("SSL Verification failed")
-                return False
-            self.print_error("Server {}:{} told us that it has shufflePort={} poolSize={} connections={}".format(self.host, self.info_port, self.port, self.poolSize, connections))
-            return True
-        except BaseException as e:
-            self.print_error("Exception: {}".format(str(e)))
-            self.print_error("Could not query shuffle port for server {}:{} -- defaulting to {}".format(self.host, self.info_port, self.port))
-            return False
-
     def run(self):
         try:
             self.print_error("Started")
-            
-            self._do_query_server(timeout = 12.5 if (Network.get_instance() and Network.get_instance().get_proxies()) else 5.0)
-
             self.logger.send("started", "MAINLOG")
+            
+            self.check_server()
 
             if not self.is_wallet_ready():
                 time.sleep(3.0) # initial delay to hopefully wait for wallet to be ready
+
             while not self.stop_flg.is_set():
                 self.check_for_coins()
                 had_a_completion = self.process_shared_chan() # NB: this blocks for up to self.period (default=10) seconds
                 if had_a_completion:
                     # force loop to go back to check_for_coins immediately if a thread just successfully ended with a protocol completion
                     continue
-                self.check_server_port_ok() # NB: this normally is a noop but if server port is bad, blocks for up to 2.5 seconds
+                self.check_server_if_errored() # NB: this normally is a noop but if server port is bad, blocks for up to 7.5 seconds
                 self.check_idle_threads()
             self.print_error("Stopped")
         finally:
             self._unreserve_addresses()
             self.logger.send("stopped", "MAINLOG")
 
-    def check_server_port_ok(self):
+    def check_server_if_errored(self):
         if not self.stop_flg.is_set() and self.window.cashshuffle_get_flag() == 1:
             # bad server flag is set -- try to rediscover the shuffle port in case it changed
-            return self._do_query_server(timeout = 7.5 if (Network.get_instance() and Network.get_instance().get_proxies()) else 2.5)
+            return self.check_server(quick = True)
 
-    def _do_query_server(self, timeout):
-        if not self.query_server_port(timeout = timeout):
+    def check_server(self, quick = False):
+        def _do_check_server(timeout):
+            try:
+                self.port, self.poolSize, connections, pools = query_server_for_stats(self.host, self.info_port, self.ssl, timeout)
+                if self.ssl and not verify_ssl_socket(self.host, self.port, timeout=timeout):
+                    self.print_error("SSL Verification failed")
+                    return False
+                self.print_error("Server {}:{} told us that it has shufflePort={} poolSize={} connections={}".format(self.host, self.info_port, self.port, self.poolSize, connections))
+                return True
+            except BaseException as e:
+                self.print_error("Exception: {}".format(str(e)))
+                self.print_error("Could not query shuffle port for server {}:{} -- defaulting to {}".format(self.host, self.info_port, self.port))
+                return False
+        # /_do_check_server
+        if quick:
+            timeout =  7.5 if (Network.get_instance() and Network.get_instance().get_proxies()) else 2.5
+        else:
+            timeout = 12.5 if (Network.get_instance() and Network.get_instance().get_proxies()) else 5.0
+        if not _do_check_server(timeout = timeout):
             self.logger.send(ERR_SERVER_CONNECT, "MAINLOG")
             return False
         else:
@@ -364,17 +367,25 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                     self.logger.send("forget {}".format(utxo), "MAINLOG")
 
     def process_shared_chan(self):
+        timeLeft = 0.0 # this variable is modified by _loopCondition() call below
+        def _loopCondition(t0):
+            if self.stop_flg.is_set():
+                # return early if stop_flg is set
+                return False
+            nonlocal timeLeft
+            timeLeft = self.period - (time.time() - t0)
+            if timeLeft <= 0.0:
+                # if our period for blocking expired, return False
+               return False
+            return True
+
         try:
             t0 = time.time()
-            while True:
-                # blocking read of the shared msg queue for up to self.period seconds
-                timeLeft = self.period - (time.time() - t0)
-                if timeLeft <= 0.0:
-                    return
+            while _loopCondition(t0): # _loopCondition modifies timeLeft
 
-                tup = self.shared_chan.get(timeout=timeLeft)
+                tup = self.shared_chan.get(timeout = timeLeft) # blocking read of the shared msg queue for up to self.period seconds
 
-                if self.stop_flg.is_set():
+                if self.stop_flg.is_set(): # check stop flag yet again jus to be safe
                     return
 
                 if isinstance(tup, tuple): # may be None on join()
@@ -383,9 +394,8 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                     killme, thr, message = tup
                     scale, sender = thr.amount, thr.coin
                     if killme:
-                        self.stop_protocol_thread(thr, scale, sender, message)
-                        if self.had_a_completion_flg:
-                            self.had_a_completion_flg = False
+                        res = self.stop_protocol_thread(thr, scale, sender, message) # implicitly forwards message to gui thread
+                        if res:
                             return True # signal calling loop to go to the "check_for_coins" step immediately
                     else:
                         #self.print_error("--> Fwd msg to Qt for: Scale='{}' Sender='{}' Msg='{}'".format(scale, sender, message.strip()))
@@ -441,13 +451,14 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
     def stop_protocol_thread(self, thr, scale, sender, message):
         self.print_error("Stop protocol thread for scale: {}".format(scale))
+        retVal = False
         if sender:
             if message.endswith('complete protocol'):
                 # remember this 'just spent' coin for self.timeout amount of
                 # time as a guard to ensure that we wait for the tx to show
                 # up in the wallet before considerng it again for shuffling
                 self.done_utxos[sender] = time.time()
-                self.had_a_completion_flg = True
+                retVal = True # indicate to interesteed callers that we had a completion. Our thread loop uses this retval to decide to scan for UTXOs to shuffle immediately.
             with self.wallet.lock:
                 with self.wallet.transaction_lock:
                     self.wallet.set_frozen_coin_state([sender], False)
@@ -472,6 +483,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         else:
             thr.stop()
             self.print_error("Thread already exited; cleaned up.")
+        return retVal
 
     def protocol_thread_callback(self, thr, message):
         ''' This callback runs in the ProtocolThread's thread context '''

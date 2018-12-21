@@ -333,13 +333,16 @@ class Round(PrintErrorThread):
                     self.signatures.update(player_signatures)
             self.coin.add_transaction_signatures(self.transaction, self.signatures)
             res, status = self.coin.broadcast_transaction(self.transaction)
+            if self.transaction.txid():
+                # Register the txid as belonging to cashshuffle, unconditionally.
+                # This is because even if broadcast failed, maybe one of our peers was able to send it for us,
+                # and so we want it to get the appropriate label in the history.
+                self.logchan.send("shuffle_txid: {}".format(self.transaction.txid()))
             if not res:
                 self.logchan.send("Error: blockchain network fault!")
                 self.print_error("Error broadcasting tx: res='{}' status='{}'".format(res, status))
             else:
                 self.tx = self.transaction
-                if self.tx.txid():
-                    self.logchan.send("shuffle_txid: {}".format(self.tx.txid()))
                 self.log_message("complete protocol")
             self.done = True
 
