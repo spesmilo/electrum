@@ -23,7 +23,7 @@ Popup:
                 height: '36dp'
                 size_hint_x: 3
                 size_hint_y: None
-                text: app.server_host
+                text: app.network.get_parameters().host
             Label:
                 height: '36dp'
                 size_hint_x: 1
@@ -36,7 +36,7 @@ Popup:
                 height: '36dp'
                 size_hint_x: 3
                 size_hint_y: None
-                text: app.server_port
+                text: app.network.get_parameters().port
             Widget
             Button:
                 id: chooser

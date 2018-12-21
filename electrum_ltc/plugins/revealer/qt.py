@@ -170,19 +170,22 @@ class Plugin(RevealerPlugin):
         code_id = self.versioned_seed.checksum
         dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at: ").format(self.was, version, code_id),
                                      "<b>", self.get_path_to_revealer_file(), "</b>", "<br/>",
-                                     "<br/>", "<b>", _("Always check you backups.")]))
+                                     "<br/>", "<b>", _("Always check you backups.")]),
+                            rich_text=True)
         dialog.close()
 
     def ext_warning(self, dialog):
         dialog.show_message(''.join(["<b>",_("Warning"), ": </b>",
-                                     _("your seed extension will <b>not</b> be included in the encrypted backup.")]))
+                                     _("your seed extension will <b>not</b> be included in the encrypted backup.")]),
+                            rich_text=True)
         dialog.close()
 
     def bdone(self, dialog):
         version = self.versioned_seed.version
         code_id = self.versioned_seed.checksum
         dialog.show_message(''.join([_("Digital Revealer ({}_{}) saved as PNG and PDF at:").format(version, code_id),
-                                     "<br/>","<b>", self.get_path_to_revealer_file(), '</b>']))
+                                     "<br/>","<b>", self.get_path_to_revealer_file(), '</b>']),
+                            rich_text=True)
 
 
     def customtxt_limits(self):
@@ -208,7 +211,8 @@ class Plugin(RevealerPlugin):
                                 .format(warning=_("Warning"),
                                         ver0=_("Revealers starting with 0 are not secure due to a vulnerability."),
                                         url=_("More info at: {}").format(f'<a href="{link}">{link}</a>'),
-                                        risk=_("Proceed at your own risk.")))
+                                        risk=_("Proceed at your own risk.")),
+                                rich_text=True)
 
     def cypherseed_dialog(self, window):
         self.warn_old_revealer()
