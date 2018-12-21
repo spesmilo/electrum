@@ -49,7 +49,6 @@ def maybe_create_sweeptx_for_their_ctx_to_local(ctx: Transaction, revocation_pri
                                            privkey=revocation_privkey,
                                            is_revocation=True)
     if sweep_tx is None: return None
-    sweep_tx.name = 'their_ctx_to_local'
     return sweep_tx
 
 
@@ -283,9 +282,8 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
             htlc_output_witness_script=htlc_output_witness_script,
             privkey=other_htlc_privkey.get_secret_bytes(),
             preimage=preimage,
-            is_revocation=False)
-        if is_received_htlc:
-            sweep_tx.cltv_expiry = htlc.cltv_expiry
+            is_revocation=False,
+            cltv_expiry=htlc.cltv_expiry if is_received_htlc else 0)
         return sweep_tx
     # received HTLCs, in their ctx --> "timeout"
     received_htlcs = chan.included_htlcs_in_their_latest_ctxs(LOCAL)[ctn]  # type: List[UpdateAddHtlc]
@@ -319,8 +317,6 @@ def maybe_create_sweeptx_that_spends_to_local_in_our_ctx(
                                            is_revocation=False,
                                            to_self_delay=to_self_delay)
     if sweep_tx is None: return None
-    sweep_tx.name = 'our_ctx_to_local'
-    sweep_tx.csv_delay = to_self_delay
     return sweep_tx
 
 
@@ -335,22 +331,21 @@ def create_htlctx_that_spends_from_our_ctx(chan: 'Channel', our_pcp: bytes,
                                                              for_us=True,
                                                              we_receive=is_received_htlc,
                                                              commit=ctx,
-                                                             htlc=htlc)
+                                                             htlc=htlc,
+                                                             name=f'our_ctx_htlc_tx_{bh2u(htlc.payment_hash)}',
+                                                             cltv_expiry=0 if is_received_htlc else htlc.cltv_expiry)
     remote_htlc_sig = chan.get_remote_htlc_sig_for_htlc(htlc, we_receive=is_received_htlc)
     local_htlc_sig = bfh(htlc_tx.sign_txin(0, local_htlc_privkey))
     txin = htlc_tx.inputs()[0]
     witness_program = bfh(Transaction.get_preimage_script(txin))
     txin['witness'] = bh2u(make_htlc_tx_witness(remote_htlc_sig, local_htlc_sig, preimage, witness_program))
-    htlc_tx.name = f'our_ctx_htlc_tx_{bh2u(htlc.payment_hash)}'
-    if not is_received_htlc:
-        htlc_tx.cltv_expiry = htlc.cltv_expiry
     return witness_script, htlc_tx
 
 
 def maybe_create_sweeptx_for_their_ctx_htlc(ctx: Transaction, sweep_address: str,
                                             htlc_output_witness_script: bytes,
                                             privkey: bytes, is_revocation: bool,
-                                            preimage: Optional[bytes]) -> Optional[Transaction]:
+                                            preimage: Optional[bytes], cltv_expiry: int = 0) -> Optional[Transaction]:
     htlc_address = redeem_script_to_address('p2wsh', bh2u(htlc_output_witness_script))
     # FIXME handle htlc_address collision
     # also: https://github.com/lightningnetwork/lightning-rfc/issues/448
@@ -362,13 +357,14 @@ def maybe_create_sweeptx_for_their_ctx_htlc(ctx: Transaction, sweep_address: str
                                              preimage=preimage,
                                              output_idx=output_idx,
                                              privkey=privkey,
-                                             is_revocation=is_revocation)
+                                             is_revocation=is_revocation,
+                                             cltv_expiry=cltv_expiry)
     return sweep_tx
 
 
 def create_sweeptx_their_ctx_htlc(ctx: Transaction, witness_script: bytes, sweep_address: str,
                                   preimage: Optional[bytes], output_idx: int,
-                                  privkey: bytes, is_revocation: bool,
+                                  privkey: bytes, is_revocation: bool, cltv_expiry: int,
                                   fee_per_kb: int=None) -> Optional[Transaction]:
     preimage = preimage or b''  # preimage is required iff (not is_revocation and htlc is offered)
     val = ctx.outputs()[output_idx].value
@@ -389,7 +385,7 @@ def create_sweeptx_their_ctx_htlc(ctx: Transaction, witness_script: bytes, sweep
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name=f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}')
+    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name=f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', cltv_expiry=cltv_expiry)
 
     sig = bfh(tx.sign_txin(0, privkey))
     if not is_revocation:
@@ -462,7 +458,10 @@ def create_sweeptx_ctx_to_local(sweep_address: str, ctx: Transaction, output_idx
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2)
+    if is_revocation:
+        sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name='their_ctx_to_local')
+    else:
+        sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name='our_ctx_to_local', csv_delay=to_self_delay)
     sig = sweep_tx.sign_txin(0, privkey)
     witness = construct_witness([sig, int(is_revocation), witness_script])
     sweep_tx.inputs()[0]['witness'] = witness
