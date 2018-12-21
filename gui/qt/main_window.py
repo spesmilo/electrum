@@ -93,6 +93,7 @@ from electroncash.paymentrequest import PR_PAID
 
 class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
+    # Note: self.clean_up_connections automatically detects signals named XXX_signal and disconnects them on window close.
     payment_request_ok_signal = pyqtSignal()
     payment_request_error_signal = pyqtSignal()
     notify_transactions_signal = pyqtSignal()
@@ -3207,10 +3208,29 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.clean_up()
         event.accept()
 
+    def clean_up_connections(self):
+        def _disconnect_signals():
+            for attr_name in dir(self):
+                if attr_name.endswith("_signal"):
+                    sig = getattr(self, attr_name)
+                    if isinstance(sig, pyqtBoundSignal):
+                        try:
+                            sig.disconnect()
+                            #self.print_error("Disconnected signal:",attr_name)
+                        except TypeError: # no connections
+                            pass
+        def _disconnect_network_callbacks():
+            if self.network:
+                self.network.unregister_callback(self.on_network)
+                self.network.unregister_callback(self.on_quotes)
+                self.network.unregister_callback(self.on_history)
+        # /
+        _disconnect_signals()
+        _disconnect_network_callbacks()
+
     def clean_up(self):
         self.wallet.thread.stop()
-        if self.network:
-            self.network.unregister_callback(self.on_network)
+        self.clean_up_connections()
 
         # We catch these errors with the understanding that there is no recovery at
         # this point, given user has likely performed an action we cannot recover
