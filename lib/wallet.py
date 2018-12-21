@@ -287,13 +287,12 @@ class Abstract_Wallet(PrintError):
                 self.storage.write()
 
     def clear_history(self):
-        with self.transaction_lock:
+        with self.lock, self.transaction_lock:
             self.txi = {}
             self.txo = {}
             self.tx_fees = {}
             self.pruned_txo = {}
-        self.save_transactions()
-        with self.lock:
+            self.save_transactions()
             self._history = {}
             self.tx_addr_hist = {}
 
@@ -356,12 +355,12 @@ class Abstract_Wallet(PrintError):
     def set_up_to_date(self, up_to_date):
         with self.lock:
             self.up_to_date = up_to_date
-        if up_to_date:
-            self.save_transactions(write=True)
-            # if the verifier is also up to date, persist that too;
-            # otherwise it will persist its results when it finishes
-            if self.verifier and self.verifier.is_up_to_date():
-                self.save_verified_tx(write=True)
+            if up_to_date:
+                self.save_transactions(write=True)
+                # if the verifier is also up to date, persist that too;
+                # otherwise it will persist its results when it finishes
+                if self.verifier and self.verifier.is_up_to_date():
+                    self.save_verified_tx(write=True)
 
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
