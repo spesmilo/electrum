@@ -206,7 +206,9 @@ class ElectrumGui:
         try:
             self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
         except Exception as e:
-            print(repr(e))
+            display_msg = _('The server returned an error when broadcasting the transaction.')
+            display_msg += '\n' + repr(e)
+            print(display_msg)
         else:
             print(_('Payment sent.'))
             #self.do_clear()

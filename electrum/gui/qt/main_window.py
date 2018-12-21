@@ -1690,7 +1690,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.invoice_list.update()
                     self.do_clear()
                 else:
-                    parent.show_error(msg)
+                    display_msg = _('The server returned an error when broadcasting the transaction.')
+                    if msg:
+                        display_msg += '\n' + msg
+                    parent.show_error(display_msg)
 
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)

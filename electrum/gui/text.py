@@ -15,7 +15,7 @@ from electrum.storage import WalletStorage
 from electrum.network import NetworkParameters
 from electrum.interface import deserialize_server
 
-_ = lambda x:x
+_ = lambda x:x  # i18n
 
 
 class ElectrumGui:
@@ -370,7 +370,9 @@ class ElectrumGui:
         try:
             self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
         except Exception as e:
-            self.show_message(repr(e))
+            display_msg = _('The server returned an error when broadcasting the transaction.')
+            display_msg += '\n' + repr(e)
+            self.show_message(display_msg)
         else:
             self.show_message(_('Payment sent.'))
             self.do_clear()

@@ -737,6 +737,7 @@ class Network(PrintError):
             timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
         out = await self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)], timeout=timeout)
         if out != tx.txid():
+            # note: this is untrusted input from the server
             raise Exception(out)
         return out  # txid
 
