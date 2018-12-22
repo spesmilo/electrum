@@ -52,9 +52,9 @@ class LNWatcher(AddressSynchronizer):
         self.sweepstore = defaultdict(lambda: defaultdict(set))
         for funding_outpoint, ctxs in storage.get('sweepstore', {}).items():
             for txid, set_of_txns in ctxs.items():
-                for e_tx in set_of_txns:
-                    e_tx2 = Transaction.from_dict(e_tx)
-                    self.sweepstore[funding_outpoint][txid].add(e_tx2)
+                for tx in set_of_txns:
+                    tx2 = Transaction.from_dict(tx)
+                    self.sweepstore[funding_outpoint][txid].add(tx2)
 
         self.network.register_callback(self.on_network_update,
                                        ['network_updated', 'blockchain_updated', 'verified', 'wallet_updated'])
@@ -100,7 +100,7 @@ class LNWatcher(AddressSynchronizer):
             for funding_outpoint, ctxs in self.sweepstore.items():
                 sweepstore[funding_outpoint] = {}
                 for prev_txid, set_of_txns in ctxs.items():
-                    sweepstore[funding_outpoint][prev_txid] = [e_tx.as_dict() for e_tx in set_of_txns]
+                    sweepstore[funding_outpoint][prev_txid] = [tx.as_dict() for tx in set_of_txns]
             storage.put('sweepstore', sweepstore)
         storage.write()
 
@@ -178,30 +178,30 @@ class LNWatcher(AddressSynchronizer):
                 continue
             prev_txid, prev_n = prevout.split(':')
             with self.lock:
-                encumbered_sweep_txns = self.sweepstore[funding_outpoint][prev_txid]
-            for prev_txid, e_tx in encumbered_sweep_txns:
-                if not await self.broadcast_or_log(funding_outpoint, e_tx):
-                    self.print_error(e_tx.name, f'could not publish encumbered tx: {str(e_tx)}, prev_txid: {prev_txid}')
+                sweep_txns = self.sweepstore[funding_outpoint][prev_txid]
+            for prev_txid, tx in sweep_txns:
+                if not await self.broadcast_or_log(funding_outpoint, tx):
+                    self.print_error(tx.name, f'could not publish tx: {str(tx)}, prev_txid: {prev_txid}')
 
-    async def broadcast_or_log(self, funding_outpoint, e_tx):
-        height = self.get_tx_height(e_tx.txid()).height
+    async def broadcast_or_log(self, funding_outpoint, tx):
+        height = self.get_tx_height(tx.txid()).height
         if height != TX_HEIGHT_LOCAL:
             return
         try:
-            txid = await self.network.broadcast_transaction(e_tx)
+            txid = await self.network.broadcast_transaction(tx)
         except Exception as e:
-            self.print_error(f'broadcast: {e_tx.name}: failure: {repr(e)}')
+            self.print_error(f'broadcast: {tx.name}: failure: {repr(e)}')
         else:
-            self.print_error(f'broadcast: {e_tx.name}: success. txid: {txid}')
+            self.print_error(f'broadcast: {tx.name}: success. txid: {txid}')
             if funding_outpoint in self.tx_progress:
-                await self.tx_progress[funding_outpoint].tx_queue.put(e_tx)
+                await self.tx_progress[funding_outpoint].tx_queue.put(tx)
             return txid
 
     @with_watchtower
-    def add_sweep_tx(self, funding_outpoint: str, prev_txid: str, sweeptx):
-        encumbered_sweeptx = Transaction.from_dict(sweeptx)
+    def add_sweep_tx(self, funding_outpoint: str, prev_txid: str, tx_dict):
+        tx = Transaction.from_dict(tx_dict)
         with self.lock:
-            self.sweepstore[funding_outpoint][prev_txid].add(encumbered_sweeptx)
+            self.sweepstore[funding_outpoint][prev_txid].add(tx)
         self.write_to_disk()
 
     def get_tx_mined_depth(self, txid: str):
