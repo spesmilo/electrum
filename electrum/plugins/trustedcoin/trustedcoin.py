@@ -45,7 +45,7 @@ from electrum.mnemonic import Mnemonic
 from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum.i18n import _
 from electrum.plugin import BasePlugin, hook
-from electrum.util import NotEnoughFunds
+from electrum.util import NotEnoughFunds, UserFacingException
 from electrum.storage import STO_EV_USER_PW
 from electrum.network import Network
 
@@ -319,7 +319,13 @@ class Wallet_2fa(Multisig_Wallet):
         otp = int(otp)
         long_user_id, short_id = self.get_user_id()
         raw_tx = tx.serialize()
-        r = server.sign(short_id, raw_tx, otp)
+        try:
+            r = server.sign(short_id, raw_tx, otp)
+        except TrustedCoinException as e:
+            if e.status_code == 400:  # invalid OTP
+                raise UserFacingException(_('Invalid one-time password.')) from e
+            else:
+                raise
         if r:
             raw_tx = r.get('transaction')
             tx.update(raw_tx)
