@@ -48,7 +48,6 @@ def maybe_create_sweeptx_for_their_ctx_to_local(ctx: Transaction, revocation_pri
                                            witness_script=witness_script,
                                            privkey=revocation_privkey,
                                            is_revocation=True)
-    if sweep_tx is None: return None
     return sweep_tx
 
 
@@ -316,7 +315,6 @@ def maybe_create_sweeptx_that_spends_to_local_in_our_ctx(
                                            privkey=our_localdelayed_privkey.get_secret_bytes(),
                                            is_revocation=False,
                                            to_self_delay=to_self_delay)
-    if sweep_tx is None: return None
     return sweep_tx
 
 
