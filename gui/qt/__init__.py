@@ -279,6 +279,8 @@ class ElectrumGui:
         self.app.lastWindowClosed.connect(quit_after_last_window)
 
         def clean_up():
+            # Just in case we get an exception as we exit, uninstall the Exception_Hook
+            Exception_Hook.uninstall()
             # Shut down the timer cleanly
             self.timer.stop()
             # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
