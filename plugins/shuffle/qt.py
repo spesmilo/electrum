@@ -234,7 +234,7 @@ def update_coin_status(window, coin_name, msg):
                     tot, scale_orig, chg, fee = [int(w) for w in words[2:6]] # parse satoshis
                     # satoshis -> display format
                     tot, scale, chg = window.format_amount(tot), window.format_amount(scale_orig), window.format_amount(chg)
-                    window.wallet.set_label(txid, _("CashShuffle")
+                    window.wallet.set_label(txid, _("Shuffle")
                                             + (" {} {} {} {} + {} (-{} sats {})"
                                                .format(tot, window.base_unit(),
                                                        SCALE_ARROW_DICT.get(scale_orig, '⇒'),
