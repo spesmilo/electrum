@@ -179,15 +179,15 @@ def _disable(config):
     config.set_key("show_crash_reporter", False)
 
 def _get_current_wallet_types():
-    wtypes = { str(w.wallet.wallet_type)
+    wtypes = { str(getattr(w.wallet, 'wallet_type', 'Unknown'))
                for w in QApplication.instance().topLevelWidgets()
                if isinstance(w, ElectrumWindow) and w.is_alive() }
     return ",".join(list(wtypes)) or "Unknown"
 
 class Exception_Hook(QObject):
-    ''' Exception Hook singleton.  Only one of these will be extant. The first
-    one is created by the first ElectrumWindow, and it lives forever until app
-    exit.  But ONLY if the `show_crash_reporter` config key is set. '''
+    ''' Exception Hook singleton.  Only one of these will be extant. It is
+    created by the ElectrumGui singleton, and it lives forever until app exit.
+    (But ONLY if the `show_crash_reporter` config key is set.) '''
     
     _report_exception = QtCore.pyqtSignal(object, object, object, object)
     _instance = None
