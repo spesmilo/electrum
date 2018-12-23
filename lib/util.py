@@ -622,10 +622,10 @@ class Weak:
         myweak = Weak(myobj)
         type(myweak) == weakref.proxy # <-- True
 
-    The interesting usage is if this factory is used with a bound method
-    instance.  In which case it returns a WeakMethodProxy which behaves
-    like a proxy to a bound method in that you can call the WeakMethodProxy
-    object directly:
+    The interesting usage is when this factory is used with a bound method
+    instance.  In which case it returns a MethodProxy which behaves like
+    a proxy to a bound method in that you can call the MethodProxy object
+    directly:
 
         mybound = Weak(someObj.aMethod)
         mybound(arg1, arg2) # <-- invokes someObj.aMethod(arg1, arg2)
@@ -633,19 +633,19 @@ class Weak:
     This is unlike regular weakref.WeakMethod which is not a proxy and requires
     unsightly `foo()(args)`, or perhaps `foo() and foo()(args)` idioms.
 
-    Also note that no exception is ever raised with WeakMethodProxy instances
-    when calling them on dead references.
+    Also note that no exception is raised with MethodProxy instances when
+    calling them on dead references.
 
     Instead, if the weakly bound method is no longer alive (because its object
     died), the situation is ignored as if no method were called (with an
     optional print facility provided to print debug information in such a
     situation).
 
-    The optional `print_func` class attribute can be set in WeakMethodProxy
+    The optional `print_func` class attribute can be set in MethodProxy
     globally or for each instance specifically in order to specify a debug
     print function (which will receive exactly two arguments: the
-    WeakMethodProxy instance and an info string), so you can track when your
-    weak bound method is being called after its object died (defaults to
+    MethodProxy instance and an info string), so you can track when your weak
+    bound method is being called after its object died (defaults to
     `print_error`).
 
     Note you may specify a second postional argument to this factory,
@@ -653,16 +653,15 @@ class Weak:
     documentation and will be called on target object finalization
     (destruction).
 
-    This Weak/WeakMethodProxy usage/idiom is intented to be used with Qt's
-    signal/slots mechanism to allow for Qt bound signals to not prevent target
-    objects from being garbage collected -- hence the permissiveness in not
-    raising exceptions.
-    '''
+    This usage/idiom is intented to be used with Qt's signal/slots mechanism
+    to allow for Qt bound signals to not prevent target objects from being
+    garbage collected due to reference cycles -- hence the permissive,
+    exception-free design.'''
 
     def __new__(cls, obj_or_bound_method, *args, **kwargs):
         if inspect.ismethod(obj_or_bound_method):
             # is a method -- use our custom proxy class
-            return cls.WeakMethodProxy(obj_or_bound_method, *args, **kwargs)
+            return cls.MethodProxy(obj_or_bound_method, *args, **kwargs)
         else:
             # Not a method, just return a weakref.proxy
             return weakref.proxy(obj_or_bound_method, *args, **kwargs)
@@ -674,7 +673,7 @@ class Weak:
     Method = weakref.WeakMethod # alias
     finalize = weakref.finalize # alias
 
-    class WeakMethodProxy(weakref.WeakMethod):
+    class MethodProxy(weakref.WeakMethod):
         ''' Direct-use of this class is discouraged (aside from assigning to
             its print_func attribute). Instead use of the wrapper class 'Weak'
             defined in the enclosing scope is encouraged. '''
@@ -693,5 +692,5 @@ class Weak:
             if meth: # could also do callable() as the test but hopefully this is sightly faster
                 meth(*args,**kwargs)
             elif callable(self.print_func):
-                self.print_func(self, "WeakMethodProxy for '{}' called on a dead reference. Referent was: {})".format(self.qname,
-                                                                                                                      self.sname))
+                self.print_func(self, "MethodProxy for '{}' called on a dead reference. Referent was: {})".format(self.qname,
+                                                                                                                  self.sname))
