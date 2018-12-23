@@ -2566,16 +2566,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             with open(labelsFile, 'r') as f:
                 data = f.read()
-            if type(data) is not dict or len(data) and not all(type(v) is str for v in next(iter(d))):
+                data = json.loads(data)
+            if type(data) is not dict or not len(data) or not all(type(v) is str and type(k) is str for k,v in data.items()):
                 self.show_critical(_("The file you selected does not appear to contain labels."))
                 return
-            for key, value in json.loads(data).items():
+            for key, value in data.items():
                 self.wallet.set_label(key, value)
             self.show_message(_("Your labels were imported from") + " '%s'" % str(labelsFile))
-        except (IOError, os.error) as reason:
+        except (IOError, OSError, json.decoder.JSONDecodeError) as reason:
             self.show_critical(_("Electron Cash was unable to import your labels.") + "\n" + str(reason))
         self.address_list.update()
         self.history_list.update()
+        self.utxo_list.update()
         self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
 
     def do_export_labels(self):
