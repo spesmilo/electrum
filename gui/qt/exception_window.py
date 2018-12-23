@@ -212,10 +212,11 @@ class Exception_Hook(QObject):
         Exception_Hook._weak_instances.remove(wr)
 
     @staticmethod
-    def uninstall(*args):
+    def uninstall():
         sys.excepthook = sys.__excepthook__
-        print_error("[{}] Uninstalled.".format(__class__.__qualname__))
-        Exception_Hook._instance = None
+        if Exception_Hook._instance:
+            print_error("[{}] Uninstalled.".format(__class__.__qualname__))
+            Exception_Hook._instance = None
 
     def handler(self, exctype, value, tb):
         if exctype is KeyboardInterrupt or exctype is SystemExit or not _is_enabled(self.config):
