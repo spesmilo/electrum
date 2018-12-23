@@ -199,6 +199,7 @@ class Exception_Hook(QObject):
 
     def __init__(self, config):
         super().__init__(None) # Top-level Object
+        if Exception_Hook._instance: return # This is ok, we will be GC'd later.
         if not _is_enabled(config):
             print_error("[{}] Not installed due to user config.".format(__class__.__qualname__))
             return # self will get auto-gc'd

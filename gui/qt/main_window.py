@@ -3132,7 +3132,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.clean_up()
         event.accept()
 
-    def is_alive(self): return not getattr(self, 'cleaned_up', True)
+    def is_alive(self): return bool(not getattr(self, 'cleaned_up', True) and getattr(self, 'wallet', None))
 
     def clean_up_connections(self):
         def disconnect_signals():
