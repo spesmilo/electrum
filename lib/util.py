@@ -690,7 +690,7 @@ class Weak:
                 if the target object died '''
             meth = super().__call__() # if dead, None is returned
             if meth: # could also do callable() as the test but hopefully this is sightly faster
-                meth(*args,**kwargs)
+                return meth(*args,**kwargs)
             elif callable(self.print_func):
                 self.print_func(self, "MethodProxy for '{}' called on a dead reference. Referent was: {})".format(self.qname,
                                                                                                                   self.sname))
