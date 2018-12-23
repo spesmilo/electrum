@@ -30,6 +30,7 @@ import traceback
 import threading
 import hmac
 import stat
+import inspect, weakref
 
 from .i18n import _
 
@@ -606,3 +607,91 @@ def setup_thread_excepthook():
 
 def versiontuple(v):
     return tuple(map(int, (v.split("."))))
+
+
+class Weak:
+    '''
+    Weak reference factory. Create either a weak proxy to a bound method
+    or a weakref.proxy, depending on whether this factory class's __new__ is
+    invoked with a bound method or a regular function/object as its first
+    argument.
+
+    If used with an object/function reference this factory just creates a
+    weakref.proxy and returns that.
+
+        myweak = Weak(myobj)
+        type(myweak) == weakref.proxy # <-- True
+
+    The interesting usage is if this factory is used with a bound method
+    instance.  In which case it returns a WeakMethodProxy which behaves
+    like a proxy to a bound method in that you can call the WeakMethodProxy
+    object directly:
+
+        mybound = Weak(someObj.aMethod)
+        mybound(arg1, arg2) # <-- invokes someObj.aMethod(arg1, arg2)
+
+    This is unlike regular weakref.WeakMethod which is not a proxy and requires
+    unsightly `foo()(args)`, or perhaps `foo() and foo()(args)` idioms.
+
+    Also note that no exception is ever raised with WeakMethodProxy instances
+    when calling them on dead references.
+
+    Instead, if the weakly bound method is no longer alive (because its object
+    died), the situation is ignored as if no method were called (with an
+    optional print facility provided to print debug information in such a
+    situation).
+
+    The optional `print_func` class attribute can be set in WeakMethodProxy
+    globally or for each instance specifically in order to specify a debug
+    print function (which will receive exactly two arguments: the
+    WeakMethodProxy instance and an info string), so you can track when your
+    weak bound method is being called after its object died (defaults to
+    `print_error`).
+
+    Note you may specify a second postional argument to this factory,
+    `callback`, which is identical to the `callback` argument in the weakref
+    documentation and will be called on target object finalization
+    (destruction).
+
+    This Weak/WeakMethodProxy usage/idiom is intented to be used with Qt's
+    signal/slots mechanism to allow for Qt bound signals to not prevent target
+    objects from being garbage collected -- hence the permissiveness in not
+    raising exceptions.
+    '''
+
+    def __new__(cls, obj_or_bound_method, *args, **kwargs):
+        if inspect.ismethod(obj_or_bound_method):
+            # is a method -- use our custom proxy class
+            return cls.WeakMethodProxy(obj_or_bound_method, *args, **kwargs)
+        else:
+            # Not a method, just return a weakref.proxy
+            return weakref.proxy(obj_or_bound_method, *args, **kwargs)
+
+    ref = weakref.ref # alias for convenience so you don't have to import weakref
+    Set = weakref.WeakSet # alias for convenience
+    ValueDictionary = weakref.WeakValueDictionary # alias for convenience
+    KeyDictionary = weakref.WeakKeyDictionary # alias for convenience
+    Method = weakref.WeakMethod # alias
+    finalize = weakref.finalize # alias
+
+    class WeakMethodProxy(weakref.WeakMethod):
+        ''' Direct-use of this class is discouraged (aside from assigning to
+            its print_func attribute). Instead use of the wrapper class 'Weak'
+            defined in the enclosing scope is encouraged. '''
+
+        print_func = lambda x, this, info: print_error(this, info) # <--- set this attribute if needed, either on the class or instance level, to control debug printing behavior. None is ok here.
+
+        def __init__(self, meth, *args, **kwargs):
+            super().__init__(meth, *args, **kwargs)
+            # teehee.. save some information about what to call this thing for debug print purposes
+            self.qname, self.sname = meth.__qualname__, str(meth.__self__)
+    
+        def __call__(self, *args, **kwargs):
+            ''' Either directly calls the method for you or prints debug info
+                if the target object died '''
+            meth = super().__call__() # if dead, None is returned
+            if meth: # could also do callable() as the test but hopefully this is sightly faster
+                meth(*args,**kwargs)
+            elif callable(self.print_func):
+                self.print_func(self, "WeakMethodProxy for '{}' called on a dead reference. Referent was: {})".format(self.qname,
+                                                                                                                      self.sname))

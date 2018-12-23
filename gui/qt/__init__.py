@@ -40,7 +40,7 @@ import PyQt5.QtCore as QtCore
 from electroncash.i18n import _, set_language
 from electroncash.plugins import run_hook
 from electroncash import WalletStorage
-from electroncash.util import UserCancelled, print_error
+from electroncash.util import UserCancelled, Weak, print_error
 from electroncash.networks import NetworkConstants
 
 from .installwizard import InstallWizard, GoBack
@@ -97,6 +97,7 @@ class ElectrumGui:
         self.daemon = daemon
         self.plugins = plugins
         self.windows = []
+        self.weak_windows = []
         self.efilter = OpenFileEventFilter(self.windows)
         self.app = QElectrumApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
@@ -175,6 +176,11 @@ class ElectrumGui:
     def create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)
         self.windows.append(w)
+        dname = w.diagnostic_name()
+        def onFinalized(wr,dname=dname):
+            print_error("[{}] finalized".format(dname))
+            self.weak_windows.remove(wr)
+        self.weak_windows.append(Weak.ref(w,onFinalized))
         self.build_tray_menu()
         # FIXME: Remove in favour of the load_wallet hook
         run_hook('on_new_window', w)

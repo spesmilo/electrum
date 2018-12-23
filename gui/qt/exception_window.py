@@ -38,6 +38,7 @@ from PyQt5.QtWidgets import *
 from electroncash.i18n import _
 import sys
 from electroncash import PACKAGE_VERSION
+from electroncash.util import Weak, print_error
 
 
 issue_template = """<h2>Traceback</h2>
@@ -60,10 +61,11 @@ report_server = "https://crashhub.electroncash.org/crash"
 class Exception_Window(QWidget):
     _active_window = None
 
-    def __init__(self, main_window, exctype, value, tb):
+    def __init__(self, config, wallet_types, exctype, value, tb):
+        super().__init__(None) # Top-level window. Note PyQt top level windows are kept alive by strong references, hence _active_window
         self.exc_args = (exctype, value, tb)
-        self.main_window = main_window
-        QWidget.__init__(self)
+        self.config = config
+        self.wallet_types = wallet_types
         self.setWindowTitle('Electron Cash - ' + _('An Error Occurred'))
         self.setMinimumSize(600, 300)
 
@@ -126,7 +128,8 @@ class Exception_Window(QWidget):
         self.close()
 
     def show_never(self):
-        self.main_window.config.set_key("show_crash_reporter", False)
+        self.config.set_key("show_crash_reporter", False)
+        Exception_Hook.uninstall()
         self.close()
 
     def closeEvent(self, event):
@@ -153,15 +156,10 @@ class Exception_Window(QWidget):
             "app_version": PACKAGE_VERSION,
             "python_version": sys.version,
             "os": platform.platform(),
-            "wallet_type": "unknown",
             "locale": locale.getdefaultlocale()[0],
-            "description": self.description_textfield.toPlainText()
+            "description": self.description_textfield.toPlainText(),
+            "wallet_type": ",".join([str(x) for x in self.wallet_types])
         }
-        try:
-            args["wallet_type"] = self.main_window.wallet.wallet_type
-        except:
-            # Maybe the wallet isn't loaded yet
-            pass
         return args
 
     def get_report_string(self):
@@ -170,24 +168,44 @@ class Exception_Window(QWidget):
         return issue_template.format(**info)
 
 
-def _show_window(main_window, exctype, value, tb):
+def _show_window(config, wallet_types, exctype, value, tb):
     if not Exception_Window._active_window:
-        Exception_Window._active_window = Exception_Window(main_window, exctype, value, tb)
+        Exception_Window._active_window = Exception_Window(config, wallet_types, exctype, value, tb)
 
 
 class Exception_Hook(QObject):
-    _report_exception = QtCore.pyqtSignal(object, object, object, object)
+    ''' Exception Hook singleton.  Only one of these will be extant. The first
+    one is created by the first ElectrumWindow, and it lives forever until app
+    exit.  But ONLY if the `show_crash_reporter` config key is set. '''
+    
+    _report_exception = QtCore.pyqtSignal(object, object, object, object, object)
+    _instance = None
 
-    def __init__(self, main_window, *args, **kwargs):
-        super(Exception_Hook, self).__init__(*args, **kwargs)
+    def __init__(self, main_window, wallet):
+        assert hasattr(wallet, 'wallet_type'), "Wallet must have a wallet type defined before the Exception_Hook can be installed"
+        super().__init__(None) # Top-level Object
+        if Exception_Hook._instance:
+            Exception_Hook._instance.wallet_types.add(wallet.wallet_type)
+            return # This is ok. We will get auto-gc'd
         if not main_window.config.get("show_crash_reporter", default=True):
-            return
-        self.main_window = main_window
-        sys.excepthook = self.handler
+            print_error("[{}] Not installed due to user config.".format(__class__.__qualname__))
+            return # self will get auto-gc'd
+        Exception_Hook._instance = self # strong reference to self should keep us alive until uninstall() is called
+        self.wallet_types = {wallet.wallet_type}
+        self.config = main_window.config
+        sys.excepthook = self.handler # yet another strong reference. We really won't die unless uninstall() is called
         self._report_exception.connect(_show_window)
+        print_error("[{}] Installed.".format(__class__.__qualname__))
+        self.weak_self = Weak(self, lambda *args: print_error("[{}] Finalized.".format(__class__.__qualname__)))
+
+    @staticmethod
+    def uninstall(*args):
+        sys.excepthook = sys.__excepthook__
+        print_error("[{}] Uninstalled.".format(__class__.__qualname__))
+        Exception_Hook._instance = None
 
     def handler(self, exctype, value, tb):
-        if exctype is KeyboardInterrupt or exctype is SystemExit:
+        if exctype is KeyboardInterrupt or exctype is SystemExit or not self.config.get("show_crash_reporter", default=True):
             sys.__excepthook__(exctype, value, tb)
         else:
-            self._report_exception.emit(self.main_window, exctype, value, tb)
+            self._report_exception.emit(self.config, self.wallet_types, exctype, value, tb)
