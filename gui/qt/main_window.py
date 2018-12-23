@@ -1975,10 +1975,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                                  'window': Weak(self)})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
 
-        c = commands.Commands(self.config, self.wallet, self.network, lambda: self.console.set_json(True))
+        set_json = Weak(self.console.set_json)
+        c = commands.Commands(self.config, self.wallet, self.network, lambda: set_json(True))
         methods = {}
+        password_getter = Weak(self.password_dialog)
         def mkfunc(f, method):
-            return lambda *args, **kwargs: f(method, *args, password_getter=self.password_dialog,
+            return lambda *args, **kwargs: f(method, *args, password_getter=password_getter,
                                              **kwargs)
         for m in dir(c):
             if m[0]=='_' or m in ['network','wallet','config']: continue
