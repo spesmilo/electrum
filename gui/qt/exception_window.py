@@ -178,14 +178,15 @@ def _disable(config):
     config.set_key("show_crash_reporter", False)
 
 def _get_current_wallet_types():
-    from .main_window import ElectrumWindow
-    ws = [w for w in QApplication.instance().topLevelWidgets() if isinstance(w, ElectrumWindow) and w.is_alive()]
-    wtypes = set()
-    for w in ws:
-        try:
-            wtypes.add(str(w.wallet.wallet_type))
-        except NameError:
-            pass # wallet is not yet fully opened or ready
+    try:
+        # We are forced to lazy import this due to circular dependencies in main_window.py with this file.
+        from .main_window import ElectrumWindow
+    except ImportError as e:
+        # Ergh. Code/API must have changed. Indicate that to crash system through this hack!
+        return '_'.join(str(e).split())
+    wtypes = { str(w.wallet.wallet_type)
+               for w in QApplication.instance().topLevelWidgets()
+               if isinstance(w, ElectrumWindow) and w.is_alive() }
     return ",".join(list(wtypes)) or "Unknown"
 
 class Exception_Hook(QObject):
