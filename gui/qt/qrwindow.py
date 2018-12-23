@@ -34,9 +34,8 @@ from electroncash.i18n import _
 
 class QR_Window(QWidget):
 
-    def __init__(self, win):
-        QWidget.__init__(self)
-        self.win = win
+    def __init__(self):
+        super().__init__() # Top-level window. Parent needs to hold a reference to us and clean us up appropriately.
         self.setWindowTitle('Electron Cash - ' + _('Payment Request'))
         self.setMinimumSize(800, 250)
         self.label = ''
@@ -68,10 +67,10 @@ class QR_Window(QWidget):
         self.setLayout(main_box)
 
 
-    def set_content(self, address_text, amount, message, url):
+    def set_content(self, win, address_text, amount, message, url):
         self.address_label.setText(address_text)
         if amount:
-            amount_text = '{} {}'.format(self.win.format_amount(amount), self.win.base_unit())
+            amount_text = '{} {}'.format(win.format_amount(amount), win.base_unit())
         else:
             amount_text = ''
         self.amount_label.setText(amount_text)
