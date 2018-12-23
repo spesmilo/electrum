@@ -61,11 +61,10 @@ report_server = "https://crashhub.electroncash.org/crash"
 class Exception_Window(QWidget):
     _active_window = None
 
-    def __init__(self, config, wallet_types, exctype, value, tb):
+    def __init__(self, config, exctype, value, tb):
         super().__init__(None) # Top-level window. Note PyQt top level windows are kept alive by strong references, hence _active_window
         self.exc_args = (exctype, value, tb)
         self.config = config
-        self.wallet_types = wallet_types
         self.setWindowTitle('Electron Cash - ' + _('An Error Occurred'))
         self.setMinimumSize(600, 300)
 
@@ -128,7 +127,7 @@ class Exception_Window(QWidget):
         self.close()
 
     def show_never(self):
-        self.config.set_key("show_crash_reporter", False)
+        _disable(self.config)
         Exception_Hook.uninstall()
         self.close()
 
@@ -158,7 +157,7 @@ class Exception_Window(QWidget):
             "os": platform.platform(),
             "locale": locale.getdefaultlocale()[0],
             "description": self.description_textfield.toPlainText(),
-            "wallet_type": ",".join([str(x) for x in self.wallet_types])
+            "wallet_type": _get_current_wallet_types()
         }
         return args
 
@@ -168,35 +167,52 @@ class Exception_Window(QWidget):
         return issue_template.format(**info)
 
 
-def _show_window(config, wallet_types, exctype, value, tb):
+def _show_window(config, exctype, value, tb):
     if not Exception_Window._active_window:
-        Exception_Window._active_window = Exception_Window(config, wallet_types, exctype, value, tb)
+        Exception_Window._active_window = Exception_Window(config, exctype, value, tb)
 
+def _is_enabled(config):
+    return config.get("show_crash_reporter", default=True)
+
+def _disable(config):
+    config.set_key("show_crash_reporter", False)
+
+def _get_current_wallet_types():
+    from .main_window import ElectrumWindow
+    ws = [w for w in QApplication.instance().topLevelWidgets() if isinstance(w, ElectrumWindow) and w.is_alive()]
+    wtypes = set()
+    for w in ws:
+        try:
+            wtypes.add(str(w.wallet.wallet_type))
+        except NameError:
+            pass # wallet is not yet fully opened or ready
+    return ",".join(list(wtypes)) or "Unknown"
 
 class Exception_Hook(QObject):
     ''' Exception Hook singleton.  Only one of these will be extant. The first
     one is created by the first ElectrumWindow, and it lives forever until app
     exit.  But ONLY if the `show_crash_reporter` config key is set. '''
     
-    _report_exception = QtCore.pyqtSignal(object, object, object, object, object)
+    _report_exception = QtCore.pyqtSignal(object, object, object, object)
     _instance = None
+    _weak_instances = []
 
-    def __init__(self, main_window, wallet):
-        assert hasattr(wallet, 'wallet_type'), "Wallet must have a wallet type defined before the Exception_Hook can be installed"
+    def __init__(self, config):
         super().__init__(None) # Top-level Object
-        if Exception_Hook._instance:
-            Exception_Hook._instance.wallet_types.add(wallet.wallet_type)
-            return # This is ok. We will get auto-gc'd
-        if not main_window.config.get("show_crash_reporter", default=True):
+        if not _is_enabled(config):
             print_error("[{}] Not installed due to user config.".format(__class__.__qualname__))
             return # self will get auto-gc'd
         Exception_Hook._instance = self # strong reference to self should keep us alive until uninstall() is called
-        self.wallet_types = {wallet.wallet_type}
-        self.config = main_window.config
+        self.config = config
         sys.excepthook = self.handler # yet another strong reference. We really won't die unless uninstall() is called
         self._report_exception.connect(_show_window)
         print_error("[{}] Installed.".format(__class__.__qualname__))
-        self.weak_self = Weak(self, lambda *args: print_error("[{}] Finalized.".format(__class__.__qualname__)))
+        Exception_Hook._weak_instances.append(Weak.ref(self, Exception_Hook.finalized))
+
+    @staticmethod
+    def finalized(wr):
+        print_error("[{}] Finalized.".format(__class__.__qualname__))
+        Exception_Hook._weak_instances.remove(wr)
 
     @staticmethod
     def uninstall(*args):
@@ -205,7 +221,7 @@ class Exception_Hook(QObject):
         Exception_Hook._instance = None
 
     def handler(self, exctype, value, tb):
-        if exctype is KeyboardInterrupt or exctype is SystemExit or not self.config.get("show_crash_reporter", default=True):
+        if exctype is KeyboardInterrupt or exctype is SystemExit or not _is_enabled(self.config):
             sys.__excepthook__(exctype, value, tb)
         else:
-            self._report_exception.emit(self.config, self.wallet_types, exctype, value, tb)
+            self._report_exception.emit(self.config, exctype, value, tb)
