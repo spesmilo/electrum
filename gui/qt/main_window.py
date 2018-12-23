@@ -112,7 +112,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.gui_object = gui_object
         self.config = config = gui_object.config
 
-        self.setup_exception_hook(wallet)
+        self.setup_exception_hook()
 
         self.network = gui_object.daemon.network
         self.fx = gui_object.daemon.fx
@@ -220,8 +220,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def on_history(self, b):
         self.new_fx_history_signal.emit()
 
-    def setup_exception_hook(self, wallet):
-        Exception_Hook(self, wallet)
+    def setup_exception_hook(self):
+        Exception_Hook(self.config)
 
     @rate_limited(3.0) # Rate limit to no more than once every 3 seconds
     def on_fx_history(self):
@@ -3131,6 +3131,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.cleaned_up = True
             self.clean_up()
         event.accept()
+
+    def is_alive(self): return not getattr(self, 'cleaned_up', True)
 
     def clean_up_connections(self):
         def disconnect_signals():
