@@ -57,6 +57,7 @@ except Exception as e:
 from .util import *   # * needed for plugins
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
+from .exception_window import Exception_Hook
 
 
 class OpenFileEventFilter(QObject):
@@ -86,8 +87,13 @@ class ElectrumGui:
         set_language(config.get('language'))
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
-        #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
-        #                            ElectrumWindow], interval=5)])
+        #if daemon.network:
+        #    from electroncash.util import DebugMem
+        #    from electroncash.wallet import Abstract_Wallet
+        #    from electroncash.verifier import SPV
+        #    from electroncash.synchronizer import Synchronizer
+        #    daemon.network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
+        #                                       ElectrumWindow], interval=5)])
         QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_X11InitThreads)
         if hasattr(QtCore.Qt, "AA_ShareOpenGLContexts"):
             QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
@@ -281,6 +287,7 @@ class ElectrumGui:
             self.tray.hide()
         self.app.aboutToQuit.connect(clean_up)
 
+        Exception_Hook(self.config) # This wouldn't work anyway unless the app event loop is active, so we must install it once here and no earlier.
         # main loop
         self.app.exec_()
         # on some platforms the exec_ call may not return, so use clean_up()

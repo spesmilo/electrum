@@ -37,7 +37,6 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 import PyQt5.QtCore as QtCore
 
-from .exception_window import Exception_Hook
 from PyQt5.QtWidgets import *
 
 from electroncash import keystore
@@ -112,8 +111,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.gui_object = gui_object
         self.config = config = gui_object.config
-
-        self.setup_exception_hook()
 
         self.network = gui_object.daemon.network
         self.fx = gui_object.daemon.fx
@@ -223,9 +220,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def on_history(self, b):
         self.new_fx_history_signal.emit()
-
-    def setup_exception_hook(self):
-        Exception_Hook(self.config)
 
     @rate_limited(3.0) # Rate limit to no more than once every 3 seconds
     def on_fx_history(self):

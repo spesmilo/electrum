@@ -39,6 +39,7 @@ from electroncash.i18n import _
 import sys
 from electroncash import PACKAGE_VERSION
 from electroncash.util import Weak, print_error
+from .main_window import ElectrumWindow
 
 
 issue_template = """<h2>Traceback</h2>
@@ -178,12 +179,6 @@ def _disable(config):
     config.set_key("show_crash_reporter", False)
 
 def _get_current_wallet_types():
-    try:
-        # We are forced to lazy import this due to circular dependencies in main_window.py with this file.
-        from .main_window import ElectrumWindow
-    except ImportError as e:
-        # Ergh. Code/API must have changed. Indicate that to crash system through this hack!
-        return '_'.join(str(e).split())
     wtypes = { str(w.wallet.wallet_type)
                for w in QApplication.instance().topLevelWidgets()
                if isinstance(w, ElectrumWindow) and w.is_alive() }
