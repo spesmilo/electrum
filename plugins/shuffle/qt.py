@@ -45,8 +45,12 @@ from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_S
 from electroncash_plugins.shuffle.comms import query_server_for_stats, verify_ssl_socket
 
 FEE = 300
-SCALE_0 = sorted(BackgroundShufflingThread.scales)[0]
-SCALE_N = sorted(BackgroundShufflingThread.scales)[-1]
+SORTED_SCALES = sorted(BackgroundShufflingThread.scales)
+SCALE_ARROWS = ('→','⇢','➟','➝','➡')
+assert len(SORTED_SCALES) == len(SCALE_ARROWS), "Please add a scale arrow if you modify the scales!"
+SCALE_ARROW_DICT = dict(zip(SORTED_SCALES, SCALE_ARROWS))
+SCALE_0 = SORTED_SCALES[0]
+SCALE_N = SORTED_SCALES[-1]
 UPPER_BOUND = SCALE_N*10 + FEE
 LOWER_BOUND = SCALE_0 + FEE
 
@@ -226,7 +230,19 @@ def update_coin_status(window, coin_name, msg):
             words = msg.split()
             if len(words) >= 2:
                 txid = words[1]
-                window.wallet.set_label(txid, _("CashShuffle"))
+                try:
+                    tot, scale_orig, chg, fee = [int(w) for w in words[2:6]] # parse satoshis
+                    # satoshis -> display format
+                    tot, scale, chg = window.format_amount(tot), window.format_amount(scale_orig), window.format_amount(chg)
+                    window.wallet.set_label(txid, _("CashShuffle")
+                                            + (" {} {} {} {} + {} (-{} sats {})"
+                                               .format(tot, window.base_unit(),
+                                                       SCALE_ARROW_DICT.get(scale_orig, '⇒'),
+                                                       scale, chg, fee, _("fee"))
+                                               ))
+                except (IndexError, ValueError, TypeError):
+                    # Hmm. Some sort of parse error. Just label it 'CashShuffle'
+                    window.wallet.set_label(txid, _("CashShuffle"))
                 window.update_wallet()
 
         if not msg.startswith("Error") and not msg.startswith("Exit"):

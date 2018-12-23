@@ -11,7 +11,7 @@ class Round(PrintErrorThread):
     def __init__(self, coin, crypto, messages,
                  inchan, outchan, logchan,
                  session, phase, amount, fee,
-                 sk, sks, inputs, pubkey, players, addr_new, change):
+                 sk, sks, inputs, pubkey, players, addr_new, change, total_amount = 0):
         self.coin = coin
         self.crypto = crypto
         self.inchan = inchan
@@ -20,6 +20,7 @@ class Round(PrintErrorThread):
         self.session = session
         self.messages = messages
         self.phase = phase
+        self.total_amount = total_amount
         assert (amount > 0), 'Wrong amount value'
         self.amount = amount
         assert (fee > 0), 'Wrong fee value'
@@ -46,7 +47,10 @@ class Round(PrintErrorThread):
         self.done = None
         if self.number_of_players == len(set(players.values())):
             if self.vk in players.values():
-                self.me = {players[player] : player for player in players}[self.vk]
+                for player, vk in players.items():
+                    if self.vk == vk:
+                        self.me = player # find 'me'!
+                        break
             else:
                 self.logchan.send('Error: public key is not in the players list')
                 self.done = True
@@ -263,8 +267,8 @@ class Round(PrintErrorThread):
                                              str([self.encryption_keys[self.players[i]]
                                                   for i in sorted(self.players)]))
             messages = self.inbox[phase]
-            for player in messages:
-                self.messages.packets.ParseFromString(messages[player])
+            for player, player_msg in messages.items():
+                self.messages.packets.ParseFromString(player_msg)
                 hash_value = self.messages.get_hash()
                 if hash_value != computed_hash:
                     phase1 = self.messages.phases["Announcement"]
@@ -276,7 +280,7 @@ class Round(PrintErrorThread):
                     self.phase = "Blame"
                     self.send_message()
                     cheater = [p for p in self.players if self.players[p] == player][0]
-                    self.log_message("found bad hash from " +str(cheater))
+                    self.log_message("found bad hash from " + str(cheater))
                     self.logchan.send('Blame: wrong hash computed by player ' + str(cheater))
                     return
             self.phase = 'VerificationAndSubmission'
@@ -286,7 +290,7 @@ class Round(PrintErrorThread):
                                                                    self.inputs,
                                                                    self.new_addresses,
                                                                    self.change_addresses)
-            if self.transaction == None:
+            if not self.transaction:
                 self.logchan.send("Error: Could not make unsigned transaction")
                 self.done = True
                 return
@@ -315,15 +319,15 @@ class Round(PrintErrorThread):
             self.signatures = {}
             self.log_message("got transction signatures")
             pubkeys = {}
-            for vk in self.inputs:
-                for pubkey in self.inputs[vk]:
-                    for tx_hash in self.inputs[vk][pubkey]:
+            for vk, vk_pubkeys in self.inputs.items():
+                for pubkey, tx_hashes in vk_pubkeys.items():
+                    for tx_hash in tx_hashes:
                         pubkeys[tx_hash] = pubkey
-            for player in self.players:
-                self.messages.packets.ParseFromString(self.inbox[phase][self.players[player]])
+            for player, vk in self.players.items():
+                self.messages.packets.ParseFromString(self.inbox[phase][vk])
                 player_signatures = self.messages.get_signatures()
-                for tx_hash in player_signatures:
-                    if not self.coin.verify_tx_signature(player_signatures[tx_hash], self.transaction, pubkeys[tx_hash], tx_hash):
+                for tx_hash, sig in player_signatures.items():
+                    if not self.coin.verify_tx_signature(sig, self.transaction, pubkeys[tx_hash], tx_hash):
                         self.messages.blame_wrong_transaction_signature(self.players[player])
                         self.send_message()
                         self.logchan.send('Blame: wrong transaction signature from player ' +
@@ -337,7 +341,8 @@ class Round(PrintErrorThread):
                 # Register the txid as belonging to cashshuffle, unconditionally.
                 # This is because even if broadcast failed, maybe one of our peers was able to send it for us,
                 # and so we want it to get the appropriate label in the history.
-                self.logchan.send("shuffle_txid: {}".format(self.transaction.txid()))
+                tot_scale_change_fee = "{} {} {} {}".format(self.total_amount, self.amount, self.total_amount-self.amount-self.fee, self.fee)
+                self.logchan.send("shuffle_txid: {} {}".format(self.transaction.txid(), tot_scale_change_fee))
             if not res:
                 self.logchan.send("Error: blockchain network fault!")
                 self.print_error("Error broadcasting tx: res='{}' status='{}'".format(res, status))
@@ -378,8 +383,8 @@ class Round(PrintErrorThread):
         """
         messages = self.inbox[phase]
         if self.is_inbox_complete(phase):
-            for sender in messages:
-                self.messages.packets.ParseFromString(messages[sender])
+            for sender, msg in messages.items():
+                self.messages.packets.ParseFromString(msg)
                 self.check_reasons_and_accused(reason)
             accused = self.messages.get_accused_key()
             del self.inputs[accused]
@@ -403,8 +408,8 @@ class Round(PrintErrorThread):
         changes_matrix = {key:set() for key in self.players.values()}
         new_addresses_matrix = {key:set() for key in self.players.values()}
         if self.is_inbox_complete(phase):
-            for sender in messages:
-                self.messages.packets.ParseFromString(messages[sender])
+            for sender, msg in messages.items():
+                self.messages.packets.ParseFromString(msg)
                 self.check_reasons_and_accused(reason)
                 invalid_packets = self.messages.get_invalid_packets()
                 self.messages.packets.ParseFromString(invalid_packets)
@@ -429,17 +434,17 @@ class Round(PrintErrorThread):
                                 for player in self.players
                                 if self.players[player] not in all_cheaters}
                 self.number_of_players = len(self.players)
-                for phase in self.messages.phases:
+                for phase, pmsg in self.messages.phases.items():
                     if phase != "Announcement":
-                        self.inbox[self.messages.phases[phase]] = {}
+                        self.inbox[pmsg] = {}
                 phase_1 = self.messages.phases["Announcement"]
                 self.inbox[phase_1] = {key:self.inbox[phase_1][key]
                                        for key in self.inbox[phase_1]
                                        if key not in all_cheaters}
                 phase1_packets = self.inbox[phase_1].copy()
                 encryption_keys = list(self.encryption_keys.values())
-                for message in phase1_packets:
-                    self.messages.packets.ParseFromString(phase1_packets[message])
+                for message, pkt_msg in phase1_packets.items():
+                    self.messages.packets.ParseFromString(pkt_msg)
                     ec = self.messages.get_encryption_key()
                     if ec in encryption_keys:
                         del self.inbox[phase_1][message]
@@ -466,8 +471,8 @@ class Round(PrintErrorThread):
                 self.skipped_equivocation_check(self.messages.get_accused_key())
         elif self.is_inbox_complete(phase_blame):
             hashes = set()
-            for player in self.inbox[phase_blame]:
-                self.messages.packets.ParseFromString(self.inbox[phase_blame][player])
+            for player, msg in self.inbox[phase_blame].items():
+                self.messages.packets.ParseFromString(msg)
                 hashes.add(self.messages.get_hash())
             if len(hashes) == 1:
                 accused = self.messages.get_accused_key()
@@ -501,11 +506,11 @@ class Round(PrintErrorThread):
                 if cheater != self.vk:
                     del self.inputs[cheater]
                     self.ban_the_liar(cheater)
-                    self.players = {player:self.players[player]
-                                    for player in self.players
-                                    if self.players[player] != cheater}
+                    self.players = {player:vk
+                                    for player, vk in self.players.items()
+                                    if vk != cheater}
                     self.number_of_players = len(self.players)
-                    self.inbox = {self.messages.phases[phase]:{} for phase in self.messages.phases}
+                    self.inbox = {msg:{} for phase,msg in self.messages.phases.items()}
                     self.broadcast_new_key()
 
     @profiler
@@ -522,8 +527,8 @@ class Round(PrintErrorThread):
         shufflings = {}
         cheater = None
         phase_blame = self.messages.phases["Blame"]
-        for player in self.inbox[phase_blame]:
-            self.messages.packets.ParseFromString(self.inbox[phase_blame][player])
+        for player,msg in self.inbox[phase_blame].items():
+            self.messages.packets.ParseFromString(msg)
             shufflings[player] = {}
             shufflings[player]['encryption_key'] = self.messages.get_public_key()
             shufflings[player]['decryption_key'] = self.messages.get_decryption_key()
@@ -638,8 +643,8 @@ class Round(PrintErrorThread):
         """
         offenders = list()
 
-        for player in self.inputs:
-            is_funds_sufficient = self.coin.check_inputs_for_sufficient_funds(self.inputs[player], self.amount + self.fee)
+        for player,inp in self.inputs.items():
+            is_funds_sufficient = self.coin.check_inputs_for_sufficient_funds(inp, self.amount + self.fee)
             if is_funds_sufficient == None:
                 self.logchan.send("Error: Check inputs for sufficient funds failed!")
                 self.done = True
@@ -652,9 +657,9 @@ class Round(PrintErrorThread):
         else:
             self.phase = "Blame"
             old_players = self.players.copy()
-            self.players = {player:self.players[player]
-                            for player in self.players
-                            if self.players[player] not in offenders}
+            self.players = {player:vk
+                            for player,vk in self.players.items()
+                            if vk not in offenders}
             for offender in offenders:
                 self.messages.blame_insufficient_funds(offender)
                 self.send_message()

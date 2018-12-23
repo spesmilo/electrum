@@ -92,10 +92,10 @@ class Coin(PrintErrorThread):
                     return None
         except:
             return None
-        for player in coins:
+        for player, pubkey_utxos in coins.items():
             amounts[player] = 0
-            for pubkey in coins[player]:
-                for utxo in coins[player][pubkey]:
+            for pubkey, utxos in pubkey_utxos.items():
+                for utxo in utxos:
                     utxo['type'] = 'p2pkh'
                     utxo['address'] = address_from_public_key(pubkey)
                     utxo['pubkeys'] = [pubkey]

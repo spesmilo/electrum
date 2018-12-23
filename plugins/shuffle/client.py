@@ -38,7 +38,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     def __init__(self, host, port, coin,
                  amount, fee, sk, sks, inputs, pubk,
                  addr_new_addr, change_addr, logger=None, ssl=False,
-                 comm_timeout = 60.0, ctimeout = 5.0):
+                 comm_timeout = 60.0, ctimeout = 5.0, total_amount=0):
 
         super(ProtocolThread, self).__init__()
         self.daemon = True
@@ -60,6 +60,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         self.sk = sk
         self.sks = sks
         self.inputs = inputs
+        self.total_amount = total_amount
         self.all_inputs = {}
         self.addr_new_addr = addr_new_addr # used by outside code
         self.addr_new = addr_new_addr.to_storage_string() # used by internal protocol code
@@ -137,8 +138,8 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
             player_key = str(packet.packet.from_key.key)
             self.players[player_number] = player_key
             self.all_inputs[player_key] = {}
-            for pk in packet.packet.message.inputs:
-                self.all_inputs[player_key][pk] = packet.packet.message.inputs[pk].coins[:]
+            for pk,inp in packet.packet.message.inputs.items():
+                self.all_inputs[player_key][pk] = inp.coins[:]
         if self.players:
             self.logger.send('Player ' +str(self.number)+ " get " + str(len(self.players))+".\n")
         #check if all keys are different
@@ -163,7 +164,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
             self.comm, self.comm, self.logger,
             self.session, begin_phase, self.amount, self.fee,
             self.sk, self.sks, self.all_inputs, self.vk,
-            self.players, self.addr_new, self.change
+            self.players, self.addr_new, self.change, total_amount = self.total_amount
         )
         if not self.done.is_set():
             self.protocol.start_protocol()
@@ -235,11 +236,11 @@ def generate_random_sk():
 class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
     scales = (
-        100000000,
-        10000000,
-        1000000,
-        100000,
-        10000,
+        100000000, # 1.0    BCH ➡
+        10000000,  # 0.1    BCH ➝
+        1000000,   # 0.01   BCH ➟
+        100000,    # 0.001  BCH ⇢
+        10000,     # 0.0001 BCH →
     )
 
     def __init__(self, window, wallet, network_settings,
@@ -572,7 +573,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         ctimeout = 12.5 if (Network.get_instance() and Network.get_instance().get_proxies()) else 5.0 # allow for 12.5 second connection timeouts if using a proxy server
         thr = ProtocolThread(self.host, self.port, utxo_name,
                              scale, self.fee, id_sk, sks, inputs, id_pub, output, change,
-                             logger=None, ssl=self.ssl, comm_timeout = self.timeout, ctimeout = ctimeout)
+                             logger=None, ssl=self.ssl, comm_timeout = self.timeout, ctimeout = ctimeout, total_amount = coin['value'])
         thr.logger = ChannelSendLambda(lambda msg: self.protocol_thread_callback(thr, msg))
         self.threads[scale] = thr
         coins.remove(coin)
