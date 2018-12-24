@@ -152,8 +152,11 @@ class AddressList(MyTreeView):
         is_multisig = isinstance(self.wallet, Multisig_Wallet)
         can_delete = self.wallet.can_delete_address()
         selected = self.selected_in_column(1)
+        if not selected:
+            return
         multi_select = len(selected) > 1
         addrs = [self.model().itemFromIndex(item).text() for item in selected]
+        menu = QMenu()
         if not multi_select:
             idx = self.indexAt(position)
             col = idx.column()
@@ -162,8 +165,6 @@ class AddressList(MyTreeView):
                 return
             addr = addrs[0]
 
-        menu = QMenu()
-        if not multi_select:
             addr_column_title = self.model().horizontalHeaderItem(2).text()
             addr_idx = idx.sibling(idx.row(), 2)
 
