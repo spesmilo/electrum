@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
@@ -23,9 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import signal
-import sys
-import traceback
+import signal, sys, traceback, gc
 
 try:
     import PyQt5
@@ -108,6 +106,7 @@ class ElectrumGui:
         self.app = QElectrumApplication(sys.argv)
         self.app.installEventFilter(self.efilter)
         self.timer = QTimer(self.app); self.timer.setSingleShot(False); self.timer.setInterval(500) #msec
+        self.gc_timer = QTimer(self.app); self.gc_timer.setSingleShot(True); self.gc_timer.timeout.connect(ElectrumGui.gc); self.gc_timer.setInterval(333) #msec
         self.nd = None
         self.network_updated_signal_obj = QNetworkUpdatedSignalObject()
         # init tray
@@ -243,6 +242,26 @@ class ElectrumGui:
         if not self.windows:
             self.config.save_last_wallet(window.wallet)
         run_hook('on_close_window', window)
+        # GC on ElectrumWindows takes forever to actually happen due to the
+        # circular reference zoo they create around them (they end up stuck in
+        # generation 2 for a long time before being collected). The below
+        # schedules a more comprehensive GC to happen in the very near future.
+        # This mechanism takes on the order of 40-100ms to execute (depending
+        # on hardware) but frees megabytes of memory after closing a window
+        # (which itslef is a relatively infrequent UI event, so it's
+        # an acceptable tradeoff).
+        self.gc_schedule()
+
+    def gc_schedule(self):
+        ''' Schedule garbage collection to happen in the near future.
+        Note that rapid-fire calls to this re-start the timer each time, thus
+        only the last call takes effect (it's rate-limited). '''
+        self.gc_timer.start() # start/re-start the timer to fire exactly once in timeInterval() msecs
+        
+    @staticmethod
+    def gc():
+        ''' self.gc_timer timeout() slot '''
+        gc.collect()
 
     def init_network(self):
         # Show network dialog if config does not exist
@@ -281,6 +300,7 @@ class ElectrumGui:
             Exception_Hook.uninstall()
             # Shut down the timer cleanly
             self.timer.stop()
+            self.gc_timer.stop()
             # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
             event = QtCore.QEvent(QtCore.QEvent.Clipboard)
             self.app.sendEvent(self.app.clipboard(), event)
