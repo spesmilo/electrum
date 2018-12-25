@@ -57,7 +57,8 @@ class Exception_Window(BaseCrashReporter, QWidget, MessageBoxMixin):
         collapse_info = QPushButton(_("Show report contents"))
         collapse_info.clicked.connect(
             lambda: self.msg_box(QMessageBox.NoIcon,
-                                 self, _("Report contents"), self.get_report_string()))
+                                 self, _("Report contents"), self.get_report_string(),
+                                 rich_text=True))
 
         main_box.addWidget(collapse_info)
 
