@@ -1,6 +1,6 @@
 from binascii import hexlify, unhexlify
 
-from PyQt5.Qt import QDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel
+from PyQt5.QtWidgets import QDialog, QLineEdit, QTextEdit, QVBoxLayout, QLabel
 import PyQt5.QtCore as QtCore
 from PyQt5.QtWidgets import *
 
