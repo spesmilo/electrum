@@ -1,9 +1,9 @@
 from functools import partial
 import threading
 
-from PyQt5.Qt import Qt
-from PyQt5.Qt import QGridLayout, QInputDialog, QPushButton
-from PyQt5.Qt import QVBoxLayout, QLabel
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QGridLayout, QInputDialog, QPushButton
+from PyQt5.QtWidgets import QVBoxLayout, QLabel
 from electroncash_gui.qt.util import *
 from .plugin import TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
