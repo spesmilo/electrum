@@ -75,8 +75,10 @@ done
 
 cp    $BUILDDIR/electrum-icons/icons_rc.py ./gui/qt/
 
+info "Installing requests..."
+python3 -m pip install -I --user requests || fail "Could not install requests"
 info "Making locale..."
-./contrib/make_locale || fail "Failed to make locale..."
+python3 ./contrib/make_locale || fail "Failed to make locale..."
 
 info "Downloading libusb..."
 curl https://homebrew.bintray.com/bottles/libusb-1.0.21.el_capitan.bottle.tar.gz | \
