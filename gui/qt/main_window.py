@@ -2412,11 +2412,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         try:
             with open(fileName, "r") as f:
                 file_content = f.read()
-        except (ValueError, IOError, os.error) as reason:
+            file_content = file_content.strip()
+            tx_file_dict = json.loads(str(file_content))
+        except (ValueError, IOError, OSError, json.decoder.JSONDecodeError) as reason:
             self.show_critical(_("Electron Cash was unable to open your transaction file") + "\n" + str(reason), title=_("Unable to read file or no transaction found"))
             return
-        file_content = file_content.strip()
-        tx_file_dict = json.loads(str(file_content))
         tx = self.tx_from_text(file_content)
         return tx
 
