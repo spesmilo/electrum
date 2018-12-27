@@ -1,5 +1,6 @@
 pycryptodomex==3.6.1
-PyQt5==5.10.1
+PyQt5==5.11.3
+PyQt5-sip==4.19.13
 sip==4.19.8
 six==1.11.0
 websocket-client==0.48.0
