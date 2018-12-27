@@ -51,7 +51,7 @@ fail "Unable to use Python $PYTHON_VERSION"
 
 
 info "Installing pyinstaller"
-python3 -m pip install pyinstaller -I --user || fail "Could not install pyinstaller"
+python3 -m pip install https://github.com/cculianu/pyinstaller/releases/download/3.4AppleEvents/fix_AppleEvents_Bootloader.zip -I --user || fail "Could not install pyinstaller"
 
 info "Using these versions for building $PACKAGE:"
 sw_vers
