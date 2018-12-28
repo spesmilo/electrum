@@ -219,3 +219,11 @@ and there is no warning message.
 * Allow 1-of-1 multisig wallets
 * Server list update
 
+# Release 3.3.4
+
+* Anti-Phishing protection for all platforms. Server-provided text will not
+  appear in user-facing GUI windows anymore. Server error messages are instead
+  parsed and mapped to predefined strings.
+* "Import Labels" now works.
+* Memory usage of the app has been reduced -- especially with multiple wallets.
+* Upgrade prebuilt Windows and MacOS binary to use newer PyQt5 5.11.3.
