@@ -514,9 +514,40 @@ def parse_json(message):
 
 
 class timeout(Exception):
+    ''' Server timed out on broadcast tx (normally due to a bad connection).
+    Exception string is the translated error string.'''
     pass
 
 TimeoutException = timeout # Future compat. with Electrum codebase/cherrypicking
+
+class ServerError(Exception):
+    ''' Note exception string is the translated, gui-friendly error message.
+    self.server_msg may be a dict or a string containing the raw response from
+    the server.  Do NOT display self.server_msg in GUI code due to potential for
+    phishing attacks from the untrusted server.
+    See: https://github.com/spesmilo/electrum/issues/4968  '''
+    def __init__(self, msg, server_msg = None):
+        super().__init__(msg)
+        self.server_msg = server_msg or '' # prefer empty string if none supplied
+
+class ServerErrorResponse(ServerError):
+    ''' Raised by network.py broadcast_transaction2() when the server sent an
+    error response. The actual server error response is contained in a dict
+    and/or str in self.server_msg. Warning: DO NOT display the server text.
+    Displaying server text harbors a phishing risk. Instead, a translated
+    GUI-friendly 'deduced' response is in the exception string.
+    See: https://github.com/spesmilo/electrum/issues/4968 '''
+    pass
+
+class TxHashMismatch(ServerError):
+    ''' Raised by network.py broadcast_transaction2().
+    Server sent an OK response but the txid it supplied does not match our
+    signed tx id that we requested to broadcast. The txid returned is
+    stored in self.server_msg. It's advised not to display
+    the txid response as there is also potential for phishing exploits if
+    one does. Instead, the exception string contians a suitable translated
+    GUI-friendly error message. '''
+    pass
 
 import socket
 import ssl

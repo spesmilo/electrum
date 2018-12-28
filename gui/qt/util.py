@@ -186,11 +186,13 @@ class MessageBoxMixin(object):
                             title or _('Information'), msg, **kwargs)
 
     def msg_box(self, icon, parent, title, text, buttons=QMessageBox.Ok,
-                defaultButton=QMessageBox.NoButton, rich_text=False):
+                defaultButton=QMessageBox.NoButton, rich_text=False, detail_text=None):
         parent = parent or self.top_level_window()
         d = QMessageBox(icon, title, str(text), buttons, parent)
         d.setWindowModality(Qt.WindowModal)
         d.setDefaultButton(defaultButton)
+        if detail_text and isinstance(detail_text, str):
+            d.setDetailedText(detail_text)
         if rich_text:
             d.setTextInteractionFlags(Qt.TextSelectableByMouse|Qt.LinksAccessibleByMouse)
             d.setTextFormat(Qt.RichText)

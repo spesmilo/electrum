@@ -1470,17 +1470,18 @@ class Network(util.DaemonThread):
         return r.get('result')
 
     @staticmethod
-    def __wait_for(it):
-        """Wait for the result of calling lambda `it`."""
+    def __wait_for(it, timeout=30):
+        """Wait for the result of calling lambda `it`.
+           Will raise util.TimeoutException or util.ServerErrorResponse on failure."""
         q = queue.Queue()
         it(q.put)
         try:
-            result = q.get(block=True, timeout=30)
+            result = q.get(block=True, timeout=(timeout or 0.010)) # does not support non-blocking
         except queue.Empty:
             raise util.TimeoutException(_('Server did not answer'))
 
         if result.get('error'):
-            raise Exception(result.get('error'))
+            raise util.ServerErrorResponse(_("Server returned an error response"), result.get('error'))
 
         return result.get('result')
 
@@ -1493,25 +1494,101 @@ class Network(util.DaemonThread):
 
         invocation(callback)
 
-    # NOTE this method handles exceptions and a special edge case, counter to
-    # what the other ElectrumX methods do. This is unexpected.
     def broadcast_transaction(self, transaction, callback=None):
-        command = 'blockchain.transaction.broadcast'
-        invocation = lambda c: self.send([(command, [str(transaction)])], c)
+        ''' This is the legacy EC/Electrum API that we still need to support
+        for plugins and other code, but it has been improved to not allow for
+        phishing attacks by calling broadcast_transaction2 which actually
+        deduces a more intelligent and phishing-proof error message.
+        If you want the actual server response, use broadcast_transaction2 and
+        catch exceptions. '''
 
         if callback:
-            invocation(callback)
+            command = 'blockchain.transaction.broadcast'
+            self.send([(command, [str(transaction)])], callback)
             return
 
         try:
-            out = Network.__wait_for(invocation)
-        except BaseException as e:
-            return False, "error: " + str(e)
-
-        if out != transaction.txid():
-            return False, "error: " + out
+            out = self.broadcast_transaction2(transaction)
+        except BaseException as e: #catch-all. May be util.TimeoutException, util.ServerError subclass or other.
+            return False, "error: " + str(e) # Ergh. To remain compatible with old code we prepend this ugly "error: "
 
         return True, out
+
+    def broadcast_transaction2(self, transaction, timeout=30):
+        ''' Very similar to broadcast_transation() but it actually tells calling
+        code what the nature of the error was in a more explicit manner by
+        raising an Exception. Normally a util.TimeoutException,
+        util.TxHashMismatch, or util.ServerErrorResonse is raised on broadcast
+        error or warning. TxHashMismatch indicates the broadcast succeeded
+        but that the tx hash returned by the server does not match the tx hash
+        of the specified transaction. All other exceptions indicate no broadcast
+        has successfully occurred.
+        Does not support using a callback function.'''
+
+        command = 'blockchain.transaction.broadcast'
+        invocation = lambda c: self.send([(command, [str(transaction)])], c)
+
+        try:
+            out = Network.__wait_for(invocation, timeout=timeout) # may raise util.TimeoutException, util.ServerErrorResponse
+        except util.ServerErrorResponse as e:
+            # rephrase the generic message to something more suitable
+            self.print_error("Server error response was:", str(e.server_msg))
+            raise util.ServerErrorResponse(Network.transmogrify_broadcast_response_for_gui(e.server_msg), e.server_msg)
+
+        if out != transaction.txid():
+            self.print_error("Server replied with a mismatching txid:", str(out))
+            raise util.TxHashMismatch(_("Server response does not match signed transaction ID."), str(out))
+
+        return out
+
+    @staticmethod
+    def transmogrify_broadcast_response_for_gui(server_msg):
+        # NB: the server_msg is usually a dict but not always.
+        # Unfortunately, ElectrumX doesn't return a good error code. It's always '1'.
+        # So, we must use substring matching to grok the error message.
+        # We do NOT ever want to print to the user the server message as this has potential for a phishing exploit.
+        # See: https://github.com/spesmilo/electrum/issues/4968
+        # So.. these messages mostly come from groking the source code of BU and Bitcoin ABC. If that fails,
+        # a generic error string is returned.
+        if not isinstance(server_msg, str):
+            server_msg = str(server_msg)
+        server_msg = server_msg.replace("\n", r"\n") # replace \n with slash-n because dict does this.
+        if r'dust' in server_msg:
+            dust_thold = 546
+            try:
+                from .wallet import dust_threshold
+                dust_thold = dust_threshold(Network.get_instance())
+            except: pass
+            return _("Transaction could not be broadcast due to dust outputs (dust threshold is {} satoshis).").format(dust_thold)
+        elif r'Missing inputs' in server_msg or r'Inputs unavailable' in server_msg or r"bad-txns-inputs-spent" in server_msg:
+            return _("Transaction could not be broadcast due to missing, already-spent, or otherwise invalid inputs.")
+        elif r'insufficient priority' in server_msg:
+            return _("The transaction was rejected due to paying insufficient fees and/or for being of extremely low priority.")
+        elif r'bad-txns-premature-spend-of-coinbase' in server_msg:
+            return _("Transaction could not be broadcast due to an attempt to spend a coinbase input before maturity.")
+        elif r"txn-already-in-mempool" in server_msg or r"txn-already-known" in server_msg:
+            return _("The transaction already exists in the server's mempool.")
+        elif r"txn-mempool-conflict" in server_msg:
+            return _("The transaction conflicts with a transaction already in the server's mempool.")
+        elif r"bad-txns-nonstandard-inputs" in server_msg:
+            return _("The transaction was rejected due its use of non-standard inputs.")
+        elif r"absurdly-high-fee" in server_msg:
+            return _("The transaction was rejected because it specifies an absurdly high fee.")
+        elif r"non-mandatory-script-verify-flag" in server_msg:
+            return _("The transaction was rejected because it contians a non-mandatory script verify flag.")
+        elif r"tx-size" in server_msg:
+            return _("The transaction was rejected because it is too large.")
+        elif r"scriptsig-size" in server_msg:
+            return _("The transaction was rejected because it contains a script that is too large.")
+        elif r"scriptpubkey" in server_msg:
+            return _("The transaction was rejected because it contains a non-standard script public key signature.")
+        elif r"bare-multisig" in server_msg:
+            return _("The transaction was rejected because it contains a bare multisig input.")
+        elif r"multi-op-return" in server_msg:
+            return _("The transaction was rejected because it contains more than 1 OP_RETURN input.")
+        elif r"scriptsig-not-pushonly" in server_msg:
+            return _("The transaction was rejected because it contains non-push-only script sigs.")
+        return _("An error occurred broadcasting the transaction")
 
     # Used by the verifier job.
     def get_merkle_for_transaction(self, tx_hash, tx_height, callback=None):
