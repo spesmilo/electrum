@@ -1940,6 +1940,8 @@ class ElectrumGui(PrintError):
                                 self.sendVC.presentingViewController.dismissViewControllerAnimated_completion_(True, None)
                     parent.show_message(message=_('Payment sent.') + '\n' + msg, onOk = myCallback)
                 else:
+                    if msg.startswith('error: '):
+                        msg = msg.split(' ', 1)[-1] # grab last part after the error:
                     parent.show_error(msg)
         def on_error(exc_info):
             if not isinstance(exc_info[1], UserCancelled):
