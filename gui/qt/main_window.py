@@ -1590,6 +1590,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         # Capture current TL window; override might be removed on return
         parent = self.top_level_window()
 
+        if not self.network:
+            # Don't allow a useless broadcast when in offline mode. Previous to this we were getting an exception on broadcast.
+            parent.show_error(_("You are using Electron Cash in offline mode; restart Electron Cash if you want to get connected"))
+            return
+        elif not self.network.is_connected():
+            # Don't allow a potentially very slow broadcast when obviously not connected.
+            parent.show_error(_("Not connected"))
+            return
+
         def broadcast_done(result):
             # GUI thread
             if result:
