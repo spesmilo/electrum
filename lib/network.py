@@ -1571,7 +1571,7 @@ class Network(util.DaemonThread):
         elif r"txn-mempool-conflict" in server_msg:
             return _("The transaction conflicts with a transaction already in the server's mempool.")
         elif r"bad-txns-nonstandard-inputs" in server_msg:
-            return _("The transaction was rejected due its use of non-standard inputs.")
+            return _("The transaction was rejected due to its use of non-standard inputs.")
         elif r"absurdly-high-fee" in server_msg:
             return _("The transaction was rejected because it specifies an absurdly high fee.")
         elif r"non-mandatory-script-verify-flag" in server_msg:
