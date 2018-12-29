@@ -41,23 +41,26 @@ protocol_names = ['TCP', 'SSL']
 protocol_letters = 'ts'
 
 class NetworkDialog(QDialog):
-    def __init__(self, network, config, network_updated_signal_obj):
+    network_updated_signal = pyqtSignal()
+
+    def __init__(self, network, config):
         QDialog.__init__(self)
         self.setWindowTitle(_('Network'))
         self.setMinimumSize(500, 20)
         self.nlayout = NetworkChoiceLayout(network, config)
-        self.network_updated_signal_obj = network_updated_signal_obj
         vbox = QVBoxLayout(self)
         vbox.addLayout(self.nlayout.layout())
         vbox.addLayout(Buttons(CloseButton(self)))
-        self.network_updated_signal_obj.network_updated_signal.connect(
-            self.on_update)
+        self.network_updated_signal.connect(self.on_update)
         network.register_callback(self.on_network, ['updated', 'interfaces'])
 
     def on_network(self, event, *args):
-        self.network_updated_signal_obj.network_updated_signal.emit(event, args)
+        ''' This may run in network thread '''
+        self.network_updated_signal.emit() # this enquues call to on_update in GUI thread
 
+    @rate_limited(0.333) # limit network window updates to max 3 per second. More frequent isn't that useful anyway -- and on large wallets/big synchs the network spams us with events which we would rather collapse into 1
     def on_update(self):
+        ''' This always runs in main GUI thread '''
         self.nlayout.update()
 
 

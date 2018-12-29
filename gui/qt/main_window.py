@@ -306,8 +306,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def on_network(self, event, *args):
         if event == 'updated':
             self.need_update.set()
-            self.gui_object.network_updated_signal_obj.network_updated_signal \
-                .emit(event, args)
 
         elif event == 'new_transaction':
             tx, wallet = args
