@@ -1981,7 +1981,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         console.updateNamespace({'wallet' : self.wallet,
                                  'network' : self.network,
                                  'plugins' : self.gui_object.plugins,
-                                 'window': Weak(self)})
+                                 'window': self})
         console.updateNamespace({'util' : util, 'bitcoin':bitcoin})
 
         set_json = Weak(self.console.set_json)
