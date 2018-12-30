@@ -1,3 +1,8 @@
+# Release 3.2.4 - (December 30, 2018)
+
+ * backport anti-phishing measures from master
+
+
 # Release 3.2.3 - (September 3, 2018)
 
  * hardware wallet: the Safe-T mini from Archos is now supported.
