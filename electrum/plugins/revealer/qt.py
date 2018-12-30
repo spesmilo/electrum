@@ -158,7 +158,7 @@ class Plugin(BasePlugin):
         else:
 
             if (len(txt)>0 and txt[0]=='0'):
-                self.d.show_message(''.join(["<b>",_("Warning: "), "</b>", _("Revealers starting with 0 had a vulnerability and are not supported.")]))
+                self.d.show_message(''.join(["<b>",_("Warning: "), "</b>", _("Revealers starting with 0 had a vulnerability and are not supported.")]), rich_text=True)
             self.user_input = False
             return False
 
@@ -170,16 +170,16 @@ class Plugin(BasePlugin):
     def bcrypt(self, dialog):
         self.rawnoise = False
         dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at:").format(self.was, self.version, self.code_id),
-                                     "<br/>","<b>", self.base_dir+ self.filename+self.version+"_"+self.code_id,"</b>"]))
+                                     "<br/>","<b>", self.base_dir+ self.filename+self.version+"_"+self.code_id,"</b>"]), rich_text=True)
         dialog.close()
 
     def ext_warning(self, dialog):
-        dialog.show_message(''.join(["<b>",_("Warning: "), "</b>", _("your seed extension will not be included in the encrypted backup.")]))
+        dialog.show_message(''.join(["<b>",_("Warning: "), "</b>", _("your seed extension will not be included in the encrypted backup.")]), rich_text=True)
         dialog.close()
 
     def bdone(self, dialog):
         dialog.show_message(''.join([_("Digital Revealer ({}_{}) saved as PNG and PDF at:").format(self.version, self.code_id),
-                                     "<br/>","<b>", self.base_dir + 'revealer_' +self.version + '_'+ self.code_id, '</b>']))
+                                     "<br/>","<b>", self.base_dir + 'revealer_' +self.version + '_'+ self.code_id, '</b>']), rich_text=True)
 
 
     def customtxt_limits(self):
