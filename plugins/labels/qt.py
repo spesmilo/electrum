@@ -42,7 +42,7 @@ class Plugin(LabelsPlugin):
                            partial(self.settings_dialog, windowRef))
 
     def settings_dialog(self, windowRef):
-        window = windowRef()
+        window = windowRef() # NB: window is the internal plugins dialog and not the wallet window
         if not window or not isinstance(window.parent(), ElectrumWindow): return
         wallet = window.parent().wallet
         d = WindowModalDialog(window.top_level_window(), _("Label Settings"))
@@ -73,12 +73,19 @@ class Plugin(LabelsPlugin):
             vbox.addLayout(hbox)
         else:
             vbox = QVBoxLayout(d)
-            l = QLabel('<b>' + _("LabelSync not supported for this wallet type") + '</b>')
-            l.setAlignment(Qt.AlignCenter)
-            vbox.addWidget(l)
-            l = QLabel(_("(Only deterministic wallets are supported)"))
-            l.setAlignment(Qt.AlignCenter)
-            vbox.addWidget(l)
+            if wallet.network:
+                # has network, so the fact that the wallet isn't in the list means it's incompatible
+                l = QLabel('<b>' + _("LabelSync not supported for this wallet type") + '</b>')
+                l.setAlignment(Qt.AlignCenter)
+                vbox.addWidget(l)
+                l = QLabel(_("(Only deterministic wallets are supported)"))
+                l.setAlignment(Qt.AlignCenter)
+                vbox.addWidget(l)
+            else:
+                # Does not have network, so we won't speak of incompatibility, but instead remind user offline mode means OFFLINE! ;)
+                l = QLabel(_("You are using Electron Cash in offline mode; restart Electron Cash if you want to get connected"))
+                l.setWordWrap(True)
+                vbox.addWidget(l)
         vbox.addSpacing(20)
         vbox.addLayout(Buttons(d.ok_button))
         return bool(d.exec_())
@@ -149,6 +156,7 @@ class Plugin(LabelsPlugin):
 
     def on_pulled(self, wallet):
         # not main thread
+        super().on_pulled(wallet) # super just logs to print_error
         self.obj.labels_changed_signal.emit(wallet)
 
     def on_labels_changed(self, wallet):
@@ -198,7 +206,7 @@ class Plugin(LabelsPlugin):
     def init_qt(self, gui):
         if self.initted:
             return
-        self.print_error("Initializing...")
+        self.on_init()
         # connect signals. this needs to happen first as below on_new_window depends on these being active
         self.obj.labels_changed_signal.connect(self.on_labels_changed)
         self.obj.wallet_not_synched_signal.connect(self.wallet_not_synched_slot)
