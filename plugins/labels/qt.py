@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QVBoxLayout)
 from electroncash.plugins import hook
 from electroncash.i18n import _
 from electroncash_gui.qt import EnterButton
+from electroncash_gui.qt.main_window import ElectrumWindow
 from electroncash_gui.qt.util import ThreadedButton, Buttons
 from electroncash_gui.qt.util import WindowModalDialog, OkButton, WaitingDialog
 from electroncash.util import Weak
@@ -33,13 +34,16 @@ class Plugin(LabelsPlugin):
         return True
 
     def settings_widget(self, window):
+        while window and window.parent() and not isinstance(window.parent(), ElectrumWindow):
+            # MacOS fixup -- find window.parent() because we can end up with window.parent() not an ElectrumWindow
+            window = window.parent()
         windowRef = Weak.ref(window)
         return EnterButton(_('Settings'),
                            partial(self.settings_dialog, windowRef))
 
     def settings_dialog(self, windowRef):
         window = windowRef()
-        if not window: return
+        if not window or not isinstance(window.parent(), ElectrumWindow): return
         wallet = window.parent().wallet
         d = WindowModalDialog(window.top_level_window(), _("Label Settings"))
         dlgRef = Weak.ref(d)

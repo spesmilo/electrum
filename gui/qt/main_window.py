@@ -973,7 +973,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.save_request_button.setEnabled(False)
 
     def view_and_paste(self, title, msg, data):
-        dialog = WindowModalDialog(self, title)
+        dialog = WindowModalDialog(self.top_level_window(), title)
         vbox = QVBoxLayout()
         label = QLabel(msg)
         label.setWordWrap(True)
@@ -983,7 +983,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(Buttons(CopyCloseButton(pr_e.text, self.app, dialog)))
         dialog.setLayout(vbox)
         dialog.exec_()
-        dialog.setParent(None) # So Python can GC
 
     def export_payment_request(self, addr):
         r = self.wallet.receive_requests[addr]
@@ -1562,7 +1561,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             task = partial(Transaction.sign, tx, self.tx_external_keypairs)
         else:
             task = partial(self.wallet.sign_transaction, tx, password)
-        WaitingDialog(self, _('Signing transaction...'), task,
+        WaitingDialog(self.top_level_window(), _('Signing transaction...'), task,
                       on_signed, on_failed)
 
     def broadcast_transaction(self, tx, tx_desc):
@@ -1922,7 +1921,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def show_pr_details(self, pr):
         key = pr.get_id()
-        d = WindowModalDialog(self, _("Invoice"))
+        d = WindowModalDialog(self.top_level_window(), _("Invoice"))
         vbox = QVBoxLayout(d)
         grid = QGridLayout()
         grid.addWidget(QLabel(_("Requestor") + ':'), 0, 0)
@@ -1939,6 +1938,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             grid.addWidget(QLabel(_("Expires") + ':'), 4, 0)
             grid.addWidget(QLabel(format_time(expires)), 4, 1)
         vbox.addLayout(grid)
+        weakD = Weak.ref(d)
         def do_export():
             fn = self.getSaveFileName(_("Save invoice to file"), "*.bip70")
             if not fn:
@@ -1953,7 +1953,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.history_list.update()
                 self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
                 self.invoice_list.update()
-                d.close()
+                d = weakD()
+                if d: d.close()
         deleteButton = EnterButton(_('Delete'), do_delete)
         vbox.addLayout(Buttons(exportButton, deleteButton, CloseButton(d)))
         d.exec_()
@@ -2062,7 +2063,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def change_password_dialog(self):
         from .password_dialog import ChangePasswordDialog
-        d = ChangePasswordDialog(self, self.wallet)
+        d = ChangePasswordDialog(self.top_level_window(), self.wallet)
         ok, password, new_password, encrypt_file = d.run()
         if not ok:
             return
@@ -2093,7 +2094,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             tab.searchable_list.filter(t)
 
     def new_contact_dialog(self):
-        d = WindowModalDialog(self, _("New Contact"))
+        d = WindowModalDialog(self.top_level_window(), _("New Contact"))
         vbox = QVBoxLayout(d)
         vbox.addWidget(QLabel(_('New Contact') + ':'))
         grid = QGridLayout()
@@ -2109,10 +2110,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(Buttons(CancelButton(d), OkButton(d)))
         if d.exec_():
             self.set_contact(line2.text(), line1.text())
-        d.setParent(None) # for Python GC
 
     def show_master_public_keys(self):
-        dialog = WindowModalDialog(self, _("Wallet Information"))
+        dialog = WindowModalDialog(self.top_level_window(), _("Wallet Information"))
         dialog.setMinimumSize(500, 100)
         mpk_list = self.wallet.get_master_public_keys()
         vbox = QVBoxLayout()
@@ -2150,7 +2150,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(Buttons(CloseButton(dialog)))
         dialog.setLayout(vbox)
         dialog.exec_()
-        dialog.setParent(None)
 
     def remove_wallet(self):
         if self.question('\n'.join([
@@ -2182,7 +2181,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(str(e))
             return
         from .seed_dialog import SeedDialog
-        d = SeedDialog(self, seed, passphrase)
+        d = SeedDialog(self.top_level_window(), seed, passphrase)
         d.exec_()
 
     def show_qrcode(self, data, title = _("QR code"), parent=None):
@@ -2202,7 +2201,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(str(e))
             return
         xtype = bitcoin.deserialize_privkey(pk)[0]
-        d = WindowModalDialog(self, _("Private key"))
+        d = WindowModalDialog(self.top_level_window(), _("Private key"))
         d.setMinimumSize(600, 150)
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel('{}: {}'.format(_("Address"), address)))
@@ -2218,7 +2217,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         vbox.addLayout(Buttons(CloseButton(d)))
         d.setLayout(vbox)
         d.exec_()
-        d.setParent(None)
 
     msg_sign = _("Signing with an address actually means signing with the corresponding "
                 "private key, and verifying with the corresponding public key. The "
@@ -2269,7 +2267,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_error(_("Wrong signature"))
 
     def sign_verify_message(self, address=None):
-        d = WindowModalDialog(self, _('Sign/verify Message'))
+        d = WindowModalDialog(self.top_level_window(), _('Sign/verify Message'))
         d.setMinimumSize(610, 290)
 
         layout = QGridLayout(d)
@@ -2304,7 +2302,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         hbox.addWidget(b)
         layout.addLayout(hbox, 4, 1)
         d.exec_()
-        d.setParent(None) # for Python GC
 
     @protected
     def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
@@ -2326,7 +2323,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_warning(str(e))
 
     def encrypt_message(self, address=None):
-        d = WindowModalDialog(self, _('Encrypt/decrypt Message'))
+        d = WindowModalDialog(self.top_level_window(), _('Encrypt/decrypt Message'))
         d.setMinimumSize(610, 490)
 
         layout = QGridLayout(d)
@@ -2365,15 +2362,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         layout.addLayout(hbox, 4, 1)
         d.exec_()
-        d.setParent(None)
 
     def password_dialog(self, msg=None, parent=None):
         from .password_dialog import PasswordDialog
         parent = parent or self
-        d = PasswordDialog(parent, msg)
-        res = d.run()
-        d.setParent(None) # so Python can GC
-        return res
+        return PasswordDialog(parent, msg).run()
 
     def tx_from_text(self, txt):
         from electroncash.transaction import tx_from_str
@@ -2432,7 +2425,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def do_process_from_text(self):
         from electroncash.transaction import SerializationError
-        text = text_dialog(self, _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
+        text = text_dialog(self.top_level_window(), _('Input raw transaction'), _("Transaction:"), _("Load transaction"))
         if not text:
             return
         try:
@@ -2474,7 +2467,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_message(_('WARNING: This is a multi-signature wallet.') + '\n' +
                               _('It can not be "backed up" by simply exporting these private keys.'))
 
-        d = WindowModalDialog(self, _('Private keys'))
+        d = WindowModalDialog(self.top_level_window(), _('Private keys'))
         d.setMinimumSize(850, 300)
         vbox = QVBoxLayout(d)
 
@@ -2602,7 +2595,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_critical(_("Electron Cash was unable to export your labels.") + "\n" + str(reason))
 
     def export_history_dialog(self):
-        d = WindowModalDialog(self, _('Export History'))
+        d = WindowModalDialog(self.top_level_window(), _('Export History'))
         d.setMinimumSize(400, 200)
         vbox = QVBoxLayout(d)
         defaultname = os.path.expanduser('~/electron-cash-history.csv')
@@ -2668,7 +2661,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_warning(_('Wallet has no address to sweep to'))
             return
 
-        d = WindowModalDialog(self, title=_('Sweep private keys'))
+        d = WindowModalDialog(self.top_level_window(), title=_('Sweep private keys'))
         d.setMinimumSize(600, 300)
 
         vbox = QVBoxLayout(d)
@@ -2717,7 +2710,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.warn_if_watching_only()
 
     def _do_import(self, title, msg, func):
-        text = text_dialog(self, title, msg + ' :', _('Import'),
+        text = text_dialog(self.top_level_window(), title, msg + ' :', _('Import'),
                            allow_multi=True)
         if not text:
             return
@@ -2856,7 +2849,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def settings_dialog(self):
         self.need_restart = False
-        d = WindowModalDialog(self, _('Preferences'))
+        d = WindowModalDialog(self.top_level_window(), _('Preferences'))
         vbox = QVBoxLayout()
         tabs = QTabWidget()
         gui_widgets = []
@@ -3418,7 +3411,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def cpfp(self, parent_tx, new_tx):
         total_size = parent_tx.estimated_size() + new_tx.estimated_size()
-        d = WindowModalDialog(self, _('Child Pays for Parent'))
+        d = WindowModalDialog(self.top_level_window(), _('Child Pays for Parent'))
         vbox = QVBoxLayout(d)
         msg = (
             "A CPFP is a transaction that sends an unconfirmed output back to "
