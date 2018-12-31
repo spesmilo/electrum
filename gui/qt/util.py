@@ -59,6 +59,7 @@ class ThreadedButton(QPushButton):
     def __init__(self, text, task, on_success=None, on_error=None):
         QPushButton.__init__(self, text)
         self.task = task
+        self.thread = None
         self.on_success = on_success
         self.on_error = on_error
         self.clicked.connect(self.run_task)
@@ -69,8 +70,10 @@ class ThreadedButton(QPushButton):
         self.thread.add(self.task, self.on_success, self.done, self.on_error)
 
     def done(self):
-        self.setEnabled(True)
         self.thread.stop()
+        self.thread.wait()
+        self.setEnabled(True)
+        self.thread = None
 
 
 class WWLabel(QLabel):

@@ -366,25 +366,26 @@ class Abstract_Wallet(PrintError):
         with self.lock: return self.up_to_date
 
     def set_label(self, name, text = None):
-        if isinstance(name, Address):
-            name = name.to_storage_string()
-        changed = False
-        old_text = self.labels.get(name)
-        if text:
-            text = text.replace("\n", " ")
-            if old_text != text:
-                self.labels[name] = text
-                changed = True
-        else:
-            if old_text:
-                self.labels.pop(name)
-                changed = True
+        with self.lock:
+            if isinstance(name, Address):
+                name = name.to_storage_string()
+            changed = False
+            old_text = self.labels.get(name)
+            if text:
+                text = text.replace("\n", " ")
+                if old_text != text:
+                    self.labels[name] = text
+                    changed = True
+            else:
+                if old_text:
+                    self.labels.pop(name)
+                    changed = True
 
-        if changed:
-            run_hook('set_label', self, name, text)
-            self.storage.put('labels', self.labels)
+            if changed:
+                run_hook('set_label', self, name, text)
+                self.storage.put('labels', self.labels)
 
-        return changed
+            return changed
 
     def is_mine(self, address):
         assert not isinstance(address, str)

@@ -126,6 +126,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.not_enough_funds = False
         self.op_return_toolong = False
         self.internalpluginsdialog = None
+        self.externalpluginsdialog = None
         self.require_fee_update = False
         self.tx_notifications = []
         self.tl_windows = []
@@ -3322,9 +3323,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def internal_plugins_dialog(self):
-        d = WindowModalDialog(self, _('Optional Features'))
+        if self.internalpluginsdialog:
+            # NB: reentrance here is possible due to the way the window menus work on MacOS.. so guard against it
+            self.internalpluginsdialog.raise_()
+            return
+        d = WindowModalDialog(self.top_level_window(), _('Optional Features'))
+        weakD = Weak.ref(d)
 
-        plugins = self.gui_object.plugins
+        gui_object = self.gui_object
+        plugins = gui_object.plugins
 
         vbox = QVBoxLayout(d)
 
@@ -3341,28 +3348,33 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         grid = QGridLayout()
         grid.setColumnStretch(0,1)
+        weakGrid = Weak.ref(grid)
         w.setLayout(grid)
 
-        settings_widgets = {}
+        settings_widgets = Weak.ValueDictionary()
 
         def enable_settings_widget(p, name, i):
             widget = settings_widgets.get(name)
-            if not widget and p and p.requires_settings():
+            grid = weakGrid()
+            d = weakD()
+            if d and grid and not widget and p and p.requires_settings():
                 widget = settings_widgets[name] = p.settings_widget(d)
                 grid.addWidget(widget, i, 1)
             if widget:
                 widget.setEnabled(bool(p and p.is_enabled()))
                 if not p:
                     # Need to delete settings widget because keeping it around causes bugs as it points to a now-dead plugin instance
-                    widget.hide(); widget.setParent(None); widget.deleteLater(); widget = None
                     settings_widgets.pop(name)
+                    widget.hide(); widget.setParent(None); widget.deleteLater(); widget = None
 
-        def do_toggle(cb, name, i):
-            p = plugins.toggle_internal_plugin(name)
-            cb.setChecked(bool(p))
-            enable_settings_widget(p, name, i)
-            # All plugins get this whenever one is toggled.
-            run_hook('init_qt', self.gui_object)
+        def do_toggle(weakCb, name, i):
+            cb = weakCb()
+            if cb:
+                p = plugins.toggle_internal_plugin(name)
+                cb.setChecked(bool(p))
+                enable_settings_widget(p, name, i)
+                # All plugins get this whenever one is toggled.
+                run_hook('init_qt', gui_object)
 
         for i, descr in enumerate(plugins.internal_plugin_metadata.values()):
             name = descr['__name__']
@@ -3371,6 +3383,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 continue
             try:
                 cb = QCheckBox(descr['fullname'])
+                weakCb = Weak.ref(cb)
                 plugin_is_loaded = p is not None
                 cb_enabled = (not plugin_is_loaded and plugins.is_internal_plugin_available(name, self.wallet)
                               or plugin_is_loaded and p.can_user_disable())
@@ -3378,7 +3391,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 cb.setChecked(plugin_is_loaded and p.is_enabled())
                 grid.addWidget(cb, i, 0)
                 enable_settings_widget(p, name, i)
-                cb.clicked.connect(partial(do_toggle, cb, name, i))
+                cb.clicked.connect(partial(do_toggle, weakCb, name, i))
                 msg = descr['description']
                 if descr.get('requires'):
                     msg += '\n\n' + _('Requires') + ':\n' + '\n'.join(map(lambda x: x[1], descr.get('requires')))
@@ -3388,16 +3401,20 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 traceback.print_exc(file=sys.stdout)
         grid.setRowStretch(len(plugins.internal_plugin_metadata.values()), 1)
         vbox.addLayout(Buttons(CloseButton(d)))
-        self.internalpluginsdialog = d # this is so that cashshuffle or other plugins have a handle and can dismiss the dialog for us.
+        self.internalpluginsdialog = d
         d.exec_()
-        self.internalpluginsdialog = None
-        d.setParent(None) # Python will GC
+        self.internalpluginsdialog = None # Python GC please!
 
     def external_plugins_dialog(self):
+        if self.externalpluginsdialog:
+            # NB: reentrance here is possible due to the way the window menus work on MacOS.. so guard against it
+            self.externalpluginsdialog.raise_()
+            return
         from . import external_plugins_window
         d = external_plugins_window.ExternalPluginsDialog(self, _('Plugin Manager'))
+        self.externalpluginsdialog = d
         d.exec_()
-        d.setParent(None) # Python will GC
+        self.externalpluginsdialog = None # allow python to GC
 
     def cpfp(self, parent_tx, new_tx):
         total_size = parent_tx.estimated_size() + new_tx.estimated_size()
