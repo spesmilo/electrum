@@ -45,6 +45,7 @@ from electroncash.paymentrequest import PaymentRequest
 from electroncash.i18n import _
 from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton
 from electroncash_gui.qt.util import OkButton, WindowModalDialog
+from electroncash.util import Weak
 
 
 class Processor(threading.Thread):
@@ -174,10 +175,13 @@ class Plugin(BasePlugin):
         return True
 
     def settings_widget(self, window):
-        return EnterButton(_('Settings'), partial(self.settings_dialog, window))
+        windowRef = Weak.ref(window)
+        return EnterButton(_('Settings'), partial(self.settings_dialog, windowRef))
 
-    def settings_dialog(self, window):
-        d = WindowModalDialog(window, _("Email settings"))
+    def settings_dialog(self, windowRef):
+        window = windowRef()
+        if not window: return
+        d = WindowModalDialog(window.top_level_window(), _("Email settings"))
         d.setMinimumSize(500, 200)
 
         vbox = QVBoxLayout(d)
