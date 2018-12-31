@@ -451,15 +451,16 @@ def create_sweeptx_ctx_to_local(sweep_address: str, ctx: Transaction, output_idx
         assert isinstance(to_self_delay, int)
         sweep_inputs[0]['sequence'] = to_self_delay
     tx_size_bytes = 121  # approx size of to_local -> p2wpkh
-    if fee_per_kb is None: fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
+    if fee_per_kb is None:
+        fee_per_kb = FEERATE_FALLBACK_STATIC_FEE
     fee = SimpleConfig.estimate_fee_for_feerate(fee_per_kb, tx_size_bytes)
     outvalue = val - fee
-    if outvalue <= dust_threshold(): return None
+    if outvalue <= dust_threshold():
+        return None
     sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    if is_revocation:
-        sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name='their_ctx_to_local')
-    else:
-        sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name='our_ctx_to_local', csv_delay=to_self_delay)
+    name = 'their_ctx_to_local' if is_revocation else 'our_ctx_to_local'
+    csv_delay = 0 if is_revocation else to_self_delay
+    sweep_tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name=name, csv_delay=csv_delay)
     sig = sweep_tx.sign_txin(0, privkey)
     witness = construct_witness([sig, int(is_revocation), witness_script])
     sweep_tx.inputs()[0]['witness'] = witness
