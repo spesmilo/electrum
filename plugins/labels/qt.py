@@ -46,27 +46,40 @@ class Plugin(LabelsPlugin):
         if not window or not isinstance(window.parent(), ElectrumWindow): return
         wallet = window.parent().wallet
         d = WindowModalDialog(window.top_level_window(), _("Label Settings"))
-        dlgRef = Weak.ref(d)
-        hbox = QHBoxLayout()
-        hbox.addWidget(QLabel("Label sync options:"))
-        upload = ThreadedButton("Force upload",
-                                partial(Weak(self.do_force_upload), wallet, dlgRef),
-                                partial(Weak(self.done_processing), dlgRef),
-                                partial(Weak(self.error_processing), dlgRef))
-        download = ThreadedButton("Force download",
-                                  partial(Weak(self.do_force_download), wallet, dlgRef),
-                                  partial(Weak(self.done_processing), dlgRef),
-                                  partial(Weak(self.error_processing), dlgRef))
-        d.thread_buts = (upload, download)
-        d.finished.connect(partial(Weak(self.on_dlg_finished), dlgRef))
-        vbox = QVBoxLayout()
-        vbox.addWidget(upload)
-        vbox.addWidget(download)
-        hbox.addLayout(vbox)
-        vbox = QVBoxLayout(d)
-        vbox.addLayout(hbox)
-        vbox.addSpacing(20)
         d.ok_button = OkButton(d)
+        dlgRef = Weak.ref(d)
+        if wallet in self.wallets:
+            class MySigs(QObject):
+                ok_button_disable_sig = pyqtSignal(bool)
+            d.sigs = MySigs(d)
+            d.sigs.ok_button_disable_sig.connect(d.ok_button.setDisabled) # disable ok button while the TaskThread runs ..
+            hbox = QHBoxLayout()
+            hbox.addWidget(QLabel(_("LabelSync options:")))
+            upload = ThreadedButton("Force upload",
+                                    partial(Weak(self.do_force_upload), wallet, dlgRef),
+                                    partial(Weak(self.done_processing), dlgRef),
+                                    partial(Weak(self.error_processing), dlgRef))
+            download = ThreadedButton("Force download",
+                                      partial(Weak(self.do_force_download), wallet, dlgRef),
+                                      partial(Weak(self.done_processing), dlgRef),
+                                      partial(Weak(self.error_processing), dlgRef))
+            d.thread_buts = (upload, download)
+            d.finished.connect(partial(Weak(self.on_dlg_finished), dlgRef))
+            vbox = QVBoxLayout()
+            vbox.addWidget(upload)
+            vbox.addWidget(download)
+            hbox.addLayout(vbox)
+            vbox = QVBoxLayout(d)
+            vbox.addLayout(hbox)
+        else:
+            vbox = QVBoxLayout(d)
+            l = QLabel('<b>' + _("LabelSync not supported for this wallet type") + '</b>')
+            l.setAlignment(Qt.AlignCenter)
+            vbox.addWidget(l)
+            l = QLabel(_("(Only deterministic wallets are supported)"))
+            l.setAlignment(Qt.AlignCenter)
+            vbox.addWidget(l)
+        vbox.addSpacing(20)
         vbox.addLayout(Buttons(d.ok_button))
         return bool(d.exec_())
     
@@ -82,16 +95,19 @@ class Plugin(LabelsPlugin):
                 download.thread.stop(); download.thread.wait()
 
     def do_force_upload(self, wallet, dlgRef):
+        # this runs in a NON-GUI thread
         dlg = dlgRef()
-        if dlg: dlg.ok_button.setEnabled(False) # block window closing prematurely which can cause a crash
+        if dlg: dlg.sigs.ok_button_disable_sig.emit(True) # block window closing prematurely which can cause a temporary hang until thread completes
         self.push_thread(wallet)
 
     def do_force_download(self, wallet, dlgRef):
+        # this runs in a NON-GUI thread
         dlg = dlgRef()
-        if dlg: dlg.ok_button.setEnabled(False) # block window closing prematurely which can cause a crash
+        if dlg: dlg.sigs.ok_button_disable_sig.emit(True) # block window closing prematurely which can cause a temporary hang until thread completes
         self.pull_thread(wallet, True)
 
     def done_processing(self, dlgRef, result):
+        # this runs in the GUI thread
         dlg = dlgRef()
         if dlg:
             dlg.ok_button.setEnabled(True)
