@@ -37,7 +37,7 @@ from electroncash.bitcoin import base_encode
 from electroncash.i18n import _
 from electroncash.plugins import run_hook
 
-from electroncash.util import bfh
+from electroncash.util import bfh, Weak
 from .util import *
 
 dialogs = []  # Otherwise python randomly garbage collects the dialogs...
@@ -65,6 +65,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         self.prompt_if_unsaved = prompt_if_unsaved
         self.saved = False
         self.desc = desc
+        self.cashaddr_signal_slots = []
 
         self.setMinimumWidth(750)
         self.setWindowTitle(_("Transaction"))
@@ -74,7 +75,8 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         vbox.addWidget(QLabel(_("Transaction ID:")))
         self.tx_hash_e  = ButtonsLineEdit()
-        qr_show = lambda: parent.show_qrcode(str(self.tx_hash_e.text()), 'Transaction ID', parent=self)
+        weakSelfRef = Weak.ref(self)
+        qr_show = lambda: weakSelfRef() and parent.show_qrcode(str(weakSelfRef().tx_hash_e.text()), 'Transaction ID', parent=weakSelfRef())
         self.tx_hash_e.addButton(":icons/qrcode.png", qr_show, _("Show as QR code"))
         self.tx_hash_e.setReadOnly(True)
         vbox.addWidget(self.tx_hash_e)
@@ -110,19 +112,19 @@ class TxDialog(QDialog, MessageBoxMixin):
         b.setIcon(QIcon(":icons/qrcode.png"))
         b.clicked.connect(self.show_qr)
 
-        self.copy_button = CopyButton(lambda: str(self.tx), parent.app)
+        self.copy_button = CopyButton(lambda: str(weakSelfRef() and weakSelfRef().tx), parent.app)
 
         # Action buttons
-        self.buttons = [self.sign_button, self.broadcast_button, self.cancel_button]
+        buttons = [self.sign_button, self.broadcast_button, self.cancel_button]
         # Transaction sharing buttons
-        self.sharing_buttons = [self.copy_button, self.qr_button, self.save_button]
+        sharing_buttons = [self.copy_button, self.qr_button, self.save_button]
 
         run_hook('transaction_dialog', self)
 
         hbox = QHBoxLayout()
-        hbox.addLayout(Buttons(*self.sharing_buttons))
+        hbox.addLayout(Buttons(*sharing_buttons))
         hbox.addStretch(1)
-        hbox.addLayout(Buttons(*self.buttons))
+        hbox.addLayout(Buttons(*buttons))
         vbox.addLayout(hbox)
         self.update()
 
@@ -153,6 +155,18 @@ class TxDialog(QDialog, MessageBoxMixin):
             event.ignore()
         else:
             event.accept()
+            parent = self.main_window
+            if parent:
+                # clean up connections so window gets gc'd
+                try: parent.history_updated_signal.disconnect(self.update_tx_if_in_wallet)
+                except TypeError: pass
+                try: parent.network_signal.disconnect(self.got_verified_tx)
+                except TypeError: pass
+                for slot in self.cashaddr_signal_slots:
+                    try: parent.cashaddr_toggled_signal.disconnect(slot)
+                    except TypeError: pass
+                self.cashaddr_signal_slots = []
+
             try:
                 dialogs.remove(self)
             except ValueError:  # wasn't in list
@@ -265,8 +279,9 @@ class TxDialog(QDialog, MessageBoxMixin):
         o_text.setFont(QFont(MONOSPACE_FONT))
         o_text.setReadOnly(True)
         vbox.addWidget(o_text)
-        self.main_window.cashaddr_toggled_signal.connect(
-            partial(self.update_io, i_text, o_text))
+        slot = partial(self.update_io, i_text, o_text)
+        self.cashaddr_signal_slots.append(slot)
+        self.main_window.cashaddr_toggled_signal.connect(slot)
         self.update_io(i_text, o_text)
 
     def update_io(self, i_text, o_text):
