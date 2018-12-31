@@ -50,19 +50,20 @@ class LabelsPlugin(BasePlugin):
             return
         if not item:
             return
-        nonce = self.get_nonce(wallet)
-        wallet_id = self.wallets[wallet][2]
-        bundle = {"walletId": wallet_id,
-                  "walletNonce": nonce,
-                  "externalId": self.encode(wallet, item),
-                  "encryptedLabel": self.encode(wallet, label)}
-        t = threading.Thread(target=self.do_request,
-                             args=["POST", "/label", False, bundle, True])
-        t.setDaemon(True)
-        self.threads.append(t)
+        with wallet.lock: # need to hold the lock from get nonce to set nonce in order to prevent races.
+            nonce = self.get_nonce(wallet)
+            wallet_id = self.wallets[wallet][2]
+            bundle = {"walletId": wallet_id,
+                      "walletNonce": nonce,
+                      "externalId": self.encode(wallet, item),
+                      "encryptedLabel": self.encode(wallet, label)}
+            t = threading.Thread(target=self.do_request,
+                                 args=["POST", "/label", False, bundle, True])
+            t.setDaemon(True)
+            self.threads.append(t)
+            # Caller will write the wallet
+            self.set_nonce(wallet, nonce + 1)
         t.start()
-        # Caller will write the wallet
-        self.set_nonce(wallet, nonce + 1)
 
     def find_wallet_by_id(self, wallet_id):
         for wallet, tup in self.wallets.copy().items():
