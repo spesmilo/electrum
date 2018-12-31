@@ -157,6 +157,12 @@ class TxDialog(QDialog, MessageBoxMixin):
                 dialogs.remove(self)
             except ValueError:  # wasn't in list
                 pass
+            while True:
+                try:
+                    # Esoteric bug happens when user rejects password dialog on top of this window.. so we must keep popping self off the top_level_windows
+                    self.main_window.pop_top_level_window(self)
+                except ValueError:
+                    break
 
     def reject(self):
         # Override escape-key to close normally (and invoke closeEvent)
