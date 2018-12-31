@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import *
 
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
-from electroncash.util import print_error, profiler, PrintError
+from electroncash.util import print_error, profiler, PrintError, Weak
 from electroncash.network import Network
 from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton, HelpLabel, OkButton, WindowModalDialog, rate_limited
 from electroncash_gui.qt.password_dialog import PasswordDialog
@@ -698,9 +698,9 @@ class Plugin(BasePlugin):
                 window.print_error("WARNING: Window lacks a BackgroundProcess, FIXME!")
 
     def settings_dialog(self, window, msg=None, restart_ask = True):
-        assert window and (isinstance(window, ElectrumWindow) or isinstance(window.parent(), ElectrumWindow))
-        if not isinstance(window, ElectrumWindow):
+        while not isinstance(window, ElectrumWindow) and window and window.parent():
             window = window.parent()
+        assert window and isinstance(window, ElectrumWindow)
 
         d = SettingsDialog(None, _("CashShuffle Settings"), window.config, msg)
         try:
@@ -762,7 +762,9 @@ class Plugin(BasePlugin):
         return copy.deepcopy(config.get("cashshuffle_server_v1", None))
 
     def settings_widget(self, window):
-        return EnterButton(_('Settings'), lambda: self.settings_dialog(window))
+        weakMeth = Weak(self.settings_dialog)
+        weakWindow = Weak(window)
+        return EnterButton(_('Settings'), lambda: weakMeth(weakWindow))
 
     def requires_settings(self):
         return True
