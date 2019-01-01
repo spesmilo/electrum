@@ -708,9 +708,6 @@ class RateLimiter(PrintError):
         return rl._invoke(args, kwargs)
 
     def _invoke(self, args, kwargs):
-        if self.obj() is not args[0]:
-            self.print_error("****** decorator called, but the 'self' object has changed or disappeared.. aborting!")
-            return
         self.saved_args = (args,kwargs) # since we're collating, save latest invocation's args unconditionally. any future invocation will use the latest saved args.
         self.ctr += 1 # increment call counter
         #self.print_error("args_saved",args,"kwarg_saved",kwargs)
@@ -725,7 +722,7 @@ class RateLimiter(PrintError):
                 # Time since last invocation was less than self.rate, so defer to the future with a timer.
                 self.timer = QTimer(self.obj() if isinstance(self.obj(), QObject) else None)
                 self.timer.timeout.connect(self._doIt)
-                #self.timer.destroyed.connect(lambda x=None: print(self.qn,"Timer deallocated"))
+                #self.timer.destroyed.connect(lambda x=None,qn=self.qn: print(qn,"Timer deallocated"))
                 self.timer.setSingleShot(True)
                 self.timer.start(diff*1e3)
                 #self.print_error("deferring")
