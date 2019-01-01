@@ -3487,7 +3487,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         enabled = cashshuffle_flag and p and p.is_enabled()
         noprompt = self.config.get('shuffle_noprompt2', False)
         if not enabled and not noprompt:
-            d = WindowModalDialog(self, title=_('Would you like to turn on CashShuffle?'))
+            d = WindowModalDialog(self.top_level_window(), title=_('Would you like to turn on CashShuffle?'))
             d.setMinimumSize(400, 200)
             vbox = QVBoxLayout(d)
             message = '''
