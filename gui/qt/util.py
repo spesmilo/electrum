@@ -9,7 +9,7 @@ from functools import partial, wraps
 
 from electroncash.i18n import _
 from electroncash.address import Address
-from electroncash.util import print_error
+from electroncash.util import print_error, PrintError, Weak
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
@@ -656,6 +656,117 @@ class OPReturnError(Exception):
 class OPReturnTooLarge(OPReturnError):
     """ thrown when the OP_RETURN for a tx is >220 bytes """
 
+class RateLimiter(PrintError):
+    ''' Manages the state of a @rate_limited decorated function, collating
+    multiple invocations. This class is not intented to be used directly. Instead,
+    use the @rate_limited decorator (for instance methods).
+
+    This state instance gets inserted into the instance attributes of the target
+    object wherever a @rate_limited decorator appears.
+
+    The inserted attribute is named "__FUNCNAME__rate_limiter". '''
+    # some defaults
+    last_ts = 0.0
+    timer = None
+    saved_args = (tuple(),dict())
+    ctr = 0
+
+    def __init__(self, rate, obj, func):
+        self.n = func.__name__
+        self.qn = func.__qualname__
+        self.rate = rate
+        self.obj = Weak.ref(obj) # keep a weak reference to the object to prevent cycles
+        self.func = func
+        #self.print_error("*** Created: func=",func,"obj=",obj,"rate=",rate)
+
+    def diagnostic_name(self):
+        return "{}:{}".format("rate_limited",self.qn)
+
+    def kill_timer(self):
+        if self.timer:
+            #self.print_error("deleting timer")
+            self.timer.stop()
+            self.timer.deleteLater()
+            self.timer = None
+
+    @staticmethod
+    def attr_name(func): return "__{}__rate_limiter".format(func.__name__)
+
+    @classmethod
+    def invoke(cls, rate, func, args, kwargs):
+        ''' Calls _invoke() on an existing RateLimiter object (or creates a new
+        one for the given function on first run per target object instance). '''
+        assert args and isinstance(args[0], object), "@rate_limited decorator may only be used with object instance methods"
+        assert threading.current_thread() is threading.main_thread(), "@rate_limited decorator may only be used with functions called in the main thread"
+        obj = args[0]
+        a_name = cls.attr_name(func)
+        rl = getattr(obj, a_name, None) # we hide the RateLimiter state object in an attribute (name based on the wrapped function name) in the target object
+        if rl is None:
+            # must be the first invocation, create a new RateLimiter state instance.
+            rl = cls(rate, obj, func)
+            setattr(obj, a_name, rl)
+        return rl._invoke(args, kwargs)
+
+    def _invoke(self, args, kwargs):
+        if self.obj() is not args[0]:
+            self.print_error("****** decorator called, but the 'self' object has changed or disappeared.. aborting!")
+            return
+        self.saved_args = (args,kwargs) # since we're collating, save latest invocation's args unconditionally. any future invocation will use the latest saved args.
+        self.ctr += 1 # increment call counter
+        #self.print_error("args_saved",args,"kwarg_saved",kwargs)
+        if not self.timer: # check if there's a pending invocation already
+            now = time.time()
+            diff = float(self.rate) - (now - self.last_ts)
+            if diff <= 0:
+                # Time since last invocation was greater than self.rate, so call the function directly now.
+                #self.print_error("calling directly")
+                return self._doIt()
+            else:
+                # Time since last invocation was less than self.rate, so defer to the future with a timer.
+                self.timer = QTimer(self.obj() if isinstance(self.obj(), QObject) else None)
+                self.timer.timeout.connect(self._doIt)
+                #self.timer.destroyed.connect(lambda x=None: print(self.qn,"Timer deallocated"))
+                self.timer.setSingleShot(True)
+                self.timer.start(diff*1e3)
+                #self.print_error("deferring")
+        else:
+            # We had a timer active, which means as future call will occur. So return early and let that call happenin the future.
+            # Note that a side-effect of this aborted invocation was to update self.saved_args.
+            pass
+            #self.print_error("ignoring (already scheduled)")
+
+    def _doIt(self):
+        #self.print_error("called!")
+        t0 = time.time()
+        args, kwargs = self.saved_args # grab the latest collated invocation's args. this attribute is always defined.
+        self.saved_args = (tuple(),dict()) # clear saved args immediately
+        #self.print_error("args_actually_used",args,"kwarg_actually_used",kwargs)
+        ctr0 = self.ctr # read back current call counter to compare later for reentrancy detection
+        retval = self.func(*args, **kwargs) # and.. call the function. use latest invocation's args
+        was_reentrant = self.ctr != ctr0 # if ctr is not the same, func() led to a call this function!
+        del args, kwargs # deref args right away (allow them to get gc'd)
+        tf = time.time()
+        time_taken = tf-t0
+        if time_taken > float(self.rate):
+            self.print_error("method took too long: {} > {}. Fudging timestamps to compensate.".format(time_taken, self.rate))
+            self.last_ts = tf # Hmm. This function takes longer than its rate to complete. so mark its last run time as 'now'. This breaks the rate but at least prevents this function from starving the CPU (benforces a delay).
+        else:
+            self.last_ts = t0 # Function takes less than rate to complete, so mark its t0 as when we entered to keep the rate constant.
+
+        if self.timer: # timer is not None if and only if we were a delayed (collated) invocation.
+            if was_reentrant:
+                # we got a reentrant call to this function as a result of calling func() above! re-schedule the timer.
+                self.print_error("*** detected a re-entrant call, re-starting timer")
+                time_left = float(self.rate) - (tf - self.last_ts)
+                self.timer.start(time_left*1e3)
+            else:
+                # We did not get a reentrant call, so kill the timer so subsequent calls can schedule the timer and/or call func() immediately.
+                self.kill_timer()
+        elif was_reentrant:
+            self.print_error("*** detected a re-entrant call")
+
+        return retval
+
 def rate_limited(rate):
     """ A Function decorator for rate-limiting GUI event callbacks. Argument
         rate in seconds is the minimum allowed time between subsequent calls of
@@ -666,74 +777,9 @@ def rate_limited(rate):
         frequent calls to GUI update functions.
         (See on_fx_quotes and on_fx_history in main_window.py for an example). """
     def wrapper0(func):
-        n = func.__name__ # save function name
-        qn = func.__qualname__ # save function __qualname__ for print_error below
-        # The below 4 attributes are inserted into object instances per @rate_limited function in order to keep track of some state
-        # save the computed attribute names now once in a private python cell for access from the function(s) below.
-        n_last = "__{}__last_ts__rate_limited".format(n) # last ts, stored as attribute of object
-        n_timer = "__{}__timer__rate_limited".format(n) # QTimer, stored as attribute of object
-        n_updated_args = "__{}__saved_args__rate_limited".format(n) # store args,kwargs in a tuple
-        n_ctr = "__{}__ctr__rate_limited".format(n) # counter, keeps track of how many times this function is called. used for reentrancy detection inside doIt() below.
-
         @wraps(func)
         def wrapper(*args, **kwargs):
-            assert args and isinstance(args[0], object), "@rate_limited decorator may only be used with object instance methods"
-            assert threading.current_thread() is threading.main_thread(), "@rate_limited decorator may only be used with functions called in the main thread"
-            slf = args[0]
-            if not hasattr(slf, n_last): setattr(slf, n_last, 0.0) # set default "last time" to 0.0
-            if not hasattr(slf, n_timer): setattr(slf, n_timer, None) # default the QTimer to None
-            setattr(slf, n_updated_args, (args,kwargs)) # since we're collating, save latest invocation's args unconditionally
-            setattr(slf, n_ctr, getattr(slf, n_ctr, 0) + 1) # increment call counter
-            #print(qn,"args_saved",args,"kwarg_saved",kwargs)
-            def doIt():
-                #print(qn,"called!")
-                t0 = time.time()
-                args_updated, kwargs_updated = getattr(slf, n_updated_args) # grab the latest collated invocation's args. this attribute is always defined
-                setattr(slf, n_updated_args, (tuple(),dict())) # clear saved args immediately
-                #print(qn,"args_actually_used",args_updated,"kwarg_actually_used",kwargs_updated)
-                ctr0 = getattr(slf, n_ctr) # read back current call counter to compare later for reentrancy detection
-                func(*args_updated, **kwargs_updated) # and.. call the function. use latest invocation's args
-                was_reentrant = getattr(slf, n_ctr) != ctr0 # if ctr is not the same, func() led to a call this function!
-                del args_updated, kwargs_updated # gc/clear args right away
-                tf = time.time()
-                time_taken = tf-t0
-                if time_taken > float(rate):
-                    print_error("[rate_limited] {} method took too long: {} > {}. Fudging timestamps to compensate.".format(qn, time_taken, rate))
-                    setattr(slf, n_last, tf) # Hmm. This function takes longer than its rate to complete. so mark its last run time as 'now'. This breaks the rate but at least prevents this function from starving the CPU (benforces a delay).
-                else:
-                    setattr(slf, n_last, t0) # Function takes less than rate to complete, so mark its t0 as when we entered to keep the rate constant.
-                t = getattr(slf, n_timer) # get the timer
-                if t: # t is not None iff we were a delayed invocation.
-                    if was_reentrant:
-                        # we got a reentrant call to this function as a result of calling func() above! re-schedule the timer.
-                        print_error("[rate_limited] *** detected a re-entrant call to {}, re-starting timer".format(qn))
-                        time_left = float(rate) - (tf - getattr(slf, n_last))
-                        t.start(time_left*1e3)
-                    else:
-                        # We did not get a reentrant call, so kill the timer so subsequent calls can schedule the timer and/or call func() immediately.
-                        #print("[rate_limited] {} -- deleting timer".format(qn))
-                        t.stop(); t.deleteLater(); setattr(slf, n_timer, None); del t
-                elif was_reentrant:
-                        print_error("[rate_limited] *** detected a re-entrant call to {}".format(qn))
-
-            # /doIt
-            if not getattr(slf, n_timer):
-                now = time.time()
-                diff = float(rate) - (now - getattr(slf, n_last))
-                if diff <= 0:
-                    #print(qn,"calling directly")
-                    doIt()
-                else:
-                    t = QTimer(slf if isinstance(slf, QObject) else None)
-                    t.timeout.connect(doIt)
-                    #t.destroyed.connect(lambda x=None: print(qn,"Timer deallocated"))
-                    t.setSingleShot(True)
-                    t.start(diff*1e3)
-                    setattr(slf, n_timer, t)
-                    #print(qn,"deferring")
-            else:
-                pass
-                #print(qn,"ignoring (already scheduled)")
+            return RateLimiter.invoke(rate, func, args, kwargs)
         return wrapper
     return wrapper0
 
