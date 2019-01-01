@@ -496,10 +496,9 @@ class Plugin(BasePlugin):
                 self._window_add_to_disabled(window)
 
     def _enable_for_window(self, window):
-        title = window.windowTitle() or "<Unknown>"
-        self.print_error("Window '{}' registered, performing window-specific startup code".format(title))
-        password = None
         name = window.wallet.basename()
+        self.print_error("Window '{}' registered, performing window-specific startup code".format(name))
+        password = None
         while window.wallet.has_password():
             msg = _("CashShuffle requires access to '{}'.").format(name) + "\n" +  _('Please enter your password')
             dlgParent = None if sys.platform == 'darwin' else window
@@ -553,7 +552,7 @@ class Plugin(BasePlugin):
     @hook
     def on_close_window(self, window):
         def didRemove(window):
-            self.print_error("Window '{}' removed".format(window.windowTitle() or "<Unknown>"))
+            self.print_error("Window '{}' removed".format(window.wallet.basename()))
         if self._window_remove_from_disabled(window):
             didRemove(window)
             return
@@ -564,18 +563,18 @@ class Plugin(BasePlugin):
     def _disable_for_window(self, window, add_to_disabled = True):
         if window not in self.windows:
             return
-        title = window.windowTitle() or "<Unknown>"
+        name = window.wallet.basename()
         if window.background_process:
             self.print_error("Joining background_process...")
             window.background_process.join()
             window.background_process.logger.disconnectAll(); window.background_process.logger.deleteLater()
             window.background_process = None
-            self.print_error("Window '{}' closed, ended shuffling for its wallet".format(title))
+            self.print_error("Window '{}' closed, ended shuffling for its wallet".format(name))
         self.windows.remove(window)
         monkey_patches_remove(window)
         window.utxo_list.update()
         window.update_status()
-        self.print_error("Window '{}' disabled".format(title))
+        self.print_error("Window '{}' disabled".format(name))
         if add_to_disabled:
             self._window_add_to_disabled(window)
         else:
