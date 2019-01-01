@@ -3251,12 +3251,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     if isinstance(sig, pyqtBoundSignal):
                         try: sig.disconnect()
                         except TypeError: pass # no connections
-                elif attr_name.endswith("__timer__rate_limited"): # <--- NB: this needs to match the attribute name in util.py rate_limited decorator
-                    timer = getattr(self, attr_name)
-                    if isinstance(timer, QTimer):
-                        timer.stop()
-                        try: timer.disconnect()
-                        except TypeError: pass
+                elif attr_name.endswith("__rate_limiter"): # <--- NB: this needs to match the attribute name in util.py rate_limited decorator
+                    rl_obj = getattr(self, attr_name)
+                    if isinstance(rl_obj, RateLimiter):
+                        rl_obj.kill_timer()
             try: self.disconnect()
             except TypeError: pass
         def disconnect_network_callbacks():
