@@ -698,8 +698,13 @@ class Plugin(BasePlugin):
                 window.print_error("WARNING: Window lacks a BackgroundProcess, FIXME!")
 
     def settings_dialog(self, window, msg=None, restart_ask = True):
-        while not isinstance(window, ElectrumWindow) and window and window.parent():
-            window = window.parent()
+        def window_parent(w):
+            # this is needed because WindowModalDialog overrides window.parent
+            if callable(w.parent): return w.parent()
+            return w.parent
+        while not isinstance(window, ElectrumWindow) and window and window_parent(window):
+            # MacOS fixups -- we can get into a situation where we are created without the ElectrumWindow being an immediate parent or grandparent
+            window = window_parent(window)
         assert window and isinstance(window, ElectrumWindow)
 
         d = SettingsDialog(None, _("CashShuffle Settings"), window.config, msg)
