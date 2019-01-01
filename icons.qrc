@@ -63,6 +63,7 @@
     <file>icons/unconfirmed.png</file>
     <file>icons/unpaid.png</file>
     <file>icons/unlock.png</file>
+    <file>icons/update.png</file>
     <file>icons/warning.png</file>
     <file>icons/zoom.png</file>
   </qresource>
