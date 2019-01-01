@@ -664,7 +664,7 @@ class RateLimiter(PrintError):
     This state instance gets inserted into the instance attributes of the target
     object wherever a @rate_limited decorator appears.
 
-    The inserted attribute is named "__FUNCNAME__rate_limiter". '''
+    The inserted attribute is named "__FUNCNAME__RateLimiter". '''
     # some defaults
     last_ts = 0.0
     timer = None
@@ -775,8 +775,8 @@ class RateLimiter(PrintError):
 
 class RateLimiterClassLvl(RateLimiter):
     ''' This RateLimiter object is used if classlevel=True is specified to the
-    @rate_limited decorator.  It inserts the __rate_limited state object on the
-    class level and collates calls for all instances to not exceed rate.
+    @rate_limited decorator.  It inserts the __RateLimiterClassLvl state object
+    on the class level and collates calls for all instances to not exceed rate.
 
     Each instance is guaranteed to receive at least 1 call and to have multiple
     calls updated with the latest args for the final call. So for instance:
