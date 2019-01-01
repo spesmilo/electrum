@@ -154,7 +154,7 @@ class LabelsPlugin(BasePlugin):
                 response = self.do_request("GET", ("/labels/since/%d/for/%s" % (nonce, wallet_id) ))
                 #self.print_error(nonce, wallet_id, response)
 
-                if response["labels"] is None:
+                if not response["labels"]:
                     self.print_error('no new labels')
                     return
                 result = {}

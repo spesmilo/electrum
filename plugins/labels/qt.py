@@ -22,6 +22,11 @@ class LabelsSignalObject(QObject):
     request_exception_signal = pyqtSignal(object, object)
 
 
+def window_parent(w):
+    # this is needed because WindowModalDialog overrides window.parent
+    if callable(w.parent): return w.parent()
+    return w.parent
+
 class Plugin(LabelsPlugin):
 
     def __init__(self, *args):
@@ -34,17 +39,17 @@ class Plugin(LabelsPlugin):
         return True
 
     def settings_widget(self, window):
-        while window and window.parent() and not isinstance(window.parent(), ElectrumWindow):
+        while window and window_parent(window) and not isinstance(window_parent(window), ElectrumWindow):
             # MacOS fixup -- find window.parent() because we can end up with window.parent() not an ElectrumWindow
-            window = window.parent()
+            window = window_parent(window)
         windowRef = Weak.ref(window)
         return EnterButton(_('Settings'),
                            partial(self.settings_dialog, windowRef))
 
     def settings_dialog(self, windowRef):
         window = windowRef() # NB: window is the internal plugins dialog and not the wallet window
-        if not window or not isinstance(window.parent(), ElectrumWindow): return
-        wallet = window.parent().wallet
+        if not window or not isinstance(window_parent(window), ElectrumWindow): return
+        wallet = window_parent(window).wallet
         d = WindowModalDialog(window.top_level_window(), _("Label Settings"))
         d.ok_button = OkButton(d)
         dlgRef = Weak.ref(d)
@@ -164,7 +169,7 @@ class Plugin(LabelsPlugin):
         window = self.wallet_windows.get(wallet, None)
         if window:
             #self.print_error("On labels changed", wallet.basename())
-            window.update_tabs()
+            window.update_labels()
 
     def on_wallet_not_synched(self, wallet):
         # not main thread

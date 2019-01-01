@@ -104,6 +104,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     show_privkeys_signal = pyqtSignal()
     cashaddr_toggled_signal = pyqtSignal()
     history_updated_signal = pyqtSignal()
+    labels_updated_signal = pyqtSignal()
 
     def __init__(self, gui_object, wallet):
         QMainWindow.__init__(self)
@@ -785,6 +786,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     @rate_limited(1.0, classlevel=True) # Limit tab updates to no more than 1 per second, app-wide. Multiple calls across instances will be collated into 1 deferred series of calls
     def update_tabs(self):
+        if self.cleaned_up: return
         self.history_list.update()
         self.request_list.update()
         self.address_list.update()
@@ -793,6 +795,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.invoice_list.update()
         self.update_completions()
         self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
+
+    @rate_limited(1.0)
+    def update_labels(self):
+        if self.cleaned_up: return
+        self.history_list.update_labels()
+        self.address_list.update_labels()
+        self.utxo_list.update_labels()
+        self.update_completions()
+        self.labels_updated_signal.emit()
 
     def create_history_tab(self):
         from .history_list import HistoryList
