@@ -43,7 +43,7 @@ class UTXOList(MyTreeWidget):
 
     @rate_limited(1.0) # performance tweak -- limit updates to no more than oncer per second
     def update(self):
-        if self.wallet and self.wallet.thread and not self.wallet.thread.isRunning():
+        if self.wallet and (not self.wallet.thread or not self.wallet.thread.isRunning()):
             # short-cut return if window was closed and wallet is stopped
             return
         super().update()

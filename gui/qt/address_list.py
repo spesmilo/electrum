@@ -27,7 +27,7 @@ import webbrowser
 
 from functools import partial
 
-from .util import MyTreeWidget, MONOSPACE_FONT, SortableTreeWidgetItem
+from .util import MyTreeWidget, MONOSPACE_FONT, SortableTreeWidgetItem, rate_limited
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor, QKeySequence
 from PyQt5.QtWidgets import QTreeWidgetItem, QAbstractItemView, QMenu
@@ -45,6 +45,8 @@ class AddressList(MyTreeWidget):
         self.refresh_headers()
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
+        # force attributes to always be defined, even if None, at construction.
+        self.wallet = self.parent.wallet if hasattr(self.parent, 'wallet') else None
 
     def refresh_headers(self):
         headers = [ ('Address'), _('Index'),_('Label'), _('Balance'), _('Tx')]
@@ -52,6 +54,13 @@ class AddressList(MyTreeWidget):
         if fx and fx.get_fiat_address_config():
             headers.insert(4, '{} {}'.format(fx.get_currency(), _(' Balance')))
         self.update_headers(headers)
+
+    @rate_limited(1.0) # We rate limit the address list refresh no more than once every second
+    def update(self):
+        if self.wallet and (not self.wallet.thread or not self.wallet.thread.isRunning()):
+            # short-cut return if window was closed and wallet is stopped
+            return
+        super().update()
 
     def on_update(self):
         def item_path(item): # Recursively builds the path for an item eg 'parent_name/item_name'
