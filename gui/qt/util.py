@@ -689,8 +689,8 @@ class RateLimiter(PrintError):
             self.timer.deleteLater()
             self.timer = None
 
-    @staticmethod
-    def attr_name(func): return "__{}__rate_limiter".format(func.__name__)
+    @classmethod
+    def attr_name(cls, func): return "__{}__{}".format(func.__name__, cls.__name__)
 
     @classmethod
     def invoke(cls, rate, func, args, kwargs):
@@ -700,6 +700,7 @@ class RateLimiter(PrintError):
         assert threading.current_thread() is threading.main_thread(), "@rate_limited decorator may only be used with functions called in the main thread"
         obj = args[0]
         a_name = cls.attr_name(func)
+        #print_error("*** a_name =",a_name,"obj =",obj)
         rl = getattr(obj, a_name, None) # we hide the RateLimiter state object in an attribute (name based on the wrapped function name) in the target object
         if rl is None:
             # must be the first invocation, create a new RateLimiter state instance.
@@ -708,7 +709,7 @@ class RateLimiter(PrintError):
         return rl._invoke(args, kwargs)
 
     def _invoke(self, args, kwargs):
-        self.saved_args = (args,kwargs) # since we're collating, save latest invocation's args unconditionally. any future invocation will use the latest saved args.
+        self._push_args(args, kwargs)  # since we're collating, save latest invocation's args unconditionally. any future invocation will use the latest saved args.
         self.ctr += 1 # increment call counter
         #self.print_error("args_saved",args,"kwarg_saved",kwargs)
         if not self.timer: # check if there's a pending invocation already
@@ -732,11 +733,18 @@ class RateLimiter(PrintError):
             pass
             #self.print_error("ignoring (already scheduled)")
 
+    def _pop_args(self):
+        args, kwargs = self.saved_args # grab the latest collated invocation's args. this attribute is always defined.
+        self.saved_args = (tuple(),dict()) # clear saved args immediately
+        return args, kwargs
+
+    def _push_args(self, args, kwargs):
+        self.saved_args = (args, kwargs)
+
     def _doIt(self):
         #self.print_error("called!")
         t0 = time.time()
-        args, kwargs = self.saved_args # grab the latest collated invocation's args. this attribute is always defined.
-        self.saved_args = (tuple(),dict()) # clear saved args immediately
+        args, kwargs = self._pop_args()
         #self.print_error("args_actually_used",args,"kwarg_actually_used",kwargs)
         ctr0 = self.ctr # read back current call counter to compare later for reentrancy detection
         retval = self.func(*args, **kwargs) # and.. call the function. use latest invocation's args
@@ -764,7 +772,63 @@ class RateLimiter(PrintError):
 
         return retval
 
-def rate_limited(rate):
+
+class RateLimiterClassLvl(RateLimiter):
+    ''' This RateLimiter object is used if classlevel=True is specified to the
+    @rate_limited decorator.  It inserts the __rate_limited state object on the
+    class level and collates calls for all instances to not exceed rate.
+
+    Each instance is guaranteed to receive at least 1 call and to have multiple
+    calls updated with the latest args for the final call. So for instance:
+
+    a.foo(1)
+    a.foo(2)
+    b.foo(10)
+    b.foo(3)
+
+    Would collate to a single 'class-level' call using 'rate':
+
+    a.foo(2) # latest arg taken, collapsed to 1 call
+    b.foo(3) # latest arg taken, collapsed to 1 call
+
+    '''
+
+    @classmethod
+    def invoke(cls, rate, func, args, kwargs):
+        assert args and not isinstance(args[0], type), "@rate_limited decorator may not be used with static or class methods"
+        obj = args[0]
+        objcls = obj.__class__
+        args = list(args)
+        args.insert(0, objcls) # prepend obj class to trick super.invoke() into making this state object be class-level.
+        return super(RateLimiterClassLvl, cls).invoke(rate, func, args, kwargs)
+
+    def _push_args(self, args, kwargs):
+        objcls, obj = args[0:2]
+        args = args[2:]
+        self.saved_args[obj] = (args, kwargs)
+
+    def _pop_args(self):
+        weak_dict = self.saved_args
+        self.saved_args = Weak.KeyDictionary()
+        return (weak_dict,),dict()
+
+    def _call_func_for_all(self, weak_dict):
+        for ref in weak_dict.keyrefs():
+            obj = ref()
+            if obj:
+                args,kwargs = weak_dict[obj]
+                #self.print_error("calling for",obj.diagnostic_name() if hasattr(obj, "diagnostic_name") else obj,"timer=",bool(self.timer))
+                self.func_target(obj, *args, **kwargs)
+
+    def __init__(self,rate, obj, func):
+        # note: obj here is really the __class__ of the obj because we prepended the class in our custom invoke() above.
+        super().__init__(rate, obj, func)
+        self.func_target = func
+        self.func = self._call_func_for_all
+        self.saved_args = Weak.KeyDictionary() # we don't use a simple arg tuple, but instead an instance -> args,kwargs dictionary to store collated calls, per instance collated
+
+
+def rate_limited(rate, classlevel=False):
     """ A Function decorator for rate-limiting GUI event callbacks. Argument
         rate in seconds is the minimum allowed time between subsequent calls of
         this instance of the function. Calls that arrive more frequently than
@@ -776,6 +840,8 @@ def rate_limited(rate):
     def wrapper0(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
+            if classlevel:
+                return RateLimiterClassLvl.invoke(rate, func, args, kwargs)
             return RateLimiter.invoke(rate, func, args, kwargs)
         return wrapper
     return wrapper0

@@ -73,7 +73,7 @@ class HistoryList(MyTreeWidget):
         '''Replaced in address_dialog.py'''
         return self.wallet.get_addresses()
 
-    @rate_limited(1.0) # We rate limit the history list refresh no more than once every second
+    @rate_limited(1.0, classlevel=True) # We rate limit the history list refresh no more than once every second, app-wide
     def update(self):
         if self.wallet and (not self.wallet.thread or not self.wallet.thread.isRunning()):
             # short-cut return if window was closed and wallet is stopped

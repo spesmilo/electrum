@@ -791,7 +791,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_tabs()
 
-    @rate_limited(1.0) # Limit tab updates to no more than 1 per second. This helps with large wallets and is hardly noticeable for small wallets
+    @rate_limited(1.0, classlevel=True) # Limit tab updates to no more than 1 per second, app-wide. Multiple calls across instances will be collated into 1 deferred series of calls
     def update_tabs(self):
         self.history_list.update()
         self.request_list.update()
@@ -3251,7 +3251,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     if isinstance(sig, pyqtBoundSignal):
                         try: sig.disconnect()
                         except TypeError: pass # no connections
-                elif attr_name.endswith("__rate_limiter"): # <--- NB: this needs to match the attribute name in util.py rate_limited decorator
+                elif attr_name.endswith("__RateLimiter"): # <--- NB: this needs to match the attribute name in util.py rate_limited decorator
                     rl_obj = getattr(self, attr_name)
                     if isinstance(rl_obj, RateLimiter):
                         rl_obj.kill_timer()
