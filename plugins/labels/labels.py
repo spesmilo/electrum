@@ -15,7 +15,7 @@ class LabelsPlugin(BasePlugin):
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.target_host = 'labels.electrum.org'
+        self.target_host = 'sync.imaginary.cash:8082'
         self.wallets = {}
         self.threads = []
         self.closing = False

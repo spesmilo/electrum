@@ -783,6 +783,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_tabs()
 
+    @rate_limited(1.0) # Limit tab updates to no more than 1 per second. This helps with large wallets and is hardly noticeable for small wallets
     def update_tabs(self):
         self.history_list.update()
         self.request_list.update()
@@ -3142,13 +3143,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if attr_name.endswith("_signal"):
                     sig = getattr(self, attr_name)
                     if isinstance(sig, pyqtBoundSignal):
-                        try:
-                            sig.disconnect()
-                            #self.print_error("Disconnected signal:",attr_name)
-                        except TypeError: # no connections
-                            pass
+                        try: sig.disconnect()
+                        except TypeError: pass # no connections
+                elif attr_name.endswith("__timer__rate_limited"): # <--- NB: this needs to match the attribute name in util.py rate_limited decorator
+                    timer = getattr(self, attr_name)
+                    if isinstance(timer, QTimer):
+                        timer.stop()
+                        try: timer.disconnect()
+                        except TypeError: pass
             try: self.disconnect()
-            except KeyError: pass
+            except TypeError: pass
         def disconnect_network_callbacks():
             if self.network:
                 self.network.unregister_callback(self.on_network)
@@ -3168,12 +3172,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     if (isinstance(c, (QWidget,QAction,QShortcut,TaskThread))
                         and not isinstance(c, (QStatusBar, QMenuBar, QFocusFrame)))]
         for c in children:
-            try:
-                c.disconnect()
-                #self.print_error("disconnected",c,c.objectName())
+            try: c.disconnect()
             except TypeError: pass
             c.setParent(None)
-            #self.print_error("reparented",c,c.objectName())
 
     def clean_up(self):
         self.wallet.thread.stop()

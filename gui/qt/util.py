@@ -3,11 +3,13 @@ import time
 import sys
 import platform
 import queue
+import threading
 from collections import namedtuple
 from functools import partial, wraps
 
 from electroncash.i18n import _
 from electroncash.address import Address
+from electroncash.util import print_error
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
@@ -667,43 +669,69 @@ def rate_limited(rate):
         @wraps(func)
         def wrapper(*args, **kwargs):
             assert args and isinstance(args[0], object), "@rate_limited decorator may only be used with object instance methods"
+            assert threading.current_thread() is threading.main_thread(), "@rate_limited decorator may only be used with functions called in the main thread"
             slf = args[0]
-            n = func.__name__
+            n = func.__name__ # save function name
+            qn = func.__qualname__ # save function __qualname__ for print_error below
+            # the below 4 attributes are inserted into object instances per @rate_limited function in order to keep track of some state
             n_last = "__{}__last_ts__rate_limited".format(n) # last ts, stored as attribute of object
             n_timer = "__{}__timer__rate_limited".format(n) # QTimer, stored as attribute of object
             n_updated_args = "__{}__saved_args__rate_limited".format(n) # store args,kwargs in a tuple
-            if not hasattr(slf, n_last): setattr(slf, n_last, 0.0)
-            if not hasattr(slf, n_timer): setattr(slf, n_timer, None)
-            setattr(slf, n_updated_args, (args,kwargs)) # since we're collating, save latest invocation's args
-            #print(n,"args_saved",args,"kwarg_saved",kwargs)
+            n_ctr = "__{}__ctr__rate_limited".format(n) # counter, keeps track of how many times this function is called. used for reentrancy detection inside doIt() below.
+            if not hasattr(slf, n_last): setattr(slf, n_last, 0.0) # set default "last time" to 0.0
+            if not hasattr(slf, n_timer): setattr(slf, n_timer, None) # default the QTimer to None
+            setattr(slf, n_updated_args, (args,kwargs)) # since we're collating, save latest invocation's args unconditionally
+            setattr(slf, n_ctr, getattr(slf, n_ctr, 0) + 1) # increment call counter
+            #print(qn,"args_saved",args,"kwarg_saved",kwargs)
             def doIt():
-                setattr(slf, n_last, time.time())
-                t = getattr(slf, n_timer)
-                if t:
-                    t.stop(); t.deleteLater(); setattr(slf, n_timer, None); del t
-                #print(n,"calling!")
-                tup = getattr(slf, n_updated_args)
-                args_updated, kwargs_updated = tup
-                #print(n,"args_actually_used",args_updated,"kwarg_actually_used",kwargs_updated)
-                func(*args_updated, **kwargs_updated) # use latest invocation's args
-                setattr(slf, n_updated_args, (tuple(),dict())) # clear saved args
-            now = time.time()
-            diff = float(rate) - (now - getattr(slf, n_last))
+                #print(qn,"called!")
+                t0 = time.time()
+                args_updated, kwargs_updated = getattr(slf, n_updated_args) # grab the latest collated invocation's args. this attribute is always defined
+                setattr(slf, n_updated_args, (tuple(),dict())) # clear saved args immediately
+                #print(qn,"args_actually_used",args_updated,"kwarg_actually_used",kwargs_updated)
+                ctr0 = getattr(slf, n_ctr) # read back current call counter to compare later for reentrancy detection
+                func(*args_updated, **kwargs_updated) # and.. call the function. use latest invocation's args
+                was_reentrant = getattr(slf, n_ctr) != ctr0 # if ctr is not the same, func() led to a call this function!
+                del args_updated, kwargs_updated # gc/clear args right away
+                tf = time.time()
+                time_taken = tf-t0
+                if time_taken > float(rate):
+                    print_error("[rate_limited] {} method took too long: {} > {}. Fudging timestamps to compensate.".format(qn, time_taken, rate))
+                    setattr(slf, n_last, tf) # Hmm. This function takes longer than its rate to complete. so mark its last run time as 'now'. This breaks the rate but at least prevents this function from starving the CPU (benforces a delay).
+                else:
+                    setattr(slf, n_last, t0) # Function takes less than rate to complete, so mark its t0 as when we entered to keep the rate constant.
+                t = getattr(slf, n_timer) # get the timer
+                if t: # t is not None iff we were a delayed invocation.
+                    if was_reentrant:
+                        # we got a reentrant call to this function as a result of calling func() above! re-schedule the timer.
+                        print_error("[rate_limited] *** detected a re-entrant call to {}, re-starting timer".format(qn))
+                        time_left = float(rate) - (tf - getattr(slf, n_last))
+                        t.start(time_left*1e3)
+                    else:
+                        # We did not get a reentrant call, so kill the timer so subsequent calls can schedule the timer and/or call func() immediately.
+                        #print("[rate_limited] {} -- deleting timer".format(qn))
+                        t.stop(); t.deleteLater(); setattr(slf, n_timer, None); del t
+                elif was_reentrant:
+                        print_error("[rate_limited] *** detected a re-entrant call to {}".format(qn))
+
+            # /doIt
             if not getattr(slf, n_timer):
+                now = time.time()
+                diff = float(rate) - (now - getattr(slf, n_last))
                 if diff <= 0:
-                    #print(n,"calling directly")
+                    #print(qn,"calling directly")
                     doIt()
                 else:
                     t = QTimer(slf if isinstance(slf, QObject) else None)
                     t.timeout.connect(doIt)
-                    #t.destroyed.connect(lambda x=None: print(n,"Timer deallocated"))
+                    #t.destroyed.connect(lambda x=None: print(qn,"Timer deallocated"))
                     t.setSingleShot(True)
                     t.start(diff*1e3)
                     setattr(slf, n_timer, t)
-                    #print(n,"deferring")
+                    #print(qn,"deferring")
             else:
                 pass
-                #print(n,"ignoring (already scheduled)")
+                #print(qn,"ignoring (already scheduled)")
         return wrapper
     return wrapper0
 
