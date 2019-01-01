@@ -666,18 +666,20 @@ def rate_limited(rate):
         frequent calls to GUI update functions.
         (See on_fx_quotes and on_fx_history in main_window.py for an example). """
     def wrapper0(func):
+        n = func.__name__ # save function name
+        qn = func.__qualname__ # save function __qualname__ for print_error below
+        # The below 4 attributes are inserted into object instances per @rate_limited function in order to keep track of some state
+        # save the computed attribute names now once in a private python cell for access from the function(s) below.
+        n_last = "__{}__last_ts__rate_limited".format(n) # last ts, stored as attribute of object
+        n_timer = "__{}__timer__rate_limited".format(n) # QTimer, stored as attribute of object
+        n_updated_args = "__{}__saved_args__rate_limited".format(n) # store args,kwargs in a tuple
+        n_ctr = "__{}__ctr__rate_limited".format(n) # counter, keeps track of how many times this function is called. used for reentrancy detection inside doIt() below.
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             assert args and isinstance(args[0], object), "@rate_limited decorator may only be used with object instance methods"
             assert threading.current_thread() is threading.main_thread(), "@rate_limited decorator may only be used with functions called in the main thread"
             slf = args[0]
-            n = func.__name__ # save function name
-            qn = func.__qualname__ # save function __qualname__ for print_error below
-            # the below 4 attributes are inserted into object instances per @rate_limited function in order to keep track of some state
-            n_last = "__{}__last_ts__rate_limited".format(n) # last ts, stored as attribute of object
-            n_timer = "__{}__timer__rate_limited".format(n) # QTimer, stored as attribute of object
-            n_updated_args = "__{}__saved_args__rate_limited".format(n) # store args,kwargs in a tuple
-            n_ctr = "__{}__ctr__rate_limited".format(n) # counter, keeps track of how many times this function is called. used for reentrancy detection inside doIt() below.
             if not hasattr(slf, n_last): setattr(slf, n_last, 0.0) # set default "last time" to 0.0
             if not hasattr(slf, n_timer): setattr(slf, n_timer, None) # default the QTimer to None
             setattr(slf, n_updated_args, (args,kwargs)) # since we're collating, save latest invocation's args unconditionally
