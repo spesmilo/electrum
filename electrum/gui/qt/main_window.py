@@ -86,6 +86,7 @@ class StatusBarButton(QPushButton):
         self.clicked.connect(self.onPress)
         self.func = func
         self.setIconSize(QSize(25,25))
+        self.setCursor(QCursor(Qt.PointingHandCursor))
 
     def onPress(self, checked=False):
         '''Drops the unwanted PyQt5 "checked" argument'''
