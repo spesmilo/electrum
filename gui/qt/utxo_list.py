@@ -161,3 +161,15 @@ class UTXOList(MyTreeWidget):
                 addrs.add(utxo['address'])
         if addrs:
             self.parent.set_frozen_state(list(addrs), b)
+
+    def update_labels(self):
+        root = self.invisibleRootItem()
+        child_count = root.childCount()
+        for i in range(child_count):
+            item = root.child(i)
+            try:
+                txid = item.data(0, Qt.UserRole).split(':', 1)[0]
+            except IndexError:
+                continue # name is iinvalid. should be txid:prevout_n
+            label = self.wallet.get_label(txid)
+            item.setText(1, label)

@@ -226,3 +226,16 @@ class AddressList(MyTreeWidget):
                 self.parent.app.clipboard().setText(text)
         else:
             super().keyPressEvent(event)
+
+    def update_labels(self):
+        def update_recurse(root):
+            child_count = root.childCount()
+            for i in range(child_count):
+                item = root.child(i)
+                addr = item.data(0, Qt.UserRole)
+                if isinstance(addr, Address):
+                    label = self.wallet.labels.get(addr.to_storage_string(), '')
+                    item.setText(2, label)
+                if item.childCount():
+                    update_recurse(item)
+        update_recurse(self.invisibleRootItem())

@@ -130,6 +130,7 @@ class TxDialog(QDialog, MessageBoxMixin):
 
         # connect slots so we update in realtime as blocks come in, etc
         parent.history_updated_signal.connect(self.update_tx_if_in_wallet)
+        parent.labels_updated_signal.connect(self.update_tx_if_in_wallet)
         parent.network_signal.connect(self.got_verified_tx)
 
     def got_verified_tx(self, event, args):
@@ -161,6 +162,8 @@ class TxDialog(QDialog, MessageBoxMixin):
                 try: parent.history_updated_signal.disconnect(self.update_tx_if_in_wallet)
                 except TypeError: pass
                 try: parent.network_signal.disconnect(self.got_verified_tx)
+                except TypeError: pass
+                try: parent.labels_updated_signal.disconnect(self.update_tx_if_in_wallet)
                 except TypeError: pass
                 for slot in self.cashaddr_signal_slots:
                     try: parent.cashaddr_toggled_signal.disconnect(slot)
@@ -217,6 +220,7 @@ class TxDialog(QDialog, MessageBoxMixin):
         base_unit = self.main_window.base_unit()
         format_amount = self.main_window.format_amount
         tx_hash, status, label, can_broadcast, amount, fee, height, conf, timestamp, exp_n = self.wallet.get_tx_info(self.tx)
+        desc = label or desc
         size = self.tx.estimated_size()
         self.broadcast_button.setEnabled(can_broadcast)
         can_sign = not self.tx.is_complete() and \

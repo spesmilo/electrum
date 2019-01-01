@@ -100,6 +100,7 @@ class AddressDialog(WindowModalDialog):
 
         # connect slots so the embedded history list gets updated whenever the history changes
         parent.history_updated_signal.connect(self.hw.update)
+        parent.labels_updated_signal.connect(self.hw.update_labels)
         parent.network_signal.connect(self.got_verified_tx)
 
     def clean_up(self):
@@ -109,6 +110,8 @@ class AddressDialog(WindowModalDialog):
         try: self.parent.network_signal.disconnect(self.got_verified_tx)
         except TypeError: pass
         try: self.parent.cashaddr_toggled_signal.disconnect(self.update_addr)
+        except TypeError: pass
+        try: self.parent.labels_updated_signal.disconnect(self.hw.update_labels)
         except TypeError: pass
         try: self.disconnect()
         except TypeError: pass
