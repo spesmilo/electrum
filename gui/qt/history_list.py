@@ -54,6 +54,8 @@ class HistoryList(MyTreeWidget):
         self.setColumnHidden(1, True)
         self.setSortingEnabled(True)
         self.sortByColumn(0, Qt.AscendingOrder)
+        # force attributes to always be defined, even if None, at construction.
+        self.wallet = self.parent.wallet if hasattr(self.parent, 'wallet') else None
 
         self.monospaceFont = QFont(MONOSPACE_FONT)
         self.withdrawalBrush = QBrush(QColor("#BC1E1E"))
@@ -73,6 +75,9 @@ class HistoryList(MyTreeWidget):
 
     @rate_limited(1.0) # We rate limit the history list refresh no more than once every second
     def update(self):
+        if self.wallet and (not self.wallet.thread or not self.wallet.thread.isRunning()):
+            # short-cut return if window was closed and wallet is stopped
+            return
         super().update()
         
     @profiler
