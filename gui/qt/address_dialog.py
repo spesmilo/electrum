@@ -102,6 +102,15 @@ class AddressDialog(WindowModalDialog):
         parent.history_updated_signal.connect(self.hw.update)
         parent.network_signal.connect(self.got_verified_tx)
 
+    def clean_up(self):
+        ''' Call this from parent when dialog is done so it can get gc'd properly '''
+        try: self.parent.history_updated_signal.connect(self.hw.update)
+        except TypeError: pass
+        try: self.parent.network_signal.connect(self.got_verified_tx)
+        except TypeError: pass
+        try: self.parent.cashaddr_toggled_signal.connect(self.update_addr)
+        except TypeError: pass
+
     def got_verified_tx(self, event, args):
         if event == 'verified':
             self.hw.update_item(*args)
