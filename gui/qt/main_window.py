@@ -823,11 +823,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         from . import address_dialog
         d = address_dialog.AddressDialog(self, addr)
         d.exec_()
-        d.clean_up()
-        # Clean up the address dialog ASAP
-        del d
-        import gc
-        gc.collect()
 
     def show_transaction(self, tx, tx_desc = None):
         '''tx_desc is set only for txs created in the Send tab'''
