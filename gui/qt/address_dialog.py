@@ -57,7 +57,6 @@ class AddressDialog(WindowModalDialog):
         icon = ":icons/qrcode_white.png" if ColorScheme.dark_scheme else ":icons/qrcode.png"
         self.addr_e.addButton(icon, self.show_qr, _("Show QR Code"))
         self.addr_e.setReadOnly(True)
-        self.parent.cashaddr_toggled_signal.connect(self.update_addr)
         vbox.addWidget(self.addr_e)
         self.update_addr()
 
@@ -98,13 +97,14 @@ class AddressDialog(WindowModalDialog):
         self.format_amount = self.parent.format_amount
         self.hw.update()
 
+    def connect_signals(self):
         # connect slots so the embedded history list gets updated whenever the history changes
-        parent.history_updated_signal.connect(self.hw.update)
-        parent.labels_updated_signal.connect(self.hw.update_labels)
-        parent.network_signal.connect(self.got_verified_tx)
+        self.parent.cashaddr_toggled_signal.connect(self.update_addr)
+        self.parent.history_updated_signal.connect(self.hw.update)
+        self.parent.labels_updated_signal.connect(self.hw.update_labels)
+        self.parent.network_signal.connect(self.got_verified_tx)
 
-    def clean_up(self):
-        ''' Call this from parent when dialog is done so it can get gc'd properly '''
+    def disconnect_signals(self):
         try: self.parent.history_updated_signal.disconnect(self.hw.update)
         except TypeError: pass
         try: self.parent.network_signal.disconnect(self.got_verified_tx)
@@ -112,8 +112,6 @@ class AddressDialog(WindowModalDialog):
         try: self.parent.cashaddr_toggled_signal.disconnect(self.update_addr)
         except TypeError: pass
         try: self.parent.labels_updated_signal.disconnect(self.hw.update_labels)
-        except TypeError: pass
-        try: self.disconnect()
         except TypeError: pass
 
     def got_verified_tx(self, event, args):
@@ -134,3 +132,12 @@ class AddressDialog(WindowModalDialog):
             self.parent.show_qrcode(text, 'Address', parent=self)
         except Exception as e:
             self.show_message(str(e))
+
+    def exec_(self):
+        ''' Overrides super class and does some cleanup after exec '''
+        self.connect_signals()
+        retval = super().exec_()
+        self.disconnect_signals()
+        import gc
+        QTimer.singleShot(10, lambda: gc.collect()) # run GC in 10 ms. Otherwise this window sticks around in memory for way too long
+        return retval
