@@ -104,7 +104,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     show_privkeys_signal = pyqtSignal()
     cashaddr_toggled_signal = pyqtSignal()
     history_updated_signal = pyqtSignal()
-    labels_updated_signal = pyqtSignal()
+    labels_updated_signal = pyqtSignal() # note this signal occurs when an explicit update_labels() call happens. Interested GUIs should also listen for history_updated_signal as well which also indicates labels may have changed.
 
     def __init__(self, gui_object, wallet):
         QMainWindow.__init__(self)
@@ -136,6 +136,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         self.create_status_bar()
         self.need_update = threading.Event()
+        self.labels_need_update = threading.Event()
 
         self.decimal_point = config.get('decimal_point', 8)
         self.fee_unit = config.get('fee_unit', 0)
@@ -658,9 +659,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def timer_actions(self):
         # Note this runs in the GUI thread
+
         if self.need_update.is_set():
-            self.need_update.clear()
-            self.update_wallet()
+            self._update_wallet() # will clear flag when it runs. (also clears labels_need_update as well)
+
+        if self.labels_need_update.is_set():
+            self._update_labels() # will clear flag when it runs.
 
         # resolve aliases
         # FIXME this is a blocking network call that has a timeout of 5 sec
@@ -780,11 +784,16 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
 
     def update_wallet(self):
+        self.need_update.set() # will enqueue an _update_wallet() call in at most 0.5 seconds from now.
+
+    def _update_wallet(self):
+        ''' Called by self.timer_actions every 0.5 secs if need_update flag is set.
+            Note that the flag is actually cleared by update_tabs.'''
         self.update_status()
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_tabs()
 
-    @rate_limited(1.0, classlevel=True) # Limit tab updates to no more than 1 per second, app-wide. Multiple calls across instances will be collated into 1 deferred series of calls
+    @rate_limited(1.0, classlevel=True) # Limit tab updates to no more than 1 per second, app-wide. Multiple calls across instances will be collated into 1 deferred series of calls (1 call per extant instance)
     def update_tabs(self):
         if self.cleaned_up: return
         self.history_list.update()
@@ -795,15 +804,25 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.invoice_list.update()
         self.update_completions()
         self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
+        self.need_update.clear() # clear flag
+        if self.labels_need_update.is_set():
+            # if flag was set, might as well declare the labels updated since they necessarily were due to a full update.
+            self.labels_updated_signal.emit() # just in case client code was waiting for this signal to proceed.
+            self.labels_need_update.clear() # clear flag
+
+    def update_labels(self):
+        self.labels_need_update.set() # will enqueue an _update_labels() call in at most 0.5 seconds from now
 
     @rate_limited(1.0)
-    def update_labels(self):
+    def _update_labels(self):
+        ''' Called by self.timer_actions every 0.5 secs if labels_need_update flag is set. '''
         if self.cleaned_up: return
         self.history_list.update_labels()
         self.address_list.update_labels()
         self.utxo_list.update_labels()
         self.update_completions()
         self.labels_updated_signal.emit()
+        self.labels_need_update.clear() # clear flag
 
     def create_history_tab(self):
         from .history_list import HistoryList
