@@ -229,7 +229,7 @@ class WaitingDialog(WindowModalDialog):
         vbox = QVBoxLayout(self)
         vbox.addWidget(QLabel(message))
         self.accepted.connect(self.on_accepted)
-        self.show()
+        self.show() # Bug here -- user can hit ESC key and kill the dialog before it's done. TODO: FIX!
         self.thread = TaskThread(self)
         self.thread.add(task, on_success, self.accept, on_error)
         self.auto_cleanup = auto_cleanup
