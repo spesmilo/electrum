@@ -1619,7 +1619,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             task = partial(Transaction.sign, tx, self.tx_external_keypairs)
         else:
             task = partial(self.wallet.sign_transaction, tx, password)
-        WaitingDialog(self.top_level_window(), _('Signing transaction...'), task,
+        WaitingDialog(self, _('Signing transaction...'), task,
                       on_signed, on_failed)
 
     def broadcast_transaction(self, tx, tx_desc):
