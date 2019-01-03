@@ -208,6 +208,8 @@ class ElectrumGui:
                         print_error('[start_new_window] Exception caught (GoBack)', e)
                     finally:
                         wizard.terminate()
+                        del wizard
+                        gc.collect() # wizard sticks around in memory sometimes, otherwise :/
                     if not wallet:
                         return
                     wallet.start_threads(self.daemon.network)
