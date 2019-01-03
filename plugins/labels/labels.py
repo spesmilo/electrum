@@ -225,7 +225,7 @@ class LabelsPlugin(BasePlugin):
         t = threading.Thread(target=self.pull_thread, args=(wallet, False))
         t.setDaemon(True)
         t.start()
-        self.print_error("Wallen", basename, "added.")
+        self.print_error("Wallet", basename, "added.")
         return True
 
     def stop_wallet(self, wallet):
