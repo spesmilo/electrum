@@ -221,7 +221,7 @@ class WindowModalDialog(QDialog, MessageBoxMixin):
 class WaitingDialog(WindowModalDialog):
     '''Shows a please wait dialog whilst runnning a task.  It is not
     necessary to maintain a reference to this dialog.'''
-    def __init__(self, parent, message, task, on_success=None, on_error=None):
+    def __init__(self, parent, message, task, on_success=None, on_error=None, auto_cleanup=True):
         assert parent
         if isinstance(parent, MessageBoxMixin):
             parent = parent.top_level_window()
@@ -232,12 +232,16 @@ class WaitingDialog(WindowModalDialog):
         self.show()
         self.thread = TaskThread(self)
         self.thread.add(task, on_success, self.accept, on_error)
+        self.auto_cleanup = auto_cleanup
 
     def wait(self):
         self.thread.wait()
 
     def on_accepted(self):
         self.thread.stop()
+        if self.auto_cleanup:
+            self.wait() # wait for thread to complete so that we can get cleaned up
+            self.setParent(None) # this causes GC to happen sooner rather than later. Before this call was added the WaitingDialogs would stick around in memory until the ElectrumWindow was closed and would never get GC'd before then. (as of PyQt5 5.11.3)
 
 
 def line_dialog(parent, title, label, ok_label, default=None):
