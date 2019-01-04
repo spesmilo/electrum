@@ -133,7 +133,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tl_windows = []
         self.tx_external_keypairs = {}
 
-        Address.show_cashaddr(config.get('show_cashaddr', False))
+        Address.show_cashaddr(config.get('show_cashaddr', True))
 
         self.create_status_bar()
         self.need_update = threading.Event()
@@ -2823,7 +2823,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.update_status()
 
     def cashaddr_icon(self):
-        if self.config.get('show_cashaddr', False):
+        if self.config.get('show_cashaddr', True):
             return QIcon(":icons/tab_converter.png")
         else:
             return QIcon(":icons/tab_converter_bw.png")
@@ -2832,7 +2832,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.addr_converter_button.setIcon(self.cashaddr_icon())
 
     def toggle_cashaddr_status_bar(self):
-        self.toggle_cashaddr(not self.config.get('show_cashaddr', False))
+        self.toggle_cashaddr(not self.config.get('show_cashaddr', True))
 
     def toggle_cashaddr_settings(self, state):
         self.toggle_cashaddr(state == Qt.Checked)
