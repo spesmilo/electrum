@@ -466,6 +466,9 @@ class NetworkChoiceLayout(object):
         self.network.run_from_another_thread(self.network.set_parameters(net_params))
 
     def suggest_proxy(self, found_proxy):
+        if found_proxy is None:
+            self.tor_cb.hide()
+            return
         self.tor_proxy = found_proxy
         self.tor_cb.setText("Use Tor proxy at port " + str(found_proxy[1]))
         if self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5') \
@@ -505,10 +508,14 @@ class TorDetector(QThread):
     def run(self):
         # Probable ports for Tor to listen at
         ports = [9050, 9150]
-        for p in ports:
-            if TorDetector.is_tor_port(p):
-                self.found_proxy.emit(("127.0.0.1", p))
-                return
+        while True:
+            for p in ports:
+                if TorDetector.is_tor_port(p):
+                    self.found_proxy.emit(("127.0.0.1", p))
+                    break
+            else:
+                self.found_proxy.emit(None)
+            time.sleep(10)
 
     @staticmethod
     def is_tor_port(port):
