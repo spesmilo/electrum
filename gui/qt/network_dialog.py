@@ -484,9 +484,10 @@ class NetworkChoiceLayout(QObject):
             return
         self.tor_proxy = found_proxy
         self.tor_cb.setText("Use Tor proxy at port " + str(found_proxy[1]))
-        if self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5') \
-            and self.proxy_host.text() == "127.0.0.1" \
-                and self.proxy_port.text() == str(found_proxy[1]):
+        if (self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5')
+            and self.proxy_host.text() == found_proxy[0]
+            and self.proxy_port.text() == str(found_proxy[1])
+            and self.proxy_cb.isChecked()):
             self.tor_cb.setChecked(True)
         self.tor_cb.show()
 
@@ -524,9 +525,9 @@ class TorDetector(QThread):
             self.stopQ.put(None)
 
     def run(self):
+        ports = [9050, 9150]
         while True:
             # Probable ports for Tor to listen at
-            ports = [9050, 9150]
             for p in ports:
                 if TorDetector.is_tor_port(p):
                     self.found_proxy.emit(("127.0.0.1", p))
