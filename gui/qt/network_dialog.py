@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import socket
+import socket, queue
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -32,7 +32,7 @@ import PyQt5.QtCore as QtCore
 
 from electroncash.i18n import _
 from electroncash.networks import NetworkConstants
-from electroncash.util import print_error
+from electroncash.util import print_error, Weak
 from electroncash.network import serialize_server, deserialize_server
 
 from .util import *
@@ -47,7 +47,7 @@ class NetworkDialog(QDialog):
         QDialog.__init__(self)
         self.setWindowTitle(_('Network'))
         self.setMinimumSize(500, 20)
-        self.nlayout = NetworkChoiceLayout(network, config)
+        self.nlayout = NetworkChoiceLayout(self, network, config)
         vbox = QVBoxLayout(self)
         vbox.addLayout(self.nlayout.layout())
         vbox.addLayout(Buttons(CloseButton(self)))
@@ -56,7 +56,7 @@ class NetworkDialog(QDialog):
 
     def on_network(self, event, *args):
         ''' This may run in network thread '''
-        self.network_updated_signal.emit() # this enquues call to on_update in GUI thread
+        self.network_updated_signal.emit() # this enqueues call to on_update in GUI thread
 
     @rate_limited(0.333) # limit network window updates to max 3 per second. More frequent isn't that useful anyway -- and on large wallets/big synchs the network spams us with events which we would rather collapse into 1
     def on_update(self):
@@ -184,17 +184,34 @@ class ServerListWidget(QTreeWidget):
         h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
 
 
-class NetworkChoiceLayout(object):
+class NetworkChoiceLayout(QObject):
 
-    def __init__(self, network, config, wizard=False):
+    def __init__(self, parent, network, config, wizard=False):
+        super().__init__(parent)
         self.network = network
         self.config = config
         self.protocol = None
         self.tor_proxy = None
 
+        # tor detector
+        self.td = TorDetector(self)
+        self.td.found_proxy.connect(self.suggest_proxy)
+
         self.tabs = tabs = QTabWidget()
         server_tab = QWidget()
-        proxy_tab = QWidget()
+        weakTd = Weak.ref(self.td)
+        class ProxyTab(QWidget):
+            def showEvent(slf, e):
+                super().showEvent(e)
+                td = weakTd()
+                if e.isAccepted() and td:
+                    td.start() # starts the tor detector when proxy_tab appears
+            def hideEvent(slf, e):
+                super().hideEvent(e)
+                td = weakTd()
+                if e.isAccepted() and td:
+                    td.stop() # stops the tor detector when proxy_tab disappears
+        proxy_tab = ProxyTab()
         blockchain_tab = QWidget()
         tabs.addTab(blockchain_tab, _('Overview'))
         tabs.addTab(server_tab, _('Server'))
@@ -316,10 +333,6 @@ class NetworkChoiceLayout(object):
         vbox = QVBoxLayout()
         vbox.addWidget(tabs)
         self.layout_ = vbox
-        # tor detector
-        self.td = td = TorDetector()
-        td.found_proxy.connect(self.suggest_proxy)
-        td.start()
 
         self.fill_in_proxy_settings()
         self.update()
@@ -465,6 +478,9 @@ class NetworkChoiceLayout(object):
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
 
     def suggest_proxy(self, found_proxy):
+        if not found_proxy:
+            self.tor_cb.hide()
+            return
         self.tor_proxy = found_proxy
         self.tor_cb.setText("Use Tor proxy at port " + str(found_proxy[1]))
         if self.proxy_mode.currentIndex() == self.proxy_mode.findText('SOCKS5') \
@@ -498,16 +514,29 @@ class NetworkChoiceLayout(object):
 class TorDetector(QThread):
     found_proxy = pyqtSignal(object)
 
-    def __init__(self):
-        QThread.__init__(self)
+    def start(self):
+        self.stopQ = queue.Queue() # create a new stopQ blowing away the old one just in case it has old data in it (this prevents races with stop/start arriving too quickly for the thread)
+        super().start()
+
+    def stop(self):
+        if self.isRunning():
+            self.stopQ.put(None)
 
     def run(self):
-        # Probable ports for Tor to listen at
-        ports = [9050, 9150]
-        for p in ports:
-            if TorDetector.is_tor_port(p):
-                self.found_proxy.emit(("127.0.0.1", p))
-                return
+        while True:
+            # Probable ports for Tor to listen at
+            ports = [9050, 9150]
+            for p in ports:
+                if TorDetector.is_tor_port(p):
+                    self.found_proxy.emit(("127.0.0.1", p))
+                    break
+            else:
+                self.found_proxy.emit(None) # no proxy found, will hide the Tor checkbox
+            try:
+                self.stopQ.get(timeout=10.0) # keep trying every 10 seconds
+                return # we must have gotten a stop signal if we get here, break out of function, ending thread
+            except queue.Empty:
+                continue # timeout, keep looping
 
     @staticmethod
     def is_tor_port(port):
