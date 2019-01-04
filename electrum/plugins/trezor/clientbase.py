@@ -203,6 +203,7 @@ class TrezorClientBase(PrintError):
                 self.client,
                 *args,
                 input_callback=input_callback,
+                type=recovery_type,
                 **kwargs)
 
     # ========= Unmodified trezorlib methods =========
