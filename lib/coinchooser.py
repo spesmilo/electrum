@@ -25,7 +25,7 @@
 from collections import defaultdict, namedtuple
 from math import floor, log10
 
-from .bitcoin import sha256, COIN, TYPE_ADDRESS
+from .bitcoin import sha256, COIN, TYPE_ADDRESS, is_address
 from .transaction import Transaction
 from .util import NotEnoughFunds, PrintError
 
@@ -87,6 +87,8 @@ def strip_unneeded(bkts, sufficient_funds):
 
 class CoinChooserBase(PrintError):
 
+    enable_output_value_rounding = False
+
     def keys(self, coins):
         raise NotImplementedError
 
@@ -135,7 +137,13 @@ class CoinChooserBase(PrintError):
         zeroes = [trailing_zeroes(i) for i in output_amounts]
         min_zeroes = min(zeroes)
         max_zeroes = max(zeroes)
-        zeroes = range(max(0, min_zeroes - 1), (max_zeroes + 1) + 1)
+
+        if n > 1:
+            zeroes = range(max(0, min_zeroes - 1), (max_zeroes + 1) + 1)
+        else:
+            # if there is only one change output, this will ensure that we aim
+            # to have one that is exactly as precise as the most precise output
+            zeroes = [min_zeroes]
 
         # Calculate change; randomize it a bit if using more than 1 output
         remaining = change_amount
@@ -150,8 +158,10 @@ class CoinChooserBase(PrintError):
             n -= 1
 
         # Last change output.  Round down to maximum precision but lose
-        # no more than 100 satoshis to fees (2dp)
-        N = pow(10, min(2, zeroes[0]))
+        # no more than 10**max_dp_to_round_for_privacy
+        # e.g. a max of 2 decimal places means losing 100 satoshis to fees
+        max_dp_to_round_for_privacy = 2 if self.enable_output_value_rounding else 0
+        N = pow(10, min(max_dp_to_round_for_privacy, zeroes[0]))
         amount = (remaining // N) * N
         amounts.append(amount)
 
@@ -230,6 +240,13 @@ class CoinChooserBase(PrintError):
         tx.add_inputs([coin for b in buckets for coin in b.coins])
         tx_weight = get_tx_weight(buckets)
 
+        # change is sent back to sending address unless specified
+        if not change_addrs:
+            change_addrs = [tx.inputs()[0]['address']]
+            # note: this is not necessarily the final "first input address"
+            # because the inputs had not been sorted at this point
+            assert is_address(change_addrs[0])
+
         # This takes a count of change outputs and returns a tx fee
         output_weight = 4 * Transaction.estimated_output_size(change_addrs[0])
         fee = lambda count: fee_estimator_w(tx_weight + count * output_weight)
@@ -273,6 +290,8 @@ class CoinChooserRandom(CoinChooserBase):
                     candidates.add(tuple(sorted(permutation[:count + 1])))
                     break
             else:
+                # FIXME this assumes that the effective value of any bkt is >= 0
+                # we should make sure not to choose buckets with <= 0 eff. val.
                 raise NotEnoughFunds()
 
         candidates = [[buckets[n] for n in c] for c in candidates]
@@ -284,7 +303,7 @@ class CoinChooserRandom(CoinChooserBase):
         Any bucket can be:
         1. "confirmed" if it only contains confirmed coins; else
         2. "unconfirmed" if it does not contain coins with unconfirmed parents
-        3. "unconfirmed parent" otherwise
+        3. other: e.g. "unconfirmed parent" or "local"
 
         This method tries to only use buckets of type 1, and if the coins there
         are not enough, tries to use the next type but while also selecting
@@ -292,9 +311,9 @@ class CoinChooserRandom(CoinChooserBase):
         """
         conf_buckets = [bkt for bkt in buckets if bkt.min_height > 0]
         unconf_buckets = [bkt for bkt in buckets if bkt.min_height == 0]
-        unconf_par_buckets = [bkt for bkt in buckets if bkt.min_height == -1]
+        other_buckets = [bkt for bkt in buckets if bkt.min_height < 0]
 
-        bucket_sets = [conf_buckets, unconf_buckets, unconf_par_buckets]
+        bucket_sets = [conf_buckets, unconf_buckets, other_buckets]
         already_selected_buckets = []
 
         for bkts_choose_from in bucket_sets:
@@ -368,4 +387,6 @@ def get_name(config):
 
 def get_coin_chooser(config):
     klass = COIN_CHOOSERS[get_name(config)]
-    return klass()
+    coinchooser = klass()
+    coinchooser.enable_output_value_rounding = config.get('coin_chooser_output_rounding', False)
+    return coinchooser

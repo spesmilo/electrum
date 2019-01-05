@@ -203,7 +203,8 @@ class Console(QtWidgets.QPlainTextEdit):
                     self.skip = not self.skip
 
             if type(self.namespace.get(command)) == type(lambda:None):
-                self.appendPlainText("'%s' is a function. Type '%s()' to use it in the Python console."%(command, command))
+                self.appendPlainText("'{}' is a function. Type '{}()' to use it in the Python console."
+                                     .format(command, command))
                 self.newPrompt()
                 return
 

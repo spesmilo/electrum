@@ -23,7 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 from . import util
-from .util import profiler, bh2u, get_cert_path
+from .util import profiler, bh2u
 import ecdsa
 import hashlib
 

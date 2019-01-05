@@ -3,7 +3,6 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 
-from electrum.util import fee_levels
 from electrum_gui.kivy.i18n import _
 
 Builder.load_string('''
@@ -12,29 +11,46 @@ Builder.load_string('''
     title: _('Transaction Fees')
     size_hint: 0.8, 0.8
     pos_hint: {'top':0.9}
+    method: 0
     BoxLayout:
         orientation: 'vertical'
         BoxLayout:
             orientation: 'horizontal'
             size_hint: 1, 0.5
             Label:
-                id: fee_per_kb
+                text: _('Method') + ':'
+            Button:
+                text: _('Mempool') if root.method == 2 else _('ETA') if root.method == 1 else _('Static')
+                background_color: (0,0,0,0)
+                bold: True
+                on_release:
+                    root.method  = (root.method + 1) % 3
+                    root.update_slider()
+                    root.update_text()
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint: 1, 0.5
+            Label:
+                text: (_('Target') if root.method > 0 else _('Fee')) + ':'
+            Label:
+                id: fee_target
                 text: ''
         Slider:
             id: slider
             range: 0, 4
             step: 1
             on_value: root.on_slider(self.value)
+        Widget:
+            size_hint: 1, 0.5
         BoxLayout:
             orientation: 'horizontal'
             size_hint: 1, 0.5
-            Label:
-                text: _('Dynamic Fees')
-            CheckBox:
-                id: dynfees
-                on_active: root.on_checkbox(self.active)
+            TopLabel:
+                id: fee_estimate
+                text: ''
+                font_size: '14dp'
         Widget:
-            size_hint: 1, 1
+            size_hint: 1, 0.5
         BoxLayout:
             orientation: 'horizontal'
             size_hint: 1, 0.5
@@ -60,53 +76,57 @@ class FeeDialog(Factory.Popup):
         self.config = config
         self.fee_rate = self.config.fee_per_kb()
         self.callback = callback
-        self.dynfees = self.config.get('dynamic_fees', True)
-        self.ids.dynfees.active = self.dynfees
+        mempool = self.config.use_mempool_fees()
+        dynfees = self.config.is_dynfee()
+        self.method = (2 if mempool else 1) if dynfees else 0
         self.update_slider()
         self.update_text()
 
     def update_text(self):
-        value = int(self.ids.slider.value)
-        self.ids.fee_per_kb.text = self.get_fee_text(value)
+        pos = int(self.ids.slider.value)
+        dynfees, mempool = self.get_method()
+        if self.method == 2:
+            fee_rate = self.config.depth_to_fee(pos)
+            target, estimate = self.config.get_fee_text(pos, dynfees, mempool, fee_rate)
+            msg = 'In the current network conditions, in order to be positioned %s, a transaction will require a fee of %s.' % (target, estimate)
+        elif self.method == 1:
+            fee_rate = self.config.eta_to_fee(pos)
+            target, estimate = self.config.get_fee_text(pos, dynfees, mempool, fee_rate)
+            msg = 'In the last few days, transactions that confirmed %s usually paid a fee of at least %s.' % (target.lower(), estimate)
+        else:
+            fee_rate = self.config.static_fee(pos)
+            target, estimate = self.config.get_fee_text(pos, dynfees, True, fee_rate)
+            msg = 'In the current network conditions, a transaction paying %s would be positioned %s.' % (target, estimate)
+
+        self.ids.fee_target.text = target
+        self.ids.fee_estimate.text = msg
+
+    def get_method(self):
+        dynfees = self.method > 0
+        mempool = self.method == 2
+        return dynfees, mempool
 
     def update_slider(self):
         slider = self.ids.slider
-        if self.dynfees:
-            slider.range = (0, 4)
-            slider.step = 1
-            slider.value = self.config.get('fee_level', 2)
-        else:
-            slider.range = (0, 9)
-            slider.step = 1
-            slider.value = self.config.static_fee_index(self.fee_rate)
-
-    def get_fee_text(self, value):
-        if self.ids.dynfees.active:
-            tooltip = fee_levels[value]
-            if self.config.has_fee_estimates():
-                dynfee = self.config.dynfee(value)
-                tooltip += '\n' + (self.app.format_amount_and_units(dynfee)) + '/kB'
-        else:
-            fee_rate = self.config.static_fee(value)
-            tooltip = self.app.format_amount_and_units(fee_rate) + '/kB'
-            if self.config.has_fee_estimates():
-                i = self.config.reverse_dynfee(fee_rate)
-                tooltip += '\n' + (_('low fee') if i < 0 else 'Within %d blocks'%i)
-        return tooltip
+        dynfees, mempool = self.get_method()
+        maxp, pos, fee_rate = self.config.get_fee_slider(dynfees, mempool)
+        slider.range = (0, maxp)
+        slider.step = 1
+        slider.value = pos
 
     def on_ok(self):
         value = int(self.ids.slider.value)
-        self.config.set_key('dynamic_fees', self.dynfees, False)
-        if self.dynfees:
-            self.config.set_key('fee_level', value, True)
+        dynfees, mempool = self.get_method()
+        self.config.set_key('dynamic_fees', dynfees, False)
+        self.config.set_key('mempool_fees', mempool, False)
+        if dynfees:
+            if mempool:
+                self.config.set_key('depth_level', value, True)
+            else:
+                self.config.set_key('fee_level', value, True)
         else:
             self.config.set_key('fee_per_kb', self.config.static_fee(value), True)
         self.callback()
 
     def on_slider(self, value):
-        self.update_text()
-
-    def on_checkbox(self, b):
-        self.dynfees = b
-        self.update_slider()
         self.update_text()

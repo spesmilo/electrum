@@ -27,6 +27,8 @@ import time
 import threading
 import base64
 from functools import partial
+import traceback
+import sys
 
 import smtplib
 import imaplib
@@ -37,14 +39,14 @@ from email.encoders import encode_base64
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-import PyQt5.QtGui as QtGui
-from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QLineEdit)
+from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QLineEdit,
+                             QInputDialog)
 
 from electrum.plugins import BasePlugin, hook
 from electrum.paymentrequest import PaymentRequest
 from electrum.i18n import _
-from electrum_gui.qt.util import EnterButton, Buttons, CloseButton
-from electrum_gui.qt.util import OkButton, WindowModalDialog
+from electrum_gui.qt.util import (EnterButton, Buttons, CloseButton, OkButton,
+                                  WindowModalDialog, get_parent_main_window)
 
 
 class Processor(threading.Thread):
@@ -64,9 +66,9 @@ class Processor(threading.Thread):
         except:
             return
         typ, data = self.M.search(None, 'ALL')
-        for num in data[0].split():
+        for num in str(data[0], 'utf8').split():
             typ, msg_data = self.M.fetch(num, '(RFC822)')
-            msg = email.message_from_string(msg_data[0][1])
+            msg = email.message_from_string(str(msg_data[0][1], 'utf8'))
             p = msg.get_payload()
             if not msg.is_multipart():
                 p = [p]
@@ -127,19 +129,29 @@ class Plugin(BasePlugin):
             self.processor.start()
         self.obj = QEmailSignalObject()
         self.obj.email_new_invoice_signal.connect(self.new_invoice)
+        self.wallets = set()
 
     def on_receive(self, pr_str):
         self.print_error('received payment request')
         self.pr = PaymentRequest(pr_str)
         self.obj.email_new_invoice_signal.emit()
 
+    @hook
+    def load_wallet(self, wallet, main_window):
+        self.wallets |= {wallet}
+
+    @hook
+    def close_wallet(self, wallet):
+        self.wallets -= {wallet}
+
     def new_invoice(self):
-        self.parent.invoices.add(self.pr)
-        #window.update_invoices_list()
+        for wallet in self.wallets:
+            wallet.invoices.add(self.pr)
+        #main_window.invoice_list.update()
 
     @hook
     def receive_list_menu(self, menu, addr):
-        window = menu.parentWidget()
+        window = get_parent_main_window(menu)
         menu.addAction(_("Send via e-mail"), lambda: self.send(window, addr))
 
     def send(self, window, addr):
@@ -152,20 +164,20 @@ class Plugin(BasePlugin):
             pr = paymentrequest.make_request(self.config, r)
         if not pr:
             return
-        recipient, ok = QtGui.QInputDialog.getText(window, 'Send request', 'Email invoice to:')
+        recipient, ok = QInputDialog.getText(window, 'Send request', 'Email invoice to:')
         if not ok:
             return
         recipient = str(recipient)
         payload = pr.SerializeToString()
         self.print_error('sending mail to', recipient)
         try:
+            # FIXME this runs in the GUI thread and blocks it...
             self.processor.send(recipient, message, payload)
         except BaseException as e:
+            traceback.print_exc(file=sys.stderr)
             window.show_message(str(e))
-            return
-
-        window.show_message(_('Request sent.'))
-
+        else:
+            window.show_message(_('Request sent.'))
 
     def requires_settings(self):
         return True
@@ -204,9 +216,12 @@ class Plugin(BasePlugin):
 
         server = str(server_e.text())
         self.config.set_key('email_server', server)
+        self.imap_server = server
 
         username = str(username_e.text())
         self.config.set_key('email_username', username)
+        self.username = username
 
         password = str(password_e.text())
         self.config.set_key('email_password', password)
+        self.password = password

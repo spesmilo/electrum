@@ -65,9 +65,14 @@ class Plugin(BasePlugin):
         tx = d.tx
         wallet = d.wallet
         window = d.main_window
+
+        if wallet.is_watching_only():
+            d.show_critical(_('This feature is not available for watch-only wallets.'))
+            return
+
         # 1. get the password and sign the verification request
         password = None
-        if wallet.has_password():
+        if wallet.has_keystore_encryption():
             msg = _('GreenAddress requires your signature \n'
                     'to verify that transaction is instant.\n'
                     'Please enter your password to sign a\n'
@@ -91,9 +96,9 @@ class Plugin(BasePlugin):
 
             # 3. display the result
             if response.get('verified'):
-                d.show_message(_('%s is covered by GreenAddress instant confirmation') % (tx.txid()), title=_('Verification successful!'))
+                d.show_message(_('{} is covered by GreenAddress instant confirmation').format(tx.txid()), title=_('Verification successful!'))
             else:
-                d.show_critical(_('%s is not covered by GreenAddress instant confirmation') % (tx.txid()), title=_('Verification failed!'))
+                d.show_critical(_('{} is not covered by GreenAddress instant confirmation').format(tx.txid()), title=_('Verification failed!'))
         except BaseException as e:
             import traceback
             traceback.print_exc(file=sys.stdout)

@@ -101,30 +101,18 @@ Run the docker image::
     ./run-docker.sh
 
 
-Building Releases
-=================
-
-
-MacOS
-------
-
-Simply - ::
-
-    ./setup-mac.sh
-
-    sudo ./create-dmg.sh
+See `contrib/build-osx/`.
 
 Windows
 -------
 
-See `contrib/build-wine/README` file.
+See `contrib/build-wine/`.
 
 
 Android
 -------
 
 See `gui/kivy/Readme.txt` file.
-UPSTREAM PATCH: https://github.com/spesmilo/electrum/blob/master/gui/kivy/Readme.md
 
 ---
 

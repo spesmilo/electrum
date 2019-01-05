@@ -1,4 +1,4 @@
 {
-    "electrum.zclassic.community": {"s":"50002"},
-    "zclele.duckdns.org": {"s":"50002"}
+    "electrum.zclassic.community": {"s":"50002", "pruning": "-", "version": "1.1"},
+    "zclele.duckdns.org": {"s":"50002", "pruning": "-", "version": "1.1"}
 }

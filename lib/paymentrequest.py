@@ -39,7 +39,8 @@ except ImportError:
 
 from . import bitcoin
 from . import util
-from .util import print_error, bh2u, bfh, get_cert_path
+from .util import print_error, bh2u, bfh
+from .util import export_meta, import_meta
 from . import transaction
 from . import x509
 from . import rsakey
@@ -49,7 +50,7 @@ from .bitcoin import TYPE_ADDRESS
 REQUEST_HEADERS = {'Accept': 'application/bitcoin-paymentrequest', 'User-Agent': 'Electrum'}
 ACK_HEADERS = {'Content-Type':'application/bitcoin-payment','Accept':'application/bitcoin-paymentack','User-Agent':'Electrum'}
 
-ca_path = get_cert_path()
+ca_path = requests.certs.where()
 ca_list = None
 ca_keyID = None
 
@@ -467,24 +468,29 @@ class InvoiceStore(object):
                 continue
 
     def import_file(self, path):
-        try:
-            with open(path, 'r') as f:
-                d = json.loads(f.read())
-                self.load(d)
-        except:
-            traceback.print_exc(file=sys.stderr)
-            return
+        def validate(data):
+            return data  # TODO
+        import_meta(path, validate, self.on_import)
+
+    def on_import(self, data):
+        self.load(data)
         self.save()
 
-    def save(self):
-        l = {}
+    def export_file(self, filename):
+        export_meta(self.dump(), filename)
+
+    def dump(self):
+        d = {}
         for k, pr in self.invoices.items():
-            l[k] = {
+            d[k] = {
                 'hex': bh2u(pr.raw),
                 'requestor': pr.requestor,
                 'txid': pr.tx
             }
-        self.storage.put('invoices', l)
+        return d
+
+    def save(self):
+        self.storage.put('invoices', self.dump())
 
     def get_status(self, key):
         pr = self.get(key)

@@ -3,7 +3,6 @@ from kivy.factory import Factory
 from kivy.properties import ObjectProperty
 from kivy.lang import Builder
 
-from electrum.util import fee_levels
 from electrum_gui.kivy.i18n import _
 
 Builder.load_string('''
@@ -29,7 +28,11 @@ Builder.load_string('''
                 text: _('New Fee')
                 value: ''
         Label:
-            id: tooltip
+            id: tooltip1
+            text: ''
+            size_hint_y: None
+        Label:
+            id: tooltip2
             text: ''
             size_hint_y: None
         Slider:
@@ -72,39 +75,39 @@ class BumpFeeDialog(Factory.Popup):
         self.tx_size = size
         self.callback = callback
         self.config = app.electrum_config
-        self.fee_step = self.config.max_fee_rate() / 10
-        self.dynfees = self.config.get('dynamic_fees', True) and self.app.network
+        self.mempool = self.config.use_mempool_fees()
+        self.dynfees = self.config.is_dynfee() and self.app.network and self.config.has_dynamic_fees_ready()
         self.ids.old_fee.value = self.app.format_amount_and_units(self.init_fee)
         self.update_slider()
         self.update_text()
 
     def update_text(self):
-        value = int(self.ids.slider.value)
-        self.ids.new_fee.value = self.app.format_amount_and_units(self.get_fee())
-        if self.dynfees:
-            value = int(self.ids.slider.value)
-            self.ids.tooltip.text = fee_levels[value]
+        fee = self.get_fee()
+        self.ids.new_fee.value = self.app.format_amount_and_units(fee)
+        pos = int(self.ids.slider.value)
+        fee_rate = self.get_fee_rate()
+        text, tooltip = self.config.get_fee_text(pos, self.dynfees, self.mempool, fee_rate)
+        self.ids.tooltip1.text = text
+        self.ids.tooltip2.text = tooltip
 
     def update_slider(self):
         slider = self.ids.slider
+        maxp, pos, fee_rate = self.config.get_fee_slider(self.dynfees, self.mempool)
+        slider.range = (0, maxp)
+        slider.step = 1
+        slider.value = pos
+
+    def get_fee_rate(self):
+        pos = int(self.ids.slider.value)
         if self.dynfees:
-            slider.range = (0, 4)
-            slider.step = 1
-            slider.value = 3
+            fee_rate = self.config.depth_to_fee(pos) if self.mempool else self.config.eta_to_fee(pos)
         else:
-            slider.range = (1, 10)
-            slider.step = 1
-            rate = self.init_fee*1000//self.tx_size
-            slider.value = min( rate * 2 // self.fee_step, 10)
+            fee_rate = self.config.static_fee(pos)
+        return fee_rate
 
     def get_fee(self):
-        value = int(self.ids.slider.value)
-        if self.dynfees:
-            if self.config.has_fee_estimates():
-                dynfee = self.config.dynfee(value)
-                return int(dynfee * self.tx_size // 1000)
-        else:
-            return int(value*self.fee_step * self.tx_size // 1000)
+        fee_rate = self.get_fee_rate()
+        return int(fee_rate * self.tx_size // 1000)
 
     def on_ok(self):
         new_fee = self.get_fee()

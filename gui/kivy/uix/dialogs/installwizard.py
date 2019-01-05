@@ -135,7 +135,7 @@ Builder.load_string('''
         height: self.minimum_height
         Label:
             color: root.text_color
-            text: _('From %d cosigners')%n.value
+            text: _('From {} cosigners').format(n.value)
         Slider:
             id: n
             range: 2, 5
@@ -143,7 +143,7 @@ Builder.load_string('''
             value: 2
         Label:
             color: root.text_color
-            text: _('Require %d signatures')%m.value
+            text: _('Require {} signatures').format(m.value)
         Slider:
             id: m
             range: 1, n.value
@@ -613,7 +613,7 @@ class RestoreSeedDialog(WizardDialog):
             for c in line.children:
                 if isinstance(c, Button):
                     if c.text in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
-                        c.disabled = (c.text.lower() not in p) and last_word
+                        c.disabled = (c.text.lower() not in p) and bool(last_word)
                     elif c.text == ' ':
                         c.disabled = not enable_space
 
@@ -807,7 +807,7 @@ class InstallWizard(BaseWizard, Widget):
         popup.init(message, callback)
         popup.open()
 
-    def request_password(self, run_next):
+    def request_password(self, run_next, force_disable_encrypt_cb=False):
         def callback(pin):
             if pin:
                 self.run('confirm_password', pin, run_next)

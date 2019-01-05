@@ -9,6 +9,8 @@
 # python-qt and its dependencies will still need to be installed with
 # your package manager.
 
+PYTHON_VER="$(python3 -c 'import sys; print(sys.version[:3])')"
+
 if [ -e ./env/bin/activate ]; then
     source ./env/bin/activate
 else
@@ -17,7 +19,7 @@ else
     python3 setup.py install
 fi
 
-export PYTHONPATH="/usr/local/lib/python3.5/site-packages:$PYTHONPATH"
+export PYTHONPATH="/usr/local/lib/python${PYTHON_VER}/site-packages:$PYTHONPATH"
 
 ./electrum "$@"
 

@@ -194,7 +194,7 @@ class QtPlugin(QtPluginBase):
         if type(keystore) == self.keystore_class and len(addrs) == 1:
             def show_address():
                 keystore.thread.add(partial(self.show_address, wallet, addrs[0]))
-            menu.addAction(_("Show on %s") % self.device, show_address)
+            menu.addAction(_("Show on {}").format(self.device), show_address)
 
     def show_settings_dialog(self, window, keystore):
         device_id = self.choose_device(window, keystore)
@@ -227,7 +227,7 @@ class QtPlugin(QtPluginBase):
             bg = QButtonGroup()
             for i, count in enumerate([12, 18, 24]):
                 rb = QRadioButton(gb)
-                rb.setText(_("%d words") % count)
+                rb.setText(_("{} words").format(count))
                 bg.addButton(rb)
                 bg.setId(rb, i)
                 hbox1.addWidget(rb)
@@ -292,7 +292,7 @@ class SettingsDialog(WindowModalDialog):
     their PIN.'''
 
     def __init__(self, window, plugin, keystore, device_id):
-        title = _("%s Settings") % plugin.device
+        title = _("{} Settings").format(plugin.device)
         super(SettingsDialog, self).__init__(window, title)
         self.setMaximumWidth(540)
 
@@ -457,9 +457,9 @@ class SettingsDialog(WindowModalDialog):
         settings_glayout = QGridLayout()
 
         # Settings tab - Label
-        label_msg = QLabel(_("Name this %s.  If you have mutiple devices "
+        label_msg = QLabel(_("Name this {}.  If you have mutiple devices "
                              "their labels help distinguish them.")
-                           % plugin.device)
+                           .format(plugin.device))
         label_msg.setWordWrap(True)
         label_label = QLabel(_("Device Label"))
         label_edit = QLineEdit()
@@ -482,7 +482,7 @@ class SettingsDialog(WindowModalDialog):
         pin_msg = QLabel(_("PIN protection is strongly recommended.  "
                            "A PIN is your only protection against someone "
                            "stealing your bitcoins if they obtain physical "
-                           "access to your %s.") % plugin.device)
+                           "access to your {}.").format(plugin.device))
         pin_msg.setWordWrap(True)
         pin_msg.setStyleSheet("color: red")
         settings_glayout.addWidget(pin_msg, 3, 1, 1, -1)
@@ -497,8 +497,8 @@ class SettingsDialog(WindowModalDialog):
             homescreen_clear_button.clicked.connect(clear_homescreen)
             homescreen_msg = QLabel(_("You can set the homescreen on your "
                                       "device to personalize it.  You must "
-                                      "choose a %d x %d monochrome black and "
-                                      "white image.") % (hs_rows, hs_cols))
+                                      "choose a {} x {} monochrome black and "
+                                      "white image.").format(hs_rows, hs_cols))
             homescreen_msg.setWordWrap(True)
             settings_glayout.addWidget(homescreen_label, 4, 0)
             settings_glayout.addWidget(homescreen_change_button, 4, 1)
@@ -541,7 +541,7 @@ class SettingsDialog(WindowModalDialog):
         clear_pin_button.clicked.connect(clear_pin)
         clear_pin_warning = QLabel(
             _("If you disable your PIN, anyone with physical access to your "
-              "%s device can spend your bitcoins.") % plugin.device)
+              "{} device can spend your bitcoins.").format(plugin.device))
         clear_pin_warning.setWordWrap(True)
         clear_pin_warning.setStyleSheet("color: red")
         advanced_glayout.addWidget(clear_pin_button, 0, 2)

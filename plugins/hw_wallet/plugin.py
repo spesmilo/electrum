@@ -51,3 +51,10 @@ class HW_PluginBase(BasePlugin):
         for keystore in wallet.get_keystores():
             if isinstance(keystore, self.keystore_class):
                 self.device_manager().unpair_xpub(keystore.xpub)
+
+    def setup_device(self, device_info, wizard, purpose):
+        """Called when creating a new wallet or when using the device to decrypt
+        an existing wallet. Select the device to use.  If the device is
+        uninitialized, go through the initialization process.
+        """
+        raise NotImplementedError()

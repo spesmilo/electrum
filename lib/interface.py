@@ -31,9 +31,7 @@ import threading
 import time
 import traceback
 
-from .util import print_error, get_cert_path
-
-ca_path = get_cert_path()
+from .util import print_error
 
 from . import util
 from . import x509

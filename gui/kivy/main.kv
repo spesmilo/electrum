@@ -239,7 +239,7 @@
         self.screen.show_menu(args[0]) if self.state == 'down' else self.screen.hide_menu()
     canvas.before:
         Color:
-            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.3, 0.3, 0.3, 1)
+            rgba: (0.192, .498, 0.745, 1) if self.state == 'down' else (0.15, 0.15, 0.17, 1)
         Rectangle:
             size: self.size
             pos: self.pos
@@ -397,7 +397,7 @@
             slide: 1
         CleanHeader:
             id: history_tab
-            text: _('History')
+            text: _('Balance')
             slide: 2
         CleanHeader:
             id: receive_tab

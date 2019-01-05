@@ -6,17 +6,17 @@ contrib=$(dirname "$0")
 
 which virtualenv > /dev/null 2>&1 || { echo "Please install virtualenv" && exit 1; }
 
-rm $venv_dir -rf
-virtualenv $venv_dir
+for i in '' '-hw' '-binaries'; do
+    rm "$venv_dir" -rf
+    virtualenv -p $(which python3) $venv_dir
 
-source $venv_dir/bin/activate
+    source $venv_dir/bin/activate
 
-echo "Installing dependencies"
+    echo "Installing $i dependencies"
 
-pushd $contrib/..
-python setup.py install
-popd
+    python -m pip install -r $contrib/requirements/requirements${i}.txt --upgrade
 
-pip freeze | sed '/^Electrum/ d' > $contrib/requirements.txt
+    pip freeze | sed '/^Electrum/ d' > $contrib/deterministic-build/requirements${i}.txt
+done
 
-echo "Updated requirements"
+echo "Done. Updated requirements"

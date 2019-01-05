@@ -10,7 +10,7 @@ from electrum.plugins import BasePlugin
 from electrum.keystore import Hardware_KeyStore
 from electrum.transaction import Transaction
 from ..hw_wallet import HW_PluginBase
-from electrum.util import print_error, is_verbose, bfh, bh2u
+from electrum.util import print_error, is_verbose, bfh, bh2u, versiontuple
 
 try:
     import hid
@@ -56,9 +56,6 @@ class Ledger_Client():
 
     def i4b(self, x):
         return pack('>I', x)
-
-    def versiontuple(self, v):
-        return tuple(map(int, (v.split("."))))
 
     def test_pin_unlocked(func):
         """Function decorator to test the Ledger for being unlocked, and if not,
@@ -140,9 +137,9 @@ class Ledger_Client():
         try:
             firmwareInfo = self.dongleObject.getFirmwareVersion()
             firmware = firmwareInfo['version']
-            self.multiOutputSupported = self.versiontuple(firmware) >= self.versiontuple(MULTI_OUTPUT_SUPPORT)
-            self.nativeSegwitSupported = self.versiontuple(firmware) >= self.versiontuple(SEGWIT_SUPPORT)
-            self.segwitSupported = self.nativeSegwitSupported or (firmwareInfo['specialVersion'] == 0x20 and self.versiontuple(firmware) >= self.versiontuple(SEGWIT_SUPPORT_SPECIAL))
+            self.multiOutputSupported = versiontuple(firmware) >= versiontuple(MULTI_OUTPUT_SUPPORT)
+            self.nativeSegwitSupported = versiontuple(firmware) >= versiontuple(SEGWIT_SUPPORT)
+            self.segwitSupported = self.nativeSegwitSupported or (firmwareInfo['specialVersion'] == 0x20 and versiontuple(firmware) >= versiontuple(SEGWIT_SUPPORT_SPECIAL))
 
             if not checkFirmware(firmwareInfo):
                 self.dongleObject.dongle.close()
@@ -172,6 +169,10 @@ class Ledger_Client():
                 raise Exception("Dongle is temporarily locked - please unplug it and replug it again")
             if ((e.sw & 0xFFF0) == 0x63c0):
                 raise Exception("Invalid PIN - please unplug the dongle and plug it again before retrying")
+            if e.sw == 0x6f00 and e.message == 'Invalid channel':
+                # based on docs 0x6f00 might be a more general error, hence we also compare message to be sure
+                raise Exception("Invalid channel.\n"
+                                "Please make sure that 'Browser support' is disabled on your device.")
             raise e
 
     def checkDevice(self):
@@ -236,7 +237,7 @@ class Ledger_KeyStore(Hardware_KeyStore):
         return address_path[2:]
 
     def decrypt_message(self, pubkey, message, password):
-        raise RuntimeError(_('Encryption and decryption are currently not supported for %s') % self.device)
+        raise RuntimeError(_('Encryption and decryption are currently not supported for {}').format(self.device))
 
     def sign_message(self, sequence, message, password):
         self.signing = True
@@ -463,8 +464,9 @@ class Ledger_KeyStore(Hardware_KeyStore):
         address_path = self.get_derivation()[2:] + "/%d/%d"%sequence
         self.handler.show_message(_("Showing address ..."))
         segwit = Transaction.is_segwit_inputtype(txin_type)
+        segwitNative = txin_type == 'p2wpkh'
         try:
-            client.getWalletPublicKey(address_path, showOnScreen=True, segwit=segwit)
+            client.getWalletPublicKey(address_path, showOnScreen=True, segwit=segwit, segwitNative=segwitNative)
         except BTChipException as e:
             if e.sw == 0x6985:  # cancelled by user
                 pass
@@ -514,14 +516,15 @@ class LedgerPlugin(HW_PluginBase):
         return HIDDongleHIDAPI(dev, ledger, BTCHIP_DEBUG)
 
     def create_client(self, device, handler):
-        self.handler = handler
+        if handler:
+            self.handler = handler
 
         client = self.get_btchip_device(device)
         if client is not None:
             client = Ledger_Client(client)
         return client
 
-    def setup_device(self, device_info, wizard):
+    def setup_device(self, device_info, wizard, purpose):
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
