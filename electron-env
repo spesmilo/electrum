@@ -19,10 +19,6 @@ fi
 
 export PYTHONPATH="/usr/local/lib/python3.5/site-packages:$PYTHONPATH"
 
-if [ ! -e ./gui/qt/icons_rc.py ]; then
-    pyrcc5 icons.qrc -o gui/qt/icons_rc.py
-fi
-
 ./electron-cash "$@"
 
 deactivate

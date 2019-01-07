@@ -68,13 +68,6 @@ git submodule update
 rm  -rf $BUILDDIR > /dev/null 2>&1
 mkdir $BUILDDIR
 
-info "Downloading icons..."
-for repo in icons; do
-  git clone $GIT_REPO_ACCT/electrum-$repo $BUILDDIR/electrum-$repo
-done
-
-cp    $BUILDDIR/electrum-icons/icons_rc.py ./gui/qt/
-
 info "Installing requests..."
 python3 -m pip install -I --user requests || fail "Could not install requests"
 info "Making locale..."

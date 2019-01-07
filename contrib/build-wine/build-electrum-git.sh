@@ -31,7 +31,7 @@ else
     git clone -b master $URL electrum # rest of script assumes the dir is called 'electrum'
 fi
 
-for repo in electrum-locale electrum-icons; do
+for repo in electrum-locale; do
     if [ -d $repo ]; then
         cd $repo
         git checkout master
@@ -69,7 +69,6 @@ rm -rf $WINEPREFIX/drive_c/electrum
 cp -r electrum $WINEPREFIX/drive_c/electrum
 cp electrum/LICENCE .
 cp -r electrum-locale/locale $WINEPREFIX/drive_c/electrum/lib/
-cp electrum-icons/icons_rc.py $WINEPREFIX/drive_c/electrum/gui/qt/
 
 
 # Install frozen dependencies
@@ -103,12 +102,11 @@ cd dist
 mv Electron-Cash-setup.exe $NAME_ROOT-$VERSION-setup.exe
 
 cd ../../..
-if [ -d packages -a -e gui/qt/icons_rc.py ] ; then
+if [ -d packages ] ; then
     python3 setup.py sdist --format=zip,gztar
-    sha256sum gui/qt/icons_rc.py
 else
-    echo "Not creating source distribution since packages or icons file missing."
-    echo "Run './contrib/make_packages' and/or 'pyrcc5 icons.qrc -o gui/qt/icons_rc.py'"
+    echo "Not creating source distribution since packages directory is missing."
+    echo "Run './contrib/make_packages'"
     echo "Then you can run 'python3 setup.py sdist --format=zip,gztar'"
 fi
 
