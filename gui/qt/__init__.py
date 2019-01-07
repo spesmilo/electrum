@@ -43,15 +43,7 @@ from electroncash.networks import NetworkConstants
 
 from .installwizard import InstallWizard, GoBack
 
-
-try:
-    from . import icons_rc
-except Exception as e:
-    print(e)
-    print("Error: Could not find icons file.")
-    print("Run 'pyrcc5 icons.qrc -o gui/qt/icons_rc.py', and re-run Electron Cash")
-    sys.exit(1)
-
+from . import icons # This needs to be imported once app-wide then the :icons/ namespace becomes available for Qt icon filenames.
 from .util import *   # * needed for plugins
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
