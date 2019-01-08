@@ -170,7 +170,7 @@ class Plugin(RevealerPlugin):
         code_id = self.versioned_seed.checksum
         dialog.show_message(''.join([_("{} encrypted for Revealer {}_{} saved as PNG and PDF at: ").format(self.was, version, code_id),
                                      "<b>", self.get_path_to_revealer_file(), "</b>", "<br/>",
-                                     "<br/>", "<b>", _("Always check you backups.")]),
+                                     "<br/>", "<b>", _("Always check your backups.")]),
                             rich_text=True)
         dialog.close()
 
