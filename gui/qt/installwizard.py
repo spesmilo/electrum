@@ -508,7 +508,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         network.auto_connect = (r == 0)
         self.config.set_key('auto_connect', network.auto_connect, True)
         if r == 1:
-            nlayout = NetworkChoiceLayout(network, self.config, wizard=True)
+            nlayout = NetworkChoiceLayout(self, network, self.config, wizard=True)
             if self.exec_layout(nlayout.layout()):
                 nlayout.accept()
 
