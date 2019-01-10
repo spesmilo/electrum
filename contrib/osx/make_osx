@@ -2,9 +2,11 @@
 
 build_dir=$(dirname "$0")
 test -n "$build_dir" -a -d "$build_dir" || exit
-cd $build_dir/../..
 
 . "$build_dir"/base.sh # functions we use below
+
+cd $build_dir/../..
+
 
 export PYTHONHASHSEED=22
 VERSION=`git describe --tags`
