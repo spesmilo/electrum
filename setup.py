@@ -63,17 +63,7 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
 setup(
     name="Electron Cash",
     version=version.PACKAGE_VERSION,
-    install_requires=[
-        'pyaes>=0.1a1',
-        'ecdsa>=0.9',
-        'requests',
-        'qrcode',
-        'protobuf',
-        'dnspython',
-        'jsonrpclib-pelix',
-        'PySocks>=1.6.6',
-        'pyqt5',
-    ],
+    install_requires=requirements + ['pyqt5'],
     extras_require={
         'hardware': requirements_hw,
     },
