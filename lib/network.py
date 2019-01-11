@@ -482,11 +482,12 @@ class Network(util.DaemonThread):
             self.socket_queue = queue.Queue()
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
-        try:
-            self.save_parameters(host, port, protocol, proxy, auto_connect)
-        except ValueError:
-            return
-        self.load_parameters()
+        with self.interface_lock:
+            try:
+                self.save_parameters(host, port, protocol, proxy, auto_connect)
+            except ValueError:
+                return
+            self.load_parameters()
 
     def save_parameters(self, host, port, protocol, proxy, auto_connect):
         proxy_str = serialize_proxy(proxy)
