@@ -1,5 +1,7 @@
 #!/bin/bash
 
+. ./common.sh
+
 if [ ! -d iOS ]; then
     echo "Error: No iOS directory"
     exit 1
@@ -15,9 +17,9 @@ projdir_top="iOS/"
 pushd . > /dev/null
 cd $projdir
 
-a=`find ElectronCash/ -type f -depth 1 -name \*.py -print`
-b=`find ElectronCash/electroncash_gui -type f -name \*.py -print`
-c=`find ElectronCash/electroncash -type f -name \*.py -print`
+a=`find ${compact_name}/ -type f -depth 1 -name \*.py -print`
+b=`find ${compact_name}/electroncash_gui -type f -name \*.py -print`
+c=`find ${compact_name}/electroncash -type f -name \*.py -print`
 popd > /dev/null
 
 pushd . > /dev/null
@@ -70,7 +72,7 @@ function doIt() {
 for file in $a $b; do
     f1="${file}"
     f2="${projdir}/${file}"
-    doIt "$f1" "$f2" "ElectronCash/"
+    doIt "$f1" "$f2" "${compact_name}/"
 done
 
 for f in $c; do
