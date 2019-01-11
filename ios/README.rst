@@ -11,17 +11,19 @@ Quick Start Instructions
 ------------------------
 1. Requirements:
 
-   * MacOS 10.11 or above is required with Xcode installed
+   * MacOS 10.11 or above is required with Xcode installed (Xcode >= 10.1)
    * MacPorts is required (Brew may work too but is untested)
    * Python 3.5 must be installed via MacPorts/Brew
    * cookiecutter, briefcase, pbxproj, and setuptools python packages must be installed::
    
-           sudo python3 -m pip install setuptools
-           sudo python3 -m pip install cookiecutter
-           sudo python3 -m pip install briefcase
-           sudo python3 -m pip install pbxproj
+           sudo python3 -m pip install 'setuptools==40.6.2'
+           sudo python3 -m pip install 'cookiecutter==1.6.0'
+           sudo python3 -m pip install 'briefcase==0.2.6'
+           sudo python3 -m pip install 'pbxproj==2.5.1'
            
-   * If you're using Brew, use pyenv to setup a Python 3.5 environemnt, and do the above commands *without* sudo
+           (NOTE: The exact versions specified above are known to work!)
+
+   * If you're using Brew, use pyenv to setup a Python 3.5 environment, and do the above commands *without* sudo
 
 2. Generate the iOS project using the included shell script::
 
@@ -30,7 +32,6 @@ Quick Start Instructions
 3. Use Xcode to open the generated project, and add the following two libs (frameworks) to the project::
 
            libxml2.tbd
-           AVFoundation.framework
 
 4. You may edit the python files in the Xcode project and build the app, etc.  Note that the python files in the app are copies of the files in the sourcecode repository. If you plan on committing changes back to the repository, use the included script to copy back changes::
 
