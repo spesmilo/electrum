@@ -1,5 +1,7 @@
 #!/bin/bash
 
+. ./common.sh
+
 /usr/bin/env python3 --version | grep -q " 3.5"
 if [ "$?" != "0" ]; then
 	if /usr/bin/env python3 --version; then
@@ -47,9 +49,9 @@ if [ -d iOS ]; then
 	rm -fr iOS
 fi
 
-if [ -d ElectronCash/electroncash ]; then
-	echo "Deleting old ElectronCash/electroncash..."
-	rm -fr ElectronCash/electroncash
+if [ -d ${compact_name}/electroncash ]; then
+	echo "Deleting old ${compact_name}/electroncash..."
+	rm -fr ${compact_name}/electroncash
 fi
 
 echo "Pulling 'electroncash' libs into project from ../lib ..."
@@ -60,8 +62,8 @@ if [ ! -d ../lib/locale ]; then
 		exit 1
 	fi
 fi
-cp -fpR ../lib ElectronCash/electroncash
-find ElectronCash -name \*.pyc -exec rm -f {} \; 
+cp -fpR ../lib ${compact_name}/electroncash
+find ${compact_name} -name \*.pyc -exec rm -f {} \; 
 
 echo ""
 echo "Building Briefcase-Based iOS Project..."
@@ -76,7 +78,7 @@ fi
 # No longer needed: they fixed the bug.  But leaving it here in case bug comes back!
 #cd iOS && ln -s . Support ; cd .. # Fixup for broken Briefcase template.. :/
 
-infoplist="iOS/ElectronCash/ElectronCash-Info.plist"
+infoplist="iOS/${compact_name}/${compact_name}-Info.plist"
 if [ -f "${infoplist}" ]; then
 	echo ""
 	echo "Adding custom keys to ${infoplist} ..."
@@ -138,7 +140,7 @@ if [ -d overrides/ ]; then
 	(cd overrides && cp -fpvR * ../iOS/ && cd ..)
 fi
 
-stupid_launch_image_grr="iOS/ElectronCash/Images.xcassets/LaunchImage.launchimage"
+stupid_launch_image_grr="iOS/${compact_name}/Images.xcassets/LaunchImage.launchimage"
 if [ -d "${stupid_launch_image_grr}" ]; then
 	echo ""
 	echo "Removing deprecated LaunchImage stuff..."
@@ -170,13 +172,13 @@ git checkout send_super_fix
 gitexit2="$?"
 cd ..
 cd ..
-[ "$gitexit" != "0" -o "$gitexit2" != 0 ] && echo '*** Error crabbing the latest rubicon off of github' && exit 1
+[ "$gitexit" != "0" -o "$gitexit2" != 0 ] && echo '*** Error grabbing the latest rubicon off of github' && exit 1
 rm -fr iOS/app_packages/rubicon/objc
 cp -fpvr scratch/rubicon-objc/rubicon/objc iOS/app_packages/rubicon/ 
 [ "$?" != "0" ] && echo '*** Error copying rubicon files' && exit 1
 rm -fr scratch
 
-xcode_file="Electron-Cash.xcodeproj/project.pbxproj" 
+xcode_file="${xcode_target}.xcodeproj/project.pbxproj" 
 echo ""
 echo "Mogrifying Xcode .pbxproj file to use iOS 10.0 deployment target..."
 echo ""
@@ -189,7 +191,6 @@ else
 	echo ".pbxproj mogrifid ok."
 fi
 
-xcode_target="Electron-Cash"
 echo ""
 echo "Adding HEADER_SEARCH_PATHS to Xcode .pbxproj..."
 echo ""
@@ -230,7 +231,7 @@ fi
 echo ""
 echo "Modifying main.m to include PYTHONIOENCODING=UTF-8..."
 echo ""
-main_m="iOS/ElectronCash/main.m"
+main_m="iOS/${compact_name}/main.m"
 if cat $main_m | sed -e '1 s/putenv/putenv("PYTHONIOENCODING=UTF-8"); putenv/; t' -e '1,// s//putenv("PYTHONIOENCODING=UTF-8"); putenv/' > ${main_m}.new; then
 	mv -fv ${main_m}.new $main_m
 else
@@ -240,7 +241,7 @@ fi
 echo ""
 echo "Copying google protobuf paymentrequests.proto to app lib dir..."
 echo ""
-cp -fva ElectronCash/electroncash/*.proto iOS/app/ElectronCash/electroncash
+cp -fva ${compact_name}/electroncash/*.proto iOS/app/${compact_name}/electroncash
 if [ "$?" != "0" ]; then
 	echo "** WARNING: Failed to copy google protobuf .proto file to app lib dir!"
 fi

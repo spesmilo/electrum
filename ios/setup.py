@@ -4,12 +4,29 @@ import re
 from setuptools import setup, find_packages
 import sys
 
-with io.open('./ElectronCash/__init__.py', encoding='utf8') as version_file:
-    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file.read(), re.M)
+with io.open('./common.sh') as f:
+    contents = f.read()
+    name_match = re.search(r"^ *compact_name *= *['\"]([^'\"]*)['\"]", contents, re.M)
+    if name_match:
+        compact_name=name_match.group(1)
+    else:
+        raise RuntimeError("Unable to find compact_name in ./common.sh")
+
+    formal_name_match = re.search(r"^ *xcode_target *= *['\"]([^'\"]*)['\"]", contents, re.M)
+    if formal_name_match:
+        formal_name=formal_name_match.group(1)
+    else:
+        raise RuntimeError("Unable to find xcode_target in ./common.sh")
+    del name_match, formal_name_match, contents
+
+version_py = './{}/electroncash/version.py'.format(compact_name)
+with io.open(version_py, encoding='utf8') as version_file:
+    version_match = re.search(r"^ *PACKAGE_VERSION *= *['\"]([^'\"]*)['\"]", version_file.read(), re.M)
     if version_match:
         version = version_match.group(1)
     else:
-        raise RuntimeError("Unable to find version string.")
+        raise RuntimeError("Unable to find PACKAGE_VERSION in {}.".format(version_py))
+    del version_match, version_py
 
 
 with io.open('README.rst', encoding='utf8') as readme:
@@ -17,7 +34,7 @@ with io.open('README.rst', encoding='utf8') as readme:
 
 
 setup(
-    name='ElectronCash',
+    name=compact_name, # comes from common.sh
     version=version,
     description='A Bitcoin Cash SPV Wallet',
     long_description=long_description,
@@ -41,13 +58,13 @@ setup(
     install_requires=[
         'certifi', 'chardet', 'dnspython', 'ecdsa>=0.9', 'idna',
         'jsonrpclib-pelix', 'protobuf',
-        'pyaes>=0.1a1', #'pyOpenSSL>=17.5.0', 
+        'pyaes>=0.1a1',
         'PySocks>=1.6.6', 'qrcode', 'requests', 'six',
-        'urllib3' #, 'pyqt5'
+        'urllib3'
     ],
     options={
         'app': {
-            'formal_name': 'Electron-Cash',
+            'formal_name': formal_name, # comes from common.sh
             'bundle': 'com.c3-soft'
         },
 
@@ -55,7 +72,6 @@ setup(
         'ios': {
             'app_requires': [
                 'rubicon-objc'
-#                'toga-ios'
             ]
         },
     }
