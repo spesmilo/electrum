@@ -85,6 +85,9 @@ class WalletStorage(PrintError):
     def load_data(self, s):
         try:
             self.data = json.loads(s)
+
+            # Sanity check: wallet should be a quack like a dict. This throws if not.
+            self.data.get("dummy")
         except:
             try:
                 d = ast.literal_eval(s)
