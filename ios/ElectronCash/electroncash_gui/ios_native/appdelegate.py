@@ -9,7 +9,7 @@
 from .uikit_bindings import *
 from . import gui
 from . import utils
-import ElectronCash.app
+import app
 import time
 
 BG_HARD_LIMIT_SECS = 120.0
@@ -46,7 +46,7 @@ class PythonAppDelegate(UIResponder):
     def application_didFinishLaunchingWithOptions_(self, application : ObjCInstance, launchOptions : ObjCInstance) -> bool:
         #utils.NSLog("App finished launching. Options: %s",str(py_from_ns(launchOptions) if launchOptions else dict()))
 
-        ElectronCash.app.main()
+        app.main()
 
         return True
 
