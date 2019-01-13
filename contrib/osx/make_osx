@@ -39,6 +39,18 @@ else
     warn "Code signing DISABLED. Specify a valid macOS Developer identity installed on the system as the first argument to this script to enable signing."
 fi
 
+if [ -n `which brew` ]; then
+    info "Ensuring Python prerequisites are installed via brew"
+    for a in openssl readline sqlite3 xz zlib; do
+        brew list $a > /dev/null 2>&1
+        if [ "$?" != "0" ]; then
+            info "Installing $a"
+            brew install "$a" || fail "Could not install $a"
+        else
+            info "$a found"
+        fi
+    done
+fi
 
 info "Installing Python $PYTHON_VERSION"
 export PATH="~/.pyenv/bin:~/.pyenv/shims:~/.pyenv/versions/${PYTHON_VERSION}/bin:~/Library/Python/3.6/bin:$PATH"
@@ -48,12 +60,12 @@ else
   curl -L https://raw.githubusercontent.com/pyenv/pyenv-installer/master/bin/pyenv-installer | bash > /dev/null 2>&1
 fi
 PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s $PYTHON_VERSION && \
-pyenv global $PYTHON_VERSION || \
+pyenv global $PYTHON_VERSION && pyenv rehash || \
 fail "Unable to use Python $PYTHON_VERSION"
 
 
 info "Installing pyinstaller"
-python3 -m pip install https://github.com/cculianu/pyinstaller/releases/download/3.4AppleEvents/fix_AppleEvents_Bootloader.zip -I --user || fail "Could not install pyinstaller"
+python3 -m pip install https://github.com/cculianu/pyinstaller/releases/download/3.4AppleEvents/fix_AppleEvents_Bootloader.zip -I --user && pyenv rehash || fail "Could not install pyinstaller"
 
 info "Using these versions for building $PACKAGE:"
 sw_vers
@@ -133,3 +145,5 @@ if [ -z "$APP_SIGN" ]; then
     warn "App was built successfully but was not code signed. Users may get security warnings from macOS."
     warn "Specify a valid code signing identity as the first argument to this script to enable code signing."
 fi
+
+rm -fr $BUILDDIR
