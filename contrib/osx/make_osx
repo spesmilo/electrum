@@ -39,7 +39,8 @@ else
     warn "Code signing DISABLED. Specify a valid macOS Developer identity installed on the system as the first argument to this script to enable signing."
 fi
 
-if [ -n `which brew` ]; then
+have_brew=`which brew`
+if [ -n "$have_brew" ]; then
     info "Ensuring Python prerequisites are installed via brew"
     for a in openssl readline sqlite3 xz zlib; do
         brew list $a > /dev/null 2>&1
