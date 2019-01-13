@@ -113,7 +113,7 @@ class Plugin(RevealerPlugin):
         self.load_noise.textChanged.connect(self.on_edit)
         self.load_noise.setMaximumHeight(33)
         self.hbox.addLayout(vbox)
-        vbox.addWidget(WWLabel(_("or type a existing revealer code below and click 'next':")))
+        vbox.addWidget(WWLabel(_("or type an existing revealer code below and click 'next':")))
         vbox.addWidget(self.load_noise)
         vbox.addSpacing(3)
         self.next_button = QPushButton(_("Next"), self.d)

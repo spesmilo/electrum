@@ -255,7 +255,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def toggle_tab(self, tab):
         show = not self.config.get('show_{}_tab'.format(tab.tab_name), False)
         self.config.set_key('show_{}_tab'.format(tab.tab_name), show)
-        item_text = (_("Hide") if show else _("Show")) + " " + tab.tab_description
+        item_text = (_("Hide {}") if show else _("Show {}")).format(tab.tab_description)
         tab.menu_action.setText(item_text)
         if show:
             # Find out where to place the tab
