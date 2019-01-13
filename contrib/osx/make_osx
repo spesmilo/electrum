@@ -54,7 +54,7 @@ if [ -n "$have_brew" ]; then
 fi
 
 info "Installing Python $PYTHON_VERSION"
-export PATH="~/.pyenv/bin:~/.pyenv/shims:~/.pyenv/versions/${PYTHON_VERSION}/bin:~/Library/Python/3.6/bin:$PATH"
+export PATH=~/.pyenv/bin:~/.pyenv/shims:~/.pyenv/versions/${PYTHON_VERSION}/bin:~/Library/Python/3.6/bin:"$PATH"
 if [ -d "~/.pyenv" ]; then
   pyenv update
 else
