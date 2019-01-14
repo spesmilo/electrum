@@ -12,12 +12,15 @@ export PYTHONHASHSEED=22
 VERSION=`git describe --tags`
 
 # Paramterize
-PYTHON_VERSION=3.6.4
+PYTHON_VERSION=3.6.8
 BUILDDIR=/tmp/electron-cash-build
 PACKAGE=Electron-Cash
 GIT_REPO_ACCT=https://github.com/Electron-Cash
 GIT_REPO=$GIT_REPO_ACCT/Electron-Cash
 LIBSECP_VERSION=452d8e4d2a2f9f1b5be6b02e18f1ba102e5ca0b4
+# Compute major.minor Python version from above using Bash array magic
+MAJ_MIN=(${PYTHON_VERSION//./ })
+MAJ_MIN=${MAJ_MIN[0]}.${MAJ_MIN[1]}
 
 which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
 
@@ -54,7 +57,7 @@ if [ -n "$have_brew" ]; then
 fi
 
 info "Installing Python $PYTHON_VERSION"
-export PATH=~/.pyenv/bin:~/.pyenv/shims:~/.pyenv/versions/${PYTHON_VERSION}/bin:~/Library/Python/3.6/bin:"$PATH"
+export PATH=~/.pyenv/bin:~/.pyenv/versions/${PYTHON_VERSION}/bin:~/.pyenv/shims:~/Library/Python/${MAJ_MIN}/bin:"$PATH"
 if [ -d "~/.pyenv" ]; then
   pyenv update
 else
@@ -91,7 +94,7 @@ python3 ./contrib/make_locale || fail "Failed to make locale..."
 info "Downloading libusb..."
 curl https://homebrew.bintray.com/bottles/libusb-1.0.21.el_capitan.bottle.tar.gz | \
 tar xz --directory $BUILDDIR
-cp $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib contrib/osx
+cp -fp $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib contrib/osx
 DoCodeSignMaybe "libusb" "contrib/osx/libusb-1.0.dylib" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 info "Building libsecp256k1"
