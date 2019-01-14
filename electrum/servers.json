@@ -1,7 +1,7 @@
 {
-    "127.0.0.1": {
+    "oceanelectrum.commerceblock.com": {
         "pruning": "-",
-        "t": "50001",
-        "version": "1.2"
+        "t": "18001",
+        "version": "1.7"
     }
 }
