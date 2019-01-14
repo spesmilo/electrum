@@ -4,7 +4,7 @@
 PYTHON_VERSION=3.6.4
 BUILDDIR=/tmp/electrum-build
 PACKAGE=Electrum
-GIT_REPO=https://github.com/spesmilo/electrum
+GIT_REPO=https://github.com/commerceblock/cb-electrum-wallet
 LIBSECP_VERSION=452d8e4d2a2f9f1b5be6b02e18f1ba102e5ca0b4
 
 . $(dirname "$0")/base.sh
