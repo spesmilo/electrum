@@ -70,10 +70,10 @@ setup(
     },
     scripts=['electrum/electrum'],
     data_files=data_files,
-    description="Lightweight Bitcoin Wallet",
-    author="Thomas Voegtlin",
-    author_email="thomasv@electrum.org",
+    description="Lightweight Ocean Wallet",
+    author="Thomas Voegtlin,CommerceBlockDevs",
+    author_email="nikolaos@commerceblock.com",
     license="MIT Licence",
     url="https://electrum.org",
-    long_description="""Lightweight Bitcoin Wallet"""
+    long_description="""Lightweight Ocean Wallet"""
 )

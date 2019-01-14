@@ -492,6 +492,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         addresses_menu = wallet_menu.addMenu(_("&Addresses"))
         addresses_menu.addAction(_("&Filter"), lambda: self.address_list.toggle_toolbar(self.config))
+        addresses_menu.addAction(_("&Export"), self.do_export_addresses)
         labels_menu = wallet_menu.addMenu(_("&Labels"))
         labels_menu.addAction(_("&Import"), self.do_import_labels)
         labels_menu.addAction(_("&Export"), self.do_export_labels)
@@ -2500,6 +2501,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def export_labels(filename):
             export_meta(self.wallet.labels, filename)
         export_meta_gui(self, _('labels'), export_labels)
+
+    def do_export_addresses(self):
+        def export_addresses(filename):
+            derived_addresses = []
+            for addr in self.wallet.get_addresses():
+                derived_addresses.append("{} {}".format(addr, ''.join(self.wallet.get_public_keys(addr, False))))
+            export_meta(derived_addresses, filename)
+        export_meta_gui(self, _('addresses'), export_addresses)
 
     def sweep_key_dialog(self):
         d = WindowModalDialog(self, title=_('Sweep private keys'))

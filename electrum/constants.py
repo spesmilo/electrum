@@ -72,9 +72,6 @@ class OceanMainnet:
 class OceanTestnet(OceanMainnet):
 
     TESTNET = True
-    BASIC_HEADER_SIZE = 108
-    MIN_HEADER_SIZE = 112
-    GENESIS = "357abd41543a09f9290ff4b4ae008e317f252b80c96492bd9f346cced0943a7f"
     DEFAULT_SERVERS = read_json('servers_testnet.json', {})
     CHECKPOINTS = []
 
