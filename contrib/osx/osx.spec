@@ -6,6 +6,7 @@ import sys
 import os
 
 PACKAGE='Electron-Cash'
+BUNDLE_IDENTIFIER='org.electroncash.' + PACKAGE # Used for info.plist 
 PYPKG='electroncash'
 MAIN_SCRIPT='electron-cash'
 ICONS_FILE='electron.icns'
@@ -103,7 +104,7 @@ app = BUNDLE(exe,
              version = VERSION,
              name=PACKAGE + '.app',
              icon=home+ICONS_FILE,
-             bundle_identifier=None,
+             bundle_identifier=BUNDLE_IDENTIFIER,
              info_plist = {
                  'NSHighResolutionCapable':'True',
                  'NSSupportsAutomaticGraphicsSwitching':'True'
