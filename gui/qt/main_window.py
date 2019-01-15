@@ -638,7 +638,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.tray:
             try:
                 # this requires Qt 5.9
-                self.tray.showMessage("Electron Cash", message, QIcon(":icons/electrum_dark_icon"), 20000)
+                self.tray.showMessage("Electron Cash", message, QIcon(":icons/electron_dark_icon.png"), 20000)
             except TypeError:
                 self.tray.showMessage("Electron Cash", message, QSystemTrayIcon.Information, 20000)
 

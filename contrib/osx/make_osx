@@ -95,7 +95,7 @@ info "Downloading libusb..."
 curl https://homebrew.bintray.com/bottles/libusb-1.0.21.el_capitan.bottle.tar.gz | \
 tar xz --directory $BUILDDIR
 cp -fp $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib contrib/osx
-DoCodeSignMaybe "libusb" "contrib/osx/libusb-1.0.dylib" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+#NOTE: Do *not* code sign these .dylibs. Doing so makes the in-app notifications no longer work for some unexplained reason.
 
 info "Building libsecp256k1"
 git clone https://github.com/bitcoin-core/secp256k1 $BUILDDIR/secp256k1
@@ -107,7 +107,7 @@ git clean -f -x -q
 make
 popd
 cp -fp $BUILDDIR/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx
-DoCodeSignMaybe "libsecp256k1" "contrib/osx/libsecp256k1.0.dylib" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+#NOTE: Do *not* code sign these .dylibs. Doing so makes the in-app notifications no longer work for some unexplained reason.
 
 info "Building CalinsQRReader..."
 d=contrib/osx/CalinsQRReader
