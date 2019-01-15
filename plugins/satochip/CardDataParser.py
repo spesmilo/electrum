@@ -29,6 +29,7 @@ class CardDataParser:
     def __init__(self):
         self.authentikey=None
         self.authentikey_coordx= None
+        self.authentikey_from_storage=None
         
     def parse_bip32_get_authentikey(self,response):
         # response= [data_size | data | sig_size | signature]
@@ -46,11 +47,18 @@ class CardDataParser:
         coordx=data
         self.authentikey= self.get_pubkey_from_signature(coordx, msg, signature)
         self.authentikey_coordx= coordx
+        
+        # if already initialized, check that authentikey match value retrieved from storage!
+        if (self.authentikey_from_storage is not None):
+            if  self.authentikey != self.authentikey_from_storage:
+                raise ValueError("Recovered authentikey does not correspond to registered authentikey!")
+        
         return self
         
     def parse_bip32_import_seed(self,response):
         # response= [data_size | data | sig_size | signature | nb_deleted]
         # where data is coordx
+        #todo: reset authentikey...
         self.parse_bip32_get_authentikey(response)
         offset= len(response)-2 #2+data_size+2+sig_size
         nb_deleted = ((int)(response[offset] & 0xff)<<8) + ((int)(response[offset+1] & 0xff))  

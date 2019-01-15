@@ -233,18 +233,18 @@ class CardConnector:
             print(str(e))
         return (response, sw1, sw2)      
 
-    def card_parse_transaction(self, transaction):
+    def card_parse_transaction(self, transaction, is_segwit=False):
             
         cla= JCconstants.CardEdge_CLA
         ins= JCconstants.INS_PARSE_TRANSACTION
         p1= JCconstants.OP_INIT
-        p2= 0x00
+        p2= 0X01 if is_segwit else 0x00
         
         # init transaction data and context
         txparser= TxParser(transaction)
         while not txparser.is_parsed():
             
-            chunk= txparser.parse_transaction()
+            chunk= txparser.parse_segwit_transaction() if is_segwit else txparser.parse_transaction()
             lc= len(chunk)
             apdu=[cla, ins, p1, p2, lc]
             apdu+=chunk
@@ -295,7 +295,20 @@ class CardConnector:
         except SWException as e:
             print(str(e))
         return (response, sw1, sw2)      
+    
+    def card_segwit_parse_outputs():
+        return
+    
+    def card_segwit_sign_outputs():
+        return
         
+    def card_segwit_parse_transaction():
+        return
+    
+    def card_segwit_sign_transaction():
+        return
+    
+    
     def card_create_PIN(self, pin_nbr, pin_tries, pin, ublk):
         cla= JCconstants.CardEdge_CLA
         ins= JCconstants.INS_CREATE_PIN

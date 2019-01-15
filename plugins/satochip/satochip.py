@@ -19,7 +19,9 @@ from electrum.base_wizard import ScriptTypeNotSupported
 from electrum.util import print_stderr, print_error
 from electrum.crypto import hash_160, Hash
 from electrum.bitcoin import serialize_xpub
-from electrum.ecc import CURVE_ORDER, der_sig_from_r_and_s, get_r_and_s_from_der_sig
+from electrum.ecc import CURVE_ORDER, der_sig_from_r_and_s, get_r_and_s_from_der_sig, ECPubkey
+from electrum.mnemonic import Mnemonic
+from electrum.keystore import bip39_to_seed
 
 #pysatochip
 from .CardConnector import CardConnector
@@ -38,12 +40,13 @@ SATOCHIP_PID= 0x0503
 
 def bip32path2bytes(bip32path:str) -> (int, bytes):
     splitPath = bip32path.split('/')
+    splitPath=[x for x in splitPath if x] # removes empty values
     if splitPath[0] == 'm':
         splitPath = splitPath[1:]
-        bip32path = bip32path[2:]
+        #bip32path = bip32path[2:]
     
     bytePath=b''
-    depth= len(splitPath)
+    depth= len(splitPath)    
     for index in splitPath:
         if index.endswith("'"):
            bytePath+= pack( ">I", int(index.rstrip("'"))+0x80000000 )   
@@ -69,8 +72,6 @@ class SatochipClient():
             (response, sw1, sw2)=self.cc.card_select()
         except SWException as e:
             print(e)
-        
-        
         
     def __repr__(self):
         return '<SatochipClient TODO>'
@@ -110,6 +111,14 @@ class SatochipClient():
         #self.checkDevice() #debugSatochip
         assert xtype in SatochipPlugin.SUPPORTED_XTYPES
         
+        try:
+            hex_authentikey= self.handler.win.wallet.storage.get('authentikey')
+            print_error("[satochip] SatochipClient: get_xpub(): self.handler.win.wallet.storage.authentikey:"+str(hex_authentikey))#debugSatochip
+            if hex_authentikey is not None:
+                self.parser.authentikey_from_storage= ECPubkey(bytes.fromhex(hex_authentikey))
+        except Exception as e: #attributeError?
+            print_error("[satochip] SatochipClient: get_xpub(): exception when getting authentikey from self.handler.win.wallet.storage:"+str(e))#debugSatochip
+        
         # bip32_path is of the form 44'/0'/1'
         # S-L-O-W - we don't handle the fingerprint directly, so compute
         # it manually from the previous node
@@ -134,6 +143,7 @@ class SatochipClient():
             child_number= bytepath[-4:]
         xpub= serialize_xpub('standard', childchaincode, childkey.get_public_key_bytes(compressed=True), depth, fingerprint, child_number)
         
+        print_error("[satochip] SatochipClient: get_xpub(): xpub="+str(xpub))#debugSatochip
         print_error("[satochip] SatochipClient: get_xpub(): end-of-function!")#debugSatochip
         return xpub        
     
@@ -156,20 +166,31 @@ class SatochipClient():
                 print(e)
             self.preflightDone = True
 
-    def password_dialog(self, msg=None):
-        response = self.handler.get_word(msg)
-        if response is None:
-            return False, None, None
-        return True, response, response
+    def PIN_dialog(self, msg):
+        while True:
+            password = self.handler.get_passphrase(msg, False)
+            if password is None:
+                return False, None, None
+            if len(password) < 4:
+                msg = _("PIN must have at least 4 characters.") + \
+                      "\n\n" + _("Enter PIN:")
+            elif len(password) > 64:
+                msg = _("PIN must have less than 64 characters.") + \
+                      "\n\n" + _("Enter PIN:")
+            else:
+                self.PIN = password.encode('utf8')
+                return True, self.PIN, self.PIN    
 
-    
-       
+                
 class Satochip_KeyStore(Hardware_KeyStore):       
     hw_type = 'satochip'
     device = 'Satochip'
     
     def __init__(self, d):
         Hardware_KeyStore.__init__(self, d)
+        print_error("[satochip] Satochip_KeyStore: __init__():")#debugSatochip
+        print_error("[satochip] Satochip_KeyStore: __init__(): xpub:"+str(d.get('xpub')) )#debugSatochip
+        print_error("[satochip] Satochip_KeyStore: __init__(): derivation"+str(d.get('derivation')))#debugSatochip
         self.force_watching_only = False
         self.ux_busy = False
          
@@ -233,13 +254,13 @@ class Satochip_KeyStore(Hardware_KeyStore):
         #####
         
         client = self.get_client()
+        segwitTransaction = False
         
-        # from ledger.py
         # Fetch inputs of the transaction to sign
         derivations = self.get_tx_derivations(tx)
         for i,txin in enumerate(tx.inputs()):
             print_error('   [satochip] Satochip_KeyStore: sign_transaction(): forloop: i= '+str(i)) #debugSatochip
-            
+            print_error('       [satochip] Satochip_KeyStore: sign_transaction(): txin[type]:'+txin['type']) #debugSatochip
             if txin['type'] == 'coinbase':
                 self.give_error("Coinbase not supported")     # should never happen
 
@@ -247,13 +268,13 @@ class Satochip_KeyStore(Hardware_KeyStore):
                 p2shTransaction = True
 
             if txin['type'] in ['p2wpkh-p2sh', 'p2wsh-p2sh']:
-                if not self.get_client_electrum().supports_segwit():
-                    self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
+                #if not self.get_client_electrum().supports_segwit():
+                #    self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
                 segwitTransaction = True
 
             if txin['type'] in ['p2wpkh', 'p2wsh']:
-                if not self.get_client_electrum().supports_native_segwit():
-                    self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
+                #if not self.get_client_electrum().supports_native_segwit():
+                #    self.give_error(MSG_NEEDS_FW_UPDATE_SEGWIT)
                 segwitTransaction = True
             
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
@@ -277,7 +298,7 @@ class Satochip_KeyStore(Hardware_KeyStore):
                     pre_tx= bytes.fromhex(pre_tx_hex)# hex representation => converted to bytes
                     pre_hash = Hash(bfh(pre_tx_hex))
                     print_error('       [satochip] Satochip_KeyStore: sign_transaction(): forforloop: pre_hash= '+pre_hash.hex()) #debugSatochip
-                    (response, sw1, sw2) = client.cc.card_parse_transaction(pre_tx)
+                    (response, sw1, sw2) = client.cc.card_parse_transaction(pre_tx, segwitTransaction)
                     print_error('       [satochip] Satochip_KeyStore: sign_transaction(): forforloop: response= '+str(response)) #debugSatochip
                     print_error('       [satochip] Satochip_KeyStore: sign_transaction(): forforloop: response= '+str(type(response))) #debugSatochip
                     (tx_hash, needs_2fa)= client.parser.parse_parse_transaction(response)
@@ -321,8 +342,8 @@ class SatochipPlugin(HW_PluginBase):
     DEVICE_IDS= [
        (SATOCHIP_VID, SATOCHIP_PID) 
     ]
-    #SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
-    SUPPORTED_XTYPES = ('standard')
+    SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
+    #SUPPORTED_XTYPES = ('standard')
         
     def __init__(self, parent, config, name):
         
@@ -375,25 +396,155 @@ class SatochipPlugin(HW_PluginBase):
             rv = SatochipClient(self, handler)
             #rv = CKCCClient(self, handler, device.path, is_simulator=(device.product_key[1] == CKCC_SIMULATED_PID))
             return rv
-        except:
-            self.print_error('[satochip] SatochipPlugin: create_client(): exception!')
+        except Exception as e:
+            self.print_error('[satochip] SatochipPlugin: create_client(): exception:'+str(e))
             return None
 
     def setup_device(self, device_info, wizard, purpose):
         print_error("[satochip] SatochipPlugin: setup_device()")#debugSatochip
+        
+        #response = client.handler.get_word(msg)
+        #print_error("[satochip] SatochipPlugin: setup_device(): get_word():"+response)#debugSatochip
+        
         devmgr = self.device_manager()
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
         if client is None:
             raise Exception(_('Failed to create a client for this device.') + '\n' +
                             _('Make sure it is in the correct state.'))
-        
-        #TODO: check if satochip has been initialized, and perform setup if needed
-        (response, sw1, sw2)=client.cc.card_bip32_get_authentikey()
-        client.parser.parse_bip32_get_authentikey(response)
-        print_error("[satochip] SatochipPlugin: setup_device(): authentikey="+client.parser.authentikey.get_public_key_hex(compressed=True))#debugSatochip
         client.handler = self.create_handler(wizard)
-    
+        
+        (response, sw1, sw2)=client.cc.card_bip32_get_authentikey()
+        #check if satochip has been initialized, and perform setup if needed
+        while(sw1!=0x90 and sw2!=0x0):
+            print("[satochip] SatochipPlugin: setup_device(): Error when requesting authentikey:"+hex(sw1)+" "+hex(sw2))#debugSatochip
+            #TODO: dialogue for sensitive data..
+            # setup device
+            if (sw1==0x9c and sw2==0x04):
+                # setup params done only once
+                
+                # PIN dialog
+                msg = _("Enter a new PIN for your Satochip:")
+                (is_PIN, pin_0, pin_0)= client.PIN_dialog(msg)
+                msg = _("Please confirm the PIN code for your Satochip:")
+                (is_PIN, pin_confirm, pin_confirm)= client.PIN_dialog(msg)
+                print_error("[satochip] SatochipPlugin: setup_device(): str(pin)="+str(pin_0))#debugSatochip
+                if (pin_0 != pin_confirm):
+                    msg= _("The PIN values do not match! Please type PIN again!")
+                    client.handler.show_error(msg)
+                    continue
+                pin_0= list(pin_0)
+                print_error("[satochip] SatochipPlugin: setup_device(): NEW PIN="+str(pin_0))#debugSatochip
+                pin_tries_0= 0x10;
+                ublk_tries_0= 0x01;
+                #pin_0=[0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]
+                ublk_0=[0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]
+                pin_tries_1= 0x01
+                ublk_tries_1= 0x01
+                pin_1=[0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]
+                ublk_1=[0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]
+                secmemsize= 0x1000
+                memsize= 0x1000
+                create_object_ACL= 0x01
+                create_key_ACL= 0x01
+                create_pin_ACL= 0x01
+                #option_flags= 0x8000 # activate 2fa with hmac challenge-response
+                #key= new byte[20]
+                #amount_limit= 0
+                print("[satochip] SatochipPlugin: setup_device(): perform cardSetup:")#debugSatochip
+                (response, sw1, sw2)=client.cc.card_setup(pin_tries_0, ublk_tries_0, pin_0, ublk_0,
+                        pin_tries_1, ublk_tries_1, pin_1, ublk_1, 
+                        secmemsize, memsize, 
+                        create_object_ACL, create_key_ACL, create_pin_ACL
+                        #,option_flags, key, amount_limit
+                    )
+                print("[satochip] SatochipPlugin: setup_device(): verify PIN...")#debugSatochip
+                (response, sw1, sw2)=client.cc.card_verify_PIN(0, pin_0) 
+                
+                # test seed dialog...
+                self.choose_seed(wizard)
+                print_error("[satochip] SatochipPlugin: setup_device(): NEW SEED="+self.bip32_seed.hex())#debugSatochip
+                seed= list(self.bip32_seed)
+                print_error("[satochip] SatochipPlugin: setup_device(): NEW SEED="+str(self.bip32_seed))#debugSatochip
+                #seed= bytes([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]) # Bip32 test vectors
+                seed_ACL= JCconstants.DEFAULT_ACL #{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+                print("[satochip] SatochipPlugin: setup_device(): import seed:") #debugSatochip
+                (response, sw1, sw2)= client.cc.card_bip32_import_seed(seed_ACL, seed) 
+                
+                # debug import seed 
+                master_secret_key= bytearray(response[0:32])
+                master_chain_code= bytearray(response[32:64])
+                master_secret_authentikey= bytearray(response[64:96])
+                print_error("[satochip] SatochipPlugin: setup_device(): master_secret_key="+master_secret_key.hex())#debugSatochip
+                print_error("[satochip] SatochipPlugin: setup_device(): master_chain_code="+master_chain_code.hex())#debugSatochip
+                print_error("[satochip] SatochipPlugin: setup_device(): master_authentikey="+master_secret_authentikey.hex())#debugSatochip
+                
+                # debug get master pubkey
+                (response, sw1, sw2)=client.cc.card_bip32_get_authentikey()
+                client.parser.parse_bip32_get_authentikey(response)
+                xpub= client.get_xpub('m', 'standard')
+                print_error("[satochip] SatochipPlugin: setup_device(): master_pubkey="+str(xpub))#debugSatochip
+                
+                
+                (response, sw1, sw2)=client.cc.card_bip32_get_authentikey()
+                
+                # save authentikey in storage space
+                client.parser.parse_bip32_get_authentikey(response)
+                hex_authentikey= client.parser.authentikey.get_public_key_hex(compressed=True)
+                print_error("[satochip] SatochipPlugin: setup_device(): authentikey="+hex_authentikey)#debugSatochip
+                wizard.storage.put('authentikey', hex_authentikey)
+                wizard.storage.write()
+                print_error("[satochip] SatochipPlugin: setup_device(): authentikey from storage="+wizard.storage.get('authentikey'))#debugSatochip
+            #verify PIN
+            elif sw1==0x9c and sw2==0x06:
+                msg = _("Enter the PIN for your Satochip:")
+                (is_PIN, pin_0, pin_0)= client.PIN_dialog(msg)
+                pin_0= list(bytearray(pin, 'utf-8'))
+                print_error("[satochip] SatochipPlugin: setup_device(): PIN="+str(pin_0))#debugSatochip
+                print_error("[satochip] SatochipPlugin: setup_device(): verify PIN...") #debugSatochip
+                pin_0=[0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]
+                (response, sw1, sw2)=client.cc.card_verify_PIN(0, pin_0)
+                (response, sw1, sw2)=client.cc.card_bip32_get_authentikey()
+            #Import seed
+            elif sw1==0x9c and sw2==0x14:    
+                print("[satochip] SatochipPlugin: setup_device(): verify PIN...") #debugSatochip 
+                pin_0=[0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]
+                (response, sw1, sw2)=client.cc.card_verify_PIN(0, pin_0)
+                print("[satochip] SatochipPlugin: setup_device(): import seed:") #debugSatochip
+                seed= bytes([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]) # Bip32 test vectors
+                seed_ACL= JCconstants.DEFAULT_ACL #{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+                (response, sw1, sw2)= client.cc.card_bip32_import_seed(seed_ACL, seed)    
+                (response, sw1, sw2)= client.cc.card_bip32_get_authentikey()  
+
+                # save authentikey in storage space
+                client.parser.parse_bip32_get_authentikey(response)
+                hex_authentikey= client.parser.authentikey.get_public_key_hex(compressed=True)
+                print_error("[satochip] SatochipPlugin: setup_device(): authentikey="+hex_authentikey)#debugSatochip
+                wizard.storage.put('authentikey', hex_authentikey)
+                #wizard.storage.write()
+                print_error("[satochip] SatochipPlugin: setup_device(): authentikey from storage="+wizard.storage.get('authentikey'))#debugSatochip
+            else:
+                print("[satochip] SatochipPlugin: setup_device(): unable to set up applet!  sw12="+hex(sw1)+" "+hex(sw2))#debugSatochip
+                raise RuntimeError('Unable to setup the device with error code:'+hex(sw1)+' '+hex(sw2))
+        
+        # if everything is allright
+        client.parser.parse_bip32_get_authentikey(response)
+        hex_authentikey= client.parser.authentikey.get_public_key_hex(compressed=True)
+        print_error("[satochip] SatochipPlugin: setup_device(): authentikey="+hex_authentikey)#debugSatochip
+        hex_authentikey_storage= wizard.storage.get('authentikey') # only available when purpose==HWD_SETUP_NEW_WALLET as storage may be encrypted at this point
+        print_error("[satochip] SatochipPlugin: setup_device(): authentikey from storage="+str(hex_authentikey_storage))#debugSatochip
+        
+        #client.handler = self.create_handler(wizard)
+        
+        # test PIN dialog
+        #msg = _("Enter your Satochip PIN:")
+        #(is_PIN, pin, pin)= client.PIN_dialog(msg)
+        #print_error("[satochip] SatochipPlugin: setup_device(): NEW PIN="+str(pin))#debugSatochip
+        
+        # test seed dialog...
+        #self.choose_seed(wizard)
+        #print_error("[satochip] SatochipPlugin: setup_device(): NEW SEED="+self.bip32_seed.hex())#debugSatochip
+        
     def get_xpub(self, device_id, derivation, xtype, wizard):
         # this seems to be part of the pairing process only, not during normal ops?
         # base_wizard:on_hw_derivation
@@ -404,7 +555,7 @@ class SatochipPlugin(HW_PluginBase):
         client = devmgr.client_by_id(device_id)
         client.handler = self.create_handler(wizard)
         client.ping_check()
-
+           
         xpub = client.get_xpub(derivation, xtype)
         return xpub
     
@@ -435,10 +586,83 @@ class SatochipPlugin(HW_PluginBase):
         sequence = wallet.get_address_index(address)
         txin_type = wallet.get_txin_type(address)
         keystore.show_address(sequence, txin_type)
+    
+    # create/restore seed during satochip initialization
+    def choose_seed(self, wizard):
+        title = _('Create or restore')
+        message = _('Do you want to create a new seed, or to restore a wallet using an existing seed?')
+        choices = [
+            ('create_seed', _('Create a new seed')),
+            ('restore_from_seed', _('I already have a seed')),
+        ]
+        wizard.choice_dialog(title=title, message=message, choices=choices, run_next=wizard.run)
+    #create seed
+    def create_seed(self, wizard):
+        wizard.seed_type = 'standard'
+        wizard.opt_bip39 = False
+        seed = Mnemonic('en').make_seed(wizard.seed_type)
+        f = lambda x: self.request_passphrase(wizard, seed, x)
+        wizard.show_seed_dialog(run_next=f, seed_text=seed)
+
+    def request_passphrase(self, wizard, seed, opt_passphrase):
+        if opt_passphrase:
+            f = lambda x: self.confirm_seed(wizard, seed, x)
+            wizard.passphrase_dialog(run_next=f)
+        else:
+            wizard.run('confirm_seed', seed, '')
+
+    def confirm_seed(self, wizard, seed, passphrase):
+        f = lambda x: self.confirm_passphrase(wizard, seed, passphrase)
+        wizard.confirm_seed_dialog(run_next=f, test=lambda x: x==seed)
+
+    def confirm_passphrase(self, wizard, seed, passphrase):
+        f = lambda x: self.derive_bip32_seed(seed, x)
+        #f = lambda x: self.run('create_keystore', seed, x)
+        if passphrase:
+            title = _('Confirm Seed Extension')
+            message = '\n'.join([
+                _('Your seed extension must be saved together with your seed.'),
+                _('Please type it here.'),
+            ])
+            wizard.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)
+        else:
+            f('')    
+    
+    def derive_bip32_seed(self, seed, passphrase):
+        self.bip32_seed= Mnemonic('en').mnemonic_to_seed(seed, passphrase)
+    
+    #restore from seed
+    def restore_from_seed(self, wizard):
+        wizard.opt_bip39 = True
+        wizard.opt_ext = True
+        #is_cosigning_seed = lambda x: bitcoin.seed_type(x) in ['standard', 'segwit']
+        test = bitcoin.is_seed #if self.wallet_type == 'standard' else is_cosigning_seed
+        f= lambda seed, is_bip39, is_ext: self.on_restore_seed(wizard, seed, is_bip39, is_ext)
+        wizard.restore_seed_dialog(run_next=f, test=test)
+        
+    def on_restore_seed(self, wizard, seed, is_bip39, is_ext):
+        wizard.seed_type = 'bip39' if is_bip39 else bitcoin.seed_type(seed)
+        if wizard.seed_type == 'bip39':
+            f = lambda passphrase: self.derive_bip39_seed(seed, passphrase)
+            wizard.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
+        elif wizard.seed_type in ['standard', 'segwit']:
+            f = lambda passphrase: self.derive_bip32_seed(seed, passphrase)
+            wizard.passphrase_dialog(run_next=f, is_restoring=True) if is_ext else f('')
+        elif wizard.seed_type == 'old':
+            raise Exception('Unsupported seed type', wizard.seed_type)
+        elif bitcoin.is_any_2fa_seed_type(wizard.seed_type):
+            raise Exception('Unsupported seed type', wizard.seed_type)
+        else:
+            raise Exception('Unknown seed type', wizard.seed_type)
+
+    def derive_bip39_seed(self, seed, passphrase):
+        self.bip32_seed=bip39_to_seed(seed, passphrase)
+        
+    
 
     
-    
-    
+        
+        
     
     
     

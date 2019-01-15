@@ -54,7 +54,10 @@ class TxParser:
         self.txChunk=b''
         
         print_error('[TxParser] TxParser: __init__(): txOffset='+str(self.txOffset) + " txRemaining="+str(self.txRemaining) + "chunk="+self.txChunk.hex()) #debugSatochip
-
+        
+    def set_remaining_output(self, nb_outputs):
+        self.txRemainingOutput=nb_outputs
+    
     def is_parsed(self):
         return (self.txRemaining==0)
 
@@ -63,7 +66,7 @@ class TxParser:
 
     def get_tx_double_hash(self):
         return self.doubleHash
-
+    
     def parse_transaction(self):
         self.txChunk=b''
         if self.txState == TxState.TX_START:
@@ -138,7 +141,93 @@ class TxParser:
         
         return self.txChunk
 
+    def parse_outputs(self):
+        self.txChunk=b''
+        
+        if (self.txState == TxState.TX_PARSE_OUTPUT) or (self.txState == TxState.TX_START):
+            
+            if self.txRemainingOutput==0:
+                self.txState == TxState.TX_END
+            
+            self.parse_byte(8); # amount
+            self.txScriptRemaining= self.parse_var_int();
+            self.txState= TxState.TX_PARSE_OUTPUT_SCRIPT
+            self.txRemainingOutput-=1
+            self.txCurrentOutput+=1
+           
+        elif self.txState == TxState.TX_PARSE_OUTPUT_SCRIPT:
+            #max MAX_CHUNK_SIZE bytes accumulated 
+            chunkSize= self.txScriptRemaining if self.txScriptRemaining<self.CHUNK_SIZE else self.CHUNK_SIZE
+            self.parse_byte(chunkSize);
+            self.txScriptRemaining-=chunkSize
 
+            if self.txScriptRemaining==0:
+                self.txState= TxState.TX_PARSE_OUTPUT
+            
+        elif self.txState == TxState.TX_END:
+            pass
+    
+        # update hash
+        self.txDigest.update(self.txChunk)    
+        if self.txState == TxState.TX_END:
+            self.singleHash= self.txDigest.digest() 
+            self.txDigest= hashlib.sha256()
+            self.txDigest.update(self.singleHash)
+            self.doubleHash= self.txDigest.digest() 
+        
+        print_error('[TxParser] TxParser: parse_transaction(): txOffset='+str(self.txOffset) + " txRemaining="+str(self.txRemaining) + "chunk="+self.txChunk.hex()) #debugSatochip
+        time.sleep(0.1) #debugSatochip
+        
+        return self.txChunk
+    
+    def parse_segwit_transaction(self):
+        
+        self.txChunk=b''
+        if self.txState == TxState.TX_START:
+
+            self.parse_byte(4) # version
+            self.parse_byte(32) # hashPrevouts
+            self.parse_byte(32) # hashSequence
+            # parse outpoint
+            self.parse_byte(32); # txOutHash
+            self.parse_byte(4); # txOutIndex
+            # scriptcode= varint+script
+            self.txScriptRemaining= self.parse_var_int() 
+            self.txState= TxState.TX_PARSE_INPUT_SCRIPT
+            
+        elif self.txState == TxState.TX_PARSE_INPUT_SCRIPT:
+            # max MAX_CHUNK_SIZE+4 bytes accumulated
+            chunkSize= self.txScriptRemaining if self.txScriptRemaining<self.CHUNK_SIZE else self.CHUNK_SIZE
+            self.parse_byte(chunkSize);
+            self.txScriptRemaining-=chunkSize
+            if self.txScriptRemaining==0:
+                self.txState= TxState.TX_PARSE_FINALIZE
+            
+        elif self.txState == TxState.TX_PARSE_FINALIZE:
+            self.parse_byte(8); # amount
+            self.parse_byte(4); # nSequence
+            self.parse_byte(32); # hashOutputs
+            self.parse_byte(4); # nLocktime
+            self.parse_byte(4); # nHashType
+            
+            self.txState= TxState.TX_END
+            
+        elif self.txState == TxState.TX_END:
+            pass
+    
+        # update hash
+        self.txDigest.update(self.txChunk)    
+        if self.txState == TxState.TX_END:
+            self.singleHash= self.txDigest.digest() 
+            self.txDigest= hashlib.sha256()
+            self.txDigest.update(self.singleHash)
+            self.doubleHash= self.txDigest.digest() 
+        
+        print_error('[TxParser] TxParser: parse_transaction(): txOffset='+str(self.txOffset) + " txRemaining="+str(self.txRemaining) + "chunk="+self.txChunk.hex()) #debugSatochip
+        time.sleep(0.1) #debugSatochip
+        
+        return self.txChunk
+        
     def parse_byte(self, length):
         self.txChunk+=self.txData[self.txOffset:(self.txOffset+length)]
         self.txOffset+=length
@@ -172,6 +261,7 @@ class TxParser:
         self.txRemaining-=le
         return val
 
+        
 def read_uint32(bytes, offset):
     out=0
     for i in range(4):
