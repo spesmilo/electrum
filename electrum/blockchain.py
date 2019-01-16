@@ -426,6 +426,11 @@ class Blockchain(util.PrintError):
             return None
         return deserialize_header(h, height)
 
+    def header_at_tip(self) -> Optional[dict]:
+        """Return latest header."""
+        height = self.height()
+        return self.read_header(height)
+
     def get_hash(self, height: int) -> str:
         def is_height_checkpoint():
             within_cp_range = height <= constants.net.max_checkpoint()

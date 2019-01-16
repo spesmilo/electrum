@@ -125,7 +125,8 @@ def sweep_preparations(privkeys, network: 'Network', imax=100):
     return inputs, keypairs
 
 
-def sweep(privkeys, network: 'Network', config: 'SimpleConfig', recipient, fee=None, imax=100):
+def sweep(privkeys, network: 'Network', config: 'SimpleConfig', recipient, fee=None, imax=100,
+          *, locktime=None):
     inputs, keypairs = sweep_preparations(privkeys, network, imax)
     total = sum(i.get('value') for i in inputs)
     if fee is None:
@@ -138,12 +139,33 @@ def sweep(privkeys, network: 'Network', config: 'SimpleConfig', recipient, fee=N
         raise Exception(_('Not enough funds on address.') + '\nTotal: %d satoshis\nFee: %d\nDust Threshold: %d'%(total, fee, dust_threshold(network)))
 
     outputs = [TxOutput(TYPE_ADDRESS, recipient, total - fee)]
-    locktime = network.get_local_height()
+    if locktime is None:
+        locktime = get_locktime_for_new_transaction(network)
 
     tx = Transaction.from_io(inputs, outputs, locktime=locktime)
     tx.set_rbf(True)
     tx.sign(keypairs)
     return tx
+
+
+def get_locktime_for_new_transaction(network: 'Network') -> int:
+    # if no network or not up to date, just set locktime to zero
+    if not network:
+        return 0
+    chain = network.blockchain()
+    header = chain.header_at_tip()
+    if not header:
+        return 0
+    STALE_DELAY = 8 * 60 * 60  # in seconds
+    if header['timestamp'] + STALE_DELAY < time.time():
+        return 0
+    # discourage "fee sniping"
+    locktime = chain.height()
+    # sometimes pick locktime a bit further back, to help privacy
+    # of setups that need more time (offline/multisig/coinjoin/...)
+    if random.randint(0, 9) == 0:
+        locktime = max(0, locktime - random.randint(0, 99))
+    return locktime
 
 
 
@@ -692,7 +714,7 @@ class Abstract_Wallet(AddressSynchronizer):
             tx = Transaction.from_io(coins, outputs[:])
 
         # Timelock tx to current height.
-        tx.locktime = self.get_local_height()
+        tx.locktime = get_locktime_for_new_transaction(self.network)
         run_hook('make_unsigned_transaction', self, tx)
         return tx
 
@@ -794,7 +816,7 @@ class Abstract_Wallet(AddressSynchronizer):
                     continue
         if delta > 0:
             raise CannotBumpFee(_('Cannot bump fee') + ': ' + _('could not find suitable outputs'))
-        locktime = self.get_local_height()
+        locktime = get_locktime_for_new_transaction(self.network)
         tx_new = Transaction.from_io(inputs, outputs, locktime=locktime)
         return tx_new
 
@@ -814,7 +836,7 @@ class Abstract_Wallet(AddressSynchronizer):
         inputs = [item]
         out_address = self.get_unused_address() or address
         outputs = [TxOutput(TYPE_ADDRESS, out_address, value - fee)]
-        locktime = self.get_local_height()
+        locktime = get_locktime_for_new_transaction(self.network)
         return Transaction.from_io(inputs, outputs, locktime=locktime)
 
     def add_input_sig_info(self, txin, address):
