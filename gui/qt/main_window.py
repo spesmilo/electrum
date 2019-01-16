@@ -3111,7 +3111,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         usechange_cb = QCheckBox(_('Use change addresses'))
         usechange_cb.setChecked(self.wallet.use_change)
-        if not self.config.is_modifiable('use_change'): usechange_cb.setEnabled(False)
         def on_usechange(x):
             usechange_result = x == Qt.Checked
             if self.wallet.use_change != usechange_result:
