@@ -205,7 +205,7 @@ class QtPlugin(QtPluginBase):
         bg_numwords = QButtonGroup()
         for i, count in enumerate([12, 18, 24]):
             rb = QRadioButton(gb)
-            rb.setText(_("%d words") % count)
+            rb.setText(_("{:d} words").format(count))
             bg_numwords.addButton(rb)
             bg_numwords.setId(rb, i)
             hbox1.addWidget(rb)
@@ -407,7 +407,7 @@ class SettingsDialog(WindowModalDialog):
 
         def slider_moved():
             mins = timeout_slider.sliderPosition()
-            timeout_minutes.setText(_("%2d minutes") % mins)
+            timeout_minutes.setText(_("{:2d} minutes").format(mins))
 
         def slider_released():
             config.set_session_timeout(timeout_slider.sliderPosition() * 60)

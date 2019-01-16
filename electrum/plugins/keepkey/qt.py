@@ -432,7 +432,7 @@ class SettingsDialog(WindowModalDialog):
 
         def slider_moved():
             mins = timeout_slider.sliderPosition()
-            timeout_minutes.setText(_("%2d minutes") % mins)
+            timeout_minutes.setText(_("{:2d} minutes").format(mins))
 
         def slider_released():
             config.set_session_timeout(timeout_slider.sliderPosition() * 60)
