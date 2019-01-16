@@ -95,7 +95,6 @@ info "Downloading libusb..."
 curl https://homebrew.bintray.com/bottles/libusb-1.0.21.el_capitan.bottle.tar.gz | \
 tar xz --directory $BUILDDIR
 cp -fp $BUILDDIR/libusb/1.0.21/lib/libusb-1.0.dylib contrib/osx
-#NOTE: Do *not* code sign these .dylibs. Doing so makes the in-app notifications no longer work for some unexplained reason.
 
 info "Building libsecp256k1"
 git clone https://github.com/bitcoin-core/secp256k1 $BUILDDIR/secp256k1
@@ -107,7 +106,6 @@ git clean -f -x -q
 make
 popd
 cp -fp $BUILDDIR/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx
-#NOTE: Do *not* code sign these .dylibs. Doing so makes the in-app notifications no longer work for some unexplained reason.
 
 info "Building CalinsQRReader..."
 d=contrib/osx/CalinsQRReader
@@ -130,7 +128,7 @@ info "Building $PACKAGE..."
 python3 setup.py install --user > /dev/null || fail "Could not build $PACKAGE"
 
 info "Building binary"
-pyinstaller --noconfirm --ascii --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
+APP_SIGN="$APP_SIGN" pyinstaller --noconfirm --ascii --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
 
 info "Adding bitcoincash URI types to Info.plist"
 plutil -insert 'CFBundleURLTypes' \
