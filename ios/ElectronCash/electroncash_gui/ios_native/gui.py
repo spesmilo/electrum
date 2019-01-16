@@ -963,8 +963,7 @@ class ElectrumGui(PrintError):
     def prefs_get_use_change(self) -> tuple: # returns the setting plus a second bool that indicates whether this setting can be modified
         if not self.wallet: return False, False
         r1 = self.wallet.use_change
-        r2 = self.config.is_modifiable('use_change')
-        return r1, r2
+        return r1, True
 
     def prefs_set_use_change(self, x : bool) -> None:
         if not self.wallet: return
