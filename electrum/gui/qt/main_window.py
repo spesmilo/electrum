@@ -1031,6 +1031,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.address_list.update()
         self.clear_receive_tab()
         self.request_list.update()
+        self.request_list.select_key(key)
 
     def create_bitcoin_request(self, amount, message, expiration):
         addr = self.wallet.get_unused_address()
@@ -1055,6 +1056,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         else:
             self.sign_payment_request(addr)
             #self.save_request_button.setEnabled(False)
+        return addr
 
     def view_and_paste(self, title, msg, data):
         dialog = WindowModalDialog(self, title)
