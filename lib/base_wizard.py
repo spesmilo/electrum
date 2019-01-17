@@ -262,7 +262,7 @@ class BaseWizard(object):
     def passphrase_dialog(self, run_next):
         title = _('Seed extension')
         message = '\n'.join([
-            _('You may extend your seed with custom words.'),
+            _('You may extend your seed with custom words.') + " " + _("(aka 'passphrase')"),
             _('Your seed extension must be saved together with your seed.'),
         ])
         warning = '\n'.join([
