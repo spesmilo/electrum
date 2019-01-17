@@ -48,7 +48,7 @@ class SPV(ThreadJob):
             return
 
         local_height = self.network.get_local_height()
-        unverified = self.wallet.get_unverified_txs()
+        unverified = self.wallet.get_unverified_txs().copy()
         for tx_hash, tx_height in unverified.items():
             # do not request merkle branch if we already requested it
             if tx_hash in self.requested_merkle or tx_hash in self.merkle_roots:
