@@ -155,7 +155,7 @@ class CancelButton(QPushButton):
         QPushButton.__init__(self, label or _("Cancel"))
         self.clicked.connect(dialog.reject)
 
-class MessageBoxMixin(object):
+class MessageBoxMixin:
     def top_level_window_recurse(self, window=None):
         window = window or self
         classes = (WindowModalDialog, QMessageBox)
@@ -193,7 +193,7 @@ class MessageBoxMixin(object):
     def msg_box(self, icon, parent, title, text, buttons=QMessageBox.Ok,
                 defaultButton=QMessageBox.NoButton, rich_text=False, detail_text=None):
         parent = parent or self.top_level_window()
-        d = QMessageBox(icon, title, str(text), buttons, parent)
+        d = QMessageBoxMixin(icon, title, str(text), buttons, parent)
         d.setWindowModality(Qt.WindowModal)
         d.setDefaultButton(defaultButton)
         if detail_text and isinstance(detail_text, str):
@@ -207,6 +207,12 @@ class MessageBoxMixin(object):
         ret = d.exec_()
         d.setParent(None) # Force GC sooner rather than later.
         return ret
+
+class QMessageBoxMixin(QMessageBox, MessageBoxMixin):
+    ''' This class's sole purpose is so that MessageBoxMixin.msg_box() always
+    presents a message box that has the mixin methods.
+    See https://github.com/Electron-Cash/Electron-Cash/issues/980. '''
+    pass
 
 class WindowModalDialog(QDialog, MessageBoxMixin):
     '''Handy wrapper; window modal dialogs are better for our multi-window
