@@ -58,7 +58,7 @@ class SeedLayout(QVBoxLayout):
         dialog = QDialog()
         vbox = QVBoxLayout(dialog)
         if 'ext' in self.options:
-            cb_ext = QCheckBox(_('Extend this seed with custom words'))
+            cb_ext = QCheckBox(_('Extend this seed with custom words') + " " + _("(aka 'passphrase')"))
             cb_ext.setChecked(self.is_ext)
             vbox.addWidget(cb_ext)
         if 'bip39' in self.options:
