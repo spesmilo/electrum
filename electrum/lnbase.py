@@ -241,7 +241,7 @@ class Peer(PrintError):
         return self.lnworker.channels_for_peer(self.peer_addr.pubkey)
 
     def diagnostic_name(self):
-        return 'lnbase:' + str(self.peer_addr.host)
+        return str(self.peer_addr.host) + ':' + str(self.peer_addr.port)
 
     def ping_if_required(self):
         if time.time() - self.ping_time > 120:
