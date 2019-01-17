@@ -12,7 +12,7 @@ from electroncash.util import PrintError, UserCancelled, bh2u
 from electroncash.wallet import Wallet, Standard_Wallet
 
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
-from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC,
+from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER,
                      RECOVERY_TYPE_SCRAMBLED_WORDS, RECOVERY_TYPE_MATRIX)
 
 
@@ -196,50 +196,24 @@ class QtPlugin(QtPluginBase):
             text = widget.toPlainText().strip()
             return ' '.join(text.split())
 
-        if method in [TIM_NEW, TIM_RECOVER]:
-            gb = QGroupBox()
-            hbox1 = QHBoxLayout()
-            gb.setLayout(hbox1)
-            vbox.addWidget(gb)
-            gb.setTitle(_("Select your seed length:"))
-            bg_numwords = QButtonGroup()
-            for i, count in enumerate([12, 18, 24]):
-                rb = QRadioButton(gb)
-                rb.setText(_("%d words") % count)
-                bg_numwords.addButton(rb)
-                bg_numwords.setId(rb, i)
-                hbox1.addWidget(rb)
-                rb.setChecked(True)
-            cb_pin = QCheckBox(_('Enable PIN protection'))
-            cb_pin.setChecked(True)
-        else:
-            text = QTextEdit()
-            text.setMaximumHeight(60)
-            if method == TIM_MNEMONIC:
-                msg = _("Enter your BIP39 mnemonic:")
-            else:
-                msg = _("Enter the master private key beginning with xprv:")
-                def set_enabled():
-                    from electroncash.keystore import is_xprv
-                    wizard.next_button.setEnabled(is_xprv(clean_text(text)))
-                text.textChanged.connect(set_enabled)
-                next_enabled = False
+        gb = QGroupBox()
+        hbox1 = QHBoxLayout()
+        gb.setLayout(hbox1)
+        vbox.addWidget(gb)
+        gb.setTitle(_("Select your seed length:"))
+        bg_numwords = QButtonGroup()
+        for i, count in enumerate([12, 18, 24]):
+            rb = QRadioButton(gb)
+            rb.setText(_("%d words") % count)
+            bg_numwords.addButton(rb)
+            bg_numwords.setId(rb, i)
+            hbox1.addWidget(rb)
+            rb.setChecked(True)
+        cb_pin = QCheckBox(_('Enable PIN protection'))
+        cb_pin.setChecked(True)
 
-            vbox.addWidget(QLabel(msg))
-            vbox.addWidget(text)
-            pin = QLineEdit()
-            pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,9}')))
-            pin.setMaximumWidth(100)
-            hbox_pin = QHBoxLayout()
-            hbox_pin.addWidget(QLabel(_("Enter your PIN (digits 1-9):")))
-            hbox_pin.addWidget(pin)
-            hbox_pin.addStretch(1)
-
-        if method in [TIM_NEW, TIM_RECOVER]:
-            vbox.addWidget(WWLabel(RECOMMEND_PIN))
-            vbox.addWidget(cb_pin)
-        else:
-            vbox.addLayout(hbox_pin)
+        vbox.addWidget(WWLabel(RECOMMEND_PIN))
+        vbox.addWidget(cb_pin)
 
         passphrase_msg = WWLabel(PASSPHRASE_HELP_SHORT)
         passphrase_warning = WWLabel(PASSPHRASE_NOT_PIN)
@@ -276,14 +250,9 @@ class QtPlugin(QtPluginBase):
 
         wizard.exec_layout(vbox, next_enabled=next_enabled)
 
-        if method in [TIM_NEW, TIM_RECOVER]:
-            item = bg_numwords.checkedId()
-            pin = cb_pin.isChecked()
-            recovery_type = bg_rectype.checkedId() if bg_rectype else None
-        else:
-            item = ' '.join(str(clean_text(text)).split())
-            pin = str(pin.text())
-            recovery_type = None
+        item = bg_numwords.checkedId()
+        pin = cb_pin.isChecked()
+        recovery_type = bg_rectype.checkedId() if bg_rectype else None
 
         return (item, name.text(), pin, cb_phrase.isChecked(), recovery_type)
 
