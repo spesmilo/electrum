@@ -383,7 +383,7 @@ def create_sweeptx_their_ctx_htlc(ctx: Transaction, witness_script: bytes, sweep
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name=f'their_ctx_sweep_htlc_{bh2u(htlc.payment_hash)}', cltv_expiry=cltv_expiry)
+    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name=f'their_ctx_sweep_htlc_{ctx.txid()[:8]}_{output_idx}', cltv_expiry=cltv_expiry)
 
     sig = bfh(tx.sign_txin(0, privkey))
     if not is_revocation:
