@@ -27,7 +27,7 @@ from enum import IntEnum
 
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtWidgets import QMenu, QHeaderView
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QItemSelectionModel
 
 from electrum.i18n import _
 from electrum.util import format_time, age
@@ -75,6 +75,16 @@ class RequestList(MyTreeView):
         self.update()
         self.selectionModel().currentRowChanged.connect(self.item_changed)
         self.setColumnWidth(self.Columns.ADDRESS, 250)
+
+    def select_key(self, key):
+        for i in range(self.model().rowCount()):
+            item = self.model().index(i, 0)
+            row_key = item.data(ROLE_RHASH_OR_ADDR)
+            if item.data(ROLE_REQUEST_TYPE) == REQUEST_TYPE_LN:
+                row_key = self.wallet.lnworker.invoices[row_key][1]
+            if key == row_key:
+                self.selectionModel().setCurrentIndex(item, QItemSelectionModel.SelectCurrent | QItemSelectionModel.Rows)
+                break
 
     def item_changed(self, idx):
         # TODO use siblingAtColumn when min Qt version is >=5.11
