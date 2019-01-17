@@ -476,7 +476,7 @@ class Channel(PrintError):
         sweeptxs = create_sweeptxs_for_their_just_revoked_ctx(self, ctx, per_commitment_secret, self.sweep_address)
         for prev_txid, tx in sweeptxs.items():
             if tx is not None:
-                self.lnwatcher.add_sweep_tx(outpoint, prev_txid, tx.to_dict())
+                self.lnwatcher.add_sweep_tx(outpoint, prev_txid, tx.as_dict())
 
     def receive_revocation(self, revocation) -> Tuple[int, int]:
         self.print_error("receive_revocation")
