@@ -104,7 +104,7 @@ class TcpConnection(threading.Thread, util.PrintError):
         except socket.gaierror:
             self.print_error("cannot resolve hostname")
             return
-        except UnicodeDecodeError:
+        except UnicodeError:
             self.print_error("hostname cannot be decoded with 'idna' codec")
             return
         e = None
