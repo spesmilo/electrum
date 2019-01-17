@@ -80,17 +80,19 @@ class RequestList(MyTreeView):
         # TODO use siblingAtColumn when min Qt version is >=5.11
         addr = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.ADDRESS)).text()
         req = self.wallet.receive_requests.get(addr)
-        if req is None:
-            self.update()
-            return
         item = self.model().itemFromIndex(idx.sibling(idx.row(), 0))
         request_type = item.data(ROLE_REQUEST_TYPE)
         key = item.data(ROLE_RHASH_OR_ADDR)
         if request_type == REQUEST_TYPE_BITCOIN:
+            if req is None:
+                self.update()
+                return
             req = self.parent.get_request_URI(key)
         elif request_type == REQUEST_TYPE_LN:
-            preimage, req = self.wallet.lnworker.invoices.get(key)
-            print(key, req)
+            preimage, req = self.wallet.lnworker.invoices.get(key, (None, None))
+            if req is None:
+                self.update()
+                return
         self.parent.receive_address_e.setText(req)
 
     def update(self):
