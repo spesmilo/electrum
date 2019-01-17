@@ -195,7 +195,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.notify_transactions_signal.connect(self.notify_transactions)
         self.history_list.setFocus(True)
 
-        # network callbacks
+        # update fee slider in case we missed the callback
+        self.fee_slider.update()
+        self.load_wallet(wallet)
+
+        # At this point self.wallet is defined, so register network callbacks
         if self.network:
             self.network_signal.connect(self.on_network_qt)
             interests = ['updated', 'new_transaction', 'status',
@@ -212,9 +216,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.new_fx_quotes_signal.connect(self.on_fx_quotes)
             self.new_fx_history_signal.connect(self.on_fx_history)
 
-        # update fee slider in case we missed the callback
-        self.fee_slider.update()
-        self.load_wallet(wallet)
         gui_object.timer.timeout.connect(self.timer_actions)
         self.fetch_alias()
 
