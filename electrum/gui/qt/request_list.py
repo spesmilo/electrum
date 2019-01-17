@@ -202,5 +202,5 @@ class RequestList(MyTreeView):
         run_hook('receive_list_menu', menu, addr)
 
     def create_menu_ln_payreq(self, menu, payreq_key, req):
-        menu.addAction(_("Copy BOLT-11 Lightning invoice"), lambda: self.parent.view_and_paste('Invoice', '', req))
+        menu.addAction(_("Copy Lightning invoice"), lambda: self.parent.view_and_paste('Invoice', '', req))
         menu.addAction(_("Delete"), lambda: self.parent.delete_lightning_payreq(payreq_key))
