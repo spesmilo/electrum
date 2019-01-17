@@ -72,7 +72,7 @@ class CustomInstallCommand(install):
                 if not os.path.exists(path):
                     subprocess.call(["pyrcc5", "icons.qrc", "-o", path])
             except Exception as e:
-                print('Warning: building icons file failed with {}'.format(e))
+                print('Warning: building icons file failed with {}'.format(repr(e)))
 
 
 setup(
