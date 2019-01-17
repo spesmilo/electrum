@@ -473,10 +473,10 @@ class Channel(PrintError):
             return
         outpoint = self.funding_outpoint.to_str()
         ctx = self.remote_commitment_to_be_revoked  # FIXME can't we just reconstruct it?
-        encumbered_sweeptxs = create_sweeptxs_for_their_just_revoked_ctx(self, ctx, per_commitment_secret, self.sweep_address)
-        for prev_txid, encumbered_tx in encumbered_sweeptxs.items():
-            if encumbered_tx is not None:
-                self.lnwatcher.add_sweep_tx(outpoint, prev_txid, encumbered_tx.to_json())
+        sweeptxs = create_sweeptxs_for_their_just_revoked_ctx(self, ctx, per_commitment_secret, self.sweep_address)
+        for prev_txid, tx in sweeptxs.items():
+            if tx is not None:
+                self.lnwatcher.add_sweep_tx(outpoint, prev_txid, tx.to_dict())
 
     def receive_revocation(self, revocation) -> Tuple[int, int]:
         self.print_error("receive_revocation")
