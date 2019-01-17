@@ -218,6 +218,7 @@ class SignDecryptVC(SignDecryptBase):
                     self.doVerify()
                 else:
                     self.doDecrypt()
+        self.onCloseKeyboard_(None) # force close keyboard
         utils.boilerplate.vc_highlight_button_then_do(self, sender, DoIt)
 
     @objc_method
@@ -278,12 +279,11 @@ class SignDecryptVC(SignDecryptBase):
             return
         message = message.encode('utf-8')
         try:
-            # This can throw on invalid base64
+            # This can raise on invalid base64
             sig = base64.b64decode(signature)
+            verified = bitcoin.verify_message(address, sig, message) # this raises too on failure
         except:
             verified = False
-        else:
-            verified = bitcoin.verify_message(address, sig, message)
 
         if verified:
             parent().show_message(_("Signature verified"), title=_("Success"))
