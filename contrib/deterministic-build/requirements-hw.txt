@@ -1,7 +1,7 @@
 btchip-python==0.1.27
 certifi==2018.4.16
 chardet==3.0.4
-click==6.7
+click==7.0
 Cython==0.28.3
 ecdsa==0.13
 hidapi==0.7.99.post21
