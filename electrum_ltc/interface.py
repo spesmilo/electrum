@@ -267,7 +267,7 @@ class Interface(PrintError):
             try:
                 return await func(self, *args, **kwargs)
             except GracefulDisconnect as e:
-                self.print_error("disconnecting gracefully. {}".format(e))
+                self.print_error("disconnecting gracefully. {}".format(repr(e)))
             finally:
                 await self.network.connection_down(self)
                 self.got_disconnected.set_result(1)

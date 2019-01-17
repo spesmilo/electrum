@@ -239,7 +239,7 @@ class BaseWizard(object):
         try:
             scanned_devices = devmgr.scan_devices()
         except BaseException as e:
-            devmgr.print_error('error scanning devices: {}'.format(e))
+            devmgr.print_error('error scanning devices: {}'.format(repr(e)))
             debug_msg = '  {}:\n    {}'.format(_('Error scanning devices'), e)
         else:
             debug_msg = ''

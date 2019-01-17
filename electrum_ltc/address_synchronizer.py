@@ -373,11 +373,13 @@ class AddressSynchronizer(PrintError):
     @profiler
     def load_transactions(self):
         # load txi, txo, tx_fees
-        self.txi = self.storage.get('txi', {})
+        # bookkeeping data of is_mine inputs of transactions
+        self.txi = self.storage.get('txi', {})  # txid -> address -> (prev_outpoint, value)
         for txid, d in list(self.txi.items()):
             for addr, lst in d.items():
                 self.txi[txid][addr] = set([tuple(x) for x in lst])
-        self.txo = self.storage.get('txo', {})
+        # bookkeeping data of is_mine outputs of transactions
+        self.txo = self.storage.get('txo', {})  # txid -> address -> (output_index, value, is_coinbase)
         self.tx_fees = self.storage.get('tx_fees', {})
         tx_list = self.storage.get('transactions', {})
         # load transactions
