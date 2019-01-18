@@ -46,9 +46,10 @@ from electroncash.networks import NetworkConstants
 from electroncash.plugins import run_hook
 from electroncash.i18n import _
 from electroncash.util import (format_time, format_satoshis, PrintError,
-                           format_satoshis_plain, NotEnoughFunds, ExcessiveFee,
-                           UserCancelled, bh2u, bfh, format_fee_satoshis, Weak,
-                           print_error)
+                               format_satoshis_plain, NotEnoughFunds,
+                               ExcessiveFee, UserCancelled, InvalidPassword,
+                               bh2u, bfh, format_fee_satoshis, Weak,
+                               print_error)
 import electroncash.web as web
 from electroncash import Transaction
 from electroncash import util, bitcoin, commands
@@ -2528,7 +2529,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 time.sleep(0.1)
                 if done or cancelled:
                     break
-                privkey = self.wallet.export_private_key(addr, password)
+                try:
+                    privkey = self.wallet.export_private_key(addr, password)
+                except InvalidPassword:
+                    # See #921 -- possibly a corrupted wallet or other strangeness
+                    privkey = 'INVALID_PASSWORD'
                 private_keys[addr.to_ui_string()] = privkey
                 self.computing_privkeys_signal.emit()
             if not cancelled:
