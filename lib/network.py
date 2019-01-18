@@ -1619,6 +1619,8 @@ class Network(util.DaemonThread):
             return _("The transaction was rejected because it contains more than 1 OP_RETURN input.")
         elif r"scriptsig-not-pushonly" in server_msg:
             return _("The transaction was rejected because it contains non-push-only script sigs.")
+        elif r'bad-txns-nonfinal' in server_msg:
+            return _("The transaction was rejected because it is not considered final according to network rules.")
         return _("An error occurred broadcasting the transaction")
 
     # Used by the verifier job.
