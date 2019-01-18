@@ -27,12 +27,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys, os
-import traceback
-import bz2
-import base64
-import time
-import threading
+import sys, os, time, threading, shutil
 from decimal import Decimal
 from functools import partial
 from typing import Callable, Any
@@ -1376,13 +1371,17 @@ class ElectrumGui(PrintError):
         if not self.present_on_boarding_wizard_if_needed():
             self.warn_user_if_no_wallet()
 
+    def _no_wallet(self) -> None:
+        if self.walletsVC:
+            self.walletsVC.setAmount_andUnits_unconf_(_('No Wallet'), '', '')
+
     def warn_user_if_no_wallet(self) -> bool:
         if not self.wallet:
             def showDrawer() -> None:
                 self.walletsVC.openDrawer()
             self.tabController.selectedIndex = 0
             self.walletsNav.popToRootViewControllerAnimated_(False)
-            self.walletsVC.setAmount_andUnits_unconf_(_('No Wallet'), '', '')
+            self._no_wallet()
             self.show_message(title = _("No Wallet Is Open"),
                               message = _("To proceed, please select a wallet to open.") + " " + _("You can also create a new wallet by selecting the 'Add new wallet' option."), onOk = showDrawer)
             return True
@@ -1396,6 +1395,24 @@ class ElectrumGui(PrintError):
             self.downloadingNotif_view.release()
             self.downloadingNotif_view = None
             utils.NSLog("Released cached 'downloading notification banner view' due to low memory")
+        import gc
+        ct = gc.collect()
+        if ct:
+            utils.NSLog("Garbage collected {} python objects due to low memory".format(ct))
+
+    def check_low_diskspace(self) -> None:
+        # Return True if <50MB of disk space
+        free = shutil.disk_usage(utils.get_user_dir()).free
+        if free < 1024*1024*50.0: # less that 50MB space...
+            utils.NSLog("GUI: Low disk space (%f MB free)", free/(1024.0*1024.0))
+            self.stop_daemon()
+            self._no_wallet()
+            self.refresh_all()
+            self.show_message(title = _("Disk Space Low"),
+                              message = _("Electron Cash cannot proceed because this device is very low on disk space. Please free up some disk space and try again."))
+            return True
+        return False
+
 
     def stop_daemon(self):
         if not self.daemon_is_running(): return
@@ -1433,6 +1450,12 @@ class ElectrumGui(PrintError):
         if not self.config.get('use_exchange'):
             self.config.set_key('use_exchange', 'BitcoinAverage')
             utils.NSLog("Forced default exchange to 'BitcoinAverage'")
+        if self.check_low_diskspace():
+            # Not enough disk space.
+            # Will stop the daemon if running and show a pop-up window warning user.
+            # This fixes github issue #1072 and also prevents possible wallet
+            # or data file corruption in low disk space conditions.
+            return
         fd, server = ed.get_fd_or_server(self.config)
         self.daemon = ed.Daemon(self.config, fd, True)
         self.daemon.start()
@@ -1619,6 +1642,7 @@ class ElectrumGui(PrintError):
                 self.on_wallet_opened()
                 onSuccess()
             except:
+                import traceback
                 traceback.print_exc(file=sys.stdout)
                 utils.NSLog("Exception in opening wallet: %s",str(sys.exc_info()[1]))
                 onFailure(str(sys.exc_info()[1]))
@@ -1687,8 +1711,7 @@ class ElectrumGui(PrintError):
 
         def DoIt() -> None:
             try:
-                from shutil import copy2
-                fn = copy2(info.full_path, utils.get_tmp_dir())
+                fn = shutil.copy2(info.full_path, utils.get_tmp_dir())
                 if fn:
                     print("copied wallet to:", fn)
                     utils.show_share_actions(vc = waitDlg, fileName = fn, ipadAnchor = ipadAnchor, objectName = _('Wallet file'),
@@ -1846,6 +1869,7 @@ class ElectrumGui(PrintError):
                         self.wallet = self.daemon.load_wallet(path, password)
                         self.on_wallet_opened(password)
                     except:
+                        import traceback
                         traceback.print_exc(file=sys.stdout)
                         self.show_error(str(sys.exc_info()[1]), onOk = lambda: self.on_open_last_wallet_fail())
                 def forciblyDismissed() -> None:
@@ -1879,6 +1903,7 @@ class ElectrumGui(PrintError):
         def on_error(exc_info):
             if not isinstance(exc_info[1], UserCancelled):
                 if not isinstance(exc_info[1], InvalidPassword):
+                    import traceback
                     traceback.print_exception(*exc_info)
                 self.show_error(str(exc_info[1]))
         def on_signed(result):
@@ -1944,6 +1969,7 @@ class ElectrumGui(PrintError):
                     parent.show_error(msg)
         def on_error(exc_info):
             if not isinstance(exc_info[1], UserCancelled):
+                import traceback
                 traceback.print_exception(*exc_info)
                 self.show_error(str(exc_info[1]))
 
@@ -1969,6 +1995,7 @@ class ElectrumGui(PrintError):
             self.show_error(str(e))
             return
         except:
+            import traceback
             traceback.print_exc(file=sys.stdout)
             self.show_error(_('Failed to update password'))
             return
@@ -2191,6 +2218,7 @@ class ElectrumGui(PrintError):
                 vc.presentViewController_animated_completion_(txvc, True, None)
                 return True
         except:
+            import traceback
             traceback.print_exc(file=sys.stderr)
             self.show_error(_("Electron Cash was unable to parse your transaction"))
         return False

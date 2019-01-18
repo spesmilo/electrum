@@ -96,9 +96,13 @@ class PythonAppDelegate(UIResponder):
 
         self.cleanupBlurView()
         eg = gui.ElectrumGui.gui
-        if eg is not None and not eg.daemon_is_running() and not self.firstRun:
-            utils.NSLog("Background: Restarting Daemon...")
-            eg.start_daemon()
+        if eg is not None and not self.firstRun:
+            if not eg.daemon_is_running():
+                utils.NSLog("Background: Restarting Daemon...")
+                eg.start_daemon()
+            else:
+                # <50MB disk space will show an error and stop daemon
+                eg.check_low_diskspace()
 
         self.firstRun = False
 
