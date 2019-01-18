@@ -738,8 +738,9 @@ class Network(util.DaemonThread):
     def send(self, messages, callback):
         '''Messages is a list of (method, params) tuples'''
         messages = list(messages)
-        with self.pending_sends_lock:
-            self.pending_sends.append((messages, callback))
+        if messages: # Guard against empty message-list which is a no-op and just wastes CPU to enque/dequeue (not even callback is called). I've seen the code send empty message lists before in synchronizer.py
+            with self.pending_sends_lock:
+                self.pending_sends.append((messages, callback))
 
     def process_pending_sends(self):
         # Requests needs connectivity.  If we don't have an interface,
