@@ -405,11 +405,11 @@ class MyTreeWidget(QTreeWidget):
             self.header().setSectionResizeMode(col, sm)
 
     def editItem(self, item, column):
-        if column in self.editable_columns:
+        if item and column in self.editable_columns:
             self.editing_itemcol = (item, column, item.text(column))
             # Calling setFlags causes on_changed events for some reason
             item.setFlags(item.flags() | Qt.ItemIsEditable)
-            QTreeWidget.editItem(self, item, column)
+            super().editItem(item, column)
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
 
     def keyPressEvent(self, event):
