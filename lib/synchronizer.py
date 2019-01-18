@@ -194,7 +194,8 @@ class Synchronizer(ThreadJob):
         with self.lock:
             addresses = self.new_addresses
             self.new_addresses = set()
-        self.subscribe_to_addresses(addresses)
+        if addresses:
+            self.subscribe_to_addresses(addresses)
 
         # 3. Detect if situation has changed
         up_to_date = self.is_up_to_date()
