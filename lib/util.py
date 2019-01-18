@@ -407,7 +407,10 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
     decimal_format = ".0" + str(precision) if precision > 0 else ""
     if is_diff:
         decimal_format = '+' + decimal_format
-    result = ("{:" + decimal_format + "f}").format(x / pow (10, decimal_point)).rstrip('0')
+    try:
+        result = ("{:" + decimal_format + "f}").format(x / pow (10, decimal_point)).rstrip('0')
+    except ArithmeticError:
+        return 'unknown' # Normally doesn't happen but if x is a huge int, we may get OverflowError or other ArithmeticError subclass exception. See #1024
     integer_part, fract_part = result.split(".")
     dp = localeconv()['decimal_point']
     if len(fract_part) < num_zeros:
