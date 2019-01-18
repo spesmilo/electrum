@@ -150,14 +150,12 @@ class Daemon(DaemonThread):
         self.server = server
         server.timeout = 0.1
         server.register_function(self.ping, 'ping')
-        if is_gui:
-            server.register_function(self.run_gui, 'gui')
-        else:
-            server.register_function(self.run_daemon, 'daemon')
-            self.cmd_runner = Commands(self.config, None, self.network)
-            for cmdname in known_commands:
-                server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
-            server.register_function(self.run_cmdline, 'run_cmdline')
+        server.register_function(self.run_gui, 'gui')
+        server.register_function(self.run_daemon, 'daemon')
+        self.cmd_runner = Commands(self.config, None, self.network)
+        for cmdname in known_commands:
+            server.register_function(getattr(self.cmd_runner, cmdname), cmdname)
+        server.register_function(self.run_cmdline, 'run_cmdline')
 
     def ping(self):
         return True
