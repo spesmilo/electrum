@@ -1301,7 +1301,7 @@ def _ImportItemify(item : str) -> ImportItem:
         typ = 2
         try:
             info = PublicKey.from_WIF_privkey(item).address
-        except ValueError:
+        except (ValueError, TypeError):
             # Not an address, not a PK
             info, typ = None, 0
     return ImportItem(item, typ, info)
