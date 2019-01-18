@@ -101,6 +101,10 @@ class TcpConnection(threading.Thread, util.PrintError):
     def get_simple_socket(self):
         try:
             l = socket.getaddrinfo(self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        except OverflowError:
+            # This can happen if user specifies a huge port out of 32-bit range. See #985
+            self.print_error("port invalid:", self.port)
+            return
         except socket.gaierror:
             self.print_error("cannot resolve hostname")
             return
