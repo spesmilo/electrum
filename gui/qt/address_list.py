@@ -159,7 +159,7 @@ class AddressList(MyTreeWidget):
         
         # Now, at the very end, enforce previous UI state with respect to what was expanded or not. See #1042
         restore_expanded_items(self.invisibleRootItem(), expanded_item_names)
-        
+
     def create_menu(self, position):
         from electroncash.wallet import Multisig_Wallet
         is_multisig = isinstance(self.wallet, Multisig_Wallet)
@@ -191,7 +191,8 @@ class AddressList(MyTreeWidget):
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(copy_text))
             menu.addAction(_('Details'), lambda: self.parent.show_address(addr))
             if col in self.editable_columns:
-                menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(item, col))
+                menu.addAction(_("Edit {}").format(column_title), lambda: self.editItem(self.itemAt(position), # NB: C++ item may go away if this widget is refreshed while menu is up -- so need to re-grab and not store in lamba. See #953
+                                                                                        col))
             menu.addAction(_("Request payment"), lambda: self.parent.receive_at(addr))
             if self.wallet.can_export():
                 menu.addAction(_("Private key"), lambda: self.parent.show_private_key(addr))
