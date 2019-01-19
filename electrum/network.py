@@ -781,14 +781,14 @@ class Network(PrintError):
         # https://github.com/bitcoin/bitcoin/blob/cd42553b1178a48a16017eff0b70669c84c3895c/src/policy/policy.cpp
         # grep "reason ="
         policy_error_messages = {
-            r"version": None,
+            r"version": _("Transaction uses non-standard version."),
             r"tx-size": _("The transaction was rejected because it is too large."),
             r"scriptsig-size": None,
             r"scriptsig-not-pushonly": None,
             r"scriptpubkey": None,
             r"bare-multisig": None,
             r"dust": _("Transaction could not be broadcast due to dust outputs."),
-            r"multi-op-return": _("The transaction was rejected because it contains more than 1 OP_RETURN input."),
+            r"multi-op-return": _("The transaction was rejected because it contains multiple OP_RETURN outputs."),
         }
         for substring in policy_error_messages:
             if substring in server_msg:
