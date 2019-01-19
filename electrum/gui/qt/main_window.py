@@ -62,7 +62,7 @@ from electrum.address_synchronizer import AddTransactionException
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
                              sweep_preparations, InternalAddressCorruption)
 from electrum.version import ELECTRUM_VERSION
-from electrum.network import Network
+from electrum.network import Network, TxBroadcastError, BestEffortRequestFailed
 from electrum.exchange_rate import FxThread
 from electrum.simple_config import SimpleConfig
 
@@ -1660,10 +1660,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if pr and pr.has_expired():
                 self.payment_request = None
                 return False, _("Payment request has expired")
+            status = False
             try:
                 self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
-            except Exception as e:
-                status, msg = False, repr(e)
+            except TxBroadcastError as e:
+                msg = e.get_message_for_gui()
+            except BestEffortRequestFailed as e:
+                msg = repr(e)
             else:
                 status, msg = True, tx.txid()
             if pr and status is True:
@@ -1691,10 +1694,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     self.invoice_list.update()
                     self.do_clear()
                 else:
-                    display_msg = _('The server returned an error when broadcasting the transaction.')
-                    if msg:
-                        display_msg += '\n' + msg
-                    parent.show_error(display_msg)
+                    msg = msg or ''
+                    parent.show_error(msg)
 
         WaitingDialog(self, _('Broadcasting transaction...'),
                       broadcast_thread, broadcast_done, self.on_error)
