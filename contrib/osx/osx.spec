@@ -8,44 +8,6 @@ BUNDLE_IDENTIFIER='org.electroncash.' + PACKAGE # Used for info.plist
 PYPKG='electroncash'
 MAIN_SCRIPT='electron-cash'
 ICONS_FILE='electron.icns'
-APP_SIGN = os.environ.get('APP_SIGN', '')
-
-def fail(*msg):
-    RED='\033[0;31m'
-    NC='\033[0m' # No Color
-    print("\r🗯 {}ERROR:{}".format(RED, NC), *msg)
-    sys.exit(1)
-
-def codesign(identity, binary):
-    d = os.path.dirname(binary)
-    saved_dir=None
-    if d:
-        # switch to directory of the binary so codesign verbose messages don't include long path
-        saved_dir = os.path.abspath(os.path.curdir)
-        os.chdir(d)
-        binary = os.path.basename(binary)
-    os.system("codesign -v -f -s '{}' '{}'".format(identity, binary))==0 or fail("Could not code sign " + binary)
-    if saved_dir:
-        os.chdir(saved_dir)
-
-def monkey_patch_pyinstaller_for_codesigning(identity):
-    # Monkey-patch PyInstaller so that we app-sign all binaries *after* they are modified by PyInstaller
-    # If we app-sign before that point, the signature will be invalid because PyInstaller modifies
-    # @loader_path in the Mach-O loader table.
-    try:
-        import PyInstaller.depend.dylib
-        _saved_func = PyInstaller.depend.dylib.mac_set_relative_dylib_deps
-    except (ImportError, NameError, AttributeError):
-        # Hmm. Likely wrong PyInstaller version.
-        fail("Could not monkey-patch PyInstaller for code signing. Please ensure that you are using PyInstaller 3.4.")
-    _signed = set()
-    def my_func(fn, distname):
-        _saved_func(fn, distname)
-        if  (fn, distname) not in _signed:
-            codesign(identity, fn)
-            _signed.add((fn,distname)) # remember we signed it so we don't sign again
-    PyInstaller.depend.dylib.mac_set_relative_dylib_deps = my_func
-
 
 for i, x in enumerate(sys.argv):
     if x == '--name':
@@ -125,10 +87,6 @@ for x in a.binaries.copy():
             print('----> Removed:', x)
             break # break from inner loop
 #
-
-# If code signing, monkey-patch in a code signing step to pyinstaller. See: https://github.com/spesmilo/electrum/issues/4994
-if APP_SIGN:
-    monkey_patch_pyinstaller_for_codesigning(APP_SIGN)
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 

@@ -68,8 +68,8 @@ pyenv global $PYTHON_VERSION && pyenv rehash || \
 fail "Unable to use Python $PYTHON_VERSION"
 
 
-info "Installing pyinstaller"
-python3 -m pip install https://github.com/cculianu/pyinstaller/releases/download/3.4AppleEvents/fix_AppleEvents_Bootloader.zip -I --user && pyenv rehash || fail "Could not install pyinstaller"
+info "Installing PyInstaller"
+python3 -m pip install https://github.com/cculianu/pyinstaller/releases/download/3.4AppleEventsCodeSign/PyInstaller_3.4+AppleEvents+CodeSign.zip -I --user && pyenv rehash || fail "Could not install PyInstaller"
 
 info "Using these versions for building $PACKAGE:"
 sw_vers
@@ -128,7 +128,11 @@ info "Building $PACKAGE..."
 python3 setup.py install --user > /dev/null || fail "Could not build $PACKAGE"
 
 info "Building binary"
-APP_SIGN="$APP_SIGN" pyinstaller --noconfirm --ascii --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
+if [ -n "$APP_SIGN" ]; then
+    pyinstaller --osx-codesign-identity "$APP_SIGN" --clean --noconfirm --ascii --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
+else
+    pyinstaller --clean --noconfirm --ascii --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
+fi
 
 info "Adding bitcoincash URI types to Info.plist"
 plutil -insert 'CFBundleURLTypes' \
@@ -136,7 +140,7 @@ plutil -insert 'CFBundleURLTypes' \
 	-- dist/$PACKAGE.app/Contents/Info.plist \
 	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
 
-DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app" "$APP_SIGN" # must force a codesign again because Info.plist modified above
 
 info "Creating .DMG"
 hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/$PACKAGE-$VERSION.dmg || fail "Could not create .DMG"
