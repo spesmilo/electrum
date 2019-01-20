@@ -38,6 +38,7 @@ from .import util, ecc
 from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
+from . import bip32
 from .i18n import _
 from .transaction import Transaction, multisig_script, TxOutput
 from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
@@ -428,6 +429,16 @@ class Commands:
     def getmasterprivate(self, password=None):
         """Get master private key. Return your wallet\'s master private key"""
         return str(self.wallet.keystore.get_master_private_key(password))
+
+    @command('')
+    def convert_xkey(self, xkey, xtype):
+        """Convert xtype of a master key. e.g. xpub -> ypub"""
+        is_xprv = bip32.is_xprv(xkey)
+        if not bip32.is_xpub(xkey) and not is_xprv:
+            raise Exception('xkey should be a master public/private key')
+        _, depth, fingerprint, child_number, c, cK = bip32.deserialize_xkey(xkey, is_xprv)
+        serialize = bip32.serialize_xprv if is_xprv else bip32.serialize_xpub
+        return serialize(xtype, c, cK, depth, fingerprint, child_number)
 
     @command('wp')
     def getseed(self, password=None):
