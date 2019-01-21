@@ -8,12 +8,14 @@ import traceback
 from distutils.version import StrictVersion
 from functools import partial
 from typing import NamedTuple, Callable, Optional, TYPE_CHECKING
+import base64
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
 from electrum import version
+from electrum import ecc
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, PrintError
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
@@ -828,6 +830,10 @@ class UpdateCheck(QWidget, PrintError):
     url = "https://electrum.org/version"
     download_url = "https://electrum.org/#download"
 
+    VERSION_ANNOUNCEMENT_SIGNING_KEYS = (
+        "13xjmVAB1EATPP8RshTE8S8sNwwSUM9p1P",
+    )
+
     def __init__(self, main_window, latest_version=None):
         self.main_window = main_window
         QWidget.__init__(self)
@@ -904,7 +910,27 @@ class UpdateCheckThread(QThread, PrintError):
     async def get_update_info(self):
         async with make_aiohttp_session(proxy=self.main_window.network.proxy) as session:
             async with session.get(UpdateCheck.url) as result:
-                return StrictVersion((await result.text()).strip())
+                signed_version_dict = await result.json(content_type=None)
+                # example signed_version_dict:
+                # {
+                #     "version": "3.9.9",
+                #     "signatures": {
+                #         "1Lqm1HphuhxKZQEawzPse8gJtgjm9kUKT4": "IA+2QG3xPRn4HAIFdpu9eeaCYC7S5wS/sDxn54LJx6BdUTBpse3ibtfq8C43M7M1VfpGkD5tsdwl5C6IfpZD/gQ="
+                #     }
+                # }
+                version_num = signed_version_dict['version']
+                sigs = signed_version_dict['signatures']
+                for address, sig in sigs.items():
+                    if address not in UpdateCheck.VERSION_ANNOUNCEMENT_SIGNING_KEYS:
+                        continue
+                    sig = base64.b64decode(sig)
+                    msg = version_num.encode('utf-8')
+                    if ecc.verify_message_with_address(address=address, sig65=sig, message=msg):
+                        self.print_error(f"valid sig for version announcement '{version_num}' from address '{address}'")
+                        break
+                else:
+                    raise Exception('no valid signature for version announcement')
+                return StrictVersion(version_num.strip())
 
     def run(self):
         try:
