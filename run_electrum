@@ -49,6 +49,7 @@ def check_imports():
         import google.protobuf
         import jsonrpclib
         import aiorpcx
+        import _scrypt
     except ImportError as e:
         sys.exit(f"Error: {str(e)}. Try 'sudo python3 -m pip install <module-name>'")
     # the following imports are for pyinstaller

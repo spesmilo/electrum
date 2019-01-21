@@ -18,7 +18,7 @@ from electrum.util import UserCancelled, InvalidPassword
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum.i18n import _
 
-from .seed_dialog import SeedLayout, KeysLayout
+from .seed_dialog import SeedLayout, KeysLayout, SoloLayout
 from .network_dialog import NetworkChoiceLayout
 from .util import *
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
@@ -400,6 +400,14 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             _('Enter their master private key (xprv) if you want to be able to sign for them.')
         ])
         return self.text_input(title, message, is_valid)
+        
+    @wizard_dialog
+    def add_solo_secret_dialog(self, run_next, is_solo_pro=False):
+        sololayout = SoloLayout(is_solo_pro=is_solo_pro, parent=self)
+        title = _("Import Solo") + (" Pro" if is_solo_pro else "")
+        self.exec_layout(sololayout, title=title,  next_enabled=False)
+        key = sololayout.get_key()
+        return key
 
     @wizard_dialog
     def restore_seed_dialog(self, run_next, test):

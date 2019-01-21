@@ -751,6 +751,30 @@ def is_address_list(text):
     return bool(parts) and all(bitcoin.is_address(x) for x in parts)
 
 
+def is_solo_list(text):
+    filteredempty = filter(lambda y: y!= "" , text.split())
+    divided_secret = list(map(lambda y : y.split(","), filteredempty))
+    all_length3 = all(map(lambda y : len(y)==3, divided_secret))
+    if not all_length3:
+        return all_length3
+    all_base58 = all([car in bitcoin_b58chars for car in "".join(sum(divided_secret,[]))])
+    if not all_base58:
+        return all_base58
+    all_address_valid = is_address_list(" ".join(map(lambda y: y[2], divided_secret)))
+    return all_address_valid
+
+def get_solo_private_keys(text, *arg):
+    filteredempty = filter(lambda y: y!= "" , text.split())
+    divided_secret = map(lambda y : y.split(","), filteredempty)
+    pkpubk = map(lambda x: (compute_privatekey_bitcoin(x[0], x[1]),x[2]),divided_secret)
+    goodkeys, badkeys = [], []
+    for priv, pub in pkpubk:
+        if bitcoin.address_from_private_key(priv) == pub:
+            goodkeys.append(priv)
+        else:
+            badkeys.append((pub, "The computed private key address does not correspond to the give Bitcoin address"))
+    return goodkeys, badkeys
+
 def get_private_keys(text, *, allow_spaces_inside_key=True):
     if allow_spaces_inside_key:  # see #1612
         parts = text.split('\n')
