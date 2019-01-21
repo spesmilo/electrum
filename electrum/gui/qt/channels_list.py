@@ -30,8 +30,9 @@ class ChannelsList(MyTreeView):
         for subject in (REMOTE, LOCAL):
             bal_minus_htlcs = chan.balance_minus_outgoing_htlcs(subject)//1000
             label = self.parent.format_amount(bal_minus_htlcs)
-            bal_other = chan.balance(-subject)//1000
-            bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(-subject)//1000
+            other = subject.inverted()
+            bal_other = chan.balance(other)//1000
+            bal_minus_htlcs_other = chan.balance_minus_outgoing_htlcs(other)//1000
             if bal_other != bal_minus_htlcs_other:
                 label += ' (+' + self.parent.format_amount(bal_other - bal_minus_htlcs_other) + ')'
             labels[subject] = label

@@ -21,7 +21,7 @@ from .lnaddr import lndecode
 from .keystore import BIP32_KeyStore
 
 if TYPE_CHECKING:
-    from .lnchan import Channel, UpdateAddHtlc
+    from .lnchan import Channel
 
 
 HTLC_TIMEOUT_WEIGHT = 663
@@ -35,7 +35,6 @@ OnlyPubkeyKeypair = namedtuple("OnlyPubkeyKeypair", ["pubkey"])
 class LocalConfig(NamedTuple):
     # shared channel config fields (DUPLICATED code!!)
     ctn: int
-    amount_msat: int
     next_htlc_id: int
     payment_basepoint: 'Keypair'
     multisig_key: 'Keypair'
@@ -54,12 +53,12 @@ class LocalConfig(NamedTuple):
     was_announced: bool
     current_commitment_signature: Optional[bytes]
     current_htlc_signatures: List[bytes]
+    got_sig_for_next: bool
 
 
 class RemoteConfig(NamedTuple):
     # shared channel config fields (DUPLICATED code!!)
     ctn: int
-    amount_msat: int
     next_htlc_id: int
     payment_basepoint: 'Keypair'
     multisig_key: 'Keypair'
@@ -364,7 +363,7 @@ def make_htlc_tx_with_open_channel(chan: 'Channel', pcp: bytes, for_us: bool,
     # FIXME handle htlc_address collision
     # also: https://github.com/lightningnetwork/lightning-rfc/issues/448
     prevout_idx = commit.get_output_idx_from_address(htlc_address)
-    assert prevout_idx is not None
+    assert prevout_idx is not None, (htlc_address, commit.outputs(), extract_ctn_from_tx_and_chan(commit, chan))
     htlc_tx_inputs = make_htlc_tx_inputs(
         commit.txid(), prevout_idx,
         amount_msat=amount_msat,
@@ -395,11 +394,16 @@ class HTLCOwner(IntFlag):
     LOCAL = 1
     REMOTE = -LOCAL
 
-    SENT = LOCAL
-    RECEIVED = REMOTE
+    def inverted(self):
+        return HTLCOwner(-self)
 
-SENT = HTLCOwner.SENT
-RECEIVED = HTLCOwner.RECEIVED
+class Direction(IntFlag):
+    SENT = 3
+    RECEIVED = 4
+
+SENT = Direction.SENT
+RECEIVED = Direction.RECEIVED
+
 LOCAL = HTLCOwner.LOCAL
 REMOTE = HTLCOwner.REMOTE
 
@@ -420,8 +424,7 @@ def make_commitment_outputs(fees_per_participant: Mapping[HTLCOwner, int], local
     c_outputs_filtered = list(filter(lambda x: x.value >= dust_limit_sat, non_htlc_outputs + htlc_outputs))
     return htlc_outputs, c_outputs_filtered
 
-def calc_onchain_fees(num_htlcs, feerate, for_us, we_are_initiator):
-    we_pay_fee = for_us == we_are_initiator
+def calc_onchain_fees(num_htlcs, feerate, we_pay_fee):
     overall_weight = 500 + 172 * num_htlcs + 224
     fee = feerate * overall_weight
     fee = fee // 1000 * 1000
@@ -451,7 +454,7 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
     htlc_outputs, c_outputs_filtered = make_commitment_outputs(fees_per_participant, local_amount, remote_amount,
         (bitcoin.TYPE_ADDRESS, local_address), (bitcoin.TYPE_ADDRESS, remote_address), htlcs, dust_limit_sat)
 
-    assert sum(x.value for x in c_outputs_filtered) <= funding_sat
+    assert sum(x.value for x in c_outputs_filtered) <= funding_sat, (c_outputs_filtered, funding_sat)
 
     # create commitment tx
     tx = Transaction.from_io(c_inputs, c_outputs_filtered, locktime=locktime, version=2)
@@ -649,3 +652,20 @@ def format_short_channel_id(short_channel_id: Optional[bytes]):
     return str(int.from_bytes(short_channel_id[:3], 'big')) \
         + 'x' + str(int.from_bytes(short_channel_id[3:6], 'big')) \
         + 'x' + str(int.from_bytes(short_channel_id[6:], 'big'))
+
+class UpdateAddHtlc(namedtuple('UpdateAddHtlc', ['amount_msat', 'payment_hash', 'cltv_expiry', 'htlc_id'])):
+    """
+    This whole class body is so that if you pass a hex-string as payment_hash,
+    it is decoded to bytes. Bytes can't be saved to disk, so we save hex-strings.
+    """
+    __slots__ = ()
+    def __new__(cls, *args, **kwargs):
+        if len(args) > 0:
+            args = list(args)
+            if type(args[1]) is str:
+                args[1] = bfh(args[1])
+            return super().__new__(cls, *args)
+        if type(kwargs['payment_hash']) is str:
+            kwargs['payment_hash'] = bfh(kwargs['payment_hash'])
+        return super().__new__(cls, **kwargs)
+
