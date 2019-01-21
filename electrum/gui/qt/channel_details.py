@@ -5,9 +5,9 @@ import PyQt5.QtWidgets as QtWidgets
 import PyQt5.QtCore as QtCore
 
 from electrum.i18n import _
-from electrum.lnchan import UpdateAddHtlc, HTLCOwner
 from electrum.util import bh2u, format_time
-from electrum.lnutil import format_short_channel_id, SENT, RECEIVED
+from electrum.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
+from electrum.lnchan import htlcsum
 from electrum.lnaddr import LnAddr, lndecode
 from electrum.bitcoin import COIN
 
@@ -30,8 +30,8 @@ class LinkedLabel(QtWidgets.QLabel):
         self.linkActivated.connect(on_clicked)
 
 class ChannelDetailsDialog(QtWidgets.QDialog):
-    def make_htlc_item(self, i: UpdateAddHtlc, direction: HTLCOwner) -> HTLCItem:
-        it = HTLCItem(_('Sent HTLC with ID {}' if SENT == direction else 'Received HTLC with ID {}').format(i.htlc_id))
+    def make_htlc_item(self, i: UpdateAddHtlc, direction: Direction) -> HTLCItem:
+        it = HTLCItem(_('Sent HTLC with ID {}' if Direction.SENT == direction else 'Received HTLC with ID {}').format(i.htlc_id))
         it.appendRow([HTLCItem(_('Amount')),HTLCItem(self.format(i.amount_msat))])
         it.appendRow([HTLCItem(_('CLTV expiry')),HTLCItem(str(i.cltv_expiry))])
         it.appendRow([HTLCItem(_('Payment hash')),HTLCItem(bh2u(i.payment_hash))])
@@ -45,7 +45,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         invoice.appendRow([HTLCItem(_('Date')), HTLCItem(format_time(lnaddr.date))])
         it.appendRow([invoice])
 
-    def make_inflight(self, lnaddr, i: UpdateAddHtlc, direction: HTLCOwner) -> HTLCItem:
+    def make_inflight(self, lnaddr, i: UpdateAddHtlc, direction: Direction) -> HTLCItem:
         it = self.make_htlc_item(i, direction)
         self.append_lnaddr(it, lnaddr)
         return it
@@ -99,23 +99,23 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         dest_mapping = self.keyname_rows[to]
         dest_mapping[payment_hash] = len(dest_mapping)
 
-    ln_payment_completed = QtCore.pyqtSignal(str, float, HTLCOwner, UpdateAddHtlc, bytes, bytes)
-    htlc_added = QtCore.pyqtSignal(str, UpdateAddHtlc, LnAddr, HTLCOwner)
+    ln_payment_completed = QtCore.pyqtSignal(str, float, Direction, UpdateAddHtlc, bytes, bytes)
+    htlc_added = QtCore.pyqtSignal(str, UpdateAddHtlc, LnAddr, Direction)
 
-    @QtCore.pyqtSlot(str, UpdateAddHtlc, LnAddr, HTLCOwner)
+    @QtCore.pyqtSlot(str, UpdateAddHtlc, LnAddr, Direction)
     def do_htlc_added(self, evtname, htlc, lnaddr, direction):
         mapping = self.keyname_rows['inflight']
         mapping[htlc.payment_hash] = len(mapping)
         self.folders['inflight'].appendRow(self.make_inflight(lnaddr, htlc, direction))
 
-    @QtCore.pyqtSlot(str, float, HTLCOwner, UpdateAddHtlc, bytes, bytes)
+    @QtCore.pyqtSlot(str, float, Direction, UpdateAddHtlc, bytes, bytes)
     def do_ln_payment_completed(self, evtname, date, direction, htlc, preimage, chan_id):
         self.move('inflight', 'settled', htlc.payment_hash)
         self.update_sent_received()
 
     def update_sent_received(self):
-        self.sent_label.setText(str(sum(self.chan.settled[SENT])))
-        self.received_label.setText(str(sum(self.chan.settled[RECEIVED])))
+        self.sent_label.setText(str(htlcsum(self.hm.settled_htlcs_by(LOCAL))))
+        self.received_label.setText(str(htlcsum(self.hm.settled_htlcs_by(REMOTE))))
 
     @QtCore.pyqtSlot(str)
     def show_tx(self, link_text: str):
