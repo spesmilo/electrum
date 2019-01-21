@@ -25,8 +25,8 @@ from .util import PrintError, bh2u, print_error, bfh, log_exceptions, list_enabl
 from .transaction import Transaction, TxOutput
 from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment,
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailureMessage)
-from .lnchan import Channel, RevokeAndAck, htlcsum, UpdateAddHtlc
-from .lnutil import (Outpoint, LocalConfig, RECEIVED,
+from .lnchan import Channel, RevokeAndAck, htlcsum
+from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_per_commitment_secret_from_seed,
                      secret_to_pubkey, LNPeerAddr, PaymentFailure, LnLocalFeatures,
@@ -397,20 +397,20 @@ class Peer(PrintError):
             htlc_basepoint=keypair_generator(LnKeyFamily.HTLC_BASE),
             delayed_basepoint=keypair_generator(LnKeyFamily.DELAY_BASE),
             revocation_basepoint=keypair_generator(LnKeyFamily.REVOCATION_BASE),
-            to_self_delay=143,
+            to_self_delay=9,
             dust_limit_sat=546,
             max_htlc_value_in_flight_msat=0xffffffffffffffff,
             max_accepted_htlcs=5,
             initial_msat=initial_msat,
             ctn=-1,
             next_htlc_id=0,
-            amount_msat=initial_msat,
             reserve_sat=546,
             per_commitment_secret_seed=keypair_generator(LnKeyFamily.REVOCATION_ROOT).privkey,
             funding_locked_received=False,
             was_announced=False,
             current_commitment_signature=None,
             current_htlc_signatures=[],
+            got_sig_for_next=False,
         )
         return local_config
 
@@ -472,7 +472,6 @@ class Peer(PrintError):
             max_accepted_htlcs=int.from_bytes(payload["max_accepted_htlcs"], 'big'),
             initial_msat=push_msat,
             ctn = -1,
-            amount_msat=push_msat,
             next_htlc_id = 0,
             reserve_sat = remote_reserve_sat,
 
@@ -517,9 +516,11 @@ class Peer(PrintError):
         # broadcast funding tx
         await self.network.broadcast_transaction(funding_tx)
         chan.remote_commitment_to_be_revoked = chan.pending_commitment(REMOTE)
-        chan.config[REMOTE] = chan.config[REMOTE]._replace(ctn=0)
-        chan.config[LOCAL] = chan.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
+        chan.config[REMOTE] = chan.config[REMOTE]._replace(ctn=0, current_per_commitment_point=remote_per_commitment_point, next_per_commitment_point=None)
+        chan.config[LOCAL] = chan.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig, got_sig_for_next=False)
         chan.set_state('OPENING')
+        chan.set_remote_commitment()
+        chan.set_local_commitment(chan.current_commitment(LOCAL))
         return chan
 
     async def on_open_channel(self, payload):
@@ -579,7 +580,6 @@ class Peer(PrintError):
                     max_accepted_htlcs=int.from_bytes(payload['max_accepted_htlcs'], 'big'),
                     initial_msat=remote_balance_sat,
                     ctn = -1,
-                    amount_msat=remote_balance_sat,
                     next_htlc_id = 0,
                     reserve_sat = remote_reserve_sat,
 
@@ -605,7 +605,7 @@ class Peer(PrintError):
         )
         chan.set_state('OPENING')
         chan.remote_commitment_to_be_revoked = chan.pending_commitment(REMOTE)
-        chan.config[REMOTE] = chan.config[REMOTE]._replace(ctn=0)
+        chan.config[REMOTE] = chan.config[REMOTE]._replace(ctn=0, current_per_commitment_point=payload['first_per_commitment_point'], next_per_commitment_point=None)
         chan.config[LOCAL] = chan.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig)
         self.lnworker.save_channel(chan)
         self.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
@@ -732,7 +732,7 @@ class Peer(PrintError):
         if not chan.config[LOCAL].funding_locked_received:
             our_next_point = chan.config[REMOTE].next_per_commitment_point
             their_next_point = payload["next_per_commitment_point"]
-            new_remote_state = chan.config[REMOTE]._replace(next_per_commitment_point=their_next_point, current_per_commitment_point=our_next_point)
+            new_remote_state = chan.config[REMOTE]._replace(next_per_commitment_point=their_next_point)
             new_local_state = chan.config[LOCAL]._replace(funding_locked_received = True)
             chan.config[REMOTE]=new_remote_state
             chan.config[LOCAL]=new_local_state
