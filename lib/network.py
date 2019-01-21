@@ -1617,11 +1617,13 @@ class Network(util.DaemonThread):
         elif r"bare-multisig" in server_msg:
             return _("The transaction was rejected because it contains a bare multisig input.")
         elif r"multi-op-return" in server_msg:
-            return _("The transaction was rejected because it contains more than 1 OP_RETURN input.")
+            return _("The transaction was rejected because it contains multiple OP_RETURN outputs.")
         elif r"scriptsig-not-pushonly" in server_msg:
             return _("The transaction was rejected because it contains non-push-only script sigs.")
         elif r'bad-txns-nonfinal' in server_msg:
             return _("The transaction was rejected because it is not considered final according to network rules.")
+        elif r'version' in server_msg:
+            return _("The transaction was rejected because it uses a non-standard version.")
         return _("An error occurred broadcasting the transaction")
 
     # Used by the verifier job.
