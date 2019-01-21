@@ -345,14 +345,16 @@ class Plugin(BasePlugin):
                                    _("Do you want to open it now?"), defaultButton=QMessageBox.Yes):
                 return
 
-        err = "Unknown Error"
+        err, badpass = "Unknown Error", False
         try:
             xprv = wallet.keystore.get_master_private_key(password)
         except InvalidPassword as e:
-            err = str(e)
+            err, badpass = str(e), True
             xprv = None
         if not xprv:
             window.show_error(err)
+            if badpass:
+                self.on_receive(window, keyhash, message) # try again
             return
         try:
             k = bh2u(bitcoin.deserialize_xprv(xprv)[-1])
