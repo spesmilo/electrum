@@ -233,16 +233,23 @@ class BaseWizard(object):
         title = _('Hardware Keystore')
         # check available plugins
         supported_plugins = self.plugins.get_hardware_support()
-        # scan devices
         devices = []  # type: List[Tuple[str, DeviceInfo]]
         devmgr = self.plugins.device_manager
+        debug_msg = ''
+
+        def failed_getting_device_infos(name, e):
+            nonlocal debug_msg
+            devmgr.print_error(f'error getting device infos for {name}: {e}')
+            indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
+            debug_msg += f'  {name}: (error getting device infos)\n{indented_error_msg}\n'
+
+        # scan devices
         try:
             scanned_devices = devmgr.scan_devices()
         except BaseException as e:
             devmgr.print_error('error scanning devices: {}'.format(repr(e)))
             debug_msg = '  {}:\n    {}'.format(_('Error scanning devices'), e)
         else:
-            debug_msg = ''
             for splugin in supported_plugins:
                 name, plugin = splugin.name, splugin.plugin
                 # plugin init errored?
@@ -256,14 +263,17 @@ class BaseWizard(object):
                 # see if plugin recognizes 'scanned_devices'
                 try:
                     # FIXME: side-effect: unpaired_device_info sets client.handler
-                    u = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices)
+                    device_infos = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices,
+                                                                include_failing_clients=True)
                 except BaseException as e:
                     traceback.print_exc()
-                    devmgr.print_error(f'error getting device infos for {name}: {e}')
-                    indented_error_msg = '    '.join([''] + str(e).splitlines(keepends=True))
-                    debug_msg += f'  {name}: (error getting device infos)\n{indented_error_msg}\n'
+                    failed_getting_device_infos(name, e)
                     continue
-                devices += list(map(lambda x: (name, x), u))
+                device_infos_failing = list(filter(lambda di: di.exception is not None, device_infos))
+                for di in device_infos_failing:
+                    failed_getting_device_infos(name, di.exception)
+                device_infos_working = list(filter(lambda di: di.exception is None, device_infos))
+                devices += list(map(lambda x: (name, x), device_infos_working))
         if not debug_msg:
             debug_msg = '  {}'.format(_('No exceptions encountered.'))
         if not devices:

@@ -60,20 +60,20 @@ class ContactList(MyTreeView):
 
     def create_menu(self, position):
         menu = QMenu()
-        selected = self.selected_in_column(0)
-        selected_keys = []
-        for idx in selected:
-            sel_key = self.model().itemFromIndex(idx).data(Qt.UserRole)
-            selected_keys.append(sel_key)
         idx = self.indexAt(position)
+        column = idx.column() or 0
+        selected = self.selected_in_column(column)
+        selected_keys = []
+        for s_idx in selected:
+            sel_key = self.model().itemFromIndex(s_idx).data(Qt.UserRole)
+            selected_keys.append(sel_key)
         if not selected or not idx.isValid():
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
             menu.addAction(_("Import file"), lambda: self.import_contacts())
             menu.addAction(_("Export file"), lambda: self.export_contacts())
         else:
-            column = idx.column()
             column_title = self.model().horizontalHeaderItem(column).text()
-            column_data = '\n'.join(self.model().itemFromIndex(idx).text() for idx in selected)
+            column_data = '\n'.join(self.model().itemFromIndex(s_idx).text() for s_idx in selected)
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
             if column in self.editable_columns:
                 item = self.model().itemFromIndex(idx)
@@ -107,4 +107,6 @@ class ContactList(MyTreeView):
                 idx = self.model().index(row_count, 0)
                 set_current = QPersistentModelIndex(idx)
         self.set_current_idx(set_current)
+        # FIXME refresh loses sort order; so set "default" here:
+        self.sortByColumn(0, Qt.AscendingOrder)
         run_hook('update_contacts_tab', self)
