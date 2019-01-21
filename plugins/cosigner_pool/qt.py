@@ -341,8 +341,12 @@ class Plugin(BasePlugin):
             if not password:
                 return
         else:
-            if not window.question(_("An encrypted transaction was retrieved from cosigning pool.") + '\n' +
-                                   _("Do you want to open it now?"), defaultButton=QMessageBox.Yes):
+            details = (_("If you choose 'Yes', it will be decrypted and a transaction window will be shown, giving you the opportunity to sign the transaction.")
+                       + "\n\n" + _("If you choose 'No', you will be asked again later (the next time this wallet window is opened)."))
+            ret = window.msg_box(icon = QMessageBox.Question, parent = None, title=_("Cosigner Pool"), buttons=QMessageBox.Yes|QMessageBox.No,
+                                 text = _("An encrypted transaction was retrieved from cosigning pool.") + '\n' + _("Do you want to open it now?"),
+                                 detail_text = details)
+            if ret != QMessageBox.Yes:
                 return
 
         err, badpass = "Unknown Error", False
