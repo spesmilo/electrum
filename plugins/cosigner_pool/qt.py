@@ -41,7 +41,7 @@ from electroncash.i18n import _
 from electroncash.wallet import Multisig_Wallet
 from electroncash.util import bh2u, bfh, Weak, InvalidPassword, print_error
 
-from electroncash_gui.qt.transaction_dialog import show_transaction
+from electroncash_gui.qt.transaction_dialog import show_transaction, TxDialog
 
 # Workarounds to the fact that xmlrpc.client doesn't take a timeout= arg.
 class TimeoutTransport(Transport):
@@ -81,7 +81,7 @@ class Listener(util.DaemonThread):
         state = self.state_ref()
         if state: state.server.delete(keyhash)
         try: self.received.remove(keyhash)
-        except ValueError: pass
+        except (ValueError, KeyError): pass
 
     def run(self):
         self.print_error("started.")
@@ -167,7 +167,7 @@ class Plugin(BasePlugin):
         self.print_error("Initializing...")
         for window in gui.windows:
             self.on_new_window(window)
-        Plugin.Instance_ref = Weak.ref(self) 
+        Plugin.Instance_ref = Weak.ref(self)
 
     @hook
     def on_new_window(self, window):
@@ -180,6 +180,10 @@ class Plugin(BasePlugin):
             window.cosigner_pool_state = state = State(self, window)
             self.windows.append(window)
             self.update(window)
+            # un-gray-out buttons for tx dialogs left around related to this window
+            for b in Plugin.get_all_cosigner_buttons():
+                if b.wallet_ref() == wallet:
+                    b.setEnabled(True)
 
     @hook
     def on_close_window(self, window):
@@ -193,6 +197,20 @@ class Plugin(BasePlugin):
                 delattr(window, 'cosigner_pool_state')
             self.print_error("unregistered for window",window.diagnostic_name())
             self.windows.remove(window)
+            # gray out buttons for tx dialogs left around related to this window
+            for b in Plugin.get_all_cosigner_buttons():
+                if b.wallet_ref() == window.wallet:
+                    b.setEnabled(False)
+
+    @staticmethod
+    def get_all_cosigner_buttons():
+        ret = []
+        app = QApplication.instance()
+        for w in app.topLevelWidgets():
+            if isinstance(w, TxDialog):
+                but = getattr(w, 'cosigner_send_button', None)
+                if but: ret.append(but)
+        return ret
 
     def is_available(self):
         return True
@@ -230,6 +248,7 @@ class Plugin(BasePlugin):
         window, state = self._find_window_and_state_for_wallet(d.wallet)
         if window and state:
             d.cosigner_send_button = b = QPushButton(_("Send to cosigner"))
+            b.wallet_ref = Weak.ref(window.wallet)
             b.clicked.connect(lambda: Plugin.do_send_static(d))
             d.buttons.insert(0, b)
             self.transaction_dialog_update(d)
@@ -289,8 +308,8 @@ class Plugin(BasePlugin):
                 traceback.print_exc(file=sys.stdout)
                 window.show_error(_("Failed to send transaction to cosigning pool."))
                 return
-            window.show_message(_("Your transaction was sent to the cosigning pool.") + '\n' +
-                                _("Open your cosigner wallet to retrieve it."))
+            d.show_message(_("Your transaction was sent to the cosigning pool.") + '\n' +
+                           _("Open your cosigner wallet to retrieve it."))
 
     def on_receive(self, window, keyhash, message):
         self.print_error("signal arrived for", keyhash, "@", window.diagnostic_name())
