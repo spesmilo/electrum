@@ -144,6 +144,7 @@ class HistoryList(MyTreeWidget):
             item.setText(3, label)
 
     def update_item(self, tx_hash, height, conf, timestamp):
+        if not self.wallet: return # can happen on startup if this is called before self.on_update()
         status, status_str = self.wallet.get_tx_status(tx_hash, height, conf, timestamp)
         icon = QIcon(":icons/" +  TX_ICONS[status])
         items = self.findItems(tx_hash, Qt.UserRole|Qt.MatchContains|Qt.MatchRecursive, column=1)
