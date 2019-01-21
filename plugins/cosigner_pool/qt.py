@@ -153,9 +153,12 @@ class State(QObject):
             plugin.on_receive(window, k, m)
 
 
+class _Dead:
+    pass
+
 class Plugin(BasePlugin):
 
-    Instance_ref = None
+    Instance_ref = Weak.ref(_Dead()) # Make sure Instance_ref is always defined, defaults to dead object
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
