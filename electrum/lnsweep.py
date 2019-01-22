@@ -362,6 +362,7 @@ def create_sweeptx_their_ctx_htlc(ctx: Transaction, witness_script: bytes, sweep
                                   preimage: Optional[bytes], output_idx: int,
                                   privkey: bytes, is_revocation: bool, cltv_expiry: int,
                                   fee_per_kb: int=None) -> Optional[Transaction]:
+    assert type(cltv_expiry) is int
     preimage = preimage or b''  # preimage is required iff (not is_revocation and htlc is offered)
     val = ctx.outputs()[output_idx].value
     sweep_inputs = [{
@@ -381,7 +382,10 @@ def create_sweeptx_their_ctx_htlc(ctx: Transaction, witness_script: bytes, sweep
     outvalue = val - fee
     if outvalue <= dust_threshold(): return None
     sweep_outputs = [TxOutput(TYPE_ADDRESS, sweep_address, outvalue)]
-    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2, name=f'their_ctx_sweep_htlc_{ctx.txid()[:8]}_{output_idx}', cltv_expiry=cltv_expiry)
+    tx = Transaction.from_io(sweep_inputs, sweep_outputs, version=2
+            , name=f'their_ctx_sweep_htlc_{ctx.txid()[:8]}_{output_idx}'
+            # note that cltv_expiry, and therefore also locktime will be zero when breach!
+            , cltv_expiry=cltv_expiry, locktime=cltv_expiry)
 
     sig = bfh(tx.sign_txin(0, privkey))
     if not is_revocation:
