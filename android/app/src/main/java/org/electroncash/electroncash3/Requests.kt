@@ -45,7 +45,8 @@ class RequestsFragment : Fragment(), MainFragment {
             } else {
                 subtitle.value = null
                 rvRequests.adapter = RequestsAdapter(
-                    activity!!, wallet.callAttr("get_sorted_requests", daemonModel.config))
+                    activity!!,
+                    wallet.callAttr("get_sorted_requests", daemonModel.config).asList())
                 btnAdd.show()
             }
         }
@@ -53,7 +54,7 @@ class RequestsFragment : Fragment(), MainFragment {
         requestsUpdate.observe(viewLifecycleOwner, observer)
 
         btnAdd.setOnClickListener {
-            if (daemonModel.wallet!!.callAttr("is_watching_only").toJava(Boolean::class.java)) {
+            if (daemonModel.wallet!!.callAttr("is_watching_only").toBoolean()) {
                 toast(R.string.this_wallet_is_watching_only_)
             } else {
                 val address = wallet!!.callAttr("get_unused_address")
@@ -69,15 +70,15 @@ class RequestsFragment : Fragment(), MainFragment {
 }
 
 
-class RequestsAdapter(val activity: FragmentActivity, val requests: PyObject)
+class RequestsAdapter(val activity: FragmentActivity, val requests: List<PyObject>)
     : BoundAdapter<RequestModel>(R.layout.request_list) {
 
     override fun getItemCount(): Int {
-        return requests.callAttr("__len__").toJava(Int::class.java)
+        return requests.size
     }
 
     override fun getItem(position: Int): RequestModel {
-        return RequestModel(requests.callAttr("__getitem__", position))
+        return RequestModel(requests.get(position))
     }
 
     override fun onBindViewHolder(holder: BoundViewHolder<RequestModel>, position: Int) {
@@ -90,10 +91,10 @@ class RequestsAdapter(val activity: FragmentActivity, val requests: PyObject)
 
 class RequestModel(val request: PyObject) {
     val address = getField("address").toString()
-    val amount = formatSatoshis(getField("amount").toJava(Long::class.java))
+    val amount = formatSatoshis(getField("amount").toLong())
     val timestamp = libUtil.callAttr("format_time", getField("time")).toString()
     val description = getField("memo").toString()
-    val status = formatStatus(getField("status").toJava(Int::class.java))
+    val status = formatStatus(getField("status").toInt())
 
     private fun formatStatus(status: Int): Any {
         return app.resources.getStringArray(R.array.payment_status)[status]

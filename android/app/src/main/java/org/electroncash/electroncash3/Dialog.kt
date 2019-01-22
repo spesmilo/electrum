@@ -18,15 +18,26 @@ import android.widget.PopupMenu
 
 
 abstract class AlertDialogFragment : DialogFragment() {
+    var firstStart = true
+
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val builder = AlertDialog.Builder(context!!)
         onBuildDialog(builder)
-        val dialog = builder.create()
-        dialog.setOnShowListener { onShowDialog(dialog) }
-        return dialog
+        return builder.create()
     }
 
     open fun onBuildDialog(builder: AlertDialog.Builder) {}
+
+    // We used to trigger onShowDialog from Dialog.setOnShowListener, but we had crash reports
+    // indicating that the fragment context was sometimes null in that listener (#1046, #1108).
+    // So use one of the fragment lifecycle methods instead.
+    override fun onStart() {
+        super.onStart()
+        if (firstStart) {
+            firstStart = false
+            onShowDialog(dialog as AlertDialog)
+        }
+    }
 
     /** Can be used to do things like configure custom views, or attach listeners to buttons so
      *  they don't always close the dialog. */

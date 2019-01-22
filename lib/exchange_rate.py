@@ -4,6 +4,7 @@ import requests
 import sys
 import os
 import json
+import pkgutil
 from threading import Thread
 import time
 import csv
@@ -267,13 +268,13 @@ def dictinvert(d):
     return inv
 
 def get_exchanges_and_currencies():
-    import os, json
-    path = os.path.join(os.path.dirname(__file__), 'currencies.json')
     try:
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.loads(f.read())
+        data = pkgutil.get_data(__name__, 'currencies.json')
+        return json.loads(data.decode('utf-8'))
     except:
         pass
+
+    path = os.path.join(os.path.dirname(__file__), 'currencies.json')
     d = {}
     is_exchange = lambda obj: (inspect.isclass(obj)
                                and issubclass(obj, ExchangeBase)

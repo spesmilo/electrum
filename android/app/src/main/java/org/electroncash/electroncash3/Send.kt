@@ -47,7 +47,7 @@ class SendDialog : AlertDialogFragment() {
 
         with (dialog.sbFee) {
             // setMin is not available until API level 26, so values are offset by MIN_FEE.
-            progress = (daemonModel.config.callAttr("fee_per_kb").toJava(Int::class.java) / 1000
+            progress = (daemonModel.config.callAttr("fee_per_kb").toInt() / 1000
                         - MIN_FEE)
             max = MAX_FEE - MIN_FEE
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -79,8 +79,7 @@ class SendDialog : AlertDialogFragment() {
         if (dialog.btnMax.isChecked) {
             try {
                 tx = daemonModel.makeTx(addrOrDummy, null, unsigned=true)
-                dialog.etAmount.setText(
-                    formatSatoshis(tx.callAttr("output_value").toJava(Long::class.java)))
+                dialog.etAmount.setText(formatSatoshis(tx.callAttr("output_value").toLong()))
             } catch (e: ToastException) {}
         }
         amountBoxUpdate(dialog)
@@ -90,7 +89,7 @@ class SendDialog : AlertDialogFragment() {
             if (tx == null) {
                 tx = daemonModel.makeTx(addrOrDummy, amountBoxGet(dialog), unsigned = true)
             }
-            val fee = tx.callAttr("get_fee").toJava(Long::class.java)
+            val fee = tx.callAttr("get_fee").toLong()
             feeLabel += " (${formatSatoshis(fee)} $unitName)"
         } catch (e: ToastException) {}
         dialog.tvFeeLabel.setText(feeLabel)
@@ -107,7 +106,7 @@ class SendDialog : AlertDialogFragment() {
                 }
                 val amount = parsed.callAttr("get", "amount")
                 if (amount != null) {
-                    dialog.etAmount.setText(formatSatoshis(amount.toJava(Long::class.java)))
+                    dialog.etAmount.setText(formatSatoshis(amount.toLong()))
                 }
             } catch (e: PyException) {
                 dialog.etAddress.setText(result.contents)
@@ -154,11 +153,11 @@ class SendPasswordDialog : PasswordDialog(runInBackground = true) {
         if (daemonModel.netStatus.value == null) {
             throw ToastException(R.string.not_connected)
         }
-        val result = daemonModel.network.callAttr("broadcast_transaction", tx)
-        if (result.callAttr("__getitem__", 0).toJava(Boolean::class.java)) {
+        val result = daemonModel.network.callAttr("broadcast_transaction", tx).asList()
+        if (result.get(0).toBoolean()) {
             model.result.postValue(null)
         } else {
-            val err = ServerError(result.callAttr("__getitem__", 1).toString())
+            val err = ServerError(result.get(1).toString())
             if (err.isClean) {
                 throw ToastException(err.message)
             } else {

@@ -24,7 +24,7 @@ fun initSettings() {
 
     // Network
     setDefaultValue(sp, "auto_connect",
-                    libNetwork.get("DEFAULT_AUTO_CONNECT")!!.toJava(Boolean::class.java))
+                    libNetwork.get("DEFAULT_AUTO_CONNECT")!!.toBoolean())
     // null would cause issues with the preference framework, but the empty string has
     // the same effect of making the daemon choose a random server.
     setDefaultValue(sp, "server", "")
@@ -34,7 +34,7 @@ fun initSettings() {
 
     // Fiat
     setDefaultValue(sp, "use_exchange_rate",
-                    libExchange.get("DEFAULT_ENABLED")!!.toJava(Boolean::class.java))
+                    libExchange.get("DEFAULT_ENABLED")!!.toBoolean())
     setDefaultValue(sp, "currency", libExchange.get("DEFAULT_CURRENCY")!!.toString())
     setDefaultValue(sp, "use_exchange", libExchange.get("DEFAULT_EXCHANGE")!!.toString())
 
@@ -80,11 +80,8 @@ class SettingsFragment : PreferenceFragmentCompat(), MainFragment {
         observeGroup(preferenceScreen)
     }
 
-    // TODO improve once Chaquopy provides better syntax.
     fun setEntries(key: String, pyList: PyObject) {
-        val arr = Array(pyList.callAttr("__len__").toJava(Int::class.java)) {
-            pyList.callAttr("__getitem__", it).toString()
-        }
+        val arr = pyList.asList().map { it.toString() }.toTypedArray()
         (findPreference(key) as ListPreference).apply {
             entries = arr
             entryValues = arr

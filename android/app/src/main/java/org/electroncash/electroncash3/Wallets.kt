@@ -8,6 +8,7 @@ import android.arch.lifecycle.ViewModel
 import android.arch.lifecycle.ViewModelProviders
 import android.content.DialogInterface
 import android.content.Intent
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.support.v4.app.DialogFragment
 import android.support.v4.app.Fragment
@@ -107,7 +108,7 @@ class WalletsFragment : Fragment(), MainFragment {
         setupVerticalList(rvTransactions)
         daemonModel.transactions.observe(viewLifecycleOwner, Observer {
             rvTransactions.adapter = if (it == null) null
-                                     else TransactionsAdapter(activity!!, it)
+                                     else TransactionsAdapter(activity!!, it.asList())
         })
 
         daemonModel.walletName.observe(viewLifecycleOwner, Observer {
@@ -119,10 +120,10 @@ class WalletsFragment : Fragment(), MainFragment {
             }
         })
         btnSend.setOnClickListener {
-            if (daemonModel.wallet!!.callAttr("is_watching_only").toJava(Boolean::class.java)) {
+            if (daemonModel.wallet!!.callAttr("is_watching_only").toBoolean()) {
                 toast(R.string.this_wallet_is_watching_only_)
             } else if (daemonModel.wallet!!.callAttr("get_receiving_addresses")
-                       .callAttr("__len__").toJava(Int::class.java) == 0) {
+                       .asList().isEmpty()) {
                 // At least one receiving address is needed to call wallet.dummy_address.
                 toast(R.string.electron_cash_is_generating_your_addresses__please_wait_)
             } else {
@@ -139,12 +140,11 @@ class WalletsFragment : Fragment(), MainFragment {
 }
 
 
-// TODO integrate into Wallets screen like in the iOS app.
 class SelectWalletDialog : AlertDialogFragment(), DialogInterface.OnClickListener {
-    lateinit var items: MutableList<String>
+    val items = ArrayList<String>()
 
     override fun onBuildDialog(builder: AlertDialog.Builder) {
-        items = daemonModel.listWallets()
+        items.addAll(daemonModel.listWallets())
         items.add(getString(R.string.new_wallet))
         builder.setTitle(R.string.wallets)
             .setSingleChoiceItems(items.toTypedArray(),
@@ -172,21 +172,15 @@ class SelectWalletDialog : AlertDialogFragment(), DialogInterface.OnClickListene
 
 
 class NewWalletDialog1 : AlertDialogFragment() {
-    lateinit var typeAdapter: MenuAdapter
-
     override fun onBuildDialog(builder: AlertDialog.Builder) {
         builder.setTitle(R.string.new_wallet)
             .setView(R.layout.new_wallet)
             .setPositiveButton(R.string.next, null)
             .setNegativeButton(R.string.cancel, null)
-
-        // For some reason `context` is sometimes null in onShowDialog
-        // (https://github.com/Electron-Cash/Electron-Cash/issues/1046).
-        typeAdapter = MenuAdapter(context!!, R.menu.wallet_type)
     }
 
     override fun onShowDialog(dialog: AlertDialog) {
-        dialog.spnType.adapter = typeAdapter
+        dialog.spnType.adapter = MenuAdapter(context!!, R.menu.wallet_type)
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             try {
@@ -312,9 +306,9 @@ class NewWalletImportDialog : NewWalletDialog2() {
         for (word in input.split(Regex("\\s+"))) {
             if (word.isEmpty()) {
                 // Can happen at start or end of list.
-            } else if (clsAddress.callAttr("is_valid", word).toJava(Boolean::class.java)) {
+            } else if (clsAddress.callAttr("is_valid", word).toBoolean()) {
                 foundAddress = true
-            } else if (libBitcoin.callAttr("is_private_key", word).toJava(Boolean::class.java)) {
+            } else if (libBitcoin.callAttr("is_private_key", word).toBoolean()) {
                 foundPrivkey = true
             } else {
                 throw ToastException(getString(R.string.not_a_valid, word))
@@ -494,28 +488,22 @@ fun seedAdvice(seed: String): String {
 }
 
 
-class TransactionsAdapter(val activity: FragmentActivity, val transactions: PyObject)
+class TransactionsAdapter(val activity: FragmentActivity, val transactions: List<PyObject>)
     : BoundAdapter<TransactionModel>(R.layout.transaction_list) {
 
     override fun getItem(position: Int): TransactionModel {
-        val t = transactions.callAttr("__getitem__", itemCount - position - 1)
-        // TODO: simplify this once Chaquopy provides better syntax for dict access
-        return TransactionModel(
-            t.callAttr("__getitem__", "txid").toString(),
-            t.callAttr("__getitem__", "value").toString(),
-            t.callAttr("__getitem__", "balance").toString(),
-            t.callAttr("__getitem__", "date").toString(),
-            t.callAttr("__getitem__", "confirmations").toJava(Int::class.java))
+        return TransactionModel(transactions.get(itemCount - position - 1)  // Newest first
+                                .asMap())
     }
 
     override fun getItemCount(): Int {
-        return transactions.callAttr("__len__").toJava(Int::class.java)
+        return transactions.size
     }
 
     override fun onBindViewHolder(holder: BoundViewHolder<TransactionModel>, position: Int) {
         super.onBindViewHolder(holder, position)
         holder.itemView.setOnClickListener {
-            val txid = holder.item.txid
+            val txid = holder.item.get("txid").toString()
             val tx = daemonModel.wallet!!.get("transactions")!!.callAttr("get", txid)
             if (tx == null) {  // Can happen during wallet sync.
                 toast(R.string.transaction_not)
@@ -526,18 +514,23 @@ class TransactionsAdapter(val activity: FragmentActivity, val transactions: PyOb
     }
 }
 
-class TransactionModel(
-    val txid: String,
-    val value: String,
-    val balance: String,
-    val date: String,
-    val confirmations: Int) {
+class TransactionModel(val txExport: Map<PyObject, PyObject>) {
+    fun get(key: String) = txExport.get(PyObject.fromJava(key))!!
+
+    fun getIcon(): Drawable {
+        return app.resources.getDrawable(
+            if (get("value").toString()[0] == '+') R.drawable.ic_add_24dp
+            else R.drawable.ic_remove_24dp)!!
+    }
 
     @SuppressLint("StringFormatMatches")
-    val confirmationsStr = when {
-        confirmations <= 0 -> ""
-        confirmations > 6 -> app.getString(R.string.confirmed)
-        else -> app.getString(R.string.___confirmations, confirmations)
+    fun getConfirmationsStr(): String {
+        val confirmations = get("confirmations").toInt()
+        return when {
+            confirmations <= 0 -> ""
+            confirmations > 6 -> app.getString(R.string.confirmed)
+            else -> app.getString(R.string.___confirmations, confirmations)
+        }
     }
 }
 
@@ -559,19 +552,19 @@ class TransactionDialog() : AlertDialogFragment() {
         dialog.btnCopy.setOnClickListener { copyToClipboard(txid) }
 
         val tx = wallet.get("transactions")!!.callAttr("get", txid)!!
-        val txInfo = wallet.callAttr("get_tx_info", tx)
+        val txInfo = wallet.callAttr("get_tx_info", tx).asList()
         dialog.tvTxid.text = txid
 
-        val timestamp = txInfo.callAttr("__getitem__", 8).toJava(Long::class.java)
+        val timestamp = txInfo.get(8).toLong()
         dialog.tvTimestamp.text = if (timestamp == 0L) getString(R.string.Unknown)
                                   else libUtil.callAttr("format_time", timestamp).toString()
 
-        dialog.tvStatus.text = txInfo.callAttr("__getitem__", 1).toString()
+        dialog.tvStatus.text = txInfo.get(1).toString()
 
-        val size = tx.callAttr("estimated_size").toJava(Int::class.java)
+        val size = tx.callAttr("estimated_size").toInt()
         dialog.tvSize.text = getString(R.string.bytes, size)
 
-        val fee = txInfo.callAttr("__getitem__", 5)?.toJava(Long::class.java)
+        val fee = txInfo.get(5)?.toLong()
         if (fee == null) {
             dialog.tvFee.text = getString(R.string.Unknown)
         } else {

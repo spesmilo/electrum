@@ -1,12 +1,14 @@
 from __future__ import absolute_import, division, print_function
 
 from code import InteractiveConsole
+from fnmatch import fnmatch
 import json
 import os
-from os.path import dirname, exists, join
+from os.path import exists, join
+import pkg_resources
 import unittest
 
-from electroncash import commands, daemon, keystore, tests, simple_config, util, version
+from electroncash import commands, daemon, keystore, simple_config, storage, util, version
 from electroncash.storage import WalletStorage
 from electroncash.wallet import (ImportedAddressWallet, ImportedPrivkeyWallet, Standard_Wallet,
                                  Wallet)
@@ -164,7 +166,8 @@ class AndroidCommands(commands.Commands):
 
     def list_wallets(self):
         """List available wallets"""
-        return sorted(os.listdir(self._wallet_path()))
+        return sorted([name for name in os.listdir(self._wallet_path())
+                       if not name.endswith(storage.TMP_SUFFIX)])
 
     def delete_wallet(self, name):
         """Delete a wallet"""
@@ -177,9 +180,11 @@ class AndroidCommands(commands.Commands):
         """Run all unit tests. Expect failures with functionality not present on Android,
         such as Trezor.
         """
-        tests_dir = dirname(tests.__file__)
-        suite = unittest.defaultTestLoader.discover(tests_dir,
-                                                    top_level_dir=tests_dir + "/../..")
+        test_pkg = "electroncash.tests"
+        suite = unittest.defaultTestLoader.loadTestsFromNames(
+            [test_pkg + "." + filename[:-3]
+             for filename in pkg_resources.resource_listdir(test_pkg, "")
+             if fnmatch(filename, "test_*.py")])
         unittest.TextTestRunner(verbosity=2).run(suite)
 
     # END commands which only exist here.

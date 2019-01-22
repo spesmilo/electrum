@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.support.v4.app.Fragment
 import android.support.v7.app.AppCompatActivity
 import kotlinx.android.synthetic.main.main.*
+import kotlin.properties.Delegates.notNull
 import kotlin.reflect.KClass
 
 
@@ -20,14 +21,18 @@ val FRAGMENTS = HashMap<Int, KClass<out Fragment>>().apply {
 
 
 class MainActivity : AppCompatActivity() {
+    var stateValid: Boolean by notNull()
     var cleanStart = true
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(R.style.AppTheme)  // Remove splash screen.
-        super.onCreate(savedInstanceState)
-        if (savedInstanceState != null) {
-            cleanStart = savedInstanceState.getBoolean("cleanStart", true)
-        }
+    override fun onCreate(state: Bundle?) {
+        // Remove splash screen: doesn't work if called after super.onCreate.
+        setTheme(R.style.AppTheme)
+
+        // If the wallet name doesn't match, the process has probably been restarted, so
+        // ignore the UI state, including all dialogs.
+        stateValid = (state != null &&
+                      (state.getString("walletName") == daemonModel.walletName.value))
+        super.onCreate(if (stateValid) state else null)
 
         setContentView(R.layout.main)
         navigation.setOnNavigationItemSelectedListener {
@@ -39,14 +44,28 @@ class MainActivity : AppCompatActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putBoolean("cleanStart", cleanStart)
+        outState.putString("walletName", daemonModel.walletName.value)
     }
 
-    override fun onResume() {
-        super.onResume()
+    override fun onRestoreInstanceState(state: Bundle) {
+        if (stateValid) {
+            super.onRestoreInstanceState(state)
+            cleanStart = state.getBoolean("cleanStart", true)
+        }
+    }
+
+    override fun onPostCreate(state: Bundle?) {
+        super.onPostCreate(if (stateValid) state else null)
+    }
+
+    override fun onResumeFragments() {
+        super.onResumeFragments()
         showFragment(navigation.selectedItemId)
         if (cleanStart) {
             cleanStart = false
-            showDialog(this, SelectWalletDialog())
+            if (daemonModel.wallet == null) {
+                showDialog(this, SelectWalletDialog())
+            }
         }
     }
 
@@ -65,7 +84,10 @@ class MainActivity : AppCompatActivity() {
             newFrag.title.observe(this, Observer { setTitle(it ?: "") })
             newFrag.subtitle.observe(this, Observer { supportActionBar!!.setSubtitle(it) })
         }
-        ft.commitNow()
+
+        // BottomNavigationView onClick is sometimes triggered after state has been saved
+        // (https://github.com/Electron-Cash/Electron-Cash/issues/1091).
+        ft.commitNowAllowingStateLoss()
     }
 
     private fun getFragment(id: Int): Fragment {
@@ -76,7 +98,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             frag = FRAGMENTS[id]!!.java.newInstance()
             supportFragmentManager.beginTransaction()
-                .add(flContent.id, frag, tag).commitNow()
+                .add(flContent.id, frag, tag).commitNowAllowingStateLoss()
             return frag
         }
     }

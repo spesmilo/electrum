@@ -26,6 +26,7 @@ import os
 import hmac
 import math
 import hashlib
+import pkgutil
 import unicodedata
 import string
 
@@ -89,9 +90,8 @@ def normalize_text(seed):
     return seed
 
 def load_wordlist(filename):
-    path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
-    with open(path, 'r', encoding='utf-8') as f:
-        s = f.read().strip()
+    data = pkgutil.get_data(__name__, os.path.join('wordlist', filename))
+    s = data.decode('utf-8').strip()
     s = unicodedata.normalize('NFKD', s)
     lines = s.split('\n')
     wordlist = []

@@ -40,9 +40,9 @@ android {
         python {
             pip {
                 install "-r", "$REPO_ROOT/contrib/deterministic-build/requirements.txt"
-                install "pycryptodomex"
+                install "pycryptodomex==3.6.6"
+                install "setuptools==40.6.3"  // pkg_resources is used in android/console.py.
             }
-            extractPackages "electroncash"
         }
         ndk {
             abiFilters "x86", "armeabi-v7a"
