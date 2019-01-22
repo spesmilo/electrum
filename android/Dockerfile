@@ -16,7 +16,7 @@ RUN filename=sdk-tools-linux-4333796.zip && \
 
 # Indicate that we accept the license which has the given hash.
 RUN mkdir android-sdk/licenses && \
-    echo d56f5187479451eabf01fb78af6dfcb131a6481e > android-sdk/licenses/android-sdk-license
+    echo 24333f8a63b6825ea9c5514f83c2829b004d1fee > android-sdk/licenses/android-sdk-license
 
 # make_locale
 RUN apt-get update && \

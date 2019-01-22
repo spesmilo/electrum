@@ -24,12 +24,12 @@
 
 import json
 import os
+import pkgutil
 
 def read_json_dict(filename):
-    path = os.path.join(os.path.dirname(__file__), filename)
     try:
-        with open(path, 'r') as f:
-            r = json.loads(f.read())
+        data = pkgutil.get_data(__name__, filename)
+        r = json.loads(data.decode('utf-8'))
     except:
         r = {}
     return r

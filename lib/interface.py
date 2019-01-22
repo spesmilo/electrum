@@ -229,10 +229,6 @@ class TcpConnection(threading.Thread, util.PrintError):
                 if e.errno == 104:
                     return
                 return
-            except BaseException as e:
-                self.print_error(e)
-                traceback.print_exc(file=sys.stderr)
-                return
 
             if is_new:
                 self.print_error("saving certificate")
@@ -241,7 +237,12 @@ class TcpConnection(threading.Thread, util.PrintError):
         return s
 
     def run(self):
-        socket = self.get_socket()
+        try:
+            socket = self.get_socket()
+        except OSError:
+            traceback.print_exc()
+            socket = None
+
         if socket:
             self.print_error("connected")
         self.queue.put((self.server, socket))

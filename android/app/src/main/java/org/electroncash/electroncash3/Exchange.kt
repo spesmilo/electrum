@@ -38,7 +38,7 @@ fun formatFiatAmountAndUnit(amount: Long): String? {
 
 
 fun formatFiatAmount(amount: Long): String? {
-    if (!fx.callAttr("is_enabled").toJava(Boolean::class.java)) {
+    if (!fx.callAttr("is_enabled").toBoolean()) {
         return null
     }
     val amountStr = fx.callAttr("format_amount", amount).toString()

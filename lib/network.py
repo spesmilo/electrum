@@ -417,7 +417,8 @@ class Network(util.DaemonThread):
 
     def get_interfaces(self):
         '''The interfaces that are in connected state'''
-        return list(self.interfaces.keys())
+        with self.interface_lock:
+            return list(self.interfaces.keys())
 
     def get_servers(self):
         out = bitcoin.NetworkConstants.DEFAULT_SERVERS
@@ -1452,8 +1453,9 @@ class Network(util.DaemonThread):
         return True
 
     def blockchain(self):
-        if self.interface and self.interface.blockchain is not None:
-            self.blockchain_index = self.interface.blockchain.base_height
+        with self.interface_lock:
+            if self.interface and self.interface.blockchain is not None:
+                self.blockchain_index = self.interface.blockchain.base_height
         return self.blockchains[self.blockchain_index]
 
     def get_blockchains(self):

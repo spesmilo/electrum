@@ -53,18 +53,18 @@ class NetworkFragment : Fragment(), MainFragment {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         setupVerticalList(rvIfaces)
         daemonUpdate.observe(viewLifecycleOwner, Observer {
-            val ifaceItems = py.builtins.callAttr(
-                "sorted", daemonModel.network.get("interfaces")!!.callAttr("items"))
-            var status = getString(R.string.connected_to,
-                                   ifaceItems.callAttr("__len__").toJava(Int::class.java))
+            val ifaceLock = daemonModel.network.get("interface_lock")!!
+            ifaceLock.callAttr("acquire")
+            val ifaces = ArrayList(daemonModel.network.get("interfaces")!!.asMap().values)
+            ifaces.sortBy { it.get("server").toString() }
+            ifaceLock.callAttr("release")
 
-            val isSplit = daemonModel.network.callAttr("get_blockchains")
-                              .callAttr("__len__").toJava(Int::class.java) > 1
+            var status = getString(R.string.connected_to, ifaces.size)
+            val isSplit = daemonModel.network.callAttr("get_blockchains").asMap().size > 1
             if (isSplit) {
                 val curChain = daemonModel.network.callAttr("blockchain")
                 status += "\n" + getString(R.string.chain_split,
-                                           curChain.callAttr("get_base_height")
-                                               .toJava(Int::class.java))
+                                           curChain.callAttr("get_base_height").toInt())
             }
             tvStatus.text = status
 
@@ -74,23 +74,22 @@ class NetworkFragment : Fragment(), MainFragment {
             } else {
                 tvServer.setText(R.string.not_connected)
             }
-
-            rvIfaces.adapter = IfacesAdapter(activity!!, ifaceItems, isSplit)
+            rvIfaces.adapter = IfacesAdapter(activity!!, ifaces, isSplit)
         })
     }
 }
 
 
-class IfacesAdapter(val activity: FragmentActivity, val ifaceItems: PyObject, val isSplit: Boolean)
+class IfacesAdapter(val activity: FragmentActivity, val ifaces: List<PyObject>,
+                    val isSplit: Boolean)
     : BoundAdapter<IfaceModel>(R.layout.iface) {
 
     override fun getItemCount(): Int {
-        return ifaceItems.callAttr("__len__").toJava(Int::class.java)
+        return ifaces.size
     }
 
     override fun getItem(position: Int): IfaceModel {
-        val item = ifaceItems.callAttr("__getitem__", position)
-        return IfaceModel(item.callAttr("__getitem__", 1), isSplit)
+        return IfaceModel(ifaces.get(position), isSplit)
     }
 
     override fun onBindViewHolder(holder: BoundViewHolder<IfaceModel>, position: Int) {

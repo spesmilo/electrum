@@ -47,6 +47,7 @@ NEW_SEED_VERSION = 11       # electrum versions >= 2.0
 FINAL_SEED_VERSION = 17     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
+TMP_SUFFIX = ".tmp.{}".format(os.getpid())
 
 
 def multisig_type(wallet_type):
@@ -187,7 +188,7 @@ class WalletStorage(PrintError):
             s = bitcoin.encrypt_message(c, self.pubkey)
             s = s.decode('utf8')
 
-        temp_path = "%s.tmp.%s" % (self.path, os.getpid())
+        temp_path = self.path + TMP_SUFFIX
         with open(temp_path, "w", encoding='utf-8') as f:
             f.write(s)
             f.flush()
