@@ -68,7 +68,8 @@ class ChannelsList(MyTreeView):
             def task():
                 coro = lnworker.force_close_channel(channel_id)
                 return network.run_from_another_thread(coro)
-            WaitingDialog(self, 'please wait..', task, on_success, on_failure)
+            if self.parent.question('Force-close channel?\nClaiming funds will not be immediately available.'):
+                WaitingDialog(self, 'please wait..', task, on_success, on_failure)
         menu.addAction(_("Details..."), lambda: self.details(channel_id))
         menu.addAction(_("Close channel"), close)
         menu.addAction(_("Force-close channel"), force_close)
