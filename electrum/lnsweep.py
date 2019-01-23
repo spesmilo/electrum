@@ -95,7 +95,7 @@ def create_sweeptxs_for_their_just_revoked_ctx(chan: 'Channel', ctx: Transaction
             is_revocation=True)
         # sweep from htlc tx
         secondstage_sweep_tx = create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
-            'their_htlctx_',
+            'sweep_from_their_ctx_htlc_',
             to_self_delay=0,
             htlc_tx=htlc_tx,
             htlctx_witness_script=htlc_tx_witness_script,
@@ -172,7 +172,7 @@ def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
             preimage=preimage,
             is_received_htlc=is_received_htlc)
         to_wallet_tx = create_sweeptx_that_spends_htlctx_that_spends_htlc_in_ctx(
-            'our_ctx_htlc_tx_',
+            'sweep_from_our_ctx_htlc_',
             to_self_delay=to_self_delay,
             htlc_tx=htlc_tx,
             htlctx_witness_script=htlctx_witness_script,
