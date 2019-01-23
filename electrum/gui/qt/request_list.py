@@ -167,6 +167,8 @@ class RequestList(MyTreeView):
             items[0].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
             items[0].setData(payreq_key, ROLE_RHASH_OR_ADDR)
             self.model().insertRow(self.model().rowCount(), items)
+        # sort requests by date
+        self.model().sort(0)
 
     def create_menu(self, position):
         idx = self.indexAt(position)
