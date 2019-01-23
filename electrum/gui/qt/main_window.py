@@ -1093,17 +1093,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.sign_payment_request(addr)
         return addr
 
-    def view_and_paste(self, title, msg, data):
-        dialog = WindowModalDialog(self, title)
-        vbox = QVBoxLayout()
-        label = QLabel(msg)
-        label.setWordWrap(True)
-        vbox.addWidget(label)
-        pr_e = ShowQRTextEdit(text=data)
-        vbox.addWidget(pr_e)
-        vbox.addLayout(Buttons(CopyCloseButton(pr_e.text, self.app, dialog)))
-        dialog.setLayout(vbox)
-        dialog.exec_()
+    def do_copy(self, title, content):
+        self.app.clipboard().setText(content)
+        self.show_message(_("{} copied to clipboard").format(title))
+        #QToolTip.showText(QCursor.pos(), _("{} copied to clipboard").format(title), self.parent)
 
     def export_payment_request(self, addr):
         r = self.wallet.receive_requests.get(addr)

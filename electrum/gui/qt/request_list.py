@@ -50,16 +50,14 @@ class RequestList(MyTreeView):
 
     class Columns(IntEnum):
         DATE = 0
-        ADDRESS = 1
-        SIGNATURE = 2
-        DESCRIPTION = 3
-        AMOUNT = 4
-        STATUS = 5
+        TYPE = 1
+        DESCRIPTION = 2
+        AMOUNT = 3
+        STATUS = 4
 
     headers = {
         Columns.DATE: _('Date'),
-        Columns.ADDRESS: _('Address'),
-        Columns.SIGNATURE: '',
+        Columns.TYPE: _('Type'),
         Columns.DESCRIPTION: _('Description'),
         Columns.AMOUNT: _('Amount'),
         Columns.STATUS: _('Status'),
@@ -74,7 +72,6 @@ class RequestList(MyTreeView):
         self.setSortingEnabled(True)
         self.update()
         self.selectionModel().currentRowChanged.connect(self.item_changed)
-        self.setColumnWidth(self.Columns.ADDRESS, 250)
 
     def select_key(self, key):
         for i in range(self.model().rowCount()):
@@ -88,12 +85,11 @@ class RequestList(MyTreeView):
 
     def item_changed(self, idx):
         # TODO use siblingAtColumn when min Qt version is >=5.11
-        addr = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.ADDRESS)).text()
-        req = self.wallet.receive_requests.get(addr)
         item = self.model().itemFromIndex(idx.sibling(idx.row(), 0))
         request_type = item.data(ROLE_REQUEST_TYPE)
         key = item.data(ROLE_RHASH_OR_ADDR)
         if request_type == REQUEST_TYPE_BITCOIN:
+            req = self.wallet.receive_requests.get(key)
             if req is None:
                 self.update()
                 return
@@ -129,7 +125,6 @@ class RequestList(MyTreeView):
 
         self.model().clear()
         self.update_headers(self.__class__.headers)
-        self.header().setSectionResizeMode(self.Columns.ADDRESS, QHeaderView.Interactive) # override resizemode in update_headers
         for req in self.wallet.get_sorted_requests(self.config):
             address = req['address']
             if address not in domain:
@@ -143,12 +138,12 @@ class RequestList(MyTreeView):
             signature = req.get('sig')
             requestor = req.get('name', '')
             amount_str = self.parent.format_amount(amount) if amount else ""
-            labels = [date, address, '', message, amount_str, pr_tooltips.get(status,'')]
+            labels = [date, 'on-chain', message, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             if signature is not None:
-                items[self.Columns.SIGNATURE].setIcon(read_QIcon("seal.png"))
-                items[self.Columns.SIGNATURE].setToolTip(f'signed by {requestor}')
+                items[self.Columns.TYPE].setIcon(read_QIcon("seal.png"))
+                items[self.Columns.TYPE].setToolTip(f'signed by {requestor}')
             if status is not PR_UNKNOWN:
                 items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             self.model().insertRow(self.model().rowCount(), items)
@@ -166,9 +161,9 @@ class RequestList(MyTreeView):
                     description = v
                     break
             date = format_time(lnaddr.date)
-            labels = [date, invoice, '', description, amount_str, '']
+            labels = [date, 'lightning', description, amount_str, '']
             items = [QStandardItem(e) for e in labels]
-            items[2].setIcon(self.icon_cache.get(":icons/lightning.png"))
+            items[1].setIcon(self.icon_cache.get(":icons/lightning.png"))
             items[0].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
             items[0].setData(payreq_key, ROLE_RHASH_OR_ADDR)
             self.model().insertRow(self.model().rowCount(), items)
@@ -195,10 +190,10 @@ class RequestList(MyTreeView):
         column_title = self.model().horizontalHeaderItem(column).text()
         column_data = self.model().itemFromIndex(idx).text()
         menu = QMenu(self)
-        if column != self.Columns.SIGNATURE:
+        if column != self.Columns.TYPE:
             if column == self.Columns.AMOUNT:
                 column_data = column_data.strip()
-            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
+            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.do_copy(column_title, column_data))
         if request_type == REQUEST_TYPE_BITCOIN:
             self.create_menu_bitcoin_payreq(menu, addr)
         elif request_type == REQUEST_TYPE_LN:
@@ -206,11 +201,12 @@ class RequestList(MyTreeView):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def create_menu_bitcoin_payreq(self, menu, addr):
-        menu.addAction(_("Copy URI"), lambda: self.parent.view_and_paste('URI', '', self.parent.get_request_URI(addr)))
+        menu.addAction(_("Copy Address"), lambda: self.parent.do_copy('Address', addr))
+        menu.addAction(_("Copy URI"), lambda: self.parent.do_copy('URI', self.parent.get_request_URI(addr)))
         menu.addAction(_("Save as BIP70 file"), lambda: self.parent.export_payment_request(addr))
         menu.addAction(_("Delete"), lambda: self.parent.delete_payment_request(addr))
         run_hook('receive_list_menu', menu, addr)
 
     def create_menu_ln_payreq(self, menu, payreq_key, req):
-        menu.addAction(_("Copy Lightning invoice"), lambda: self.parent.view_and_paste('Invoice', '', req))
+        menu.addAction(_("Copy Lightning invoice"), lambda: self.parent.do_copy('Lightning invoice', req))
         menu.addAction(_("Delete"), lambda: self.parent.delete_lightning_payreq(payreq_key))
