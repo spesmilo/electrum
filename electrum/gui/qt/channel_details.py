@@ -114,8 +114,8 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         self.update_sent_received()
 
     def update_sent_received(self):
-        self.sent_label.setText(str(htlcsum(self.hm.settled_htlcs_by(LOCAL))))
-        self.received_label.setText(str(htlcsum(self.hm.settled_htlcs_by(REMOTE))))
+        self.sent_label.setText(str(htlcsum(self.chan.hm.settled_htlcs_by(LOCAL))))
+        self.received_label.setText(str(htlcsum(self.chan.hm.settled_htlcs_by(REMOTE))))
 
     @QtCore.pyqtSlot(str)
     def show_tx(self, link_text: str):
