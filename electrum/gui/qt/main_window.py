@@ -1162,7 +1162,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
 
     def update_receive_address_styling(self):
         addr = str(self.receive_address_e.text())
-        if self.wallet.is_used(addr):
+        # note: 'addr' could be ln invoice here
+        if is_address(addr) and self.wallet.is_used(addr):
             self.receive_address_e.setStyleSheet(ColorScheme.RED.as_stylesheet(True))
             self.receive_address_e.setToolTip(_("This address has already been used. "
                                                 "For better privacy, do not reuse it for new payments."))

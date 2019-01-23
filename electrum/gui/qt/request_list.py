@@ -113,14 +113,7 @@ class RequestList(MyTreeView):
                 self.parent.expires_combo.show()
 
         domain = self.wallet.get_receiving_addresses()
-        try:
-            addr = self.wallet.get_unused_address()
-        except InternalAddressCorruption as e:
-            self.parent.show_error(str(e))
-            addr = ''
-        if current_address not in domain and addr:
-            self.parent.set_receive_address(addr)
-        self.parent.new_request_button.setEnabled(addr != current_address)
+
         self.parent.update_receive_address_styling()
 
         self.model().clear()
