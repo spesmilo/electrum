@@ -952,17 +952,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         self.expires_label.hide()
         grid.addWidget(self.expires_label, 2, 1)
 
-        self.receive_type = QComboBox()
-        self.receive_type.addItems([_('On-chain'), _('Lightning')])
-        grid.addWidget(QLabel(_('Type')), 3, 0)
-        grid.addWidget(self.receive_type, 3, 1)
-
-        self.save_request_button = QPushButton(_('Create Request'))
-        self.save_request_button.clicked.connect(self.create_invoice)
-
+        self.create_invoice_button = QPushButton(_('On-chain'))
+        self.create_invoice_button.clicked.connect(lambda: self.create_invoice(False))
+        self.create_lightning_invoice_button = QPushButton(_('Lightning'))
+        self.create_lightning_invoice_button.clicked.connect(lambda: self.create_invoice(True))
         self.receive_buttons = buttons = QHBoxLayout()
         buttons.addStretch(1)
-        buttons.addWidget(self.save_request_button)
+        buttons.addWidget(self.create_invoice_button)
+        buttons.addWidget(self.create_lightning_invoice_button)
         grid.addLayout(buttons, 4, 3, 1, 2)
 
         self.receive_address_e = ButtonsTextEdit()
@@ -1058,12 +1055,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
                 else:
                     return
 
-    def create_invoice(self):
+    def create_invoice(self, is_lightning):
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         i = self.expires_combo.currentIndex()
         expiration = list(map(lambda x: x[1], expiration_values))[i]
-        if self.receive_type.currentIndex() == 1:
+        if is_lightning:
             key = self.wallet.lnworker.add_invoice(amount, message)
         else:
             key = self.create_bitcoin_request(amount, message, expiration)
@@ -1094,7 +1091,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.show_error(_('Error adding payment request') + ':\n' + repr(e))
         else:
             self.sign_payment_request(addr)
-            #self.save_request_button.setEnabled(False)
         return addr
 
     def view_and_paste(self, title, msg, data):
