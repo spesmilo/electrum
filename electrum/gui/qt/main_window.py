@@ -1080,7 +1080,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         uri = util.create_URI(addr, amount, message)
         self.receive_qr.setData(uri)
         if self.qr_window and self.qr_window.isVisible():
-            self.qr_window.set_content(addr, amount, message, uri)
+            self.qr_window.qrw.setData(uri)
 
     def set_feerounding_text(self, num_satoshis_added):
         self.feerounding_text = (_('Additional {} satoshis are going to be added.')
