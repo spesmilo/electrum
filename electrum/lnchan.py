@@ -22,6 +22,7 @@
 # API (method signatures and docstrings) partially copied from lnd
 # 42de4400bff5105352d0552155f73589166d162b
 
+import os
 from collections import namedtuple, defaultdict
 import binascii
 import json
@@ -176,6 +177,11 @@ class Channel(PrintError):
         self.local_commitment = ctx
         if self.sweep_address is not None:
             self.local_sweeptxs = create_sweeptxs_for_our_latest_ctx(self, self.local_commitment, self.sweep_address)
+            initial = os.path.join(get_config().electrum_path(), 'initial_commitment_tx')
+            tx = self.force_close_tx().serialize_to_network()
+            if not os.path.exists(initial):
+                with open(initial, 'w') as f:
+                    f.write(tx)
 
     def set_remote_commitment(self):
         self.remote_commitment = self.current_commitment(REMOTE)

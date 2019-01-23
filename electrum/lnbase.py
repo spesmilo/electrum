@@ -16,6 +16,7 @@ import sys
 
 import aiorpcx
 
+from .simple_config import get_config
 from .crypto import sha256, sha256d
 from . import bitcoin
 from . import ecc
@@ -723,9 +724,12 @@ class Peer(PrintError):
         if chan.config[LOCAL].funding_locked_received:
             self.mark_open(chan)
         else:
-            self.print_error("remote hasn't sent funding_locked, disconnecting (should reconnect again shortly)")
-            self.close_and_cleanup()
-            self.network.trigger_callback('channel', chan)
+            # only when not testing since this is an issue
+            # only with lnd and the test uses electrum
+            if not get_config().debug_lightning:
+                self.print_error("remote hasn't sent funding_locked, disconnecting (should reconnect again shortly)")
+                self.close_and_cleanup()
+                self.network.trigger_callback('channel', chan)
 
     def on_funding_locked(self, payload):
         channel_id = payload['channel_id']
@@ -1087,7 +1091,9 @@ class Peer(PrintError):
             return
         self.network.trigger_callback('htlc_added', UpdateAddHtlc(**htlc, htlc_id=htlc_id), invoice, RECEIVED)
         # settle htlc
-        await self.settle_htlc(chan, htlc_id, preimage)
+        if not self.network.config.debug_lightning_do_not_settle:
+            # settle htlc
+            await self.settle_htlc(chan, htlc_id, preimage)
 
     async def settle_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         chan.settle_htlc(preimage, htlc_id)

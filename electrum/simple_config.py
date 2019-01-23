@@ -62,6 +62,9 @@ class SimpleConfig(PrintError):
         if options is None:
             options = {}
 
+        self.debug_lightning = 'ELECTRUM_DEBUG_LIGHTNING_DANGEROUS' in os.environ
+        self.debug_lightning_do_not_settle = 'ELECTRUM_DEBUG_LIGHTNING_DO_NOT_SETTLE' in os.environ
+
         # This lock needs to be acquired for updating and reading the config in
         # a thread-safe way.
         self.lock = threading.RLock()
