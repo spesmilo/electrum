@@ -179,7 +179,7 @@ class LNWatcher(AddressSynchronizer):
             prev_txid, prev_n = prevout.split(':')
             with self.lock:
                 sweep_txns = self.sweepstore[funding_outpoint][prev_txid]
-            for prev_txid, tx in sweep_txns:
+            for tx in sweep_txns:
                 if not await self.broadcast_or_log(funding_outpoint, tx):
                     self.print_error(tx.name, f'could not publish tx: {str(tx)}, prev_txid: {prev_txid}')
 
