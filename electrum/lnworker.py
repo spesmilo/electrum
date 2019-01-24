@@ -650,7 +650,8 @@ class LNWorker(PrintError):
         chan.set_state('FORCE_CLOSING')
         self.save_channel(chan)
         self.on_channels_updated()
-        return await self.network.broadcast_transaction(tx)
+        await self.network.broadcast_transaction(tx)
+        return tx.txid()
 
     def _get_next_peers_to_try(self) -> Sequence[LNPeerAddr]:
         now = time.time()
