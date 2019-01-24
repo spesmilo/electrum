@@ -810,6 +810,14 @@ class Commands:
     def listinvoices(self):
         return "\n".join(self.wallet.lnworker.list_invoices())
 
+    @command('wn')
+    def closechannel(self, channel_point, force=False):
+        chan_id = bytes(reversed(bfh(channel_point)))
+        if force:
+            return self.network.run_from_another_thread(self.wallet.lnworker.force_close_channel(chan_id))
+        else:
+            return self.network.run_from_another_thread(self.wallet.lnworker.close_channel(chan_id))
+
 def eval_bool(x: str) -> bool:
     if x == 'false': return False
     if x == 'true': return True

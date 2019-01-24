@@ -1180,7 +1180,8 @@ class Peer(PrintError):
     async def _shutdown(self, chan: Channel, payload):
         # set state so that we stop accepting HTLCs
         chan.set_state('CLOSING')
-        while len(chan.htlcs(LOCAL, only_pending=True)) > 0:
+        while len(chan.hm.htlcs_by_direction(LOCAL, RECEIVED)) > 0:
+            self.print_error('waiting for htlcs to settle...')
             await asyncio.sleep(1)
         our_fee = chan.pending_local_fee()
         scriptpubkey = bfh(bitcoin.address_to_script(chan.sweep_address))
