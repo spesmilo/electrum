@@ -222,7 +222,7 @@
 
 + (BOOL) savePublicKeyFromRef:(SecKeyRef)publicKeyRef withName:(NSString *)name
 {
-    CFTypeRef keyBits;
+    CFTypeRef keyBits = NULL;
     CFMutableDictionaryRef savePublicKeyDict = newCFDict;
     CFDictionaryAddValue(savePublicKeyDict, kSecClass,        kSecClassKey);
     CFDictionaryAddValue(savePublicKeyDict, kSecAttrKeyType,  kSecAttrKeyTypeEC);
