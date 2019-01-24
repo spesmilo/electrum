@@ -354,15 +354,18 @@ class Channel(PrintError):
         self.set_local_commitment(pending_local_commitment)
 
     def verify_htlc(self, htlc: UpdateAddHtlc, htlc_sigs: Sequence[bytes], we_receive: bool, ctx) -> int:
-        _, this_point, _, _ = self.points()
+        ctn = extract_ctn_from_tx_and_chan(ctx, self)
+        secret = get_per_commitment_secret_from_seed(self.config[LOCAL].per_commitment_secret_seed, RevocationStore.START_INDEX - ctn)
+        point = secret_to_pubkey(int.from_bytes(secret, 'big'))
+
         _script, htlc_tx = make_htlc_tx_with_open_channel(chan=self,
-                                                          pcp=this_point,
+                                                          pcp=point,
                                                           for_us=True,
                                                           we_receive=we_receive,
                                                           commit=ctx,
                                                           htlc=htlc)
         pre_hash = sha256d(bfh(htlc_tx.serialize_preimage(0)))
-        remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, this_point)
+        remote_htlc_pubkey = derive_pubkey(self.config[REMOTE].htlc_basepoint.pubkey, point)
         for idx, sig in enumerate(htlc_sigs):
             if ecc.verify_signature(remote_htlc_pubkey, sig, pre_hash):
                 return idx
