@@ -30,6 +30,7 @@ from electrum.i18n import _
 from .util import *
 
 class UTXOList(MyTreeView):
+    headers = [ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')]
     filter_columns = [0, 1]  # Address, Label
 
     def __init__(self, parent=None):
@@ -44,7 +45,7 @@ class UTXOList(MyTreeView):
         utxos = self.wallet.get_utxos()
         self.utxo_dict = {}
         self.model().clear()
-        self.update_headers([ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')])
+        self.update_headers(self.__class__.headers)
         for idx, x in enumerate(utxos):
             address = x.get('address')
             height = x.get('height')
