@@ -227,3 +227,18 @@ and there is no warning message.
 * "Import Labels" now works.
 * Memory usage of the app has been reduced -- especially with multiple wallets.
 * Upgrade prebuilt Windows and MacOS binary to use newer PyQt5 5.11.3.
+
+# Release 3.3.5
+
+* Added ability to specify raw hex op_return data in Send tab
+* Added server options for: "Preferred" and "Banned" in Network Dialog, and an
+  option to connect to only preferred servers.
+* LabelSync plugin now works properly
+* OSX packaging fixes (code signature should stay valid throughout process
+  execution now)
+* Updated Trezor plugin to trezorlib-0.11.x (#1089)
+* Fixed various bugs and quirks in Cosigner plugin -- it should work much
+  better now!
+* Many minor bugs fixed from issue tracker
+* Performance improvements
+* Memory leaks fixed
