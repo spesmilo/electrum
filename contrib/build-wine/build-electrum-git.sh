@@ -3,7 +3,7 @@
 NAME_ROOT=Electron-Cash
 PYTHON_VERSION=3.5.4
 
-CHECKOUT_TAG=3.3.4
+CHECKOUT_TAG=3.3.5
 
 # These settings probably don't need any change
 export WINEPREFIX=/opt/wine64
