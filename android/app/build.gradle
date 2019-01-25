@@ -21,7 +21,7 @@ android {
 
         def ecVersion = null
         file("$REPO_ROOT/lib/version.py").eachLine {
-            def matcher = it =~ /PACKAGE_VERSION = '(.+)'.*/
+            def matcher = it =~ / *PACKAGE_VERSION *= *'([0-9.]+)'.*/
             if (matcher.matches()) {
                 ecVersion = matcher.group(1)
             }
