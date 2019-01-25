@@ -294,7 +294,10 @@ class Daemon(DaemonThread):
             kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))
         cmd_runner = Commands(config, wallet, self.network)
         func = getattr(cmd_runner, cmd.name)
-        result = func(*args, **kwargs)
+        try:
+            result = func(*args, **kwargs)
+        except TypeError as e:
+            raise Exception("Wrapping TypeError to prevent JSONRPC-Pelix from hiding traceback") from e
         return result
 
     def run(self):
