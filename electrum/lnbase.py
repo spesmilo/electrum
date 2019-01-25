@@ -423,7 +423,7 @@ class Peer(PrintError):
         funding_tx_test = wallet.mktx([TxOutput(bitcoin.TYPE_ADDRESS, wallet.dummy_address(), funding_sat)],
                                       password, self.lnworker.config, nonlocal_only=True)
         await self.initialized
-        feerate = self.current_feerate_per_kw()
+        feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(local_config.per_commitment_secret_seed,
@@ -1131,7 +1131,7 @@ class Peer(PrintError):
         if not chan.constraints.is_initiator:
             # TODO force close if initiator does not update_fee enough
             return
-        feerate_per_kw = self.current_feerate_per_kw()
+        feerate_per_kw = self.lnworker.current_feerate_per_kw()
         chan_fee = chan.pending_feerate(REMOTE)
         self.print_error("current pending feerate", chan_fee)
         self.print_error("new feerate", feerate_per_kw)
@@ -1143,15 +1143,6 @@ class Peer(PrintError):
             return
         chan.update_fee(feerate_per_kw, True)
         await self.update_channel(chan, "update_fee", channel_id=chan.channel_id, feerate_per_kw=feerate_per_kw)
-
-    def current_feerate_per_kw(self):
-        from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE, FEERATE_REGTEST_HARDCODED
-        if constants.net is constants.BitcoinRegtest:
-            return FEERATE_REGTEST_HARDCODED // 4
-        feerate_per_kvbyte = self.network.config.eta_target_to_fee(FEE_LN_ETA_TARGET)
-        if feerate_per_kvbyte is None:
-            feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
-        return max(253, feerate_per_kvbyte // 4)
 
     def on_closing_signed(self, payload):
         chan_id = payload["channel_id"]
