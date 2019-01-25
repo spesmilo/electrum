@@ -760,6 +760,10 @@ class LNWorker(PrintError):
             channels = list(self.channels.values())
         now = time.time()
         for chan in channels:
+            if constants.net is not constants.BitcoinRegtest:
+                ratio = chan.constraints.feerate / self.current_feerate_per_kw()
+                if ratio < 0.5:
+                    self.print_error(f"WARNING: fee level for channel {bh2u(chan.channel_id)} is {chan.constraints.feerate} sat/kiloweight, current recommended feerate is {self.current_feerate_per_kw()} sat/kiloweight, consider force closing!")
             if not chan.should_try_to_reestablish_peer():
                 continue
             peer = self.peers.get(chan.node_id, None)
@@ -768,6 +772,15 @@ class LNWorker(PrintError):
             else:
                 coro = peer.reestablish_channel(chan)
                 asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
+
+    def current_feerate_per_kw(self):
+        from .simple_config import FEE_LN_ETA_TARGET, FEERATE_FALLBACK_STATIC_FEE, FEERATE_REGTEST_HARDCODED
+        if constants.net is constants.BitcoinRegtest:
+            return FEERATE_REGTEST_HARDCODED // 4
+        feerate_per_kvbyte = self.network.config.eta_target_to_fee(FEE_LN_ETA_TARGET)
+        if feerate_per_kvbyte is None:
+            feerate_per_kvbyte = FEERATE_FALLBACK_STATIC_FEE
+        return max(253, feerate_per_kvbyte // 4)
 
     async def main_loop(self):
         await self.on_network_update('network_updated')  # shortcut (don't block) if funding tx locked and verified
