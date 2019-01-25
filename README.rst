@@ -84,25 +84,25 @@ Create translations (optional)::
 Creating Binaries
 =================
 
+Linux
+-----
 
-To create binaries, create the 'packages' directory::
+See :code:`contrib/build-linux/Readme.md`.
 
-    ./contrib/make_packages
-
-This directory contains the python dependencies used by Electrum-LTC.
 
 Mac OS X / macOS
---------
+----------------
 
-See `contrib/osx/`.
+See :code:`contrib/osx/Readme.md`.
+
 
 Windows
 -------
 
-See `contrib/build-wine/`.
+See :code:`contrib/build-wine/docker/Readme.md`.
 
 
 Android
 -------
 
-See `electrum_ltc/gui/kivy/Readme.md` file.
+See :code:`electrum_ltc/gui/kivy/Readme.md`.

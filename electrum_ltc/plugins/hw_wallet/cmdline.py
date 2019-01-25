@@ -37,7 +37,7 @@ class CmdLineHandler:
         print_msg(msg)
 
     def show_error(self, msg, blocking=False):
-        print_msg(msg)
+        print_error(msg)
 
     def update_status(self, b):
         print_error('hw device status', b)
