@@ -722,6 +722,10 @@ class Peer(PrintError):
         self.send_message("funding_locked", channel_id=channel_id, next_per_commitment_point=per_commitment_point_second)
         if chan.config[LOCAL].funding_locked_received:
             self.mark_open(chan)
+        else:
+            self.print_error("remote hasn't sent funding_locked, disconnecting (should reconnect again shortly)")
+            self.close_and_cleanup()
+            self.network.trigger_callback('channel', chan)
 
     def on_funding_locked(self, payload):
         channel_id = payload['channel_id']
