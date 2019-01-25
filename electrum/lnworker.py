@@ -200,7 +200,7 @@ class LNWorker(PrintError):
         return {'settled': settled, 'unsettled': unsettled, 'inflight': inflight}
 
     def find_htlc_for_addr(self, addr, whitelist=None):
-        channels = [y for x,y in self.channels.items() if x in whitelist or whitelist is None]
+        channels = [y for x,y in self.channels.items() if whitelist is None or x in whitelist]
         for chan in channels:
             for htlc in chan.hm.log[LOCAL]['adds'].values():
                 if htlc.payment_hash == addr.paymenthash:
