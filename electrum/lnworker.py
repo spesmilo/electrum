@@ -193,8 +193,10 @@ class LNWorker(PrintError):
                 addr.amount = Decimal(amount_sat) / COIN
             htlc = self.find_htlc_for_addr(addr, None if chan_id is None else [chan_id])
             if not htlc:
-                self.print_error('Warning, in flight HTLC not found in any channel')
-            inflight.append((addr, htlc, direction))
+                self.print_error('Warning, in-flight HTLC not found in any channel')
+            inflight.append((addr, htlc, SENT))
+        # not adding received htlcs to inflight because they should have been settled
+        # immediatly and therefore let's not spend time trying to show it in the GUI
         return {'settled': settled, 'unsettled': unsettled, 'inflight': inflight}
 
     def find_htlc_for_addr(self, addr, whitelist=None):
