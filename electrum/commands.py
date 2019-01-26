@@ -220,6 +220,11 @@ class Commands:
         self.wallet.storage.write()
         return {'password':self.wallet.has_password()}
 
+    @command('w')
+    def get(self, key):
+        """Return item from wallet storage"""
+        return self.wallet.storage.get(key)
+
     @command('')
     def getconfig(self, key):
         """Return a configuration variable. """
