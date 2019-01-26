@@ -216,7 +216,6 @@ class LNWorker(PrintError):
             seed = os.urandom(32)
             xprv, xpub = bip32_root(seed, xtype='standard')
             self.wallet.storage.put('lightning_privkey2', xprv)
-            self.wallet.storage.write()
         return keystore.from_xprv(xprv)
 
     def get_and_inc_counter_for_channel_keys(self):
