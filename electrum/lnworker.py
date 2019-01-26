@@ -64,15 +64,12 @@ encoder = ChannelJsonEncoder()
 
 class LNWorker(PrintError):
 
-    def __init__(self, wallet: 'Abstract_Wallet', network: 'Network'):
+    def __init__(self, wallet: 'Abstract_Wallet'):
         self.wallet = wallet
         # invoices we are currently trying to pay (might be pending HTLCs on a commitment transaction)
         self.paying = self.wallet.storage.get('lightning_payments_inflight', {}) # type: Dict[bytes, Tuple[str, Optional[int], str]]
         self.sweep_address = wallet.get_receiving_address()
-        self.network = network
-        self.channel_db = self.network.channel_db
         self.lock = threading.RLock()
-        self.config = network.config
         self.ln_keystore = self._read_ln_keystore()
         self.node_keypair = generate_keypair(self.ln_keystore, LnKeyFamily.NODE_KEY, 0)
         self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
@@ -80,13 +77,18 @@ class LNWorker(PrintError):
         self.channels = {}  # type: Dict[bytes, Channel]
         for x in wallet.storage.get("channels", []):
             c = Channel(x, sweep_address=self.sweep_address, payment_completed=self.payment_completed)
-            c.lnwatcher = network.lnwatcher
             c.get_preimage_and_invoice = self.get_invoice
             self.channels[c.channel_id] = c
             c.set_remote_commitment()
             c.set_local_commitment(c.current_commitment(LOCAL))
+
+    def start_network(self, network: 'Network'):
+        self.network = network
+        self.config = network.config
+        self.channel_db = self.network.channel_db
         for chan_id, chan in self.channels.items():
             self.network.lnwatcher.watch_channel(chan.get_funding_address(), chan.funding_outpoint.to_str())
+            chan.lnwatcher = network.lnwatcher
         self._last_tried_peer = {}  # LNPeerAddr -> unix timestamp
         self._add_peers_from_config()
         # wait until we see confirmations
