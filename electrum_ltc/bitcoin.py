@@ -235,28 +235,28 @@ def b58_address_to_hash160(addr: str) -> Tuple[int, bytes]:
 
 
 def hash160_to_p2pkh(h160: bytes, *, net=None) -> str:
-    if net is None:
-        net = constants.net
+    if net is None: net = constants.net
     return hash160_to_b58_address(h160, net.ADDRTYPE_P2PKH)
 
 def hash160_to_p2sh(h160: bytes, *, net=None) -> str:
-    if net is None:
-        net = constants.net
+    if net is None: net = constants.net
     return hash160_to_b58_address(h160, net.ADDRTYPE_P2SH)
 
-def public_key_to_p2pkh(public_key: bytes) -> str:
-    return hash160_to_p2pkh(hash_160(public_key))
+def public_key_to_p2pkh(public_key: bytes, *, net=None) -> str:
+    if net is None: net = constants.net
+    return hash160_to_p2pkh(hash_160(public_key), net=net)
 
 def hash_to_segwit_addr(h: bytes, witver: int, *, net=None) -> str:
-    if net is None:
-        net = constants.net
+    if net is None: net = constants.net
     return segwit_addr.encode(net.SEGWIT_HRP, witver, h)
 
-def public_key_to_p2wpkh(public_key: bytes) -> str:
-    return hash_to_segwit_addr(hash_160(public_key), witver=0)
+def public_key_to_p2wpkh(public_key: bytes, *, net=None) -> str:
+    if net is None: net = constants.net
+    return hash_to_segwit_addr(hash_160(public_key), witver=0, net=net)
 
-def script_to_p2wsh(script: str) -> str:
-    return hash_to_segwit_addr(sha256(bfh(script)), witver=0)
+def script_to_p2wsh(script: str, *, net=None) -> str:
+    if net is None: net = constants.net
+    return hash_to_segwit_addr(sha256(bfh(script)), witver=0, net=net)
 
 def p2wpkh_nested_script(pubkey: str) -> str:
     pkh = bh2u(hash_160(bfh(pubkey)))
@@ -266,25 +266,27 @@ def p2wsh_nested_script(witness_script: str) -> str:
     wsh = bh2u(sha256(bfh(witness_script)))
     return '00' + push_script(wsh)
 
-def pubkey_to_address(txin_type: str, pubkey: str) -> str:
+def pubkey_to_address(txin_type: str, pubkey: str, *, net=None) -> str:
+    if net is None: net = constants.net
     if txin_type == 'p2pkh':
-        return public_key_to_p2pkh(bfh(pubkey))
+        return public_key_to_p2pkh(bfh(pubkey), net=net)
     elif txin_type == 'p2wpkh':
-        return public_key_to_p2wpkh(bfh(pubkey))
+        return public_key_to_p2wpkh(bfh(pubkey), net=net)
     elif txin_type == 'p2wpkh-p2sh':
         scriptSig = p2wpkh_nested_script(pubkey)
-        return hash160_to_p2sh(hash_160(bfh(scriptSig)))
+        return hash160_to_p2sh(hash_160(bfh(scriptSig)), net=net)
     else:
         raise NotImplementedError(txin_type)
 
-def redeem_script_to_address(txin_type: str, redeem_script: str) -> str:
+def redeem_script_to_address(txin_type: str, redeem_script: str, *, net=None) -> str:
+    if net is None: net = constants.net
     if txin_type == 'p2sh':
-        return hash160_to_p2sh(hash_160(bfh(redeem_script)))
+        return hash160_to_p2sh(hash_160(bfh(redeem_script)), net=net)
     elif txin_type == 'p2wsh':
-        return script_to_p2wsh(redeem_script)
+        return script_to_p2wsh(redeem_script, net=net)
     elif txin_type == 'p2wsh-p2sh':
         scriptSig = p2wsh_nested_script(redeem_script)
-        return hash160_to_p2sh(hash_160(bfh(scriptSig)))
+        return hash160_to_p2sh(hash_160(bfh(scriptSig)), net=net)
     else:
         raise NotImplementedError(txin_type)
 
@@ -296,8 +298,7 @@ def script_to_address(script: str, *, net=None) -> str:
     return addr
 
 def address_to_script(addr: str, *, net=None) -> str:
-    if net is None:
-        net = constants.net
+    if net is None: net = constants.net
     if not is_address(addr, net=net):
         raise BitcoinException(f"invalid bitcoin address: {addr}")
     witver, witprog = segwit_addr.decode(net.SEGWIT_HRP, addr)

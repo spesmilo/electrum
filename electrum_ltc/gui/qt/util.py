@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import *
 
 from electrum_ltc import version
 from electrum_ltc import ecc
+from electrum_ltc import constants
 from electrum_ltc.i18n import _, languages
 from electrum_ltc.util import FileImportFailed, FileExportFailed, make_aiohttp_session, PrintError
 from electrum_ltc.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
@@ -925,7 +926,8 @@ class UpdateCheckThread(QThread, PrintError):
                         continue
                     sig = base64.b64decode(sig)
                     msg = version_num.encode('utf-8')
-                    if ecc.verify_message_with_address(address=address, sig65=sig, message=msg):
+                    if ecc.verify_message_with_address(address=address, sig65=sig, message=msg,
+                                                       net=constants.BitcoinMainnet):
                         self.print_error(f"valid sig for version announcement '{version_num}' from address '{address}'")
                         break
                 else:
