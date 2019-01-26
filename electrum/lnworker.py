@@ -211,13 +211,9 @@ class LNWorker(PrintError):
     def _read_ln_keystore(self) -> BIP32_KeyStore:
         xprv = self.wallet.storage.get('lightning_privkey2')
         if xprv is None:
-            if not self.config.debug_lightning:
-                # TODO derive this deterministically from wallet.keystore at keystore generation time
-                # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
-                seed = os.urandom(32)
-            else:
-                # dangerous deterministic secret for testing
-                seed = sha256(self.config.electrum_path())
+            # TODO derive this deterministically from wallet.keystore at keystore generation time
+            # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
+            seed = os.urandom(32)
             xprv, xpub = bip32_root(seed, xtype='standard')
             self.wallet.storage.put('lightning_privkey2', xprv)
             self.wallet.storage.write()
