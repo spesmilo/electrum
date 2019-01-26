@@ -206,15 +206,16 @@ class Abstract_Wallet(AddressSynchronizer):
         if self.storage.get('wallet_type') is None:
             self.storage.put('wallet_type', self.wallet_type)
 
+        # lightning
+        self.lnworker = LNWorker(self)
         # invoices and contacts
         self.invoices = InvoiceStore(self.storage)
         self.contacts = Contacts(self.storage)
-
         self._coin_price_cache = {}
 
     def start_network(self, network):
         AddressSynchronizer.start_network(self, network)
-        self.lnworker = LNWorker(self, network)
+        self.lnworker.start_network(network)
 
     def load_and_cleanup(self):
         self.load_keystore()
