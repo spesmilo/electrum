@@ -124,9 +124,9 @@ def parse_URI(uri, on_pr=None):
     # python for android fails to parse query
     if address.find('?') > 0:
         address, query = u.path.split('?')
-        pq = urllib.parse.parse_qs(query)
+        pq = urllib.parse.parse_qs(query, keep_blank_values=True)
     else:
-        pq = urllib.parse.parse_qs(u.query)
+        pq = urllib.parse.parse_qs(u.query, keep_blank_values=True)
 
     for k, v in pq.items():
         if len(v)!=1:
