@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2011 thomasv@gitorious
@@ -176,6 +176,11 @@ class Commands:
         self.wallet.update_password(password, new_password, b)
         self.wallet.storage.write()
         return {'password':self.wallet.has_password()}
+
+    @command('w')
+    def get(self, key):
+        """Return item from wallet storage"""
+        return self.wallet.storage.get(key)
 
     @command('')
     def getconfig(self, key):
