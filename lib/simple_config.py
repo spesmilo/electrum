@@ -324,7 +324,7 @@ class SimpleConfig(PrintError):
         now = time.time()
         prev_updates = self.fee_estimates_last_updated.values()
         oldest_fee_time = min(prev_updates) if prev_updates else 0
-        stale_fees = now - oldest_fee_time > 7200
+        stale_fees = now - oldest_fee_time > 1200 # 20 mins.
         old_request = now - self.last_time_fee_estimates_requested > 60
         return stale_fees and old_request
 
