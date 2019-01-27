@@ -846,6 +846,8 @@ class UpdateCheck(QWidget, PrintError):
         self.content.addWidget(self.heading_label)
 
         self.detail_label = QLabel()
+        self.detail_label.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
+        self.detail_label.setOpenExternalLinks(True)
         self.content.addWidget(self.detail_label)
 
         self.pb = QProgressBar()
