@@ -35,17 +35,6 @@ def read_json_dict(filename):
     return r
 
 class NetworkConstants:
-
-    # Version numbers for BIP32 extended keys
-    # standard: xprv, xpub
-    XPRV_HEADERS = {
-        'standard': 0x0488ade4,
-    }
-
-    XPUB_HEADERS = {
-        'standard': 0x0488b21e,
-    }
-
     @classmethod
     def set_mainnet(cls):
         cls.TESTNET = False
@@ -73,7 +62,16 @@ class NetworkConstants:
         # blockchain.block.header (see ElectrumX docs)
         cls.VERIFICATION_BLOCK_MERKLE_ROOT = "b8f9b1649d0bba75e2c2ea4be73395a0967397003f33a40653caca0ec6a73baa"
         cls.VERIFICATION_BLOCK_HEIGHT = 560644
-        
+
+        # Version numbers for BIP32 extended keys
+        # standard: xprv, xpub
+        cls.XPRV_HEADERS = {
+            'standard': 0x0488ade4,
+        }
+        cls.XPUB_HEADERS = {
+            'standard': 0x0488b21e,
+        }
+
     @classmethod
     def set_testnet(cls):
         cls.TESTNET = True
@@ -96,6 +94,16 @@ class NetworkConstants:
         
         cls.VERIFICATION_BLOCK_MERKLE_ROOT = "c3cc7a7b6fe5e0ff19b750ae200ae93664b3abf09bf510e26e15ba338afe1f1a"
         cls.VERIFICATION_BLOCK_HEIGHT = 1273800
+
+        # Version numbers for BIP32 extended keys
+        # standard: tprv, tpub
+        cls.XPRV_HEADERS = {
+            'standard': 0x04358394,
+        }
+        cls.XPUB_HEADERS = {
+            'standard': 0x043587cf,
+        }
+
 
 
 NetworkConstants.set_mainnet()
