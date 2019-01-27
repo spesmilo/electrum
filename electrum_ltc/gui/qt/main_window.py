@@ -628,7 +628,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                            _("Uses icons from the Icons8 icon pack (icons8.com).")))
 
     def show_update_check(self, version=None):
-        self._update_check = UpdateCheck(self, version)
+        self.gui_object._update_check = UpdateCheck(self, version)
 
     def show_report_bug(self):
         msg = ' '.join([
