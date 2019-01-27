@@ -94,19 +94,19 @@ Creating Binaries
 Linux
 -----
 
-See :code:`contrib/build-linux/Readme.md`.
+See :code:`contrib/build-linux/README.md`.
 
 
 Mac OS X / macOS
 ----------------
 
-See :code:`contrib/osx/Readme.md`.
+See :code:`contrib/osx/README.md`.
 
 
 Windows
 -------
 
-See :code:`contrib/build-wine/docker/Readme.md`.
+See :code:`contrib/build-wine/docker/README.md`.
 
 
 Android
