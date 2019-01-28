@@ -372,9 +372,10 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
         return cls(hash160, kind)
 
     @classmethod
-    def is_valid(cls, string):
+    def is_valid(cls, string, *, net=None):
+        if net is None: net = networks.net
         try:
-            cls.from_string(string)
+            cls.from_string(string, net=net)
             return True
         except Exception:
             return False
