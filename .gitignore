@@ -6,7 +6,7 @@ dist/
 *.egg/
 contrib/pyinstaller/
 Electrum.egg-info/
-locale/
+electrum/locale/
 .devlocaltmp/
 *_trial_temp
 packages
