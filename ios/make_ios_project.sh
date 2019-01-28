@@ -63,6 +63,8 @@ if [ ! -d ../lib/locale ]; then
 	fi
 fi
 cp -fpR ../lib ${compact_name}/electroncash
+echo "Removing lib/tests..."
+rm -fr ${compact_name}/electroncash/tests
 find ${compact_name} -name \*.pyc -exec rm -f {} \; 
 
 echo ""
@@ -245,6 +247,9 @@ cp -fva ${compact_name}/electroncash/*.proto iOS/app/${compact_name}/electroncas
 if [ "$?" != "0" ]; then
 	echo "** WARNING: Failed to copy google protobuf .proto file to app lib dir!"
 fi
+
+# Clean up no-longer-needed electroncash/ dir that is outside of Xcode project
+rm -fr ${compact_name}/electroncash/*
 
 echo ''
 echo '**************************************************************************'

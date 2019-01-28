@@ -11,7 +11,6 @@ from .amountedit import BTCAmountEdit, FiatAmountEdit, BTCkBEdit  # Makes sure O
 from electroncash import WalletStorage, Wallet
 from electroncash.util import timestamp_to_datetime, format_time
 from electroncash.i18n import _, language
-from electroncash.networks import NetworkConstants
 from electroncash.address import Address, ScriptOutput
 from electroncash.paymentrequest import PR_UNPAID, PR_EXPIRED, PR_UNKNOWN, PR_PAID
 from electroncash import bitcoin

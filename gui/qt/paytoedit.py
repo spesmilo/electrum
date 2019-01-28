@@ -32,7 +32,7 @@ import re
 from decimal import Decimal
 from electroncash import bitcoin
 from electroncash.address import Address, ScriptOutput
-from electroncash.networks import NetworkConstants
+from electroncash import networks
 
 from . import util
 
@@ -110,7 +110,7 @@ class PayToEdit(ScanQRTextEdit):
         self.payto_address = None
         if len(lines) == 1:
             data = lines[0]
-            if data.lower().startswith(NetworkConstants.CASHADDR_PREFIX + ":"):
+            if data.lower().startswith(networks.net.CASHADDR_PREFIX + ":"):
                 self.scan_f(data)
                 return
             try:

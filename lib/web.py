@@ -30,7 +30,7 @@ import urllib
 
 from .address import Address
 from . import bitcoin
-from .networks import NetworkConstants
+from . import networks
 from .util import format_satoshis_plain
 
 
@@ -64,7 +64,7 @@ testnet_block_explorers = {
 }
 
 def BE_info():
-    if NetworkConstants.TESTNET:
+    if networks.net.TESTNET:
         return testnet_block_explorers
     return mainnet_block_explorers
 
@@ -117,8 +117,8 @@ def parse_URI(uri, on_pr=None):
 
     u = urllib.parse.urlparse(uri)
     # The scheme always comes back in lower case
-    if u.scheme != NetworkConstants.CASHADDR_PREFIX:
-        raise Exception("Not a {} URI".format(NetworkConstants.CASHADDR_PREFIX))
+    if u.scheme != networks.net.CASHADDR_PREFIX:
+        raise Exception("Not a {} URI".format(networks.net.CASHADDR_PREFIX))
     address = u.path
 
     # python for android fails to parse query

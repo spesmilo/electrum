@@ -32,7 +32,7 @@ import json
 import ecdsa
 import pyaes
 
-from .networks import NetworkConstants
+from . import networks
 from .util import (bfh, bh2u, to_string, print_error, InvalidPassword,
                    assert_bytes, to_bytes, inv_dict)
 from . import version
@@ -274,18 +274,22 @@ def b58_address_to_hash160(addr):
     return _bytes[0], _bytes[1:21]
 
 
-def hash160_to_p2pkh(h160):
-    return hash160_to_b58_address(h160, NetworkConstants.ADDRTYPE_P2PKH)
+def hash160_to_p2pkh(h160, *, net=None):
+    if net is None: net = networks.net
+    return hash160_to_b58_address(h160, net.ADDRTYPE_P2PKH)
 
-def hash160_to_p2sh(h160):
-    return hash160_to_b58_address(h160, NetworkConstants.ADDRTYPE_P2SH)
+def hash160_to_p2sh(h160, *, net=None):
+    if net is None: net = networks.net
+    return hash160_to_b58_address(h160, net.ADDRTYPE_P2SH)
 
-def public_key_to_p2pkh(public_key):
-    return hash160_to_p2pkh(hash_160(public_key))
+def public_key_to_p2pkh(public_key, *, net=None):
+    if net is None: net = networks.net
+    return hash160_to_p2pkh(hash_160(public_key), net=net)
 
-def pubkey_to_address(txin_type, pubkey):
+def pubkey_to_address(txin_type, pubkey, *, net=None):
+    if net is None: net = networks.net
     if txin_type == 'p2pkh':
-        return public_key_to_p2pkh(bfh(pubkey))
+        return public_key_to_p2pkh(bfh(pubkey), net=net)
     else:
         raise NotImplementedError(txin_type)
 
@@ -390,20 +394,22 @@ SCRIPT_TYPES = {
 }
 
 
-def serialize_privkey(secret, compressed, txin_type):
-    prefix = bytes([(SCRIPT_TYPES[txin_type]+NetworkConstants.WIF_PREFIX)&255])
+def serialize_privkey(secret, compressed, txin_type, *, net=None):
+    if net is None: net = networks.net
+    prefix = bytes([(SCRIPT_TYPES[txin_type]+net.WIF_PREFIX)&255])
     suffix = b'\01' if compressed else b''
     vchIn = prefix + secret + suffix
     return EncodeBase58Check(vchIn)
 
 
-def deserialize_privkey(key):
+def deserialize_privkey(key, *, net=None):
     # whether the pubkey is compressed should be visible from the keystore
+    if net is None: net = networks.net
     vch = DecodeBase58Check(key)
     if is_minikey(key):
         return 'p2pkh', minikey_to_private_key(key), False
     elif vch:
-        txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - NetworkConstants.WIF_PREFIX]
+        txin_type = inv_dict(SCRIPT_TYPES)[vch[0] - net.WIF_PREFIX]
         assert len(vch) in [33, 34]
         compressed = len(vch) == 34
         return txin_type, vch[1:33], compressed
@@ -423,8 +429,9 @@ def GetSecret(pkey):
     return bfh('%064x' % pkey.secret)
 
 
-def is_compressed(sec):
-    return deserialize_privkey(sec)[2]
+def is_compressed(sec, *, net=None):
+    if net is None: net = networks.net
+    return deserialize_privkey(sec, net=net)[2]
 
 
 def public_key_from_private_key(pk, compressed):
@@ -432,14 +439,16 @@ def public_key_from_private_key(pk, compressed):
     public_key = GetPubKey(pkey.pubkey, compressed)
     return bh2u(public_key)
 
-def address_from_private_key(sec):
-    txin_type, privkey, compressed = deserialize_privkey(sec)
+def address_from_private_key(sec, *, net=None):
+    if net is None: net = networks.net
+    txin_type, privkey, compressed = deserialize_privkey(sec, net=net)
     public_key = public_key_from_private_key(privkey, compressed)
-    return pubkey_to_address(txin_type, public_key)
+    return pubkey_to_address(txin_type, public_key, net=net)
 
-def is_private_key(key):
+def is_private_key(key, *, net=None):
+    if net is None: net = networks.net
     try:
-        k = deserialize_privkey(key)
+        k = deserialize_privkey(key, net=net)
         return k is not False
     except:
         return False
@@ -472,11 +481,12 @@ def msg_magic(message):
     return b"\x18Bitcoin Signed Message:\n" + length + message
 
 
-def verify_message(address, sig, message):
+def verify_message(address, sig, message, *, net=None):
+    if net is None: net = networks.net
     assert_bytes(sig, message)
     from .address import Address
     if not isinstance(address, Address):
-        address = Address.from_string(address)
+        address = Address.from_string(address, net=net)
 
     h = Hash(msg_magic(message))
     public_key, compressed = pubkey_from_signature(sig, h)
@@ -745,25 +755,30 @@ def _CKD_pub(cK, c, s):
     return cK_n, c_n
 
 
-def xprv_header(xtype):
-    return bfh("%08x" % NetworkConstants.XPRV_HEADERS[xtype])
+def xprv_header(xtype, *, net=None):
+    if net is None: net = networks.net
+    return bfh("%08x" % net.XPRV_HEADERS[xtype])
 
 
-def xpub_header(xtype):
-    return bfh("%08x" % NetworkConstants.XPUB_HEADERS[xtype])
+def xpub_header(xtype, *, net=None):
+    if net is None: net = networks.net
+    return bfh("%08x" % net.XPUB_HEADERS[xtype])
 
 
-def serialize_xprv(xtype, c, k, depth=0, fingerprint=b'\x00'*4, child_number=b'\x00'*4):
-    xprv = xprv_header(xtype) + bytes([depth]) + fingerprint + child_number + c + bytes([0]) + k
+def serialize_xprv(xtype, c, k, depth=0, fingerprint=b'\x00'*4, child_number=b'\x00'*4, *, net=None):
+    if net is None: net = networks.net
+    xprv = xprv_header(xtype, net=net) + bytes([depth]) + fingerprint + child_number + c + bytes([0]) + k
     return EncodeBase58Check(xprv)
 
 
-def serialize_xpub(xtype, c, cK, depth=0, fingerprint=b'\x00'*4, child_number=b'\x00'*4):
-    xpub = xpub_header(xtype) + bytes([depth]) + fingerprint + child_number + c + cK
+def serialize_xpub(xtype, c, cK, depth=0, fingerprint=b'\x00'*4, child_number=b'\x00'*4, *, net=None):
+    if net is None: net = networks.net
+    xpub = xpub_header(xtype, net=net) + bytes([depth]) + fingerprint + child_number + c + cK
     return EncodeBase58Check(xpub)
 
 
-def deserialize_xkey(xkey, prv):
+def deserialize_xkey(xkey, prv, *, net=None):
+    if net is None: net = networks.net
     xkey = DecodeBase58Check(xkey)
     if len(xkey) != 78:
         raise BaseException('Invalid length')
@@ -772,7 +787,7 @@ def deserialize_xkey(xkey, prv):
     child_number = xkey[9:13]
     c = xkey[13:13+32]
     header = int('0x' + bh2u(xkey[0:4]), 16)
-    headers = NetworkConstants.XPRV_HEADERS if prv else NetworkConstants.XPUB_HEADERS
+    headers = net.XPRV_HEADERS if prv else net.XPUB_HEADERS
     if header not in headers.values():
         raise BaseException('Invalid xpub format', hex(header))
     xtype = list(headers.keys())[list(headers.values()).index(header)]
@@ -781,51 +796,59 @@ def deserialize_xkey(xkey, prv):
     return xtype, depth, fingerprint, child_number, c, K_or_k
 
 
-def deserialize_xpub(xkey):
-    return deserialize_xkey(xkey, False)
+def deserialize_xpub(xkey, *, net=None):
+    if net is None: net = networks.net
+    return deserialize_xkey(xkey, False, net=net)
 
-def deserialize_xprv(xkey):
-    return deserialize_xkey(xkey, True)
+def deserialize_xprv(xkey, *, net=None):
+    if net is None: net = networks.net
+    return deserialize_xkey(xkey, True, net=net)
 
-def xpub_type(x):
-    return deserialize_xpub(x)[0]
+def xpub_type(x, *, net=None):
+    if net is None: net = networks.net
+    return deserialize_xpub(x, net=net)[0]
 
 
-def is_xpub(text):
+def is_xpub(text, *, net=None):
+    if net is None: net = networks.net
     try:
-        deserialize_xpub(text)
+        deserialize_xpub(text, net=net)
         return True
     except:
         return False
 
 
-def is_xprv(text):
+def is_xprv(text, *, net=None):
+    if net is None: net = networks.net
     try:
-        deserialize_xprv(text)
+        deserialize_xprv(text, net=net)
         return True
     except:
         return False
 
 
-def xpub_from_xprv(xprv):
-    xtype, depth, fingerprint, child_number, c, k = deserialize_xprv(xprv)
+def xpub_from_xprv(xprv, *, net=None):
+    if net is None: net = networks.net
+    xtype, depth, fingerprint, child_number, c, k = deserialize_xprv(xprv, net=net)
     K, cK = get_pubkeys_from_secret(k)
-    return serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
+    return serialize_xpub(xtype, c, cK, depth, fingerprint, child_number, net=net)
 
 
-def bip32_root(seed, xtype):
+def bip32_root(seed, xtype, *, net=None):
+    if net is None: net = networks.net
     I = hmac.new(b"Bitcoin seed", seed, hashlib.sha512).digest()
     master_k = I[0:32]
     master_c = I[32:]
     K, cK = get_pubkeys_from_secret(master_k)
-    xprv = serialize_xprv(xtype, master_c, master_k)
-    xpub = serialize_xpub(xtype, master_c, cK)
+    xprv = serialize_xprv(xtype, master_c, master_k, net=net)
+    xpub = serialize_xpub(xtype, master_c, cK, net=net)
     return xprv, xpub
 
 
-def xpub_from_pubkey(xtype, cK):
+def xpub_from_pubkey(xtype, cK, *, net=None):
+    if net is None: net = networks.net
     assert cK[0] in [0x02, 0x03]
-    return serialize_xpub(xtype, b'\x00'*32, cK)
+    return serialize_xpub(xtype, b'\x00'*32, cK, net=net)
 
 
 def bip32_derivation(s):
@@ -843,11 +866,12 @@ def is_bip32_derivation(x):
     except :
         return False
 
-def bip32_private_derivation(xprv, branch, sequence):
+def bip32_private_derivation(xprv, branch, sequence, *, net=None):
+    if net is None: net = networks.net
     assert sequence.startswith(branch)
     if branch == sequence:
-        return xprv, xpub_from_xprv(xprv)
-    xtype, depth, fingerprint, child_number, c, k = deserialize_xprv(xprv)
+        return xprv, xpub_from_xprv(xprv, net=net)
+    xtype, depth, fingerprint, child_number, c, k = deserialize_xprv(xprv, net=net)
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
         if n == '': continue
@@ -859,13 +883,14 @@ def bip32_private_derivation(xprv, branch, sequence):
     fingerprint = hash_160(parent_cK)[0:4]
     child_number = bfh("%08X"%i)
     K, cK = get_pubkeys_from_secret(k)
-    xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
-    xprv = serialize_xprv(xtype, c, k, depth, fingerprint, child_number)
+    xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number, net=net)
+    xprv = serialize_xprv(xtype, c, k, depth, fingerprint, child_number, net=net)
     return xprv, xpub
 
 
-def bip32_public_derivation(xpub, branch, sequence):
-    xtype, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub)
+def bip32_public_derivation(xpub, branch, sequence, *, net=None):
+    if net is None: net = networks.net
+    xtype, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub, net=net)
     assert sequence.startswith(branch)
     sequence = sequence[len(branch):]
     for n in sequence.split('/'):
@@ -876,7 +901,7 @@ def bip32_public_derivation(xpub, branch, sequence):
         depth += 1
     fingerprint = hash_160(parent_cK)[0:4]
     child_number = bfh("%08X"%i)
-    return serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
+    return serialize_xpub(xtype, c, cK, depth, fingerprint, child_number, net=net)
 
 
 def bip32_private_key(sequence, k, chain):

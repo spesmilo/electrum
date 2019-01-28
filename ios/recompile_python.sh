@@ -13,6 +13,7 @@ fi
 
 if [ "$1" == "-k" ]; then
 	find "$dir1" "$dir2" -type d -name __pycache__ -exec rm -fvr {} \; 
+	find "$dir1" "$dir2" -type f -name \*.pyc -exec rm -fvr {} \;
 elif [ -n "$1" ]; then
 	echo "Usage: $0 [-k]"
 	echo "    -k   Klean.  That is, remove all __pycache__ dirs that were created by this script."

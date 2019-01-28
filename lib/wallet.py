@@ -46,7 +46,7 @@ from .address import Address, Script, ScriptOutput, PublicKey
 from .bitcoin import *
 from .version import *
 from .keystore import load_keystore, Hardware_KeyStore, Imported_KeyStore, BIP32_KeyStore, xpubkey_to_address
-from .networks import NetworkConstants
+from . import networks
 from .storage import multisig_type
 
 from . import transaction
@@ -1355,7 +1355,7 @@ class Abstract_Wallet(PrintError):
         out = copy.copy(r)
         addr_text = addr.to_ui_string()
         amount_text = format_satoshis(r['amount'])
-        out['URI'] = '{}:{}?amount={}'.format(NetworkConstants.CASHADDR_PREFIX,
+        out['URI'] = '{}:{}?amount={}'.format(networks.net.CASHADDR_PREFIX,
                                               addr_text, amount_text)
         status, conf = self.get_request_status(addr)
         out['status'] = status
