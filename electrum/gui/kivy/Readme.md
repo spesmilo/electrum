@@ -74,3 +74,11 @@ $ sudo docker run -it --rm \
 
 ### How do I get more verbose logs?
 See `log_level` in `buildozer.spec`
+
+
+### Kivy can be run directly on Linux Desktop. How?
+Install Kivy.
+
+Build atlas: `(cd electrum/gui/kivy/; make theming)`
+
+Run electrum with the `-g` switch: `electrum -g kivy`
