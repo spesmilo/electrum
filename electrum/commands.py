@@ -788,7 +788,7 @@ class Commands:
     def nodeid(self):
         return bh2u(self.wallet.lnworker.node_keypair.pubkey)
 
-    @command('wn')
+    @command('w')
     def listchannels(self):
         return list(self.wallet.lnworker.list_channels())
 
@@ -808,7 +808,38 @@ class Commands:
 
     @command('w')
     def listinvoices(self):
-        return "\n".join(self.wallet.lnworker.list_invoices())
+        report = self.wallet.lnworker._list_invoices()
+        return '\n'.join(self._format_ln_invoices(report))
+
+    def _format_ln_invoices(self, report):
+        from .lnutil import SENT
+        if report['settled']:
+            yield 'Settled invoices:'
+            yield '-----------------'
+            for date, direction, htlc, preimage in sorted(report['settled']):
+                # astimezone converts to local time
+                # replace removes the tz info since we don't need to display it
+                yield 'Paid at: ' + date.astimezone().replace(tzinfo=None).isoformat(sep=' ', timespec='minutes')
+                yield 'We paid' if direction == SENT else 'They paid'
+                yield str(htlc)
+                yield 'Preimage: ' + (bh2u(preimage) if preimage else 'Not available') # if delete_invoice was called
+                yield ''
+        if report['unsettled']:
+            yield 'Your unsettled invoices:'
+            yield '------------------------'
+            for addr, preimage, pay_req in report['unsettled']:
+                yield pay_req
+                yield str(addr)
+                yield 'Preimage: ' + bh2u(preimage)
+                yield ''
+        if report['inflight']:
+            yield 'Outgoing payments in progress:'
+            yield '------------------------------'
+            for addr, htlc, direction in report['inflight']:
+                yield str(addr)
+                yield str(htlc)
+                yield ''
+
 
     @command('wn')
     def closechannel(self, channel_point, force=False):

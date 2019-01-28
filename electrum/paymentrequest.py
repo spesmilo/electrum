@@ -40,6 +40,7 @@ except ImportError:
 
 from . import bitcoin, ecc, util, transaction, x509, rsakey
 from .util import print_error, bh2u, bfh, export_meta, import_meta, make_aiohttp_session
+from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
 from .crypto import sha256
 from .bitcoin import TYPE_ADDRESS
 from .transaction import TxOutput
@@ -59,12 +60,6 @@ def load_ca_list():
         ca_list, ca_keyID = x509.load_certificates(ca_path)
 
 
-
-# status of payment requests
-PR_UNPAID  = 0
-PR_EXPIRED = 1
-PR_UNKNOWN = 2     # sent but not propagated
-PR_PAID    = 3     # send and propagated
 
 
 async def get_payment_request(url: str) -> 'PaymentRequest':

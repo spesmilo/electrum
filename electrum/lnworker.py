@@ -67,13 +67,14 @@ class LNWorker(PrintError):
     def __init__(self, wallet: 'Abstract_Wallet'):
         self.wallet = wallet
         # invoices we are currently trying to pay (might be pending HTLCs on a commitment transaction)
+        self.invoices = self.wallet.storage.get('lightning_invoices', {})  # type: Dict[str, Tuple[str,str]]  # RHASH -> (preimage, invoice)
         self.paying = self.wallet.storage.get('lightning_payments_inflight', {}) # type: Dict[bytes, Tuple[str, Optional[int], str]]
+        self.completed = self.wallet.storage.get('lightning_payments_completed', {})
         self.sweep_address = wallet.get_receiving_address()
         self.lock = threading.RLock()
         self.ln_keystore = self._read_ln_keystore()
         self.node_keypair = generate_keypair(self.ln_keystore, LnKeyFamily.NODE_KEY, 0)
         self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
-        self.invoices = wallet.storage.get('lightning_invoices', {})  # type: Dict[str, Tuple[str,str]]  # RHASH -> (preimage, invoice)
         self.channels = {}  # type: Dict[bytes, Channel]
         for x in wallet.storage.get("channels", []):
             c = Channel(x, sweep_address=self.sweep_address, payment_completed=self.payment_completed)
@@ -123,56 +124,37 @@ class LNWorker(PrintError):
 
     def payment_completed(self, chan, direction, htlc, preimage):
         assert type(direction) is Direction
+        key = bh2u(htlc.payment_hash)
         chan_id = chan.channel_id
         if direction == SENT:
             assert htlc.payment_hash not in self.invoices
-            self.paying.pop(bh2u(htlc.payment_hash))
+            self.paying.pop(key)
             self.wallet.storage.put('lightning_payments_inflight', self.paying)
-        l = self.wallet.storage.get('lightning_payments_completed', [])
         if not preimage:
             preimage, _addr = self.get_invoice(htlc.payment_hash)
         tupl = (time.time(), direction, json.loads(encoder.encode(htlc)), bh2u(preimage), bh2u(chan_id))
-        l.append(tupl)
-        self.wallet.storage.put('lightning_payments_completed', l)
+        self.completed[key] = tupl
+        self.wallet.storage.put('lightning_payments_completed', self.completed)
         self.wallet.storage.write()
         self.network.trigger_callback('ln_payment_completed', tupl[0], direction, htlc, preimage, chan_id)
 
-    def list_invoices(self):
-        report = self._list_invoices()
-        if report['settled']:
-            yield 'Settled invoices:'
-            yield '-----------------'
-            for date, direction, htlc, preimage in sorted(report['settled']):
-                # astimezone converts to local time
-                # replace removes the tz info since we don't need to display it
-                yield 'Paid at: ' + date.astimezone().replace(tzinfo=None).isoformat(sep=' ', timespec='minutes')
-                yield 'We paid' if direction == SENT else 'They paid'
-                yield str(htlc)
-                yield 'Preimage: ' + (bh2u(preimage) if preimage else 'Not available') # if delete_invoice was called
-                yield ''
-        if report['unsettled']:
-            yield 'Your unsettled invoices:'
-            yield '------------------------'
-            for addr, preimage, pay_req in report['unsettled']:
-                yield pay_req
-                yield str(addr)
-                yield 'Preimage: ' + bh2u(preimage)
-                yield ''
-        if report['inflight']:
-            yield 'Outgoing payments in progress:'
-            yield '------------------------------'
-            for addr, htlc, direction in report['inflight']:
-                yield str(addr)
-                yield str(htlc)
-                yield ''
+    def get_invoice_status(self, key):
+        from electrum.util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
+        if key in self.completed:
+            return PR_PAID
+        elif key in self.paying:
+            return PR_INFLIGHT
+        elif key in self.invoices:
+            return PR_UNPAID
+        else:
+            return PR_UNKNOWN
 
     def _list_invoices(self, chan_id=None):
         invoices  = dict(self.invoices)
-        completed = self.wallet.storage.get('lightning_payments_completed', [])
         settled = []
         unsettled = []
         inflight = []
-        for date, direction, htlc, hex_preimage, hex_chan_id in completed:
+        for date, direction, htlc, hex_preimage, hex_chan_id in self.completed.values():
             direction = Direction(direction)
             if chan_id is not None:
                 if bfh(hex_chan_id) != chan_id:
