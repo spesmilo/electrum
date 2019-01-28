@@ -59,6 +59,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 ctn = -1,
                 next_htlc_id = 0,
                 reserve_sat=0,
+                htlc_minimum_msat=1,
 
                 next_per_commitment_point=nex,
                 current_per_commitment_point=cur,
