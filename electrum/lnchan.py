@@ -206,7 +206,7 @@ class Channel(PrintError):
         current_htlc_sum = htlcsum(self.hm.htlcs_by_direction(LOCAL, SENT)) + htlcsum(self.hm.htlcs_by_direction(LOCAL, RECEIVED))
         if current_htlc_sum + amount_msat > self.config[REMOTE].max_htlc_value_in_flight_msat:
             raise PaymentFailure(f'HTLC value sum (sum of pending htlcs: {current_htlc_sum/1000} sat plus new htlc: {amount_msat/1000} sat) would exceed max allowed: {self.config[REMOTE].max_htlc_value_in_flight_msat/1000} sat')
-        if amount_msat <= 0:  # FIXME htlc_minimum_msat
+        if amount_msat < self.config[REMOTE].htlc_minimum_msat:
             raise PaymentFailure(f'HTLC value too small: {amount_msat} msat')
 
     def can_pay(self, amount_msat):

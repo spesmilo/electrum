@@ -33,7 +33,9 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      secret_to_pubkey, LNPeerAddr, PaymentFailure, LnLocalFeatures,
                      LOCAL, REMOTE, HTLCOwner, generate_keypair, LnKeyFamily,
                      get_ln_flag_pair_of_bit, privkey_to_pubkey, UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
-                     LightningPeerConnectionClosed, HandshakeFailed, LNPeerAddr, NotFoundChanAnnouncementForUpdate)
+                     LightningPeerConnectionClosed, HandshakeFailed, LNPeerAddr, NotFoundChanAnnouncementForUpdate,
+                     MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED, MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED,
+                     MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED)
 from .lntransport import LNTransport, LNTransportBase
 
 if TYPE_CHECKING:
@@ -400,7 +402,7 @@ class Peer(PrintError):
             revocation_basepoint=keypair_generator(LnKeyFamily.REVOCATION_BASE),
             to_self_delay=9,
             dust_limit_sat=546,
-            max_htlc_value_in_flight_msat=0xffffffffffffffff,
+            max_htlc_value_in_flight_msat=200000000,
             max_accepted_htlcs=5,
             initial_msat=initial_msat,
             ctn=-1,
@@ -418,6 +420,7 @@ class Peer(PrintError):
     @log_exceptions
     async def channel_establishment_flow(self, password: Optional[str], funding_sat: int,
                                          push_msat: int, temp_channel_id: bytes) -> Channel:
+        assert push_msat == 0, "push_msat not supported currently"
         wallet = self.lnworker.wallet
         # dry run creating funding tx to see if we even have enough funds
         funding_tx_test = wallet.mktx([TxOutput(bitcoin.TYPE_ADDRESS, wallet.dummy_address(), funding_sat)],
@@ -448,33 +451,49 @@ class Peer(PrintError):
             max_htlc_value_in_flight_msat=local_config.max_htlc_value_in_flight_msat,
             channel_flags=0x00,  # not willing to announce channel
             channel_reserve_satoshis=local_config.reserve_sat,
+            htlc_minimum_msat=1,
         )
         payload = await self.channel_accepted[temp_channel_id].get()
         if payload.get('error'):
             raise Exception('Remote Lightning peer reported error: ' + repr(payload.get('error')))
         remote_per_commitment_point = payload['first_per_commitment_point']
         funding_txn_minimum_depth = int.from_bytes(payload['minimum_depth'], 'big')
+        assert funding_txn_minimum_depth > 0, funding_txn_minimum_depth
         remote_dust_limit_sat = int.from_bytes(payload['dust_limit_satoshis'], byteorder='big')
-        assert remote_dust_limit_sat < 600, remote_dust_limit_sat
-        assert int.from_bytes(payload['htlc_minimum_msat'], 'big') < 600 * 1000
-        remote_max = int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big')
-        assert remote_max >= 198 * 1000 * 1000, remote_max
-        their_revocation_store = RevocationStore()
         remote_reserve_sat = self.validate_remote_reserve(payload["channel_reserve_satoshis"], remote_dust_limit_sat, funding_sat)
+        if remote_dust_limit_sat > remote_reserve_sat:
+            raise Exception(f"Remote Lightning peer reports dust_limit_sat > reserve_sat which is a BOLT-02 protocol violation.")
+        htlc_min = int.from_bytes(payload['htlc_minimum_msat'], 'big')
+        if htlc_min > MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED:
+            raise Exception(f"Remote Lightning peer reports htlc_minimum_msat={htlc_min} mSAT," +
+                    f" which is above Electrums required maximum limit of that parameter ({MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED} mSAT).")
+        remote_max = int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big')
+        if remote_max < MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED:
+            raise Exception(f"Remote Lightning peer reports max_htlc_value_in_flight_msat at only {remote_max} mSAT" +
+                    f" which is below Electrums required minimum ({MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED} mSAT).")
+        max_accepted_htlcs = int.from_bytes(payload["max_accepted_htlcs"], 'big')
+        if max_accepted_htlcs > 483:
+            raise Exception("Remote Lightning peer reports max_accepted_htlcs > 483, which is a BOLT-02 protocol violation.")
+        remote_to_self_delay = int.from_bytes(payload['to_self_delay'], byteorder='big')
+        if remote_to_self_delay > MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED:
+            raise Exception(f"Remote Lightning peer reports to_self_delay={remote_to_self_delay}," +
+                    f" which is above Electrums required maximum ({MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED})")
+        their_revocation_store = RevocationStore()
         remote_config = RemoteConfig(
             payment_basepoint=OnlyPubkeyKeypair(payload['payment_basepoint']),
             multisig_key=OnlyPubkeyKeypair(payload["funding_pubkey"]),
             htlc_basepoint=OnlyPubkeyKeypair(payload['htlc_basepoint']),
             delayed_basepoint=OnlyPubkeyKeypair(payload['delayed_payment_basepoint']),
             revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
-            to_self_delay=int.from_bytes(payload['to_self_delay'], byteorder='big'),
+            to_self_delay=remote_to_self_delay,
             dust_limit_sat=remote_dust_limit_sat,
             max_htlc_value_in_flight_msat=remote_max,
-            max_accepted_htlcs=int.from_bytes(payload["max_accepted_htlcs"], 'big'),
+            max_accepted_htlcs=max_accepted_htlcs,
             initial_msat=push_msat,
             ctn = -1,
             next_htlc_id = 0,
             reserve_sat = remote_reserve_sat,
+            htlc_minimum_msat = htlc_min,
 
             next_per_commitment_point=remote_per_commitment_point,
             current_per_commitment_point=None,
@@ -531,6 +550,7 @@ class Peer(PrintError):
             raise Exception('wrong chain_hash')
         funding_sat = int.from_bytes(payload['funding_satoshis'], 'big')
         push_msat = int.from_bytes(payload['push_msat'], 'big')
+        assert push_msat == 0, "push_msat not supported currently"
         feerate = int.from_bytes(payload['feerate_per_kw'], 'big')
 
         temp_chan_id = payload['temporary_channel_id']

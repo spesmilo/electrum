@@ -71,6 +71,7 @@ class RemoteConfig(NamedTuple):
     max_accepted_htlcs: int
     initial_msat: int
     reserve_sat: int
+    htlc_minimum_msat: int
     # specific to "REMOTE" config
     next_per_commitment_point: bytes
     revocation_store: 'RevocationStore'
@@ -102,6 +103,15 @@ class NotFoundChanAnnouncementForUpdate(Exception): pass
 MIN_FINAL_CLTV_EXPIRY_ACCEPTED = 144
 MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE = MIN_FINAL_CLTV_EXPIRY_ACCEPTED + 1
 
+
+# When we open a channel, the remote peer has to support at least this
+# value of mSATs in HTLCs accumulated on the channel, or we refuse opening.
+# Number is based on observed testnet limit https://github.com/spesmilo/electrum/issues/5032
+MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED = 19_800 * 1000
+
+MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED = 1000
+
+MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED = 2016
 
 class RevocationStore:
     """ Taken from LND, see license in lnchan.py. """
