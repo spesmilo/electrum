@@ -82,7 +82,7 @@ class MockLNWorker:
         self.network = MockNetwork(tx_queue)
         self.channels = {self.chan.channel_id: self.chan}
         self.invoices = {}
-        self.paying = {}
+        self.inflight = {}
         self.wallet = MockWallet()
 
     @property

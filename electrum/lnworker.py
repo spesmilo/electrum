@@ -68,7 +68,7 @@ class LNWorker(PrintError):
         self.wallet = wallet
         # invoices we are currently trying to pay (might be pending HTLCs on a commitment transaction)
         self.invoices = self.wallet.storage.get('lightning_invoices', {})  # type: Dict[str, Tuple[str,str]]  # RHASH -> (preimage, invoice)
-        self.paying = self.wallet.storage.get('lightning_payments_inflight', {}) # type: Dict[bytes, Tuple[str, Optional[int], str]]
+        self.inflight = self.wallet.storage.get('lightning_payments_inflight', {}) # type: Dict[bytes, Tuple[str, Optional[int], str]]
         self.completed = self.wallet.storage.get('lightning_payments_completed', {})
         self.sweep_address = wallet.get_receiving_address()
         self.lock = threading.RLock()
@@ -128,8 +128,8 @@ class LNWorker(PrintError):
         chan_id = chan.channel_id
         if direction == SENT:
             assert htlc.payment_hash not in self.invoices
-            self.paying.pop(key)
-            self.wallet.storage.put('lightning_payments_inflight', self.paying)
+            self.inflight.pop(key)
+            self.wallet.storage.put('lightning_payments_inflight', self.inflight)
         if not preimage:
             preimage, _addr = self.get_invoice(htlc.payment_hash)
         tupl = (time.time(), direction, json.loads(encoder.encode(htlc)), bh2u(preimage), bh2u(chan_id))
@@ -142,7 +142,7 @@ class LNWorker(PrintError):
         from electrum.util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
         if key in self.completed:
             return PR_PAID
-        elif key in self.paying:
+        elif key in self.inflight:
             return PR_INFLIGHT
         elif key in self.invoices:
             return PR_UNPAID
@@ -169,7 +169,7 @@ class LNWorker(PrintError):
         for preimage, pay_req in invoices.values():
             addr = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
             unsettled.append((addr, bfh(preimage), pay_req))
-        for pay_req, amount_sat, this_chan_id in self.paying.values():
+        for pay_req, amount_sat, this_chan_id in self.inflight.values():
             if chan_id is not None and bfh(this_chan_id) != chan_id:
                 continue
             addr = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
@@ -447,8 +447,8 @@ class LNWorker(PrintError):
                 break
         else:
             assert False, 'Found route with short channel ID we don\'t have: ' + repr(route[0].short_channel_id)
-        self.paying[bh2u(addr.paymenthash)] = (invoice, amount_sat, bh2u(chan_id))
-        self.wallet.storage.put('lightning_payments_inflight', self.paying)
+        self.inflight[bh2u(addr.paymenthash)] = (invoice, amount_sat, bh2u(chan_id))
+        self.wallet.storage.put('lightning_payments_inflight', self.inflight)
         self.wallet.storage.write()
         return addr, peer, self._pay_to_route(route, addr)
 
