@@ -31,8 +31,8 @@ from PyQt5.QtCore import Qt, QItemSelectionModel
 
 from electrum.i18n import _
 from electrum.util import format_time, age
+from electrum.util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
 from electrum.plugin import run_hook
-from electrum.paymentrequest import PR_UNKNOWN
 from electrum.wallet import InternalAddressCorruption
 from electrum.bitcoin import COIN
 from electrum.lnaddr import lndecode
@@ -144,7 +144,9 @@ class RequestList(MyTreeView):
             items[0].setData(address, ROLE_RHASH_OR_ADDR)
         self.filter()
         # lightning
-        for payreq_key, (preimage_hex, invoice) in self.wallet.lnworker.invoices.items():
+        lnworker = self.wallet.lnworker
+        for key, (preimage_hex, invoice) in lnworker.invoices.items():
+            status = lnworker.get_invoice_status(key)
             lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
             amount_sat = lnaddr.amount*COIN if lnaddr.amount else None
             amount_str = self.parent.format_amount(amount_sat) if amount_sat else ''
@@ -154,11 +156,13 @@ class RequestList(MyTreeView):
                     description = v
                     break
             date = format_time(lnaddr.date)
-            labels = [date, 'lightning', description, amount_str, '']
+            labels = [date, 'lightning', description, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
             items[1].setIcon(self.icon_cache.get(":icons/lightning.png"))
             items[0].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
-            items[0].setData(payreq_key, ROLE_RHASH_OR_ADDR)
+            items[0].setData(key, ROLE_RHASH_OR_ADDR)
+            if status is not PR_UNKNOWN:
+                items[4].setIcon(self.icon_cache.get(pr_icons.get(status)))
             self.model().insertRow(self.model().rowCount(), items)
         # sort requests by date
         self.model().sort(0)

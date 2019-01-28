@@ -26,7 +26,7 @@ from electrum.util import profiler, parse_URI, format_time, InvalidPassword, Not
 from electrum import bitcoin, constants
 from electrum.transaction import TxOutput, Transaction, tx_from_str
 from electrum.util import send_exception_to_crash_reporter, parse_URI, InvalidBitcoinURI
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
+from electrum.util import PR_UNPAID, PR_PAID, PR_UNKNOWN, PR_EXPIRED
 from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
 from electrum import simple_config

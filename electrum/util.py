@@ -73,6 +73,13 @@ base_units_list = ['BTC', 'mBTC', 'bits', 'sat']  # list(dict) does not guarante
 
 DECIMAL_POINT_DEFAULT = 5  # mBTC
 
+# status of payment requests
+PR_UNPAID  = 0
+PR_EXPIRED = 1
+PR_UNKNOWN = 2     # sent but not propagated
+PR_PAID    = 3     # send and propagated
+PR_INFLIGHT = 4    # lightning
+
 
 class UnknownBaseUnit(Exception): pass
 

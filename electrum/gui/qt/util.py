@@ -23,9 +23,8 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
                              QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate)
 
 from electrum.i18n import _, languages
-from electrum.util import (FileImportFailed, FileExportFailed,
-                           resource_path)
-from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
+from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, PrintError, resource_path
+from electrum.util import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -44,13 +43,15 @@ dialogs = []
 pr_icons = {
     PR_UNPAID:"unpaid.png",
     PR_PAID:"confirmed.png",
-    PR_EXPIRED:"expired.png"
+    PR_EXPIRED:"expired.png",
+    PR_INFLIGHT:"lightning.png",
 }
 
 pr_tooltips = {
     PR_UNPAID:_('Pending'),
     PR_PAID:_('Paid'),
-    PR_EXPIRED:_('Expired')
+    PR_EXPIRED:_('Expired'),
+    PR_INFLIGHT:_('Inflight')
 }
 
 expiration_values = [
