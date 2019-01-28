@@ -402,7 +402,7 @@ class Peer(PrintError):
             revocation_basepoint=keypair_generator(LnKeyFamily.REVOCATION_BASE),
             to_self_delay=9,
             dust_limit_sat=546,
-            max_htlc_value_in_flight_msat=200000000,
+            max_htlc_value_in_flight_msat=0xffffffffffffffff,
             max_accepted_htlcs=5,
             initial_msat=initial_msat,
             ctn=-1,
