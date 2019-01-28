@@ -95,7 +95,7 @@ if is_local:
 
 from electroncash import bitcoin, util
 from electroncash import SimpleConfig, Network
-from electroncash.networks import NetworkConstants
+from electroncash.networks import NetworkConstants, set_testnet
 from electroncash.wallet import Wallet, ImportedPrivkeyWallet, ImportedAddressWallet
 from electroncash.storage import WalletStorage
 from electroncash.util import print_msg, print_stderr, json_encode, json_decode
@@ -350,7 +350,7 @@ if __name__ == '__main__':
     set_verbosity(config_options.get('verbose') and config_options.get('gui')!='kivy')
 
     if config_options.get('testnet'):
-        NetworkConstants.set_testnet()
+        set_testnet()
 
     # check uri
     uri = config_options.get('url')

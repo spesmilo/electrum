@@ -163,14 +163,16 @@ class Plugin(BasePlugin):
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
         self.windows = []
+        self.initted = False
 
     @hook
     def init_qt(self, gui):
-        if self.windows: return # already initted
+        if self.initted: return # already initted
         self.print_error("Initializing...")
         for window in gui.windows:
             self.on_new_window(window)
         Plugin.Instance_ref = Weak.ref(self)
+        self.initted = True
 
     @hook
     def on_new_window(self, window):
@@ -222,6 +224,7 @@ class Plugin(BasePlugin):
         for w in self.windows.copy():
             self.on_close_window(w)
         self.windows = []
+        self.initted = False
         super().on_close()
 
     def update(self, window):

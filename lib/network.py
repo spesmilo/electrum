@@ -38,7 +38,7 @@ import socks
 from . import util
 from . import bitcoin
 from .bitcoin import *
-from .networks import NetworkConstants
+from . import networks
 from .i18n import _
 from .interface import Connection, Interface
 from . import blockchain
@@ -63,7 +63,7 @@ def parse_servers(result):
             for v in item[2]:
                 if re.match("[st]\d*", v):
                     protocol, port = v[0], v[1:]
-                    if port == '': port = bitcoin.NetworkConstants.DEFAULT_PORTS[protocol]
+                    if port == '': port = networks.net.DEFAULT_PORTS[protocol]
                     out[protocol] = port
                 elif re.match("v(.?)+", v):
                     version = v[1:]
@@ -99,7 +99,7 @@ def filter_protocol(hostmap, protocol = 's'):
 
 def get_eligible_servers(hostmap=None, protocol="s", exclude_set=set()):
     if hostmap is None:
-        hostmap = bitcoin.NetworkConstants.DEFAULT_SERVERS
+        hostmap = networks.net.DEFAULT_SERVERS
     return list(set(filter_protocol(hostmap, protocol)) - exclude_set)
 
 def pick_random_server(hostmap = None, protocol = 's', exclude_set = set()):
@@ -223,10 +223,10 @@ class Network(util.DaemonThread):
         self.verifications_required = 1
         # If the height is cleared from the network constants, we're
         # taking looking to get 3 confirmations of the first verification.
-        if bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT is None:
+        if networks.net.VERIFICATION_BLOCK_HEIGHT is None:
             self.verifications_required = 3
         self.checkpoint_servers_verified = {}
-        self.checkpoint_height = bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT
+        self.checkpoint_height = networks.net.VERIFICATION_BLOCK_HEIGHT
         self.debug = False
         self.irc_servers = {} # returned by interface (list from irc)
         self.recent_servers = self.read_recent_servers()
@@ -399,6 +399,8 @@ class Network(util.DaemonThread):
             value = self.get_servers()
         elif key == 'interfaces':
             value = self.get_interfaces()
+        elif key == 'proxy':
+            value = (self.proxy and self.proxy.copy()) or None
         return value
 
     def notify(self, key):
@@ -421,7 +423,7 @@ class Network(util.DaemonThread):
             return list(self.interfaces.keys())
 
     def get_servers(self):
-        out = bitcoin.NetworkConstants.DEFAULT_SERVERS
+        out = networks.net.DEFAULT_SERVERS
         if self.irc_servers:
             out.update(filter_version(self.irc_servers.copy()))
         else:
@@ -487,6 +489,7 @@ class Network(util.DaemonThread):
         else:
             socket.socket = socket._socketobject
             socket.getaddrinfo = socket._getaddrinfo
+        self.notify('proxy')
 
     def start_network(self, protocol, proxy):
         assert not self.interface and not self.interfaces
@@ -887,19 +890,19 @@ class Network(util.DaemonThread):
             raise Exception("Server does not support requesting more than 2016 consecutive headers")
 
         top_height = base_height + count - 1
-        if top_height > bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT:
-            if base_height < bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT:
+        if top_height > networks.net.VERIFICATION_BLOCK_HEIGHT:
+            if base_height < networks.net.VERIFICATION_BLOCK_HEIGHT:
                 # As part of the verification process, we fetched the set of headers that allowed manual verification of the post-checkpoint headers that were fetched
                 # as part of the "catch-up" process.  This requested header batch overlaps the checkpoint, so we know we have the post-checkpoint segment from the
                 # "catch-up".  This leaves us needing some header preceding the checkpoint, and we can clip the batch to the checkpoint to ensure we can verify the
                 # fetched batch, which we wouldn't otherwise be able to do manually as we cannot guarantee we have the headers preceding the batch.
-                interface.print_error("clipping request across checkpoint height {} ({} -> {})".format(bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT, base_height, top_height))
-                verified_count = bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT - base_height + 1
-                self._request_headers(interface, base_height, verified_count, bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT)
+                interface.print_error("clipping request across checkpoint height {} ({} -> {})".format(networks.net.VERIFICATION_BLOCK_HEIGHT, base_height, top_height))
+                verified_count = networks.net.VERIFICATION_BLOCK_HEIGHT - base_height + 1
+                self._request_headers(interface, base_height, verified_count, networks.net.VERIFICATION_BLOCK_HEIGHT)
             else:
                 self._request_headers(interface, base_height, count)
         else:
-            self._request_headers(interface, base_height, count, bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT)
+            self._request_headers(interface, base_height, count, networks.net.VERIFICATION_BLOCK_HEIGHT)
 
     def _request_headers(self, interface, base_height, count, checkpoint_height=0):
         params = [base_height, count, checkpoint_height]
@@ -1038,10 +1041,10 @@ class Network(util.DaemonThread):
         request.
         '''
         interface.print_error("requesting header %d" % height)
-        if height > bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT:
+        if height > networks.net.VERIFICATION_BLOCK_HEIGHT:
             params = [height]
         else:
-            params = [height, bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT]
+            params = [height, networks.net.VERIFICATION_BLOCK_HEIGHT]
         self.queue_request('blockchain.block.header', params, interface)
         return True
 
@@ -1097,7 +1100,7 @@ class Network(util.DaemonThread):
                 # checkpoint height header was requested and it does not connect, then there's not much Electron-SV
                 # can do about it (that we're going to bother). We depend on the checkpoint being relevant for the
                 # blockchain the user is running against.
-                if height <= bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT:
+                if height <= networks.net.VERIFICATION_BLOCK_HEIGHT:
                     self.connection_down(interface.server)
                     next_height = None
                 else:
@@ -1106,7 +1109,7 @@ class Network(util.DaemonThread):
                     delta = interface.tip - height
                     # If the longest chain does not connect at any point we check to the chain this interface is
                     # serving, then we fall back on the checkpoint height which is expected to work.
-                    next_height = max(bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT, interface.tip - 2 * delta)
+                    next_height = max(networks.net.VERIFICATION_BLOCK_HEIGHT, interface.tip - 2 * delta)
 
         elif interface.mode == Interface.MODE_BINARY:
             if chain:
@@ -1263,7 +1266,7 @@ class Network(util.DaemonThread):
     def init_headers_file(self):
         b = self.blockchains[0]
         filename = b.path()
-        length = 80 * (bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT + 1)
+        length = 80 * (networks.net.VERIFICATION_BLOCK_HEIGHT + 1)
         if not os.path.exists(filename) or os.path.getsize(filename) < length:
             with open(filename, 'wb') as f:
                 if length>0:
@@ -1276,9 +1279,9 @@ class Network(util.DaemonThread):
     def run(self):
         b = self.blockchains[0]
         header = None
-        if bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT is not None:
+        if networks.net.VERIFICATION_BLOCK_HEIGHT is not None:
             self.init_headers_file()
-            header = b.read_header(bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT)
+            header = b.read_header(networks.net.VERIFICATION_BLOCK_HEIGHT)
         if header is not None:
             self.verified_checkpoint = True
 
@@ -1310,7 +1313,7 @@ class Network(util.DaemonThread):
         header = blockchain.deserialize_header(bfh(header_hex), height)
 
         # If the server is behind the verification height, then something is wrong with it.  Drop it.
-        if bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT is not None and height <= bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT:
+        if networks.net.VERIFICATION_BLOCK_HEIGHT is not None and height <= networks.net.VERIFICATION_BLOCK_HEIGHT:
             self.connection_down(interface.server)
             return
 
@@ -1350,7 +1353,7 @@ class Network(util.DaemonThread):
 
         heights = [x.height() for x in self.blockchains.values()]
         tip = max(heights)
-        if tip > bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT:
+        if tip > networks.net.VERIFICATION_BLOCK_HEIGHT:
             interface.print_error("attempt to reconcile longest chain tip={} heights={}".format(tip, heights))
             interface.set_mode(Interface.MODE_BACKWARD)
             interface.bad = height
@@ -1364,7 +1367,7 @@ class Network(util.DaemonThread):
                 interface.set_mode(Interface.MODE_CATCH_UP)
                 interface.blockchain = chain
                 interface.print_error("switching to catchup mode", tip)
-                self.request_header(interface, bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT + 1)
+                self.request_header(interface, networks.net.VERIFICATION_BLOCK_HEIGHT + 1)
             else:
                 interface.print_error("chain already catching up with", chain.catch_up.server)
 
@@ -1402,11 +1405,11 @@ class Network(util.DaemonThread):
             if self.verifications_required > 0:
                 return False
 
-            if bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT is None:
-                bitcoin.NetworkConstants.VERIFICATION_BLOCK_HEIGHT = checkpoint_height
-                bitcoin.NetworkConstants.VERIFICATION_BLOCK_MERKLE_ROOT = checkpoint_root
+            if networks.net.VERIFICATION_BLOCK_HEIGHT is None:
+                networks.net.VERIFICATION_BLOCK_HEIGHT = checkpoint_height
+                networks.net.VERIFICATION_BLOCK_MERKLE_ROOT = checkpoint_root
 
-                network_name = "TESTNET" if bitcoin.NetworkConstants.TESTNET else "MAINNET"
+                network_name = "TESTNET" if networks.net.TESTNET else "MAINNET"
                 self.print_error("found verified checkpoint for {} at height {} with merkle root {!r}".format(network_name, checkpoint_height, checkpoint_root))
 
         if not self.verified_checkpoint:
@@ -1434,20 +1437,20 @@ class Network(util.DaemonThread):
         Returns a boolean to represent whether the server's proof is correct.
         '''
         received_merkle_root = bytes(reversed(bfh(merkle_root)))
-        if bitcoin.NetworkConstants.VERIFICATION_BLOCK_MERKLE_ROOT:
-            expected_merkle_root = bytes(reversed(bfh(bitcoin.NetworkConstants.VERIFICATION_BLOCK_MERKLE_ROOT)))
+        if networks.net.VERIFICATION_BLOCK_MERKLE_ROOT:
+            expected_merkle_root = bytes(reversed(bfh(networks.net.VERIFICATION_BLOCK_MERKLE_ROOT)))
         else:
             expected_merkle_root = received_merkle_root
 
         if received_merkle_root != expected_merkle_root:
-            interface.print_error("Sent unexpected merkle root, expected: {}, got: {}".format(bitcoin.NetworkConstants.VERIFICATION_BLOCK_MERKLE_ROOT, merkle_root))
+            interface.print_error("Sent unexpected merkle root, expected: {}, got: {}".format(networks.net.VERIFICATION_BLOCK_MERKLE_ROOT, merkle_root))
             return False
 
         header_hash = Hash(bfh(header))
         byte_branches = [ bytes(reversed(bfh(v))) for v in merkle_branch ]
         proven_merkle_root = blockchain.root_from_proof(header_hash, byte_branches, header_height)
         if proven_merkle_root != expected_merkle_root:
-            interface.print_error("Sent incorrect merkle branch, expected: {}, proved: {}".format(bitcoin.NetworkConstants.VERIFICATION_BLOCK_MERKLE_ROOT, util.hfu(reversed(proven_merkle_root))))
+            interface.print_error("Sent incorrect merkle branch, expected: {}, proved: {}".format(networks.net.VERIFICATION_BLOCK_MERKLE_ROOT, util.hfu(reversed(proven_merkle_root))))
             return False
 
         return True
@@ -1705,7 +1708,7 @@ class Network(util.DaemonThread):
 
     def _compute_whitelist(self):
         if not hasattr(self, '_hardcoded_whitelist'):
-            self._hardcoded_whitelist = frozenset(hostmap_to_servers(NetworkConstants.HARDCODED_DEFAULT_SERVERS))
+            self._hardcoded_whitelist = frozenset(hostmap_to_servers(networks.net.HARDCODED_DEFAULT_SERVERS))
         ret = set(self._hardcoded_whitelist)
         ret |= set(self.config.get('server_whitelist_added', [])) # this key is all the servers that weren't in the hardcoded whitelist that the user explicitly added
         ret -= set(self.config.get('server_whitelist_removed', [])) # this key is all the servers that were hardcoded in the whitelist that the user explicitly removed

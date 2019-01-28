@@ -33,13 +33,11 @@ except Exception:
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
-import PyQt5.QtCore as QtCore
 
 from electroncash.i18n import _, set_language
 from electroncash.plugins import run_hook
 from electroncash import WalletStorage
-from electroncash.util import UserCancelled, Weak, print_error
-from electroncash.networks import NetworkConstants
+from electroncash.util import UserCancelled, Weak, PrintError, print_error
 
 from .installwizard import InstallWizard, GoBack
 
@@ -48,28 +46,14 @@ from .util import *   # * needed for plugins
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
 from .exception_window import Exception_Hook
+from .update_checker import UpdateChecker
 
 
-class OpenFileEventFilter(QObject):
-    def __init__(self, windows):
-        self.windows = windows
-        super(OpenFileEventFilter, self).__init__()
-
-    def eventFilter(self, obj, event):
-        if event.type() == QtCore.QEvent.FileOpen:
-            if len(self.windows) >= 1:
-                self.windows[0].pay_to_URI(event.url().toString())
-                return True
-        return False
-
-
-class QElectrumApplication(QApplication):
+class ElectrumGui(QObject, PrintError):
     new_window_signal = pyqtSignal(str, object)
 
-
-class ElectrumGui:
-
     def __init__(self, config, daemon, plugins):
+        super(__class__, self).__init__() # QObject init
         set_language(config.get('language'))
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
@@ -80,9 +64,9 @@ class ElectrumGui:
         #    from electroncash.synchronizer import Synchronizer
         #    daemon.network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,
         #                                       ElectrumWindow], interval=5)])
-        QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_X11InitThreads)
-        if hasattr(QtCore.Qt, "AA_ShareOpenGLContexts"):
-            QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
+        QCoreApplication.setAttribute(Qt.AA_X11InitThreads)
+        if hasattr(Qt, "AA_ShareOpenGLContexts"):
+            QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
         if hasattr(QGuiApplication, 'setDesktopFileName'):
             QGuiApplication.setDesktopFileName('electron-cash.desktop')
         self.config = config
@@ -90,12 +74,14 @@ class ElectrumGui:
         self.plugins = plugins
         self.windows = []
         self.weak_windows = []
-        self.efilter = OpenFileEventFilter(self.windows)
-        self.app = QElectrumApplication(sys.argv)
-        self.app.installEventFilter(self.efilter)
-        self.timer = QTimer(self.app); self.timer.setSingleShot(False); self.timer.setInterval(500) #msec
-        self.gc_timer = QTimer(self.app); self.gc_timer.setSingleShot(True); self.gc_timer.timeout.connect(ElectrumGui.gc); self.gc_timer.setInterval(333) #msec
+        self.app = QApplication(sys.argv)
+        self.app.installEventFilter(self)
+        self.timer = QTimer(self); self.timer.setSingleShot(False); self.timer.setInterval(500) #msec
+        self.gc_timer = QTimer(self); self.gc_timer.setSingleShot(True); self.gc_timer.timeout.connect(ElectrumGui.gc); self.gc_timer.setInterval(333) #msec
         self.nd = None
+        self.update_checker = UpdateChecker()
+        self.update_checker_timer = QTimer(self); self.update_checker_timer.timeout.connect(self.on_auto_update_timeout); self.update_checker_timer.setSingleShot(False)
+        self.update_checker.got_new_version.connect(lambda x: self.show_update_checker(parent=None, skip_check=True))
         # init tray
         self.dark_icon = self.config.get("dark_icon", False)
         self.tray = QSystemTrayIcon(self.tray_icon(), None)
@@ -103,9 +89,19 @@ class ElectrumGui:
         self.tray.activated.connect(self.tray_activated)
         self.build_tray_menu()
         self.tray.show()
-        self.app.new_window_signal.connect(self.start_new_window)
+        self.new_window_signal.connect(self.start_new_window)
         run_hook('init_qt', self)
         ColorScheme.update_from_widget(QWidget())
+        if self.has_auto_update_check():
+            self._start_auto_update_timer(first_run = True)
+
+    def eventFilter(self, obj, event):
+        ''' This event filter allows us to open bitcoincash: URIs on macOS '''
+        if event.type() == QEvent.FileOpen:
+            if len(self.windows) >= 1:
+                self.windows[0].pay_to_URI(event.url().toString())
+                return True
+        return False
 
     def build_tray_menu(self):
         # Avoid immediate GC of old menu when window closed via its action
@@ -120,6 +116,8 @@ class ElectrumGui:
             submenu.addAction(_("Show/Hide"), window.show_or_hide)
             submenu.addAction(_("Close"), window.close)
         m.addAction(_("Dark/Light"), self.toggle_tray_icon)
+        m.addSeparator()
+        m.addAction(_("&Check for updates..."), lambda: self.show_update_checker(None))
         m.addSeparator()
         m.addAction(_("Exit Electron Cash"), self.close)
         self.tray.setContextMenu(m)
@@ -150,11 +148,10 @@ class ElectrumGui:
 
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
-        self.app.new_window_signal.emit(path, uri)
+        self.new_window_signal.emit(path, uri)
 
     def show_network_dialog(self, parent):
-        if not self.daemon.network:
-            parent.show_warning(_('You are using Electron Cash in offline mode; restart Electron Cash if you want to get connected'), title=_('Offline'))
+        if self.warn_if_no_network(parent):
             return
         if self.nd:
             self.nd.on_update()
@@ -195,7 +192,7 @@ class ElectrumGui:
                     except UserCancelled:
                         pass
                     except GoBack as e:
-                        print_error('[start_new_window] Exception caught (GoBack)', e)
+                        self.print_error('[start_new_window] Exception caught (GoBack)', e)
                     finally:
                         wizard.terminate()
                         del wizard
@@ -207,17 +204,15 @@ class ElectrumGui:
             except BaseException as e:
                 traceback.print_exc(file=sys.stdout)
                 if '2fa' in str(e):
-                    d = QMessageBoxMixin(QMessageBox.Warning, _('Error'), '2FA wallets for Bitcoin Cash are currently unsupported by <a href="https://api.trustedcoin.com/#/">TrustedCoin</a>. Follow <a href="https://github.com/Electron-Cash/Electron-Cash/issues/41#issuecomment-357468208">this guide</a> in order to recover your funds.')
-                    d.exec_()
+                    self.warning(title=_('Error'), message = '2FA wallets for Bitcoin Cash are currently unsupported by <a href="https://api.trustedcoin.com/#/">TrustedCoin</a>. Follow <a href="https://github.com/Electron-Cash/Electron-Cash/issues/41#issuecomment-357468208">this guide</a> in order to recover your funds.')
                 else:
-                    d = QMessageBoxMixin(QMessageBox.Warning, _('Error'), 'Cannot load wallet:\n' + str(e))
-                    d.exec_()
+                    self.warning(title=_('Error'), message = 'Cannot load wallet:\n' + str(e))
                 return
             w = self.create_window_for_wallet(wallet)
         if uri:
             w.pay_to_URI(uri)
         w.bring_to_top()
-        w.setWindowState(w.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
+        w.setWindowState(w.windowState() & ~Qt.WindowMinimized | Qt.WindowActive)
 
         # this will activate the window
         w.activateWindow()
@@ -245,7 +240,7 @@ class ElectrumGui:
         Note that rapid-fire calls to this re-start the timer each time, thus
         only the last call takes effect (it's rate-limited). '''
         self.gc_timer.start() # start/re-start the timer to fire exactly once in timeInterval() msecs
-        
+
     @staticmethod
     def gc():
         ''' self.gc_timer timeout() slot '''
@@ -258,6 +253,61 @@ class ElectrumGui:
                 wizard = InstallWizard(self.config, self.app, self.plugins, None)
                 wizard.init_network(self.daemon.network)
                 wizard.terminate()
+
+    def show_update_checker(self, parent, *, skip_check = False):
+        if self.warn_if_no_network(parent):
+            return
+        self.update_checker.show()
+        self.update_checker.raise_()
+        if not skip_check:
+            self.update_checker.do_check()
+
+    def on_auto_update_timeout(self):
+        if not self.update_checker.did_check_recently():  # make sure auto-check doesn't happen right after a manual check.
+            self.update_checker.do_check()
+        if self.update_checker_timer.first_run:
+            self._start_auto_update_timer(first_run = False)
+
+    def _start_auto_update_timer(self, *, first_run = False):
+        self.update_checker_timer.first_run = bool(first_run)
+        if first_run:
+            interval = 10.0*1e3 # do it very soon (in 10 seconds)
+        else:
+            interval = 3600.0*1e3 # once per hour (in ms)
+        self.update_checker_timer.start(interval)
+        self.print_error("Auto update check: interval set to {} seconds".format(interval//1e3))
+
+    def _stop_auto_update_timer(self):
+        self.update_checker_timer.stop()
+        self.print_error("Auto update check: disabled")
+
+    def warn_if_no_network(self, parent):
+        if not self.daemon.network:
+            self.warning(message=_('You are using Electron Cash in offline mode; restart Electron Cash if you want to get connected'), title=_('Offline'), parent=parent)
+            return True
+        return False
+
+    def warning(self, title, message, icon = QMessageBox.Warning, parent = None):
+        if isinstance(parent, MessageBoxMixin):
+            parent.msg_box(title=title, text=message, icon=icon, parent=None)
+        else:
+            parent = parent if isinstance(parent, QWidget) else None
+            d = QMessageBoxMixin(QMessageBox.Warning, title, message, QMessageBox.Ok, parent)
+            d.setWindowModality(Qt.WindowModal if parent else Qt.ApplicationModal)
+            d.exec_()
+            d.setParent(None)
+
+    def has_auto_update_check(self):
+        return bool(self.config.get('auto_update_check', False))
+
+    def set_auto_update_check(self, b):
+        was, b = self.has_auto_update_check(), bool(b)
+        if was != b:
+            self.config.set_key('auto_update_check', b, save=True)
+            if b:
+                self._start_auto_update_timer()
+            else:
+                self._stop_auto_update_timer()
 
     def main(self):
         try:
@@ -289,8 +339,9 @@ class ElectrumGui:
             # Shut down the timer cleanly
             self.timer.stop()
             self.gc_timer.stop()
+            self._stop_auto_update_timer()
             # clipboard persistence. see http://www.mail-archive.com/pyqt@riverbankcomputing.com/msg17328.html
-            event = QtCore.QEvent(QtCore.QEvent.Clipboard)
+            event = QEvent(QEvent.Clipboard)
             self.app.sendEvent(self.app.clipboard(), event)
             self.tray.hide()
         self.app.aboutToQuit.connect(clean_up)

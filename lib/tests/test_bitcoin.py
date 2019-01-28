@@ -13,7 +13,7 @@ from ..bitcoin import (
     verify_message, deserialize_privkey, serialize_privkey,
     is_minikey, is_compressed, is_xpub,
     xpub_type, is_xprv, is_bip32_derivation, seed_type)
-from ..networks import NetworkConstants
+from ..networks import set_mainnet, set_testnet
 from ..util import bfh
 
 try:
@@ -154,12 +154,12 @@ class Test_bitcoin_testnet(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        NetworkConstants.set_testnet()
+        set_testnet()
 
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
-        NetworkConstants.set_mainnet()
+        set_mainnet()
 
 
 class Test_xprv_xpub(unittest.TestCase):

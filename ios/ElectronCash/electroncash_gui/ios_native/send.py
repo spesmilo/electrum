@@ -15,7 +15,7 @@ from electroncash.transaction import Transaction
 from electroncash.i18n import _
 from .custom_objc import *
 from .uikit_bindings import *
-from electroncash.networks import NetworkConstants
+from electroncash import networks
 from electroncash.address import Address, ScriptOutput
 from electroncash.paymentrequest import PaymentRequest
 from electroncash import bitcoin
@@ -610,7 +610,7 @@ class SendVC(SendBase):
         
         if len(lines) == 1:
             data = lines[0]
-            if data.lower().startswith(NetworkConstants.CASHADDR_PREFIX + ":"):
+            if data.lower().startswith(networks.net.CASHADDR_PREFIX + ":"):
                 self.isMax = False
                 if not parent().pay_to_URI(data, showErr = False):
                     self.qrScanErr = True

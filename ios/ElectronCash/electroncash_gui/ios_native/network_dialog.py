@@ -36,7 +36,6 @@ from electroncash.i18n import _
 import socket
 from collections import namedtuple
 
-from electroncash.networks import NetworkConstants
 from electroncash.network import serialize_server, deserialize_server
 
 TAG_HELP_STATUS = 112

@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import *
 import PyQt5.QtCore as QtCore
 
 from electroncash.i18n import _
-from electroncash.networks import NetworkConstants
+from electroncash import networks
 from electroncash.util import print_error, Weak
 from electroncash.network import serialize_server, deserialize_server, get_eligible_servers
 
@@ -506,7 +506,7 @@ class NetworkChoiceLayout(QObject):
     def change_protocol(self, use_ssl):
         p = 's' if use_ssl else 't'
         host = self.server_host.text()
-        pp = self.servers.get(host, NetworkConstants.DEFAULT_PORTS)
+        pp = self.servers.get(host, networks.net.DEFAULT_PORTS)
         if p not in pp.keys():
             p = list(pp.keys())[0]
         port = pp[p]
@@ -531,7 +531,7 @@ class NetworkChoiceLayout(QObject):
             self.change_server(str(x.text(0)), self.protocol)
 
     def change_server(self, host, protocol):
-        pp = self.servers.get(host, NetworkConstants.DEFAULT_PORTS)
+        pp = self.servers.get(host, networks.net.DEFAULT_PORTS)
         if protocol and protocol not in protocol_letters:
             protocol = None
         if protocol:
