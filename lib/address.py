@@ -305,6 +305,8 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
     FMT_LEGACY = 1
     FMT_BITPAY = 2   # Supported temporarily only for compatibility
 
+    _NUM_FMTS = 3  # <-- Be sure to update this if you add a format above!
+
     # Default to CashAddr
     FMT_UI = FMT_CASHADDR
 
@@ -313,7 +315,7 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
         hash160 = to_bytes(hash160)
         assert len(hash160) == 20
         ret = super().__new__(cls, hash160, kind)
-        ret._addr2str_cache = [None for i in range(0,3)] # <-- range limit should be 1 + the last FMT_* above.
+        ret._addr2str_cache = [None] * cls._NUM_FMTS
         return ret
 
     @classmethod
@@ -434,30 +436,31 @@ class Address(namedtuple("AddressTuple", "hash160 kind")):
             except (IndexError, TypeError):
                 raise AddressError('unrecognised format')
 
-        if fmt == self.FMT_CASHADDR:
-            cached = self.to_cashaddr(net=net)
-            if net is networks.net:
-                self._addr2str_cache[fmt] = cached
+        try:
+            cached = None
+            if fmt == self.FMT_CASHADDR:
+                cached = self.to_cashaddr(net=net)
+                return cached
+
+            if fmt == self.FMT_LEGACY:
+                if self.kind == self.ADDR_P2PKH:
+                    verbyte = net.ADDRTYPE_P2PKH
+                else:
+                    verbyte = net.ADDRTYPE_P2SH
+            elif fmt == self.FMT_BITPAY:
+                if self.kind == self.ADDR_P2PKH:
+                    verbyte = net.ADDRTYPE_P2PKH_BITPAY
+                else:
+                    verbyte = net.ADDRTYPE_P2SH_BITPAY
+            else:
+                # This should never be reached due to cache-lookup check above. But leaving it in as it's a harmless sanity check.
+                raise AddressError('unrecognised format')
+
+            cached = Base58.encode_check(bytes([verbyte]) + self.hash160)
             return cached
-
-        if fmt == self.FMT_LEGACY:
-            if self.kind == self.ADDR_P2PKH:
-                verbyte = net.ADDRTYPE_P2PKH
-            else:
-                verbyte = net.ADDRTYPE_P2SH
-        elif fmt == self.FMT_BITPAY:
-            if self.kind == self.ADDR_P2PKH:
-                verbyte = net.ADDRTYPE_P2PKH_BITPAY
-            else:
-                verbyte = net.ADDRTYPE_P2SH_BITPAY
-        else:
-            # This should never be reached due to cache-lookup check above. But leaving it in as it's a harmless sanity check.
-            raise AddressError('unrecognised format')
-
-        cached = Base58.encode_check(bytes([verbyte]) + self.hash160)
-        if net is networks.net:
-            self._addr2str_cache[fmt] = cached
-        return cached
+        finally:
+            if cached and net is networks.net:
+                self._addr2str_cache[fmt] = cached
 
     def to_full_string(self, fmt, *, net=None):
         '''Convert to text, with a URI prefix for cashaddr format.'''
