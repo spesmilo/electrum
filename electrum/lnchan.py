@@ -171,6 +171,17 @@ class Channel(PrintError):
         self.local_commitment = None
         self.remote_commitment = None
 
+    def get_payments(self):
+        out = {}
+        for subject in LOCAL, REMOTE:
+            log = self.hm.log[subject]
+            for htlc_id, htlc in log.get('adds', {}).items():
+                rhash = bh2u(htlc.payment_hash)
+                status = 'settled' if htlc_id in log.get('settles',{}) else 'inflight'
+                direction = SENT if subject is LOCAL else RECEIVED
+                out[rhash] = (self.channel_id, htlc, direction, status)
+        return out
+
     def set_local_commitment(self, ctx):
         ctn = extract_ctn_from_tx_and_chan(ctx, self)
         assert self.signature_fits(ctx), (self.log[LOCAL])

@@ -420,7 +420,7 @@ class Peer(PrintError):
     @log_exceptions
     async def channel_establishment_flow(self, password: Optional[str], funding_sat: int,
                                          push_msat: int, temp_channel_id: bytes) -> Channel:
-        assert push_msat == 0, "push_msat not supported currently"
+        #assert push_msat == 0, "push_msat not supported currently"
         wallet = self.lnworker.wallet
         # dry run creating funding tx to see if we even have enough funds
         funding_tx_test = wallet.mktx([TxOutput(bitcoin.TYPE_ADDRESS, wallet.dummy_address(), funding_sat)],
@@ -549,7 +549,7 @@ class Peer(PrintError):
             raise Exception('wrong chain_hash')
         funding_sat = int.from_bytes(payload['funding_satoshis'], 'big')
         push_msat = int.from_bytes(payload['push_msat'], 'big')
-        assert push_msat == 0, "push_msat not supported currently"
+        #assert push_msat == 0, "push_msat not supported currently"
         feerate = int.from_bytes(payload['feerate_per_kw'], 'big')
 
         temp_chan_id = payload['temporary_channel_id']

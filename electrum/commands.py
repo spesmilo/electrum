@@ -47,6 +47,7 @@ from .storage import WalletStorage
 from . import keystore
 from .wallet import Wallet, Imported_Wallet, Abstract_Wallet
 from .mnemonic import Mnemonic
+from .lnutil import SENT, RECEIVED
 
 if TYPE_CHECKING:
     from .network import Network
@@ -108,6 +109,8 @@ class Commands:
         self.wallet = wallet
         self.network = network
         self._callback = callback
+        if self.wallet:
+            self.lnworker = self.wallet.lnworker
 
     def _run(self, method, args, password_getter):
         # this wrapper is called from the python console
@@ -768,33 +771,33 @@ class Commands:
     # lightning network commands
     @command('wpn')
     def open_channel(self, connection_string, amount, channel_push=0, password=None):
-        return self.wallet.lnworker.open_channel(connection_string, satoshis(amount), satoshis(channel_push), password)
+        return self.lnworker.open_channel(connection_string, satoshis(amount), satoshis(channel_push), password)
 
     @command('wn')
     def reestablish_channel(self):
-        self.wallet.lnworker.reestablish_channel()
+        self.lnworker.reestablish_channel()
 
     @command('wn')
     def lnpay(self, invoice):
-        addr, peer, f = self.wallet.lnworker.pay(invoice)
+        addr, peer, f = self.lnworker.pay(invoice)
         return f.result()
 
     @command('wn')
     def addinvoice(self, requested_amount, message):
         # using requested_amount because it is documented in param_descriptions
-        return self.wallet.lnworker.add_invoice(satoshis(requested_amount), message)
+        return self.lnworker.add_invoice(satoshis(requested_amount), message)
 
     @command('wn')
     def nodeid(self):
-        return bh2u(self.wallet.lnworker.node_keypair.pubkey)
+        return bh2u(self.lnworker.node_keypair.pubkey)
 
     @command('w')
     def listchannels(self):
-        return list(self.wallet.lnworker.list_channels())
+        return list(self.lnworker.list_channels())
 
     @command('wn')
     def dumpgraph(self):
-        return list(map(bh2u, self.wallet.lnworker.channel_db.nodes.keys()))
+        return list(map(bh2u, self.lnworker.channel_db.nodes.keys()))
 
     @command('n')
     def inject_fees(self, fees):
@@ -807,47 +810,35 @@ class Commands:
         self.network.path_finder.blacklist.clear()
 
     @command('w')
-    def listinvoices(self):
-        report = self.wallet.lnworker._list_invoices()
-        return '\n'.join(self._format_ln_invoices(report))
+    def lightning_invoices(self):
+        from .util import pr_tooltips
+        out = []
+        for payment_hash, (preimage, pay_req, direction, pay_timestamp) in self.lnworker.invoices.items():
+            status = pr_tooltips[self.lnworker.get_invoice_status(payment_hash)]
+            out.append({'payment_hash':payment_hash, 'invoice':pay_req, 'preimage':preimage, 'status':status, 'direction':direction})
+        return out
 
-    def _format_ln_invoices(self, report):
-        from .lnutil import SENT
-        if report['settled']:
-            yield 'Settled invoices:'
-            yield '-----------------'
-            for date, direction, htlc, preimage in sorted(report['settled']):
-                # astimezone converts to local time
-                # replace removes the tz info since we don't need to display it
-                yield 'Paid at: ' + date.astimezone().replace(tzinfo=None).isoformat(sep=' ', timespec='minutes')
-                yield 'We paid' if direction == SENT else 'They paid'
-                yield str(htlc)
-                yield 'Preimage: ' + (bh2u(preimage) if preimage else 'Not available') # if delete_invoice was called
-                yield ''
-        if report['unsettled']:
-            yield 'Your unsettled invoices:'
-            yield '------------------------'
-            for addr, preimage, pay_req in report['unsettled']:
-                yield pay_req
-                yield str(addr)
-                yield 'Preimage: ' + bh2u(preimage)
-                yield ''
-        if report['inflight']:
-            yield 'Outgoing payments in progress:'
-            yield '------------------------------'
-            for addr, htlc, direction in report['inflight']:
-                yield str(addr)
-                yield str(htlc)
-                yield ''
-
+    @command('w')
+    def lightning_history(self):
+        out = []
+        for chan_id, htlc, direction, status in self.lnworker.get_payments().values():
+            item = {
+                'direction': 'sent' if direction == SENT else 'received',
+                'status':status,
+                'amout_msat':htlc.amount_msat,
+                'payment_hash':bh2u(htlc.payment_hash),
+                'chan_id':bh2u(chan_id),
+                'htlc_id':htlc.htlc_id,
+                'cltv_expiry':htlc.cltv_expiry
+            }
+            out.append(item)
+        return out
 
     @command('wn')
     def closechannel(self, channel_point, force=False):
         chan_id = bytes(reversed(bfh(channel_point)))
-        if force:
-            return self.network.run_from_another_thread(self.wallet.lnworker.force_close_channel(chan_id))
-        else:
-            return self.network.run_from_another_thread(self.wallet.lnworker.close_channel(chan_id))
+        coro = self.lnworker.force_close_channel(chan_id) if force else self.lnworker.force_close_channel(chan_id)
+        return self.network.run_from_another_thread(coro)
 
 def eval_bool(x: str) -> bool:
     if x == 'false': return False

@@ -57,7 +57,7 @@ from electrum.util import (format_time, format_satoshis, format_fee_satoshis,
                            decimal_point_to_base_unit_name, quantize_feerate,
                            UnknownBaseUnit, DECIMAL_POINT_DEFAULT, UserFacingException,
                            get_new_wallet_name, send_exception_to_crash_reporter, InvoiceError)
-from electrum.lnutil import PaymentFailure
+from electrum.lnutil import PaymentFailure, SENT, RECEIVED
 from electrum.transaction import Transaction, TxOutput
 from electrum.address_synchronizer import AddTransactionException
 from electrum.wallet import (Multisig_Wallet, CannotBumpFee, Abstract_Wallet,
@@ -1875,6 +1875,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         #self.amount_e.textEdited.emit("")
         self.payto_e.is_lightning = True
         self.show_send_tab_onchain_fees(False)
+        # save
+        self.wallet.lnworker.save_invoice(None, invoice, SENT)
 
     def show_send_tab_onchain_fees(self, b: bool):
         self.feecontrol_fields.setVisible(b)
