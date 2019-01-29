@@ -47,12 +47,6 @@ pr_icons = {
     PR_INFLIGHT:"lightning.png",
 }
 
-pr_tooltips = {
-    PR_UNPAID:_('Pending'),
-    PR_PAID:_('Paid'),
-    PR_EXPIRED:_('Expired'),
-    PR_INFLIGHT:_('Inflight')
-}
 
 expiration_values = [
     (_('1 hour'), 60*60),

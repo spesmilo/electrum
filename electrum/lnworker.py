@@ -19,6 +19,7 @@ import dns.exception
 
 from . import constants
 from . import keystore
+from .util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
 from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
 from .transaction import Transaction
@@ -66,10 +67,7 @@ class LNWorker(PrintError):
 
     def __init__(self, wallet: 'Abstract_Wallet'):
         self.wallet = wallet
-        # invoices we are currently trying to pay (might be pending HTLCs on a commitment transaction)
-        self.invoices = self.wallet.storage.get('lightning_invoices', {})  # type: Dict[str, Tuple[str,str]]  # RHASH -> (preimage, invoice)
-        self.inflight = self.wallet.storage.get('lightning_payments_inflight', {}) # type: Dict[bytes, Tuple[str, Optional[int], str]]
-        self.completed = self.wallet.storage.get('lightning_payments_completed', {})
+        self.invoices = self.wallet.storage.get('lightning_invoices', {})  # type: Dict[str, Tuple[str,str]]  # RHASH -> (preimage, invoice, direction, pay_timestamp)
         self.sweep_address = wallet.get_receiving_address()
         self.lock = threading.RLock()
         self.ln_keystore = self._read_ln_keystore()
@@ -122,73 +120,34 @@ class LNWorker(PrintError):
             self.wallet.storage.write()
             self.print_error('saved lightning gossip timestamp')
 
-    def payment_completed(self, chan, direction, htlc, preimage):
-        assert type(direction) is Direction
-        key = bh2u(htlc.payment_hash)
+    def payment_completed(self, chan, direction, htlc, _preimage):
         chan_id = chan.channel_id
+        key = bh2u(htlc.payment_hash)
+        if key not in self.invoices:
+            return
+        preimage, invoice, direction, timestamp = self.invoices.get(key)
         if direction == SENT:
-            assert htlc.payment_hash not in self.invoices
-            self.inflight.pop(key)
-            self.wallet.storage.put('lightning_payments_inflight', self.inflight)
-        if not preimage:
-            preimage, _addr = self.get_invoice(htlc.payment_hash)
-        tupl = (time.time(), direction, json.loads(encoder.encode(htlc)), bh2u(preimage), bh2u(chan_id))
-        self.completed[key] = tupl
-        self.wallet.storage.put('lightning_payments_completed', self.completed)
+            preimage = _preimage
+        now = time.time()
+        self.invoices[key] = preimage, invoice, direction, now
+        self.wallet.storage.put('lightning_invoices', self.invoices)
         self.wallet.storage.write()
-        self.network.trigger_callback('ln_payment_completed', tupl[0], direction, htlc, preimage, chan_id)
+        self.network.trigger_callback('ln_payment_completed', now, direction, htlc, preimage, chan_id)
 
-    def get_invoice_status(self, key):
-        from electrum.util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
-        if key in self.completed:
-            return PR_PAID
-        elif key in self.inflight:
-            return PR_INFLIGHT
-        elif key in self.invoices:
-            return PR_UNPAID
-        else:
+    def get_invoice_status(self, payment_hash):
+        if payment_hash not in self.invoices:
             return PR_UNKNOWN
+        preimage, _addr, direction, timestamp = self.invoices.get(payment_hash)
+        if timestamp is None:
+            return PR_UNPAID
+        return PR_PAID
 
-    def _list_invoices(self, chan_id=None):
-        invoices  = dict(self.invoices)
-        settled = []
-        unsettled = []
-        inflight = []
-        for date, direction, htlc, hex_preimage, hex_chan_id in self.completed.values():
-            direction = Direction(direction)
-            if chan_id is not None:
-                if bfh(hex_chan_id) != chan_id:
-                    continue
-            htlcobj = UpdateAddHtlc(*htlc)
-            if direction == RECEIVED:
-                preimage = bfh(invoices.pop(bh2u(htlcobj.payment_hash))[0])
-            else:
-                preimage = bfh(hex_preimage)
-            # FIXME use fromisoformat when minimum Python is 3.7
-            settled.append((datetime.fromtimestamp(date, timezone.utc), direction, htlcobj, preimage))
-        for preimage, pay_req in invoices.values():
-            addr = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
-            unsettled.append((addr, bfh(preimage), pay_req))
-        for pay_req, amount_sat, this_chan_id in self.inflight.values():
-            if chan_id is not None and bfh(this_chan_id) != chan_id:
-                continue
-            addr = lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
-            if amount_sat is not None:
-                addr.amount = Decimal(amount_sat) / COIN
-            htlc = self.find_htlc_for_addr(addr, None if chan_id is None else [chan_id])
-            if not htlc:
-                self.print_error('Warning, in-flight HTLC not found in any channel')
-            inflight.append((addr, htlc, SENT))
-        # not adding received htlcs to inflight because they should have been settled
-        # immediatly and therefore let's not spend time trying to show it in the GUI
-        return {'settled': settled, 'unsettled': unsettled, 'inflight': inflight}
-
-    def find_htlc_for_addr(self, addr, whitelist=None):
-        channels = [y for x,y in self.channels.items() if whitelist is None or x in whitelist]
-        for chan in channels:
-            for htlc in chan.hm.log[LOCAL]['adds'].values():
-                if htlc.payment_hash == addr.paymenthash:
-                    return htlc
+    def get_payments(self):
+        # note: with AMP we will have several channels per payment
+        out = {}
+        for chan in self.channels.values():
+            out.update(chan.get_payments())
+        return out
 
     def _read_ln_keystore(self) -> BIP32_KeyStore:
         xprv = self.wallet.storage.get('lightning_privkey2')
@@ -447,9 +406,6 @@ class LNWorker(PrintError):
                 break
         else:
             assert False, 'Found route with short channel ID we don\'t have: ' + repr(route[0].short_channel_id)
-        self.inflight[bh2u(addr.paymenthash)] = (invoice, amount_sat, bh2u(chan_id))
-        self.wallet.storage.put('lightning_payments_inflight', self.inflight)
-        self.wallet.storage.write()
         return addr, peer, self._pay_to_route(route, addr)
 
     async def _pay_to_route(self, route, addr):
@@ -545,14 +501,20 @@ class LNWorker(PrintError):
                                         ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE)]
                                        + routing_hints),
                            self.node_keypair.privkey)
-        self.invoices[bh2u(RHASH)] = (bh2u(payment_preimage), pay_req)
+
+        self.save_invoice(bh2u(payment_preimage), pay_req, RECEIVED)
+        return pay_req
+
+    def save_invoice(self, preimage, invoice, direction):
+        lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
+        key = bh2u(lnaddr.paymenthash)
+        self.invoices[key] = preimage, invoice, direction, None
         self.wallet.storage.put('lightning_invoices', self.invoices)
         self.wallet.storage.write()
-        return pay_req
 
     def get_invoice(self, payment_hash: bytes) -> Tuple[bytes, LnAddr]:
         try:
-            preimage_hex, pay_req = self.invoices[bh2u(payment_hash)]
+            preimage_hex, pay_req, direction,timestamp = self.invoices[bh2u(payment_hash)]
             preimage = bfh(preimage_hex)
             assert sha256(preimage) == payment_hash
             return preimage, lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)

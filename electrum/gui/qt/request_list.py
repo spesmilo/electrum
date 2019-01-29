@@ -31,7 +31,8 @@ from PyQt5.QtCore import Qt, QItemSelectionModel
 
 from electrum.i18n import _
 from electrum.util import format_time, age
-from electrum.util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT
+from electrum.util import PR_UNPAID, PR_EXPIRED, PR_PAID, PR_UNKNOWN, PR_INFLIGHT, pr_tooltips
+from electrum.lnutil import SENT, RECEIVED
 from electrum.plugin import run_hook
 from electrum.wallet import InternalAddressCorruption
 from electrum.bitcoin import COIN
@@ -95,7 +96,7 @@ class RequestList(MyTreeView):
                 return
             req = self.parent.get_request_URI(key)
         elif request_type == REQUEST_TYPE_LN:
-            preimage, req = self.wallet.lnworker.invoices.get(key, (None, None))
+            preimage, req, direction, pay_timestamp = self.wallet.lnworker.invoices.get(key, (None, None, None))
             if req is None:
                 self.update()
                 return
@@ -145,7 +146,9 @@ class RequestList(MyTreeView):
         self.filter()
         # lightning
         lnworker = self.wallet.lnworker
-        for key, (preimage_hex, invoice) in lnworker.invoices.items():
+        for key, (preimage_hex, invoice, direction, pay_timestamp) in lnworker.invoices.items():
+            if direction == SENT:
+                continue
             status = lnworker.get_invoice_status(key)
             lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
             amount_sat = lnaddr.amount*COIN if lnaddr.amount else None
@@ -181,7 +184,7 @@ class RequestList(MyTreeView):
         if request_type == REQUEST_TYPE_BITCOIN:
             req = self.wallet.receive_requests.get(addr)
         elif request_type == REQUEST_TYPE_LN:
-            preimage, req = self.wallet.lnworker.invoices.get(addr)
+            preimage, req, direction, pay_timestamp = self.wallet.lnworker.invoices.get(addr)
         if req is None:
             self.update()
             return

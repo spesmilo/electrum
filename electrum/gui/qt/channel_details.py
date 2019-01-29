@@ -56,10 +56,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         parentItem = model.invisibleRootItem()
         folder_types = {'settled': _('Fulfilled HTLCs'), 'inflight': _('HTLCs in current commitment transaction')}
         self.folders = {}
-
         self.keyname_rows = {}
-
-        invoices = dict(self.window.wallet.lnworker.invoices)
 
         for keyname, i in folder_types.items():
             myFont=QtGui.QFont()
@@ -70,23 +67,26 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
             self.folders[keyname] = folder
             mapping = {}
             num = 0
-            if keyname == 'inflight':
-                for lnaddr, i, direction in htlcs[keyname]:
-                    it = self.make_inflight(lnaddr, i, direction)
-                    self.folders[keyname].appendRow(it)
-                    mapping[i.payment_hash] = num
-                    num += 1
-            elif keyname == 'settled':
-                for date, direction, i, preimage in htlcs[keyname]:
-                    it = self.make_htlc_item(i, direction)
-                    hex_pay_hash = bh2u(i.payment_hash)
-                    if hex_pay_hash in invoices:
-                        # if we made the invoice and still have it, we can show more info
-                        invoice = invoices[hex_pay_hash][1]
-                        self.append_lnaddr(it, lndecode(invoice))
-                    self.folders[keyname].appendRow(it)
-                    mapping[i.payment_hash] = num
-                    num += 1
+
+        invoices = dict(self.window.wallet.lnworker.invoices)
+        for pay_hash, item in htlcs.items():
+            chan_id, i, direction, status = item
+            if pay_hash in invoices:
+                preimage, invoice, direction, timestamp = invoices[pay_hash]
+                lnaddr = lndecode(invoice)
+            if status == 'inflight':
+                it = self.make_inflight(lnaddr, i, direction)
+                self.folders['inflight'].appendRow(it)
+                mapping[i.payment_hash] = num
+                num += 1
+            elif status == 'settled':
+                it = self.make_htlc_item(i, direction)
+                # if we made the invoice and still have it, we can show more info
+                if pay_hash in invoices:
+                    self.append_lnaddr(it, lndecode(invoice))
+                self.folders['settled'].appendRow(it)
+                mapping[i.payment_hash] = num
+                num += 1
 
             self.keyname_rows[keyname] = mapping
         return model
@@ -171,8 +171,8 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         # add htlc tree view to vbox (wouldn't scale correctly in QFormLayout)
         form_layout.addRow(_('Payments (HTLCs):'), None)
         w = QtWidgets.QTreeView(self)
-        htlcs = window.wallet.lnworker._list_invoices(chan_id)
-        w.setModel(self.make_model(htlcs))
+        htlc_dict = chan.get_payments()
+        w.setModel(self.make_model(htlc_dict))
         w.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         vbox.addWidget(w)
 

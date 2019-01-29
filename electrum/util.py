@@ -80,6 +80,14 @@ PR_UNKNOWN = 2     # sent but not propagated
 PR_PAID    = 3     # send and propagated
 PR_INFLIGHT = 4    # lightning
 
+pr_tooltips = {
+    PR_UNPAID:_('Pending'),
+    PR_PAID:_('Paid'),
+    PR_UNKNOWN:_('Unknown'),
+    PR_EXPIRED:_('Expired'),
+    PR_INFLIGHT:_('Inflight')
+}
+
 
 class UnknownBaseUnit(Exception): pass
 
