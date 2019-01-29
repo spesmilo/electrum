@@ -1,19 +1,7 @@
 #!/usr/bin/env bash
 
-RED='\033[0;31m'
-BLUE='\033[0,34m'
-YELLOW='\033[0;33m'
-NC='\033[0m' # No Color
-function info {
-	printf "\r💬 ${BLUE}INFO:${NC}  ${1}\n"
-}
-function fail {
-    printf "\r🗯 ${RED}ERROR:${NC} ${1}\n"
-    exit 1
-}
-function warn {
-	printf "\r⚠️  ${YELLOW}WARNING:${NC}  ${1}\n"
-}
+. $(dirname "$0")/../build_tools_util.sh
+
 
 function DoCodeSignMaybe { # ARGS: infoName fileOrDirName codesignIdentity
     infoName="$1"
