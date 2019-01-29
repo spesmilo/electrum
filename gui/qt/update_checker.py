@@ -60,6 +60,7 @@ class UpdateChecker(QWidget, PrintError):
     failed = pyqtSignal() # emitted when there is an exception, network error, or verify error on version check.
 
     _req_finished = pyqtSignal(object) # internal use by _Req thread
+    _dl_prog = pyqtSignal(object, int) # [0 -> 100] range
 
     #url = "https://www.c3-soft.com/downloads/BitcoinCash/Electron-Cash/update_check" # Testing URL
     url = "https://raw.github.com/Electron-Cash/Electron-Cash/master/contrib/update_checker/releases.json" # Release URL
@@ -107,6 +108,7 @@ class UpdateChecker(QWidget, PrintError):
         self.setLayout(grid)
 
         self._req_finished.connect(self._on_req_finished)
+        self._dl_prog.connect(self._on_downloading)
 
         self.active_req = None
         self.last_checked_ts = 0.0
@@ -198,11 +200,11 @@ class UpdateChecker(QWidget, PrintError):
             return v_server > v_me
         return False
 
-    def _on_downloading(self, req, prog, total):
+    def _on_downloading(self, req, prog):
         if req is self.active_req:
-            self.print_error("Downloading progress", prog, "/", total, "from", req.url)
-            val = abs((prog*100.0) / total) if total else 1
-            self.pb.setValue(max(0, min(int(val), 100)))
+            prog = int(prog or 0)
+            self.print_error("Downloading progress", str(prog) + "%", "from", req.url)
+            self.pb.setValue(max(0, min(int(prog), 100)))
         else:
             self.print_error("Warning: on_downloading called with a req that is not 'active'!")
 
@@ -257,7 +259,6 @@ class UpdateChecker(QWidget, PrintError):
             self.last_checked_ts = time.time()
             self._update_view(None)
             self.active_req = _Req(self)
-            self._on_downloading(self.active_req, 10, 100)
 
     def did_check_recently(self, secs=10.0):
         return time.time() - self.last_checked_ts < secs
@@ -278,7 +279,6 @@ class UpdateChecker(QWidget, PrintError):
             self.got_new_version.emit(newver)
 
     def _got_reply(self, req):
-        self._on_downloading(req, 100, 100)
         newver = None
         if not req.aborted and req.json:
             try:
@@ -318,10 +318,13 @@ class _Req(threading.Thread, PrintError):
         return "{}@{}".format(__class__.__name__, id(self)&0xffff)
 
     def run(self):
+        self.checker._dl_prog.emit(self, 10)
         try:
             self.print_error("Requesting from",self.url,"...")
             self.json, self.url = self._do_request(self.url)
+            self.checker._dl_prog.emit(self, 100)
         except:
+            self.checker._dl_prog.emit(self, 25)
             import traceback
             self.print_error(traceback.format_exc())
         finally:
