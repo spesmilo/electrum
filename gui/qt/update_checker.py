@@ -163,10 +163,6 @@ class UpdateChecker(QWidget, PrintError):
             return None
         return version.PACKAGE_VERSION
 
-
-    def on_version_retrieved(self, version):
-        self._update_view(version)
-
     @staticmethod
     def _ver2int(vtup):
         ''' param vtup is a tuple of ints: (major, minor, revision) as would be
@@ -271,6 +267,16 @@ class UpdateChecker(QWidget, PrintError):
         self._update_view(self._error_val)
         self.failed.emit()
 
+    def _ok_good(self, newver):
+        # NB: below 'newver' may actually just be our version or a version
+        # before our version (in case we are on a develpment build).
+        # Client code should check with this class.is_newer if the emitted
+        # version is actually newer.
+        self._update_view(newver)
+        self.checked.emit(newver)
+        if self.is_newer(newver):
+            self.got_new_version.emit(newver)
+
     def _got_reply(self, req):
         self._on_downloading(req, 100, 100)
         newver = None
@@ -280,17 +286,10 @@ class UpdateChecker(QWidget, PrintError):
             except:
                 import traceback
                 self.print_error(traceback.format_exc())
-        if newver is None:
-            self._err_fail()
+        if newver is not None:
+            self._ok_good(newver)
         else:
-            # NB: below 'newver' may actually just be our version or a version
-            # before our version (in case we are on a develpment build).
-            # Client code should check with this class.is_newer if the emitted
-            # version is actually newer.
-            self.on_version_retrieved(newver)
-            self.checked.emit(newver)
-            if self.is_newer(newver):
-                self.got_new_version.emit(newver)
+            self._err_fail()
 
     def _on_req_finished(self, req):
         adjective = ''
