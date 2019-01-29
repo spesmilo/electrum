@@ -56,19 +56,22 @@ def check_password_strength(password):
 PW_NEW, PW_CHANGE, PW_PASSPHRASE = range(0, 3)
 
 
+class PasswordLineEdit(QLineEdit):
+    # workaround Qt bug https://github.com/spesmilo/electrum/issues/5038
+    def __init__(self, *args, **kwargs):
+        QLineEdit.__init__(self, *args, **kwargs)
+        self.textChanged.connect(lambda: self.setEchoMode(2))
+
+
 class PasswordLayout(object):
 
     titles = [_("Enter Password"), _("Change Password"), _("Enter Passphrase")]
 
     def __init__(self, msg, kind, OK_button, wallet=None, force_disable_encrypt_cb=False):
         self.wallet = wallet
-
-        self.pw = QLineEdit()
-        self.pw.setEchoMode(2)
-        self.new_pw = QLineEdit()
-        self.new_pw.setEchoMode(2)
-        self.conf_pw = QLineEdit()
-        self.conf_pw.setEchoMode(2)
+        self.pw = PasswordLineEdit()
+        self.new_pw = PasswordLineEdit()
+        self.conf_pw = PasswordLineEdit()
         self.kind = kind
         self.OK_button = OK_button
 
@@ -288,8 +291,7 @@ class PasswordDialog(WindowModalDialog):
     def __init__(self, parent=None, msg=None):
         msg = msg or _('Please enter your password')
         WindowModalDialog.__init__(self, parent, _("Enter Password"))
-        self.pw = pw = QLineEdit()
-        pw.setEchoMode(2)
+        self.pw = pw = PasswordLineEdit()
         vbox = QVBoxLayout()
         vbox.addWidget(QLabel(msg))
         grid = QGridLayout()
