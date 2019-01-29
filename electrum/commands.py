@@ -837,7 +837,7 @@ class Commands:
     @command('wn')
     def closechannel(self, channel_point, force=False):
         chan_id = bytes(reversed(bfh(channel_point)))
-        coro = self.lnworker.force_close_channel(chan_id) if force else self.lnworker.force_close_channel(chan_id)
+        coro = self.lnworker.force_close_channel(chan_id) if force else self.lnworker.close_channel(chan_id)
         return self.network.run_from_another_thread(coro)
 
 def eval_bool(x: str) -> bool:
