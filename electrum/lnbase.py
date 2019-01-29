@@ -545,7 +545,6 @@ class Peer(PrintError):
 
     async def on_open_channel(self, payload):
         # payload['channel_flags']
-        # payload['channel_reserve_satoshis']
         if payload['chain_hash'] != constants.net.rev_genesis_bytes():
             raise Exception('wrong chain_hash')
         funding_sat = int.from_bytes(payload['funding_satoshis'], 'big')
@@ -582,7 +581,7 @@ class Peer(PrintError):
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_idx)
         their_revocation_store = RevocationStore()
         remote_balance_sat = funding_sat * 1000 - push_msat
-        remote_dust_limit_sat = int.from_bytes(payload['dust_limit_satoshis'], byteorder='big')
+        remote_dust_limit_sat = int.from_bytes(payload['dust_limit_satoshis'], byteorder='big') # TODO validate
         remote_reserve_sat = self.validate_remote_reserve(payload['channel_reserve_satoshis'], remote_dust_limit_sat, funding_sat)
         chan_dict = {
                 "node_id": self.peer_addr.pubkey,
@@ -597,12 +596,13 @@ class Peer(PrintError):
                     revocation_basepoint=OnlyPubkeyKeypair(payload['revocation_basepoint']),
                     to_self_delay=int.from_bytes(payload['to_self_delay'], 'big'),
                     dust_limit_sat=remote_dust_limit_sat,
-                    max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'),
-                    max_accepted_htlcs=int.from_bytes(payload['max_accepted_htlcs'], 'big'),
+                    max_htlc_value_in_flight_msat=int.from_bytes(payload['max_htlc_value_in_flight_msat'], 'big'), # TODO validate
+                    max_accepted_htlcs=int.from_bytes(payload['max_accepted_htlcs'], 'big'), # TODO validate
                     initial_msat=remote_balance_sat,
                     ctn = -1,
                     next_htlc_id = 0,
                     reserve_sat = remote_reserve_sat,
+                    htlc_minimum_msat=int.from_bytes(payload['htlc_minimum_msat'], 'big'), # TODO validate
 
                     next_per_commitment_point=payload['first_per_commitment_point'],
                     current_per_commitment_point=None,
