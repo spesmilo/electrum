@@ -58,13 +58,15 @@ class LNWatcher(AddressSynchronizer):
 
         self.network.register_callback(self.on_network_update,
                                        ['network_updated', 'blockchain_updated', 'verified', 'wallet_updated'])
-        # remote watchtower
-        watchtower_url = self.config.get('watchtower_url')
-        self.watchtower = jsonrpclib.Server(watchtower_url) if watchtower_url else None
-        self.watchtower_queue = asyncio.Queue()
+        self.set_remote_watchtower()
         # this maps funding_outpoints to ListenerItems, which have an event for when the watcher is done,
         # and a queue for seeing which txs are being published
         self.tx_progress = {} # type: Dict[str, ListenerItem]
+
+    def set_remote_watchtower(self):
+        watchtower_url = self.config.get('watchtower_url')
+        self.watchtower = jsonrpclib.Server(watchtower_url) if watchtower_url else None
+        self.watchtower_queue = asyncio.Queue()
 
     def with_watchtower(func):
         def wrapper(self, *args, **kwargs):

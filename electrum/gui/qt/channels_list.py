@@ -9,7 +9,7 @@ from electrum.i18n import _
 from electrum.lnchan import Channel
 from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError
 
-from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton
+from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WWLabel
 from .amountedit import BTCAmountEdit
 from .channel_details import ChannelDetailsDialog
 
@@ -100,7 +100,6 @@ class ChannelsList(MyTreeView):
         h = QHBoxLayout()
         h.addWidget(self.status)
         h.addStretch()
-        h.addWidget(EnterButton(_('Statistics'), self.statistics_dialog))
         h.addWidget(EnterButton(_('Open Channel'), self.new_channel_dialog))
         return h
 
