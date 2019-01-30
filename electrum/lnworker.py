@@ -180,7 +180,7 @@ class LNWorker(PrintError):
         for node_id, peer in self.peers.items():
             if not peer.initialized.is_set():
                 continue
-            if not all([chan.get_state() in ['CLOSED'] for chan in peer.channels.values()]):
+            if not all([chan.is_closed() for chan in peer.channels.values()]):
                 continue
             return node_id
 
@@ -574,7 +574,7 @@ class LNWorker(PrintError):
 
     def get_balance(self):
         with self.lock:
-            return Decimal(sum(chan.balance(LOCAL) if chan.get_state() not in ['CLOSED', 'FORCE_CLOSING'] else 0 for chan in self.channels.values()))/1000
+            return Decimal(sum(chan.balance(LOCAL) if not chan.is_closed() else 0 for chan in self.channels.values()))/1000
 
     def list_channels(self):
         with self.lock:
