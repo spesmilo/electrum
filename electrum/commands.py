@@ -30,12 +30,13 @@ import argparse
 import json
 import ast
 import base64
+import operator
 from functools import wraps
 from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
 
 from .import util, ecc
-from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode
+from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode, timestamp_to_datetime
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
 from . import bip32
@@ -813,16 +814,28 @@ class Commands:
     def lightning_invoices(self):
         from .util import pr_tooltips
         out = []
-        for payment_hash, (preimage, pay_req, direction, pay_timestamp) in self.lnworker.invoices.items():
-            status = pr_tooltips[self.lnworker.get_invoice_status(payment_hash)]
-            out.append({'payment_hash':payment_hash, 'invoice':pay_req, 'preimage':preimage, 'status':status, 'direction':direction})
+        for payment_hash, (preimage, invoice, is_received, timestamp) in self.lnworker.invoices.items():
+            status = self.lnworker.get_invoice_status(payment_hash)
+            item = {
+                'date':timestamp_to_datetime(timestamp),
+                'direction': 'received' if is_received else 'sent',
+                'payment_hash':payment_hash,
+                'invoice':invoice,
+                'preimage':preimage,
+                'status':pr_tooltips[status]
+            }
+            out.append(item)
         return out
 
     @command('w')
     def lightning_history(self):
         out = []
         for chan_id, htlc, direction, status in self.lnworker.get_payments().values():
+            payment_hash = bh2u(htlc.payment_hash)
+            timestamp = self.lnworker.invoices[payment_hash][3] if payment_hash in self.lnworker.invoices else None
             item = {
+                'timestamp':timestamp or 0,
+                'date':timestamp_to_datetime(timestamp),
                 'direction': 'sent' if direction == SENT else 'received',
                 'status':status,
                 'amout_msat':htlc.amount_msat,
@@ -832,6 +845,7 @@ class Commands:
                 'cltv_expiry':htlc.cltv_expiry
             }
             out.append(item)
+        out.sort(key=operator.itemgetter('timestamp'))
         return out
 
     @command('wn')

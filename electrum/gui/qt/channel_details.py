@@ -72,22 +72,18 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         for pay_hash, item in htlcs.items():
             chan_id, i, direction, status = item
             if pay_hash in invoices:
-                preimage, invoice, direction, timestamp = invoices[pay_hash]
+                invoice = invoices[pay_hash][1]
                 lnaddr = lndecode(invoice)
             if status == 'inflight':
                 it = self.make_inflight(lnaddr, i, direction)
-                self.folders['inflight'].appendRow(it)
-                mapping[i.payment_hash] = num
-                num += 1
             elif status == 'settled':
                 it = self.make_htlc_item(i, direction)
                 # if we made the invoice and still have it, we can show more info
                 if pay_hash in invoices:
                     self.append_lnaddr(it, lndecode(invoice))
-                self.folders['settled'].appendRow(it)
-                mapping[i.payment_hash] = num
-                num += 1
-
+            self.folders[status].appendRow(it)
+            mapping[i.payment_hash] = num
+            num += 1
             self.keyname_rows[keyname] = mapping
         return model
 
