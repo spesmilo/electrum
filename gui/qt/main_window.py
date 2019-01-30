@@ -3127,18 +3127,32 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))
 
-        if self.gui_object.is_dark_theme_available():
-            colortheme_combo = QComboBox()
-            colortheme_combo.addItem(_('Light'), 'default')
-            colortheme_combo.addItem(_('Dark'), 'dark')
-            index = colortheme_combo.findData(self.config.get('qt_gui_color_theme', 'default'))
-            colortheme_combo.setCurrentIndex(index)
-            colortheme_label = QLabel(_('Color theme') + ':')
-            def on_colortheme(x):
-                self.config.set_key('qt_gui_color_theme', colortheme_combo.itemData(x), True)
+        colortheme_combo = QComboBox()
+        colortheme_combo.addItem(_('Light'), 'default')
+        colortheme_combo.addItem(_('Dark'), 'dark')
+        theme_name = self.config.get('qt_gui_color_theme', 'default')
+        dark_theme_available = self.gui_object.is_dark_theme_available()
+        if theme_name == 'dark' and not dark_theme_available:
+            theme_name = 'default'
+        index = colortheme_combo.findData(theme_name)
+        if index < 0: index = 0
+        colortheme_combo.setCurrentIndex(index)
+        msg = ( _("Dark theme support requires the package 'QDarkStyle' (typically installed via the 'pip3' command on Unix & macOS).")
+               if not dark_theme_available
+               else '' )
+        lbltxt = _('Color theme') + ':'
+        colortheme_label = HelpLabel(lbltxt, msg) if msg else QLabel(lbltxt)
+        def on_colortheme(x):
+            item_data = colortheme_combo.itemData(x)
+            if not dark_theme_available and item_data == 'dark':
+                self.show_error(_("Dark theme is not available. Please install QDarkStyle to access this feature."))
+                colortheme_combo.setCurrentIndex(0)
+                return
+            self.config.set_key('qt_gui_color_theme', item_data, True)
+            if theme_name != item_data:
                 self.need_restart = True
-            colortheme_combo.currentIndexChanged.connect(on_colortheme)
-            gui_widgets.append((colortheme_label, colortheme_combo))
+        colortheme_combo.currentIndexChanged.connect(on_colortheme)
+        gui_widgets.append((colortheme_label, colortheme_combo))
 
         gui_widgets.append((None, None)) # spacer
         updatecheck_cb = QCheckBox(_("Automatically check for updates"))
