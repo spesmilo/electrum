@@ -917,8 +917,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(self.expires_label, 2, 1)
 
         self.create_invoice_button = QPushButton(_('On-chain'))
+        self.create_invoice_button.setIcon(QIcon(":icons/bitcoin.png"))
         self.create_invoice_button.clicked.connect(lambda: self.create_invoice(False))
         self.create_lightning_invoice_button = QPushButton(_('Lightning'))
+        self.create_lightning_invoice_button.setIcon(QIcon(":icons/lightning.png"))
         self.create_lightning_invoice_button.clicked.connect(lambda: self.create_invoice(True))
         self.receive_buttons = buttons = QHBoxLayout()
         buttons.addStretch(1)
@@ -937,7 +939,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.receive_qr.enterEvent = lambda x: self.app.setOverrideCursor(QCursor(Qt.PointingHandCursor))
         self.receive_qr.leaveEvent = lambda x: self.app.setOverrideCursor(QCursor(Qt.ArrowCursor))
 
-        self.receive_requests_label = QLabel(_('Requests'))
+        self.receive_requests_label = QLabel(_('Incoming invoices'))
 
         from .request_list import RequestList
         self.request_list = RequestList(self)
@@ -1342,7 +1344,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.fee_e.textChanged.connect(entry_changed)
         self.feerate_e.textChanged.connect(entry_changed)
 
-        self.invoices_label = QLabel(_('Invoices'))
+        self.invoices_label = QLabel(_('Outgoing invoices'))
         from .invoice_list import InvoiceList
         self.invoice_list = InvoiceList(self)
 

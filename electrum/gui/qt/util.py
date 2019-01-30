@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import *
 
 from electrum.i18n import _, languages
 from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, PrintError, resource_path
-from electrum.util import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT
+from electrum.util import PR_UNPAID, PR_PAID, PR_EXPIRED, PR_INFLIGHT, PR_UNKNOWN
 
 if TYPE_CHECKING:
     from .main_window import ElectrumWindow
@@ -32,6 +32,7 @@ else:
 dialogs = []
 
 pr_icons = {
+    PR_UNKNOWN:"unpaid.png",
     PR_UNPAID:"unpaid.png",
     PR_PAID:"confirmed.png",
     PR_EXPIRED:"expired.png",

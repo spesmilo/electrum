@@ -46,15 +46,14 @@ ROLE_REQUEST_TYPE = Qt.UserRole
 ROLE_RHASH_OR_ADDR = Qt.UserRole + 1
 
 class RequestList(MyTreeView):
-    filter_columns = [0, 1, 2, 3, 4]  # Date, Account, Address, Description, Amount
+    filter_columns = [0, 1, 2, 3]  # Date, Description, Amount, Status
 
     def __init__(self, parent):
-        super().__init__(parent, self.create_menu, 2, editable_columns=[])
+        super().__init__(parent, self.create_menu, 1, editable_columns=[2])
         self.setModel(QStandardItemModel(self))
         self.setSortingEnabled(True)
         self.update()
         self.selectionModel().currentRowChanged.connect(self.item_changed)
-        self.setColumnWidth(1, 250)
 
     def select_key(self, key):
         for i in range(self.model().rowCount()):
@@ -86,20 +85,9 @@ class RequestList(MyTreeView):
 
     def update(self):
         self.wallet = self.parent.wallet
-        # hide receive tab if no receive requests available
-        if self.parent.isVisible():
-            b = len(self.wallet.receive_requests) > 0 or len(self.wallet.lnworker.invoices) > 0
-            self.setVisible(b)
-            self.parent.receive_requests_label.setVisible(b)
-            if not b:
-                self.parent.expires_label.hide()
-                self.parent.expires_combo.show()
-
         domain = self.wallet.get_receiving_addresses()
-
         self.model().clear()
-        self.update_headers([_('Date'), _('Type'), _('Description'), _('Amount'), _('Status')])
-        self.header().setSectionResizeMode(1, QHeaderView.Interactive) # override resizemode in update_headers
+        self.update_headers([_('Date'), _('Description'), _('Amount'), _('Status')])
         for req in self.wallet.get_sorted_requests(self.config):
             address = req['address']
             if address not in domain:
@@ -113,14 +101,15 @@ class RequestList(MyTreeView):
             signature = req.get('sig')
             requestor = req.get('name', '')
             amount_str = self.parent.format_amount(amount) if amount else ""
-            labels = [date, 'on-chain', message, amount_str, pr_tooltips.get(status,'')]
+            labels = [date, message, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             if signature is not None:
-                items[1].setIcon(read_QIcon(":icons/seal.png"))
-                items[1].setToolTip('signed by '+ requestor)
-            if status is not PR_UNKNOWN:
-                items[4].setIcon(read_QIcon(pr_icons.get(status)))
+                items[0].setIcon(read_QIcon("seal.png"))
+                items[0].setToolTip('signed by '+ requestor)
+            else:
+                items[0].setIcon(read_QIcon("bitcoin.png"))
+            items[3].setIcon(read_QIcon(pr_icons.get(status)))
             self.model().insertRow(self.model().rowCount(), items)
             items[0].setData(REQUEST_TYPE_BITCOIN, ROLE_REQUEST_TYPE)
             items[0].setData(address, ROLE_RHASH_OR_ADDR)
@@ -139,16 +128,20 @@ class RequestList(MyTreeView):
                     description = v
                     break
             date = format_time(lnaddr.date)
-            labels = [date, 'lightning', description, amount_str, pr_tooltips.get(status,'')]
+            labels = [date, description, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
-            items[1].setIcon(self.icon_cache.get(":icons/lightning.png"))
+            items[0].setIcon(self.icon_cache.get(":icons/lightning.png"))
             items[0].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
             items[0].setData(key, ROLE_RHASH_OR_ADDR)
-            if status is not PR_UNKNOWN:
-                items[4].setIcon(self.icon_cache.get(pr_icons.get(status)))
+            items[3].setIcon(self.icon_cache.get(pr_icons.get(status)))
             self.model().insertRow(self.model().rowCount(), items)
         # sort requests by date
         self.model().sort(0)
+        # hide list if empty
+        if self.parent.isVisible():
+            b = self.model().rowCount()>0
+            self.setVisible(b)
+            self.parent.receive_requests_label.setVisible(b)
 
     def create_menu(self, position):
         idx = self.indexAt(position)

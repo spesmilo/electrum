@@ -229,6 +229,9 @@ class PaymentRequest:
     def has_expired(self):
         return self.details.expires and self.details.expires < int(time.time())
 
+    def get_time(self):
+        return self.details.time
+
     def get_expiration_date(self):
         return self.details.expires
 
