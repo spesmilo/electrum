@@ -246,6 +246,9 @@ class PaymentRequest:
             return None
         return self.details.expires and self.details.expires < int(time.time())
 
+    def get_time(self):
+        return self.details.time
+
     def get_expiration_date(self):
         return self.details.expires
 

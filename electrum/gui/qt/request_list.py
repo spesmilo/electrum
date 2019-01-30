@@ -51,14 +51,12 @@ class RequestList(MyTreeView):
 
     class Columns(IntEnum):
         DATE = 0
-        TYPE = 1
-        DESCRIPTION = 2
-        AMOUNT = 3
-        STATUS = 4
+        DESCRIPTION = 1
+        AMOUNT = 2
+        STATUS = 3
 
     headers = {
         Columns.DATE: _('Date'),
-        Columns.TYPE: _('Type'),
         Columns.DESCRIPTION: _('Description'),
         Columns.AMOUNT: _('Amount'),
         Columns.STATUS: _('Status'),
@@ -68,7 +66,7 @@ class RequestList(MyTreeView):
     def __init__(self, parent):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.DESCRIPTION,
-                         editable_columns=[])
+                         editable_columns=[self.Columns.AMOUNT])
         self.setModel(QStandardItemModel(self))
         self.setSortingEnabled(True)
         self.update()
@@ -76,7 +74,7 @@ class RequestList(MyTreeView):
 
     def select_key(self, key):
         for i in range(self.model().rowCount()):
-            item = self.model().index(i, 0)
+            item = self.model().index(i, self.Columns.DATE)
             row_key = item.data(ROLE_RHASH_OR_ADDR)
             if item.data(ROLE_REQUEST_TYPE) == REQUEST_TYPE_LN:
                 row_key = self.wallet.lnworker.invoices[row_key][1]
@@ -86,7 +84,7 @@ class RequestList(MyTreeView):
 
     def item_changed(self, idx):
         # TODO use siblingAtColumn when min Qt version is >=5.11
-        item = self.model().itemFromIndex(idx.sibling(idx.row(), 0))
+        item = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
         request_type = item.data(ROLE_REQUEST_TYPE)
         key = item.data(ROLE_RHASH_OR_ADDR)
         if request_type == REQUEST_TYPE_BITCOIN:
@@ -104,19 +102,8 @@ class RequestList(MyTreeView):
 
     def update(self):
         self.wallet = self.parent.wallet
-        # hide receive tab if no receive requests available
-        if self.parent.isVisible():
-            b = len(self.wallet.receive_requests) > 0 or len(self.wallet.lnworker.invoices) > 0
-            self.setVisible(b)
-            self.parent.receive_requests_label.setVisible(b)
-            if not b:
-                self.parent.expires_label.hide()
-                self.parent.expires_combo.show()
-
         domain = self.wallet.get_receiving_addresses()
-
         self.parent.update_receive_address_styling()
-
         self.model().clear()
         self.update_headers(self.__class__.headers)
         for req in self.wallet.get_sorted_requests(self.config):
@@ -132,17 +119,18 @@ class RequestList(MyTreeView):
             signature = req.get('sig')
             requestor = req.get('name', '')
             amount_str = self.parent.format_amount(amount) if amount else ""
-            labels = [date, 'on-chain', message, amount_str, pr_tooltips.get(status,'')]
+            labels = [date, message, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             if signature is not None:
-                items[self.Columns.TYPE].setIcon(read_QIcon("seal.png"))
-                items[self.Columns.TYPE].setToolTip(f'signed by {requestor}')
-            if status is not PR_UNKNOWN:
-                items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
+                items[self.Columns.DATE].setIcon(read_QIcon("seal.png"))
+                items[self.Columns.DATE].setToolTip(f'signed by {requestor}')
+            else:
+                items[self.Columns.DATE].setIcon(read_QIcon("bitcoin.png"))
+            items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             self.model().insertRow(self.model().rowCount(), items)
-            items[0].setData(REQUEST_TYPE_BITCOIN, ROLE_REQUEST_TYPE)
-            items[0].setData(address, ROLE_RHASH_OR_ADDR)
+            items[self.Columns.DATE].setData(REQUEST_TYPE_BITCOIN, ROLE_REQUEST_TYPE)
+            items[self.Columns.DATE].setData(address, ROLE_RHASH_OR_ADDR)
         self.filter()
         # lightning
         lnworker = self.wallet.lnworker
@@ -159,16 +147,20 @@ class RequestList(MyTreeView):
                     description = v
                     break
             date = format_time(lnaddr.date)
-            labels = [date, 'lightning', description, amount_str, pr_tooltips.get(status,'')]
+            labels = [date, description, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
-            items[1].setIcon(self.icon_cache.get(":icons/lightning.png"))
-            items[0].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
-            items[0].setData(key, ROLE_RHASH_OR_ADDR)
-            if status is not PR_UNKNOWN:
-                items[4].setIcon(self.icon_cache.get(pr_icons.get(status)))
+            items[self.Columns.DATE].setIcon(self.icon_cache.get(":icons/lightning.png"))
+            items[self.Columns.DATE].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
+            items[self.Columns.DATE].setData(key, ROLE_RHASH_OR_ADDR)
+            items[self.Columns.STATUS].setIcon(self.icon_cache.get(pr_icons.get(status)))
             self.model().insertRow(self.model().rowCount(), items)
         # sort requests by date
-        self.model().sort(0)
+        self.model().sort(self.Columns.DATE)
+        # hide list if empty
+        if self.parent.isVisible():
+            b = self.model().rowCount() > 0
+            self.setVisible(b)
+            self.parent.receive_requests_label.setVisible(b)
 
     def create_menu(self, position):
         idx = self.indexAt(position)
