@@ -67,7 +67,8 @@ class LNWorker(PrintError):
 
     def __init__(self, wallet: 'Abstract_Wallet'):
         self.wallet = wallet
-        self.invoices = self.wallet.storage.get('lightning_invoices', {})  # type: Dict[str, Tuple[str,str]]  # RHASH -> (preimage, invoice, direction, pay_timestamp)
+        # type: Dict[str, Tuple[str,str,bool,int]]  # RHASH -> (preimage, invoice, is_received, timestamp)
+        self.invoices = self.wallet.storage.get('lightning_invoices', {})
         self.sweep_address = wallet.get_receiving_address()
         self.lock = threading.RLock()
         self.ln_keystore = self._read_ln_keystore()
@@ -125,11 +126,11 @@ class LNWorker(PrintError):
         key = bh2u(htlc.payment_hash)
         if key not in self.invoices:
             return
-        preimage, invoice, direction, timestamp = self.invoices.get(key)
+        preimage, invoice, is_received, timestamp = self.invoices.get(key)
         if direction == SENT:
-            preimage = _preimage
+            preimage = bh2u(_preimage)
         now = time.time()
-        self.invoices[key] = preimage, invoice, direction, now
+        self.invoices[key] = preimage, invoice, is_received, now
         self.wallet.storage.put('lightning_invoices', self.invoices)
         self.wallet.storage.write()
         self.network.trigger_callback('ln_payment_completed', now, direction, htlc, preimage, chan_id)
@@ -137,7 +138,7 @@ class LNWorker(PrintError):
     def get_invoice_status(self, payment_hash):
         if payment_hash not in self.invoices:
             return PR_UNKNOWN
-        preimage, _addr, direction, timestamp = self.invoices.get(payment_hash)
+        preimage, _addr, is_received, timestamp = self.invoices.get(payment_hash)
         if timestamp is None:
             return PR_UNPAID
         return PR_PAID
@@ -508,13 +509,13 @@ class LNWorker(PrintError):
     def save_invoice(self, preimage, invoice, direction):
         lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         key = bh2u(lnaddr.paymenthash)
-        self.invoices[key] = preimage, invoice, direction, None
+        self.invoices[key] = preimage, invoice, direction==RECEIVED, None
         self.wallet.storage.put('lightning_invoices', self.invoices)
         self.wallet.storage.write()
 
     def get_invoice(self, payment_hash: bytes) -> Tuple[bytes, LnAddr]:
         try:
-            preimage_hex, pay_req, direction,timestamp = self.invoices[bh2u(payment_hash)]
+            preimage_hex, pay_req, is_received, timestamp = self.invoices[bh2u(payment_hash)]
             preimage = bfh(preimage_hex)
             assert sha256(preimage) == payment_hash
             return preimage, lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)

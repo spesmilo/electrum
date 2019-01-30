@@ -96,7 +96,7 @@ class RequestList(MyTreeView):
                 return
             req = self.parent.get_request_URI(key)
         elif request_type == REQUEST_TYPE_LN:
-            preimage, req, direction, pay_timestamp = self.wallet.lnworker.invoices.get(key, (None, None, None))
+            preimage, req, is_received, pay_timestamp = self.wallet.lnworker.invoices.get(key, (None, None, None))
             if req is None:
                 self.update()
                 return
@@ -146,8 +146,8 @@ class RequestList(MyTreeView):
         self.filter()
         # lightning
         lnworker = self.wallet.lnworker
-        for key, (preimage_hex, invoice, direction, pay_timestamp) in lnworker.invoices.items():
-            if direction == SENT:
+        for key, (preimage_hex, invoice, is_received, pay_timestamp) in lnworker.invoices.items():
+            if not is_received:
                 continue
             status = lnworker.get_invoice_status(key)
             lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
@@ -184,7 +184,7 @@ class RequestList(MyTreeView):
         if request_type == REQUEST_TYPE_BITCOIN:
             req = self.wallet.receive_requests.get(addr)
         elif request_type == REQUEST_TYPE_LN:
-            preimage, req, direction, pay_timestamp = self.wallet.lnworker.invoices.get(addr)
+            req = self.wallet.lnworker.invoices[addr][1]
         if req is None:
             self.update()
             return

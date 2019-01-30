@@ -16,7 +16,7 @@ from electrum.util import bh2u
 from electrum.lnbase import Peer, decode_msg, gen_msg
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
-from electrum.lnutil import PaymentFailure, RECEIVED
+from electrum.lnutil import PaymentFailure
 from electrum.lnrouter import ChannelDB, LNPathFinder
 from electrum.lnworker import LNWorker
 
@@ -189,7 +189,7 @@ class TestPeer(unittest.TestCase):
                           ('d', 'coffee')
                          ])
         pay_req = lnencode(addr, w2.node_keypair.privkey)
-        w2.invoices[bh2u(RHASH)] = (bh2u(payment_preimage), pay_req, RECEIVED, None)
+        w2.invoices[bh2u(RHASH)] = (bh2u(payment_preimage), pay_req, True, None)
         return pay_req
 
     @staticmethod
