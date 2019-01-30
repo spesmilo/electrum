@@ -126,8 +126,6 @@ class AddressDialog(WindowModalDialog):
 
     def show_qr(self):
         text = self.address.to_full_ui_string()
-        if self.address.FMT_UI == self.address.FMT_CASHADDR:
-            text = text.upper()
         try:
             self.parent.show_qrcode(text, 'Address', parent=self)
         except Exception as e:
