@@ -574,7 +574,7 @@ class LNWorker(PrintError):
 
     def get_balance(self):
         with self.lock:
-            return Decimal(sum(chan.balance(LOCAL) for chan in self.channels.values()))/1000
+            return Decimal(sum(chan.balance(LOCAL) if chan.get_state() not in ['CLOSED', 'FORCE_CLOSING'] else 0 for chan in self.channels.values()))/1000
 
     def list_channels(self):
         with self.lock:
