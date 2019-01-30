@@ -105,6 +105,7 @@ class ElectrumGui(PrintError):
         self.timer.setInterval(500)  # msec
 
         self.nd = None
+        self.watchtower_window = None
         self.network_updated_signal_obj = QNetworkUpdatedSignalObject()
         self._num_wizards_in_progress = 0
         self._num_wizards_lock = threading.Lock()
@@ -141,8 +142,12 @@ class ElectrumGui(PrintError):
         else:
             m = self.tray.contextMenu()
             m.clear()
+        if self.watchtower_window:
+            submenu = m.addMenu(_("watchtower"))
+            submenu.addAction(_("Show/Hide"), self.watchtower_window.show_or_hide)
         for window in self.windows:
-            submenu = m.addMenu(window.wallet.basename())
+            name = window.wallet.basename()
+            submenu = m.addMenu(name)
             submenu.addAction(_("Show/Hide"), window.show_or_hide)
             submenu.addAction(_("Close"), window.close)
         m.addAction(_("Dark/Light"), self.toggle_tray_icon)
@@ -172,10 +177,19 @@ class ElectrumGui(PrintError):
     def close(self):
         for window in self.windows:
             window.close()
+        if self.watchtower_window:
+            self.watchtower_window.close()
 
     def new_window(self, path, uri=None):
         # Use a signal as can be called from daemon thread
         self.app.new_window_signal.emit(path, uri)
+
+    def create_watchtower_window(self):
+        from .watchtower_window import WatchTowerWindow
+        self.watchtower_window = WatchTowerWindow(self)
+
+    def show_watchtower_dialog(self, parent):
+        self.watchtower_window.bring_to_top()
 
     def show_network_dialog(self, parent):
         if not self.daemon.network:
@@ -304,6 +318,9 @@ class ElectrumGui(PrintError):
             traceback.print_exc(file=sys.stdout)
             return
         self.timer.start()
+        # todo: create this only if channels need it
+        self.create_watchtower_window()
+
         self.config.open_last_wallet()
         path = self.config.get_wallet_path()
         if not self.start_new_window(path, self.config.get('url'), app_is_starting=True):
@@ -316,7 +333,7 @@ class ElectrumGui(PrintError):
                 return
             # check if a wizard is in progress
             with self._num_wizards_lock:
-                if self._num_wizards_in_progress > 0 or len(self.windows) > 0:
+                if self._num_wizards_in_progress > 0 or len(self.windows) > 0 or self.watchtower_window:
                     return
             self.app.quit()
         self.app.setQuitOnLastWindowClosed(False)  # so _we_ can decide whether to quit
