@@ -572,6 +572,10 @@ class LNWorker(PrintError):
         self.wallet.storage.put('lightning_invoices', self.invoices)
         self.wallet.storage.write()
 
+    def get_balance(self):
+        with self.lock:
+            return Decimal(sum(chan.balance(LOCAL) for chan in self.channels.values()))/1000
+
     def list_channels(self):
         with self.lock:
             # we output the funding_outpoint instead of the channel_id because lnd uses channel_point (funding outpoint) to identify channels

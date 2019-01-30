@@ -365,6 +365,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.channels_list.update_rows.emit(*args)
         elif event == 'channel':
             self.channels_list.update_single_row.emit(*args)
+            self.update_status()
         elif event == 'ln_status':
             self.need_update_ln.set()
         else:
@@ -814,6 +815,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     text +=  " [%s unconfirmed]"%(self.format_amount(u, is_diff=True).strip())
                 if x:
                     text +=  " [%s unmatured]"%(self.format_amount(x, is_diff=True).strip())
+                l = self.wallet.lnworker.get_balance()
+                if l:
+                    text += u'    \U0001f5f2 %s'%(self.format_amount_and_units(l).strip())
 
                 # append fiat balance and price
                 if self.fx.is_enabled():

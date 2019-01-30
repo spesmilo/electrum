@@ -394,11 +394,14 @@ class Commands:
     def getbalance(self):
         """Return the balance of your wallet. """
         c, u, x = self.wallet.get_balance()
+        l = self.lnworker.get_balance()
         out = {"confirmed": str(Decimal(c)/COIN)}
         if u:
             out["unconfirmed"] = str(Decimal(u)/COIN)
         if x:
             out["unmatured"] = str(Decimal(x)/COIN)
+        if l:
+            out["lightning"] = str(Decimal(l)/COIN)
         return out
 
     @command('n')
