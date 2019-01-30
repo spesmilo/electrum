@@ -90,10 +90,32 @@ class ElectrumGui(QObject, PrintError):
         self.build_tray_menu()
         self.tray.show()
         self.new_window_signal.connect(self.start_new_window)
-        run_hook('init_qt', self)
-        ColorScheme.update_from_widget(QWidget())
+        self.set_dark_theme_if_needed()
         if self.has_auto_update_check():
             self._start_auto_update_timer(first_run = True)
+        run_hook('init_qt', self)
+        ColorScheme.update_from_widget(QWidget())
+
+    def is_dark_theme_available(self):
+        try:
+            import qdarkstyle
+        except:
+            return False
+        return True
+
+    def set_dark_theme_if_needed(self):
+        use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
+        if use_dark_theme:
+            try:
+                import qdarkstyle
+                self.app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
+            except BaseException as e:
+                use_dark_theme = False
+                self.print_error('Error setting dark theme: {}'.format(repr(e)))
+        # Even if we ourselves don't set the dark theme,
+        # the OS/window manager/etc might set *a dark theme*.
+        # Hence, try to choose colors accordingly:
+        ColorScheme.update_from_widget(QWidget(), force_dark=use_dark_theme)
 
     def eventFilter(self, obj, event):
         ''' This event filter allows us to open bitcoincash: URIs on macOS '''
