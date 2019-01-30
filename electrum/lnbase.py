@@ -199,7 +199,7 @@ class Peer(PrintError):
 
     def __init__(self, lnworker: 'LNWorker', peer_addr: LNPeerAddr,
                  request_initial_sync=False, transport: LNTransportBase=None):
-        self.initialized = asyncio.Future()
+        self.initialized = asyncio.Event()
         self.transport = transport
         self.peer_addr = peer_addr
         self.lnworker = lnworker
@@ -302,6 +302,9 @@ class Peer(PrintError):
         self.network.trigger_callback('ln_status')
 
     def on_init(self, payload):
+        if self.initialized.is_set():
+            self.print_error("ALREADY INITIALIZED BUT RECEIVED INIT")
+            return
         # if they required some even flag we don't have, they will close themselves
         # but if we require an even flag they don't have, we close
         our_flags = set(list_enabled_bits(self.localfeatures))
@@ -315,7 +318,7 @@ class Peer(PrintError):
                 self.localfeatures ^= 1 << flag  # disable flag
         first_timestamp = self.lnworker.get_first_timestamp()
         self.send_message('gossip_timestamp_filter', chain_hash=constants.net.rev_genesis_bytes(), first_timestamp=first_timestamp, timestamp_range=b"\xff"*4)
-        self.initialized.set_result(True)
+        self.initialized.set()
 
     def on_channel_update(self, payload):
         try:
@@ -402,7 +405,7 @@ class Peer(PrintError):
             revocation_basepoint=keypair_generator(LnKeyFamily.REVOCATION_BASE),
             to_self_delay=9,
             dust_limit_sat=546,
-            max_htlc_value_in_flight_msat=0xffffffffffffffff,
+            max_htlc_value_in_flight_msat=funding_sat * 1000,
             max_accepted_htlcs=5,
             initial_msat=initial_msat,
             ctn=-1,
@@ -424,7 +427,7 @@ class Peer(PrintError):
         # dry run creating funding tx to see if we even have enough funds
         funding_tx_test = wallet.mktx([TxOutput(bitcoin.TYPE_ADDRESS, wallet.dummy_address(), funding_sat)],
                                       password, self.lnworker.config, nonlocal_only=True)
-        await self.initialized
+        await asyncio.wait_for(self.initialized.wait(), 1)
         feerate = self.lnworker.current_feerate_per_kw()
         local_config = self.make_local_config(funding_sat, push_msat, LOCAL)
         # for the first commitment transaction
@@ -452,7 +455,7 @@ class Peer(PrintError):
             channel_reserve_satoshis=local_config.reserve_sat,
             htlc_minimum_msat=1,
         )
-        payload = await self.channel_accepted[temp_channel_id].get()
+        payload = await asyncio.wait_for(self.channel_accepted[temp_channel_id].get(), 1)
         if payload.get('error'):
             raise Exception('Remote Lightning peer reported error: ' + repr(payload.get('error')))
         remote_per_commitment_point = payload['first_per_commitment_point']
@@ -528,12 +531,12 @@ class Peer(PrintError):
             funding_txid=funding_txid_bytes,
             funding_output_index=funding_index,
             signature=sig_64)
-        payload = await self.funding_signed[channel_id].get()
+        payload = await asyncio.wait_for(self.funding_signed[channel_id].get(), 1)
         self.print_error('received funding_signed')
         remote_sig = payload['signature']
         chan.receive_new_commitment(remote_sig, [])
         # broadcast funding tx
-        await self.network.broadcast_transaction(funding_tx)
+        await asyncio.wait_for(self.network.broadcast_transaction(funding_tx), 1)
         chan.remote_commitment_to_be_revoked = chan.pending_commitment(REMOTE)
         chan.config[REMOTE] = chan.config[REMOTE]._replace(ctn=0, current_per_commitment_point=remote_per_commitment_point, next_per_commitment_point=None)
         chan.config[LOCAL] = chan.config[LOCAL]._replace(ctn=0, current_commitment_signature=remote_sig, got_sig_for_next=False)
@@ -551,7 +554,7 @@ class Peer(PrintError):
         feerate = int.from_bytes(payload['feerate_per_kw'], 'big')
 
         temp_chan_id = payload['temporary_channel_id']
-        local_config = self.make_local_config(funding_sat * 1000, push_msat, REMOTE)
+        local_config = self.make_local_config(funding_sat, push_msat, REMOTE)
         # for the first commitment transaction
         per_commitment_secret_first = get_per_commitment_secret_from_seed(local_config.per_commitment_secret_seed,
                                                                           RevocationStore.START_INDEX)
@@ -654,7 +657,7 @@ class Peer(PrintError):
 
     @log_exceptions
     async def reestablish_channel(self, chan: Channel):
-        await self.initialized
+        await self.initialized.wait()
         chan_id = chan.channel_id
         if chan.get_state() != 'DISCONNECTED':
             self.print_error('reestablish_channel was called but channel {} already in state {}'

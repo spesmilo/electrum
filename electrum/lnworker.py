@@ -178,7 +178,7 @@ class LNWorker(PrintError):
 
     def suggest_peer(self):
         for node_id, peer in self.peers.items():
-            if not(peer.initialized.done()):
+            if not peer.initialized.is_set():
                 continue
             if not all([chan.get_state() in ['CLOSED'] for chan in peer.channels.values()]):
                 continue
@@ -193,7 +193,7 @@ class LNWorker(PrintError):
         port = int(port)
         peer_addr = LNPeerAddr(host, port, node_id)
         if node_id in self.peers:
-            return
+            return self.peers[node_id]
         self._last_tried_peer[peer_addr] = time.time()
         self.print_error("adding peer", peer_addr)
         peer = Peer(self, peer_addr, request_initial_sync=self.config.get("request_initial_sync", True))
@@ -340,7 +340,7 @@ class LNWorker(PrintError):
 
     async def _open_channel_coroutine(self, peer, local_amount_sat, push_sat, password):
         # peer might just have been connected to
-        await asyncio.wait_for(peer.initialized, 5)
+        await asyncio.wait_for(peer.initialized.wait(), 5)
         chan = await peer.channel_establishment_flow(
             password,
             funding_sat=local_amount_sat + push_sat,
@@ -579,7 +579,8 @@ class LNWorker(PrintError):
                 yield {
                     'local_htlcs':  json.loads(encoder.encode(chan.hm.log[LOCAL ])),
                     'remote_htlcs': json.loads(encoder.encode(chan.hm.log[REMOTE])),
-                    'channel_id': bh2u(chan.short_channel_id),
+                    'channel_id': bh2u(chan.short_channel_id) if chan.short_channel_id else None,
+                    'full_channel_id': bh2u(chan.channel_id),
                     'channel_point': chan.funding_outpoint.to_str(),
                     'state': chan.get_state(),
                     'remote_pubkey': bh2u(chan.node_id),
