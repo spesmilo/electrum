@@ -3026,6 +3026,19 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         qr_combo.currentIndexChanged.connect(on_video_device)
         gui_widgets.append((qr_label, qr_combo))
 
+        if self.gui_object.is_dark_theme_available():
+            colortheme_combo = QComboBox()
+            colortheme_combo.addItem(_('Light'), 'default')
+            colortheme_combo.addItem(_('Dark'), 'dark')
+            index = colortheme_combo.findData(self.config.get('qt_gui_color_theme', 'default'))
+            colortheme_combo.setCurrentIndex(index)
+            colortheme_label = QLabel(_('Color theme') + ':')
+            def on_colortheme(x):
+                self.config.set_key('qt_gui_color_theme', colortheme_combo.itemData(x), True)
+                self.need_restart = True
+            colortheme_combo.currentIndexChanged.connect(on_colortheme)
+            gui_widgets.append((colortheme_label, colortheme_combo))
+
         gui_widgets.append((None, None)) # spacer
         updatecheck_cb = QCheckBox(_("Automatically check for updates"))
         updatecheck_cb.setChecked(self.gui_object.has_auto_update_check())

@@ -625,6 +625,7 @@ class ColorScheme:
     dark_scheme = False
 
     GREEN = ColorSchemeItem("#117c11", "#8af296")
+    YELLOW = ColorSchemeItem("#897b2a", "#ffff00")
     RED = ColorSchemeItem("#7c1111", "#f18c8c")
     BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
     DEFAULT = ColorSchemeItem("black", "white")
@@ -635,8 +636,8 @@ class ColorScheme:
         return brightness < (255*3/2)
 
     @staticmethod
-    def update_from_widget(widget):
-        if ColorScheme.has_dark_background(widget):
+    def update_from_widget(widget, *, force_dark=False):
+        if force_dark or ColorScheme.has_dark_background(widget):
             ColorScheme.dark_scheme = True
 
 
