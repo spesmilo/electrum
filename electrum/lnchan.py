@@ -207,6 +207,9 @@ class Channel(PrintError):
     def get_state(self):
         return self._state
 
+    def is_closed(self):
+        return self.get_state() in ['CLOSED', 'FORCE_CLOSING']
+
     def _check_can_pay(self, amount_msat: int) -> None:
         if self.get_state() != 'OPEN':
             raise PaymentFailure('Channel not open')
