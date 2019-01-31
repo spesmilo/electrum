@@ -792,10 +792,10 @@ class LNWorker(PrintError):
         await self.network.lnwatcher.on_network_update('network_updated')  # ping watcher to check our channels
         listen_addr = self.config.get('lightning_listen')
         if listen_addr:
-            adr, colon, port = listen_addr.rpartition(':')
-            if adr[0] == '[':
+            addr, port = listen_addr.rsplit(':', 2)
+            if addr[0] == '[':
                 # ipv6
-                adr = adr[1:-1]
+                addr = addr[1:-1]
             async def cb(reader, writer):
                 t = LNResponderTransport(self.node_keypair.privkey, reader, writer)
                 node_id = await t.handshake()
@@ -807,7 +807,7 @@ class LNWorker(PrintError):
                 await self.network.main_taskgroup.spawn(peer.main_loop())
                 self.network.trigger_callback('ln_status')
 
-            await asyncio.start_server(cb, adr, int(port))
+            await asyncio.start_server(cb, addr, int(port))
         while True:
             await asyncio.sleep(1)
             now = time.time()
