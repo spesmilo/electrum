@@ -54,12 +54,14 @@ mainnet_block_explorers = {
                    {'tx': 'tx', 'addr': 'address'}),
 }
 
+DEFAULT_EXPLORER_TESTNET = 'Bitcoin.com'
+
 testnet_block_explorers = {
     'Blocktrail.com': ('https://www.blocktrail.com/tBCC',
                        Address.FMT_LEGACY,
                        {'tx': 'tx', 'addr': 'address'}),
-    'system default': ('blockchain:',
-                       Address.FMT_LEGACY,
+    'Bitcoin.com'   : ('https://explorer.bitcoin.com/tbch',
+                       Address.FMT_LEGACY,  # For some reason testnet expects legacy and fails on bchtest: addresses.
                        {'tx': 'tx', 'addr': 'address'}),
 }
 
@@ -69,10 +71,18 @@ def BE_info():
     return mainnet_block_explorers
 
 def BE_tuple(config):
-    return BE_info().get(BE_from_config(config))
+    infodict = BE_info()
+    return (infodict.get(BE_from_config(config))
+            or infodict.get(BE_default_explorer()) # In case block explorer in config is bad/no longet valid
+           )
+
+def BE_default_explorer():
+    return (DEFAULT_EXPLORER
+            if not networks.net.TESTNET
+            else DEFAULT_EXPLORER_TESTNET)
 
 def BE_from_config(config):
-    return config.get('block_explorer', DEFAULT_EXPLORER)
+    return config.get('block_explorer', BE_default_explorer())
 
 def BE_URL(config, kind, item):
     be_tuple = BE_tuple(config)
