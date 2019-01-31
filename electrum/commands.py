@@ -832,24 +832,7 @@ class Commands:
 
     @command('w')
     def lightning_history(self):
-        out = []
-        for chan_id, htlc, direction, status in self.lnworker.get_payments().values():
-            payment_hash = bh2u(htlc.payment_hash)
-            timestamp = self.lnworker.invoices[payment_hash][3] if payment_hash in self.lnworker.invoices else None
-            item = {
-                'timestamp':timestamp or 0,
-                'date':timestamp_to_datetime(timestamp),
-                'direction': 'sent' if direction == SENT else 'received',
-                'status':status,
-                'amout_msat':htlc.amount_msat,
-                'payment_hash':bh2u(htlc.payment_hash),
-                'chan_id':bh2u(chan_id),
-                'htlc_id':htlc.htlc_id,
-                'cltv_expiry':htlc.cltv_expiry
-            }
-            out.append(item)
-        out.sort(key=operator.itemgetter('timestamp'))
-        return out
+        return self.lnworker.get_history()
 
     @command('wn')
     def closechannel(self, channel_point, force=False):
