@@ -11,7 +11,7 @@ RUN apt -y update -qq \
 
 
 ENV ANDROID_NDK_HOME="${ANDROID_HOME}/android-ndk"
-ENV ANDROID_NDK_VERSION="14b"
+ENV ANDROID_NDK_VERSION="17c"
 ENV ANDROID_NDK_HOME_V="${ANDROID_NDK_HOME}-r${ANDROID_NDK_VERSION}"
 
 # get the latest version from https://developer.android.com/ndk/downloads/index.html
@@ -122,6 +122,10 @@ USER ${USER}
 RUN pip install --upgrade cython==0.29
 RUN python3 -m pip install --upgrade cython==0.29
 
+# prepare git
+RUN git config --global user.name "John Doe" \
+    && git config --global user.email johndoe@example.com
+
 # install buildozer
 RUN cd /opt \
     && git clone https://github.com/kivy/buildozer \
@@ -134,7 +138,9 @@ RUN cd /opt \
     && cd python-for-android \
     && git remote add sombernight https://github.com/SomberNight/python-for-android \
     && git fetch --all \
-    && git checkout 86eeec7c19679a5886d5e095ce0a43f1da138f87 \
+    && git checkout fad5dd2fdc9b116b7621470deac501e4a7c4cc11 \
+       # allowBackup="false":
+    && git cherry-pick 86eeec7c19679a5886d5e095ce0a43f1da138f87 \
     && python3 -m pip install -e .
 
 # build env vars

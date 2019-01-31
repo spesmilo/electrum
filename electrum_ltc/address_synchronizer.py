@@ -403,6 +403,7 @@ class AddressSynchronizer(PrintError):
     @profiler
     def load_local_history(self):
         self._history_local = {}  # address -> set(txid)
+        self._address_history_changed_events = defaultdict(asyncio.Event)  # address -> Event
         for txid in itertools.chain(self.txi, self.txo):
             self._add_tx_to_local_history(txid)
 
@@ -542,6 +543,7 @@ class AddressSynchronizer(PrintError):
                 cur_hist = self._history_local.get(addr, set())
                 cur_hist.add(txid)
                 self._history_local[addr] = cur_hist
+                self._mark_address_history_changed(addr)
 
     def _remove_tx_from_local_history(self, txid):
         with self.transaction_lock:
@@ -553,6 +555,21 @@ class AddressSynchronizer(PrintError):
                     pass
                 else:
                     self._history_local[addr] = cur_hist
+
+    def _mark_address_history_changed(self, addr: str) -> None:
+        # history for this address changed, wake up coroutines:
+        self._address_history_changed_events[addr].set()
+        # clear event immediately so that coroutines can wait() for the next change:
+        self._address_history_changed_events[addr].clear()
+
+    async def wait_for_address_history_to_change(self, addr: str) -> None:
+        """Wait until the server tells us about a new transaction related to addr.
+
+        Unconfirmed and confirmed transactions are not distinguished, and so e.g. SPV
+        is not taken into account.
+        """
+        assert self.is_mine(addr), "address needs to be is_mine to be watched"
+        await self._address_history_changed_events[addr].wait()
 
     def add_unverified_tx(self, tx_hash, tx_height):
         if tx_hash in self.verified_tx:
