@@ -140,11 +140,14 @@ class LNWatcher(AddressSynchronizer):
 
     async def check_onchain_situation(self, address, funding_outpoint):
         keep_watching, spenders = self.inspect_tx_candidate(funding_outpoint, 0)
-        txid = spenders.get(funding_outpoint)
-        if txid is None:
-            self.network.trigger_callback('channel_open', funding_outpoint)
+        funding_txid = funding_outpoint.split(':')[0]
+        funding_height = self.get_tx_height(funding_txid)
+        closing_txid = spenders.get(funding_outpoint)
+        if closing_txid is None:
+            self.network.trigger_callback('channel_open', funding_outpoint, funding_txid, funding_height)
         else:
-            self.network.trigger_callback('channel_closed', funding_outpoint, txid, spenders)
+            closing_height = self.get_tx_height(closing_txid)
+            self.network.trigger_callback('channel_closed', funding_outpoint, spenders, funding_txid, funding_height, closing_txid, closing_height)
             await self.do_breach_remedy(funding_outpoint, spenders)
         if not keep_watching:
             self.unwatch_channel(address, funding_outpoint)

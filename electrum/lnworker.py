@@ -11,6 +11,7 @@ from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING
 import threading
 import socket
 import json
+import operator
 from datetime import datetime, timezone
 from functools import partial
 
@@ -26,6 +27,7 @@ from .transaction import Transaction
 from .crypto import sha256
 from .bip32 import bip32_root
 from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
+from .util import timestamp_to_datetime
 from .lntransport import LNResponderTransport
 from .lnbase import Peer
 from .lnaddr import lnencode, LnAddr, lndecode
@@ -81,6 +83,8 @@ class LNWorker(PrintError):
             self.channels[c.channel_id] = c
             c.set_remote_commitment()
             c.set_local_commitment(c.current_commitment(LOCAL))
+        # timestamps of opening and closing transactions
+        self.channel_timestamps = self.wallet.storage.get('lightning_channel_timestamps', {})
 
     def start_network(self, network: 'Network'):
         self.network = network
@@ -148,6 +152,56 @@ class LNWorker(PrintError):
         out = {}
         for chan in self.channels.values():
             out.update(chan.get_payments())
+        return out
+
+    def get_history(self):
+        out = []
+        for chan_id, htlc, direction, status in self.get_payments().values():
+            key = bh2u(htlc.payment_hash)
+            timestamp = self.invoices[key][3] if key in self.invoices else None
+            item = {
+                'type':'payment',
+                'timestamp':timestamp or 0,
+                'date':timestamp_to_datetime(timestamp),
+                'direction': 'sent' if direction == SENT else 'received',
+                'status':status,
+                'amount_msat':htlc.amount_msat,
+                'payment_hash':bh2u(htlc.payment_hash),
+                'channel_id':bh2u(chan_id),
+                'htlc_id':htlc.htlc_id,
+                'cltv_expiry':htlc.cltv_expiry,
+            }
+            out.append(item)
+        # add funding events
+        for chan in self.channels.values():
+            funding_txid, funding_height, funding_timestamp, closing_txid, closing_height, closing_timestamp = self.channel_timestamps.get(bh2u(chan.channel_id))
+            item = {
+                'channel_id': bh2u(chan.channel_id),
+                'type': 'channel_opening',
+                'label': _('Channel opening'),
+                'txid': funding_txid,
+                'amount_msat': chan.balance(LOCAL, ctn=0),
+                'direction': 'received',
+                'timestamp': funding_timestamp,
+            }
+            out.append(item)
+            if not chan.is_closed():
+                continue
+            item = {
+                'channel_id': bh2u(chan.channel_id),
+                'txid':closing_txid,
+                'label': _('Channel closure'),
+                'type': 'channel_closure',
+                'amount_msat': chan.balance(LOCAL),
+                'direction': 'sent',
+                'timestamp': closing_timestamp,
+            }
+            out.append(item)
+        out.sort(key=operator.itemgetter('timestamp'))
+        balance_msat = 0
+        for item in out:
+            balance_msat += item['amount_msat'] * (1 if item['direction']=='received' else -1)
+            item['balance_msat'] = balance_msat
         return out
 
     def _read_ln_keystore(self) -> BIP32_KeyStore:
@@ -240,21 +294,25 @@ class LNWorker(PrintError):
             if chan.funding_outpoint.to_str() == txo:
                 return chan
 
-    def on_channel_open(self, event, funding_outpoint):
+    def on_channel_open(self, event, funding_outpoint, funding_txid, funding_height):
         chan = self.channel_by_txo(funding_outpoint)
         if not chan:
             return
         self.print_error('on_channel_open', funding_outpoint)
+        self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, None, None, None
+        self.wallet.storage.put('lightning_channel_timestamps', self.channel_timestamps)
         chan.set_funding_txo_spentness(False)
         # send event to GUI
         self.network.trigger_callback('channel', chan)
 
     @log_exceptions
-    async def on_channel_closed(self, event, funding_outpoint, txid, spenders):
+    async def on_channel_closed(self, event, funding_outpoint, spenders, funding_txid, funding_height, closing_txid, closing_height):
         chan = self.channel_by_txo(funding_outpoint)
         if not chan:
             return
         self.print_error('on_channel_closed', funding_outpoint)
+        self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, closing_txid, closing_height.height, closing_height.timestamp
+        self.wallet.storage.put('lightning_channel_timestamps', self.channel_timestamps)
         chan.set_funding_txo_spentness(True)
         if chan.get_state() != 'FORCE_CLOSING':
             chan.set_state("CLOSED")
@@ -263,14 +321,14 @@ class LNWorker(PrintError):
         # remove from channel_db
         self.channel_db.remove_channel(chan.short_channel_id)
         # detect who closed
-        if txid == chan.local_commitment.txid():
+        if closing_txid == chan.local_commitment.txid():
             self.print_error('we force closed', funding_outpoint)
             encumbered_sweeptxs = chan.local_sweeptxs
-        elif txid == chan.remote_commitment.txid():
+        elif closing_txid == chan.remote_commitment.txid():
             self.print_error('they force closed', funding_outpoint)
             encumbered_sweeptxs = chan.remote_sweeptxs
         else:
-            self.print_error('not sure who closed', funding_outpoint, txid)
+            self.print_error('not sure who closed', funding_outpoint, closing_txid)
             return
         # sweep
         for prevout, spender in spenders.items():
