@@ -85,4 +85,4 @@ dmg dmg Electrum-LTC_uncompressed.dmg electrum-ltc-$VERSION.dmg || fail "Unable 
 rm Electrum-LTC_uncompressed.dmg
 
 echo "Done."
-md5sum electrum-ltc-$VERSION.dmg
+sha256sum electrum-ltc-$VERSION.dmg
