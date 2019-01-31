@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Electron Cash - lightweight Bitcoin client
 # Copyright (C) 2018 Electron Cash developers

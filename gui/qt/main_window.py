@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2012 thomasv@gitorious
@@ -531,11 +531,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         contacts_menu = wallet_menu.addMenu(_("Contacts"))
         contacts_menu.addAction(_("&New"), self.new_contact_dialog)
         contacts_menu.addAction(_("Import"), lambda: self.contact_list.import_contacts())
+        contacts_menu.addAction(_("Export"), lambda: self.contact_list.export_contacts())
         invoices_menu = wallet_menu.addMenu(_("Invoices"))
         invoices_menu.addAction(_("Import"), lambda: self.invoice_list.import_invoices())
         hist_menu = wallet_menu.addMenu(_("&History"))
-        hist_menu.addAction("Plot", self.plot_history_dialog).setEnabled(plot_history is not None)
-        hist_menu.addAction("Export", self.export_history_dialog)
+        hist_menu.addAction(_("Plot"), self.plot_history_dialog).setEnabled(plot_history is not None)
+        hist_menu.addAction(_("Export"), self.export_history_dialog)
 
         wallet_menu.addSeparator()
         wallet_menu.addAction(_("Find"), self.toggle_search).setShortcut(QKeySequence("Ctrl+F"))
@@ -1975,8 +1976,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         return True
 
     def delete_contacts(self, addresses):
+        contact_str = " + ".join(addresses) if len(addresses) <= 3 else _("{} contacts").format(len(addresses))
         if not self.question(_("Remove {} from your list of contacts?")
-                             .format(" + ".join(addresses))):
+                             .format(contact_str)):
             return
         removed_entries = []
         for address in addresses:

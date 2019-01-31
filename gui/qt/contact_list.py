@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Electrum - lightweight Bitcoin client
 # Copyright (C) 2015 Thomas Voegtlin
@@ -57,10 +57,23 @@ class ContactList(MyTreeWidget):
         if not filename:
             return
         try:
-            self.parent.contacts.import_file(filename)
-        except FileImportFailed as e:
-            self.parent.show_message(str(e))
+            num = self.parent.contacts.import_file(filename)
+            self.parent.show_message(_("{} contacts successfully imported.").format(num))
+        except BaseException as e:
+            self.parent.show_error(_("Electron Cash was unable to import your contacts.") + "\n" + repr(e))
         self.on_update()
+
+    def export_contacts(self):
+        if not len(self.parent.contacts):
+            self.parent.show_error(_("Your contact list is empty."))
+            return
+        try:
+            fileName = self.parent.getSaveFileName(_("Select file to save your contacts"), 'electron-cash_contacts.json', "*.json")
+            if fileName:
+                num = self.parent.contacts.export_file(fileName)
+                self.parent.show_message(_("{} contacts exported to '{}'").format(num, fileName))
+        except BaseException as e:
+            self.parent.show_error(_("Electron Cash was unable to export your contacts.") + "\n" + repr(e))
 
     def create_menu(self, position):
         menu = QMenu()
@@ -68,6 +81,8 @@ class ContactList(MyTreeWidget):
         if not selected:
             menu.addAction(_("New contact"), lambda: self.parent.new_contact_dialog())
             menu.addAction(_("Import file"), lambda: self.import_contacts())
+            if len(self.parent.contacts):
+                menu.addAction(_("Export file"), lambda: self.export_contacts())
         else:
             names = [item.text(0) for item in selected]
             keys = [item.text(1) for item in selected]
@@ -82,8 +97,8 @@ class ContactList(MyTreeWidget):
             menu.addAction(_("Delete"), lambda: self.parent.delete_contacts(keys))
             URLs = [web.BE_URL(self.config, 'addr', Address.from_string(key))
                     for key in keys if Address.is_valid(key)]
-            if URLs:
-                menu.addAction(_("View on block explorer"), lambda: [webbrowser.open(URL) for URL in URLs])
+            if any(URLs):
+                menu.addAction(_("View on block explorer"), lambda: [URL and webbrowser.open(URL) for URL in URLs])
 
         run_hook('create_contact_menu', menu, selected)
         menu.exec_(self.viewport().mapToGlobal(position))

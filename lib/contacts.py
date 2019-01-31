@@ -29,7 +29,6 @@ import sys
 
 from .address import Address
 from . import dnssec
-from .util import FileImportFailed, FileImportFailedEncrypted
 from .util import print_error
 
 
@@ -53,17 +52,23 @@ class Contacts(dict):
         self.storage.put('contacts', dict(self))
 
     def import_file(self, path):
+        count = 0
         try:
             with open(path, 'r') as f:
                 d = self._validate(json.loads(f.read()))
-        except json.decoder.JSONDecodeError:
+                count = len(d)
+        except:
             traceback.print_exc(file=sys.stderr)
-            raise FileImportFailedEncrypted()
-        except BaseException:
-            traceback.print_exc(file=sys.stdout)
-            raise FileImportFailed()
+            raise
         self.update(d)
         self.save()
+        return count
+
+    def export_file(self, path):
+        ''' Save contacts as JSON to a file. May raise OSError. '''
+        with open(path, 'w+') as f:
+            json.dump(self, f, indent=4, sort_keys=True)
+        return len(self)
 
     def __setitem__(self, key, value):
         dict.__setitem__(self, key, value)

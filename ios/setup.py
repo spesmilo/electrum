@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import io
 import re
 from setuptools import setup, find_packages
