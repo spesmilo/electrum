@@ -20,7 +20,7 @@ folder.
 2. Build image
 
     ```
-    $ sudo docker build --no-cache -t electrum-wine-builder-img contrib/build-wine/docker
+    $ sudo docker build -t electrum-wine-builder-img contrib/build-wine/docker
     ```
 
     Note: see [this](https://stackoverflow.com/a/40516974/7499128) if having dns problems
