@@ -788,7 +788,7 @@ class SendTabExtraDisabled(QFrame, PrintError):
         self.setup()
 
     def setup(self):
-        self.setFrameStyle(QFrame.Panel|QFrame.Sunken)
+        self.setFrameStyle(QFrame.StyledPanel|QFrame.Sunken)
         l = QGridLayout(self)
         l.setVerticalSpacing(6)
         l.setHorizontalSpacing(30)
@@ -834,7 +834,7 @@ class SendTabExtra(QFrame, PrintError):
         self.setup()
 
     def setup(self):
-        self.setFrameStyle(QFrame.Panel|QFrame.Sunken)
+        self.setFrameStyle(QFrame.StyledPanel|QFrame.Sunken)
         l = QGridLayout(self)
         l.setVerticalSpacing(6)
         l.setHorizontalSpacing(30)
