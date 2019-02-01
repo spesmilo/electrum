@@ -444,7 +444,7 @@ class LNWorker(PrintError):
         coro = self._open_channel_coroutine(peer, local_amt_sat, push_amt_sat, password)
         f = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         chan = f.result(timeout)
-        return bh2u(chan.node_id)
+        return chan.funding_outpoint.to_str()
 
     def pay(self, invoice, amount_sat=None):
         """
@@ -798,7 +798,11 @@ class LNWorker(PrintError):
                 addr = addr[1:-1]
             async def cb(reader, writer):
                 t = LNResponderTransport(self.node_keypair.privkey, reader, writer)
-                node_id = await t.handshake()
+                try:
+                    node_id = await t.handshake()
+                except:
+                    self.print_error('handshake failure from incoming connection')
+                    return
                 # FIXME extract host and port from transport
                 peer = Peer(self, LNPeerAddr("bogus", 1337, node_id),
                             request_initial_sync=self.config.get("request_initial_sync", True),

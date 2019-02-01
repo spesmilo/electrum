@@ -49,6 +49,7 @@ from . import keystore
 from .wallet import Wallet, Imported_Wallet, Abstract_Wallet
 from .mnemonic import Mnemonic
 from .lnutil import SENT, RECEIVED
+from .lnbase import channel_id_from_funding_tx
 
 if TYPE_CHECKING:
     from .network import Network
@@ -791,12 +792,13 @@ class Commands:
         # using requested_amount because it is documented in param_descriptions
         return self.lnworker.add_invoice(satoshis(requested_amount), message)
 
-    @command('wn')
+    @command('w')
     def nodeid(self):
-        return bh2u(self.lnworker.node_keypair.pubkey)
+        listen_addr = self.config.get('lightning_listen')
+        return bh2u(self.lnworker.node_keypair.pubkey) + (('@' + listen_addr) if listen_addr else '')
 
     @command('w')
-    def listchannels(self):
+    def list_channels(self):
         return list(self.lnworker.list_channels())
 
     @command('wn')
@@ -835,8 +837,9 @@ class Commands:
         return self.lnworker.get_history()
 
     @command('wn')
-    def closechannel(self, channel_point, force=False):
-        chan_id = bytes(reversed(bfh(channel_point)))
+    def close_channel(self, channel_point, force=False):
+        txid, index = channel_point.split(':')
+        chan_id, _ = channel_id_from_funding_tx(txid, int(index))
         coro = self.lnworker.force_close_channel(chan_id) if force else self.lnworker.close_channel(chan_id)
         return self.network.run_from_another_thread(coro)
 
