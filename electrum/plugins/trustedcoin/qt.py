@@ -90,7 +90,7 @@ class Plugin(TrustedCoinPlugin):
             action = lambda: window.show_message(msg)
         else:
             action = partial(self.settings_dialog, window)
-        button = StatusBarButton(QIcon(":icons/trustedcoin-status.png"),
+        button = StatusBarButton(read_QIcon("trustedcoin-status.png"),
                                  _("TrustedCoin"), action)
         window.statusBar().addPermanentWidget(button)
         self.start_request_thread(window.wallet)
@@ -152,7 +152,7 @@ class Plugin(TrustedCoinPlugin):
         hbox = QHBoxLayout()
 
         logo = QLabel()
-        logo.setPixmap(QPixmap(":icons/trustedcoin-status.png"))
+        logo.setPixmap(QPixmap(icon_path("trustedcoin-status.png")))
         msg = _('This wallet is protected by TrustedCoin\'s two-factor authentication.') + '<br/>'\
               + _("For more information, visit") + " <a href=\"https://api.trustedcoin.com/#/electrum-help\">https://api.trustedcoin.com/#/electrum-help</a>"
         label = QLabel(msg)

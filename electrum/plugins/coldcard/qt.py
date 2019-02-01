@@ -11,8 +11,8 @@ from ..hw_wallet.plugin import only_hook_if_libraries_available
 
 
 class Plugin(ColdcardPlugin, QtPluginBase):
-    icon_unpaired = ":icons/coldcard_unpaired.png"
-    icon_paired = ":icons/coldcard.png"
+    icon_unpaired = "coldcard_unpaired.png"
+    icon_paired = "coldcard.png"
 
     def create_handler(self, window):
         return Coldcard_Handler(window)

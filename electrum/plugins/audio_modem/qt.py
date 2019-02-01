@@ -6,7 +6,7 @@ import sys
 import platform
 
 from electrum.plugin import BasePlugin, hook
-from electrum.gui.qt.util import WaitingDialog, EnterButton, WindowModalDialog
+from electrum.gui.qt.util import WaitingDialog, EnterButton, WindowModalDialog, read_QIcon
 from electrum.util import print_msg, print_error
 from electrum.i18n import _
 
@@ -71,7 +71,7 @@ class Plugin(BasePlugin):
     @hook
     def transaction_dialog(self, dialog):
         b = QPushButton()
-        b.setIcon(QIcon(":icons/speaker.png"))
+        b.setIcon(read_QIcon("speaker.png"))
 
         def handler():
             blob = json.dumps(dialog.tx.as_dict())
@@ -81,7 +81,7 @@ class Plugin(BasePlugin):
 
     @hook
     def scan_text_edit(self, parent):
-        parent.addButton(':icons/microphone.png', partial(self._recv, parent),
+        parent.addButton('microphone.png', partial(self._recv, parent),
                          _("Read from microphone"))
 
     @hook
@@ -89,7 +89,7 @@ class Plugin(BasePlugin):
         def handler():
             blob = str(parent.toPlainText())
             self._send(parent=parent, blob=blob)
-        parent.addButton(':icons/speaker.png', handler, _("Send to speaker"))
+        parent.addButton('speaker.png', handler, _("Send to speaker"))
 
     def _audio_interface(self):
         interface = amodem.audio.Interface(config=self.modem_config)

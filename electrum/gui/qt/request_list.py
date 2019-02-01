@@ -33,7 +33,7 @@ from electrum.plugin import run_hook
 from electrum.paymentrequest import PR_UNKNOWN
 from electrum.wallet import InternalAddressCorruption
 
-from .util import MyTreeView, pr_tooltips, pr_icons
+from .util import MyTreeView, pr_tooltips, pr_icons, read_QIcon
 
 class RequestList(MyTreeView):
     filter_columns = [0, 1, 2, 3, 4]  # Date, Account, Address, Description, Amount
@@ -108,10 +108,10 @@ class RequestList(MyTreeView):
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
             if signature is not None:
-                items[2].setIcon(self.icon_cache.get(":icons/seal.png"))
+                items[2].setIcon(read_QIcon("seal.png"))
                 items[2].setToolTip('signed by '+ requestor)
             if status is not PR_UNKNOWN:
-                items[5].setIcon(self.icon_cache.get(pr_icons.get(status)))
+                items[5].setIcon(read_QIcon(pr_icons.get(status)))
             items[3].setData(address, Qt.UserRole)
             self.model().insertRow(self.model().rowCount(), items)
 

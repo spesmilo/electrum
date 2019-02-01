@@ -66,14 +66,6 @@ Run install (this should install dependencies)::
 
     python3 -m pip install .[fast]
 
-Render the SVG icons to PNGs (optional)::
-
-    for i in lock unlock confirmed status_lagging status_disconnected status_connected_proxy status_connected status_waiting preferences; do convert -background none icons/$i.svg icons/$i.png; done
-
-Compile the icons file for Qt::
-
-    sudo apt-get install pyqt5-dev-tools
-    pyrcc5 icons.qrc -o electrum/gui/qt/icons_rc.py
 
 Compile the protobuf description file::
 
