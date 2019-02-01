@@ -1181,7 +1181,6 @@ class Network(Logger):
     def stop(self):
         assert self._loop_thread != threading.current_thread(), 'must not be called from network thread'
         fut = asyncio.run_coroutine_threadsafe(self._stop(full_shutdown=True), self.asyncio_loop)
-        self.channel_db.save_data()
         try:
             fut.result(timeout=2)
         except (asyncio.TimeoutError, asyncio.CancelledError): pass

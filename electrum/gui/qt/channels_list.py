@@ -105,25 +105,21 @@ class ChannelsList(MyTreeView):
 
     def update_status(self):
         channel_db = self.parent.network.channel_db
-        num_nodes = len(channel_db.nodes)
-        num_channels = len(channel_db)
         num_peers = len(self.parent.wallet.lnworker.peers)
-        msg = _('{} peers, {} nodes, {} channels.').format(num_peers, num_nodes, num_channels)
+        msg = _('{} peers, {} nodes, {} channels.').format(num_peers, channel_db.num_nodes, channel_db.num_channels)
         self.status.setText(msg)
 
     def statistics_dialog(self):
         channel_db = self.parent.network.channel_db
-        num_nodes = len(channel_db.nodes)
-        num_channels = len(channel_db)
         capacity = self.parent.format_amount(channel_db.capacity()) + ' '+ self.parent.base_unit()
         d = WindowModalDialog(self.parent, _('Lightning Network Statistics'))
         d.setMinimumWidth(400)
         vbox = QVBoxLayout(d)
         h = QGridLayout()
         h.addWidget(QLabel(_('Nodes') + ':'), 0, 0)
-        h.addWidget(QLabel('{}'.format(num_nodes)), 0, 1)
+        h.addWidget(QLabel('{}'.format(channel_db.num_nodes)), 0, 1)
         h.addWidget(QLabel(_('Channels') + ':'), 1, 0)
-        h.addWidget(QLabel('{}'.format(num_channels)), 1, 1)
+        h.addWidget(QLabel('{}'.format(channel_db.num_channels)), 1, 1)
         h.addWidget(QLabel(_('Capacity') + ':'), 2, 0)
         h.addWidget(QLabel(capacity), 2, 1)
         vbox.addLayout(h)

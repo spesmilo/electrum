@@ -38,7 +38,7 @@ from .verifier import verify_tx_is_in_block, MerkleVerificationFailure
 from .transaction import Transaction
 from .interface import GracefulDisconnect
 from .crypto import sha256d
-from .lnmsg import encode_msg
+from .lnmsg import decode_msg, encode_msg
 
 if TYPE_CHECKING:
     from .network import Network
@@ -56,7 +56,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
         NetworkJobOnDefaultServer.__init__(self, network)
         self.channel_db = channel_db
         self.lock = threading.Lock()
-        self.unverified_channel_info = {}  # short_channel_id -> channel_info
+        self.unverified_channel_info = {}  # short_channel_id -> msg_payload
         # channel announcements that seem to be invalid:
         self.blacklist = set()  # short_channel_id
 
@@ -65,19 +65,16 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
         self.started_verifying_channel = set()  # short_channel_id
 
     # TODO make async; and rm self.lock completely
-    def add_new_channel_info(self, channel_info):
-        short_channel_id = channel_info.channel_id
+    def add_new_channel_info(self, short_channel_id_hex, msg_payload):
+        short_channel_id = bfh(short_channel_id_hex)
         if short_channel_id in self.unverified_channel_info:
             return
         if short_channel_id in self.blacklist:
             return
-        if not verify_sigs_for_channel_announcement(channel_info.msg_payload):
+        if not verify_sigs_for_channel_announcement(msg_payload):
             return
         with self.lock:
-            self.unverified_channel_info[short_channel_id] = channel_info
-
-    def get_pending_channel_info(self, short_channel_id):
-        return self.unverified_channel_info.get(short_channel_id, None)
+            self.unverified_channel_info[short_channel_id] = msg_payload
 
     async def _start_tasks(self):
         async with self.group as group:
@@ -151,8 +148,9 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             self.print_error(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
             return
         # check funding output
-        channel_info = self.unverified_channel_info[short_channel_id]
-        chan_ann = channel_info.msg_payload
+        msg_payload = self.unverified_channel_info[short_channel_id]
+        msg_type, chan_ann = decode_msg(msg_payload)
+        assert msg_type == 'channel_announcement'
         redeem_script = funding_output_script_from_keys(chan_ann['bitcoin_key_1'], chan_ann['bitcoin_key_2'])
         expected_address = bitcoin.redeem_script_to_address('p2wsh', redeem_script)
         output_idx = invert_short_channel_id(short_channel_id)[2]
@@ -167,8 +165,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             self._remove_channel_from_unverified_db(short_channel_id)
             return
         # put channel into channel DB
-        channel_info.set_capacity(actual_output.value)
-        self.channel_db.add_verified_channel_info(short_channel_id, channel_info)
+        self.channel_db.add_verified_channel_info(short_channel_id, actual_output.value)
         self._remove_channel_from_unverified_db(short_channel_id)
 
     def _remove_channel_from_unverified_db(self, short_channel_id: bytes):
@@ -183,8 +180,9 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
             self.unverified_channel_info.pop(short_channel_id, None)
 
 
-def verify_sigs_for_channel_announcement(chan_ann: dict) -> bool:
-    msg_bytes = encode_msg('channel_announcement', **chan_ann)
+def verify_sigs_for_channel_announcement(msg_bytes: bytes) -> bool:
+    msg_type, chan_ann = decode_msg(msg_bytes)
+    assert msg_type == 'channel_announcement'
     pre_hash = msg_bytes[2+256:]
     h = sha256d(pre_hash)
     pubkeys = [chan_ann['node_id_1'], chan_ann['node_id_2'], chan_ann['bitcoin_key_1'], chan_ann['bitcoin_key_2']]

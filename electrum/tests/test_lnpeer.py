@@ -226,7 +226,7 @@ class TestPeer(unittest.TestCase):
         fut = self.prepare_ln_message_future(w2)
 
         async def pay():
-            addr, peer, coro = LNWorker._pay(w1, pay_req)
+            addr, peer, coro = await LNWorker._pay(w1, pay_req, same_thread=True)
             await coro
             print("HTLC ADDED")
             self.assertEqual(await fut, 'Payment received')
@@ -240,14 +240,14 @@ class TestPeer(unittest.TestCase):
         pay_req = self.prepare_invoice(w2)
 
         addr = w1._check_invoice(pay_req)
-        route = w1._create_route_from_invoice(decoded_invoice=addr)
+        route = run(w1._create_route_from_invoice(decoded_invoice=addr))
 
         run(w1.force_close_channel(self.alice_channel.channel_id))
         # check if a tx (commitment transaction) was broadcasted:
         assert q1.qsize() == 1
 
         with self.assertRaises(PaymentFailure) as e:
-            w1._create_route_from_invoice(decoded_invoice=addr)
+            run(w1._create_route_from_invoice(decoded_invoice=addr))
         self.assertEqual(str(e.exception), 'No path found')
 
         peer = w1.peers[route[0].node_id]
@@ -257,4 +257,4 @@ class TestPeer(unittest.TestCase):
             run(asyncio.gather(w1._pay_to_route(route, addr, pay_req), p1._main_loop(), p2._main_loop()))
 
 def run(coro):
-    asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.get_event_loop().run_until_complete(coro)

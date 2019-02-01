@@ -56,7 +56,8 @@ GRAPH_DOWNLOAD_SECONDS = 600
 
 FALLBACK_NODE_LIST_TESTNET = (
     LNPeerAddr('ecdsa.net', 9735, bfh('038370f0e7a03eded3e1d41dc081084a87f0afa1c5b22090b4f3abb391eb15d8ff')),
-    LNPeerAddr('180.181.208.42', 9735, bfh('038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9')),
+    LNPeerAddr('148.251.87.112', 9735, bfh('021a8bd8d8f1f2e208992a2eb755cdc74d44e66b6a0c924d3a3cce949123b9ce40')), # janus test server
+    LNPeerAddr('122.199.61.90', 9735, bfh('038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9')), # popular node https://1ml.com/testnet/node/038863cf8ab91046230f561cd5b386cbff8309fa02e3f0c3ed161a3aeb64a643b9
 )
 FALLBACK_NODE_LIST_MAINNET = (
     LNPeerAddr('104.198.32.198', 9735, bfh('02f6725f9c1c40333b67faea92fd211c183050f28df32cac3f9d69685fe9665432')), # Blockstream
@@ -420,26 +421,33 @@ class LNWorker(PrintError):
 
     @staticmethod
     def choose_preferred_address(addr_list: List[Tuple[str, int]]) -> Tuple[str, int]:
+        assert len(addr_list) >= 1
         # choose first one that is an IP
-        for host, port in addr_list:
+        for addr_in_db in addr_list:
+            host = addr_in_db.host
+            port = addr_in_db.port
             if is_ip_address(host):
                 return host, port
         # otherwise choose one at random
         # TODO maybe filter out onion if not on tor?
-        return random.choice(addr_list)
+        choice = random.choice(addr_list)
+        return choice.host, choice.port
 
     def open_channel(self, connect_contents, local_amt_sat, push_amt_sat, password=None, timeout=5):
         node_id, rest = extract_nodeid(connect_contents)
         peer = self.peers.get(node_id)
         if not peer:
-            all_nodes = self.network.channel_db.nodes
-            node_info = all_nodes.get(node_id, None)
+            nodes_get = self.network.channel_db.nodes_get
+            node_info = nodes_get(node_id)
             if rest is not None:
                 host, port = split_host_port(rest)
-            elif node_info and len(node_info.addresses) > 0:
-                host, port = self.choose_preferred_address(node_info.addresses)
             else:
-                raise ConnStringFormatError(_('Unknown node:') + ' ' + bh2u(node_id))
+                if not node_info:
+                    raise ConnStringFormatError(_('Unknown node:') + ' ' + bh2u(node_id))
+                addrs = node_info.get_addresses()
+                if len(addrs) == 0:
+                    raise ConnStringFormatError(_('Don\'t know any addresses for node:') + ' ' + bh2u(node_id))
+                host, port = self.choose_preferred_address(addrs)
             try:
                 socket.getaddrinfo(host, int(port))
             except socket.gaierror:
@@ -457,7 +465,7 @@ class LNWorker(PrintError):
         This is not merged with _pay so that we can run the test with
         one thread only.
         """
-        addr, peer, coro = self._pay(invoice, amount_sat)
+        addr, peer, coro = self.network.run_from_another_thread(self._pay(invoice, amount_sat))
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         return addr, peer, fut
 
@@ -467,9 +475,9 @@ class LNWorker(PrintError):
                 if chan.short_channel_id == short_channel_id:
                     return chan
 
-    def _pay(self, invoice, amount_sat=None):
+    async def _pay(self, invoice, amount_sat=None, same_thread=False):
         addr = self._check_invoice(invoice, amount_sat)
-        route = self._create_route_from_invoice(decoded_invoice=addr)
+        route = await self._create_route_from_invoice(decoded_invoice=addr)
         peer = self.peers[route[0].node_id]
         if not self.get_channel_by_short_id(route[0].short_channel_id):
             assert False, 'Found route with short channel ID we don\'t have: ' + repr(route[0].short_channel_id)
@@ -498,7 +506,7 @@ class LNWorker(PrintError):
                 f"min_final_cltv_expiry: {addr.get_min_final_cltv_expiry()}"))
         return addr
 
-    def _create_route_from_invoice(self, decoded_invoice) -> List[RouteEdge]:
+    async def _create_route_from_invoice(self, decoded_invoice) -> List[RouteEdge]:
         amount_msat = int(decoded_invoice.amount * COIN * 1000)
         invoice_pubkey = decoded_invoice.pubkey.serialize()
         # use 'r' field from invoice
@@ -699,20 +707,14 @@ class LNWorker(PrintError):
             if peer in self._last_tried_peer: continue
             return [peer]
         # try random peer from graph
-        all_nodes = self.channel_db.nodes
-        if all_nodes:
-            #self.print_error('trying to get ln peers from channel db')
-            node_ids = list(all_nodes)
-            max_tries = min(200, len(all_nodes))
-            for i in range(max_tries):
-                node_id = random.choice(node_ids)
-                node = all_nodes.get(node_id)
-                if node is None: continue
-                addresses = node.addresses
-                if not addresses: continue
-                host, port = self.choose_preferred_address(addresses)
-                peer = LNPeerAddr(host, port, node_id)
-                if peer.pubkey in self.peers: continue
+        unconnected_nodes = self.channel_db.get_200_randomly_sorted_nodes_not_in(self.peers.keys())
+        if unconnected_nodes:
+            for node in unconnected_nodes:
+                addrs = node.get_addresses()
+                if not addrs:
+                    continue
+                host, port = self.choose_preferred_address(addrs)
+                peer = LNPeerAddr(host, port, bytes.fromhex(node.node_id))
                 if peer in self._last_tried_peer: continue
                 self.print_error('taking random ln peer from our channel db')
                 return [peer]
@@ -772,11 +774,12 @@ class LNWorker(PrintError):
                     await self.add_peer(peer.host, peer.port, peer.pubkey)
                     return
             # try random address for node_id
-            node_info = self.channel_db.nodes.get(chan.node_id, None)
+            node_info = await self.channel_db._nodes_get(chan.node_id)
             if not node_info: return
-            addresses = node_info.addresses
+            addresses = node_info.get_addresses()
             if not addresses: return
-            host, port = random.choice(addresses)
+            adr_obj = random.choice(addresses)
+            host, port = adr_obj.host, adr_obj.port
             peer = LNPeerAddr(host, port, chan.node_id)
             last_tried = self._last_tried_peer.get(peer, 0)
             if last_tried + PEER_RETRY_INTERVAL_FOR_CHANNELS < now:

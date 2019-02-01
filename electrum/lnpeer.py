@@ -55,6 +55,10 @@ class Peer(PrintError):
     def __init__(self, lnworker: 'LNWorker', pubkey:bytes, transport: LNTransportBase,
                  request_initial_sync=False):
         self.initialized = asyncio.Event()
+        self.node_anns = []
+        self.chan_anns = []
+        self.chan_upds = []
+        self.last_chan_db_upd = time.time()
         self.transport = transport
         self.pubkey = pubkey
         self.lnworker = lnworker
@@ -152,10 +156,6 @@ class Peer(PrintError):
         if channel_id not in self.funding_created: raise Exception("Got unknown funding_created")
         self.funding_created[channel_id].put_nowait(payload)
 
-    def on_node_announcement(self, payload):
-        self.channel_db.on_node_announcement(payload)
-        self.network.trigger_callback('ln_status')
-
     def on_init(self, payload):
         if self.initialized.is_set():
             self.print_error("ALREADY INITIALIZED BUT RECEIVED INIT")
@@ -175,20 +175,14 @@ class Peer(PrintError):
         self.send_message('gossip_timestamp_filter', chain_hash=constants.net.rev_genesis_bytes(), first_timestamp=first_timestamp, timestamp_range=b"\xff"*4)
         self.initialized.set()
 
+    def on_node_announcement(self, payload):
+        self.node_anns.append(payload)
+
     def on_channel_update(self, payload):
-        try:
-            self.channel_db.on_channel_update(payload)
-        except NotFoundChanAnnouncementForUpdate:
-            # If it's for a direct channel with this peer, save it for later, as it might be
-            # for our own channel (and we might not yet know the short channel id for that)
-            short_channel_id = payload['short_channel_id']
-            self.print_error("not found channel announce for channel update in db", bh2u(short_channel_id))
-            self.orphan_channel_updates[short_channel_id] = payload
-            while len(self.orphan_channel_updates) > 10:
-                self.orphan_channel_updates.popitem(last=False)
+        self.chan_upds.append(payload)
 
     def on_channel_announcement(self, payload):
-        self.channel_db.on_channel_announcement(payload)
+        self.chan_anns.append(payload)
 
     def on_announcement_signatures(self, payload):
         channel_id = payload['channel_id']
@@ -230,6 +224,15 @@ class Peer(PrintError):
         # loop
         async for msg in self.transport.read_messages():
             self.process_message(msg)
+            await asyncio.sleep(.01)
+            if time.time() - self.last_chan_db_upd > 5:
+                self.last_chan_db_upd = time.time()
+                self.channel_db.on_node_announcement(self.node_anns)
+                self.node_anns = []
+                self.channel_db.on_channel_announcement(self.chan_anns)
+                self.chan_anns = []
+                self.channel_db.on_channel_update(self.chan_upds)
+                self.chan_upds = []
             self.ping_if_required()
 
     def close_and_cleanup(self):
