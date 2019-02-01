@@ -1176,7 +1176,7 @@ class Peer(PrintError):
         self.shutdown_received[chan_id] = asyncio.Future()
         self.send_shutdown(chan)
         payload = await self.shutdown_received[chan_id]
-        txid = await self._shutdown(chan, payload)
+        txid = await self._shutdown(chan, payload, True)
         self.print_error('Channel closed', txid)
         return txid
 
@@ -1191,7 +1191,7 @@ class Peer(PrintError):
         else:
             chan = self.channels[chan_id]
             self.send_shutdown(chan)
-            txid = await self._shutdown(chan, payload)
+            txid = await self._shutdown(chan, payload, False)
             self.print_error('Channel closed by remote peer', txid)
 
     def send_shutdown(self, chan: Channel):
@@ -1199,7 +1199,7 @@ class Peer(PrintError):
         self.send_message('shutdown', channel_id=chan.channel_id, len=len(scriptpubkey), scriptpubkey=scriptpubkey)
 
     @log_exceptions
-    async def _shutdown(self, chan: Channel, payload):
+    async def _shutdown(self, chan: Channel, payload, is_local):
         # set state so that we stop accepting HTLCs
         chan.set_state('CLOSING')
         while len(chan.hm.htlcs_by_direction(LOCAL, RECEIVED)) > 0:
@@ -1218,10 +1218,12 @@ class Peer(PrintError):
                 break
             # TODO: negociate better
             our_fee = their_fee
-        # add their signature
-        i = chan.get_local_index()
-        closing_tx.add_signature_to_txin(0, i, bh2u(der_sig_from_sig_string(our_sig) + b'\x01'))
-        closing_tx.add_signature_to_txin(0, 1-i, bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
+        # index of our_sig
+        i = bool(chan.get_local_index())
+        if not is_local: i = not i
+        # add signatures
+        closing_tx.add_signature_to_txin(0, int(i), bh2u(der_sig_from_sig_string(our_sig) + b'\x01'))
+        closing_tx.add_signature_to_txin(0, int(not i), bh2u(der_sig_from_sig_string(their_sig) + b'\x01'))
         # broadcast
         await self.network.broadcast_transaction(closing_tx)
         return closing_tx.txid()
