@@ -197,15 +197,14 @@ def gen_msg(msg_type: str, **kwargs) -> bytes:
 
 class Peer(PrintError):
 
-    def __init__(self, lnworker: 'LNWorker', peer_addr: LNPeerAddr, responding=False,
-                 request_initial_sync=False, transport: LNTransportBase=None):
-        self.responding = responding
+    def __init__(self, lnworker: 'LNWorker', pubkey:bytes, transport: LNTransportBase,
+                 request_initial_sync=False):
         self.initialized = asyncio.Event()
         self.transport = transport
-        self.peer_addr = peer_addr
+        self.pubkey = pubkey
         self.lnworker = lnworker
         self.privkey = lnworker.node_keypair.privkey
-        self.node_ids = [peer_addr.pubkey, privkey_to_pubkey(self.privkey)]
+        self.node_ids = [self.pubkey, privkey_to_pubkey(self.privkey)]
         self.network = lnworker.network
         self.lnwatcher = lnworker.network.lnwatcher
         self.channel_db = lnworker.network.channel_db
@@ -233,19 +232,14 @@ class Peer(PrintError):
         self.transport.send_bytes(gen_msg(message_name, **kwargs))
 
     async def initialize(self):
-        if not self.transport:
-            reader, writer = await asyncio.open_connection(self.peer_addr.host, self.peer_addr.port)
-            transport = LNTransport(self.privkey, self.peer_addr.pubkey, reader, writer)
-            await transport.handshake()
-            self.transport = transport
         self.send_message("init", gflen=0, lflen=1, localfeatures=self.localfeatures)
 
     @property
     def channels(self) -> Dict[bytes, Channel]:
-        return self.lnworker.channels_for_peer(self.peer_addr.pubkey)
+        return self.lnworker.channels_for_peer(self.pubkey)
 
     def diagnostic_name(self):
-        return str(self.peer_addr.host) + ':' + str(self.peer_addr.port)
+        return self.transport.name()
 
     def ping_if_required(self):
         if time.time() - self.ping_time > 120:
@@ -352,7 +346,7 @@ class Peer(PrintError):
                 self.print_error("disconnecting gracefully. {}".format(e))
             finally:
                 self.close_and_cleanup()
-                self.lnworker.peers.pop(self.peer_addr.pubkey)
+                self.lnworker.peers.pop(self.pubkey)
         return wrapper_func
 
     @ignore_exceptions  # do not kill main_taskgroup
@@ -373,8 +367,6 @@ class Peer(PrintError):
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
             self.print_error('initialize failed, disconnecting: {}'.format(repr(e)))
             return
-        if not self.responding:
-            self.channel_db.add_recent_peer(self.peer_addr)
         # loop
         async for msg in self.transport.read_messages():
             self.process_message(msg)
@@ -513,7 +505,7 @@ class Peer(PrintError):
         # remote commitment transaction
         channel_id, funding_txid_bytes = channel_id_from_funding_tx(funding_txid, funding_index)
         chan_dict = {
-                "node_id": self.peer_addr.pubkey,
+                "node_id": self.pubkey,
                 "channel_id": channel_id,
                 "short_channel_id": None,
                 "funding_outpoint": Outpoint(funding_txid, funding_index),
@@ -587,7 +579,7 @@ class Peer(PrintError):
         remote_dust_limit_sat = int.from_bytes(payload['dust_limit_satoshis'], byteorder='big') # TODO validate
         remote_reserve_sat = self.validate_remote_reserve(payload['channel_reserve_satoshis'], remote_dust_limit_sat, funding_sat)
         chan_dict = {
-                "node_id": self.peer_addr.pubkey,
+                "node_id": self.pubkey,
                 "channel_id": channel_id,
                 "short_channel_id": None,
                 "funding_outpoint": Outpoint(funding_txid, funding_idx),
@@ -794,7 +786,7 @@ class Peer(PrintError):
         remote_bitcoin_sig = announcement_signatures_msg["bitcoin_signature"]
         if not ecc.verify_signature(chan.config[REMOTE].multisig_key.pubkey, remote_bitcoin_sig, h):
             raise Exception("bitcoin_sig invalid in announcement_signatures")
-        if not ecc.verify_signature(self.peer_addr.pubkey, remote_node_sig, h):
+        if not ecc.verify_signature(self.pubkey, remote_node_sig, h):
             raise Exception("node_sig invalid in announcement_signatures")
 
         node_sigs = [remote_node_sig, local_node_sig]
