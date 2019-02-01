@@ -249,7 +249,10 @@ class LNWorker(PrintError):
         port = int(port)
         peer_addr = LNPeerAddr(host, port, node_id)
         transport = LNTransport(self.node_keypair.privkey, peer_addr)
-        await transport.handshake()
+        try:
+            await transport.handshake()
+        except:
+            return
         self.channel_db.add_recent_peer(peer_addr)
         self._last_tried_peer[peer_addr] = time.time()
         self.print_error("adding peer", peer_addr)
