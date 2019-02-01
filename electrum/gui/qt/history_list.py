@@ -23,7 +23,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys
 import webbrowser
 import datetime
 from datetime import date
@@ -124,7 +123,6 @@ class HistoryModel(QAbstractItemModel, PrintError):
         if is_lightning:
             status = 0
             if timestamp is None:
-                timestamp = sys.maxsize
                 status_str = 'unconfirmed'
             else:
                 status_str = format_time(int(timestamp))
@@ -138,9 +136,10 @@ class HistoryModel(QAbstractItemModel, PrintError):
             except KeyError:
                 tx_mined_info = self.tx_mined_info_from_tx_item(tx_item)
                 status, status_str = self.parent.wallet.get_tx_status(tx_hash, tx_mined_info)
-            # we sort by timestamp
-            if conf<=0:
-                timestamp = sys.maxsize
+
+        # we sort by timestamp
+        if timestamp is None:
+            timestamp = float("inf")
 
         if role == Qt.UserRole:
             # for sorting
