@@ -197,8 +197,9 @@ def gen_msg(msg_type: str, **kwargs) -> bytes:
 
 class Peer(PrintError):
 
-    def __init__(self, lnworker: 'LNWorker', peer_addr: LNPeerAddr,
+    def __init__(self, lnworker: 'LNWorker', peer_addr: LNPeerAddr, responding=False,
                  request_initial_sync=False, transport: LNTransportBase=None):
+        self.responding = responding
         self.initialized = asyncio.Event()
         self.transport = transport
         self.peer_addr = peer_addr
@@ -372,7 +373,8 @@ class Peer(PrintError):
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
             self.print_error('initialize failed, disconnecting: {}'.format(repr(e)))
             return
-        self.channel_db.add_recent_peer(self.peer_addr)
+        if not self.responding:
+            self.channel_db.add_recent_peer(self.peer_addr)
         # loop
         async for msg in self.transport.read_messages():
             self.process_message(msg)
