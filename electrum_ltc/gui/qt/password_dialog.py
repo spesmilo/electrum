@@ -103,10 +103,11 @@ class PasswordLayout(object):
             if wallet and wallet.has_password():
                 grid.addWidget(QLabel(_('Current Password:')), 0, 0)
                 grid.addWidget(self.pw, 0, 1)
-                lockfile = ":icons/lock.png"
+                lockfile = "lock.png"
             else:
-                lockfile = ":icons/unlock.png"
-            logo.setPixmap(QPixmap(lockfile).scaledToWidth(36, mode=Qt.SmoothTransformation))
+                lockfile = "unlock.png"
+            logo.setPixmap(QPixmap(icon_path(lockfile))
+                           .scaledToWidth(36, mode=Qt.SmoothTransformation))
 
         grid.addWidget(QLabel(msgs[0]), 1, 0)
         grid.addWidget(self.new_pw, 1, 1)
@@ -195,10 +196,11 @@ class PasswordLayoutForHW(object):
         vbox.addLayout(logo_grid)
 
         if wallet and wallet.has_storage_encryption():
-            lockfile = ":icons/lock.png"
+            lockfile = "lock.png"
         else:
-            lockfile = ":icons/unlock.png"
-        logo.setPixmap(QPixmap(lockfile).scaledToWidth(36, mode=Qt.SmoothTransformation))
+            lockfile = "unlock.png"
+        logo.setPixmap(QPixmap(icon_path(lockfile))
+                       .scaledToWidth(36, mode=Qt.SmoothTransformation))
 
         vbox.addLayout(grid)
 

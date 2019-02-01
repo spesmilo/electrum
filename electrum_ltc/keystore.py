@@ -26,6 +26,7 @@
 
 from unicodedata import normalize
 import hashlib
+import binascii
 
 from . import bitcoin, ecc, constants, bip32
 from .bitcoin import (deserialize_privkey, serialize_privkey,
@@ -35,9 +36,9 @@ from .bip32 import (bip32_public_derivation, deserialize_xpub, CKD_pub,
                     bip32_private_key, bip32_derivation, BIP32_PRIME,
                     is_xpub, is_xprv)
 from .ecc import string_to_number, number_to_string
-from .crypto import (pw_decode, pw_encode, sha256d, PW_HASH_VERSION_LATEST,
+from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion)
-from .util import (PrintError, InvalidPassword, hfu, WalletFileException,
+from .util import (PrintError, InvalidPassword, WalletFileException,
                    BitcoinException, bh2u, bfh, print_error, inv_dict)
 from .mnemonic import Mnemonic, load_wordlist
 from .plugin import run_hook
@@ -625,7 +626,7 @@ def bip39_is_checksum_valid(mnemonic):
     while len(h) < entropy_length/4:
         h = '0'+h
     b = bytearray.fromhex(h)
-    hashed = int(hfu(hashlib.sha256(b).digest()), 16)
+    hashed = int(binascii.hexlify(sha256(b)), 16)
     calculated_checksum = hashed >> (256 - checksum_length)
     return checksum == calculated_checksum, True
 

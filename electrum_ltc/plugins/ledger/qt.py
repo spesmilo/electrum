@@ -11,8 +11,8 @@ from ..hw_wallet.plugin import only_hook_if_libraries_available
 
 
 class Plugin(LedgerPlugin, QtPluginBase):
-    icon_unpaired = ":icons/ledger_unpaired.png"
-    icon_paired = ":icons/ledger.png"
+    icon_unpaired = "ledger_unpaired.png"
+    icon_paired = "ledger.png"
 
     def create_handler(self, window):
         return Ledger_Handler(window)

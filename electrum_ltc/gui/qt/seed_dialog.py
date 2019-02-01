@@ -110,7 +110,8 @@ class SeedLayout(QVBoxLayout):
         hbox = QHBoxLayout()
         if icon:
             logo = QLabel()
-            logo.setPixmap(QPixmap(":icons/seed.png").scaledToWidth(64, mode=Qt.SmoothTransformation))
+            logo.setPixmap(QPixmap(icon_path("seed.png"))
+                           .scaledToWidth(64, mode=Qt.SmoothTransformation))
             logo.setMaximumWidth(60)
             hbox.addWidget(logo)
         hbox.addWidget(self.seed_e)

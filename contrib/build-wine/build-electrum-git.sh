@@ -20,7 +20,7 @@ cd tmp
 
 pushd $WINEPREFIX/drive_c/electrum-ltc
 
-# Load electrum-icons and electrum-locale for this release
+# Load electrum-locale for this release
 git submodule init
 git submodule update
 
@@ -43,7 +43,6 @@ find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 popd
 
 cp $WINEPREFIX/drive_c/electrum-ltc/LICENCE .
-cp $WINEPREFIX/drive_c/electrum-ltc/contrib/deterministic-build/electrum-ltc-icons/icons_rc.py $WINEPREFIX/drive_c/electrum-ltc/electrum_ltc/gui/qt/
 
 # Install frozen dependencies
 $PYTHON -m pip install -r ../../deterministic-build/requirements.txt

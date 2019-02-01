@@ -53,7 +53,7 @@ class InvoiceList(MyTreeView):
             labels = [date_str, requestor, pr.memo, self.parent.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
-            items[4].setIcon(self.icon_cache.get(pr_icons.get(status)))
+            items[4].setIcon(read_QIcon(pr_icons.get(status)))
             items[0].setData(key, role=Qt.UserRole)
             items[1].setFont(QFont(MONOSPACE_FONT))
             items[3].setFont(QFont(MONOSPACE_FONT))

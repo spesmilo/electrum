@@ -295,8 +295,8 @@ class QtPlugin(QtPluginBase):
 
 
 class Plugin(KeepKeyPlugin, QtPlugin):
-    icon_paired = ":icons/keepkey.png"
-    icon_unpaired = ":icons/keepkey_unpaired.png"
+    icon_paired = "keepkey.png"
+    icon_unpaired = "keepkey_unpaired.png"
 
     @classmethod
     def pin_matrix_widget_class(self):

@@ -169,8 +169,8 @@ class QtPlugin(QtPluginBase):
 
 
 class Plugin(SafeTPlugin, QtPlugin):
-    icon_unpaired = ":icons/safe-t_unpaired.png"
-    icon_paired = ":icons/safe-t.png"
+    icon_unpaired = "safe-t_unpaired.png"
+    icon_paired = "safe-t.png"
 
     @classmethod
     def pin_matrix_widget_class(self):

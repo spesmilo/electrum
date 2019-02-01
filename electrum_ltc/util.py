@@ -462,7 +462,6 @@ def to_bytes(something, encoding='utf8') -> bytes:
 
 
 bfh = bytes.fromhex
-hfu = binascii.hexlify
 
 
 def bh2u(x: bytes) -> str:
@@ -473,7 +472,7 @@ def bh2u(x: bytes) -> str:
     >>> bh2u(x)
     '01020A'
     """
-    return hfu(x).decode('ascii')
+    return x.hex()
 
 
 def user_dir():
@@ -488,6 +487,15 @@ def user_dir():
     else:
         #raise Exception("No home directory found in environment variables.")
         return
+
+
+def resource_path(*parts):
+    return os.path.join(base_dir, *parts)
+
+
+# absolute path to project root dir when running from source
+base_dir = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
+
 
 def is_valid_email(s):
     regexp = r"[^@]+@[^@]+\.[^@]+"

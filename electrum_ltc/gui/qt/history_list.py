@@ -149,7 +149,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
             return QVariant(d[col])
         if role not in (Qt.DisplayRole, Qt.EditRole):
             if col == HistoryColumns.STATUS_ICON and role == Qt.DecorationRole:
-                return QVariant(self.view.icon_cache.get(":icons/" +  TX_ICONS[status]))
+                return QVariant(read_QIcon(TX_ICONS[status]))
             elif col == HistoryColumns.STATUS_ICON and role == Qt.ToolTipRole:
                 return QVariant(str(conf) + _(" confirmation" + ("s" if conf != 1 else "")))
             elif col > HistoryColumns.DESCRIPTION and role == Qt.TextAlignmentRole:
@@ -159,7 +159,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
                 return QVariant(monospace_font)
             elif col == HistoryColumns.DESCRIPTION and role == Qt.DecorationRole \
                     and self.parent.wallet.invoices.paid.get(tx_hash):
-                return QVariant(self.view.icon_cache.get(":icons/seal"))
+                return QVariant(read_QIcon("seal"))
             elif col in (HistoryColumns.DESCRIPTION, HistoryColumns.COIN_VALUE) \
                     and role == Qt.ForegroundRole and tx_item['value'].value < 0:
                 red_brush = QBrush(QColor("#BC1E1E"))
@@ -584,7 +584,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
                 if child_tx:
                     menu.addAction(_("Child pays for parent"), lambda: self.parent.cpfp(tx, child_tx))
         if pr_key:
-            menu.addAction(self.icon_cache.get(":icons/seal"), _("View invoice"), lambda: self.parent.show_invoice(pr_key))
+            menu.addAction(read_QIcon("seal"), _("View invoice"), lambda: self.parent.show_invoice(pr_key))
         if tx_URL:
             menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
         menu.exec_(self.viewport().mapToGlobal(position))
