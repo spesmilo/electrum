@@ -600,6 +600,7 @@ class ButtonsWidget(QWidget):
         button = QToolButton(self)
         button.setIcon(read_QIcon(icon_name))
         button.setIconSize(QSize(25,25))
+        button.setCursor(QCursor(Qt.PointingHandCursor))
         button.setStyleSheet("QToolButton { border: none; hover {border: 1px} pressed {border: 1px} padding: 0px; }")
         button.setVisible(True)
         button.setToolTip(tooltip)
