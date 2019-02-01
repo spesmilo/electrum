@@ -804,7 +804,7 @@ class LNWorker(PrintError):
                     self.print_error('handshake failure from incoming connection')
                     return
                 # FIXME extract host and port from transport
-                peer = Peer(self, LNPeerAddr("bogus", 1337, node_id),
+                peer = Peer(self, LNPeerAddr("bogus", 1337, node_id), responding=True,
                             request_initial_sync=self.config.get("request_initial_sync", True),
                             transport=t)
                 self.peers[node_id] = peer
