@@ -76,6 +76,8 @@ datas = [
     (electrum + PYPKG + '/wordlist/english.txt', PYPKG + '/wordlist'),
     (electrum + PYPKG + '/locale', PYPKG + '/locale'),
     (electrum + PYPKG + '/plugins', PYPKG + '/plugins'),
+    (electrum + 'icons/*.png', 'icons'),
+    (electrum + 'icons/*.svg', 'icons'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')

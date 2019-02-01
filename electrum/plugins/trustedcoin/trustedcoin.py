@@ -492,7 +492,7 @@ class TrustedCoinPlugin(BasePlugin):
         window.wallet.is_billing = False
 
     def show_disclaimer(self, wizard):
-        wizard.set_icon(':icons/trustedcoin-wizard.png')
+        wizard.set_icon('trustedcoin-wizard.png')
         wizard.stack = []
         wizard.confirm_dialog(title='Disclaimer', message='\n\n'.join(self.disclaimer_msg), run_next = lambda x: wizard.run('choose_seed'))
 
@@ -581,7 +581,7 @@ class TrustedCoinPlugin(BasePlugin):
         wizard.passphrase_dialog(run_next=f) if is_ext else f('')
 
     def restore_choice(self, wizard, seed, passphrase):
-        wizard.set_icon(':icons/trustedcoin-wizard.png')
+        wizard.set_icon('trustedcoin-wizard.png')
         wizard.stack = []
         title = _('Restore 2FA wallet')
         msg = ' '.join([

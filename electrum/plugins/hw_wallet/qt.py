@@ -73,8 +73,8 @@ class QtHandlerBase(QObject, PrintError):
     def _update_status(self, paired):
         if hasattr(self, 'button'):
             button = self.button
-            icon = button.icon_paired if paired else button.icon_unpaired
-            button.setIcon(QIcon(icon))
+            icon_name = button.icon_paired if paired else button.icon_unpaired
+            button.setIcon(read_QIcon(icon_name))
 
     def query_choice(self, msg, labels):
         self.done.clear()
@@ -234,4 +234,4 @@ class QtPluginBase(object):
         def show_address():
             addr = receive_address_e.text()
             keystore.thread.add(partial(plugin.show_address, wallet, addr, keystore))
-        receive_address_e.addButton(":icons/eye1.png", show_address, _("Show on {}").format(plugin.device))
+        receive_address_e.addButton("eye1.png", show_address, _("Show on {}").format(plugin.device))

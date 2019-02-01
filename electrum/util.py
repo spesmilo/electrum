@@ -488,6 +488,15 @@ def user_dir():
         #raise Exception("No home directory found in environment variables.")
         return
 
+
+def resource_path(*parts):
+    return os.path.join(base_dir, *parts)
+
+
+# absolute path to project root dir when running from source
+base_dir = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
+
+
 def is_valid_email(s):
     regexp = r"[^@]+@[^@]+\.[^@]+"
     return re.match(regexp, s) is not None

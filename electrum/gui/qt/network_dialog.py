@@ -270,7 +270,7 @@ class NetworkChoiceLayout(object):
         self.proxy_password.textEdited.connect(self.proxy_settings_changed)
 
         self.tor_cb = QCheckBox(_("Use Tor Proxy"))
-        self.tor_cb.setIcon(QIcon(":icons/tor_logo.png"))
+        self.tor_cb.setIcon(read_QIcon("tor_logo.png"))
         self.tor_cb.hide()
         self.tor_cb.clicked.connect(self.use_tor_proxy)
 

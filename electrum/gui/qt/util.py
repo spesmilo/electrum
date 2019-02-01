@@ -6,7 +6,7 @@ import platform
 import queue
 import traceback
 from distutils.version import StrictVersion
-from functools import partial
+from functools import partial, lru_cache
 from typing import NamedTuple, Callable, Optional, TYPE_CHECKING
 import base64
 
@@ -18,7 +18,8 @@ from electrum import version
 from electrum import ecc
 from electrum import constants
 from electrum.i18n import _, languages
-from electrum.util import FileImportFailed, FileExportFailed, make_aiohttp_session, PrintError
+from electrum.util import (FileImportFailed, FileExportFailed, make_aiohttp_session,
+                           PrintError, resource_path)
 from electrum.paymentrequest import PR_UNPAID, PR_PAID, PR_EXPIRED
 
 if TYPE_CHECKING:
@@ -36,9 +37,9 @@ else:
 dialogs = []
 
 pr_icons = {
-    PR_UNPAID:":icons/unpaid.png",
-    PR_PAID:":icons/confirmed.png",
-    PR_EXPIRED:":icons/expired.png"
+    PR_UNPAID:"unpaid.png",
+    PR_PAID:"confirmed.png",
+    PR_EXPIRED:"expired.png"
 }
 
 pr_tooltips = {
@@ -429,8 +430,6 @@ class MyTreeView(QTreeView):
         self.customContextMenuRequested.connect(create_menu)
         self.setUniformRowHeights(True)
 
-        self.icon_cache = IconCache()
-
         # Control which columns are editable
         if editable_columns is None:
             editable_columns = {stretch_column}
@@ -599,7 +598,7 @@ class ButtonsWidget(QWidget):
 
     def addButton(self, icon_name, on_click, tooltip):
         button = QToolButton(self)
-        button.setIcon(QIcon(icon_name))
+        button.setIcon(read_QIcon(icon_name))
         button.setIconSize(QSize(25,25))
         button.setStyleSheet("QToolButton { border: none; hover {border: 1px} pressed {border: 1px} padding: 0px; }")
         button.setVisible(True)
@@ -610,7 +609,7 @@ class ButtonsWidget(QWidget):
 
     def addCopyButton(self, app):
         self.app = app
-        self.addButton(":icons/copy.png", self.on_copy, _("Copy to clipboard"))
+        self.addButton("copy.png", self.on_copy, _("Copy to clipboard"))
 
     def on_copy(self):
         self.app.clipboard().setText(self.text())
@@ -795,15 +794,14 @@ def get_parent_main_window(widget):
             return widget
     return None
 
-class IconCache:
 
-    def __init__(self):
-        self.__cache = {}
+def icon_path(icon_basename):
+    return resource_path('icons', icon_basename)
 
-    def get(self, file_name):
-        if file_name not in self.__cache:
-            self.__cache[file_name] = QIcon(file_name)
-        return self.__cache[file_name]
+
+@lru_cache(maxsize=1000)
+def read_QIcon(icon_basename):
+    return QIcon(icon_path(icon_basename))
 
 
 def get_default_language():
