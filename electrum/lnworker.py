@@ -28,7 +28,7 @@ from .crypto import sha256
 from .bip32 import bip32_root
 from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
 from .util import timestamp_to_datetime
-from .lntransport import LNResponderTransport
+from .lntransport import LNTransport, LNResponderTransport
 from .lnbase import Peer
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
@@ -244,13 +244,16 @@ class LNWorker(PrintError):
             return {x: y for (x, y) in self.channels.items() if y.node_id == node_id}
 
     async def add_peer(self, host, port, node_id):
-        port = int(port)
-        peer_addr = LNPeerAddr(host, port, node_id)
         if node_id in self.peers:
             return self.peers[node_id]
+        port = int(port)
+        peer_addr = LNPeerAddr(host, port, node_id)
+        transport = LNTransport(self.node_keypair.privkey, peer_addr)
+        await transport.handshake()
+        self.channel_db.add_recent_peer(peer_addr)
         self._last_tried_peer[peer_addr] = time.time()
         self.print_error("adding peer", peer_addr)
-        peer = Peer(self, peer_addr, request_initial_sync=self.config.get("request_initial_sync", True))
+        peer = Peer(self, node_id, transport, request_initial_sync=self.config.get("request_initial_sync", True))
         await self.network.main_taskgroup.spawn(peer.main_loop())
         self.peers[node_id] = peer
         self.network.trigger_callback('ln_status')
@@ -797,16 +800,13 @@ class LNWorker(PrintError):
                 # ipv6
                 addr = addr[1:-1]
             async def cb(reader, writer):
-                t = LNResponderTransport(self.node_keypair.privkey, reader, writer)
+                transport = LNResponderTransport(self.node_keypair.privkey, reader, writer)
                 try:
-                    node_id = await t.handshake()
+                    node_id = await transport.handshake()
                 except:
                     self.print_error('handshake failure from incoming connection')
                     return
-                # FIXME extract host and port from transport
-                peer = Peer(self, LNPeerAddr("bogus", 1337, node_id), responding=True,
-                            request_initial_sync=self.config.get("request_initial_sync", True),
-                            transport=t)
+                peer = Peer(self, node_id, transport, request_initial_sync=self.config.get("request_initial_sync", True))
                 self.peers[node_id] = peer
                 await self.network.main_taskgroup.spawn(peer.main_loop())
                 self.network.trigger_callback('ln_status')

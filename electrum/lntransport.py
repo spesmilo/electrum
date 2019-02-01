@@ -6,6 +6,7 @@
 # Derived from https://gist.github.com/AdamISZ/046d05c156aaeb56cc897f85eecb3eb8
 
 import hashlib
+import asyncio
 from asyncio import StreamReader, StreamWriter
 from Cryptodome.Cipher import ChaCha20_Poly1305
 
@@ -87,10 +88,6 @@ def create_ephemeral_key() -> (bytes, bytes):
 
 class LNTransportBase:
 
-    def __init__(self, reader: StreamReader, writer: StreamWriter):
-        self.reader = reader
-        self.writer = writer
-
     def send_bytes(self, msg):
         l = len(msg).to_bytes(2, 'big')
         lc = aead_encrypt(self.sk, self.sn(), b'', l)
@@ -153,12 +150,16 @@ class LNTransportBase:
 
 class LNResponderTransport(LNTransportBase):
     def __init__(self, privkey: bytes, reader: StreamReader, writer: StreamWriter):
-        LNTransportBase.__init__(self, reader, writer)
+        LNTransportBase.__init__(self)
+        self.reader = reader
+        self.writer = writer
         self.privkey = privkey
+
+    def name(self):
+        return "responder"
 
     async def handshake(self, **kwargs):
         hs = HandshakeState(privkey_to_pubkey(self.privkey))
-
         act1 = b''
         while len(act1) < 50:
             act1 += await self.reader.read(50 - len(act1))
@@ -205,14 +206,20 @@ class LNResponderTransport(LNTransportBase):
         return rs
 
 class LNTransport(LNTransportBase):
-    def __init__(self, privkey: bytes, remote_pubkey: bytes,
-                 reader: StreamReader, writer: StreamWriter):
-        LNTransportBase.__init__(self, reader, writer)
+
+    def __init__(self, privkey: bytes, peer_addr):
+        LNTransportBase.__init__(self)
         assert type(privkey) is bytes and len(privkey) == 32
         self.privkey = privkey
-        self.remote_pubkey = remote_pubkey
+        self.remote_pubkey = peer_addr.pubkey
+        self.host = peer_addr.host
+        self.port = peer_addr.port
+
+    def name(self):
+        return str(self.host) + ':' + str(self.port)
 
     async def handshake(self):
+        self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
         hs = HandshakeState(self.remote_pubkey)
         # Get a new ephemeral key
         epriv, epub = create_ephemeral_key()
