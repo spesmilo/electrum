@@ -11,7 +11,6 @@ from typing import Optional, Sequence, Tuple, List, Dict, TYPE_CHECKING
 import threading
 import socket
 import json
-import operator
 from datetime import datetime, timezone
 from functools import partial
 
@@ -197,7 +196,8 @@ class LNWorker(PrintError):
                 'timestamp': closing_timestamp,
             }
             out.append(item)
-        out.sort(key=operator.itemgetter('timestamp'))
+        # sort by timestamp
+        out.sort(key=lambda x: (x.get('timestamp') or float("inf")))
         balance_msat = 0
         for item in out:
             balance_msat += item['amount_msat'] * (1 if item['direction']=='received' else -1)
