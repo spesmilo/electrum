@@ -274,7 +274,6 @@ class LNWorker(PrintError):
         if it's also deep enough, also save to disk.
         Returns tuple (mined_deep_enough, num_confirmations).
         """
-        assert chan.get_state() in ["OPEN", "OPENING"]
         lnwatcher = self.network.lnwatcher
         conf = lnwatcher.get_tx_height(chan.funding_outpoint.txid).conf
         if conf > 0:
@@ -285,8 +284,8 @@ class LNWorker(PrintError):
             chan.short_channel_id = chan.short_channel_id_predicted
             self.save_channel(chan)
             self.on_channels_updated()
-            return True, conf
-        return False, conf
+        else:
+            self.print_error("funding tx is still not at sufficient depth. actual depth: " + str(conf))
 
     def channel_by_txo(self, txo):
         with self.lock:
@@ -373,12 +372,9 @@ class LNWorker(PrintError):
             if args[0] != lnwatcher:
                 return
         for chan in channels:
-            if chan.get_state() == "OPENING":
-                res, depth = self.save_short_chan_id(chan)
-                if not res:
-                    self.print_error("network update but funding tx is still not at sufficient depth. actual depth: " + str(depth))
-                    continue
-                # this results in the channel being marked OPEN
+            if chan.short_channel_id is None:
+                self.save_short_chan_id(chan)
+            if chan.get_state() == "OPENING" and chan.short_channel_id:
                 peer = self.peers[chan.node_id]
                 peer.send_funding_locked(chan)
             elif chan.get_state() == "OPEN":
