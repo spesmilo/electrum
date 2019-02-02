@@ -5,7 +5,7 @@ bitcoin-cli generatetoaddress 100 bcrt1qxcjufgh2jarkp2qkx68azh08w9v5gah8u6es8s >
 sleep 30
 balance_before=$(./run_electrum --regtest -D /tmp/elec1 getbalance | jq -r .confirmed)
 othernode=$(./run_electrum --regtest -D /tmp/elec2 nodeid)
-./run_electrum --regtest -D /tmp/elec1 open_channel $othernode@localhost 0.15
+./run_electrum --regtest -D /tmp/elec1 open_channel $othernode 0.15
 sleep 12
 bitcoin-cli generatetoaddress 6 bcrt1qxcjufgh2jarkp2qkx68azh08w9v5gah8u6es8s > /dev/null
 sleep 12
@@ -22,8 +22,8 @@ done
 screen -S elec2 -X quit
 sleep 1
 ps ax | grep run_electrum
-chan_id=$(python3 run_electrum -D /tmp/elec1 --regtest listchannels | jq -r ".[0].channel_point" | cut -d: -f1)
-./run_electrum -D /tmp/elec1 --regtest closechannel $chan_id --force
+chan_id=$(python3 run_electrum -D /tmp/elec1 --regtest list_channels | jq -r ".[0].channel_point")
+./run_electrum -D /tmp/elec1 --regtest close_channel $chan_id --force
 sleep 12
 bitcoin-cli generatetoaddress 144 bcrt1qxcjufgh2jarkp2qkx68azh08w9v5gah8u6es8s
 sleep 30
