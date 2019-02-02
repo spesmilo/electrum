@@ -4,7 +4,7 @@ set -eux pipefail
 bitcoin-cli generatetoaddress 109 mwLZSJ2hUkvFoSkyadNGgmu9977w6K8wfj > /dev/null
 sleep 30
 othernode=$(./run_electrum --regtest -D /tmp/elec2 nodeid)
-./run_electrum --regtest -D /tmp/elec1 open_channel $othernode@localhost 0.15
+./run_electrum --regtest -D /tmp/elec1 open_channel $othernode 0.15
 sleep 3
 bitcoin-cli generatetoaddress 6 mwLZSJ2hUkvFoSkyadNGgmu9977w6K8wfj > /dev/null
 sleep 12

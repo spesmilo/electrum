@@ -1,5 +1,6 @@
 from electrum.ecc import ECPrivkey
 import asyncio
+from electrum.lnutil import LNPeerAddr
 from electrum.lntransport import LNResponderTransport, LNTransport
 from unittest import TestCase
 
@@ -46,8 +47,8 @@ class TestLNTransport(TestCase):
         server_future = asyncio.ensure_future(asyncio.start_server(cb, '127.0.0.1', 42898))
         l.run_until_complete(server_future)
         async def connect():
-            reader, writer = await asyncio.open_connection('127.0.0.1', 42898)
-            t = LNTransport(initiator_key.get_secret_bytes(), responder_key.get_public_key_bytes(), reader, writer)
+            peer_addr = LNPeerAddr('127.0.0.1', 42898, responder_key.get_public_key_bytes())
+            t = LNTransport(initiator_key.get_secret_bytes(), peer_addr)
             await t.handshake()
             t.send_bytes(b'hello from client')
             self.assertEqual(await t.read_messages().__anext__(), b'hello from server')
