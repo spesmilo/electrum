@@ -232,6 +232,9 @@ class Peer(PrintError):
         self.transport.send_bytes(gen_msg(message_name, **kwargs))
 
     async def initialize(self):
+        if isinstance(self.transport, LNTransport):
+            await self.transport.handshake()
+            self.channel_db.add_recent_peer(self.transport.peer_addr)
         self.send_message("init", gflen=0, lflen=1, localfeatures=self.localfeatures)
 
     @property
