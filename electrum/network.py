@@ -438,7 +438,7 @@ class Network(PrintError):
     @with_recent_servers_lock
     def get_servers(self):
         # start with hardcoded servers
-        out = constants.net.DEFAULT_SERVERS
+        out = dict(constants.net.DEFAULT_SERVERS)  # copy
         # add recent servers
         for s in self.recent_servers:
             try:
