@@ -916,10 +916,7 @@ class Peer(PrintError):
         # process update_fail_htlc on channel
         chan = self.channels[channel_id]
         chan.receive_fail_htlc(htlc_id)
-        await self.receive_commitment(chan)
-        self.revoke(chan)
-        self.send_commitment(chan)  # htlc will be removed
-        await self.receive_revoke(chan)
+        await self.receive_and_revoke(chan)
         self.network.trigger_callback('ln_message', self.lnworker, 'Payment failed', htlc_id)
 
     async def _handle_error_code_from_failed_htlc(self, error_reason, route: List['RouteEdge'], channel_id, htlc_id):
@@ -968,13 +965,18 @@ class Peer(PrintError):
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
         return len(htlc_sigs)
 
-    async def update_channel(self, chan: Channel, message_name: str, **kwargs):
+    async def send_and_revoke(self, chan: Channel):
         """ generic channel update flow """
-        self.send_message(message_name, **kwargs)
         self.send_commitment(chan)
         await self.receive_revoke(chan)
         await self.receive_commitment(chan)
         self.revoke(chan)
+
+    async def receive_and_revoke(self, chan: Channel):
+        await self.receive_commitment(chan)
+        self.revoke(chan)
+        self.send_commitment(chan)
+        await self.receive_revoke(chan)
 
     async def pay(self, route: List['RouteEdge'], chan: Channel, amount_msat: int,
                   payment_hash: bytes, min_final_cltv_expiry: int):
@@ -992,7 +994,14 @@ class Peer(PrintError):
         chan.onion_keys[htlc_id] = secret_key
         self.attempted_route[(chan.channel_id, htlc_id)] = route
         self.print_error(f"starting payment. route: {route}")
-        await self.update_channel(chan, "update_add_htlc", channel_id=chan.channel_id, id=htlc_id, cltv_expiry=cltv, amount_msat=amount_msat, payment_hash=payment_hash, onion_routing_packet=onion.to_bytes())
+        self.send_message("update_add_htlc",
+                          channel_id=chan.channel_id,
+                          id=htlc_id,
+                          cltv_expiry=cltv,
+                          amount_msat=amount_msat,
+                          payment_hash=payment_hash,
+                          onion_routing_packet=onion.to_bytes())
+        await self.send_and_revoke(chan)
         return UpdateAddHtlc(**htlc, htlc_id=htlc_id)
 
     async def receive_revoke(self, chan: Channel):
@@ -1028,12 +1037,8 @@ class Peer(PrintError):
         preimage = update_fulfill_htlc_msg["payment_preimage"]
         htlc_id = int.from_bytes(update_fulfill_htlc_msg["id"], "big")
         chan.receive_htlc_settle(preimage, htlc_id)
-        await self.receive_commitment(chan)
-        self.revoke(chan)
-        self.send_commitment(chan) # htlc will be removed
-        await self.receive_revoke(chan)
+        await self.receive_and_revoke(chan)
         self.network.trigger_callback('ln_message', self.lnworker, 'Payment sent', htlc_id)
-
         # used in lightning-integration
         self.payment_preimages[sha256(preimage)].put_nowait(preimage)
 
@@ -1060,10 +1065,7 @@ class Peer(PrintError):
         # add htlc
         htlc = {'amount_msat': amount_msat_htlc, 'payment_hash':payment_hash, 'cltv_expiry':cltv_expiry}
         htlc_id = chan.receive_htlc(htlc)
-        await self.receive_commitment(chan)
-        self.revoke(chan)
-        self.send_commitment(chan)
-        await self.receive_revoke(chan)
+        await self.receive_and_revoke(chan)
         # maybe fail htlc
         if not processed_onion.are_we_final:
             # no forwarding for now
@@ -1103,14 +1105,15 @@ class Peer(PrintError):
         # settle htlc
         if not self.network.config.debug_lightning_do_not_settle:
             # settle htlc
-            await self.settle_htlc(chan, htlc_id, preimage)
+            await self.fulfill_htlc(chan, htlc_id, preimage)
 
-    async def settle_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
+    async def fulfill_htlc(self, chan: Channel, htlc_id: int, preimage: bytes):
         chan.settle_htlc(preimage, htlc_id)
-        await self.update_channel(chan, "update_fulfill_htlc",
-                                  channel_id=chan.channel_id,
-                                  id=htlc_id,
-                                  payment_preimage=preimage)
+        self.send_message("update_fulfill_htlc",
+                          channel_id=chan.channel_id,
+                          id=htlc_id,
+                          payment_preimage=preimage)
+        await self.send_and_revoke(chan)
         self.network.trigger_callback('ln_message', self.lnworker, 'Payment received', htlc_id)
 
     async def fail_htlc(self, chan: Channel, htlc_id: int, onion_packet: OnionPacket,
@@ -1118,11 +1121,12 @@ class Peer(PrintError):
         self.print_error(f"failing received htlc {(bh2u(chan.channel_id), htlc_id)}. reason: {reason}")
         chan.fail_htlc(htlc_id)
         error_packet = construct_onion_error(reason, onion_packet, our_onion_private_key=self.privkey)
-        await self.update_channel(chan, "update_fail_htlc",
-                                  channel_id=chan.channel_id,
-                                  id=htlc_id,
-                                  len=len(error_packet),
-                                  reason=error_packet)
+        self.send_message("update_fail_htlc",
+                          channel_id=chan.channel_id,
+                          id=htlc_id,
+                          len=len(error_packet),
+                          reason=error_packet)
+        await self.send_and_revoke(chan)
 
     def on_revoke_and_ack(self, payload):
         self.print_error("got revoke_and_ack")
@@ -1152,7 +1156,10 @@ class Peer(PrintError):
         else:
             return
         chan.update_fee(feerate_per_kw, True)
-        await self.update_channel(chan, "update_fee", channel_id=chan.channel_id, feerate_per_kw=feerate_per_kw)
+        self.send_message("update_fee",
+                          channel_id=chan.channel_id,
+                          feerate_per_kw=feerate_per_kw)
+        await self.send_and_revoke(chan)
 
     def on_closing_signed(self, payload):
         chan_id = payload["channel_id"]
