@@ -214,6 +214,7 @@ class LNTransport(LNTransportBase):
         self.remote_pubkey = peer_addr.pubkey
         self.host = peer_addr.host
         self.port = peer_addr.port
+        self.peer_addr = peer_addr
 
     def name(self):
         return str(self.host) + ':' + str(self.port)
