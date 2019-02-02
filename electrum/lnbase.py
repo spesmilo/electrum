@@ -652,6 +652,15 @@ class Peer(PrintError):
             raise Exception(f'reserve too high: {remote_reserve_sat}, funding_sat: {funding_sat}')
         return remote_reserve_sat
 
+    def on_channel_reestablish(self, payload):
+        chan_id = payload["channel_id"]
+        self.print_error("Received channel_reestablish", bh2u(chan_id))
+        chan = self.channels.get(chan_id)
+        if not chan:
+            self.print_error("Warning: received unknown channel_reestablish", bh2u(chan_id))
+            return
+        self.channel_reestablished[chan_id].set_result(payload)
+
     @log_exceptions
     async def reestablish_channel(self, chan: Channel):
         await self.initialized.wait()
@@ -667,19 +676,8 @@ class Peer(PrintError):
             next_local_commitment_number=chan.config[LOCAL].ctn+1,
             next_remote_revocation_number=chan.config[REMOTE].ctn
         )
-        await self.channel_reestablished[chan_id]
+        channel_reestablish_msg = await self.channel_reestablished[chan_id]
         chan.set_state('OPENING')
-        if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
-            self.mark_open(chan)
-        self.network.trigger_callback('channel', chan)
-
-    def on_channel_reestablish(self, payload):
-        chan_id = payload["channel_id"]
-        self.print_error("Received channel_reestablish", bh2u(chan_id))
-        chan = self.channels.get(chan_id)
-        if not chan:
-            print("Warning: received unknown channel_reestablish", bh2u(chan_id))
-            return
 
         def try_to_get_remote_to_force_close_with_their_latest():
             self.print_error("trying to get remote to force close", bh2u(chan_id))
@@ -688,8 +686,6 @@ class Peer(PrintError):
                                       next_local_commitment_number=0,
                                       next_remote_revocation_number=0
                                       )
-
-        channel_reestablish_msg = payload
         # compare remote ctns
         remote_ctn = int.from_bytes(channel_reestablish_msg["next_local_commitment_number"], 'big')
         if remote_ctn != chan.config[REMOTE].ctn + 1:
@@ -711,8 +707,6 @@ class Peer(PrintError):
                     ctn=remote_ctn,
                 )
                 self.revoke(chan)
-                self.channel_reestablished[chan_id].set_result(True)
-                return
             else:
                 self.print_error("expected local ctn {}, got {}".format(chan.config[LOCAL].ctn, local_ctn))
                 # TODO iff their ctn is lower than ours, we should force close instead
@@ -729,25 +723,22 @@ class Peer(PrintError):
                 # FIXME ...what now?
                 try_to_get_remote_to_force_close_with_their_latest()
                 return
+        if remote_ctn == chan.config[LOCAL].ctn+1 == 1 and chan.short_channel_id:
+            self.send_funding_locked(chan)
         # checks done
-        self.channel_reestablished[chan_id].set_result(True)
+        if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
+            self.mark_open(chan)
+        self.network.trigger_callback('channel', chan)
 
-    def funding_locked(self, chan: Channel):
+    def send_funding_locked(self, chan: Channel):
         channel_id = chan.channel_id
         per_commitment_secret_index = RevocationStore.START_INDEX - 1
         per_commitment_point_second = secret_to_pubkey(int.from_bytes(
             get_per_commitment_secret_from_seed(chan.config[LOCAL].per_commitment_secret_seed, per_commitment_secret_index), 'big'))
         # note: if funding_locked was not yet received, we might send it multiple times
         self.send_message("funding_locked", channel_id=channel_id, next_per_commitment_point=per_commitment_point_second)
-        if chan.config[LOCAL].funding_locked_received:
+        if chan.config[LOCAL].funding_locked_received and chan.short_channel_id:
             self.mark_open(chan)
-        else:
-            # only when not testing since this is an issue
-            # only with lnd and the test uses electrum
-            if not get_config().debug_lightning:
-                self.print_error("remote hasn't sent funding_locked, disconnecting (should reconnect again shortly)")
-                self.close_and_cleanup()
-                self.network.trigger_callback('channel', chan)
 
     def on_funding_locked(self, payload):
         channel_id = payload['channel_id']
@@ -822,6 +813,7 @@ class Peer(PrintError):
         print("SENT CHANNEL ANNOUNCEMENT")
 
     def mark_open(self, chan: Channel):
+        assert chan.short_channel_id is not None
         if chan.get_state() == "OPEN":
             return
         # NOTE: even closed channels will be temporarily marked "OPEN"
