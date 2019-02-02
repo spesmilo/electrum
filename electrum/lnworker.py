@@ -379,7 +379,7 @@ class LNWorker(PrintError):
                     continue
                 # this results in the channel being marked OPEN
                 peer = self.peers[chan.node_id]
-                peer.funding_locked(chan)
+                peer.send_funding_locked(chan)
             elif chan.get_state() == "OPEN":
                 peer = self.peers.get(chan.node_id)
                 if peer is None:
