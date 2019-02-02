@@ -155,7 +155,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
                 HistoryColumns.ONCHAIN_BALANCE:
                     tx_item['balance'].value if not is_lightning else None,
                 HistoryColumns.CHANNELS_BALANCE:
-                    tx_item['balance_msat'] if is_lightning else None,
+                    tx_item['balance_msat'] if 'balance_msat' in tx_item else None,
                 HistoryColumns.FIAT_VALUE:
                     tx_item['fiat_value'].value if 'fiat_value' in tx_item else None,
                 HistoryColumns.FIAT_ACQ_PRICE:
@@ -201,7 +201,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
             balance = tx_item['balance'].value
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             return QVariant(balance_str)
-        elif col == HistoryColumns.CHANNELS_BALANCE and is_lightning:
+        elif col == HistoryColumns.CHANNELS_BALANCE and 'balance_msat' in tx_item:
             balance = tx_item['balance_msat']//1000
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             return QVariant(balance_str)
@@ -257,15 +257,26 @@ class HistoryModel(QAbstractItemModel, PrintError):
             self.beginRemoveRows(QModelIndex(), 0, old_length)
             self.transactions.clear()
             self.endRemoveRows()
-        self.beginInsertRows(QModelIndex(), 0, len(r['transactions'])+len(lightning_history)-1)
+
+        transactions = OrderedDictWithIndex()
         for tx_item in r['transactions']:
             txid = tx_item['txid']
-            self.transactions[txid] = tx_item
+            transactions[txid] = tx_item
         for tx_item in lightning_history:
-            tx_item['lightning'] = True
-            tx_item['value'] = Satoshis(tx_item['amount_msat']/1000 * (-1 if tx_item['direction'] =='sent' else 1))
-            key = tx_item['payment_hash'] if 'payment_hash' in tx_item else tx_item['type'] + tx_item['channel_id']
-            self.transactions[key] = tx_item
+            txid = tx_item.get('txid')
+            ln_value = tx_item['amount_msat']/1000 * (-1 if tx_item['direction'] =='sent' else 1)
+            if txid and txid in transactions:
+                item = transactions[txid]
+                item['label'] = tx_item['label']
+                item['value'] = Satoshis(item['value'].value + ln_value)
+                item['balance_msat'] = tx_item['balance_msat']
+            else:
+                tx_item['lightning'] = True
+                tx_item['value'] = Satoshis(ln_value)
+                key = tx_item['payment_hash'] if 'payment_hash' in tx_item else tx_item['type'] + tx_item['channel_id']
+                transactions[key] = tx_item
+        self.beginInsertRows(QModelIndex(), 0, len(transactions)-1)
+        self.transactions = transactions
         self.endInsertRows()
         if selected_row:
             self.view.selectionModel().select(self.createIndex(selected_row, 0), QItemSelectionModel.Rows | QItemSelectionModel.SelectCurrent)
