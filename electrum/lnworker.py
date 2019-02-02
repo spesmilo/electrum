@@ -453,26 +453,24 @@ class LNWorker(PrintError):
         fut = asyncio.run_coroutine_threadsafe(coro, self.network.asyncio_loop)
         return addr, peer, fut
 
+    def get_channel_by_short_id(self, short_channel_id):
+        with self.lock:
+            for chan in self.channels.values():
+                if chan.short_channel_id == short_channel_id:
+                    return chan
+
     def _pay(self, invoice, amount_sat=None):
         addr = self._check_invoice(invoice, amount_sat)
         route = self._create_route_from_invoice(decoded_invoice=addr)
         peer = self.peers[route[0].node_id]
-        for chan in self.channels.values():
-            if chan.short_channel_id == route[0].short_channel_id:
-                chan_id = chan.channel_id
-                break
-        else:
+        if not self.get_channel_by_short_id(route[0].short_channel_id):
             assert False, 'Found route with short channel ID we don\'t have: ' + repr(route[0].short_channel_id)
         return addr, peer, self._pay_to_route(route, addr)
 
     async def _pay_to_route(self, route, addr):
         short_channel_id = route[0].short_channel_id
-        with self.lock:
-            channels = list(self.channels.values())
-        for chan in channels:
-            if chan.short_channel_id == short_channel_id:
-                break
-        else:
+        chan = self.get_channel_by_short_id(short_channel_id)
+        if not chan:
             raise Exception("PathFinder returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
         peer = self.peers[route[0].node_id]
         htlc = await peer.pay(route, chan, int(addr.amount * COIN * 1000), addr.paymenthash, addr.get_min_final_cltv_expiry())
