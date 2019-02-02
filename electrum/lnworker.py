@@ -320,7 +320,8 @@ class LNWorker(PrintError):
             self.on_channels_updated()
         self.network.trigger_callback('channel', chan)
         # remove from channel_db
-        self.channel_db.remove_channel(chan.short_channel_id)
+        if chan.short_channel_id is not None:
+            self.channel_db.remove_channel(chan.short_channel_id)
         # detect who closed
         if closing_txid == chan.local_commitment.txid():
             self.print_error('we force closed', funding_outpoint)
