@@ -267,7 +267,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
             ln_value = tx_item['amount_msat']/1000 * (-1 if tx_item['direction'] =='sent' else 1)
             if txid and txid in transactions:
                 item = transactions[txid]
-                item['label'] = tx_item['label']
+                item['label'] = tx_item['label'] + ' (%s)'%self.parent.format_amount_and_units(tx_item['amount_msat']/1000)
                 item['value'] = Satoshis(item['value'].value + ln_value)
                 item['balance_msat'] = tx_item['balance_msat']
             else:
