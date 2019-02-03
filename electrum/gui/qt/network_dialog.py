@@ -24,6 +24,7 @@
 # SOFTWARE.
 
 import socket
+from enum import IntEnum
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -132,6 +133,11 @@ class NodesListWidget(QTreeWidget):
 
 
 class ServerListWidget(QTreeWidget):
+    class Columns(IntEnum):
+        HOST = 0
+        PORT = 1
+
+    SERVER_STR_ROLE = Qt.UserRole + 100
 
     def __init__(self, parent):
         QTreeWidget.__init__(self)
@@ -145,7 +151,7 @@ class ServerListWidget(QTreeWidget):
         if not item:
             return
         menu = QMenu()
-        server = item.data(1, Qt.UserRole)
+        server = item.data(self.Columns.HOST, self.SERVER_STR_ROLE)
         menu.addAction(_("Use as server"), lambda: self.set_server(server))
         menu.exec_(self.viewport().mapToGlobal(position))
 
@@ -176,13 +182,13 @@ class ServerListWidget(QTreeWidget):
             if port:
                 x = QTreeWidgetItem([_host, port])
                 server = serialize_server(_host, port, protocol)
-                x.setData(1, Qt.UserRole, server)
+                x.setData(self.Columns.HOST, self.SERVER_STR_ROLE, server)
                 self.addTopLevelItem(x)
 
         h = self.header()
         h.setStretchLastSection(False)
-        h.setSectionResizeMode(0, QHeaderView.Stretch)
-        h.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        h.setSectionResizeMode(self.Columns.HOST, QHeaderView.Stretch)
+        h.setSectionResizeMode(self.Columns.PORT, QHeaderView.ResizeToContents)
 
         super().update()
 
