@@ -5,6 +5,7 @@ import android.widget.ImageView
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.MultiFormatWriter
+import com.google.zxing.WriterException
 import com.google.zxing.integration.android.IntentIntegrator
 import com.journeyapps.barcodescanner.BarcodeEncoder
 
@@ -24,7 +25,15 @@ fun showQR(img: ImageView, text: String) {
     val hints = mapOf(EncodeHintType.MARGIN to 0)
 
     val resolution = app.resources.getDimensionPixelSize(R.dimen.qr_resolution)
-    val matrix = MultiFormatWriter().encode(
-        text, BarcodeFormat.QR_CODE, resolution, resolution, hints)
-    img.setImageBitmap(BarcodeEncoder().createBitmap(matrix))
+    try {
+        val matrix = MultiFormatWriter().encode(
+            text, BarcodeFormat.QR_CODE, resolution, resolution, hints)
+        img.setImageBitmap(BarcodeEncoder().createBitmap(matrix))
+    } catch (e: WriterException) {
+        if (e.message == "Data too big") {
+            img.setImageDrawable(null)
+        } else {
+            throw e
+        }
+    }
 }
