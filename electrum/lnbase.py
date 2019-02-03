@@ -1066,11 +1066,37 @@ class Peer(PrintError):
         htlc = {'amount_msat': amount_msat_htlc, 'payment_hash':payment_hash, 'cltv_expiry':cltv_expiry}
         htlc_id = chan.receive_htlc(htlc)
         await self.receive_and_revoke(chan)
-        # maybe fail htlc
+        # Forward HTLC
+        # FIXME: this is not robust to us going offline before payment is fulfilled
         if not processed_onion.are_we_final:
-            # no forwarding for now
-            reason = OnionRoutingFailureMessage(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
-            await self.fail_htlc(chan, htlc_id, onion_packet, reason)
+            dph = processed_onion.hop_data.per_hop
+            next_chan = self.lnworker.get_channel_by_short_id(dph.short_channel_id)
+            next_peer = self.lnworker.peers[next_chan.node_id]
+            if next_chan is None or next_chan.get_state() != 'OPEN':
+                self.print_error("cannot forward htlc", next_chan.get_state() if next_chan else None)
+                reason = OnionRoutingFailureMessage(code=OnionFailureCode.PERMANENT_CHANNEL_FAILURE, data=b'')
+                await self.fail_htlc(chan, htlc_id, onion_packet, reason)
+                return
+            self.print_error('forwarding htlc to', next_chan.node_id)
+            next_cltv_expiry = int.from_bytes(dph.outgoing_cltv_value, 'big')
+            next_amount_msat_htlc = int.from_bytes(dph.amt_to_forward, 'big')
+            next_htlc = {'amount_msat':next_amount_msat_htlc, 'payment_hash':payment_hash, 'cltv_expiry':next_cltv_expiry}
+            next_htlc_id = next_chan.add_htlc(next_htlc)
+            next_peer.send_message(
+                "update_add_htlc",
+                channel_id=next_chan.channel_id,
+                id=next_htlc_id,
+                cltv_expiry=dph.outgoing_cltv_value,
+                amount_msat=dph.amt_to_forward,
+                payment_hash=payment_hash,
+                onion_routing_packet=processed_onion.next_packet.to_bytes()
+            )
+            await next_peer.send_and_revoke(next_chan)
+            # wait until we get paid
+            preimage = await next_peer.payment_preimages[payment_hash].get()
+            # fulfill the original htlc
+            await self.fulfill_htlc(chan, htlc_id, preimage)
+            self.print_error("htlc forwarded successfully")
             return
         try:
             preimage, invoice = self.lnworker.get_invoice(payment_hash)
