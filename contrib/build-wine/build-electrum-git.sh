@@ -50,7 +50,7 @@ $PYTHON -m pip install -r ../../deterministic-build/requirements.txt
 $PYTHON -m pip install -r ../../deterministic-build/requirements-hw.txt
 
 pushd $WINEPREFIX/drive_c/electrum-ltc
-$PYTHON setup.py install
+$PYTHON -m pip install .
 popd
 
 cd ..

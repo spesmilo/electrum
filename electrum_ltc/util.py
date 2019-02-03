@@ -490,11 +490,11 @@ def user_dir():
 
 
 def resource_path(*parts):
-    return os.path.join(base_dir, *parts)
+    return os.path.join(pkg_dir, *parts)
 
 
-# absolute path to project root dir when running from source
-base_dir = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
+# absolute path to python package folder of electrum ("lib")
+pkg_dir = os.path.split(os.path.realpath(__file__))[0]
 
 
 def is_valid_email(s):
