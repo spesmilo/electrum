@@ -706,7 +706,7 @@ class Peer(PrintError):
                 chan.config[LOCAL]=chan.config[LOCAL]._replace(
                     ctn=remote_ctn,
                 )
-                self.revoke(chan)
+                self.send_revoke_and_ack(chan)
             else:
                 self.print_error("expected local ctn {}, got {}".format(chan.config[LOCAL].ctn, local_ctn))
                 # TODO iff their ctn is lower than ours, we should force close instead
@@ -968,15 +968,15 @@ class Peer(PrintError):
     async def send_and_revoke(self, chan: Channel):
         """ generic channel update flow """
         self.send_commitment(chan)
-        await self.receive_revoke(chan)
+        await self.receive_revoke_and_ack(chan)
         await self.receive_commitment(chan)
-        self.revoke(chan)
+        self.send_revoke_and_ack(chan)
 
     async def receive_and_revoke(self, chan: Channel):
         await self.receive_commitment(chan)
-        self.revoke(chan)
+        self.send_revoke_and_ack(chan)
         self.send_commitment(chan)
-        await self.receive_revoke(chan)
+        await self.receive_revoke_and_ack(chan)
 
     async def pay(self, route: List['RouteEdge'], chan: Channel, amount_msat: int,
                   payment_hash: bytes, min_final_cltv_expiry: int):
@@ -1004,12 +1004,12 @@ class Peer(PrintError):
         await self.send_and_revoke(chan)
         return UpdateAddHtlc(**htlc, htlc_id=htlc_id)
 
-    async def receive_revoke(self, chan: Channel):
+    async def receive_revoke_and_ack(self, chan: Channel):
         revoke_and_ack_msg = await self.revoke_and_ack[chan.channel_id].get()
         chan.receive_revocation(RevokeAndAck(revoke_and_ack_msg["per_commitment_secret"], revoke_and_ack_msg["next_per_commitment_point"]))
         self.lnworker.save_channel(chan)
 
-    def revoke(self, chan: Channel):
+    def send_revoke_and_ack(self, chan: Channel):
         rev, _ = chan.revoke_current_commitment()
         self.lnworker.save_channel(chan)
         self.send_message("revoke_and_ack",

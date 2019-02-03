@@ -96,6 +96,12 @@ class MockLNWorker:
     def channels_for_peer(self, pubkey):
         return self.channels
 
+    def get_channel_by_short_id(self, short_channel_id):
+        with self.lock:
+            for chan in self.channels.values():
+                if chan.short_channel_id == short_channel_id:
+                    return chan
+
     def save_channel(self, chan):
         print("Ignoring channel save")
 
