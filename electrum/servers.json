@@ -317,12 +317,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "oneweek.duckdns.org": {
-        "pruning": "-",
-        "s": "50002",
-        "t": "50001",
-        "version": "1.4"
-    },
     "orannis.com": {
         "pruning": "-",
         "s": "50002",
