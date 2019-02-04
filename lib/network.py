@@ -423,7 +423,7 @@ class Network(util.DaemonThread):
             return list(self.interfaces.keys())
 
     def get_servers(self):
-        out = networks.net.DEFAULT_SERVERS
+        out = networks.net.DEFAULT_SERVERS.copy()
         if self.irc_servers:
             out.update(filter_version(self.irc_servers.copy()))
         else:
@@ -1708,7 +1708,7 @@ class Network(util.DaemonThread):
 
     def _compute_whitelist(self):
         if not hasattr(self, '_hardcoded_whitelist'):
-            self._hardcoded_whitelist = frozenset(hostmap_to_servers(networks.net.HARDCODED_DEFAULT_SERVERS))
+            self._hardcoded_whitelist = frozenset(hostmap_to_servers(networks.net.DEFAULT_SERVERS))
         ret = set(self._hardcoded_whitelist)
         ret |= set(self.config.get('server_whitelist_added', [])) # this key is all the servers that weren't in the hardcoded whitelist that the user explicitly added
         ret -= set(self.config.get('server_whitelist_removed', [])) # this key is all the servers that were hardcoded in the whitelist that the user explicitly removed

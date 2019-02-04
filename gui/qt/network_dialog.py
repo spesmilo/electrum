@@ -419,7 +419,11 @@ class NetworkChoiceLayout(QObject):
         for w in [self.proxy_mode, self.proxy_host, self.proxy_port, self.proxy_user, self.proxy_password]:
             w.setEnabled(b)
 
-    def get_set_server_flags(self): return self.config.is_modifiable('server'), not self.autoconnect_cb.isChecked()
+    def get_set_server_flags(self):
+        return (self.config.is_modifiable('server'),
+                (not self.autoconnect_cb.isChecked()
+                 and not self.preferred_only_cb.isChecked())
+               )
 
     def can_set_server(self, server):
         return bool(self.get_set_server_flags()[0]
