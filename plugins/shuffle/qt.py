@@ -1103,10 +1103,8 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
             custIdx = self.cb.count()-1
             self.cb.setItemData(custIdx, selected.copy())
             self.cb.setCurrentIndex(custIdx)
-            return True
         elif defIdx > -1:
             self.cb.setCurrentIndex(defIdx)
-        return False
     def refreshFromSettings(self):
         selected = dict()
         try:
