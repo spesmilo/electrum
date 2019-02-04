@@ -48,6 +48,7 @@ from electrum.plugin import BasePlugin, hook
 from electrum.util import NotEnoughFunds, UserFacingException
 from electrum.storage import STO_EV_USER_PW
 from electrum.network import Network
+from electrum.base_wizard import BaseWizard
 
 def get_signing_xpub(xtype):
     if not constants.net.TESTNET:
@@ -491,9 +492,9 @@ class TrustedCoinPlugin(BasePlugin):
     def do_clear(self, window):
         window.wallet.is_billing = False
 
-    def show_disclaimer(self, wizard):
+    def show_disclaimer(self, wizard: BaseWizard):
         wizard.set_icon('trustedcoin-wizard.png')
-        wizard.stack = []
+        wizard.reset_stack()
         wizard.confirm_dialog(title='Disclaimer', message='\n\n'.join(self.disclaimer_msg), run_next = lambda x: wizard.run('choose_seed'))
 
     def choose_seed(self, wizard):
@@ -580,9 +581,9 @@ class TrustedCoinPlugin(BasePlugin):
         f = lambda x: self.restore_choice(wizard, seed, x)
         wizard.passphrase_dialog(run_next=f) if is_ext else f('')
 
-    def restore_choice(self, wizard, seed, passphrase):
+    def restore_choice(self, wizard: BaseWizard, seed, passphrase):
         wizard.set_icon('trustedcoin-wizard.png')
-        wizard.stack = []
+        wizard.reset_stack()
         title = _('Restore 2FA wallet')
         msg = ' '.join([
             'You are going to restore a wallet protected with two-factor authentication.',

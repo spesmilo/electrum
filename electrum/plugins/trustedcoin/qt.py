@@ -36,6 +36,7 @@ from electrum.gui.qt.util import *
 from electrum.gui.qt.qrcodewidget import QRCodeWidget
 from electrum.gui.qt.amountedit import AmountEdit
 from electrum.gui.qt.main_window import StatusBarButton
+from electrum.gui.qt.installwizard import InstallWizard
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.util import PrintError, is_valid_email
@@ -195,7 +196,7 @@ class Plugin(TrustedCoinPlugin):
         vbox.addLayout(Buttons(CloseButton(d)))
         d.exec_()
 
-    def go_online_dialog(self, wizard):
+    def go_online_dialog(self, wizard: InstallWizard):
         msg = [
             _("Your wallet file is: {}.").format(os.path.abspath(wizard.storage.path)),
             _("You need to be online in order to complete the creation of "
@@ -206,7 +207,7 @@ class Plugin(TrustedCoinPlugin):
             _('If you are online, click on "{}" to continue.').format(_('Next'))
         ]
         msg = '\n\n'.join(msg)
-        wizard.stack = []
+        wizard.reset_stack()
         wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('accept_terms_of_use'))
 
     def accept_terms_of_use(self, window):
