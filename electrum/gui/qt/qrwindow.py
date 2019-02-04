@@ -23,23 +23,12 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import platform
-
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QWidget
 
 from .qrcodewidget import QRCodeWidget
+
 from electrum.i18n import _
-
-if platform.system() == 'Windows':
-    MONOSPACE_FONT = 'Lucida Console'
-elif platform.system() == 'Darwin':
-    MONOSPACE_FONT = 'Monaco'
-else:
-    MONOSPACE_FONT = 'monospace'
-
-column_index = 4
 
 
 class QR_Window(QWidget):
