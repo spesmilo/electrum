@@ -101,6 +101,20 @@ class JsonDB(PrintError):
                 self.modified = True
                 self.data.pop(key)
 
+    def get_all_data(self) -> dict:
+        with self.db_lock:
+            return copy.deepcopy(self.data)
+
+    def overwrite_all_data(self, data: dict) -> None:
+        try:
+            json.dumps(data, cls=util.MyEncoder)
+        except:
+            self.print_error(f"json error: cannot save {repr(data)}")
+            return
+        with self.db_lock:
+            self.modified = True
+            self.data = copy.deepcopy(data)
+
     @profiler
     def write(self):
         with self.db_lock:
