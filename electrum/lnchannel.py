@@ -594,6 +594,9 @@ class Channel(PrintError):
         feerate = self.constraints.feerate
         return self.make_commitment(subject, this_point, ctn, feerate, False)
 
+    def get_current_ctn(self, subject):
+        return self.config[subject].ctn
+
     def total_msat(self, direction):
         assert type(direction) is Direction
         sub = LOCAL if direction == SENT else REMOTE
