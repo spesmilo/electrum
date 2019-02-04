@@ -14,8 +14,8 @@ from typing import Sequence
 
 from .bitcoin import COIN
 from .i18n import _
-from .util import PrintError, ThreadJob, make_dir, log_exceptions
-from .util import make_aiohttp_session
+from .util import (PrintError, ThreadJob, make_dir, log_exceptions,
+                   make_aiohttp_session, resource_path)
 from .network import Network
 from .simple_config import SimpleConfig
 
@@ -298,7 +298,7 @@ def dictinvert(d):
     return inv
 
 def get_exchanges_and_currencies():
-    path = os.path.join(os.path.dirname(__file__), 'currencies.json')
+    path = resource_path('currencies.json')
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return json.loads(f.read())

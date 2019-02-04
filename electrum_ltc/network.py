@@ -43,7 +43,7 @@ from aiohttp import ClientResponse
 
 from . import util
 from .util import (PrintError, print_error, log_exceptions, ignore_exceptions,
-                   bfh, SilentTaskGroup, make_aiohttp_session)
+                   bfh, SilentTaskGroup, make_aiohttp_session, send_exception_to_crash_reporter)
 
 from .bitcoin import COIN
 from . import constants
@@ -186,6 +186,13 @@ class TxBroadcastServerReturnedError(TxBroadcastError):
             .format(_("The server returned an error when broadcasting the transaction."),
                     _("Consider trying to connect to a different server, or updating Electrum."),
                     str(self))
+
+
+class TxBroadcastUnknownError(TxBroadcastError):
+    def get_message_for_gui(self):
+        return "{}\n{}" \
+            .format(_("Unknown error when broadcasting the transaction."),
+                    _("Consider trying to connect to a different server, or updating Electrum."))
 
 
 INSTANCE = None
@@ -764,9 +771,15 @@ class Network(PrintError):
         try:
             out = await self.interface.session.send_request('blockchain.transaction.broadcast', [str(tx)], timeout=timeout)
             # note: both 'out' and exception messages are untrusted input from the server
-        except aiorpcx.jsonrpc.RPCError as e:
+        except (RequestTimedOut, asyncio.CancelledError, asyncio.TimeoutError):
+            raise  # pass-through
+        except aiorpcx.jsonrpc.CodeMessageError as e:
             self.print_error(f"broadcast_transaction error: {repr(e)}")
             raise TxBroadcastServerReturnedError(self.sanitize_tx_broadcast_response(e.message)) from e
+        except BaseException as e:  # intentional BaseException for sanity!
+            self.print_error(f"broadcast_transaction error2: {repr(e)}")
+            send_exception_to_crash_reporter(e)
+            raise TxBroadcastUnknownError() from e
         if out != tx.txid():
             self.print_error(f"unexpected txid for broadcast_transaction: {out} != {tx.txid()}")
             raise TxBroadcastHashMismatch(_("Server returned unexpected transaction ID."))

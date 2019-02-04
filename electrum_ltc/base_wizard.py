@@ -27,7 +27,7 @@ import os
 import sys
 import traceback
 from functools import partial
-from typing import List, TYPE_CHECKING, Tuple
+from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any
 
 from . import bitcoin
 from . import keystore
@@ -56,6 +56,12 @@ class ScriptTypeNotSupported(Exception): pass
 class GoBack(Exception): pass
 
 
+class WizardStackItem(NamedTuple):
+    action: Any
+    args: Any
+    storage_data: dict
+
+
 class BaseWizard(object):
 
     def __init__(self, config: SimpleConfig, plugins: Plugins, storage: WalletStorage):
@@ -64,7 +70,7 @@ class BaseWizard(object):
         self.plugins = plugins
         self.storage = storage
         self.wallet = None  # type: Abstract_Wallet
-        self.stack = []
+        self._stack = []  # type: List[WizardStackItem]
         self.plugin = None
         self.keystores = []
         self.is_kivy = config.get('gui') == 'kivy'
@@ -76,7 +82,8 @@ class BaseWizard(object):
     def run(self, *args):
         action = args[0]
         args = args[1:]
-        self.stack.append((action, args))
+        storage_data = self.storage.get_all_data()
+        self._stack.append(WizardStackItem(action, args, storage_data))
         if not action:
             return
         if type(action) is tuple:
@@ -91,14 +98,23 @@ class BaseWizard(object):
             raise Exception("unknown action", action)
 
     def can_go_back(self):
-        return len(self.stack)>1
+        return len(self._stack) > 1
 
     def go_back(self):
         if not self.can_go_back():
             return
-        self.stack.pop()
-        action, args = self.stack.pop()
-        self.run(action, *args)
+        # pop 'current' frame
+        self._stack.pop()
+        # pop 'previous' frame
+        stack_item = self._stack.pop()
+        # try to undo side effects since we last entered 'previous' frame
+        # FIXME only self.storage is properly restored
+        self.storage.overwrite_all_data(stack_item.storage_data)
+        # rerun 'previous' frame
+        self.run(stack_item.action, *stack_item.args)
+
+    def reset_stack(self):
+        self._stack = []
 
     def new(self):
         name = os.path.basename(self.storage.path)
@@ -151,8 +167,8 @@ class BaseWizard(object):
 
     def choose_multisig(self):
         def on_multisig(m, n):
-            self.multisig_type = "%dof%d"%(m, n)
-            self.storage.put('wallet_type', self.multisig_type)
+            multisig_type = "%dof%d" % (m, n)
+            self.storage.put('wallet_type', multisig_type)
             self.n = n
             self.run('choose_keystore')
         self.multisig_dialog(run_next=on_multisig)
@@ -476,7 +492,7 @@ class BaseWizard(object):
             self.keystores.append(k)
             if len(self.keystores) == 1:
                 xpub = k.get_master_public_key()
-                self.stack = []
+                self.reset_stack()
                 self.run('show_xpub_and_add_cosigners', xpub)
             elif len(self.keystores) < self.n:
                 self.run('choose_keystore')

@@ -272,7 +272,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                             None, _('Error'),
                             _('Failed to decrypt using this hardware device.') + '\n' +
                             _('If you use a passphrase, make sure it is correct.'))
-                        self.stack = []
+                        self.reset_stack()
                         return self.run_and_get_wallet(get_wallet_from_daemon)
                     except BaseException as e:
                         traceback.print_exc(file=sys.stdout)

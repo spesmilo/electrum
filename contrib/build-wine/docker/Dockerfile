@@ -31,10 +31,10 @@ RUN wget -nc https://dl.winehq.org/wine-builds/Release.key && \
     apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ && \
     apt-get update -q && \
     apt-get install -qy \
-        wine-stable-amd64:amd64=3.0.1~bionic \
-        wine-stable-i386:i386=3.0.1~bionic \
-        wine-stable:amd64=3.0.1~bionic \
-        winehq-stable:amd64=3.0.1~bionic
+        wine-stable-amd64:amd64=4.0~bionic \
+        wine-stable-i386:i386=4.0~bionic \
+        wine-stable:amd64=4.0~bionic \
+        winehq-stable:amd64=4.0~bionic
 
 RUN rm -rf /var/lib/apt/lists/* && \
     apt-get autoremove -y && \
