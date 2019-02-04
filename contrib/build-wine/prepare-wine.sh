@@ -55,11 +55,9 @@ for msifile in core dev exe lib pip tools; do
     wine msiexec /i "${msifile}.msi" /qb TARGETDIR=$PYHOME
 done
 
-# upgrade pip
-$PYTHON -m pip install pip --upgrade
-
-
-$PYTHON -m pip install -r $here/../deterministic-build/requirements-binaries.txt
+# Install dependencies specific to binaries
+# note that this also installs pinned versions of both pip and setuptools
+$PYTHON -m pip install -r "$here"/../deterministic-build/requirements-binaries.txt
 
 # Install PyInstaller
 $PYTHON -m pip install pyinstaller==3.4 --no-use-pep517
@@ -68,9 +66,6 @@ $PYTHON -m pip install pyinstaller==3.4 --no-use-pep517
 download_if_not_exist $ZBAR_FILENAME "$ZBAR_URL"
 verify_hash $ZBAR_FILENAME "$ZBAR_SHA256"
 wine "$PWD/$ZBAR_FILENAME" /S
-
-# Upgrade setuptools (so Electrum can be installed later)
-$PYTHON -m pip install setuptools --upgrade
 
 # Install NSIS installer
 download_if_not_exist $NSIS_FILENAME "$NSIS_URL"
