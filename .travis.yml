@@ -48,7 +48,7 @@ jobs:
         - docker
       install:
         - ./contrib/make_packages
-        - sudo docker build --no-cache -t electrum-android-builder-img electrum/gui/kivy/tools
+        - sudo docker build --no-cache -t electrum-android-builder-img electrum_ltc/gui/kivy/tools
       script:
         - sudo chown -R 1000:1000 .
         # Output something every minute or Travis kills the job
@@ -69,6 +69,17 @@ jobs:
         - git fetch --all --tags
       script: ./contrib/osx/make_osx
       after_script: ls -lah dist && md5 dist/*
+      after_success: true
+    - name: "AppImage build"
+      sudo: true
+      language: c
+      python: false
+      services:
+        - docker
+      install:
+        - sudo docker build --no-cache -t electrum-ltc-appimage-builder-img ./contrib/build-linux/appimage/
+      script:
+        - sudo docker run --name electrum-ltc-appimage-builder-cont -v $PWD:/opt/electrum-ltc --rm --workdir /opt/electrum-ltc/contrib/build-linux/appimage electrum-ltc-appimage-builder-img ./build.sh
       after_success: true
     - stage: release check
       install:
