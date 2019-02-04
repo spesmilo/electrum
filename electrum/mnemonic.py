@@ -30,7 +30,7 @@ import string
 
 import ecdsa
 
-from .util import print_error
+from .util import print_error, resource_path
 from .bitcoin import is_old_seed, is_new_seed
 from . import version
 
@@ -88,7 +88,7 @@ def normalize_text(seed: str) -> str:
     return seed
 
 def load_wordlist(filename):
-    path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
+    path = resource_path('wordlist', filename)
     with open(path, 'r', encoding='utf-8') as f:
         s = f.read().strip()
     s = unicodedata.normalize('NFKD', s)
