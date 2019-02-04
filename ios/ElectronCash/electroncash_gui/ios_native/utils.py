@@ -893,9 +893,13 @@ def get_qrcode_image_for_data(data : str, size : CGSize = None) -> ObjCInstance:
     uiimage = _qr_cache.get(key)
     if uiimage is None:
         #print("**** CACHE MISS for",key)
-        qr = qrcode.QRCode(image_factory=qrcode.image.svg.SvgPathFillImage)
-        qr.add_data(data)
-        img = qr.make_image()
+        try:
+            qr = qrcode.QRCode(image_factory=qrcode.image.svg.SvgPathFillImage)
+            qr.add_data(data)
+            img = qr.make_image()
+        except qrcode.exceptions.DataOverflowError:
+            NSLog("Failed to generate QR image -- data too long! Defaulting to OvalX.png. Data length was: %d bytes",len(data))
+            return UIImage.imageNamed_("OvalX")
         fname = ""
         tmp, fname = tempfile.mkstemp()
         img.save(fname)
