@@ -75,6 +75,7 @@ from .fee_slider import FeeSlider
 from .util import *
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
+from .update_checker import UpdateCheck, UpdateCheckThread
 
 
 class StatusBarButton(QPushButton):
