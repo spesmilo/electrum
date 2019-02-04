@@ -936,11 +936,18 @@ class UpdateCheckThread(QThread, PrintError):
                 return StrictVersion(version_num.strip())
 
     def run(self):
-        try:
-            self.checked.emit(asyncio.run_coroutine_threadsafe(self.get_update_info(), self.main_window.network.asyncio_loop).result())
-        except Exception:
-            self.print_error(traceback.format_exc())
+        network = self.main_window.network
+        if not network:
             self.failed.emit()
+            return
+        try:
+            update_info = asyncio.run_coroutine_threadsafe(self.get_update_info(), network.asyncio_loop).result()
+        except Exception as e:
+            #self.print_error(traceback.format_exc())
+            self.print_error(f"got exception: '{repr(e)}'")
+            self.failed.emit()
+        else:
+            self.checked.emit(update_info)
 
 
 if __name__ == "__main__":
