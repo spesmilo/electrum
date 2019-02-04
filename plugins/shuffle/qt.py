@@ -1017,6 +1017,8 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
     statusChanged = pyqtSignal(dict)
     formChanged = pyqtSignal()
 
+    _DEFAULT_HOST_SUBSTR = "imaginary.cash"  # on fresh install, prefer this server as default (substring match)
+
     def __init__(self, parent, title, config, message=None):
         super().__init__(parent, title)
         self.config = config
@@ -1082,7 +1084,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
             return r
         # /
         servers = load_servers("servers.json")
-        selIdx = -1
+        selIdx, defIdx = (-1,)*2
         self.cb.clear()
         for host, d0 in sorted(servers.items()):
             d = d0.copy()
@@ -1091,6 +1093,8 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
             self.cb.addItem(item, d)
             if selected and selected == d:
                 selIdx = self.cb.count()-1
+            elif defIdx < 0 and self._DEFAULT_HOST_SUBSTR in host:
+                defIdx = self.cb.count()-1
 
         self.cb.addItem(_("(Custom)"))
         if selIdx > -1:
@@ -1100,6 +1104,8 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
             self.cb.setItemData(custIdx, selected.copy())
             self.cb.setCurrentIndex(custIdx)
             return True
+        elif defIdx > -1:
+            self.cb.setCurrentIndex(defIdx)
         return False
     def refreshFromSettings(self):
         selected = dict()
