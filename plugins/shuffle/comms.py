@@ -58,7 +58,8 @@ class Comm(PrintErrorThread):
     MAX_MSG_LENGTH = 64*1024 # 64kb message length limit on server-side. If we get anything longer it's a malicious server
 
 
-    def __init__(self, host, port, bufsize = 32768, timeout = 60.0, ssl = False):
+    def __init__(self, host, port, bufsize = 32768, timeout = 60.0, ssl = False,
+                 infoText = None):
         self.host = host
         self.port = port
         self.socket = None
@@ -67,10 +68,14 @@ class Comm(PrintErrorThread):
         self.timeout = timeout
         self.recvbuf = b''
         self.ssl = ssl
-        self.connected = False
+        self.infoText = infoText
+        self._connected = False
+        self.lock = threading.Lock()
 
     def connect(self, ctimeout = 5.0):
+        ''' Not thread safe. Call this from a single thread at a time. '''
         try:
+            self._connected = False
             if self.ssl and not verify_ssl_socket(self.host, self.port, timeout = ctimeout):
                 raise OSError(errno.EINVAL, "Failed to verify SSL certificate for {}, aborting".format(self.host))
             bare_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -83,17 +88,19 @@ class Comm(PrintErrorThread):
             else:
                 self.socket = bare_socket
             self.socket.settimeout(self.timeout) # blocking socket with a timeout -- when recv times out the enclosing protocol thread exits
-            self.connected = True
+            self._connected = True
         except OSError as error:
             self.print_error("Socket Error on connect: {}".format(str(error)))
             raise error
 
     def send(self, msg):
+        ''' Not thread safe. '''
         message_length = len(msg).to_bytes(4, byteorder='big')
         message = self.magic + message_length + msg
-        if self.connected: self.socket.sendall(message)
+        if self.is_connected(): self.socket.sendall(message)
 
     def recv(self):
+        ''' Not thread safe. '''
 
         def LEN():
             return len(self.recvbuf)
@@ -106,7 +113,7 @@ class Comm(PrintErrorThread):
 
         msg_length, magic = None, None
 
-        while self.connected:
+        while self.is_connected():
             if magic is None or msg_length is None:
                 if LEN() <= 12:
                     READ()
@@ -130,7 +137,7 @@ class Comm(PrintErrorThread):
         raise OSError(errno.ENOTCONN, "Not connected")
 
     def _recv(self):
-        if self.connected and self.socket:
+        if self.is_connected():
             ret = self.socket.recv(self.MAX_BLOCK_SIZE)
             if not ret:
                 raise OSError(errno.ECONNABORTED, "Connection reset by peer")
@@ -138,19 +145,29 @@ class Comm(PrintErrorThread):
         raise OSError(errno.EINVAL, "_recv called with closed/disconnected socket!")
 
     def close(self):
-        if self.socket and self.connected:
-            self.print_error("Closing comm -- subsequent socket errors are to be expected. :)")
-            try:
-                self.connected = False
-                self.socket.shutdown(socket.SHUT_RDWR)
-                self.socket.close()
-            except OSError:
-                # Socket was already closed
-                pass
+        ''' Thread safe. '''
+        with self.lock:
+            if self.socket and self.socket.fileno() > -1:
+                self.print_error("Closing comm (subsequent socket errors are to be expected)")
+                try:
+                    self._connected = False
+                    self.socket.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    # Socket was not actually connected
+                    pass
+                finally:
+                    try: self.socket.close()  # fileno() is now -1
+                    except OSError: pass
+
+    def is_connected(self):
+        ''' Thread safe. '''
+        with self.lock:
+            return bool(self._connected and self.socket and self.socket.fileno() > -1)
 
     def diagnostic_name(self):
         n = super().diagnostic_name() or ""
         n += " <{}:{}>".format(self.host, self.port)
+        if self.infoText: n += " <{}>".format(self.infoText)
         return n
 
 def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout = None):

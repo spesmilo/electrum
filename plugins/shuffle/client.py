@@ -11,7 +11,7 @@ MSG_SERVER_OK = "Ok: Server is ok"
 class PrintErrorThread(PrintError):
     def diagnostic_name(self):
         n = super().diagnostic_name()
-        return "{} ({})".format(n, threading.get_ident())
+        return "{} ({})".format(n, int(threading.get_ident())&0xfffff)
 
 from .coin import Coin
 from .crypto import Crypto
@@ -43,7 +43,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         super(ProtocolThread, self).__init__()
         self.daemon = True
         self.messages = Messages()
-        self.comm = Comm(host, port, ssl=ssl, timeout = comm_timeout)
+        self.comm = Comm(host, port, ssl=ssl, timeout = comm_timeout, infoText = "Scale: {}".format(amount))
         self.ctimeout = ctimeout
         if not logger:
             self.logger = ChannelWithPrint()
@@ -194,6 +194,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
             self.start_protocol()
         finally:
             self.logger.send("Exit: Scale '{}' Coin '{}'".format(self.amount, self.coin))
+            self.comm.close()  # simply force socket close if exiting thread for any reason
 
     def stop(self):
         "This method stops the protocol threads"
