@@ -13,12 +13,13 @@ from electrum.lnaddr import lnencode, LnAddr, lndecode
 from electrum.bitcoin import COIN, sha256
 from electrum.util import bh2u
 
-from electrum.lnbase import Peer, decode_msg, gen_msg
+from electrum.lnbase import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum.lnutil import PaymentFailure
 from electrum.lnrouter import ChannelDB, LNPathFinder
 from electrum.lnworker import LNWorker
+from electrum.lnmsg import encode_msg, decode_msg
 
 from .test_lnchan import create_test_channels
 
@@ -135,7 +136,7 @@ class NoFeaturesTransport(MockTransport):
         decoded = decode_msg(data)
         print(decoded)
         if decoded[0] == 'init':
-            self.queue.put_nowait(gen_msg('init', lflen=1, gflen=1, localfeatures=b"\x00", globalfeatures=b"\x00"))
+            self.queue.put_nowait(encode_msg('init', lflen=1, gflen=1, localfeatures=b"\x00", globalfeatures=b"\x00"))
 
 class PutIntoOthersQueueTransport(MockTransport):
     def __init__(self):
