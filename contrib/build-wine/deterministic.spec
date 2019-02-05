@@ -43,8 +43,8 @@ datas = [
     (home+'electrum_ltc/locale', 'electrum_ltc/locale'),
     (home+'electrum_ltc/plugins', 'electrum_ltc/plugins'),
     ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),
-    (home+'icons/*.png', 'icons'),
-    (home+'icons/*.svg', 'icons'),
+    (home+'icons/*.png', 'electrum_ltc/gui/icons'),
+    (home+'icons/*.svg', 'electrum_ltc/gui/icons'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')
