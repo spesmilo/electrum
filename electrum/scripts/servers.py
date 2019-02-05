@@ -7,8 +7,6 @@ from electrum.network import filter_version, Network
 from electrum.util import create_and_start_event_loop, log_exceptions
 from electrum import constants
 
-import util
-
 # testnet?
 #constants.set_testnet()
 config = SimpleConfig({'testnet': False})
@@ -20,7 +18,7 @@ network.start()
 @log_exceptions
 async def f():
     try:
-        peers = await util.get_peers(network)
+        peers = await network.get_peers()
         peers = filter_version(peers)
         print(json.dumps(peers, sort_keys=True, indent=4))
     finally:
