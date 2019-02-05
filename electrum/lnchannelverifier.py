@@ -39,6 +39,9 @@ from .verifier import verify_tx_is_in_block, MerkleVerificationFailure
 from .transaction import Transaction
 from .interface import GracefulDisconnect
 from .crypto import sha256d
+from .lnmsg import LNSerializer
+
+lnserializer = LNSerializer()
 
 if TYPE_CHECKING:
     from .network import Network
@@ -184,7 +187,7 @@ class LNChannelVerifier(NetworkJobOnDefaultServer):
 
 
 def verify_sigs_for_channel_announcement(chan_ann: dict) -> bool:
-    msg_bytes = lnbase.gen_msg('channel_announcement', **chan_ann)
+    msg_bytes = lnserializer.gen_msg('channel_announcement', **chan_ann)
     pre_hash = msg_bytes[2+256:]
     h = sha256d(pre_hash)
     pubkeys = [chan_ann['node_id_1'], chan_ann['node_id_2'], chan_ann['bitcoin_key_1'], chan_ann['bitcoin_key_2']]
@@ -196,7 +199,7 @@ def verify_sigs_for_channel_announcement(chan_ann: dict) -> bool:
 
 
 def verify_sig_for_channel_update(chan_upd: dict, node_id: bytes) -> bool:
-    msg_bytes = lnbase.gen_msg('channel_update', **chan_upd)
+    msg_bytes = lnserializer.gen_msg('channel_update', **chan_upd)
     pre_hash = msg_bytes[2+64:]
     h = sha256d(pre_hash)
     sig = chan_upd['signature']
