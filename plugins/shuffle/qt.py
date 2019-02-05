@@ -53,7 +53,10 @@ SCALE_0 = SORTED_SCALES[0]
 SCALE_N = SORTED_SCALES[-1]
 UPPER_BOUND = SCALE_N*10 + FEE
 LOWER_BOUND = SCALE_0 + FEE
-
+# Cash Shuffle server config key
+SHUFFLE_SERVER_KEY = "cashshuffle_server_v2"
+# old keys from previous versions. clean them up from config if seen.
+DELETE_KEYS = ('cashshuffle_server', 'cashshuffle_server_v1',)
 
 def is_coin_shuffled(wallet, coin, txs_in=None):
     cache = getattr(wallet, "_is_shuffled_cache", dict())
@@ -414,6 +417,7 @@ class Plugin(BasePlugin):
         self.print_error("Initializing...")
         Plugin.instance = self
         Plugin.gui = gui
+        self._delete_old_keys(gui.config)
         if Plugin.network_dialog != gui.nd:
             Plugin.network_dialog = gui.nd # each time we are stopped, our module gets re-imported and we lose globals... so try and recapture this singleton
         ct = 0
@@ -426,9 +430,9 @@ class Plugin(BasePlugin):
 
     @hook
     def on_network_dialog(self, nd):
-        self.print_error("OnNetworkDialog", str(nd))
         Plugin.network_dialog = nd
         if not nd: return
+        self.print_error("OnNetworkDialog", str(nd))
         if not hasattr(nd, "__shuffle_settings__") or not nd.__shuffle_settings__:
             nd.__shuffle_settings__ = st = SettingsTab(nd.nlayout.tabs, None, nd.nlayout.config)
             nd.nlayout.tabs.addTab(st, _("CashShuffle"))
@@ -759,11 +763,11 @@ class Plugin(BasePlugin):
     def save_network_settings(config, network_settings):
         ns = copy.deepcopy(network_settings)
         print_error("Saving network settings: {}".format(ns))
-        config.set_key("cashshuffle_server_v2", ns)
+        config.set_key(SHUFFLE_SERVER_KEY, ns)
         
     @staticmethod
     def get_network_settings(config):
-        return copy.deepcopy(config.get("cashshuffle_server_v2", None))
+        return copy.deepcopy(config.get(SHUFFLE_SERVER_KEY, None))
 
     def settings_widget(self, window):
         weakMeth = Weak(self.settings_dialog)
@@ -772,6 +776,16 @@ class Plugin(BasePlugin):
 
     def requires_settings(self):
         return True
+
+    def _delete_old_keys(self, config):
+        ct = 0
+        for k in DELETE_KEYS:
+            if config.get(k, None) is not None:
+                ct += 1
+                config.set_key(k, None, save=True)
+        if ct:
+            self.print_error("Found and removed {} deprecated keys from config".format(ct))
+
 
 class SendTabExtraDisabled(QFrame, PrintError):
     ''' Implements a Widget that appears in the main_window 'send tab' to inform the user CashShuffle was disabled for this wallet '''
@@ -1109,7 +1123,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
         selected = dict()
         try:
             # try and pre-populate from config
-            current = self.config.get("cashshuffle_server_v2", dict())
+            current = self.config.get(SHUFFLE_SERVER_KEY, dict())
             dummy = (current["server"], current["info"], current["ssl"]); del dummy;
             selected = current
         except KeyError:
