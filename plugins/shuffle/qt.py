@@ -759,11 +759,11 @@ class Plugin(BasePlugin):
     def save_network_settings(config, network_settings):
         ns = copy.deepcopy(network_settings)
         print_error("Saving network settings: {}".format(ns))
-        config.set_key("cashshuffle_server_v1", ns)
+        config.set_key("cashshuffle_server_v2", ns)
         
     @staticmethod
     def get_network_settings(config):
-        return copy.deepcopy(config.get("cashshuffle_server_v1", None))
+        return copy.deepcopy(config.get("cashshuffle_server_v2", None))
 
     def settings_widget(self, window):
         weakMeth = Weak(self.settings_dialog)
@@ -1017,7 +1017,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
     statusChanged = pyqtSignal(dict)
     formChanged = pyqtSignal()
 
-    _DEFAULT_HOST_SUBSTR = "imaginary.cash"  # on fresh install, prefer this server as default (substring match)
+    _DEFAULT_HOST_SUBSTR = "shuffle.servo.cash"  # on fresh install, prefer this server as default (substring match)
 
     def __init__(self, parent, title, config, message=None):
         super().__init__(parent, title)
@@ -1109,7 +1109,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
         selected = dict()
         try:
             # try and pre-populate from config
-            current = self.config.get("cashshuffle_server_v1", dict())
+            current = self.config.get("cashshuffle_server_v2", dict())
             dummy = (current["server"], current["info"], current["ssl"]); del dummy;
             selected = current
         except KeyError:
