@@ -64,12 +64,6 @@
         "t": "50001",
         "version": "1.4"
     },
-    "electroncash.ueo.ch": {
-        "pruning": "-",
-        "s": "51002",
-        "t": "51001",
-        "version": "1.4"
-    },
     "electrum.imaginary.cash": {
         "pruning": "-",
         "s": "50002",
