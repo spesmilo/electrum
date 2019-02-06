@@ -1,5 +1,5 @@
 
-import scrypt
+import pyscrypt as scrypt
 import hashlib
 from functools import reduce
 from operator import mul
