@@ -111,23 +111,42 @@ def aes_decrypt_with_iv(key, iv, data):
         raise InvalidPassword()
 
 
-def EncodeAES(secret, s):
-    assert_bytes(s)
+def EncodeAES_bytes(secret, msg):
+    """ Params and retval are all bytes objects. """
+    assert_bytes(msg)
     iv = bytes(os.urandom(16))
-    ct = aes_encrypt_with_iv(secret, iv, s)
-    e = iv + ct
+    ct = aes_encrypt_with_iv(secret, iv, msg)
+    return iv + ct
+
+
+def EncodeAES_base64(secret, msg):
+    """ Returns base64 encoded ciphertext. Params and retval are all bytes. """
+    e = EncodeAES_bytes(secret, msg)
     return base64.b64encode(e)
 
-def DecodeAES(secret, e):
-    e = bytes(base64.b64decode(e))
-    iv, e = e[:16], e[16:]
+
+def DecodeAES_bytes(secret, ciphertext):
+    assert_bytes(ciphertext)
+    iv, e = ciphertext[:16], ciphertext[16:]
     s = aes_decrypt_with_iv(secret, iv, e)
     return s
+
+
+def DecodeAES_base64(secret, ciphertext_b64):
+    ciphertext = bytes(base64.b64decode(ciphertext_b64))
+    return DecodeAES_bytes(secret, ciphertext)
+
+
+# The below 2 are for compatibility with old API (plugins may use this)
+# They are considered deprecated and new code should not use them.
+EncodeAES = EncodeAES_base64  # Deprecated API
+DecodeAES = DecodeAES_base64  # Deprecated API
+
 
 def pw_encode(s, password):
     if password:
         secret = Hash(password)
-        return EncodeAES(secret, to_bytes(s, "utf8")).decode('utf8')
+        return EncodeAES_base64(secret, to_bytes(s, "utf8")).decode('utf8')
     else:
         return s
 
@@ -135,7 +154,7 @@ def pw_decode(s, password):
     if password is not None:
         secret = Hash(password)
         try:
-            d = to_string(DecodeAES(secret, s), "utf8")
+            d = to_string(DecodeAES_base64(secret, s), "utf8")
         except Exception:
             raise InvalidPassword()
         return d
@@ -190,9 +209,19 @@ def Hash(x):
     return out
 
 
+def hmac_oneshot(key, msg, digest):
+    """ Params key, msg and return val are bytes.
+        Digest is a hashlib algorithm, e.g. hashlib.sha512 """
+    if hasattr(hmac, 'digest'):
+        # requires python 3.7+; faster
+        return hmac.digest(key, msg, digest)
+    else:
+        return hmac.new(key, msg, digest).digest()
+
+
 hash_encode = lambda x: bh2u(x[::-1])
 hash_decode = lambda x: bfh(x)[::-1]
-hmac_sha_512 = lambda x, y: hmac.new(x, y, hashlib.sha512).digest()
+hmac_sha_512 = lambda x, y: hmac_oneshot(x, y, hashlib.sha512)
 
 
 def is_new_seed(x, prefix=version.SEED_PREFIX):
