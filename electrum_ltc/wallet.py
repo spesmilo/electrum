@@ -444,6 +444,7 @@ class Abstract_Wallet(AddressSynchronizer):
                 'height': tx_mined_status.height,
                 'confirmations': tx_mined_status.conf,
                 'timestamp': timestamp,
+                'incoming': True if value>0 else False,
                 'value': Satoshis(value),
                 'balance': Satoshis(balance),
                 'date': timestamp_to_datetime(timestamp),
@@ -523,6 +524,7 @@ class Abstract_Wallet(AddressSynchronizer):
         fiat_rate = self.price_at_timestamp(tx_hash, fx.timestamp_rate)
         fiat_value = fiat_value if fiat_value is not None else self.default_fiat_value(tx_hash, fx, value)
         fiat_fee = tx_fee / Decimal(COIN) * fiat_rate if tx_fee is not None else None
+        item['fiat_rate'] = Fiat(fiat_rate, fx.ccy)
         item['fiat_value'] = Fiat(fiat_value, fx.ccy)
         item['fiat_fee'] = Fiat(fiat_fee, fx.ccy) if fiat_fee else None
         item['fiat_default'] = fiat_default

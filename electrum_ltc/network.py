@@ -1134,3 +1134,33 @@ class Network(PrintError):
         assert network._loop_thread is not threading.currentThread()
         coro = asyncio.run_coroutine_threadsafe(network._send_http_on_proxy(method, url, **kwargs), network.asyncio_loop)
         return coro.result(5)
+
+
+
+    # methods used in scripts
+    async def get_peers(self):
+        while not self.is_connected():
+            await asyncio.sleep(1)
+        session = self.interface.session
+        return parse_servers(await session.send_request('server.peers.subscribe'))
+
+    async def send_multiple_requests(self, servers: List[str], method: str, params: Sequence):
+        num_connecting = len(self.connecting)
+        for server in servers:
+            self._start_interface(server)
+        # sleep a bit
+        for _ in range(10):
+            if len(self.connecting) < num_connecting:
+                break
+            await asyncio.sleep(1)
+        responses = dict()
+        async def get_response(iface: Interface):
+            try:
+                res = await iface.session.send_request(method, params, timeout=10)
+            except Exception as e:
+                res = e
+            responses[iface.server] = res
+        async with TaskGroup() as group:
+            for interface in self.interfaces.values():
+                await group.spawn(get_response(interface))
+        return responses
