@@ -65,6 +65,7 @@ hiddenimports += collect_submodules('btchip')
 hiddenimports += collect_submodules('keepkeylib')
 hiddenimports += collect_submodules('websocket')
 hiddenimports += collect_submodules('ckcc')
+hiddenimports += ['_scrypt']
 
 # safetlib imports PyQt5.Qt.  We use a local updated copy of pinmatrix.py until they
 # release a new version that includes https://github.com/archos-safe-t/python-safet/commit/b1eab3dba4c04fdfc1fcf17b66662c28c5f2380e
@@ -103,6 +104,7 @@ a = Analysis([electrum+ MAIN_SCRIPT,
               electrum+'electrum_ltc/wallet.py',
               electrum+'electrum_ltc/simple_config.py',
               electrum+'electrum_ltc/bitcoin.py',
+              electrum+'electrum_ltc/blockchain.py',
               electrum+'electrum_ltc/dnssec.py',
               electrum+'electrum_ltc/commands.py',
               electrum+'electrum_ltc/plugins/cosigner_pool/qt.py',
