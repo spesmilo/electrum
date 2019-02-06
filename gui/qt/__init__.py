@@ -323,7 +323,7 @@ class ElectrumGui(QObject, PrintError):
             d.setParent(None)
 
     def has_auto_update_check(self):
-        return bool(self.config.get('auto_update_check', False))
+        return bool(self.config.get('auto_update_check', True))
 
     def set_auto_update_check(self, b):
         was, b = self.has_auto_update_check(), bool(b)
