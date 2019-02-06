@@ -750,19 +750,6 @@ def is_address_list(text):
     parts = text.split()
     return bool(parts) and all(bitcoin.is_address(x) for x in parts)
 
-
-def is_solo_list(text):
-    filteredempty = filter(lambda y: y!= "" , text.split())
-    divided_secret = list(map(lambda y : y.split(","), filteredempty))
-    all_length3 = all(map(lambda y : len(y)==3, divided_secret))
-    if not all_length3:
-        return all_length3
-    all_base58 = all([car in bitcoin_b58chars for car in "".join(sum(divided_secret,[]))])
-    if not all_base58:
-        return all_base58
-    all_address_valid = is_address_list(" ".join(map(lambda y: y[2], divided_secret)))
-    return all_address_valid
-
 def get_solo_private_keys(text, *arg):
     filteredempty = filter(lambda y: y!= "" , text.split())
     divided_secret = map(lambda y : y.split(","), filteredempty)

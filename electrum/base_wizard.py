@@ -200,8 +200,6 @@ class BaseWizard(object):
                              is_valid=v, allow_multi=True, show_wif_help=True)
 
     def choose_solo(self):
-        v = lambda x: keystore.is_solo_list(x) 
-
         title = _("Choose your Solo type")
         message = _('Please Choose your Solo type')
         choices = [
@@ -220,7 +218,7 @@ class BaseWizard(object):
         k = keystore.Imported_KeyStore({})
         self.storage.put('keystore', k.dump())
         w = Imported_Wallet(self.storage)
-        good_inputs, bad_inputs = w.import_private_keys([key], None)
+        good_inputs, bad_inputs = w.import_private_keys([key], None, write_to_disk=False)
         self.keystores.append(w.keystore)
         if bad_inputs:
             msg = "\n".join(f"{key[:10]}... ({msg})" for key, msg in bad_inputs[:10])
@@ -245,15 +243,6 @@ class BaseWizard(object):
             w = Imported_Wallet(self.storage)
             keys = keystore.get_private_keys(text)
             good_inputs, bad_inputs = w.import_private_keys(keys, None, write_to_disk=False)
-            self.keystores.append(w.keystore)
-        elif  keystore.is_solo_list(text):
-            k = keystore.Imported_KeyStore({})
-            self.storage.put('keystore', k.dump())
-            w = Imported_Wallet(self.storage)
-            bad_inputs_solo = []
-            keys, bad_inputs_solo = keystore.get_solo_private_keys(text)
-            good_inputs, bad_inputs = w.import_private_keys(keys, None)
-            bad_inputs += bad_inputs_solo 
             self.keystores.append(w.keystore)
         else:
             return self.terminate()
