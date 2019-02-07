@@ -48,8 +48,6 @@ from electrum.util import (UserCancelled, PrintError, profiler,
 
 from .installwizard import InstallWizard
 
-from electrum.lightning import LightningUI
-
 from .util import *   # * needed for plugins
 from .main_window import ElectrumWindow
 from .network_dialog import NetworkDialog
