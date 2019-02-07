@@ -7,18 +7,18 @@ ROOT_FOLDER="$CONTRIB"/..
 PACKAGES="$ROOT_FOLDER"/packages/
 LOCALE="$ROOT_FOLDER"/electrum/locale/
 
+if [ ! -d "$LOCALE" ]; then
+  echo "Run make_locale first!"
+  exit 1
+fi
+
+if [ ! -d "$PACKAGES" ]; then
+  echo "Run make_packages first!"
+  exit 1
+fi
+
 (
     cd "$ROOT_FOLDER"
-
-    if [ ! -d "$LOCALE" ]; then
-      echo "Run make_locale first!"
-      exit 1
-    fi
-
-    if [ ! -d "$PACKAGES" ]; then
-      echo "Run make_packages first!"
-      exit 1
-    fi
 
     echo "'git clean -fx' would delete the following files: >>>"
     git clean -fx --dry-run

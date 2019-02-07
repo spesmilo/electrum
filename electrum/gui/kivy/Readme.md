@@ -24,13 +24,19 @@ folder.
     $ sudo docker build -t electrum-android-builder-img electrum/gui/kivy/tools
     ```
 
-3. Prepare pure python dependencies
+3. Build locale files
 
     ```
-    $ sudo ./contrib/make_packages
+    $ ./contrib/make_locale
     ```
 
-4. Build binaries
+4. Prepare pure python dependencies
+
+    ```
+    $ ./contrib/make_packages
+    ```
+
+5. Build binaries
 
     ```
     $ sudo docker run -it --rm \
