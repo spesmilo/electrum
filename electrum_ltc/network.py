@@ -1161,6 +1161,8 @@ class Network(PrintError):
                 res = e
             responses[iface.server] = res
         async with TaskGroup() as group:
-            for interface in self.interfaces.values():
-                await group.spawn(get_response(interface))
+            for server in servers:
+                interface = self.interfaces.get(server)
+                if interface:
+                    await group.spawn(get_response(interface))
         return responses
