@@ -7,7 +7,7 @@ import sys, os
 PACKAGE='Electrum'
 PYPKG='electrum'
 MAIN_SCRIPT='run_electrum'
-ICONS_FILE='electrum.icns'
+ICONS_FILE=PYPKG + '/gui/icons/electrum.icns'
 APP_SIGN = os.environ.get('APP_SIGN', '')
 
 def fail(*msg):
@@ -76,8 +76,7 @@ datas = [
     (electrum + PYPKG + '/wordlist/english.txt', PYPKG + '/wordlist'),
     (electrum + PYPKG + '/locale', PYPKG + '/locale'),
     (electrum + PYPKG + '/plugins', PYPKG + '/plugins'),
-    (electrum + 'icons/*.png', 'electrum/gui/icons'),
-    (electrum + 'icons/*.svg', 'electrum/gui/icons'),
+    (electrum + PYPKG + '/gui/icons', PYPKG + '/gui/icons'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')

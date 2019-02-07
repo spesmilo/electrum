@@ -7,7 +7,6 @@ include contrib/requirements/requirements.txt
 include contrib/requirements/requirements-hw.txt
 recursive-include packages *.py
 recursive-include packages cacert.pem
-graft icons
 
 graft electrum
 prune electrum/tests
