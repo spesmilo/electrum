@@ -44,9 +44,13 @@ jobs:
     - name: "Android build"
       language: python
       python: 3.7
+      env:
+        # reset API key to not have make_locale upload stuff here
+        - crowdin_api_key=
       services:
         - docker
       install:
+        - pip install requests && ./contrib/make_locale
         - ./contrib/make_packages
         - sudo docker build --no-cache -t electrum-android-builder-img electrum/gui/kivy/tools
       script:
