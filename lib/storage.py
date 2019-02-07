@@ -69,6 +69,7 @@ class WalletStorage(PrintError):
         self.lock = threading.RLock()
         self.data = {}
         self.path = path
+        self._file_exists = self.path and os.path.exists(self.path)
         self.modified = False
         self.pubkey = None
         if self.file_exists():
@@ -123,7 +124,7 @@ class WalletStorage(PrintError):
             return False
 
     def file_exists(self):
-        return self.path and os.path.exists(self.path)
+        return self._file_exists
 
     def get_key(self, password):
         secret = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'), b'', iterations=1024)
@@ -194,7 +195,7 @@ class WalletStorage(PrintError):
             f.flush()
             os.fsync(f.fileno())
 
-        mode = os.stat(self.path).st_mode if os.path.exists(self.path) else stat.S_IREAD | stat.S_IWRITE
+        mode = os.stat(self.path).st_mode if self.file_exists() else stat.S_IREAD | stat.S_IWRITE
         # perform atomic write on POSIX systems
         try:
             os.rename(temp_path, self.path)
@@ -203,6 +204,7 @@ class WalletStorage(PrintError):
             os.rename(temp_path, self.path)
         os.chmod(self.path, mode)
         self.raw = s
+        self._file_exists = True
         self.print_error("saved", self.path)
         self.modified = False
 
