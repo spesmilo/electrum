@@ -74,6 +74,7 @@ class JsonDB(PrintError):
         self.db_lock = threading.RLock()
         self.data = {}
         self.path = os.path.normcase(os.path.abspath(path))
+        self._file_exists = self.path and os.path.exists(self.path)
         self.modified = False
 
     def get(self, key, default=None):
@@ -135,9 +136,10 @@ class JsonDB(PrintError):
             f.flush()
             os.fsync(f.fileno())
 
-        mode = os.stat(self.path).st_mode if os.path.exists(self.path) else stat.S_IREAD | stat.S_IWRITE
+        mode = os.stat(self.path).st_mode if self.file_exists() else stat.S_IREAD | stat.S_IWRITE
         os.replace(temp_path, self.path)
         os.chmod(self.path, mode)
+        self._file_exists = True
         self.print_error("saved", self.path)
         self.modified = False
 
@@ -145,7 +147,7 @@ class JsonDB(PrintError):
         return plaintext
 
     def file_exists(self):
-        return self.path and os.path.exists(self.path)
+        return self._file_exists
 
 
 class WalletStorage(JsonDB):
