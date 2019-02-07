@@ -53,7 +53,7 @@ class CardDataParser:
             if  self.authentikey != self.authentikey_from_storage:
                 raise ValueError("Recovered authentikey does not correspond to registered authentikey!")
         
-        return self
+        return self.authentikey
         
     def parse_bip32_import_seed(self,response):
         # response= [data_size | data | sig_size | signature | nb_deleted]
@@ -62,7 +62,7 @@ class CardDataParser:
         self.parse_bip32_get_authentikey(response)
         offset= len(response)-2 #2+data_size+2+sig_size
         nb_deleted = ((int)(response[offset] & 0xff)<<8) + ((int)(response[offset+1] & 0xff))  
-        return self
+        return self.authentikey
 
     def parse_bip32_get_extendedkey(self, response):
         if self.authentikey is None:
@@ -72,7 +72,7 @@ class CardDataParser:
         # firs self-signed sig: data= coordx
         print('[CardDataParser] parse_bip32_get_extendedkey: first signature recovery')
         self.chaincode= bytearray(response[0:32])
-        data_size = ((response[32] & 0xff)<<8) + (response[33] & 0xff)
+        data_size = ((response[32] & 0x7f)<<8) + (response[33] & 0xff) # (response[32] & 0x80) is ignored (optimization flag)
         data= response[34:(32+2+data_size)]
         msg_size= 32+2+data_size
         msg= response[0:msg_size]

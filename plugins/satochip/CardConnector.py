@@ -8,18 +8,33 @@ from smartcard.sw.SWExceptions import SWException
 from .JCconstants import JCconstants 
 from .TxParser import TxParser
 
+from electrum.util import print_error
+
+def unlock_pin(func):
+    """Function ecorator to check if the card is unlocked, otherwise, perform PIN authentication with the PIN cached in memory"""
+    def check_authentication(*args, **kwargs):
+        print_error("[CardConnector] unlock_pin()")#debugSatochip
+        (response, sw1, sw2)= func(*args, **kwargs)
+        if (sw1==0x9C) and (sw2==0x06):
+            cc= args[0]
+            if cc.pin is not None:
+                (response, sw1, sw2)= cc.card_verify_PIN(cc.pin_nbr, cc.pin) # to do: if cc.pin is none
+            (response, sw1, sw2)= func(*args, **kwargs)
+        return (response, sw1, sw2)            
+    return check_authentication
 
 class CardConnector:
     
-    # applet version for compatibility
-    SATOCHIP_MAJOR_VERSION= 0
-    SATOCHIP_MINOR_VERSION= 4
+    # Satochip supported version tuple
+    SATOCHIP_PROTOCOL_MAJOR_VERSION=0
+    SATOCHIP_PROTOCOL_MINOR_VERSION=6
     
     # define the apdus used in this script
     BYTE_AID= [0x53,0x61,0x74,0x6f,0x43,0x68,0x69,0x70] #SatoChip
     
-    def __init__(self):
+    def __init__(self, parser):
         # request any card type
+        self.parser=parser
         self.cardtype = AnyCardType()
         try: 
             # request card insertion
@@ -30,11 +45,27 @@ class CardConnector:
             self.cardservice.connection.addObserver(self.observer)
             # connect to the card and perform a few transmits
             self.cardservice.connection.connect()
+            # cache PIN
+            self.pin_nbr=None
+            self.pin=None
         except CardRequestTimeoutException:
             print('time-out: no card inserted during last 10s')
         except Exception as exc:
             print("Error during connection:", exc)
-        
+    
+    def set_pin(self, pin_nbr, pin):
+        self.pin_nbr=pin_nbr
+        self.pin=pin
+        return
+    
+    def card_transmit(self, apdu):
+        (response, sw1, sw2) = self.cardservice.connection.transmit(apdu)
+        if (sw1==0x9C) and (sw2==0x06):
+            if self.pin is not None:
+                (response, sw1, sw2)= self.card_verify_PIN(self.pin_nbr, self.pin) # to do: if pin is none
+            (response, sw1, sw2)= self.cardservice.connection.transmit(apdu)
+        return (response, sw1, sw2)
+    
     def card_get_ATR(self):
         return self.cardservice.connection.getATR()
     
@@ -52,7 +83,23 @@ class CardConnector:
             return (response, sw1, sw2)
         except SWException as e:
             print(str(e))    
-        
+    
+    def card_get_status(self):  
+        cla= JCconstants.CardEdge_CLA
+        ins= JCconstants.INS_GET_STATUS
+        p1= 0x00 
+        p2= 0x00
+        le= 0x00
+        apdu=[cla, ins, p1, p2, le]
+        (response, sw1, sw2)= self.card_transmit(apdu)
+        d={}
+        if (sw1==0x90) and (sw2==0x00):
+            d["protocol_major_version"]= response[0]
+            d["protocol_minor_version"]= response[1]
+            d["applet_major_version"]= response[2]
+            d["applet_minor_version"]= response[3]
+        return (response, sw1, sw2, d)
+    
     def card_setup(self, 
                     pin_tries0, ublk_tries0, pin0, ublk0,
                     pin_tries1, ublk_tries1, pin1, ublk1,
@@ -99,7 +146,8 @@ class CardConnector:
         except SWException as e:
             print(str(e))    
         return (response, sw1, sw2)        
-        
+    
+    @unlock_pin
     def card_bip32_import_seed(self, keyACL, seed):
         cla= JCconstants.CardEdge_CLA
         ins= JCconstants.INS_BIP32_IMPORT_SEED
@@ -114,10 +162,13 @@ class CardConnector:
         # send apdu (contains sensitive data!)
         try:
             response, sw1, sw2 = self.cardservice.connection.transmit(apdu)
+            if (sw1==0x90) and (sw2==0x00):
+                (responseb, sw1b, sw2b)=self.card_bip32_set_authentikey_pubkey(response) 
         except SWException as e:
             print(str(e))    
         return (response, sw1, sw2)           
-
+    
+    @unlock_pin
     def card_bip32_get_authentikey(self):
         cla= JCconstants.CardEdge_CLA
         ins= JCconstants.INS_BIP32_GET_AUTHENTIKEY
@@ -128,32 +179,92 @@ class CardConnector:
         
         # send apdu 
         try:
-            response, sw1, sw2 = self.cardservice.connection.transmit(apdu)
+            response, sw1, sw2 = self.cardservice.connection.transmit(apdu)    
+            if (sw1==0x90) and (sw2==0x00):
+                (responseb, sw1b, sw2b)=self.card_bip32_set_authentikey_pubkey(response)           
         except SWException as e:
             print(str(e))            
         return (response, sw1, sw2)             
-
+    
+    ''' Allows to compute coordy of authentikey externally to optimize computation time-out
+        coordy value is verified by the chip before being accepted '''
+    def card_bip32_set_authentikey_pubkey(self, response):
+        cla= JCconstants.CardEdge_CLA
+        ins= 0x75
+        p1= 0x00 
+        p2= 0x00
+        
+        authentikey= self.parser.parse_bip32_get_authentikey(response)
+        coordy= authentikey.get_public_key_bytes(compressed=False)
+        coordy= list(coordy[33:])
+        data= response + [len(coordy)&0xFF00, len(coordy)&0x00FF] + coordy
+        le= len(data)
+        apdu=[cla, ins, p1, p2, le]+data
+        
+        print_error("[CardConnector] CardConnector: card_bip32_set_authentikey_pubkey(): len(response)="+str(len(response)))#debugSatochip
+        print_error("[CardConnector] CardConnector: card_bip32_set_authentikey_pubkey(): len(coordy)="+str(len(coordy)))#debugSatochip
+        print_error("[CardConnector] CardConnector: card_bip32_set_authentikey_pubkey(): coordy="+ str(coordy))#debugSatochip
+                    
+        (response, sw1, sw2) = self.card_transmit(apdu)
+        return (response, sw1, sw2)
+    
+    #@unlock_pin
     def card_bip32_get_extendedkey(self, path):
-
         cla= JCconstants.CardEdge_CLA
         ins= JCconstants.INS_BIP32_GET_EXTENDED_KEY
         p1= len(path)//4 
-        p2= 0x00
+        p2= 0x40 #option flags: 0x80:erase cache memory - 0x40: optimization for non-hardened child derivation
         le= len(path)
         apdu=[cla, ins, p1, p2, le]
         apdu+= path
         print("apdu:"+str(apdu))
         # send apdu
-        try:
-            (response, sw1, sw2) = self.cardservice.connection.transmit(apdu)
-            # if there is no more memory available, erase cache...
-            if self.get_sw12(sw1,sw2)==JCconstants.SW_NO_MEMORY_LEFT:
-                apdu[3]=0xFF
-                response, sw1, sw2 = self.cardservice.connection.transmit(apdu)
-        except SWException as e:
-            print(str(e))          
+        while (True):
+            try:
+                (response, sw1, sw2) = self.card_transmit(apdu)
+                
+                # if there is no more memory available, erase cache...
+                #if self.get_sw12(sw1,sw2)==JCconstants.SW_NO_MEMORY_LEFT:
+                if (sw1==0x9C) and (sw2==0x01):
+                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): Reset memory...")#debugSatochip
+                    apdu[3]=apdu[3]^0x80
+                    response, sw1, sw2 = self.card_transmit(apdu)
+                    apdu[3]=apdu[3]&0x7f # reset the flag
+                
+                print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): response="+str(response))#debugSatochip
+                print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): sw1="+str(sw1))#debugSatochip
+                print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): sw2="+str(sw2))#debugSatochip
+                
+                # check for non-hardened child derivation optimization
+                if ( (response[32]&0x80)== 0x80): 
+                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): Child Derivation optimization...")#debugSatochip
+                    (pubkey, chaincode)= self.parser.parse_bip32_get_extendedkey(response)
+                    coordy= pubkey.get_public_key_bytes(compressed=False)
+                    coordy= list(coordy[33:])
+                    authcoordy= self.parser.authentikey.get_public_key_bytes(compressed=False)
+                    authcoordy= list(authcoordy[33:])
+                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): len(response)="+str(len(response)))#debugSatochip
+                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): len(coordy)="+str(len(coordy)))#debugSatochip
+                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): coordy="+ str(coordy))#debugSatochip
+                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): len(authcoordy)="+str(len(authcoordy)))#debugSatochip
+                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): authcoordy="+ str(authcoordy))#debugSatochip
+                    data= response+[len(coordy)&0xFF00, len(coordy)&0x00FF]+coordy
+                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): len(data)="+ str(len(data)))#debugSatochip
+                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): data="+ str(data))#debugSatochip
+                    apdu_opt= [cla, 0x74, 0x00, 0x00, len(data)]
+                    apdu_opt= apdu_opt+data
+                    response_opt, sw1_opt, sw2_opt = self.card_transmit(apdu_opt)
+                else:
+                    #at this point, we have successfully received a response from the card 
+                    break
+            
+            except SWException as e:
+                print(str(e))          
+                break
+        
         return (response, sw1, sw2)      
     
+    @unlock_pin
     def card_sign_message(self, keynbr, message):
 
         # return signature as byte array
@@ -214,7 +325,8 @@ class CardConnector:
         except SWException as e:
             print(str(e))
         return (response, sw1, sw2)      
-
+    
+    @unlock_pin
     def card_sign_short_message(self, keynbr, message):
 
         # for message less than one chunk in size
@@ -232,7 +344,8 @@ class CardConnector:
         except SWException as e:
             print(str(e))
         return (response, sw1, sw2)      
-
+    
+    @unlock_pin
     def card_parse_transaction(self, transaction, is_segwit=False):
             
         cla= JCconstants.CardEdge_CLA
@@ -267,11 +380,9 @@ class CardConnector:
             # switch to process mode after initial call to parse
             p1= JCconstants.OP_PROCESS 
         
-        #logger.log(Level.INFO, "Single transaction hash:{0}", toString(txparser.getTxHash()))
-        #logger.log(Level.INFO, "Double transaction hash:{0}", toString(txparser.getTxDoubleHash()))
-        
         return (response, sw1, sw2)      
 
+    @unlock_pin
     def card_sign_transaction(self, keynbr, txhash, chalresponse):
         cla= JCconstants.CardEdge_CLA
         ins= JCconstants.INS_SIGN_TRANSACTION
@@ -296,19 +407,7 @@ class CardConnector:
             print(str(e))
         return (response, sw1, sw2)      
     
-    def card_segwit_parse_outputs():
-        return
-    
-    def card_segwit_sign_outputs():
-        return
-        
-    def card_segwit_parse_transaction():
-        return
-    
-    def card_segwit_sign_transaction():
-        return
-    
-    
+    @unlock_pin
     def card_create_PIN(self, pin_nbr, pin_tries, pin, ublk):
         cla= JCconstants.CardEdge_CLA
         ins= JCconstants.INS_CREATE_PIN
@@ -380,9 +479,9 @@ class CardConnector:
             print(str(e))
         return (response, sw1, sw2)      
     
-    
-
-    
+class AuthenticationError(Exception):    
+    """Raised when the command requires authentication first"""
+    pass
         
     
 if __name__ == "__main__":
@@ -394,9 +493,6 @@ if __name__ == "__main__":
     #cardconnector.card_setup()
     cardconnector.card_bip32_get_authentikey()
     #cardconnector.card_bip32_get_extendedkey()
-    
-    
-    
     cardconnector.card_disconnect()
     
     
