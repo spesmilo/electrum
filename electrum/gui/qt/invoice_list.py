@@ -100,8 +100,8 @@ class InvoiceList(MyTreeView):
             items = [QStandardItem(e) for e in labels]
             #items[0].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
             #items[0].setData(key, ROLE_RHASH_OR_ADDR)
-            items[0].setIcon(self.icon_cache.get(':icons/lightning.png'))
-            items[3].setIcon(self.icon_cache.get(pr_icons.get(status)))
+            items[0].setIcon(read_QIcon('lightning.png'))
+            items[3].setIcon(read_QIcon(pr_icons.get(status)))
             self.model().insertRow(self.model().rowCount(), items)
 
         self.selectionModel().select(self.model().index(0,0), QItemSelectionModel.SelectCurrent)

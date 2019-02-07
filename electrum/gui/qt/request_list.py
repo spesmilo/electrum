@@ -39,7 +39,7 @@ from electrum.bitcoin import COIN
 from electrum.lnaddr import lndecode
 import electrum.constants as constants
 
-from .util import MyTreeView, pr_tooltips, pr_icons, read_QIcon
+from .util import MyTreeView, pr_icons, read_QIcon
 
 REQUEST_TYPE_BITCOIN = 0
 REQUEST_TYPE_LN = 1
@@ -149,10 +149,10 @@ class RequestList(MyTreeView):
             date = format_time(lnaddr.date)
             labels = [date, description, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
-            items[self.Columns.DATE].setIcon(self.icon_cache.get(":icons/lightning.png"))
+            items[self.Columns.DATE].setIcon(read_QIcon("lightning.png"))
             items[self.Columns.DATE].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
             items[self.Columns.DATE].setData(key, ROLE_RHASH_OR_ADDR)
-            items[self.Columns.STATUS].setIcon(self.icon_cache.get(pr_icons.get(status)))
+            items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             self.model().insertRow(self.model().rowCount(), items)
         # sort requests by date
         self.model().sort(self.Columns.DATE)
