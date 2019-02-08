@@ -29,7 +29,8 @@ else
     git pull
 fi
 
-git reset --hard 452d8e4d2a2f9f1b5be6b02e18f1ba102e5ca0b4
+LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
+git reset --hard "$LIBSECP_VERSION"
 git clean -f -x -q
 
 build_dll i686-w64-mingw32  # 64-bit would be: x86_64-w64-mingw32

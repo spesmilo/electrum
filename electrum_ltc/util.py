@@ -407,6 +407,10 @@ def assert_file_in_datadir_available(path, config_path):
             'Should be at {}'.format(path))
 
 
+def standardize_path(path):
+    return os.path.normcase(os.path.realpath(os.path.abspath(path)))
+
+
 def get_new_wallet_name(wallet_folder: str) -> str:
     i = 1
     while True:

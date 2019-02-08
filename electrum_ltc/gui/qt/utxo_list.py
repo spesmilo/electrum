@@ -47,22 +47,25 @@ class UTXOList(MyTreeView):
         self.model().clear()
         self.update_headers(self.__class__.headers)
         for idx, x in enumerate(utxos):
-            address = x.get('address')
-            height = x.get('height')
-            name = x.get('prevout_hash') + ":%d"%x.get('prevout_n')
-            self.utxo_dict[name] = x
-            label = self.wallet.get_label(x.get('prevout_hash'))
-            amount = self.parent.format_amount(x['value'], whitespaces=True)
-            labels = [address, label, amount, '%d'%height, name[0:10] + '...' + name[-2:]]
-            utxo_item = [QStandardItem(x) for x in labels]
-            self.set_editability(utxo_item)
-            utxo_item[0].setFont(QFont(MONOSPACE_FONT))
-            utxo_item[2].setFont(QFont(MONOSPACE_FONT))
-            utxo_item[4].setFont(QFont(MONOSPACE_FONT))
-            utxo_item[0].setData(name, Qt.UserRole)
-            if self.wallet.is_frozen(address):
-                utxo_item[0].setBackground(ColorScheme.BLUE.as_color(True))
-            self.model().insertRow(idx, utxo_item)
+            self.insert_utxo(idx, x)
+
+    def insert_utxo(self, idx, x):
+        address = x.get('address')
+        height = x.get('height')
+        name = x.get('prevout_hash') + ":%d"%x.get('prevout_n')
+        self.utxo_dict[name] = x
+        label = self.wallet.get_label(x.get('prevout_hash'))
+        amount = self.parent.format_amount(x['value'], whitespaces=True)
+        labels = [address, label, amount, '%d'%height, name[0:10] + '...' + name[-2:]]
+        utxo_item = [QStandardItem(x) for x in labels]
+        self.set_editability(utxo_item)
+        utxo_item[0].setFont(QFont(MONOSPACE_FONT))
+        utxo_item[2].setFont(QFont(MONOSPACE_FONT))
+        utxo_item[4].setFont(QFont(MONOSPACE_FONT))
+        utxo_item[0].setData(name, Qt.UserRole)
+        if self.wallet.is_frozen(address):
+            utxo_item[0].setBackground(ColorScheme.BLUE.as_color(True))
+        self.model().insertRow(idx, utxo_item)
 
     def selected_column_0_user_roles(self) -> Optional[List[str]]:
         if not self.model():

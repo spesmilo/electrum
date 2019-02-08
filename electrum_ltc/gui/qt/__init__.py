@@ -226,10 +226,10 @@ class ElectrumGui(PrintError):
             else:
                 return
         if not wallet:
-            storage = WalletStorage(path, manual_upgrades=True)
-            wizard = InstallWizard(self.config, self.app, self.plugins, storage)
+            wizard = InstallWizard(self.config, self.app, self.plugins, None)
             try:
-                wallet = wizard.run_and_get_wallet(self.daemon.get_wallet)
+                if wizard.select_storage(path, self.daemon.get_wallet):
+                    wallet = wizard.run_and_get_wallet()
             except UserCancelled:
                 pass
             except GoBack as e:

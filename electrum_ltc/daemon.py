@@ -37,7 +37,7 @@ from .jsonrpc import VerifyingJSONRPCServer
 from .version import ELECTRUM_VERSION
 from .network import Network
 from .util import (json_decode, DaemonThread, print_error, to_string,
-                   create_and_start_event_loop, profiler)
+                   create_and_start_event_loop, profiler, standardize_path)
 from .wallet import Wallet, Abstract_Wallet
 from .storage import WalletStorage
 from .commands import known_commands, Commands
@@ -235,6 +235,7 @@ class Daemon(DaemonThread):
         return response
 
     def load_wallet(self, path, password) -> Optional[Abstract_Wallet]:
+        path = standardize_path(path)
         # wizard will be launched if we return
         if path in self.wallets:
             wallet = self.wallets[path]
@@ -261,6 +262,13 @@ class Daemon(DaemonThread):
 
     def get_wallet(self, path):
         return self.wallets.get(path)
+
+    def delete_wallet(self, path):
+        self.stop_wallet(path)
+        if os.path.exists(path):
+            os.unlink(path)
+            return True
+        return False
 
     def stop_wallet(self, path):
         wallet = self.wallets.pop(path, None)
