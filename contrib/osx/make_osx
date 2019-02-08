@@ -17,7 +17,7 @@ BUILDDIR=/tmp/electron-cash-build
 PACKAGE=Electron-Cash
 GIT_REPO_ACCT=https://github.com/Electron-Cash
 GIT_REPO=$GIT_REPO_ACCT/Electron-Cash
-LIBSECP_VERSION=452d8e4d2a2f9f1b5be6b02e18f1ba102e5ca0b4
+LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
 # Compute major.minor Python version from above using Bash array magic
 MAJ_MIN=(${PYTHON_VERSION//./ })
 MAJ_MIN=${MAJ_MIN[0]}.${MAJ_MIN[1]}
