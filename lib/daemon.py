@@ -245,6 +245,13 @@ class Daemon(DaemonThread):
     def get_wallet(self, path):
         return self.wallets.get(path)
 
+    def delete_wallet(self, path):
+        self.stop_wallet(path)
+        if os.path.exists(path):
+            os.unlink(path)
+            return True
+        return False
+
     def stop_wallet(self, path):
         # Issue #659 wallet may already be stopped.
         if path in self.wallets:
