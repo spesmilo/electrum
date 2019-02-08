@@ -137,12 +137,6 @@ def DecodeAES_base64(secret, ciphertext_b64):
     return DecodeAES_bytes(secret, ciphertext)
 
 
-# The below 2 are for compatibility with old API (plugins may use this)
-# They are considered deprecated and new code should not use them.
-EncodeAES = EncodeAES_base64  # Deprecated API
-DecodeAES = DecodeAES_base64  # Deprecated API
-
-
 def pw_encode(s, password):
     if password:
         secret = Hash(password)
