@@ -465,14 +465,15 @@ class LNWorker(PrintError):
         peer = self.peers[route[0].node_id]
         if not self.get_channel_by_short_id(route[0].short_channel_id):
             assert False, 'Found route with short channel ID we don\'t have: ' + repr(route[0].short_channel_id)
-        return addr, peer, self._pay_to_route(route, addr)
+        return addr, peer, self._pay_to_route(route, addr, invoice)
 
-    async def _pay_to_route(self, route, addr):
+    async def _pay_to_route(self, route, addr, pay_req):
         short_channel_id = route[0].short_channel_id
         chan = self.get_channel_by_short_id(short_channel_id)
         if not chan:
             raise Exception("PathFinder returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
         peer = self.peers[route[0].node_id]
+        self.save_invoice(None, pay_req, SENT)
         htlc = await peer.pay(route, chan, int(addr.amount * COIN * 1000), addr.paymenthash, addr.get_min_final_cltv_expiry())
         self.network.trigger_callback('htlc_added', htlc, addr, SENT)
 

@@ -1948,8 +1948,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
         #self.amount_e.textEdited.emit("")
         self.payto_e.is_lightning = True
         self.show_send_tab_onchain_fees(False)
-        # save
-        self.wallet.lnworker.save_invoice(None, invoice, SENT)
 
     def show_send_tab_onchain_fees(self, b: bool):
         self.feecontrol_fields.setVisible(b)

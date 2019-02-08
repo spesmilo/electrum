@@ -33,6 +33,7 @@ from electrum.i18n import _
 from electrum.util import format_time, pr_tooltips, PR_UNPAID
 from electrum.lnutil import lndecode
 from electrum.bitcoin import COIN
+from electrum import constants
 
 from .util import (MyTreeView, read_QIcon, MONOSPACE_FONT, PR_UNPAID,
                    pr_tooltips, import_meta_gui, export_meta_gui, pr_icons)

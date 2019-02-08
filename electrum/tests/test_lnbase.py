@@ -109,6 +109,9 @@ class MockLNWorker:
     def on_channels_updated(self):
         pass
 
+    def save_invoice(*args):
+        pass
+
     get_invoice = LNWorker.get_invoice
     _create_route_from_invoice = LNWorker._create_route_from_invoice
     _check_invoice = staticmethod(LNWorker._check_invoice)
@@ -243,7 +246,7 @@ class TestPeer(unittest.TestCase):
         # AssertionError is ok since we shouldn't use old routes, and the
         # route finding should fail when channel is closed
         with self.assertRaises(AssertionError):
-            run(asyncio.gather(w1._pay_to_route(route, addr), p1._main_loop(), p2._main_loop()))
+            run(asyncio.gather(w1._pay_to_route(route, addr, pay_req), p1._main_loop(), p2._main_loop()))
 
 def run(coro):
     asyncio.get_event_loop().run_until_complete(coro)
