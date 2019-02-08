@@ -305,6 +305,21 @@ def assert_file_in_datadir_available(path, config_path):
             'Cannot find file but datadir is there.' + '\n' +
             'Should be at {}'.format(path))
 
+def standardize_path(path):
+    if path is not None:
+        path = os.path.normcase(os.path.realpath(os.path.abspath(path)))
+    return path
+
+def get_new_wallet_name(wallet_folder: str) -> str:
+    i = 1
+    while True:
+        filename = "wallet_%d" % i
+        if os.path.exists(os.path.join(wallet_folder, filename)):
+            i += 1
+        else:
+            break
+    return filename
+
 def assert_bytes(*args):
     """
     porting helper, assert args type
