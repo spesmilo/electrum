@@ -37,7 +37,8 @@ from PyQt5.QtCore import *
 from electroncash.i18n import _, set_language
 from electroncash.plugins import run_hook
 from electroncash import WalletStorage
-from electroncash.util import UserCancelled, Weak, PrintError, print_error
+from electroncash.util import (UserCancelled, Weak, PrintError, print_error,
+                               standardize_path)
 
 from .installwizard import InstallWizard, GoBack
 
@@ -199,6 +200,7 @@ class ElectrumGui(QObject, PrintError):
     def start_new_window(self, path, uri):
         '''Raises the window for the wallet if it is open.  Otherwise
         opens the wallet and creates a new window for it.'''
+        path = standardize_path(path)  # just make sure some plugin didn't give us a symlink
         for w in self.windows:
             if w.wallet.storage.path == path:
                 w.bring_to_top()

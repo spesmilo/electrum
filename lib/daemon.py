@@ -32,8 +32,8 @@ from .jsonrpc import VerifyingJSONRPCServer
 
 from .version import PACKAGE_VERSION
 from .network import Network
-from .util import json_decode, DaemonThread
-from .util import print_error, to_string
+from .util import (json_decode, DaemonThread, print_error, to_string,
+                   standardize_path)
 from .wallet import Wallet
 from .storage import WalletStorage
 from .commands import known_commands, Commands
@@ -216,6 +216,7 @@ class Daemon(DaemonThread):
         return response
 
     def load_wallet(self, path, password):
+        path = standardize_path(path)
         # wizard will be launched if we return
         if path in self.wallets:
             wallet = self.wallets[path]

@@ -34,7 +34,7 @@ import base64
 import zlib
 
 from .address import Address
-from .util import PrintError, profiler
+from .util import PrintError, profiler, standardize_path
 from .plugins import run_hook, plugin_loaders
 from .keystore import bip44_derivation
 from . import bitcoin
@@ -64,11 +64,11 @@ def multisig_type(wallet_type):
 class WalletStorage(PrintError):
 
     def __init__(self, path, manual_upgrades=False):
+        self.path = path = standardize_path(path)
         self.print_error("wallet path", path)
         self.manual_upgrades = manual_upgrades
         self.lock = threading.RLock()
         self.data = {}
-        self.path = path
         self._file_exists = self.path and os.path.exists(self.path)
         self.modified = False
         self.pubkey = None
