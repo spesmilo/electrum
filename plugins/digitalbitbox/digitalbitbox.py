@@ -4,7 +4,7 @@
 #
 
 try:
-    from electroncash.bitcoin import TYPE_ADDRESS, push_script, var_int, msg_magic, Hash, verify_message, pubkey_from_signature, point_to_ser, public_key_to_p2pkh, EncodeAES, DecodeAES, MyVerifyingKey, int_to_hex
+    from electroncash.bitcoin import TYPE_ADDRESS, push_script, var_int, msg_magic, Hash, verify_message, pubkey_from_signature, point_to_ser, public_key_to_p2pkh, EncodeAES_base64, MyVerifyingKey, int_to_hex, hmac_oneshot, EncodeAES_bytes, DecodeAES_bytes
     from electroncash.bitcoin import serialize_xpub, deserialize_xpub
     from electroncash.transaction import Transaction
     from electroncash.i18n import _
@@ -23,6 +23,8 @@ try:
     import base64
     import os
     import sys
+    import hmac
+    import re
     from ecdsa.ecdsa import generator_secp256k1
     from ecdsa.util import sigencode_der
     from ecdsa.curves import SECP256k1
@@ -38,6 +40,13 @@ except ImportError as e:
 
 def to_hexstr(s):
     return binascii.hexlify(s).decode('ascii')
+
+def derive_keys(x):
+    h = Hash(x)
+    h = hashlib.sha512(h).digest()
+    return (h[:32],h[32:])
+
+MIN_MAJOR_VERSION = 5
 
 class DigitalBitbox_Client():
 
@@ -111,7 +120,6 @@ class DigitalBitbox_Client():
 
 
     def stretch_key(self, key):
-        import hmac
         return binascii.hexlify(hashlib.pbkdf2_hmac('sha512', key.encode('utf-8'), b'Digital Bitbox', iterations = 20480))
 
     def backup_password_dialog(self):
@@ -147,6 +155,14 @@ class DigitalBitbox_Client():
 
 
     def check_device_dialog(self):
+        #Check device firmware version
+        match = re.search(r'v([0-9])+\.[0-9]+\.[0-9]+', self.dbb_hid.get_serial_number_string())
+        if match is None:
+            raise Exception("error detecting firmware version")
+        major_version = int(match.group(1))
+        if major_version < MIN_MAJOR_VERSION:
+            raise Exception("Please upgrade to the newest firmware using the BitBox Desktop app: https://shiftcrypto.ch/start")
+
         # Set password if fresh device
         if self.password is None and not self.dbb_has_password():
             if not self.setupRunning:
@@ -275,7 +291,7 @@ class DigitalBitbox_Client():
     def dbb_generate_wallet(self):
         key = self.stretch_key(self.password)
         filename = ("Electrum-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf").encode('utf8')
-        msg = b'{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, b'Digital Bitbox Electrum Plugin')
+        msg = b'{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, to_hexstr(os.urandom(32)))
         reply = self.hid_send_encrypt(msg)
         if 'error' in reply:
             raise Exception(reply['error']['message'])
@@ -377,13 +393,21 @@ class DigitalBitbox_Client():
 
 
     def hid_send_encrypt(self, msg):
+        sha256_byte_len = 32
         reply = ""
         try:
-            secret = Hash(self.password)
-            msg = EncodeAES(secret, msg)
-            reply = self.hid_send_plain(msg)
+            encryption_key, authentication_key = derive_keys(self.password)
+            msg = EncodeAES_bytes(encryption_key, msg)
+            hmac_digest = hmac_oneshot(authentication_key, msg, hashlib.sha256)
+            authenticated_msg = base64.b64encode(msg + hmac_digest)
+            reply = self.hid_send_plain(authenticated_msg)
             if 'ciphertext' in reply:
-                reply = DecodeAES(secret, ''.join(reply["ciphertext"]))
+                b64_unencoded = bytes(base64.b64decode(''.join(reply["ciphertext"])))
+                reply_hmac = b64_unencoded[-sha256_byte_len:]
+                hmac_calculated = hmac_oneshot(authentication_key, b64_unencoded[:-sha256_byte_len], hashlib.sha256)
+                if not hmac.compare_digest(reply_hmac, hmac_calculated):
+                    raise Exception("Failed to validate HMAC")
+                reply = DecodeAES_bytes(encryption_key, b64_unencoded[:-sha256_byte_len])
                 reply = to_string(reply, 'utf8')
                 reply = json.loads(reply)
             if 'error' in reply:
@@ -695,7 +719,7 @@ class DigitalBitboxPlugin(HW_PluginBase):
         key_s = base64.b64decode(self.digitalbitbox_config['encryptionprivkey'])
         args = 'c=data&s=0&dt=0&uuid=%s&pl=%s' % (
             self.digitalbitbox_config['comserverchannelid'],
-            EncodeAES(key_s, json.dumps(payload).encode('ascii')).decode('ascii'),
+            EncodeAES_base64(key_s, json.dumps(payload).encode('ascii')).decode('ascii'),
         )
         try:
             requests.post(url, args)
