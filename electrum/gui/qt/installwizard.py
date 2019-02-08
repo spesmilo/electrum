@@ -159,7 +159,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.raise_()
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
-    def run_and_get_wallet(self, get_wallet_from_daemon):
+    def select_storage(self, path, get_wallet_from_daemon):
 
         vbox = QVBoxLayout()
         hbox = QHBoxLayout()
@@ -183,6 +183,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox.addLayout(hbox2)
         self.set_layout(vbox, title=_('Electrum wallet'))
 
+        self.storage = WalletStorage(path, manual_upgrades=True)
         wallet_folder = os.path.dirname(self.storage.path)
 
         def on_choose():
@@ -284,7 +285,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                         return
                 else:
                     raise Exception('Unexpected encryption version')
+        return True
 
+    def run_and_get_wallet(self):
         path = self.storage.path
         if self.storage.requires_split():
             self.hide()
