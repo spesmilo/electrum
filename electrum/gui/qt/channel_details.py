@@ -71,16 +71,20 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
         invoices = dict(self.window.wallet.lnworker.invoices)
         for pay_hash, item in htlcs.items():
             chan_id, i, direction, status = item
+            lnaddr = None
             if pay_hash in invoices:
                 invoice = invoices[pay_hash][1]
                 lnaddr = lndecode(invoice)
             if status == 'inflight':
-                it = self.make_inflight(lnaddr, i, direction)
+                if lnaddr is not None:
+                    it = self.make_inflight(lnaddr, i, direction)
+                else:
+                    it = self.make_htlc_item(i, direction)
             elif status == 'settled':
                 it = self.make_htlc_item(i, direction)
                 # if we made the invoice and still have it, we can show more info
-                if pay_hash in invoices:
-                    self.append_lnaddr(it, lndecode(invoice))
+                if lnaddr is not None:
+                    self.append_lnaddr(it, lnaddr)
             self.folders[status].appendRow(it)
             mapping[i.payment_hash] = num
             num += 1
