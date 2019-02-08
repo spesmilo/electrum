@@ -12,7 +12,7 @@ CACHEDIR="$CONTRIB/build-linux/appimage/.cache/appimage"
 # pinned versions
 PYTHON_VERSION=3.6.8
 PKG2APPIMAGE_COMMIT="83483c2971fcaa1cb0c1253acd6c731ef8404381"
-LIBSECP_VERSION="452d8e4d2a2f9f1b5be6b02e18f1ba102e5ca0b4"
+LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
 
 
 VERSION=`git describe --tags --dirty --always`
