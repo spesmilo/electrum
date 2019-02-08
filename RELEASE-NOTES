@@ -246,19 +246,25 @@ and there is no warning message.
 
 * Support for op_return_raw= URI parameter to 'bitcoincash:' URIs. This
   paremeter is for raw hex to be used as the OP_RETURN payload (0x6a will
-  always be prefixed to this raw hex.)
+  always be prefixed to this raw hex.) (markblundeberg)
 * Testnet wallets were using the wrong bip32 key headers. They SHOULD
   accept & generate tpub/tprv on testnet but instead the keys generated were
   xpub/xprv. This was not to spec and has been fixed but, it may mean you will
-  need to regenerate your testnet wallets form mnemonic seed. :/
-* Added "Check for updates..." mechanism which is optionally also automatic
-  (check is done once per hour). See Preferences -> General to enable auto
-  check. Or Help -> "Check for updates..." for manual checking.
-* Added "Dark" theme to UI. See Preferences -> General
+  need to regenerate your testnet wallets form mnemonic seed. :/ (cculianu)
+* Added "Check for updates..." mechanism which is enabled by default
+  (check is done once per hour). See Preferences -> General to disable auto
+  check. Or Help -> "Check for updates..." for manual checking. (cculianu)
+* Added "Dark" theme to UI. See Preferences -> General (cculianu)
 * Fixed incompatibility bug where generated QR images were uppercase-only
   BITCOINCASH: which caused problems with some buggy wallet implementations. We
   switched back to generating 'bitcoincash:' (mixed-case) URIs, which is more
-  compatible.
+  compatible. (cculianu)
 * Added "Export contacts" facility to UI so you can export all your contacts to
-  a file. (Strangely, we had "Import contacts", but no export!)
-* Various internal bugfixes
+  a file. (Strangely, we had "Import contacts", but no export!) (cculianu)
+* Request fee estimate from ElectrumX/ElectronX server every 20 minutes
+  (cculianu)
+* Trezor bugfix (SomberNight)
+* Append HMAC to Bitbox messages (TheCharlatan)
+* Android fixes (mhsmith)
+* Various internal bugfixes and code refactoring (cculianu, ecdsa, SomberNight)
+* servers.json updated (torusJKL)
