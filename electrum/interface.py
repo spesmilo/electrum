@@ -39,7 +39,7 @@ from .util import PrintError, ignore_exceptions, log_exceptions, bfh, SilentTask
 from . import util
 from . import x509
 from . import pem
-from .version import ELECTRUM_VERSION, PROTOCOL_VERSION
+from . import version
 from . import blockchain
 from .blockchain import Blockchain
 from . import constants
@@ -372,7 +372,7 @@ class Interface(PrintError):
             self.session = session  # type: NotificationSession
             self.session.default_timeout = self.network.get_network_timeout_seconds(NetworkTimeout.Generic)
             try:
-                ver = await session.send_request('server.version', [ELECTRUM_VERSION, PROTOCOL_VERSION])
+                ver = await session.send_request('server.version', [version.ELECTRUM_VERSION, version.PROTOCOL_VERSION])
             except aiorpcx.jsonrpc.RPCError as e:
                 raise GracefulDisconnect(e)  # probably 'unsupported protocol version'
             if exit_early:
