@@ -25,8 +25,8 @@ import binascii
 from pprint import pformat
 
 from electrum import bitcoin
-from electrum import lnbase
-from electrum import lnchan
+from electrum import lnpeer
+from electrum import lnchannel
 from electrum import lnutil
 from electrum import bip32 as bip32_utils
 from electrum.lnutil import SENT, LOCAL, REMOTE, RECEIVED
@@ -38,14 +38,14 @@ one_bitcoin_in_msat = bitcoin.COIN * 1000
 def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate, is_initiator, local_amount, remote_amount, privkeys, other_pubkeys, seed, cur, nex, other_node_id, l_dust, r_dust, l_csv, r_csv):
     assert local_amount > 0
     assert remote_amount > 0
-    channel_id, _ = lnbase.channel_id_from_funding_tx(funding_txid, funding_index)
-    their_revocation_store = lnbase.RevocationStore()
+    channel_id, _ = lnpeer.channel_id_from_funding_tx(funding_txid, funding_index)
+    their_revocation_store = lnpeer.RevocationStore()
 
     return {
             "channel_id":channel_id,
             "short_channel_id":channel_id[:8],
-            "funding_outpoint":lnbase.Outpoint(funding_txid, funding_index),
-            "remote_config":lnbase.RemoteConfig(
+            "funding_outpoint":lnpeer.Outpoint(funding_txid, funding_index),
+            "remote_config":lnpeer.RemoteConfig(
                 payment_basepoint=other_pubkeys[0],
                 multisig_key=other_pubkeys[1],
                 htlc_basepoint=other_pubkeys[2],
@@ -65,7 +65,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 current_per_commitment_point=cur,
                 revocation_store=their_revocation_store,
             ),
-            "local_config":lnbase.LocalConfig(
+            "local_config":lnpeer.LocalConfig(
                 payment_basepoint=privkeys[0],
                 multisig_key=privkeys[1],
                 htlc_basepoint=privkeys[2],
@@ -87,7 +87,7 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
                 current_htlc_signatures=None,
                 got_sig_for_next=False,
             ),
-            "constraints":lnbase.ChannelConstraints(
+            "constraints":lnpeer.ChannelConstraints(
                 capacity=funding_sat,
                 is_initiator=is_initiator,
                 funding_txn_minimum_depth=3,
@@ -126,9 +126,9 @@ def create_test_channels(feerate=6000, local=None, remote=None):
     bob_first = lnutil.secret_to_pubkey(int.from_bytes(lnutil.get_per_commitment_secret_from_seed(bob_seed, lnutil.RevocationStore.START_INDEX), "big"))
 
     alice, bob = \
-        lnchan.Channel(
+        lnchannel.Channel(
             create_channel_state(funding_txid, funding_index, funding_sat, feerate, True, local_amount, remote_amount, alice_privkeys, bob_pubkeys, alice_seed, None, bob_first, b"\x02"*33, l_dust=200, r_dust=1300, l_csv=5, r_csv=4), name="alice"), \
-        lnchan.Channel(
+        lnchannel.Channel(
             create_channel_state(funding_txid, funding_index, funding_sat, feerate, False, remote_amount, local_amount, bob_privkeys, alice_pubkeys, bob_seed, None, alice_first, b"\x01"*33, l_dust=1300, r_dust=200, l_csv=4, r_csv=5), name="bob")
 
     alice.set_state('OPEN')
@@ -692,9 +692,9 @@ class TestChanReserve(unittest.TestCase):
         force_state_transition(self.alice_channel, self.bob_channel)
 
         aliceSelfBalance = self.alice_channel.balance(LOCAL)\
-                - lnchan.htlcsum(self.alice_channel.hm.htlcs_by_direction(LOCAL, SENT))
+                - lnchannel.htlcsum(self.alice_channel.hm.htlcs_by_direction(LOCAL, SENT))
         bobBalance = self.bob_channel.balance(REMOTE)\
-                - lnchan.htlcsum(self.alice_channel.hm.htlcs_by_direction(REMOTE, SENT))
+                - lnchannel.htlcsum(self.alice_channel.hm.htlcs_by_direction(REMOTE, SENT))
         self.assertEqual(aliceSelfBalance, one_bitcoin_in_msat*4.5)
         self.assertEqual(bobBalance, one_bitcoin_in_msat*5)
         # Now let Bob try to add an HTLC. This should fail, since it will

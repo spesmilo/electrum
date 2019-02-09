@@ -26,7 +26,7 @@ from .util import PrintError, bh2u, print_error, bfh, log_exceptions, list_enabl
 from .transaction import Transaction, TxOutput
 from .lnonion import (new_onion_packet, decode_onion_error, OnionFailureCode, calc_hops_data_for_payment,
                       process_onion_packet, OnionPacket, construct_onion_error, OnionRoutingFailureMessage)
-from .lnchan import Channel, RevokeAndAck, htlcsum
+from .lnchannel import Channel, RevokeAndAck, htlcsum
 from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      RemoteConfig, OnlyPubkeyKeypair, ChannelConstraints, RevocationStore,
                      funding_output_script, get_per_commitment_secret_from_seed,

@@ -115,7 +115,7 @@ class Channel(PrintError):
         if self.name:
             return str(self.name)
         try:
-            return f"lnchan_{bh2u(self.channel_id[-4:])}"
+            return f"lnchannel_{bh2u(self.channel_id[-4:])}"
         except:
             return super().diagnostic_name()
 

@@ -17,7 +17,7 @@ from .transaction import Transaction, TxOutput, construct_witness
 from .simple_config import SimpleConfig, FEERATE_FALLBACK_STATIC_FEE
 
 if TYPE_CHECKING:
-    from .lnchan import Channel
+    from .lnchannel import Channel
 
 
 def maybe_create_sweeptx_for_their_ctx_to_remote(ctx: Transaction, sweep_address: str,
@@ -203,7 +203,7 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
     Regardless of it is a breach or not, construct sweep tx for 'to_remote'.
     If it is a breach, also construct sweep tx for 'to_local'.
     Sweep txns for HTLCs are only constructed if it is NOT a breach, as
-    lnchan does not store old HTLCs.
+    lnchannel does not store old HTLCs.
     """
     this_conf, other_conf = get_ordered_channel_configs(chan=chan, for_us=False)
     ctn = extract_ctn_from_tx_and_chan(ctx, chan)

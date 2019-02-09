@@ -21,7 +21,7 @@ from .lnaddr import lndecode
 from .keystore import BIP32_KeyStore
 
 if TYPE_CHECKING:
-    from .lnchan import Channel
+    from .lnchannel import Channel
 
 
 HTLC_TIMEOUT_WEIGHT = 663
@@ -114,7 +114,7 @@ MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED = 1000
 MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED = 2016
 
 class RevocationStore:
-    """ Taken from LND, see license in lnchan.py. """
+    """ Taken from LND, see license in lnchannel.py. """
 
     START_INDEX = 2 ** 48 - 1
 

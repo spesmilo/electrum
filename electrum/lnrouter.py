@@ -36,14 +36,14 @@ import asyncio
 from . import constants
 from .util import PrintError, bh2u, profiler, get_headers_dir, bfh, is_ip_address, list_enabled_bits
 from .storage import JsonDB
-from .lnchannelverifier import LNChannelVerifier, verify_sig_for_channel_update
+from .lnverifier import LNChannelVerifier, verify_sig_for_channel_update
 from .crypto import sha256d
 from . import ecc
 from .lnutil import (LN_GLOBAL_FEATURES_KNOWN_SET, LNPeerAddr, NUM_MAX_EDGES_IN_PAYMENT_PATH,
                      NotFoundChanAnnouncementForUpdate)
 
 if TYPE_CHECKING:
-    from .lnchan import Channel
+    from .lnchannel import Channel
     from .network import Network
 
 

@@ -13,7 +13,7 @@ from electrum.lnaddr import lnencode, LnAddr, lndecode
 from electrum.bitcoin import COIN, sha256
 from electrum.util import bh2u
 
-from electrum.lnbase import Peer
+from electrum.lnpeer import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
 from electrum.lnutil import PaymentFailure
@@ -21,7 +21,7 @@ from electrum.lnrouter import ChannelDB, LNPathFinder
 from electrum.lnworker import LNWorker
 from electrum.lnmsg import encode_msg, decode_msg
 
-from .test_lnchan import create_test_channels
+from .test_lnchannel import create_test_channels
 
 def keypair():
     priv = ECPrivkey.generate_random_key().get_secret_bytes()
@@ -39,7 +39,7 @@ class MockNetwork:
         self.callbacks = defaultdict(list)
         self.lnwatcher = None
         user_config = {}
-        user_dir = tempfile.mkdtemp(prefix="electrum-lnbase-test-")
+        user_dir = tempfile.mkdtemp(prefix="electrum-lnpeer-test-")
         self.config = simple_config.SimpleConfig(user_config, read_user_dir_function=lambda: user_dir)
         self.asyncio_loop = asyncio.get_event_loop()
         self.channel_db = ChannelDB(self)

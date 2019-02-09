@@ -29,7 +29,6 @@ from typing import TYPE_CHECKING
 
 import aiorpcx
 
-from . import lnbase
 from . import bitcoin
 from . import ecc
 from . import constants

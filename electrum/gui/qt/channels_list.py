@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import *
 
 from electrum.util import inv_dict, bh2u, bfh
 from electrum.i18n import _
-from electrum.lnchan import Channel
+from electrum.lnchannel import Channel
 from electrum.lnutil import LOCAL, REMOTE, ConnStringFormatError
 
 from .util import MyTreeView, WindowModalDialog, Buttons, OkButton, CancelButton, EnterButton, WWLabel

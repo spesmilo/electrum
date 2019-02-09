@@ -7,7 +7,7 @@ import PyQt5.QtCore as QtCore
 from electrum.i18n import _
 from electrum.util import bh2u, format_time
 from electrum.lnutil import format_short_channel_id, LOCAL, REMOTE, UpdateAddHtlc, Direction
-from electrum.lnchan import htlcsum
+from electrum.lnchannel import htlcsum
 from electrum.lnaddr import LnAddr, lndecode
 from electrum.bitcoin import COIN
 

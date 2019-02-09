@@ -28,10 +28,10 @@ from .bip32 import bip32_root
 from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
 from .util import timestamp_to_datetime
 from .lntransport import LNTransport, LNResponderTransport
-from .lnbase import Peer
+from .lnpeer import Peer
 from .lnaddr import lnencode, LnAddr, lndecode
 from .ecc import der_sig_from_sig_string
-from .lnchan import Channel, ChannelJsonEncoder
+from .lnchannel import Channel, ChannelJsonEncoder
 from .lnutil import (Outpoint, calc_short_channel_id, LNPeerAddr,
                      get_compressed_pubkey_from_bech32, extract_nodeid,
                      PaymentFailure, split_host_port, ConnStringFormatError,
