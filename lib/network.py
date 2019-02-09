@@ -42,7 +42,7 @@ from . import networks
 from .i18n import _
 from .interface import Connection, Interface
 from . import blockchain
-from .version import PACKAGE_VERSION, PROTOCOL_VERSION
+from . import version
 
 
 DEFAULT_AUTO_CONNECT = True
@@ -52,7 +52,6 @@ SERVER_RETRY_INTERVAL = 10
 
 def parse_servers(result):
     """ parse servers list into dict format"""
-    from .version import PROTOCOL_VERSION
     servers = {}
     for item in result:
         host = item[1]
@@ -79,7 +78,7 @@ def parse_servers(result):
 def filter_version(servers):
     def is_recent(version):
         try:
-            return util.normalize_version(version) >= util.normalize_version(PROTOCOL_VERSION)
+            return version.normalize_version(version) >= version.normalize_version(version.PROTOCOL_VERSION)
         except Exception as e:
             return False
     return {k: v for k, v in servers.items() if is_recent(v.get('version'))}
@@ -122,7 +121,7 @@ def servers_to_hostmap(servers):
         m[protocol] = port
         if need_add:
             m['pruning'] = '-' # hmm. this info is missing, so give defaults just to make the map complete.
-            m['version'] = PROTOCOL_VERSION
+            m['version'] = version.PROTOCOL_VERSION
             ret[host] = m
     return ret
 
@@ -814,7 +813,7 @@ class Network(util.DaemonThread):
             self.interfaces[server_key] = interface
 
         # server.version should be the first message
-        params = [PACKAGE_VERSION, PROTOCOL_VERSION]
+        params = [version.PACKAGE_VERSION, version.PROTOCOL_VERSION]
         self.queue_request('server.version', params, interface)
         # The interface will immediately respond with it's last known header.
         self.queue_request('blockchain.headers.subscribe', [], interface)
