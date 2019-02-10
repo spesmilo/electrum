@@ -24,17 +24,28 @@
 # SOFTWARE.
 
 from typing import Optional, List
+from enum import IntEnum
 
 from electrum.i18n import _
 
 from .util import *
 
 class UTXOList(MyTreeView):
+
+    class Columns(IntEnum):
+        ADDRESS = 0
+        LABEL = 1
+        AMOUNT = 2
+        HEIGHT = 3
+        OUTPOINT = 4
+
     headers = [ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')]
-    filter_columns = [0, 1]  # Address, Label
+    filter_columns = [Columns.ADDRESS, Columns.LABEL]
 
     def __init__(self, parent=None):
-        super().__init__(parent, self.create_menu, 1, editable_columns=[])
+        super().__init__(parent, self.create_menu,
+                         stretch_column=self.Columns.LABEL,
+                         editable_columns=[])
         self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
@@ -59,18 +70,18 @@ class UTXOList(MyTreeView):
         labels = [address, label, amount, '%d'%height, name[0:10] + '...' + name[-2:]]
         utxo_item = [QStandardItem(x) for x in labels]
         self.set_editability(utxo_item)
-        utxo_item[0].setFont(QFont(MONOSPACE_FONT))
-        utxo_item[2].setFont(QFont(MONOSPACE_FONT))
-        utxo_item[4].setFont(QFont(MONOSPACE_FONT))
-        utxo_item[0].setData(name, Qt.UserRole)
+        utxo_item[self.Columns.ADDRESS].setFont(QFont(MONOSPACE_FONT))
+        utxo_item[self.Columns.AMOUNT].setFont(QFont(MONOSPACE_FONT))
+        utxo_item[self.Columns.OUTPOINT].setFont(QFont(MONOSPACE_FONT))
+        utxo_item[self.Columns.ADDRESS].setData(name, Qt.UserRole)
         if self.wallet.is_frozen(address):
-            utxo_item[0].setBackground(ColorScheme.BLUE.as_color(True))
+            utxo_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
         self.model().insertRow(idx, utxo_item)
 
     def selected_column_0_user_roles(self) -> Optional[List[str]]:
         if not self.model():
             return None
-        items = self.selected_in_column(0)
+        items = self.selected_in_column(self.Columns.ADDRESS)
         if not items:
             return None
         return [x.data(Qt.UserRole) for x in items]

@@ -23,6 +23,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from enum import IntEnum
+
 from electrum.i18n import _
 from electrum.util import format_time
 
@@ -30,12 +32,22 @@ from .util import *
 
 
 class InvoiceList(MyTreeView):
-    filter_columns = [0, 1, 2, 3]  # Date, Requestor, Description, Amount
+
+    class Columns(IntEnum):
+        DATE = 0
+        REQUESTOR = 1
+        DESCRIPTION = 2
+        AMOUNT = 3
+        STATUS = 4
+
+    filter_columns = [Columns.DATE, Columns.REQUESTOR, Columns.DESCRIPTION, Columns.AMOUNT]
 
     def __init__(self, parent):
-        super().__init__(parent, self.create_menu, stretch_column=2, editable_columns=[])
+        super().__init__(parent, self.create_menu,
+                         stretch_column=self.Columns.DESCRIPTION,
+                         editable_columns=[])
         self.setSortingEnabled(True)
-        self.setColumnWidth(1, 200)
+        self.setColumnWidth(self.Columns.REQUESTOR, 200)
         self.setModel(QStandardItemModel(self))
         self.update()
 
@@ -43,7 +55,7 @@ class InvoiceList(MyTreeView):
         inv_list = self.parent.invoices.unpaid_invoices()
         self.model().clear()
         self.update_headers([_('Expires'), _('Requestor'), _('Description'), _('Amount'), _('Status')])
-        self.header().setSectionResizeMode(1, QHeaderView.Interactive)
+        self.header().setSectionResizeMode(self.Columns.REQUESTOR, QHeaderView.Interactive)
         for idx, pr in enumerate(inv_list):
             key = pr.get_id()
             status = self.parent.invoices.get_status(key)
@@ -53,10 +65,10 @@ class InvoiceList(MyTreeView):
             labels = [date_str, requestor, pr.memo, self.parent.format_amount(pr.get_amount(), whitespaces=True), pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
             self.set_editability(items)
-            items[4].setIcon(read_QIcon(pr_icons.get(status)))
-            items[0].setData(key, role=Qt.UserRole)
-            items[1].setFont(QFont(MONOSPACE_FONT))
-            items[3].setFont(QFont(MONOSPACE_FONT))
+            items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
+            items[self.Columns.DATE].setData(key, role=Qt.UserRole)
+            items[self.Columns.REQUESTOR].setFont(QFont(MONOSPACE_FONT))
+            items[self.Columns.AMOUNT].setFont(QFont(MONOSPACE_FONT))
             self.model().insertRow(idx, items)
         self.selectionModel().select(self.model().index(0,0), QItemSelectionModel.SelectCurrent)
         if self.parent.isVisible():
@@ -73,7 +85,7 @@ class InvoiceList(MyTreeView):
     def create_menu(self, position):
         idx = self.indexAt(position)
         item = self.model().itemFromIndex(idx)
-        item_col0 = self.model().itemFromIndex(idx.sibling(idx.row(), 0))
+        item_col0 = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
         if not item or not item_col0:
             return
         key = item_col0.data(Qt.UserRole)

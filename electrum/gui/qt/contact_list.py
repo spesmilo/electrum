@@ -22,12 +22,13 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
 import webbrowser
+from enum import IntEnum
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-from PyQt5.QtWidgets import (
-    QAbstractItemView, QFileDialog, QMenu, QTreeWidgetItem)
+from PyQt5.QtWidgets import (QAbstractItemView, QMenu)
 
 from electrum.i18n import _
 from electrum.bitcoin import is_address
@@ -38,10 +39,17 @@ from .util import MyTreeView, import_meta_gui, export_meta_gui
 
 
 class ContactList(MyTreeView):
-    filter_columns = [0, 1]  # Key, Value
+
+    class Columns(IntEnum):
+        NAME = 0
+        ADDRESS = 1
+
+    filter_columns = [Columns.NAME, Columns.ADDRESS]
 
     def __init__(self, parent):
-        super().__init__(parent, self.create_menu, stretch_column=0, editable_columns=[0])
+        super().__init__(parent, self.create_menu,
+                         stretch_column=self.Columns.NAME,
+                         editable_columns=[self.Columns.NAME])
         self.setModel(QStandardItemModel(self))
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
@@ -61,9 +69,9 @@ class ContactList(MyTreeView):
     def create_menu(self, position):
         menu = QMenu()
         idx = self.indexAt(position)
-        column = idx.column() or 0
+        column = idx.column() or self.Columns.NAME
         selected_keys = []
-        for s_idx in self.selected_in_column(0):
+        for s_idx in self.selected_in_column(self.Columns.NAME):
             sel_key = self.model().itemFromIndex(s_idx).data(Qt.UserRole)
             selected_keys.append(sel_key)
         if not selected_keys or not idx.isValid():
@@ -91,22 +99,22 @@ class ContactList(MyTreeView):
         menu.exec_(self.viewport().mapToGlobal(position))
 
     def update(self):
-        current_key = self.current_item_user_role(col=0)
+        current_key = self.current_item_user_role(col=self.Columns.NAME)
         self.model().clear()
         self.update_headers([_('Name'), _('Address')])
         set_current = None
         for key in sorted(self.parent.contacts.keys()):
             contact_type, name = self.parent.contacts[key]
             items = [QStandardItem(x) for x in (name, key)]
-            items[0].setEditable(contact_type != 'openalias')
-            items[1].setEditable(False)
-            items[0].setData(key, Qt.UserRole)
+            items[self.Columns.NAME].setEditable(contact_type != 'openalias')
+            items[self.Columns.ADDRESS].setEditable(False)
+            items[self.Columns.NAME].setData(key, Qt.UserRole)
             row_count = self.model().rowCount()
             self.model().insertRow(row_count, items)
             if key == current_key:
-                idx = self.model().index(row_count, 0)
+                idx = self.model().index(row_count, self.Columns.NAME)
                 set_current = QPersistentModelIndex(idx)
         self.set_current_idx(set_current)
         # FIXME refresh loses sort order; so set "default" here:
-        self.sortByColumn(0, Qt.AscendingOrder)
+        self.sortByColumn(self.Columns.NAME, Qt.AscendingOrder)
         run_hook('update_contacts_tab', self)
