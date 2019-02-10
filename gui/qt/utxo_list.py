@@ -40,6 +40,9 @@ class UTXOList(MyTreeWidget):
     def get_name(self, x):
         return x.get('prevout_hash') + ":%d"%x.get('prevout_n')
 
+    def get_name_short(self, x):
+        return x.get('prevout_hash')[:10] + '...' + ":%d"%x.get('prevout_n')
+
     @rate_limited(1.0) # performance tweak -- limit updates to no more than oncer per second
     def update(self):
         if self.wallet and (not self.wallet.thread or not self.wallet.thread.isRunning()):
@@ -58,11 +61,11 @@ class UTXOList(MyTreeWidget):
             address_text = address.to_ui_string()
             height = x['height']
             name = self.get_name(x)
+            name_short = self.get_name_short(x)
             label = self.wallet.get_label(x['prevout_hash'])
             amount = self.parent.format_amount(x['value'])
             utxo_item = SortableTreeWidgetItem([address_text, label, amount,
-                                         str(height),
-                                         name[0:10] + '...' + name[-2:]])
+                                                str(height), name_short])
             utxo_item.DataRole = Qt.UserRole+100 # set this here to avoid sorting based on Qt.UserRole+1
             utxo_item.setFont(0, QFont(MONOSPACE_FONT))
             utxo_item.setFont(4, QFont(MONOSPACE_FONT))
