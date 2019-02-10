@@ -81,12 +81,14 @@ class AddressList(MyTreeView):
             ccy = fx.get_currency()
         else:
             ccy = _('Fiat')
-        headers = [_('Type'),
-                   _('Address'),
-                   _('Label'),
-                   _('Balance'),
-                   ccy + ' ' + _('Balance'),
-                   _('Tx')]
+        headers = {
+            self.Columns.TYPE: _('Type'),
+            self.Columns.ADDRESS: _('Address'),
+            self.Columns.LABEL: _('Label'),
+            self.Columns.COIN_BALANCE: _('Balance'),
+            self.Columns.FIAT_BALANCE: ccy + ' ' + _('Balance'),
+            self.Columns.NUM_TXS: _('Tx'),
+        }
         self.update_headers(headers)
 
     def toggle_change(self, state):

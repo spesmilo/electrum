@@ -48,6 +48,14 @@ class RequestList(MyTreeView):
         AMOUNT = 4
         STATUS = 5
 
+    headers = {
+        Columns.DATE: _('Date'),
+        Columns.ADDRESS: _('Address'),
+        Columns.SIGNATURE: '',
+        Columns.DESCRIPTION: _('Description'),
+        Columns.AMOUNT: _('Amount'),
+        Columns.STATUS: _('Status'),
+    }
     filter_columns = [Columns.DATE, Columns.ADDRESS, Columns.SIGNATURE, Columns.DESCRIPTION, Columns.AMOUNT]
 
     def __init__(self, parent):
@@ -102,7 +110,7 @@ class RequestList(MyTreeView):
         self.parent.new_request_button.setEnabled(addr != current_address)
 
         self.model().clear()
-        self.update_headers([_('Date'), _('Address'), '', _('Description'), _('Amount'), _('Status')])
+        self.update_headers(self.__class__.headers)
         self.hideColumn(self.Columns.ADDRESS)
         for req in self.wallet.get_sorted_requests(self.config):
             address = req['address']

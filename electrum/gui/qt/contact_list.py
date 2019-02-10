@@ -44,6 +44,10 @@ class ContactList(MyTreeView):
         NAME = 0
         ADDRESS = 1
 
+    headers = {
+        Columns.NAME: _('Name'),
+        Columns.ADDRESS: _('Address'),
+    }
     filter_columns = [Columns.NAME, Columns.ADDRESS]
 
     def __init__(self, parent):
@@ -101,7 +105,7 @@ class ContactList(MyTreeView):
     def update(self):
         current_key = self.current_item_user_role(col=self.Columns.NAME)
         self.model().clear()
-        self.update_headers([_('Name'), _('Address')])
+        self.update_headers(self.__class__.headers)
         set_current = None
         for key in sorted(self.parent.contacts.keys()):
             contact_type, name = self.parent.contacts[key]

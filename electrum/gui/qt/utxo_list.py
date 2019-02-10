@@ -39,7 +39,13 @@ class UTXOList(MyTreeView):
         HEIGHT = 3
         OUTPOINT = 4
 
-    headers = [ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')]
+    headers = {
+        Columns.ADDRESS: _('Address'),
+        Columns.LABEL: _('Label'),
+        Columns.AMOUNT: _('Amount'),
+        Columns.HEIGHT: _('Height'),
+        Columns.OUTPOINT: _('Output point'),
+    }
     filter_columns = [Columns.ADDRESS, Columns.LABEL]
 
     def __init__(self, parent=None):

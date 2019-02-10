@@ -7,7 +7,7 @@ import queue
 import traceback
 
 from functools import partial, lru_cache
-from typing import NamedTuple, Callable, Optional, TYPE_CHECKING
+from typing import NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -466,13 +466,17 @@ class MyTreeView(QTreeView):
             assert set_current.isValid()
             self.selectionModel().select(QModelIndex(set_current), QItemSelectionModel.SelectCurrent)
 
-    def update_headers(self, headers):
+    def update_headers(self, headers: Union[List[str], Dict[int, str]]):
+        # headers is either a list of column names, or a dict: (col_idx->col_name)
+        if not isinstance(headers, dict):  # convert to dict
+            headers = dict(enumerate(headers))
+        col_names = [headers[col_idx] for col_idx in sorted(headers.keys())]
         model = self.model()
-        model.setHorizontalHeaderLabels(headers)
+        model.setHorizontalHeaderLabels(col_names)
         self.header().setStretchLastSection(False)
-        for col in range(len(headers)):
-            sm = QHeaderView.Stretch if col == self.stretch_column else QHeaderView.ResizeToContents
-            self.header().setSectionResizeMode(col, sm)
+        for col_idx in headers:
+            sm = QHeaderView.Stretch if col_idx == self.stretch_column else QHeaderView.ResizeToContents
+            self.header().setSectionResizeMode(col_idx, sm)
 
     def keyPressEvent(self, event):
         if self.itemDelegate().opened:

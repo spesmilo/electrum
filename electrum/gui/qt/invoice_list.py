@@ -40,6 +40,13 @@ class InvoiceList(MyTreeView):
         AMOUNT = 3
         STATUS = 4
 
+    headers = {
+        Columns.DATE: _('Expires'),
+        Columns.REQUESTOR: _('Requestor'),
+        Columns.DESCRIPTION: _('Description'),
+        Columns.AMOUNT: _('Amount'),
+        Columns.STATUS: _('Status'),
+    }
     filter_columns = [Columns.DATE, Columns.REQUESTOR, Columns.DESCRIPTION, Columns.AMOUNT]
 
     def __init__(self, parent):
@@ -54,7 +61,7 @@ class InvoiceList(MyTreeView):
     def update(self):
         inv_list = self.parent.invoices.unpaid_invoices()
         self.model().clear()
-        self.update_headers([_('Expires'), _('Requestor'), _('Description'), _('Amount'), _('Status')])
+        self.update_headers(self.__class__.headers)
         self.header().setSectionResizeMode(self.Columns.REQUESTOR, QHeaderView.Interactive)
         for idx, pr in enumerate(inv_list):
             key = pr.get_id()
