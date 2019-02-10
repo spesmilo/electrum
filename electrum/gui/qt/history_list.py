@@ -34,7 +34,7 @@ from decimal import Decimal
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
 from electrum.util import (block_explorer_URL, profiler, print_error, TxMinedInfo,
-                           OrderedDictWithIndex, PrintError)
+                           OrderedDictWithIndex, PrintError, timestamp_to_datetime)
 
 from .util import *
 
@@ -290,6 +290,7 @@ class HistoryModel(QAbstractItemModel, PrintError):
             'confirmations':  tx_mined_info.conf,
             'timestamp':      tx_mined_info.timestamp,
             'txpos_in_block': tx_mined_info.txpos,
+            'date':           timestamp_to_datetime(tx_mined_info.timestamp),
         })
         topLeft = self.createIndex(row, 0)
         bottomRight = self.createIndex(row, len(HistoryColumns) - 1)
