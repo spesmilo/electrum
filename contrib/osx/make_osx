@@ -49,6 +49,9 @@ fail "Unable to use Python $PYTHON_VERSION"
 
 
 info "install dependencies specific to binaries"
+brew install openssl
+export CFLAGS="-I$(brew --prefix openssl)/include $CFLAGS"
+export LDFLAGS="-L$(brew --prefix openssl)/lib $LDFLAGS"
 # note that this also installs pinned versions of both pip and setuptools
 python3 -m pip install -Ir ./contrib/deterministic-build/requirements-binaries.txt --user \
     || fail "Could not install pyinstaller"
