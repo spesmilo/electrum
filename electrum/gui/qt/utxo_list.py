@@ -70,16 +70,18 @@ class UTXOList(MyTreeView):
         address = x.get('address')
         height = x.get('height')
         name = x.get('prevout_hash') + ":%d"%x.get('prevout_n')
+        name_short = x.get('prevout_hash')[:10] + '...' + ":%d"%x.get('prevout_n')
         self.utxo_dict[name] = x
         label = self.wallet.get_label(x.get('prevout_hash'))
         amount = self.parent.format_amount(x['value'], whitespaces=True)
-        labels = [address, label, amount, '%d'%height, name[0:10] + '...' + name[-2:]]
+        labels = [address, label, amount, '%d'%height, name_short]
         utxo_item = [QStandardItem(x) for x in labels]
         self.set_editability(utxo_item)
         utxo_item[self.Columns.ADDRESS].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.AMOUNT].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.OUTPOINT].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.ADDRESS].setData(name, Qt.UserRole)
+        utxo_item[self.Columns.OUTPOINT].setToolTip(name)
         if self.wallet.is_frozen(address):
             utxo_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
         self.model().insertRow(idx, utxo_item)
