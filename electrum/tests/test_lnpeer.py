@@ -11,8 +11,7 @@ from electrum.ecc import ECPrivkey
 from electrum import simple_config, lnutil
 from electrum.lnaddr import lnencode, LnAddr, lndecode
 from electrum.bitcoin import COIN, sha256
-from electrum.util import bh2u
-
+from electrum.util import bh2u, set_verbosity
 from electrum.lnpeer import Peer
 from electrum.lnutil import LNPeerAddr, Keypair, privkey_to_pubkey
 from electrum.lnutil import LightningPeerConnectionClosed, RemoteMisbehaving
@@ -120,11 +119,12 @@ class MockLNWorker:
     get_first_timestamp = lambda self: 0
 
 class MockTransport:
-    def __init__(self):
+    def __init__(self, name):
         self.queue = asyncio.Queue()
+        self._name = name
 
     def name(self):
-        return ""
+        return self._name
 
     async def read_messages(self):
         while True:
@@ -142,27 +142,31 @@ class NoFeaturesTransport(MockTransport):
             self.queue.put_nowait(encode_msg('init', lflen=1, gflen=1, localfeatures=b"\x00", globalfeatures=b"\x00"))
 
 class PutIntoOthersQueueTransport(MockTransport):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name):
+        super().__init__(name)
         self.other_mock_transport = None
 
     def send_bytes(self, data):
         self.other_mock_transport.queue.put_nowait(data)
 
-def transport_pair():
-    t1 = PutIntoOthersQueueTransport()
-    t2 = PutIntoOthersQueueTransport()
+def transport_pair(name1, name2):
+    t1 = PutIntoOthersQueueTransport(name1)
+    t2 = PutIntoOthersQueueTransport(name2)
     t1.other_mock_transport = t2
     t2.other_mock_transport = t1
     return t1, t2
 
 class TestPeer(unittest.TestCase):
+    @staticmethod
+    def setUpClass():
+        set_verbosity(True)
+
     def setUp(self):
         self.alice_channel, self.bob_channel = create_test_channels()
 
     def test_require_data_loss_protect(self):
         mock_lnworker = MockLNWorker(keypair(), keypair(), self.alice_channel, tx_queue=None)
-        mock_transport = NoFeaturesTransport()
+        mock_transport = NoFeaturesTransport('')
         p1 = Peer(mock_lnworker, b"\x00" * 33, mock_transport, request_initial_sync=False)
         mock_lnworker.peer = p1
         with self.assertRaises(LightningPeerConnectionClosed):
@@ -170,7 +174,7 @@ class TestPeer(unittest.TestCase):
 
     def prepare_peers(self):
         k1, k2 = keypair(), keypair()
-        t1, t2 = transport_pair()
+        t1, t2 = transport_pair(self.alice_channel.name, self.bob_channel.name)
         q1, q2 = asyncio.Queue(), asyncio.Queue()
         w1 = MockLNWorker(k1, k2, self.alice_channel, tx_queue=q1)
         w2 = MockLNWorker(k2, k1, self.bob_channel, tx_queue=q2)
