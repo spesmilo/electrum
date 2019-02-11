@@ -36,7 +36,7 @@ from electrum.bitcoin import COIN
 from electrum import constants
 
 from .util import (MyTreeView, read_QIcon, MONOSPACE_FONT, PR_UNPAID,
-                   pr_tooltips, import_meta_gui, export_meta_gui, pr_icons)
+                   import_meta_gui, export_meta_gui, pr_icons)
 
 
 class InvoiceList(MyTreeView):
@@ -99,15 +99,15 @@ class InvoiceList(MyTreeView):
             date_str = format_time(lnaddr.date)
             labels = [date_str, description, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
-            #items[0].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
-            #items[0].setData(key, ROLE_RHASH_OR_ADDR)
-            items[0].setIcon(read_QIcon('lightning.png'))
-            items[3].setIcon(read_QIcon(pr_icons.get(status)))
+            #items[self.Columns.DATE].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
+            #items[self.Columns.DATE].setData(key, ROLE_RHASH_OR_ADDR)
+            items[self.Columns.DATE].setIcon(read_QIcon('lightning.png'))
+            items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
             self.model().insertRow(self.model().rowCount(), items)
 
         self.selectionModel().select(self.model().index(0,0), QItemSelectionModel.SelectCurrent)
         # sort requests by date
-        self.model().sort(0)
+        self.model().sort(self.Columns.DATE)
         # hide list if empty
         if self.parent.isVisible():
             b = self.model().rowCount() > 0

@@ -61,7 +61,7 @@ class RequestList(MyTreeView):
         Columns.AMOUNT: _('Amount'),
         Columns.STATUS: _('Status'),
     }
-    filter_columns = [Columns.DATE, Columns.ADDRESS, Columns.SIGNATURE, Columns.DESCRIPTION, Columns.AMOUNT]
+    filter_columns = [Columns.DATE, Columns.DESCRIPTION, Columns.AMOUNT]
 
     def __init__(self, parent):
         super().__init__(parent, self.create_menu,

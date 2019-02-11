@@ -94,7 +94,7 @@ Builder.load_string(r'''
 
 class ChannelDetailsPopup(Popup):
     def __init__(self, data, **kwargs):
-        super(ChanenlDetailsPopup,self).__init__(**kwargs)
+        super(ChannelDetailsPopup,self).__init__(**kwargs)
         self.data = data
 
 class LightningChannelsDialog(Factory.Popup):
