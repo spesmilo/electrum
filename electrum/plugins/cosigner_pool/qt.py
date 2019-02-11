@@ -26,8 +26,7 @@
 import time
 from xmlrpc.client import ServerProxy
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QPushButton
 
 from electrum import util, keystore, ecc, bip32, crypto

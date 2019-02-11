@@ -1,11 +1,15 @@
 from functools import partial
 import threading
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QGridLayout, QInputDialog, QPushButton
-from PyQt5.QtWidgets import QVBoxLayout, QLabel
+from PyQt5.QtCore import Qt, QEventLoop, pyqtSignal, QRegExp
+from PyQt5.QtGui import QRegExpValidator
+from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
+                             QHBoxLayout, QButtonGroup, QGroupBox, QDialog,
+                             QTextEdit, QLineEdit, QRadioButton, QCheckBox, QWidget,
+                             QMessageBox, QFileDialog, QSlider, QTabWidget)
 
-from electrum.gui.qt.util import *
+from electrum.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
+                                  OkButton, CloseButton)
 from electrum.i18n import _
 from electrum.plugin import hook
 from electrum.util import bh2u

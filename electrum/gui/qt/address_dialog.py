@@ -25,11 +25,9 @@
 
 from electrum.i18n import _
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import QVBoxLayout, QLabel
 
-from .util import *
+from .util import WindowModalDialog, ButtonsLineEdit, ColorScheme, Buttons, CloseButton
 from .history_list import HistoryList, HistoryModel
 from .qrtextedit import ShowQRTextEdit
 

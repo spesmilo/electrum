@@ -5,14 +5,12 @@ from io import BytesIO
 import sys
 import platform
 
+from PyQt5.QtWidgets import (QComboBox, QGridLayout, QLabel, QPushButton)
+
 from electrum.plugin import BasePlugin, hook
 from electrum.gui.qt.util import WaitingDialog, EnterButton, WindowModalDialog, read_QIcon
 from electrum.util import print_msg, print_error
 from electrum.i18n import _
-
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-from PyQt5.QtWidgets import (QComboBox, QGridLayout, QLabel, QPushButton)
 
 try:
     import amodem.audio

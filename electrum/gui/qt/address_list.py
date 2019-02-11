@@ -26,13 +26,17 @@
 import webbrowser
 from enum import IntEnum
 
+from PyQt5.QtCore import Qt, QPersistentModelIndex, QModelIndex
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
+from PyQt5.QtWidgets import QAbstractItemView, QComboBox, QLabel, QMenu
+
 from electrum.i18n import _
 from electrum.util import block_explorer_URL
 from electrum.plugin import run_hook
 from electrum.bitcoin import is_address
 from electrum.wallet import InternalAddressCorruption
 
-from .util import *
+from .util import MyTreeView, MONOSPACE_FONT, ColorScheme
 
 
 class AddressList(MyTreeView):

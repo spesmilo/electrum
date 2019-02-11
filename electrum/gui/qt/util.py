@@ -9,9 +9,16 @@ import traceback
 from functools import partial, lru_cache
 from typing import NamedTuple, Callable, Optional, TYPE_CHECKING, Union, List, Dict
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtGui import (QFont, QColor, QCursor, QPixmap, QStandardItem,
+                         QPalette, QIcon)
+from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, pyqtSignal,
+                          QCoreApplication, QItemSelectionModel, QThread,
+                          QSortFilterProxyModel, QSize, QLocale)
+from PyQt5.QtWidgets import (QPushButton, QLabel, QMessageBox, QHBoxLayout,
+                             QAbstractItemView, QVBoxLayout, QLineEdit,
+                             QStyle, QDialog, QGroupBox, QButtonGroup, QRadioButton,
+                             QFileDialog, QWidget, QToolButton, QTreeView, QPlainTextEdit,
+                             QHeaderView, QApplication, QToolTip, QTreeWidget, QStyledItemDelegate)
 
 from electrum.i18n import _, languages
 from electrum.util import (FileImportFailed, FileExportFailed,

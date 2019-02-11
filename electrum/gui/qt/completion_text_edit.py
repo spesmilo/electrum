@@ -23,9 +23,9 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtGui import QTextCursor
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QCompleter, QPlainTextEdit, QApplication
 
 from .util import ButtonsTextEdit
 

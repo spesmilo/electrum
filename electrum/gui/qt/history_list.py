@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import os
 import webbrowser
 import datetime
 from datetime import date
@@ -31,12 +32,21 @@ import threading
 from enum import IntEnum
 from decimal import Decimal
 
+from PyQt5.QtGui import QMouseEvent, QFont, QBrush, QColor
+from PyQt5.QtCore import (Qt, QPersistentModelIndex, QModelIndex, QAbstractItemModel,
+                          QSortFilterProxyModel, QVariant, QItemSelectionModel, QDate, QPoint)
+from PyQt5.QtWidgets import (QMenu, QHeaderView, QLabel, QMessageBox,
+                             QPushButton, QComboBox, QVBoxLayout, QCalendarWidget,
+                             QGridLayout)
+
 from electrum.address_synchronizer import TX_HEIGHT_LOCAL
 from electrum.i18n import _
 from electrum.util import (block_explorer_URL, profiler, print_error, TxMinedInfo,
                            OrderedDictWithIndex, PrintError, timestamp_to_datetime)
 
-from .util import *
+from .util import (read_QIcon, MONOSPACE_FONT, Buttons, CancelButton, OkButton,
+                   filename_field, MyTreeView, AcceptFileDragDrop, WindowModalDialog,
+                   CloseButton)
 
 if TYPE_CHECKING:
     from electrum.wallet import Abstract_Wallet

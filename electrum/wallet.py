@@ -48,7 +48,6 @@ from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
                    Fiat, bfh, bh2u, TxMinedInfo)
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
-from .version import *
 from .crypto import sha256d
 from .keystore import load_keystore, Hardware_KeyStore
 from .storage import multisig_type, STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW, WalletStorage

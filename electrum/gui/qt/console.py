@@ -5,7 +5,6 @@ import sys
 import os
 import re
 import traceback
-import platform
 
 from PyQt5 import QtCore
 from PyQt5 import QtGui
@@ -14,13 +13,7 @@ from PyQt5 import QtWidgets
 from electrum import util
 from electrum.i18n import _
 
-
-if platform.system() == 'Windows':
-    MONOSPACE_FONT = 'Lucida Console'
-elif platform.system() == 'Darwin':
-    MONOSPACE_FONT = 'Monaco'
-else:
-    MONOSPACE_FONT = 'monospace'
+from .util import MONOSPACE_FONT
 
 
 class OverlayLabel(QtWidgets.QLabel):

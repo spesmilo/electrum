@@ -25,11 +25,14 @@
 # SOFTWARE.
 
 import threading
+from functools import partial
 
-from PyQt5.QtWidgets import QVBoxLayout, QLabel
+from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLabel
 
 from electrum.gui.qt.password_dialog import PasswordLayout, PW_PASSPHRASE
-from electrum.gui.qt.util import *
+from electrum.gui.qt.util import (read_QIcon, WWLabel, OkButton, WindowModalDialog,
+                                  Buttons, CancelButton, TaskThread)
 
 from electrum.i18n import _
 from electrum.util import PrintError

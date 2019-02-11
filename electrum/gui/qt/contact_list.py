@@ -26,8 +26,8 @@
 import webbrowser
 from enum import IntEnum
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt5.QtGui import QStandardItemModel, QStandardItem
+from PyQt5.QtCore import Qt, QPersistentModelIndex, QModelIndex
 from PyQt5.QtWidgets import (QAbstractItemView, QMenu)
 
 from electrum.i18n import _

@@ -1,8 +1,7 @@
 import os
 import qrcode
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+from PyQt5.QtGui import QColor
 import PyQt5.QtGui as QtGui
 from PyQt5.QtWidgets import (
     QApplication, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton, QWidget)

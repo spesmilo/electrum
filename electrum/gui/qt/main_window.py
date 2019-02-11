@@ -38,10 +38,14 @@ from functools import partial
 import queue
 import asyncio
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-import PyQt5.QtCore as QtCore
-from PyQt5.QtWidgets import *
+from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor
+from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
+from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget,
+                             QSpinBox, QMenuBar, QFileDialog, QCheckBox, QLabel,
+                             QVBoxLayout, QGridLayout, QLineEdit, QTreeWidgetItem,
+                             QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
+                             QShortcut, QMainWindow, QCompleter, QInputDialog,
+                             QWidget, QMenu, QSizePolicy, QStatusBar)
 
 import electrum
 from electrum import (keystore, simple_config, ecc, constants, util, bitcoin, commands,
@@ -72,7 +76,12 @@ from .qrcodewidget import QRCodeWidget, QRDialog
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
-from .util import *
+from .util import (read_QIcon, ColorScheme, text_dialog, icon_path, WaitingDialog,
+                   WindowModalDialog, ChoicesLayout, HelpLabel, FromList, Buttons,
+                   OkButton, InfoButton, WWLabel, TaskThread, CancelButton,
+                   CloseButton, HelpButton, MessageBoxMixin, EnterButton, expiration_values,
+                   ButtonsLineEdit, CopyCloseButton, import_meta_gui, export_meta_gui,
+                   filename_field, address_field)
 from .installwizard import WIF_HELP_TEXT
 from .history_list import HistoryList, HistoryModel
 from .update_checker import UpdateCheck, UpdateCheckThread

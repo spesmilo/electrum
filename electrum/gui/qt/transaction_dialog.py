@@ -22,15 +22,17 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
+import sys
 import copy
 import datetime
 import json
 import traceback
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-
+from PyQt5.QtCore import QSize
+from PyQt5.QtGui import QTextCharFormat, QBrush, QFont
+from PyQt5.QtWidgets import (QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout,
+                             QTextEdit)
 import qrcode
 from qrcode import exceptions
 
@@ -41,7 +43,8 @@ from electrum import simple_config
 from electrum.util import bfh
 from electrum.transaction import SerializationError, Transaction
 
-from .util import *
+from .util import (MessageBoxMixin, read_QIcon, Buttons, CopyButton,
+                   MONOSPACE_FONT, ColorScheme, ButtonsLineEdit)
 
 
 SAVE_BUTTON_ENABLED_TOOLTIP = _("Save transaction offline")

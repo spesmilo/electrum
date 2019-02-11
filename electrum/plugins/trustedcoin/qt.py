@@ -25,14 +25,16 @@
 
 from functools import partial
 import threading
-from threading import Thread
-import re
-from decimal import Decimal
+import sys
+import os
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtWidgets import (QTextEdit, QVBoxLayout, QLabel, QGridLayout, QHBoxLayout,
+                             QRadioButton, QCheckBox, QLineEdit)
 
-from electrum.gui.qt.util import *
+from electrum.gui.qt.util import (read_QIcon, WindowModalDialog, WaitingDialog, OkButton,
+                                  CancelButton, Buttons, icon_path, WWLabel, CloseButton)
 from electrum.gui.qt.qrcodewidget import QRCodeWidget
 from electrum.gui.qt.amountedit import AmountEdit
 from electrum.gui.qt.main_window import StatusBarButton
@@ -254,7 +256,7 @@ class Plugin(TrustedCoinPlugin):
 
         tos_e.tos_signal.connect(on_result)
         tos_e.error_signal.connect(on_error)
-        t = Thread(target=request_TOS)
+        t = threading.Thread(target=request_TOS)
         t.setDaemon(True)
         t.start()
         email_e.textChanged.connect(set_enabled)

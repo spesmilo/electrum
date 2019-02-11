@@ -25,10 +25,15 @@
 
 from enum import IntEnum
 
+from PyQt5.QtCore import Qt, QItemSelectionModel
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QFont
+from PyQt5.QtWidgets import QHeaderView, QMenu
+
 from electrum.i18n import _
 from electrum.util import format_time
 
-from .util import *
+from .util import (MyTreeView, read_QIcon, MONOSPACE_FONT, PR_UNPAID,
+                   pr_tooltips, import_meta_gui, export_meta_gui, pr_icons)
 
 
 class InvoiceList(MyTreeView):
