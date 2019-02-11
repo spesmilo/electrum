@@ -78,6 +78,8 @@ class Peer(PrintError):
         self.attempted_route = {}
         self.orphan_channel_updates = OrderedDict()
         self.pending_updates = defaultdict(bool)
+        self._local_changed_events = defaultdict(asyncio.Event)
+        self._remote_changed_events = defaultdict(asyncio.Event)
 
     def send_message(self, message_name: str, **kwargs):
         assert type(message_name) is str
@@ -828,11 +830,11 @@ class Peer(PrintError):
     async def await_remote(self, chan: Channel, ctn: int):
         self.maybe_send_commitment(chan)
         while chan.get_current_ctn(REMOTE) <= ctn:
-            await asyncio.sleep(0.1)
+            await self._remote_changed_events[chan.channel_id].wait()
 
     async def await_local(self, chan: Channel, ctn: int):
         while chan.get_current_ctn(LOCAL) <= ctn:
-            await asyncio.sleep(0.1)
+            await self._local_changed_events[chan.channel_id].wait()
 
     async def pay(self, route: List['RouteEdge'], chan: Channel, amount_msat: int,
                   payment_hash: bytes, min_final_cltv_expiry: int):
@@ -877,6 +879,8 @@ class Peer(PrintError):
         data = payload["htlc_signature"]
         htlc_sigs = [data[i:i+64] for i in range(0, len(data), 64)]
         chan.receive_new_commitment(payload["signature"], htlc_sigs)
+        self._local_changed_events[chan.channel_id].set()
+        self._local_changed_events[chan.channel_id].clear()
         self.send_revoke_and_ack(chan)
 
     def on_update_fulfill_htlc(self, update_fulfill_htlc_msg):
@@ -1025,6 +1029,8 @@ class Peer(PrintError):
         channel_id = payload["channel_id"]
         chan = self.channels[channel_id]
         chan.receive_revocation(RevokeAndAck(payload["per_commitment_secret"], payload["next_per_commitment_point"]))
+        self._remote_changed_events[chan.channel_id].set()
+        self._remote_changed_events[chan.channel_id].clear()
         self.lnworker.save_channel(chan)
 
     def on_update_fee(self, payload):
