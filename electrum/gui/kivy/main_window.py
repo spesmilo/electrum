@@ -829,9 +829,6 @@ class ElectrumWindow(App):
             self._clipboard.copy(label.data)
             Clock.schedule_once(lambda dt: self.show_info(_('Text copied to clipboard.\nTap again to display it as QR code.')))
 
-    def set_send(self, address, amount, label, message):
-        self.send_payment(address, amount=amount, label=label, message=message)
-
     def show_error(self, error, width='200dp', pos=None, arrow_pos=None,
         exit=False, icon='atlas://electrum/gui/kivy/theming/light/error', duration=0,
         modal=False):
