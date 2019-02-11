@@ -184,7 +184,7 @@ class Channel(PrintError):
 
     def set_local_commitment(self, ctx):
         ctn = extract_ctn_from_tx_and_chan(ctx, self)
-        assert self.signature_fits(ctx), (self.log[LOCAL])
+        assert self.signature_fits(ctx), (self.hm.log[LOCAL])
         self.local_commitment = ctx
         if self.sweep_address is not None:
             self.local_sweeptxs = create_sweeptxs_for_our_latest_ctx(self, self.local_commitment, self.sweep_address)
