@@ -867,6 +867,8 @@ class Peer(PrintError):
     def send_revoke_and_ack(self, chan: Channel):
         rev, _ = chan.revoke_current_commitment()
         self.lnworker.save_channel(chan)
+        self._local_changed_events[chan.channel_id].set()
+        self._local_changed_events[chan.channel_id].clear()
         self.send_message("revoke_and_ack",
             channel_id=chan.channel_id,
             per_commitment_secret=rev.per_commitment_secret,
@@ -879,8 +881,6 @@ class Peer(PrintError):
         data = payload["htlc_signature"]
         htlc_sigs = [data[i:i+64] for i in range(0, len(data), 64)]
         chan.receive_new_commitment(payload["signature"], htlc_sigs)
-        self._local_changed_events[chan.channel_id].set()
-        self._local_changed_events[chan.channel_id].clear()
         self.send_revoke_and_ack(chan)
 
     def on_update_fulfill_htlc(self, update_fulfill_htlc_msg):
