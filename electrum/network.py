@@ -795,7 +795,7 @@ class Network(PrintError):
         # grep "reason ="
         policy_error_messages = {
             r"version": _("Transaction uses non-standard version."),
-            r"tx-size": _("The transaction was rejected because it is too large."),
+            r"tx-size": _("The transaction was rejected because it is too large (in bytes)."),
             r"scriptsig-size": None,
             r"scriptsig-not-pushonly": None,
             r"scriptpubkey": None,
