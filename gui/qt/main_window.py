@@ -2486,6 +2486,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show_critical(_("Electron Cash was unable to deserialize the transaction:") + "\n" + str(e))
 
     def do_process_from_txid(self):
+        if self.gui_object.warn_if_no_network(self):
+            return
         from electroncash import transaction
         txid, ok = QInputDialog.getText(self, _('Lookup transaction'), _('Transaction ID') + ':')
         if ok and txid:
@@ -2493,7 +2495,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             try:
                 r = self.network.synchronous_get(('blockchain.transaction.get',[txid]))
             except BaseException as e:
-                self.show_message(str(e))
+                msg = str(e).lower().strip()
+                if 'should be a transaction hash' in msg:
+                    msg = _("Input data is not a transaction hash.")
+                elif 'no such' in msg:
+                    msg = _("No such mempool or blockchain transaction exists.")
+                elif 'did not answer' in msg:
+                    msg = _("The server did not answer; network may be down.")
+                else:
+                    # fall back to something generic.
+                    msg = _("Could not retrieve transaction for the specified hash.")
+                self.print_error("Exception retrieving transaction for '{}': {}".format(txid, repr(e)))
+                self.show_message(_("Error retrieving transaction") + ":\n" + msg)
                 return
             tx = transaction.Transaction(r)
             self.show_transaction(tx)
