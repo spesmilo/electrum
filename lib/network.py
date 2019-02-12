@@ -1503,6 +1503,25 @@ class Network(util.DaemonThread):
             raise BaseException(r.get('error'))
         return r.get('result')
 
+    def get_raw_tx_for_txid(self, txid, timeout=30):
+        txid = str(txid).strip()
+        try:
+            r = self.synchronous_get(('blockchain.transaction.get',[txid]), timeout=timeout)
+            return True, r
+        except BaseException as e:
+            self.print_error("Exception retrieving transaction for '{}': {}".format(txid, repr(e)))
+            msg = str(e).lower().strip()
+            if 'should be a transaction hash' in msg:
+                msg = _("Input data is not a transaction hash.")
+            elif 'no such' in msg:
+                msg = _("No such mempool or blockchain transaction exists.")
+            elif 'did not answer' in msg:
+                msg = _("The server did not answer; network may be down.")
+            else:
+                # fall back to something generic.
+                msg = _("Could not retrieve transaction for the specified hash.")
+            return False, msg
+
     @staticmethod
     def __wait_for(it, timeout=30):
         """Wait for the result of calling lambda `it`.
