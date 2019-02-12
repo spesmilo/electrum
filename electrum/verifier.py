@@ -32,6 +32,7 @@ from .bitcoin import hash_decode, hash_encode
 from .transaction import Transaction
 from .blockchain import hash_header
 from .interface import GracefulDisconnect
+from .network import UntrustedServerReturnedError
 from . import constants
 
 if TYPE_CHECKING:
@@ -96,7 +97,9 @@ class SPV(NetworkJobOnDefaultServer):
     async def _request_and_verify_single_proof(self, tx_hash, tx_height):
         try:
             merkle = await self.network.get_merkle_for_transaction(tx_hash, tx_height)
-        except aiorpcx.jsonrpc.RPCError as e:
+        except UntrustedServerReturnedError as e:
+            if not isinstance(e.original_exception, aiorpcx.jsonrpc.RPCError):
+                raise
             self.print_error('tx {} not at height {}'.format(tx_hash, tx_height))
             self.wallet.remove_unverified_tx(tx_hash, tx_height)
             try: self.requested_merkle.remove(tx_hash)

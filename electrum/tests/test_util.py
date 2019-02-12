@@ -1,6 +1,7 @@
 from decimal import Decimal
 
-from electrum.util import format_satoshis, format_fee_satoshis, parse_URI
+from electrum.util import (format_satoshis, format_fee_satoshis, parse_URI,
+                           is_hash256_str)
 
 from . import SequentialTestCase
 
@@ -93,3 +94,13 @@ class TestUtil(SequentialTestCase):
 
     def test_parse_URI_parameter_polution(self):
         self.assertRaises(Exception, parse_URI, 'bitcoin:15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma?amount=0.0003&label=test&amount=30.0')
+
+    def test_is_hash256_str(self):
+        self.assertTrue(is_hash256_str('09a4c03e3bdf83bbe3955f907ee52da4fc12f4813d459bc75228b64ad08617c7'))
+        self.assertTrue(is_hash256_str('2A5C3F4062E4F2FCCE7A1C7B4310CB647B327409F580F4ED72CB8FC0B1804DFA'))
+        self.assertTrue(is_hash256_str('00' * 32))
+
+        self.assertFalse(is_hash256_str('00' * 33))
+        self.assertFalse(is_hash256_str('qweqwe'))
+        self.assertFalse(is_hash256_str(None))
+        self.assertFalse(is_hash256_str(7))
