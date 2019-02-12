@@ -287,10 +287,9 @@ class Channel(PrintError):
 
         This docstring was adapted from LND.
         """
-        self.print_error("sign_next_commitment")
-
+        next_remote_ctn = self.get_current_ctn(REMOTE) + 1
+        self.print_error("sign_next_commitment", next_remote_ctn)
         self.hm.send_ctx()
-
         pending_remote_commitment = self.pending_commitment(REMOTE)
         sig_64 = sign_and_get_sig_string(pending_remote_commitment, self.config[LOCAL], self.config[REMOTE])
 
@@ -303,7 +302,8 @@ class Channel(PrintError):
 
         htlcsigs = []
         # they sent => we receive
-        for we_receive, htlcs in zip([True, False], [self.included_htlcs(REMOTE, SENT, ctn=self.config[REMOTE].ctn+1), self.included_htlcs(REMOTE, RECEIVED, ctn=self.config[REMOTE].ctn+1)]):
+        for we_receive, htlcs in zip([True, False], [self.included_htlcs(REMOTE, SENT, ctn=next_remote_ctn),
+                                                     self.included_htlcs(REMOTE, RECEIVED, ctn=next_remote_ctn)]):
             for htlc in htlcs:
                 _script, htlc_tx = make_htlc_tx_with_open_channel(chan=self,
                                                                   pcp=self.config[REMOTE].next_per_commitment_point,
@@ -352,8 +352,9 @@ class Channel(PrintError):
         htlc_sigs_string = b''.join(htlc_sigs)
 
         htlc_sigs = htlc_sigs[:] # copy cause we will delete now
-        ctn = self.config[LOCAL].ctn+1
-        for htlcs, we_receive in [(self.included_htlcs(LOCAL, SENT, ctn=ctn), False), (self.included_htlcs(LOCAL, RECEIVED, ctn=ctn), True)]:
+        next_local_ctn = self.get_current_ctn(LOCAL) + 1
+        for htlcs, we_receive in [(self.included_htlcs(LOCAL, SENT, ctn=next_local_ctn), False),
+                                  (self.included_htlcs(LOCAL, RECEIVED, ctn=next_local_ctn), True)]:
             for htlc in htlcs:
                 idx = self.verify_htlc(htlc, htlc_sigs, we_receive, pending_local_commitment)
                 del htlc_sigs[idx]
