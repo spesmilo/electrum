@@ -985,7 +985,9 @@ class Network(util.DaemonThread):
             target_blockchain = interface.blockchain
 
         chunk_data = bfh(hexdata)
-        connect_state = target_blockchain.connect_chunk(request_base_height, chunk_data, proof_was_provided)
+        connect_state = (target_blockchain.connect_chunk(request_base_height, chunk_data, proof_was_provided)
+                         if target_blockchain
+                         else blockchain.CHUNK_BAD)  # fix #1079 -- invariant is violated here due to extant bugs, so rather than raise an exception, just trigger a connection_down below...
         if connect_state == blockchain.CHUNK_ACCEPTED:
             interface.print_error("connected chunk, height={} count={} proof_was_provided={}".format(request_base_height, actual_header_count, proof_was_provided))
         elif connect_state == blockchain.CHUNK_FORKS:
