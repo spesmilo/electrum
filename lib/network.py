@@ -1504,6 +1504,17 @@ class Network(util.DaemonThread):
         return r.get('result')
 
     def get_raw_tx_for_txid(self, txid, timeout=30):
+        ''' Used by UI code to retrieve a transaction from the blockchain by
+        txid.  (Qt Gui: Tools -> Load transaction -> From the blockchain)
+
+        param: txid, a transaction hash
+        returns: tuple(True, raw_tx) on success
+                 tuple(False, error_msg) on failure.
+
+                 error_msg is suitable to be displayed in a UI as it is not
+                 a server string, but rather an error based on what the server
+                 replied with (with a generic fallback message is used
+                 if the server message is not recognized). '''
         txid = str(txid).strip()
         try:
             r = self.synchronous_get(('blockchain.transaction.get',[txid]), timeout=timeout)
