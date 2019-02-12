@@ -506,6 +506,26 @@ def is_valid_email(s):
     return re.match(regexp, s) is not None
 
 
+def is_hash256_str(text: str) -> bool:
+    if not isinstance(text, str): return False
+    if len(text) != 64: return False
+    try:
+        bytes.fromhex(text)
+    except:
+        return False
+    return True
+
+
+def is_non_negative_integer(val) -> bool:
+    try:
+        val = int(val)
+        if val >= 0:
+            return True
+    except:
+        pass
+    return False
+
+
 def format_satoshis_plain(x, decimal_point = 8):
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
