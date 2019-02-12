@@ -2,15 +2,12 @@ from functools import partial
 import traceback
 import sys
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QVBoxLayout)
 
 from electrum_ltc.plugin import hook
 from electrum_ltc.i18n import _
-from electrum_ltc.gui.qt import EnterButton
-from electrum_ltc.gui.qt.util import ThreadedButton, Buttons
-from electrum_ltc.gui.qt.util import WindowModalDialog, OkButton
+from electrum_ltc.gui.qt.util import ThreadedButton, Buttons, EnterButton, WindowModalDialog, OkButton
 
 from .labels import LabelsPlugin
 

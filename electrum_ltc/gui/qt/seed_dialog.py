@@ -23,11 +23,17 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
+                             QLabel, QCompleter, QDialog)
+
 from electrum_ltc.i18n import _
 from electrum_ltc.mnemonic import Mnemonic
 import electrum_ltc.old_mnemonic
 
-from .util import *
+from .util import (Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path,
+                   EnterButton, CloseButton, WindowModalDialog)
 from .qrtextedit import ShowQRTextEdit, ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
 
