@@ -537,11 +537,14 @@ class Commands:
         return tx.as_dict()
 
     @command('w')
-    def history(self, year=None, show_addresses=False, show_fiat=False, show_fees=False):
+    def history(self, year=None, show_addresses=False, show_fiat=False, show_fees=False,
+                from_height=None, to_height=None):
         """Wallet history. Returns the transaction history of your wallet."""
         kwargs = {
             'show_addresses': show_addresses,
             'show_fees': show_fees,
+            'from_height': from_height,
+            'to_height': to_height,
         }
         if year:
             import time
@@ -831,7 +834,9 @@ command_options = {
     'show_fees':   (None, "Show miner fees paid by transactions"),
     'year':        (None, "Show history for a given year"),
     'fee_method':  (None, "Fee estimation method to use"),
-    'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position")
+    'fee_level':   (None, "Float between 0.0 and 1.0, representing fee slider position"),
+    'from_height': (None, "Only show transactions that confirmed after given block height"),
+    'to_height':   (None, "Only show transactions that confirmed before given block height"),
 }
 
 
@@ -843,6 +848,8 @@ arg_types = {
     'nbits': int,
     'imax': int,
     'year': int,
+    'from_height': int,
+    'to_height': int,
     'tx': tx_from_str,
     'pubkeys': json_loads,
     'jsontx': json_loads,
