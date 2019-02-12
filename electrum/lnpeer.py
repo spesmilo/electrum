@@ -770,6 +770,7 @@ class Peer(PrintError):
         # process update_fail_htlc on channel
         chan = self.channels[channel_id]
         chan.receive_fail_htlc(htlc_id)
+        self.pending_updates[chan] = True
         local_ctn = chan.get_current_ctn(LOCAL)
         asyncio.ensure_future(self._on_update_fail_htlc(chan, htlc_id, local_ctn))
 
@@ -833,6 +834,7 @@ class Peer(PrintError):
             await self._remote_changed_events[chan.channel_id].wait()
 
     async def await_local(self, chan: Channel, ctn: int):
+        self.maybe_send_commitment(chan)
         while chan.get_current_ctn(LOCAL) <= ctn:
             await self._local_changed_events[chan.channel_id].wait()
 
@@ -889,6 +891,7 @@ class Peer(PrintError):
         preimage = update_fulfill_htlc_msg["payment_preimage"]
         htlc_id = int.from_bytes(update_fulfill_htlc_msg["id"], "big")
         chan.receive_htlc_settle(preimage, htlc_id)
+        self.pending_updates[chan] = True
         local_ctn = chan.get_current_ctn(LOCAL)
         asyncio.ensure_future(self._on_update_fulfill_htlc(chan, htlc_id, preimage, local_ctn))
 
@@ -1036,7 +1039,9 @@ class Peer(PrintError):
     def on_update_fee(self, payload):
         channel_id = payload["channel_id"]
         feerate =int.from_bytes(payload["feerate_per_kw"], "big")
-        self.channels[channel_id].update_fee(feerate, False)
+        chan = self.channels[channel_id]
+        chan.update_fee(feerate, False)
+        self.pending_updates[chan] = True
 
     async def bitcoin_fee_update(self, chan: Channel):
         """
