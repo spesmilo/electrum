@@ -276,6 +276,9 @@ class Network(PrintError):
         self.server_queue = None
         self.proxy = None
 
+        # Dump network messages (all interfaces).  Set at runtime from the console.
+        self.debug = False
+
         self._set_status('disconnected')
 
     def run_from_another_thread(self, coro):
