@@ -2494,7 +2494,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 raw_tx = self.network.run_from_another_thread(
                     self.network.get_transaction(txid, timeout=10))
             except Exception as e:
-                self.show_message(_("Error getting transaction from network") + ":\n" + str(e))
+                msg = str(e).lower().strip()
+                if 'should be a transaction hash' in msg:
+                    msg = _("Input data is not a transaction hash.")
+                elif 'no such' in msg:
+                    msg = _("No such mempool or blockchain transaction exists.")
+                elif 'no interface' in msg:
+                    msg = _("The network may be down.")
+                else:
+                    # fall back to something generic.
+                    msg = _("Could not retrieve transaction for the specified hash.")
+                self.print_error("Exception retrieving transaction for '{}': {}".format(txid, repr(e)))
+                self.show_message(_("Error getting transaction from network") + ":\n" + msg)
                 return
             tx = transaction.Transaction(raw_tx)
             self.show_transaction(tx)
