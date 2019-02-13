@@ -681,10 +681,11 @@ class RateLimiter(PrintError):
     saved_args = (tuple(),dict())
     ctr = 0
 
-    def __init__(self, rate, obj, func):
+    def __init__(self, rate, ts_after, obj, func):
         self.n = func.__name__
         self.qn = func.__qualname__
         self.rate = rate
+        self.ts_after = ts_after
         self.obj = Weak.ref(obj) # keep a weak reference to the object to prevent cycles
         self.func = func
         #self.print_error("*** Created: func=",func,"obj=",obj,"rate=",rate)
@@ -703,7 +704,7 @@ class RateLimiter(PrintError):
     def attr_name(cls, func): return "__{}__{}".format(func.__name__, cls.__name__)
 
     @classmethod
-    def invoke(cls, rate, func, args, kwargs):
+    def invoke(cls, rate, ts_after, func, args, kwargs):
         ''' Calls _invoke() on an existing RateLimiter object (or creates a new
         one for the given function on first run per target object instance). '''
         assert args and isinstance(args[0], object), "@rate_limited decorator may only be used with object instance methods"
@@ -714,7 +715,7 @@ class RateLimiter(PrintError):
         rl = getattr(obj, a_name, None) # we hide the RateLimiter state object in an attribute (name based on the wrapped function name) in the target object
         if rl is None:
             # must be the first invocation, create a new RateLimiter state instance.
-            rl = cls(rate, obj, func)
+            rl = cls(rate, ts_after, obj, func)
             setattr(obj, a_name, rl)
         return rl._invoke(args, kwargs)
 
@@ -762,11 +763,14 @@ class RateLimiter(PrintError):
         del args, kwargs # deref args right away (allow them to get gc'd)
         tf = time.time()
         time_taken = tf-t0
-        if time_taken > float(self.rate):
-            self.print_error("method took too long: {} > {}. Fudging timestamps to compensate.".format(time_taken, self.rate))
-            self.last_ts = tf # Hmm. This function takes longer than its rate to complete. so mark its last run time as 'now'. This breaks the rate but at least prevents this function from starving the CPU (benforces a delay).
+        if self.ts_after:
+            self.last_ts = tf
         else:
-            self.last_ts = t0 # Function takes less than rate to complete, so mark its t0 as when we entered to keep the rate constant.
+            if time_taken > float(self.rate):
+                self.print_error("method took too long: {} > {}. Fudging timestamps to compensate.".format(time_taken, self.rate))
+                self.last_ts = tf # Hmm. This function takes longer than its rate to complete. so mark its last run time as 'now'. This breaks the rate but at least prevents this function from starving the CPU (benforces a delay).
+            else:
+                self.last_ts = t0 # Function takes less than rate to complete, so mark its t0 as when we entered to keep the rate constant.
 
         if self.timer: # timer is not None if and only if we were a delayed (collated) invocation.
             if was_reentrant:
@@ -804,13 +808,13 @@ class RateLimiterClassLvl(RateLimiter):
     '''
 
     @classmethod
-    def invoke(cls, rate, func, args, kwargs):
+    def invoke(cls, rate, ts_after, func, args, kwargs):
         assert args and not isinstance(args[0], type), "@rate_limited decorator may not be used with static or class methods"
         obj = args[0]
         objcls = obj.__class__
         args = list(args)
         args.insert(0, objcls) # prepend obj class to trick super.invoke() into making this state object be class-level.
-        return super(RateLimiterClassLvl, cls).invoke(rate, func, args, kwargs)
+        return super(RateLimiterClassLvl, cls).invoke(rate, ts_after, func, args, kwargs)
 
     def _push_args(self, args, kwargs):
         objcls, obj = args[0:2]
@@ -830,15 +834,15 @@ class RateLimiterClassLvl(RateLimiter):
                 #self.print_error("calling for",obj.diagnostic_name() if hasattr(obj, "diagnostic_name") else obj,"timer=",bool(self.timer))
                 self.func_target(obj, *args, **kwargs)
 
-    def __init__(self,rate, obj, func):
+    def __init__(self, rate, ts_after, obj, func):
         # note: obj here is really the __class__ of the obj because we prepended the class in our custom invoke() above.
-        super().__init__(rate, obj, func)
+        super().__init__(rate, ts_after, obj, func)
         self.func_target = func
         self.func = self._call_func_for_all
         self.saved_args = Weak.KeyDictionary() # we don't use a simple arg tuple, but instead an instance -> args,kwargs dictionary to store collated calls, per instance collated
 
 
-def rate_limited(rate, classlevel=False):
+def rate_limited(rate, *, classlevel=False, ts_after=False):
     """ A Function decorator for rate-limiting GUI event callbacks. Argument
         rate in seconds is the minimum allowed time between subsequent calls of
         this instance of the function. Calls that arrive more frequently than
@@ -846,13 +850,32 @@ def rate_limited(rate, classlevel=False):
         a QTimer. It is preferable to use this decorator on QObject subclass
         instance methods. This decorator is particularly useful in limiting
         frequent calls to GUI update functions.
-        (See on_fx_quotes and on_fx_history in main_window.py for an example). """
+
+        params:
+            rate - calls are collated to not exceed rate (in seconds)
+            classlevel - if True, specify that the calls should be collated at
+                1 per `rate` secs. for *all* instances of a class, otherwise
+                calls will be collated on a per-instance basis.
+            ts_after - if True, mark the timestamp of the 'last call' AFTER the
+                target method completes.  That is, the collation of calls will
+                ensure at least `rate` seconds will always elapse between
+                subsequent calls. If False, the timestamp is taken right before
+                the collated calls execute (thus ensuring a fixed period for
+                collated calls).
+                TL;DR: ts_after=True : `rate` defines the time interval you want
+                                        from last call's exit to entry into next
+                                        call.
+                       ts_adter=False: `rate` defines the time between each
+                                        call's entry.
+
+        (See on_fx_quotes & on_fx_history in main_window.py for example usages
+        of this decorator). """
     def wrapper0(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             if classlevel:
-                return RateLimiterClassLvl.invoke(rate, func, args, kwargs)
-            return RateLimiter.invoke(rate, func, args, kwargs)
+                return RateLimiterClassLvl.invoke(rate, ts_after, func, args, kwargs)
+            return RateLimiter.invoke(rate, ts_after, func, args, kwargs)
         return wrapper
     return wrapper0
 
