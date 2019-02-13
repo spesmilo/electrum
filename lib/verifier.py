@@ -36,6 +36,7 @@ class SPV(ThreadJob):
         self.blockchain = network.blockchain()
         self.merkle_roots = {}  # txid -> merkle root (once it has been verified)
         self.requested_merkle = set()  # txid set of pending requests
+        self.qbusy = False
 
     def run(self):
         interface = self.network.interface
@@ -66,17 +67,14 @@ class SPV(ThreadJob):
                     # Also, they're not supported as header requests are
                     # currently designed for catching up post-checkpoint headers.
                     index = tx_height // 2016
-                    if interface is not self.network.interface:
-                        self.print_error("interface changed, will retry again later")
-                        return
                     if self.network.request_chunk(interface, index):
                         interface.print_error("verifier requesting chunk {} for height {}".format(index, tx_height))
                 continue
             # enqueue request
-            m_id = self.network.get_merkle_for_transaction(tx_hash,
-                                                           tx_height,
-                                                           self.verify_merkle)
-            if m_id is None:
+            msg_id = self.network.get_merkle_for_transaction(tx_hash, tx_height,
+                                                             self.verify_merkle)
+            self.qbusy = msg_id is None
+            if self.qbusy:
                 # interface queue busy, will try again later
                 break
             self.print_error('requested merkle', tx_hash)
@@ -131,7 +129,7 @@ class SPV(ThreadJob):
             pass
         self.print_error("verified %s" % tx_hash)
         self.wallet.add_verified_tx(tx_hash, (tx_height, header.get('timestamp'), pos))
-        if self.is_up_to_date() and self.wallet.is_up_to_date():
+        if self.is_up_to_date() and self.wallet.is_up_to_date() and not self.qbusy:
             self.wallet.save_verified_tx(write=True)
 
     @classmethod
@@ -162,6 +160,7 @@ class SPV(ThreadJob):
         for tx_hash in tx_hashes:
             self.print_error("redoing", tx_hash)
             self.remove_spv_proof_for_tx(tx_hash)
+        self.qbusy = False
             
     def remove_spv_proof_for_tx(self, tx_hash):
         self.merkle_roots.pop(tx_hash, None)

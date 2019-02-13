@@ -114,13 +114,14 @@ class SeedLayout(QVBoxLayout):
         self.is_bip39 = cb_bip39.isChecked() if 'bip39' in self.options else False
         self.is_bip39_145 = cb_bip39_145.isChecked() if 'bip39_145' in self.options else False
 
-    def __init__(self, seed=None, title=None, icon=True, msg=None, options=None, is_seed=None, passphrase=None, parent=None):
+    def __init__(self, seed=None, title=None, icon=True, msg=None, options=None, is_seed=None, passphrase=None, parent=None, editable=True):
         QVBoxLayout.__init__(self)
         self.parent = parent
         self.options = options
         if title:
             self.addWidget(WWLabel(title))
         self.seed_e = ButtonsTextEdit()
+        self.seed_e.setReadOnly(not editable)
         if seed:
             self.seed_e.setText(seed)
         else:
@@ -204,6 +205,6 @@ class SeedDialog(WindowModalDialog):
         self.setMinimumWidth(400)
         vbox = QVBoxLayout(self)
         title =  _("Your wallet generation seed is:")
-        slayout = SeedLayout(title=title, seed=seed, msg=True, passphrase=passphrase)
+        slayout = SeedLayout(title=title, seed=seed, msg=True, passphrase=passphrase, editable=False)
         vbox.addLayout(slayout)
         vbox.addLayout(Buttons(CloseButton(self)))

@@ -55,7 +55,7 @@ class AddressList(MyTreeWidget):
             headers.insert(4, '{} {}'.format(fx.get_currency(), _(' Balance')))
         self.update_headers(headers)
 
-    @rate_limited(1.0) # We rate limit the address list refresh no more than once every second
+    @rate_limited(1.0, ts_after=True) # We rate limit the address list refresh no more than once every second
     def update(self):
         if self.wallet and (not self.wallet.thread or not self.wallet.thread.isRunning()):
             # short-cut return if window was closed and wallet is stopped

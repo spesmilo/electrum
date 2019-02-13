@@ -183,9 +183,11 @@ class DaemonThread(threading.Thread, PrintError):
 
 # TODO: disable
 is_verbose = True
-def set_verbosity(b):
-    global is_verbose
+verbose_timestamps = True
+def set_verbosity(b, *, timestamps=True):
+    global is_verbose, verbose_timestamps
     is_verbose = b
+    verbose_timestamps = timestamps
 
 # Method decorator.  To be used for calculations that will always
 # deliver the same result.  The method cannot take any arguments
@@ -201,8 +203,11 @@ class cachedproperty(object):
         setattr(obj, self.f.__name__, value)
         return value
 
+_t0 = time.time()
 def print_error(*args):
     if not is_verbose: return
+    if verbose_timestamps:
+        args = ("|%7.3f|"%(time.time() - _t0), *args)
     print_stderr(*args)
 
 def print_stderr(*args):
