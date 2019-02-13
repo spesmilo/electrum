@@ -76,6 +76,8 @@ def target_to_bits(target):
 HEADER_SIZE = 80 # bytes
 MAX_BITS = 0x1d00ffff
 MAX_TARGET = bits_to_target(MAX_BITS)
+# indicates no header in data file
+_NULL_HEADER = bytes([0]) * HEADER_SIZE
 
 def serialize_header(res):
     s = int_to_hex(res.get('version'), 4) \
@@ -372,7 +374,7 @@ class Blockchain(util.PrintError):
                 f.seek(delta * HEADER_SIZE)
                 h = f.read(HEADER_SIZE)
             # Is it a pre-checkpoint header that has never been requested?
-            if h == bytes([0])*HEADER_SIZE:
+            if h == _NULL_HEADER:
                 return None
             return deserialize_header(h, height)
 
