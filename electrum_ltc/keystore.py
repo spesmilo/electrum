@@ -26,7 +26,7 @@
 
 from unicodedata import normalize
 import hashlib
-import binascii
+from typing import Tuple
 
 from . import bitcoin, ecc, constants, bip32
 from .bitcoin import (deserialize_privkey, serialize_privkey,
@@ -601,14 +601,15 @@ def bip39_to_seed(mnemonic, passphrase):
     return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'),
         b'mnemonic' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 
-# returns tuple (is_checksum_valid, is_wordlist_valid)
-def bip39_is_checksum_valid(mnemonic):
+
+def bip39_is_checksum_valid(mnemonic: str) -> Tuple[bool, bool]:
+    """Test checksum of bip39 mnemonic assuming English wordlist.
+    Returns tuple (is_checksum_valid, is_wordlist_valid)
+    """
     words = [ normalize('NFKD', word) for word in mnemonic.split() ]
     words_len = len(words)
     wordlist = load_wordlist("english.txt")
     n = len(wordlist)
-    checksum_length = 11*words_len//33
-    entropy_length = 32*checksum_length
     i = 0
     words.reverse()
     while words:
@@ -620,13 +621,12 @@ def bip39_is_checksum_valid(mnemonic):
         i = i*n + k
     if words_len not in [12, 15, 18, 21, 24]:
         return False, True
+    checksum_length = 11 * words_len // 33  # num bits
+    entropy_length = 32 * checksum_length  # num bits
     entropy = i >> checksum_length
     checksum = i % 2**checksum_length
-    h = '{:x}'.format(entropy)
-    while len(h) < entropy_length/4:
-        h = '0'+h
-    b = bytearray.fromhex(h)
-    hashed = int(binascii.hexlify(sha256(b)), 16)
+    entropy_bytes = int.to_bytes(entropy, length=entropy_length//8, byteorder="big")
+    hashed = int.from_bytes(sha256(entropy_bytes), byteorder="big")
     calculated_checksum = hashed >> (256 - checksum_length)
     return checksum == calculated_checksum, True
 
