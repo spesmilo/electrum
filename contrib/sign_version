@@ -1,4 +1,4 @@
 #!/bin/bash
-version=`git describe --tags --dirty --always`
+version=`python3 -c "import electrum; print(electrum.version.ELECTRUM_VERSION)"`
 sig=`./run_electrum -w $SIGNING_WALLET signmessage $SIGNING_ADDRESS $version`
-echo "{ \"version\":\"$version\", \"signatures\":{ \"$addr\":\"$sig\"}}"
+echo "{ \"version\":\"$version\", \"signatures\":{ \"$SIGNING_ADDRESS\":\"$sig\"}}"
