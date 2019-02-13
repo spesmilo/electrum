@@ -1,5 +1,6 @@
 import traceback
 import sys
+from typing import NamedTuple, Any
 
 from electrum.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
 from electrum.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
@@ -84,6 +85,15 @@ class TrezorKeyStore(Hardware_KeyStore):
                     xpub_path[xpub] = self.get_derivation()
 
         self.plugin.sign_transaction(self, tx, prev_tx, xpub_path)
+
+
+class TrezorInitSettings(NamedTuple):
+    word_count: int
+    label: str
+    pin_enabled: bool
+    passphrase_enabled: bool
+    recovery_type: Any = None
+    no_backup: bool = False
 
 
 class TrezorPlugin(HW_PluginBase):
@@ -177,12 +187,9 @@ class TrezorPlugin(HW_PluginBase):
             (TIM_NEW, _("Let the device generate a completely new seed randomly")),
             (TIM_RECOVER, _("Recover from a seed you have previously written down")),
         ]
-        devmgr = self.device_manager()
-        client = devmgr.client_by_id(device_id)
-        model = client.get_trezor_model()
         def f(method):
             import threading
-            settings = self.request_trezor_init_settings(wizard, method, model)
+            settings = self.request_trezor_init_settings(wizard, method, device_id)
             t = threading.Thread(target=self._initialize_device_safe, args=(settings, method, device_id, wizard, handler))
             t.setDaemon(True)
             t.start()
@@ -207,10 +214,8 @@ class TrezorPlugin(HW_PluginBase):
         finally:
             wizard.loop.exit(exit_code)
 
-    def _initialize_device(self, settings, method, device_id, wizard, handler):
-        item, label, pin_protection, passphrase_protection, recovery_type = settings
-
-        if method == TIM_RECOVER and recovery_type == RECOVERY_TYPE_SCRAMBLED_WORDS:
+    def _initialize_device(self, settings: TrezorInitSettings, method, device_id, wizard, handler):
+        if method == TIM_RECOVER and settings.recovery_type == RECOVERY_TYPE_SCRAMBLED_WORDS:
             handler.show_error(_(
                 "You will be asked to enter 24 words regardless of your "
                 "seed's actual length.  If you enter a word incorrectly or "
@@ -221,21 +226,25 @@ class TrezorPlugin(HW_PluginBase):
 
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
+        if not client:
+            raise Exception(_("The device was disconnected."))
 
         if method == TIM_NEW:
+            strength_from_word_count = {12: 128, 18: 192, 24: 256}
             client.reset_device(
-                strength=64 * (item + 2),  # 128, 192 or 256
-                passphrase_protection=passphrase_protection,
-                pin_protection=pin_protection,
-                label=label)
+                strength=strength_from_word_count[settings.word_count],
+                passphrase_protection=settings.passphrase_enabled,
+                pin_protection=settings.pin_enabled,
+                label=settings.label,
+                no_backup=settings.no_backup)
         elif method == TIM_RECOVER:
             client.recover_device(
-                recovery_type=recovery_type,
-                word_count=6 * (item + 2),  # 12, 18 or 24
-                passphrase_protection=passphrase_protection,
-                pin_protection=pin_protection,
-                label=label)
-            if recovery_type == RECOVERY_TYPE_MATRIX:
+                recovery_type=settings.recovery_type,
+                word_count=settings.word_count,
+                passphrase_protection=settings.passphrase_enabled,
+                pin_protection=settings.pin_enabled,
+                label=settings.label)
+            if settings.recovery_type == RECOVERY_TYPE_MATRIX:
                 handler.close_matrix_dialog()
         else:
             raise RuntimeError("Unsupported recovery method")

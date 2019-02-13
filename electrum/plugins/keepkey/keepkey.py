@@ -206,6 +206,8 @@ class KeepKeyPlugin(HW_PluginBase):
         language = 'english'
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
+        if not client:
+            raise Exception(_("The device was disconnected."))
 
         if method == TIM_NEW:
             strength = 64 * (item + 2)  # 128, 192 or 256
