@@ -500,6 +500,8 @@ class Abstract_Wallet(AddressSynchronizer):
             summary = {
                 'start_date': start_date,
                 'end_date': end_date,
+                'from_height': from_height,
+                'to_height': to_height,
                 'start_balance': Satoshis(start_balance),
                 'end_balance': Satoshis(end_balance),
                 'income': Satoshis(income),

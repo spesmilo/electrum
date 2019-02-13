@@ -276,6 +276,9 @@ class Network(PrintError):
         self.server_queue = None
         self.proxy = None
 
+        # Dump network messages (all interfaces).  Set at runtime from the console.
+        self.debug = False
+
         self._set_status('disconnected')
 
     def run_from_another_thread(self, coro):
@@ -775,7 +778,7 @@ class Network(PrintError):
     def catch_server_exceptions(func):
         async def wrapper(self, *args, **kwargs):
             try:
-                await func(self, *args, **kwargs)
+                return await func(self, *args, **kwargs)
             except aiorpcx.jsonrpc.CodeMessageError as e:
                 raise UntrustedServerReturnedError(original_exception=e)
         return wrapper
