@@ -231,15 +231,27 @@ class QtPlugin(QtPluginBase):
         vbox.addWidget(WWLabel(RECOMMEND_PIN))
         vbox.addWidget(cb_pin)
 
+        # "expert settings" button
+        expert_vbox = QVBoxLayout()
+        expert_widget = QWidget()
+        expert_widget.setLayout(expert_vbox)
+        expert_widget.setVisible(False)
+        expert_button = QPushButton(_("Show expert settings"))
+        def show_expert_settings():
+            expert_button.setVisible(False)
+            expert_widget.setVisible(True)
+        expert_button.clicked.connect(show_expert_settings)
+        vbox.addWidget(expert_button)
+
         # passphrase
         passphrase_msg = WWLabel(PASSPHRASE_HELP_SHORT)
         passphrase_warning = WWLabel(PASSPHRASE_NOT_PIN)
         passphrase_warning.setStyleSheet("color: red")
         cb_phrase = QCheckBox(_('Enable passphrases'))
         cb_phrase.setChecked(False)
-        vbox.addWidget(passphrase_msg)
-        vbox.addWidget(passphrase_warning)
-        vbox.addWidget(cb_phrase)
+        expert_vbox.addWidget(passphrase_msg)
+        expert_vbox.addWidget(passphrase_warning)
+        expert_vbox.addWidget(cb_phrase)
 
         # ask for recovery type (random word order OR matrix)
         bg_rectype = None
@@ -247,7 +259,7 @@ class QtPlugin(QtPluginBase):
             gb_rectype = QGroupBox()
             hbox_rectype = QHBoxLayout()
             gb_rectype.setLayout(hbox_rectype)
-            vbox.addWidget(gb_rectype)
+            expert_vbox.addWidget(gb_rectype)
             gb_rectype.setTitle(_("Select recovery type:"))
             bg_rectype = QButtonGroup()
 
@@ -275,8 +287,9 @@ class QtPlugin(QtPluginBase):
             else:
                 cb_no_backup.setEnabled(False)
                 cb_no_backup.setToolTip(_('Firmware version too old.'))
-            vbox.addWidget(cb_no_backup)
+            expert_vbox.addWidget(cb_no_backup)
 
+        vbox.addWidget(expert_widget)
         wizard.exec_layout(vbox, next_enabled=next_enabled)
 
         return TrezorInitSettings(
