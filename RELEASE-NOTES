@@ -263,6 +263,7 @@ and there is no warning message.
   a file. (Strangely, we had "Import contacts", but no export!) (cculianu)
 * Request fee estimate from ElectrumX/ElectronX server every 20 minutes
   (cculianu)
+* Performance improvements for wallets with huge numbers of tx's (cculianu)
 * Trezor bugfix (SomberNight)
 * Append HMAC to Bitbox messages (TheCharlatan)
 * Android fixes (mhsmith)
