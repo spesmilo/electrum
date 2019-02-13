@@ -43,21 +43,26 @@ class Coin(PrintErrorThread):
 
         it does as follows:
         1. check utxo list for every pubkey in the dict
-        2. check if utxo from inputs are in the utxo list on blockchain for this pubkeys
-            2.a return None if there is a utxo from list not on utxo set from blockchain
+        2. check if utxo from inputs are in the utxo list on blockchain for these pubkeys
+            2.a return None if there is a utxo from list not in utxo set from blockchain
+            2.b return None if utxo in list is not confirmed
         3. return True if summary values of utxos are greater then amount and False otherwise
         """
+        def _utxo_name(x): return x['tx_hash'] + ":" + str(x['tx_pos'])
         total = 0
         try:
-            for public_key in inputs:
+            for public_key, pk_inputs in inputs.items():
                 address = address_from_public_key(public_key)
                 unspent_list = self.getaddressunspent(address)
-                utxos = {(utxo['tx_hash']+ ":" + str(utxo['tx_pos'])):utxo['value'] for utxo in unspent_list}
-                for utxo in inputs[public_key]:
-                    if utxo in utxos:
-                        total += utxos[utxo]
-                    else:
+                utxos = {
+                    _utxo_name(utxo) : utxo['value']
+                    for utxo in unspent_list if utxo.get('height',-1) > 0  # all inputs must have at least 1 confirmation
+                }
+                for utxo in pk_inputs:
+                    val = utxos.get(utxo)
+                    if val is None:
                         return None
+                    total += val
             return total >= amount
         except:
             return None
