@@ -1,4 +1,4 @@
-# Release 3.3.4 - (unreleased)
+# Release 3.3.4 - (February 13, 2019)
 
  * AppImage: we now also distribute self-contained binaries for x86_64
    Linux in the form of an AppImage (#5042). The Python interpreter,
