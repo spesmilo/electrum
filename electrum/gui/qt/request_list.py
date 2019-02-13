@@ -134,7 +134,7 @@ class RequestList(MyTreeView):
         self.filter()
         # lightning
         lnworker = self.wallet.lnworker
-        for key, (preimage_hex, invoice, is_received, pay_timestamp) in lnworker.invoices.items():
+        for key, (invoice, is_received) in lnworker.invoices.items():
             if not is_received:
                 continue
             status = lnworker.get_invoice_status(key)

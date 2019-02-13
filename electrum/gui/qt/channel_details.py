@@ -73,7 +73,7 @@ class ChannelDetailsDialog(QtWidgets.QDialog):
             chan_id, i, direction, status = item
             lnaddr = None
             if pay_hash in invoices:
-                invoice = invoices[pay_hash][1]
+                invoice = invoices[pay_hash][0]
                 lnaddr = lndecode(invoice)
             if status == 'inflight':
                 if lnaddr is not None:

@@ -68,8 +68,9 @@ class LNWorker(PrintError):
 
     def __init__(self, wallet: 'Abstract_Wallet'):
         self.wallet = wallet
-        # type: Dict[str, Tuple[str,str,bool,int]]  # RHASH -> (preimage, invoice, is_received, timestamp)
-        self.invoices = self.wallet.storage.get('lightning_invoices', {})
+        self.storage = wallet.storage
+        self.invoices = self.storage.get('lightning_invoices', {})        # RHASH -> (invoice, is_received)
+        self.preimages = self.storage.get('lightning_preimages', {})      # RHASH -> (preimage, timestamp)
         self.sweep_address = wallet.get_receiving_address()
         self.lock = threading.RLock()
         self.ln_keystore = self._read_ln_keystore()
@@ -78,12 +79,12 @@ class LNWorker(PrintError):
         self.channels = {}  # type: Dict[bytes, Channel]
         for x in wallet.storage.get("channels", []):
             c = Channel(x, sweep_address=self.sweep_address, payment_completed=self.payment_completed)
-            c.get_preimage_and_invoice = self.get_invoice
+            c.get_preimage = self.get_preimage
             self.channels[c.channel_id] = c
             c.set_remote_commitment()
             c.set_local_commitment(c.current_commitment(LOCAL))
         # timestamps of opening and closing transactions
-        self.channel_timestamps = self.wallet.storage.get('lightning_channel_timestamps', {})
+        self.channel_timestamps = self.storage.get('lightning_channel_timestamps', {})
 
     def start_network(self, network: 'Network'):
         self.network = network
@@ -106,7 +107,7 @@ class LNWorker(PrintError):
         if self.first_timestamp_requested is None:
             self.first_timestamp_requested = time.time()
             first_request = True
-        first_timestamp = self.wallet.storage.get('lightning_gossip_until', 0)
+        first_timestamp = self.storage.get('lightning_gossip_until', 0)
         if first_timestamp == 0:
             self.print_error('requesting whole channel graph')
         else:
@@ -120,28 +121,21 @@ class LNWorker(PrintError):
         while True:
             await asyncio.sleep(GRAPH_DOWNLOAD_SECONDS)
             yesterday = int(time.time()) - 24*60*60 # now minus a day
-            self.wallet.storage.put('lightning_gossip_until', yesterday)
-            self.wallet.storage.write()
+            self.storage.put('lightning_gossip_until', yesterday)
+            self.storage.write()
             self.print_error('saved lightning gossip timestamp')
 
     def payment_completed(self, chan, direction, htlc, _preimage):
         chan_id = chan.channel_id
-        key = bh2u(htlc.payment_hash)
-        if key not in self.invoices:
-            return
-        preimage, invoice, is_received, timestamp = self.invoices.get(key)
-        if direction == SENT:
-            preimage = bh2u(_preimage)
-        now = time.time()
-        self.invoices[key] = preimage, invoice, is_received, now
-        self.wallet.storage.put('lightning_invoices', self.invoices)
-        self.wallet.storage.write()
-        self.network.trigger_callback('ln_payment_completed', now, direction, htlc, preimage, chan_id)
+        preimage = _preimage if _preimage else self.get_preimage(htlc.payment_hash)
+        timestamp = time.time()
+        self.save_preimage(htlc.payment_hash, preimage, timestamp)
+        self.network.trigger_callback('ln_payment_completed', timestamp, direction, htlc, preimage, chan_id)
 
     def get_invoice_status(self, payment_hash):
-        if payment_hash not in self.invoices:
+        if payment_hash not in self.preimages:
             return PR_UNKNOWN
-        preimage, _addr, is_received, timestamp = self.invoices.get(payment_hash)
+        preimage, timestamp = self.preimages.get(payment_hash)
         if timestamp is None:
             return PR_UNPAID
         return PR_PAID
@@ -157,7 +151,7 @@ class LNWorker(PrintError):
         out = []
         for chan_id, htlc, direction, status in self.get_payments().values():
             key = bh2u(htlc.payment_hash)
-            timestamp = self.invoices[key][3] if key in self.invoices else None
+            timestamp = self.preimages[key][1] if key in self.preimages else None
             item = {
                 'type':'payment',
                 'timestamp':timestamp or 0,
@@ -205,21 +199,21 @@ class LNWorker(PrintError):
         return out
 
     def _read_ln_keystore(self) -> BIP32_KeyStore:
-        xprv = self.wallet.storage.get('lightning_privkey2')
+        xprv = self.storage.get('lightning_privkey2')
         if xprv is None:
             # TODO derive this deterministically from wallet.keystore at keystore generation time
             # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
             seed = os.urandom(32)
             xprv, xpub = bip32_root(seed, xtype='standard')
-            self.wallet.storage.put('lightning_privkey2', xprv)
+            self.storage.put('lightning_privkey2', xprv)
         return keystore.from_xprv(xprv)
 
     def get_and_inc_counter_for_channel_keys(self):
         with self.lock:
-            ctr = self.wallet.storage.get('lightning_channel_key_der_ctr', -1)
+            ctr = self.storage.get('lightning_channel_key_der_ctr', -1)
             ctr += 1
-            self.wallet.storage.put('lightning_channel_key_der_ctr', ctr)
-            self.wallet.storage.write()
+            self.storage.put('lightning_channel_key_der_ctr', ctr)
+            self.storage.write()
             return ctr
 
     def _add_peers_from_config(self):
@@ -264,8 +258,8 @@ class LNWorker(PrintError):
         with self.lock:
             self.channels[openchannel.channel_id] = openchannel
             dumped = [x.serialize() for x in self.channels.values()]
-        self.wallet.storage.put("channels", dumped)
-        self.wallet.storage.write()
+        self.storage.put("channels", dumped)
+        self.storage.write()
         self.network.trigger_callback('channel', openchannel)
 
     def save_short_chan_id(self, chan):
@@ -300,7 +294,7 @@ class LNWorker(PrintError):
             return
         self.print_error('on_channel_open', funding_outpoint)
         self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, None, None, None
-        self.wallet.storage.put('lightning_channel_timestamps', self.channel_timestamps)
+        self.storage.put('lightning_channel_timestamps', self.channel_timestamps)
         chan.set_funding_txo_spentness(False)
         # send event to GUI
         self.network.trigger_callback('channel', chan)
@@ -312,7 +306,7 @@ class LNWorker(PrintError):
             return
         self.print_error('on_channel_closed', funding_outpoint)
         self.channel_timestamps[bh2u(chan.channel_id)] = funding_txid, funding_height.height, funding_height.timestamp, closing_txid, closing_height.height, closing_height.timestamp
-        self.wallet.storage.put('lightning_channel_timestamps', self.channel_timestamps)
+        self.storage.put('lightning_channel_timestamps', self.channel_timestamps)
         chan.set_funding_txo_spentness(True)
         if chan.get_state() != 'FORCE_CLOSING':
             chan.set_state("CLOSED")
@@ -473,7 +467,7 @@ class LNWorker(PrintError):
         if not chan:
             raise Exception("PathFinder returned path with short_channel_id {} that is not in channel list".format(bh2u(short_channel_id)))
         peer = self.peers[route[0].node_id]
-        self.save_invoice(None, pay_req, SENT)
+        self.save_invoice(addr.paymenthash, pay_req, SENT)
         htlc = await peer.pay(route, chan, int(addr.amount * COIN * 1000), addr.paymenthash, addr.get_min_final_cltv_expiry())
         self.network.trigger_callback('htlc_added', htlc, addr, SENT)
 
@@ -546,34 +540,50 @@ class LNWorker(PrintError):
 
     def add_invoice(self, amount_sat, message):
         payment_preimage = os.urandom(32)
-        RHASH = sha256(payment_preimage)
+        payment_hash = sha256(payment_preimage)
         amount_btc = amount_sat/Decimal(COIN) if amount_sat else None
         routing_hints = self._calc_routing_hints_for_invoice(amount_sat)
         if not routing_hints:
             self.print_error("Warning. No routing hints added to invoice. "
                              "Other clients will likely not be able to send to us.")
-        pay_req = lnencode(LnAddr(RHASH, amount_btc,
+        invoice = lnencode(LnAddr(payment_hash, amount_btc,
                                   tags=[('d', message),
                                         ('c', MIN_FINAL_CLTV_EXPIRY_FOR_INVOICE)]
                                        + routing_hints),
                            self.node_keypair.privkey)
+        self.save_invoice(payment_hash, invoice, RECEIVED)
+        self.save_preimage(payment_hash, payment_preimage, 0)
+        return invoice
 
-        self.save_invoice(bh2u(payment_preimage), pay_req, RECEIVED)
-        return pay_req
+    def save_preimage(self, payment_hash:bytes, preimage:bytes, timestamp:int):
+        assert sha256(preimage) == payment_hash
+        key = bh2u(payment_hash)
+        self.preimages[key] = bh2u(preimage), timestamp
+        self.storage.put('lightning_preimages', self.preimages)
+        self.storage.write()
 
-    def save_invoice(self, preimage, invoice, direction):
-        lnaddr = lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
-        key = bh2u(lnaddr.paymenthash)
-        self.invoices[key] = preimage, invoice, direction==RECEIVED, None
-        self.wallet.storage.put('lightning_invoices', self.invoices)
-        self.wallet.storage.write()
-
-    def get_invoice(self, payment_hash: bytes) -> Tuple[bytes, LnAddr]:
+    def get_preimage_and_timestamp(self, payment_hash: bytes) -> bytes:
         try:
-            preimage_hex, pay_req, is_received, timestamp = self.invoices[bh2u(payment_hash)]
+            preimage_hex, timestamp = self.preimages[bh2u(payment_hash)]
             preimage = bfh(preimage_hex)
             assert sha256(preimage) == payment_hash
-            return preimage, lndecode(pay_req, expected_hrp=constants.net.SEGWIT_HRP)
+            return preimage, timestamp
+        except KeyError as e:
+            raise UnknownPaymentHash(payment_hash) from e
+
+    def get_preimage(self, payment_hash: bytes) -> bytes:
+        return self.get_preimage_and_timestamp(payment_hash)[0]
+
+    def save_invoice(self, payment_hash:bytes, invoice, direction):
+        key = bh2u(payment_hash)
+        self.invoices[key] = invoice, direction==RECEIVED
+        self.storage.put('lightning_invoices', self.invoices)
+        self.storage.write()
+
+    def get_invoice(self, payment_hash: bytes) -> LnAddr:
+        try:
+            invoice, is_received = self.invoices[bh2u(payment_hash)]
+            return lndecode(invoice, expected_hrp=constants.net.SEGWIT_HRP)
         except KeyError as e:
             raise UnknownPaymentHash(payment_hash) from e
 
@@ -618,14 +628,12 @@ class LNWorker(PrintError):
         return routing_hints
 
     def delete_invoice(self, payment_hash_hex: str):
-        # FIXME we will now LOSE the preimage!! is this feature a good idea?
-        # maybe instead of deleting, we could have a feature to "hide" invoices (e.g. for GUI)
         try:
             del self.invoices[payment_hash_hex]
         except KeyError:
             return
-        self.wallet.storage.put('lightning_invoices', self.invoices)
-        self.wallet.storage.write()
+        self.storage.put('lightning_invoices', self.invoices)
+        self.storage.write()
 
     def get_balance(self):
         with self.lock:

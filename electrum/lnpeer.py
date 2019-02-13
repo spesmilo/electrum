@@ -377,7 +377,7 @@ class Peer(PrintError):
                        sweep_address=self.lnworker.sweep_address,
                        payment_completed=self.lnworker.payment_completed)
         chan.lnwatcher = self.lnwatcher
-        chan.get_preimage_and_invoice = self.lnworker.get_invoice  # FIXME hack.
+        chan.get_preimage = self.lnworker.get_preimage  # FIXME hack.
         sig_64, _ = chan.sign_next_commitment()
         self.send_message("funding_created",
             temporary_channel_id=temp_channel_id,
@@ -470,7 +470,7 @@ class Peer(PrintError):
                        sweep_address=self.lnworker.sweep_address,
                        payment_completed=self.lnworker.payment_completed)
         chan.lnwatcher = self.lnwatcher
-        chan.get_preimage_and_invoice = self.lnworker.get_invoice  # FIXME hack.
+        chan.get_preimage = self.lnworker.get_preimage  # FIXME hack.
         remote_sig = funding_created['signature']
         chan.receive_new_commitment(remote_sig, [])
         sig_64, _ = chan.sign_next_commitment()
@@ -975,7 +975,8 @@ class Peer(PrintError):
         await self.await_local(chan, local_ctn)
         await self.await_remote(chan, remote_ctn)
         try:
-            preimage, invoice = self.lnworker.get_invoice(payment_hash)
+            invoice = self.lnworker.get_invoice(payment_hash)
+            preimage = self.lnworker.get_preimage(payment_hash)
         except UnknownPaymentHash:
             reason = OnionRoutingFailureMessage(code=OnionFailureCode.UNKNOWN_PAYMENT_HASH, data=b'')
             await self.fail_htlc(chan, htlc_id, onion_packet, reason)

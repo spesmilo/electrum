@@ -82,6 +82,7 @@ class MockLNWorker:
         self.network = MockNetwork(tx_queue)
         self.channels = {self.chan.channel_id: self.chan}
         self.invoices = {}
+        self.preimages = {}
         self.inflight = {}
         self.wallet = MockWallet()
 
@@ -112,6 +113,8 @@ class MockLNWorker:
         pass
 
     get_invoice = LNWorker.get_invoice
+    get_preimage = LNWorker.get_preimage
+    get_preimage_and_timestamp = LNWorker.get_preimage_and_timestamp
     _create_route_from_invoice = LNWorker._create_route_from_invoice
     _check_invoice = staticmethod(LNWorker._check_invoice)
     _pay_to_route = LNWorker._pay_to_route
@@ -204,7 +207,8 @@ class TestPeer(unittest.TestCase):
                           ('d', 'coffee')
                          ])
         pay_req = lnencode(addr, w2.node_keypair.privkey)
-        w2.invoices[bh2u(RHASH)] = (bh2u(payment_preimage), pay_req, True, None)
+        w2.preimages[bh2u(RHASH)] = (bh2u(payment_preimage), 0)
+        w2.invoices[bh2u(RHASH)] = (pay_req, True)
         return pay_req
 
     @staticmethod

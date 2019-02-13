@@ -84,7 +84,7 @@ class InvoiceList(MyTreeView):
             self.model().insertRow(idx, items)
 
         lnworker = self.parent.wallet.lnworker
-        for key, (preimage_hex, invoice, is_received, pay_timestamp) in lnworker.invoices.items():
+        for key, (invoice, is_received) in lnworker.invoices.items():
             if is_received:
                 continue
             status = lnworker.get_invoice_status(key)
