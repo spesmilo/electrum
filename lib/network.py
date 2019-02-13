@@ -1312,7 +1312,9 @@ class Network(util.DaemonThread):
         us it's topmost header.  After that, it will forward on any additional
         headers as it receives them.
         '''
-        if 'hex' not in header_dict or 'height' not in header_dict:
+        if (not isinstance(header_dict, dict)
+            or 'hex' not in header_dict or 'height' not in header_dict):
+            # bad and/or unexpected response from server.
             self.connection_down(interface.server)
             return
 
