@@ -66,25 +66,31 @@ class SPV(ThreadJob):
                     # Also, they're not supported as header requests are
                     # currently designed for catching up post-checkpoint headers.
                     index = tx_height // 2016
+                    if interface is not self.network.interface:
+                        self.print_error("interface changed, will retry again later")
+                        return
                     if self.network.request_chunk(interface, index):
                         interface.print_error("verifier requesting chunk {} for height {}".format(index, tx_height))
                 continue
-            # request now
-            self.network.get_merkle_for_transaction(
-                    tx_hash,
-                    tx_height,
-                    self.verify_merkle)
+            # enqueue request
+            m_id = self.network.get_merkle_for_transaction(tx_hash,
+                                                           tx_height,
+                                                           self.verify_merkle)
+            if m_id is None:
+                # interface queue busy, will try again later
+                break
             self.print_error('requested merkle', tx_hash)
             self.requested_merkle.add(tx_hash)
 
         if self.network.blockchain() != self.blockchain:
             self.blockchain = self.network.blockchain()
             self.undo_verifications()
-        
+
     def verify_merkle(self, response):
         if self.wallet.verifier is None:
             return  # we have been killed, this was just an orphan callback
         if response.get('error'):
+            # FIXME: tx will never verify now until server reconnect.
             self.print_error('received an error:', response)
             return
         params = response['params']
@@ -100,7 +106,7 @@ class SPV(ThreadJob):
             self.print_error("merkle verification failed for {} (inner node looks like tx)"
                              .format(tx_hash))
             return
-            
+
         header = self.network.blockchain().read_header(tx_height)
         # FIXME: if verification fails below,
         # we should make a fresh connection to a server to
