@@ -1,0 +1,4 @@
+#!/bin/bash
+version=`git describe --tags --dirty --always`
+sig=`./run_electrum -w $SIGNING_WALLET signmessage $SIGNING_ADDRESS $version`
+echo "{ \"version\":\"$version\", \"signatures\":{ \"$addr\":\"$sig\"}}"
