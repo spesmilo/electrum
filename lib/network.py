@@ -349,13 +349,22 @@ class Network(util.DaemonThread):
     def is_up_to_date(self):
         return self.unanswered_requests == {}
 
-    def queue_request(self, method, params, interface=None):
-        # If you want to queue a request on any interface it must go
-        # through this function so message ids are properly tracked
+    def queue_request(self, method, params, interface=None, *, callback=None, max_qlen=None):
+        ''' If you want to queue a request on any interface it must go through
+        this function so message ids are properly tracked.
+        Returns the monotonically increasing message id for this request.
+        May return None if queue is too full (max_qlen).
+        (max_qlen is only considered if callback is not None.)'''
         if interface is None:
             interface = self.interface
+        assert interface, "queue_request: No interface! (request={} params={})".format(method, params)
         message_id = self.message_id
         self.message_id += 1
+        if callback:
+            if max_qlen and len(self.unanswered_requests) >= max_qlen:
+                # Indicate to client code we are busy
+                return None
+            self.unanswered_requests[message_id] = [method, params, callback]
         if self.debug:
             self.print_error(interface.host, "-->", method, params, message_id)
         interface.queue_request(method, params, message_id)
@@ -367,11 +376,11 @@ class Network(util.DaemonThread):
         self.print_error('sending subscriptions to', self.interface.server, len(self.unanswered_requests), len(self.subscribed_addresses))
         self.sub_cache.clear()
         # Resend unanswered requests
-        requests = self.unanswered_requests.values()
+        old_reqs = self.unanswered_requests
         self.unanswered_requests = {}
-        for request in requests:
-            message_id = self.queue_request(request[0], request[1])
-            self.unanswered_requests[message_id] = request
+        for m_id, request in old_reqs.items():
+            message_id = self.queue_request(request[0], request[1], callback = request[2])
+            assert message_id is not None
         self.queue_request('server.banner', [])
         self.queue_request('server.donation_address', [])
         self.queue_request('server.peers.subscribe', [])
@@ -771,8 +780,7 @@ class Network(util.DaemonThread):
                     util.print_error("cache hit", k)
                     callback(r)
                 else:
-                    message_id = self.queue_request(method, params)
-                    self.unanswered_requests[message_id] = method, params, callback
+                    self.queue_request(method, params, callback = callback)
 
     def unsubscribe(self, callback):
         '''Unsubscribe a callback to free object references to enable GC.'''
@@ -879,8 +887,7 @@ class Network(util.DaemonThread):
         interface.print_error("requesting chunk {}".format(chunk_index))
         chunk_base_height = chunk_index * 2016
         chunk_count = 2016
-        self.request_headers(interface, chunk_base_height, chunk_count, silent=True)
-        return True
+        return self.request_headers(interface, chunk_base_height, chunk_count, silent=True)
 
     def request_headers(self, interface, base_height, count, silent=False):
         if not silent:
@@ -897,15 +904,15 @@ class Network(util.DaemonThread):
                 # fetched batch, which we wouldn't otherwise be able to do manually as we cannot guarantee we have the headers preceding the batch.
                 interface.print_error("clipping request across checkpoint height {} ({} -> {})".format(networks.net.VERIFICATION_BLOCK_HEIGHT, base_height, top_height))
                 verified_count = networks.net.VERIFICATION_BLOCK_HEIGHT - base_height + 1
-                self._request_headers(interface, base_height, verified_count, networks.net.VERIFICATION_BLOCK_HEIGHT)
+                return self._request_headers(interface, base_height, verified_count, networks.net.VERIFICATION_BLOCK_HEIGHT)
             else:
-                self._request_headers(interface, base_height, count)
+                return self._request_headers(interface, base_height, count)
         else:
-            self._request_headers(interface, base_height, count, networks.net.VERIFICATION_BLOCK_HEIGHT)
+            return self._request_headers(interface, base_height, count, networks.net.VERIFICATION_BLOCK_HEIGHT)
 
     def _request_headers(self, interface, base_height, count, checkpoint_height=0):
         params = [base_height, count, checkpoint_height]
-        self.queue_request('blockchain.block.headers', params, interface)
+        return self.queue_request('blockchain.block.headers', params, interface) is not None
 
     def on_block_headers(self, interface, request, response):
         '''Handle receiving a chunk of block headers'''
@@ -1663,11 +1670,15 @@ class Network(util.DaemonThread):
         return _("An error occurred broadcasting the transaction")
 
     # Used by the verifier job.
-    def get_merkle_for_transaction(self, tx_hash, tx_height, callback=None):
-        command = 'blockchain.transaction.get_merkle'
-        invocation = lambda c: self.send([(command, [tx_hash, tx_height])], c)
-
-        return Network.__with_default_synchronous_callback(invocation, callback)
+    def get_merkle_for_transaction(self, tx_hash, tx_height, callback, max_qlen=10):
+        ''' Asynchronously enqueue a request for a merkle proof for a tx.
+            Note that the callback param is required.
+            May return None if too many requests were enqueued (max_qlen) or
+            if there is no interface.
+            Client code should handle the None return case appropriately. '''
+        return self.queue_request('blockchain.transaction.get_merkle',
+                                  [tx_hash, tx_height],
+                                  callback=callback, max_qlen=max_qlen)
 
     def get_proxies(self):
         ''' Returns a proxies dictionary suitable to be passed to the requests
