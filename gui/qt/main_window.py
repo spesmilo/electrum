@@ -130,6 +130,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.tx_notifications = []
         self.tl_windows = []
         self.tx_external_keypairs = {}
+        self._txs_verified = []
+        self._txs_verified_ts = 0.0
 
         Address.show_cashaddr(config.get('show_cashaddr', True))
 
@@ -330,7 +332,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         elif event == 'banner':
             self.console.showMessage(args[0])
         elif event == 'verified':
-            self.history_list.update_item(*args)
+            self._txs_verified.append(args)
         elif event == 'fee':
             pass
         else:
@@ -669,6 +671,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.require_fee_update:
             self.do_update_fee()
             self.require_fee_update = False
+
+        # update history list as tx's become verified, but limit the GUI update
+        # rate to 1.0 per second
+        if self._txs_verified and time.time() - self._txs_verified_ts > 1.0:
+            update_items = self._txs_verified
+            self._txs_verified = []
+            self.history_list.setUpdatesEnabled(False)
+            for item in update_items:
+                self.history_list.update_item(*item)
+            self.history_list.setUpdatesEnabled(True)
+            self._txs_verified_ts = time.time()
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, self.num_zeros, self.decimal_point, is_diff=is_diff, whitespaces=whitespaces)
