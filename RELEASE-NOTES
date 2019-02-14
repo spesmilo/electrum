@@ -269,3 +269,4 @@ and there is no warning message.
 * Android fixes (mhsmith)
 * Various internal bugfixes and code refactoring (cculianu, ecdsa, SomberNight)
 * servers.json updated (torusJKL)
+* Fixed a compatibility issue with Qt 5.12 (SomberNight, cculianu)

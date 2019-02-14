@@ -29,7 +29,7 @@ from PyQt5.QtWidgets import QCompleter, QPlainTextEdit
 from .qrtextedit import ScanQRTextEdit
 
 import re
-from decimal import Decimal
+from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from electroncash import bitcoin
 from electroncash.address import Address, ScriptOutput
 from electroncash import networks
@@ -97,7 +97,7 @@ class PayToEdit(ScanQRTextEdit):
         if x.strip() == '!':
             return '!'
         p = pow(10, self.amount_edit.decimal_point())
-        return int(p * Decimal(x.strip()))
+        return int(p * PyDecimal(x.strip()))
 
     def check_text(self):
         self.errors = []
