@@ -156,7 +156,9 @@ class Synchronizer(ThreadJob):
         # callbacks
         self.network.trigger_callback('new_transaction', tx, self.wallet)
         if not self.requested_tx:
-            self.network.trigger_callback('updated')
+            # New in 3.3.6: 'updated' callbacks from synchronizer always specify which wallet, so GUI can ignore irrelevant 'updated' events
+            # Network can still send 'updated' events without an argument (which all open wallets will accept).
+            self.network.trigger_callback('updated', self.wallet)
 
 
     def request_missing_txs(self, hist):
@@ -201,4 +203,6 @@ class Synchronizer(ThreadJob):
         up_to_date = self.is_up_to_date()
         if up_to_date != self.wallet.is_up_to_date():
             self.wallet.set_up_to_date(up_to_date)
-            self.network.trigger_callback('updated')
+            # New in 3.3.6: 'updated' callbacks from synchronizer always specify which wallet, so GUI can ignore irrelevant 'updated' events
+            # Network can still send 'updated' events without an argument (which all open wallets will accept).
+            self.network.trigger_callback('updated', self.wallet)

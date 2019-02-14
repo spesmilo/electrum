@@ -312,7 +312,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def on_network(self, event, *args):
         if event == 'updated':
-            self.need_update.set()
+            if not args or args[0] is self.wallet:
+                # NB there are two types 'updated' callbacks as of version 3.3.6
+                # 1. wallet-specific (from synchronizer) : args = (wallet,)
+                # 2. global (from network) : args = ()
+                # For (1) above we filter out events not for our wallet
+                # For (2) above we always accept.
+                self.need_update.set()
         elif event == 'new_transaction':
             self.tx_update_mgr.notif_add(args)  # added only if this wallet's tx
         elif event == 'verified2':
