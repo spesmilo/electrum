@@ -169,6 +169,7 @@ class HistoryList(MyTreeWidget):
             if icon: item.setIcon(0, icon)
             item.setData(0, SortableTreeWidgetItem.DataRole, (status, conf))
             item.setText(2, status_str)
+        return bool(item)  # indicate to client code whether an actual update occurred
 
     def create_menu(self, position):
         self.selectedIndexes()

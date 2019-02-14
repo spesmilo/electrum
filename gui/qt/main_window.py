@@ -103,6 +103,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     cashaddr_toggled_signal = pyqtSignal()
     history_updated_signal = pyqtSignal()
     labels_updated_signal = pyqtSignal() # note this signal occurs when an explicit update_labels() call happens. Interested GUIs should also listen for history_updated_signal as well which also indicates labels may have changed.
+    on_timer_signal = pyqtSignal()  # functions wanting to be executed from timer_actions should connect to this signal, preferably via Qt.DirectConnection
 
     status_icon_dict = dict()  # app-globel cache of "status_*" -> QIcon instances (for update_status() speedup)
 
@@ -112,7 +113,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.gui_object = gui_object
         self.config = config = gui_object.config
 
-        self._lock = threading.Lock()  # used for _tx_verifications, _tx_notifications
         self.network = gui_object.daemon.network
         self.fx = gui_object.daemon.fx
         self.invoices = wallet.invoices
@@ -131,10 +131,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.require_fee_update = False
         self.tl_windows = []
         self.tx_external_keypairs = {}
-        self._tx_verifications = []
-        self._tx_notifications = []
-        self._need_update_verifications, self._need_update_notifications = False, False
-        self.history_updated_signal.connect(self._tx_verifications_get_and_clear, Qt.DirectConnection)  # immediately clear _tx_verifications on history update because it would be redundant to keep the verify queue around after a history list update
+        self.tx_update_mgr = TxUpdateMgr(self)  # manages network callbacks for 'new_transaction' and 'verified2', and collates GUI updates from said callbacks as a performance optimization
 
         Address.show_cashaddr(config.get('show_cashaddr', True))
 
@@ -317,9 +314,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if event == 'updated':
             self.need_update.set()
         elif event == 'new_transaction':
-            self._tx_notifications_add(args)
+            self.tx_update_mgr.notif_add(args)  # added only if this wallet's tx
         elif event == 'verified2':
-            self._tx_verifications_add(args)
+            self.tx_update_mgr.verif_add(args)  # added only if this wallet's tx
         elif event in ['status', 'banner', 'fee']:
             # Handle in GUI thread
             self.network_signal.emit(event, args)
@@ -366,8 +363,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.address_list.update()
         self.utxo_list.update()
         self.need_update.set()
-        # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
-        self._need_update_notifications = True
         # update menus
         self.seed_menu.setEnabled(self.wallet.has_seed())
         self.update_lock_icon()
@@ -649,9 +644,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.do_update_fee()
             self.require_fee_update = False
 
-        # check _need_update_[verifications|notifications] flags, if set, call
-        # @rate_limited _tx_process_notifications and _tx_process_verifictions functions
-        self._tx_process_updates()
+        # hook for other classes to be called here. For example the tx_update_mgr is called here (see TxUpdateMgr.do_check).
+        self.on_timer_signal.emit()
 
     def format_amount(self, x, is_diff=False, whitespaces=False):
         return format_satoshis(x, self.num_zeros, self.decimal_point, is_diff=is_diff, whitespaces=whitespaces)
@@ -795,81 +789,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.wallet.up_to_date or not self.network or not self.network.is_connected():
             self.update_tabs()
 
-    def _tx_process_updates(self):
-        with self._lock:
-            bV, bN = self._need_update_verifications, self._need_update_notifications
-            self._need_update_verifications, self._need_update_notifications = False, False
-        if bV: self._tx_process_verifications()  # rate_limited call (1 per second)
-        if bN: self._tx_process_notifications()  # rate_limited call (1 per 15 seconds)
-
-    def _tx_verifications_get_and_clear(self):
-        ''' Clears the _tx_verifications queue. This is called from the network
-        thread for the 'verified2' event as well as from the below
-        _process_verifications (GUI thread), hence the lock. '''
-        with self._lock:
-            ret = self._tx_verifications
-            self._tx_verifications = []
-            self._need_update_verifications = False
-            return ret
-
-    def _tx_notifications_get_and_clear(self):
-        with self._lock:
-            ret = self._tx_notifications
-            self._tx_notifications = []
-            self._need_update_notifications = False
-            return ret
-
-    def _tx_verifications_add(self, args):
-        # args: [wallet, tx_hash, height, conf, timestamp]
-        # filter out tx's not for this wallet
-        if args[0] is getattr(self, 'wallet', None):  # self.wallet is not always defined when starting up
-            with self._lock:
-                self._tx_verifications.append(args[1:])
-                self._need_update_verifications = True
-
-    def _tx_notifications_add(self, args):
-        tx, wallet = args
-        # filter out tx's not for this wallet
-        if wallet is getattr(self, 'wallet', None):  # self.wallet is not always defined when starting up
-            with self._lock:
-                self._tx_notifications.append(tx)
-                self._need_update_notifications = True
-
-    @rate_limited(1.0, ts_after=True)
-    def _tx_process_verifications(self):
-        ''' Update history list with tx's from _tx_verifications, but limit the
-        GUI update rate to once per second. '''
-        items = self._tx_verifications_get_and_clear()
-        if items and not self.cleaned_up:
-            self.history_list.setUpdatesEnabled(False)
-            for item in items:
-                self.history_list.update_item(*item)
-            self.history_list.setUpdatesEnabled(True)
-            self.update_status()
-
-    @rate_limited(15.0)
-    def _tx_process_notifications(self):
-        if (self.network and self.network.is_connected()
-                and getattr(self, 'wallet', None) and not self.cleaned_up):
-            n_ok = 0
-            txns = self._tx_notifications_get_and_clear()
-            if txns:
-                # Combine the transactions
-                total_amount = 0
-                for tx in txns:
-                    if tx:
-                        is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                        if v > 0 and is_relevant:
-                            total_amount += v
-                            n_ok += 1
-                if n_ok:
-                    self.print_error("Notifying GUI %d tx"%(n_ok))
-                    if n_ok > 1:
-                        self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
-                                    .format(n_ok, self.format_amount_and_units(total_amount)))
-                    else:
-                        self.notify(_("New transaction received: {}").format(self.format_amount_and_units(total_amount)))
-
     @rate_limited(1.0, classlevel=True, ts_after=True) # Limit tab updates to no more than 1 per second, app-wide. Multiple calls across instances will be collated into 1 deferred series of calls (1 call per extant instance)
     def update_tabs(self):
         if self.cleaned_up: return
@@ -880,7 +799,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.contact_list.update()
         self.invoice_list.update()
         self.update_completions()
-        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history, also clears self._tx_verifications
+        self.history_updated_signal.emit() # inform things like address_dialog that there's a new history, also clears self.tx_update_mgr.verif_q
         self.need_update.clear() # clear flag
         if self.labels_need_update.is_set():
             # if flag was set, might as well declare the labels updated since they necessarily were due to a full update.
@@ -3748,4 +3667,110 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     def cashshuffle_get_flag(self):
         return self._cash_shuffle_flag
+
+
+class TxUpdateMgr(QObject, PrintError):
+    ''' Manages new transaction notifications and transaction verified
+    notifications from the network thread. It collates them and sends them to
+    the appropriate GUI controls in the main_window in an efficient manner. '''
+    def __init__(self, main_window_parent):
+        assert isinstance(main_window_parent, ElectrumWindow), "{} must be constructed with an ElectrumWindow as its parent.".format(__class__.__name__)
+        super().__init__(main_window_parent)
+        self.lock = threading.Lock()  # used to lock thread-shared attrs below
+        # begin thread-shared attributes
+        self.notif_q = []
+        self.verif_q = []
+        self.need_process_v, self.need_process_n = False, False
+        # /end thread-shared attributes
+        self.parent().history_updated_signal.connect(self.verifs_get_and_clear, Qt.DirectConnection)  # immediately clear verif_q on history update because it would be redundant to keep the verify queue around after a history list update
+        self.parent().on_timer_signal.connect(self.do_check, Qt.DirectConnection)  # hook into main_window's timer_actions function
+
+    def diagnostic_name(self):
+        return self.parent().diagnostic_name() + "." + __class__.__name__
+
+    def do_check(self):
+        ''' Called from timer_actions in main_window to check if notifs or
+        verifs need to update the GUI.
+          - Checks the need_process_[v|n] flags
+          - If either flag is set, call the @rate_limited process_verifs
+            and/or process_notifs functions which update GUI parent in a
+            rate-limited (collated) fashion (for decent GUI responsiveness). '''
+        with self.lock:
+            bV, bN = self.need_process_v, self.need_process_n
+            self.need_process_v, self.need_process_n = False, False
+        if bV: self.process_verifs()  # rate_limited call (1 per second)
+        if bN: self.process_notifs()  # rate_limited call (1 per 15 seconds)
+
+    def verifs_get_and_clear(self):
+        ''' Clears the verif_q. This is called from the network
+        thread for the 'verified2' event as well as from the below
+        update_verifs (GUI thread), hence the lock. '''
+        with self.lock:
+            ret = self.verif_q
+            self.verif_q = []
+            self.need_process_v = False
+            return ret
+
+    def notifs_get_and_clear(self):
+        with self.lock:
+            ret = self.notif_q
+            self.notif_q = []
+            self.need_process_n = False
+            return ret
+
+    def verif_add(self, args):
+        # args: [wallet, tx_hash, height, conf, timestamp]
+        # filter out tx's not for this wallet
+        if args[0] is getattr(self.parent(), 'wallet', None):  # parent().wallet is not always defined when starting up
+            with self.lock:
+                self.verif_q.append(args[1:])
+                self.need_process_v = True
+
+    def notif_add(self, args):
+        tx, wallet = args
+        # filter out tx's not for this wallet
+        if wallet is getattr(self.parent(), 'wallet', None):  # parent().wallet is not always defined when starting up
+            with self.lock:
+                self.notif_q.append(tx)
+                self.need_process_n = True
+
+    @rate_limited(1.0, ts_after=True)
+    def process_verifs(self):
+        ''' Update history list with tx's from verifs_q, but limit the
+        GUI update rate to once per second. '''
+        items = self.verifs_get_and_clear()
+        parent = self.parent()
+        if items and parent and not parent.cleaned_up:
+            parent.history_list.setUpdatesEnabled(False)
+            n_updates = 0
+            for item in items:
+                did_update = parent.history_list.update_item(*item)
+                n_updates += 1 if did_update else 0
+            self.print_error("Updated {}/{} verified txs in GUI"
+                             .format(n_updates, len(items)))
+            parent.history_list.setUpdatesEnabled(True)
+            parent.update_status()
+
+    @rate_limited(15.0)
+    def process_notifs(self):
+        parent = self.parent()
+        if parent and parent.network and parent.network.is_connected() and not parent.cleaned_up:
+            n_ok = 0
+            txns = self.notifs_get_and_clear()
+            if txns:
+                # Combine the transactions
+                total_amount = 0
+                for tx in txns:
+                    if tx:
+                        is_relevant, is_mine, v, fee = parent.wallet.get_wallet_delta(tx)
+                        if v > 0 and is_relevant:
+                            total_amount += v
+                            n_ok += 1
+                if n_ok:
+                    self.print_error("Notifying GUI %d tx"%(n_ok))
+                    if n_ok > 1:
+                        parent.notify(_("{} new transactions received: Total amount received in the new transactions {}")
+                                      .format(n_ok, parent.format_amount_and_units(total_amount)))
+                    else:
+                        parent.notify(_("New transaction received: {}").format(parent.format_amount_and_units(total_amount)))
 
