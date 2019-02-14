@@ -55,10 +55,14 @@ class Synchronizer(ThreadJob):
         self.initialize()
 
     def parse_response(self, response):
-        if response.get('error'):
-            self.print_error("response error:", response)
-            return None, None
-        return response['params'], response['result']
+        error = True
+        try:
+            if not response: return None, None, error, None
+            error = response.get('error')
+            return response['params'], response.get('result'), error, response['server']
+        finally:
+            if error:
+                self.print_error("response error:", response)
 
     def is_up_to_date(self):
         return (not self.requested_tx and not self.requested_histories
@@ -88,8 +92,8 @@ class Synchronizer(ThreadJob):
         return bh2u(hashlib.sha256(status.encode('ascii')).digest())
 
     def on_address_status(self, response):
-        params, result = self.parse_response(response)
-        if not params:
+        params, result, error, server = self.parse_response(response)
+        if error:
             return
         scripthash = params[0]
         addr = self.h2addr.get(scripthash, None)
@@ -105,8 +109,8 @@ class Synchronizer(ThreadJob):
         self.requested_hashes.discard(scripthash)  # Notifications won't be in
 
     def on_address_history(self, response):
-        params, result = self.parse_response(response)
-        if not params:
+        params, result, error, server = self.parse_response(response)
+        if error:
             return
         scripthash = params[0]
         addr = self.h2addr.get(scripthash, None)
@@ -137,19 +141,29 @@ class Synchronizer(ThreadJob):
             self.request_missing_txs(hist)
 
     def tx_response(self, response):
-        params, result = self.parse_response(response)
-        if not params:
+        params, result, error, server = self.parse_response(response)
+        tx_hash = params[0] or ''
+        # unconditionally pop. so we don't end up in a "not up to date" state
+        # on bad server reply or reorg.
+        # see Electrum commit 7b8114f865f644c5611c3bb849c4f4fc6ce9e376 fix#5122
+        tx_height = self.requested_tx.pop(tx_hash, 0)
+        if error:
+            # was some response error. note we popped the tx already
+            # we assume a blockchain reorg happened and tx disappeared.
+            self.print_error("error from server {} for tx_hash {}, skipping".format(server, tx_hash))
             return
-        tx_hash = params[0]
-        #assert tx_hash == hash_encode(Hash(bytes.fromhex(result)))
-        tx = Transaction(result)
         try:
+            tx = Transaction(result)
             tx.deserialize()
         except Exception:
             traceback.print_exc()
-            self.print_msg("cannot deserialize transaction, skipping", tx_hash)
+            self.print_msg("cannot deserialize transaction, skipping", tx_hash, "server:", server)
             return
-        tx_height = self.requested_tx.pop(tx_hash)
+        # NB: this is slow, and I am not sure what bug it fixes. Commenting out.
+        #if tx_hash != tx.txid():
+        #    self.print_error("received tx does not match expected txid ({} != {}) (server: {}), skipping"
+        #                     .format(tx_hash, tx.txid(), server))
+        #    return
         self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
         self.print_error("received tx %s height: %d bytes: %d" %
                          (tx_hash, tx_height, len(tx.raw)))
@@ -157,7 +171,6 @@ class Synchronizer(ThreadJob):
         self.network.trigger_callback('new_transaction', tx, self.wallet)
         if not self.requested_tx:
             # New in 3.3.6: 'updated' callbacks from synchronizer always specify which wallet, so GUI can ignore irrelevant 'updated' events
-            # Network can still send 'updated' events without an argument (which all open wallets will accept).
             self.network.trigger_callback('updated', self.wallet)
 
 
@@ -204,5 +217,4 @@ class Synchronizer(ThreadJob):
         if up_to_date != self.wallet.is_up_to_date():
             self.wallet.set_up_to_date(up_to_date)
             # New in 3.3.6: 'updated' callbacks from synchronizer always specify which wallet, so GUI can ignore irrelevant 'updated' events
-            # Network can still send 'updated' events without an argument (which all open wallets will accept).
             self.network.trigger_callback('updated', self.wallet)
