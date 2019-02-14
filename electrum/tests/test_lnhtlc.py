@@ -1,3 +1,4 @@
+from pprint import pprint
 import unittest
 from electrum.lnutil import RECEIVED, LOCAL, REMOTE, SENT, HTLCOwner
 from electrum.lnhtlc import HTLCManager
@@ -44,7 +45,10 @@ class TestHTLCManager(unittest.TestCase):
         A = HTLCManager()
         B = HTLCManager()
         B.recv_htlc(A.send_htlc(H('A', 0)))
-        self.assertEqual(len(B.pending_htlcs(REMOTE)), 1)
+        self.assertEqual(len(B.pending_htlcs(REMOTE)), 0)
+        self.assertEqual(len(A.pending_htlcs(REMOTE)), 1)
+        self.assertEqual(len(B.pending_htlcs(LOCAL)), 1)
+        self.assertEqual(len(A.pending_htlcs(LOCAL)), 0)
         A.send_ctx()
         B.recv_ctx()
         B.send_rev()
@@ -60,11 +64,17 @@ class TestHTLCManager(unittest.TestCase):
         self.assertEqual(A.htlcs_by_direction(REMOTE, RECEIVED), [H('A', 0)])
         self.assertNotEqual(A.current_htlcs(LOCAL), [])
         self.assertNotEqual(B.current_htlcs(REMOTE), [])
+
         self.assertEqual(A.pending_htlcs(LOCAL), [])
+        self.assertNotEqual(A.pending_htlcs(REMOTE), [])
+        self.assertEqual(A.pending_htlcs(REMOTE), A.current_htlcs(REMOTE))
+
         self.assertEqual(B.pending_htlcs(REMOTE), [])
         B.send_ctx()
         A.recv_ctx()
-        A.send_rev()
+        A.send_rev() # here pending_htlcs(REMOTE) should become empty
+        self.assertEqual(A.pending_htlcs(REMOTE), [])
+
         B.recv_rev()
         A.send_ctx()
         B.recv_ctx()
@@ -78,7 +88,23 @@ class TestHTLCManager(unittest.TestCase):
         self.assertEqual(len(A.sent_in_ctn(2)), 1)
         self.assertEqual(len(B.received_in_ctn(2)), 1)
 
-    def test_settle_while_owing(self):
+        A.recv_htlc(B.send_htlc(H('B', 0)))
+        self.assertEqual(A.pending_htlcs(REMOTE), [])
+        self.assertNotEqual(A.pending_htlcs(LOCAL), [])
+        self.assertNotEqual(B.pending_htlcs(REMOTE), [])
+        self.assertEqual(B.pending_htlcs(LOCAL), [])
+
+        B.send_ctx()
+        A.recv_ctx()
+        A.send_rev()
+        B.recv_rev()
+
+        self.assertNotEqual(A.pending_htlcs(REMOTE), A.current_htlcs(REMOTE))
+        self.assertEqual(A.pending_htlcs(LOCAL), A.current_htlcs(LOCAL))
+        self.assertEqual(B.pending_htlcs(REMOTE), B.current_htlcs(REMOTE))
+        self.assertNotEqual(B.pending_htlcs(LOCAL), B.pending_htlcs(REMOTE))
+
+    def test_settle_while_owing_commitment(self):
         A = HTLCManager()
         B = HTLCManager()
         B.recv_htlc(A.send_htlc(H('A', 0)))

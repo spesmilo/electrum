@@ -78,8 +78,7 @@ class Peer(PrintError):
         self.localfeatures |= LnLocalFeatures.OPTION_DATA_LOSS_PROTECT_REQ
         self.attempted_route = {}
         self.orphan_channel_updates = OrderedDict()
-        self.remote_pending_updates = defaultdict(bool) # true if we sent updates that we have not commited yet
-        self.local_pending_updates = defaultdict(bool) # true if we received updates that we have not commited yet
+        self.sent_commitment_for_ctn_last = defaultdict(lambda: None)  # type: Dict[Channel, Optional[int]]
         self._local_changed_events = defaultdict(asyncio.Event)
         self._remote_changed_events = defaultdict(asyncio.Event)
 
@@ -772,7 +771,6 @@ class Peer(PrintError):
         # process update_fail_htlc on channel
         chan = self.channels[channel_id]
         chan.receive_fail_htlc(htlc_id)
-        self.local_pending_updates[chan] = True
         local_ctn = chan.get_current_ctn(LOCAL)
         asyncio.ensure_future(self._on_update_fail_htlc(chan, htlc_id, local_ctn))
 
@@ -823,13 +821,16 @@ class Peer(PrintError):
                 self.network.path_finder.blacklist.add(short_chan_id)
 
     def maybe_send_commitment(self, chan: Channel):
-        if not self.local_pending_updates[chan] and not self.remote_pending_updates[chan]:
+        ctn_to_sign = chan.get_current_ctn(REMOTE) + 1
+        pending, current = chan.hm.pending_htlcs(REMOTE), chan.hm.current_htlcs(REMOTE)
+        if (pending == current \
+                and chan.pending_feerate(REMOTE) == chan.constraints.feerate) \
+                or ctn_to_sign == self.sent_commitment_for_ctn_last[chan]:
             return
-        self.print_error('send_commitment')
+        self.print_error('send_commitment. old number htlcs: {len(current)}, new number htlcs: {len(pending)}')
         sig_64, htlc_sigs = chan.sign_next_commitment()
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
-        self.local_pending_updates[chan] = False
-        self.remote_pending_updates[chan] = False
+        self.sent_commitment_for_ctn_last[chan] = ctn_to_sign
 
     async def await_remote(self, chan: Channel, ctn: int):
         self.maybe_send_commitment(chan)
@@ -865,7 +866,6 @@ class Peer(PrintError):
                           amount_msat=htlc.amount_msat,
                           payment_hash=htlc.payment_hash,
                           onion_routing_packet=onion.to_bytes())
-        self.remote_pending_updates[chan] = True
         await self.await_remote(chan, remote_ctn)
         return htlc
 
@@ -878,6 +878,7 @@ class Peer(PrintError):
             channel_id=chan.channel_id,
             per_commitment_secret=rev.per_commitment_secret,
             next_per_commitment_point=rev.next_per_commitment_point)
+        self.maybe_send_commitment(chan)
 
     def on_commitment_signed(self, payload):
         self.print_error("on_commitment_signed")
@@ -894,7 +895,6 @@ class Peer(PrintError):
         preimage = update_fulfill_htlc_msg["payment_preimage"]
         htlc_id = int.from_bytes(update_fulfill_htlc_msg["id"], "big")
         chan.receive_htlc_settle(preimage, htlc_id)
-        self.local_pending_updates[chan] = True
         local_ctn = chan.get_current_ctn(LOCAL)
         asyncio.ensure_future(self._on_update_fulfill_htlc(chan, htlc_id, preimage, local_ctn))
 
@@ -926,7 +926,6 @@ class Peer(PrintError):
         # add htlc
         htlc = UpdateAddHtlc(amount_msat=amount_msat_htlc, payment_hash=payment_hash, cltv_expiry=cltv_expiry)
         htlc = chan.receive_htlc(htlc)
-        self.local_pending_updates[chan] = True
         local_ctn = chan.get_current_ctn(LOCAL)
         remote_ctn = chan.get_current_ctn(REMOTE)
         if processed_onion.are_we_final:
@@ -974,7 +973,6 @@ class Peer(PrintError):
             payment_hash=next_htlc.payment_hash,
             onion_routing_packet=processed_onion.next_packet.to_bytes()
         )
-        next_peer.remote_pending_updates[next_chan] = True
         await next_peer.await_remote(next_chan, next_remote_ctn)
         # wait until we get paid
         preimage = await next_peer.payment_preimages[next_htlc.payment_hash].get()
@@ -1029,7 +1027,6 @@ class Peer(PrintError):
                           channel_id=chan.channel_id,
                           id=htlc_id,
                           payment_preimage=preimage)
-        self.remote_pending_updates[chan] = True
         await self.await_remote(chan, remote_ctn)
         self.network.trigger_callback('ln_message', self.lnworker, 'Payment received', htlc_id)
 
@@ -1044,7 +1041,6 @@ class Peer(PrintError):
                           id=htlc_id,
                           len=len(error_packet),
                           reason=error_packet)
-        self.remote_pending_updates[chan] = True
         await self.await_remote(chan, remote_ctn)
 
     def on_revoke_and_ack(self, payload):
@@ -1061,7 +1057,6 @@ class Peer(PrintError):
         feerate =int.from_bytes(payload["feerate_per_kw"], "big")
         chan = self.channels[channel_id]
         chan.update_fee(feerate, False)
-        self.local_pending_updates[chan] = True
 
     async def bitcoin_fee_update(self, chan: Channel):
         """
@@ -1085,7 +1080,6 @@ class Peer(PrintError):
         self.send_message("update_fee",
                           channel_id=chan.channel_id,
                           feerate_per_kw=feerate_per_kw)
-        self.remote_pending_updates[chan] = True
         await self.await_remote(chan, remote_ctn)
 
     def on_closing_signed(self, payload):

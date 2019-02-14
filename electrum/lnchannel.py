@@ -270,7 +270,7 @@ class Channel(PrintError):
             htlc = UpdateAddHtlc(**htlc)
         assert isinstance(htlc, UpdateAddHtlc)
         htlc = htlc._replace(htlc_id=self.config[REMOTE].next_htlc_id)
-        if self.available_to_spend(REMOTE) < htlc.amount_msat:
+        if 0 <= self.available_to_spend(REMOTE) < htlc.amount_msat:
             raise RemoteMisbehaving('Remote dipped below channel reserve.' +\
                     f' Available at remote: {self.available_to_spend(REMOTE)},' +\
                     f' HTLC amount: {htlc.amount_msat}')
