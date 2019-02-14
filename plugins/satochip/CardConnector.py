@@ -236,7 +236,9 @@ class CardConnector:
         return (response, sw1, sw2)      
     
     def card_sign_message(self, keynbr, message):
-
+        if (type(message)==str):
+            message = message.encode('utf8')
+        
         # return signature as byte array
         # data is cut into chunks, each processed in a different APDU call
         chunk= 160 # max APDU data=256 => chunk<=255-(4+2)
@@ -288,7 +290,9 @@ class CardConnector:
         return (response, sw1, sw2)
         
     def card_sign_short_message(self, keynbr, message):
-
+        if (type(message)==str):
+            message = message.encode('utf8')
+        
         # for message less than one chunk in size
         cla= JCconstants.CardEdge_CLA
         ins= JCconstants.INS_SIGN_SHORT_MESSAGE

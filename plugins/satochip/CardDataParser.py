@@ -18,7 +18,7 @@
  * limitations under the License.
 """  
 import hashlib
-from electrum.ecc import ECPubkey, msg_magic
+from electrum.ecc import ECPubkey, msg_magic, InvalidECPointException
 from electrum.util import to_bytes
 #from electrum.bitcoin import var_int
 from electrum.crypto import sha256d
@@ -116,9 +116,12 @@ class CardDataParser:
             # remove header byte
             compsig2= compsig[1:]
             
-            #pk = ecc.ECPubkey.from_sig_string(compsig2, id, hash)
-            pk = ECPubkey.from_sig_string(compsig2, id, hash)
-            pkbytes= pk.get_public_key_bytes(compressed=True)
+            try: 
+                pk = ECPubkey.from_sig_string(compsig2, id, hash)
+                pkbytes= pk.get_public_key_bytes(compressed=True)
+            except InvalidECPointException:
+                continue
+                
             print("    pkbytes:"+pkbytes.hex())
             #pkbytes= pkbytes[1:]
             print("    coordx:"+coordx.hex())
@@ -156,12 +159,14 @@ class CardDataParser:
             # remove header byte
             compsig= compsig[1:]
             
-            #pk = ecc.ECPubkey.from_sig_string(compsig, id, hash)
-            pk = ECPubkey.from_sig_string(compsig, id, hash)
-            pkbytes= pk.get_public_key_bytes(compressed=True)
-            print("    pkbytes:"+pkbytes.hex())
+            try:
+                pk = ECPubkey.from_sig_string(compsig, id, hash)
+                pkbytes= pk.get_public_key_bytes(compressed=True)
+            except InvalidECPointException:
+                continue
+            
             pkbytes= pkbytes[1:]
-            #print("    pkbytes:"+pkbytes.hex())
+            print("    pkbytes:"+pkbytes.hex())
             print("    coordx:"+coordx.hex())
             
             if coordx==pkbytes:

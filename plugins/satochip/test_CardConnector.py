@@ -126,6 +126,7 @@ class TestCardConnectorMethods(unittest.TestCase):
     def tearDown(self):
         pass
     
+    @unittest.skip("debug")
     def test_card_bip32_get_authentikey(self): 
         print("\n\n[test_CardConnector] test_card_bip32_getauthentikey:") #debugSatochip
         seed= [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
@@ -137,19 +138,6 @@ class TestCardConnectorMethods(unittest.TestCase):
         self.assertEqual(authentikey_hex, authentikeyb_hex)
         self.assertEqual(authentikey_hex, "0489a8fc4af602ca1ddbeb8020e4d629e36e655c47ba62313af4f3405b968f0d5e99a61804578c0f7f5096827adb707a8cb625c83dcf0893196d9418b2baf59039")
 
-        #oldcode
-        # print("\n\n[test_CardConnector] test_card_bip32_getauthentikey:") #debugSatochip
-        # seed= [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
-        # (response, sw1, sw2)= self.cc.card_bip32_import_seed(seed) 
-        # authentikey= self.parser.parse_bip32_import_seed(response)
-        # authentikey_hex=authentikey.get_public_key_bytes(compressed=False).hex()
-        
-        # (responseb, sw1b, sw2b)=self.cc.card_bip32_get_authentikey()
-        # authentikeyb= self.parser.parse_bip32_get_authentikey(response)
-        # authentikeyb_hex= authentikeyb.get_public_key_bytes(compressed=False).hex()
-        # self.assertEqual(authentikey_hex, authentikeyb_hex)
-        # self.assertEqual(authentikey_hex, "0489a8fc4af602ca1ddbeb8020e4d629e36e655c47ba62313af4f3405b968f0d5e99a61804578c0f7f5096827adb707a8cb625c83dcf0893196d9418b2baf59039")
-        
     @unittest.skip("debug")
     def test_card_bip32_get_extendedkey_seed_vector1(self):  
         # Bip32 test vectors 1 (https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#Test_Vectors)
@@ -217,8 +205,28 @@ class TestCardConnectorMethods(unittest.TestCase):
                 #(childkey, childchaincode)= self.parser.parse_bip32_get_extendedkey(response)
                 xpub= get_xpub(self.cc, self.parser, paths[i])
                 self.assertEqual(xpub, xpubs[i])
-        
-        
-        
+    
+    def test_card_sign_message(self):
+        msgs=[  "",
+                " ",
+                "Hello World",
+                "The quick brown fox jumps over the lazy dog",
+                8*"The quick brown fox jumps over the lazy dog"]
+        (depth, bytepath)= bip32path2bytes("m/0'")
+        (response, sw1, sw2)=self.cc.card_bip32_get_extendedkey(bytepath)
+        (childkey, childchaincode)= self.parser.parse_bip32_get_extendedkey(response)
+        keynbr= 0xFF
+        #subtests
+        for i in range(0, len(msgs)):
+            with self.subTest(i=i):
+                print("Signing message "+str(i)+" : "+msgs[i] + "...")
+                msg=msgs[i]
+                (response, sw1,sw2)=self.cc.card_sign_message(keynbr, msg)
+                self.assertTrue(sw1==0x90 and sw2==0x00)
+                compsig= self.parser.parse_message_signature(response, msg, childkey)
+                # if we change the message slightly, the key recovery should raise an error
+                with self.assertRaises(ValueError):               
+                    compsig= self.parser.parse_message_signature(response, msg+' ', childkey)
+            
 if __name__ == '__main__':
     unittest.main()
