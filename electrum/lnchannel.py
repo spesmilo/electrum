@@ -241,22 +241,24 @@ class Channel(PrintError):
         script = funding_output_script(self.config[LOCAL], self.config[REMOTE])
         return redeem_script_to_address('p2wsh', script)
 
-    def add_htlc(self, htlc):
+    def add_htlc(self, htlc: UpdateAddHtlc) -> UpdateAddHtlc:
         """
         AddHTLC adds an HTLC to the state machine's local update log. This method
         should be called when preparing to send an outgoing HTLC.
 
         This docstring is from LND.
         """
-        assert type(htlc) is dict
-        self._check_can_pay(htlc['amount_msat'])
-        htlc = UpdateAddHtlc(**htlc, htlc_id=self.config[LOCAL].next_htlc_id)
+        if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
+            htlc = UpdateAddHtlc(**htlc)
+        assert isinstance(htlc, UpdateAddHtlc)
+        self._check_can_pay(htlc.amount_msat)
+        htlc = htlc._replace(htlc_id=self.config[LOCAL].next_htlc_id)
         self.hm.send_htlc(htlc)
         self.print_error("add_htlc")
         self.config[LOCAL]=self.config[LOCAL]._replace(next_htlc_id=htlc.htlc_id + 1)
-        return htlc.htlc_id
+        return htlc
 
-    def receive_htlc(self, htlc):
+    def receive_htlc(self, htlc: UpdateAddHtlc) -> UpdateAddHtlc:
         """
         ReceiveHTLC adds an HTLC to the state machine's remote update log. This
         method should be called in response to receiving a new HTLC from the remote
@@ -264,8 +266,10 @@ class Channel(PrintError):
 
         This docstring is from LND.
         """
-        assert type(htlc) is dict
-        htlc = UpdateAddHtlc(**htlc, htlc_id = self.config[REMOTE].next_htlc_id)
+        if isinstance(htlc, dict):  # legacy conversion  # FIXME remove
+            htlc = UpdateAddHtlc(**htlc)
+        assert isinstance(htlc, UpdateAddHtlc)
+        htlc = htlc._replace(htlc_id=self.config[REMOTE].next_htlc_id)
         if self.available_to_spend(REMOTE) < htlc.amount_msat:
             raise RemoteMisbehaving('Remote dipped below channel reserve.' +\
                     f' Available at remote: {self.available_to_spend(REMOTE)},' +\
@@ -273,7 +277,7 @@ class Channel(PrintError):
         self.hm.recv_htlc(htlc)
         self.print_error("receive_htlc")
         self.config[REMOTE]=self.config[REMOTE]._replace(next_htlc_id=htlc.htlc_id + 1)
-        return htlc.htlc_id
+        return htlc
 
     def sign_next_commitment(self):
         """

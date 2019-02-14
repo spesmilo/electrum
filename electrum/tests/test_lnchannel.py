@@ -207,13 +207,13 @@ class TestChannel(unittest.TestCase):
         # First Alice adds the outgoing HTLC to her local channel's state
         # update log. Then Alice sends this wire message over to Bob who adds
         # this htlc to his remote state update log.
-        self.aliceHtlcIndex = self.alice_channel.add_htlc(self.htlc_dict)
+        self.aliceHtlcIndex = self.alice_channel.add_htlc(self.htlc_dict).htlc_id
         self.assertNotEqual(self.alice_channel.hm.htlcs_by_direction(REMOTE, RECEIVED, 1), set())
 
         before = self.bob_channel.balance_minus_outgoing_htlcs(REMOTE)
         beforeLocal = self.bob_channel.balance_minus_outgoing_htlcs(LOCAL)
 
-        self.bobHtlcIndex = self.bob_channel.receive_htlc(self.htlc_dict)
+        self.bobHtlcIndex = self.bob_channel.receive_htlc(self.htlc_dict).htlc_id
 
         self.assertEqual(1, self.bob_channel.hm.log[LOCAL]['ctn'] + 1)
         self.assertNotEqual(self.bob_channel.hm.htlcs_by_direction(LOCAL, RECEIVED, 1), set())
@@ -230,8 +230,8 @@ class TestChannel(unittest.TestCase):
     def test_concurrent_reversed_payment(self):
         self.htlc_dict['payment_hash'] = bitcoin.sha256(32 * b'\x02')
         self.htlc_dict['amount_msat'] += 1000
-        bob_idx = self.bob_channel.add_htlc(self.htlc_dict)
-        alice_idx = self.alice_channel.receive_htlc(self.htlc_dict)
+        self.bob_channel.add_htlc(self.htlc_dict)
+        self.alice_channel.receive_htlc(self.htlc_dict)
         self.alice_channel.receive_new_commitment(*self.bob_channel.sign_next_commitment())
         self.assertEqual(len(self.alice_channel.pending_commitment(REMOTE).outputs()), 4)
 
@@ -481,8 +481,8 @@ class TestChannel(unittest.TestCase):
         self.assertNotEqual(tx5, tx6)
 
         self.htlc_dict['amount_msat'] *= 5
-        bob_index = bob_channel.add_htlc(self.htlc_dict)
-        alice_index = alice_channel.receive_htlc(self.htlc_dict)
+        bob_index = bob_channel.add_htlc(self.htlc_dict).htlc_id
+        alice_index = alice_channel.receive_htlc(self.htlc_dict).htlc_id
 
         bob_channel.pending_commitment(REMOTE)
         alice_channel.pending_commitment(LOCAL)
@@ -597,7 +597,7 @@ class TestChannel(unittest.TestCase):
     def test_sign_commitment_is_pure(self):
         force_state_transition(self.alice_channel, self.bob_channel)
         self.htlc_dict['payment_hash'] = bitcoin.sha256(b'\x02' * 32)
-        aliceHtlcIndex = self.alice_channel.add_htlc(self.htlc_dict)
+        self.alice_channel.add_htlc(self.htlc_dict)
         before_signing = self.alice_channel.to_save()
         self.alice_channel.sign_next_commitment()
         after_signing = self.alice_channel.to_save()
@@ -622,8 +622,8 @@ class TestAvailableToSpend(unittest.TestCase):
             'cltv_expiry' :  5,
         }
 
-        alice_idx = alice_channel.add_htlc(htlc_dict)
-        bob_idx = bob_channel.receive_htlc(htlc_dict)
+        alice_idx = alice_channel.add_htlc(htlc_dict).htlc_id
+        bob_idx = bob_channel.receive_htlc(htlc_dict).htlc_id
         force_state_transition(alice_channel, bob_channel)
         bob_channel.fail_htlc(bob_idx)
         alice_channel.receive_fail_htlc(alice_idx)
@@ -745,8 +745,8 @@ class TestChanReserve(unittest.TestCase):
             'amount_msat' :  int(2 * one_bitcoin_in_msat),
             'cltv_expiry' :  5,
         }
-        alice_idx = self.alice_channel.add_htlc(htlc_dict)
-        bob_idx = self.bob_channel.receive_htlc(htlc_dict)
+        alice_idx = self.alice_channel.add_htlc(htlc_dict).htlc_id
+        bob_idx = self.bob_channel.receive_htlc(htlc_dict).htlc_id
         force_state_transition(self.alice_channel, self.bob_channel)
         self.check_bals(one_bitcoin_in_msat*3\
                 - self.alice_channel.pending_local_fee(),
@@ -791,8 +791,8 @@ class TestDust(unittest.TestCase):
         }
 
         old_values = [x.value for x in bob_channel.current_commitment(LOCAL).outputs() ]
-        aliceHtlcIndex = alice_channel.add_htlc(htlc)
-        bobHtlcIndex = bob_channel.receive_htlc(htlc)
+        aliceHtlcIndex = alice_channel.add_htlc(htlc).htlc_id
+        bobHtlcIndex = bob_channel.receive_htlc(htlc).htlc_id
         force_state_transition(alice_channel, bob_channel)
         alice_ctx = alice_channel.current_commitment(LOCAL)
         bob_ctx = bob_channel.current_commitment(LOCAL)

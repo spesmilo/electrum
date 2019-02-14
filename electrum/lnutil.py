@@ -567,8 +567,10 @@ class LnGlobalFeatures(IntFlag):
 LN_GLOBAL_FEATURES_KNOWN_SET = set(LnGlobalFeatures)
 
 
-class LNPeerAddr(namedtuple('LNPeerAddr', ['host', 'port', 'pubkey'])):
-    __slots__ = ()
+class LNPeerAddr(NamedTuple):
+    host: str
+    port: int
+    pubkey: bytes
 
     def __str__(self):
         return '{}@{}:{}'.format(bh2u(self.pubkey), self.host, self.port)
@@ -663,13 +665,14 @@ def format_short_channel_id(short_channel_id: Optional[bytes]):
         + 'x' + str(int.from_bytes(short_channel_id[3:6], 'big')) \
         + 'x' + str(int.from_bytes(short_channel_id[6:], 'big'))
 
+
 class UpdateAddHtlc(namedtuple('UpdateAddHtlc', ['amount_msat', 'payment_hash', 'cltv_expiry', 'htlc_id'])):
-    """
-    This whole class body is so that if you pass a hex-string as payment_hash,
-    it is decoded to bytes. Bytes can't be saved to disk, so we save hex-strings.
-    """
+    # note: typing.NamedTuple cannot be used because we are overriding __new__
+
     __slots__ = ()
     def __new__(cls, *args, **kwargs):
+        # if you pass a hex-string as payment_hash, it is decoded to bytes.
+        # Bytes can't be saved to disk, so we save hex-strings.
         if len(args) > 0:
             args = list(args)
             if type(args[1]) is str:
@@ -677,5 +680,7 @@ class UpdateAddHtlc(namedtuple('UpdateAddHtlc', ['amount_msat', 'payment_hash', 
             return super().__new__(cls, *args)
         if type(kwargs['payment_hash']) is str:
             kwargs['payment_hash'] = bfh(kwargs['payment_hash'])
+        if len(args) < 4 and 'htlc_id' not in kwargs:
+            kwargs['htlc_id'] = None
         return super().__new__(cls, **kwargs)
 
