@@ -28,7 +28,7 @@ import os, json, traceback
 import shutil
 import webbrowser
 import csv
-from decimal import Decimal
+from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 import base64
 from functools import partial
 
@@ -695,7 +695,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 if edit is fiat_e:
                     btc_e.follows = True
-                    btc_e.setAmount(int(amount / Decimal(rate) * COIN))
+                    btc_e.setAmount(int(amount / PyDecimal(rate) * COIN))
                     btc_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
                     btc_e.follows = False
                     if fee_e:
@@ -703,7 +703,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 else:
                     fiat_e.follows = True
                     fiat_e.setText(self.fx.ccy_amount_str(
-                        amount * Decimal(rate) / COIN, False))
+                        amount * PyDecimal(rate) / COIN, False))
                     fiat_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
                     fiat_e.follows = False
 

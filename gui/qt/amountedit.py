@@ -4,7 +4,7 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame)
 
-from decimal import Decimal
+from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from electroncash.util import format_satoshis_plain
 
 
@@ -65,7 +65,7 @@ class AmountEdit(MyLineEdit):
 
     def get_amount(self):
         try:
-            return (int if self.is_int else Decimal)(str(self.text()))
+            return (int if self.is_int else PyDecimal)(str(self.text()))
         except:
             return None
 
@@ -89,7 +89,7 @@ class BTCAmountEdit(AmountEdit):
 
     def get_amount(self):
         try:
-            x = Decimal(str(self.text()))
+            x = PyDecimal(str(self.text()))
         except:
             return None
         p = pow(10, self.decimal_point())
@@ -112,7 +112,7 @@ class BTCSatsByteEdit(BTCAmountEdit):
         return 'sats' + '/B'
     def get_amount(self):
         try:
-            x = float(Decimal(str(self.text())))
+            x = float(PyDecimal(str(self.text())))
         except:
             return None
         return x if x > 0.0 else None    
