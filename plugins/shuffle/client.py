@@ -230,8 +230,8 @@ def keys_from_priv(priv_key):
 def generate_random_sk():
         G = generator_secp256k1
         _r  = G.order()
-        pvk = ecdsa.util.randrange( pow(2,256) ) %_r
-        eck = EC_KEY(number_to_string(pvk,_r))
+        pvk = ecdsa.util.randrange( _r )
+        eck = EC_KEY(number_to_string(pvk, _r))
         return eck
 
 class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
