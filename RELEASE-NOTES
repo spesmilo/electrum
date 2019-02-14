@@ -1,3 +1,19 @@
+# Release 3.3.4 - (February 13, 2019)
+
+ * AppImage: we now also distribute self-contained binaries for x86_64
+   Linux in the form of an AppImage (#5042). The Python interpreter,
+   PyQt5, libsecp256k1, PyCryptodomex, zbar, hidapi/libusb (including
+   hardware wallet libraries) are all bundled. Note that users of
+   hw wallets still need to set udev rules themselves.
+ * hw wallets: fix a regression during transaction signing that prompts
+   the user too many times for confirmations (commit 2729909)
+ * transactions now set nVersion to 2, to mimic Bitcoin Core
+ * fix Qt bug that made all hw wallets unusable on Windows 8.1 (#4960)
+ * fix bugs in wallet creation wizard that resulted in corrupted
+   wallets being created in rare cases (#5082, #5057)
+ * fix compatibility with Qt 5.12 (#5109)
+
+
 # Release 3.3.3 - (January 25, 2019)
 
  * Do not expose users to server error messages (#4968)
