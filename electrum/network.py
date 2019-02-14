@@ -780,7 +780,7 @@ class Network(PrintError):
             try:
                 return await func(self, *args, **kwargs)
             except aiorpcx.jsonrpc.CodeMessageError as e:
-                raise UntrustedServerReturnedError(original_exception=e)
+                raise UntrustedServerReturnedError(original_exception=e) from e
         return wrapper
 
     @best_effort_reliable
