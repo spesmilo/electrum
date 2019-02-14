@@ -9,6 +9,7 @@ from .JCconstants import JCconstants
 from .TxParser import TxParser
 
 from electrum.util import print_error
+from electrum.ecc import ECPubkey, msg_magic
 
 class CardConnector:
     
@@ -128,23 +129,20 @@ class CardConnector:
         (response, sw1, sw2) = self.card_transmit(apdu)    
         return (response, sw1, sw2)        
     
-    def card_bip32_import_seed(self, keyACL, seed):
+    def card_bip32_import_seed(self, seed):
         cla= JCconstants.CardEdge_CLA
         ins= JCconstants.INS_BIP32_IMPORT_SEED
-        p1= 0x00 
+        p1= len(seed)  
         p2= 0x00
-        le= len(keyACL)+1+len(seed)
-        apdu=[cla, ins, p1, p2, le]
-        apdu+=keyACL
-        apdu+=[len(seed)]
-        apdu+=seed
-
+        le= len(seed)
+        apdu=[cla, ins, p1, p2, le]+seed
+        
         # send apdu (contains sensitive data!)
         response, sw1, sw2 = self.card_transmit(apdu)
         # compute authentikey pubkey and send to chip for future use
         if (sw1==0x90) and (sw2==0x00):
-            (responseb, sw1b, sw2b)=self.card_bip32_set_authentikey_pubkey(response) 
-        return (response, sw1, sw2)           
+            authentikey= self.card_bip32_set_authentikey_pubkey(response)    
+        return authentikey           
     
     def card_bip32_get_authentikey(self):
         cla= JCconstants.CardEdge_CLA
@@ -156,10 +154,13 @@ class CardConnector:
         
         # send apdu 
         response, sw1, sw2 = self.card_transmit(apdu) 
+        if sw1==0x9c and sw2==0x14: 
+            print("[CardConnector] card_bip32_get_authentikey(): Seed is not initialized => Raising error!")
+            raise UninitializedSeedError('Seed is not initialized')
         # compute corresponding pubkey and send to chip for future use
         if (sw1==0x90) and (sw2==0x00):
-            (responseb, sw1b, sw2b)=self.card_bip32_set_authentikey_pubkey(response)           
-        return (response, sw1, sw2)             
+            authentikey = self.card_bip32_set_authentikey_pubkey(response)           
+        return authentikey             
     
     ''' Allows to compute coordy of authentikey externally to optimize computation time-out
         coordy value is verified by the chip before being accepted '''
@@ -181,7 +182,7 @@ class CardConnector:
         print_error("[CardConnector] CardConnector: card_bip32_set_authentikey_pubkey(): coordy="+ str(coordy))#debugSatochip
                     
         (response, sw1, sw2) = self.card_transmit(apdu)
-        return (response, sw1, sw2)
+        return authentikey
     
     def card_bip32_get_extendedkey(self, path):
         cla= JCconstants.CardEdge_CLA
@@ -415,6 +416,9 @@ class AuthenticationError(Exception):
     """Raised when the command requires authentication first"""
     pass
         
+class UninitializedSeedError(Exception):    
+    """Raised when the device is not yet seeded"""
+    pass  
     
 if __name__ == "__main__":
     

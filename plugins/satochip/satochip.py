@@ -16,7 +16,6 @@ from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
 from electrum.util import print_error, is_verbose, bfh, bh2u, versiontuple
 from electrum.base_wizard import ScriptTypeNotSupported
 
-from electrum.util import print_stderr, print_error
 from electrum.crypto import hash_160, Hash
 from electrum.bitcoin import serialize_xpub
 from electrum.ecc import CURVE_ORDER, der_sig_from_r_and_s, get_r_and_s_from_der_sig, ECPubkey
@@ -487,27 +486,44 @@ class SatochipPlugin(HW_PluginBase):
         
         # get authentikey
         while(True):
-            (response, sw1, sw2)=client.cc.card_bip32_get_authentikey()
-            if sw1==0x90 and sw2==0x00: 
-                # save authentikey in storage space
-                client.parser.parse_bip32_get_authentikey(response)
-                hex_authentikey= client.parser.authentikey.get_public_key_hex(compressed=True)
-                print_error("[satochip] SatochipPlugin: setup_device(): authentikey="+hex_authentikey)#debugSatochip
-                wizard.storage.put('authentikey', hex_authentikey)
-                wizard.storage.write()
-                print_error("[satochip] SatochipPlugin: setup_device(): authentikey from storage="+wizard.storage.get('authentikey'))#debugSatochip       
-                break
-            elif sw1==0x9c and sw2==0x14:    #Import seed
+            try:
+                authentikey=client.cc.card_bip32_get_authentikey()
+            except UninitializedSeedError:
                 # test seed dialog...
                 print("[satochip] SatochipPlugin: setup_device(): import seed:") #debugSatochip
                 self.choose_seed(wizard)
                 seed= list(self.bip32_seed)
                 #seed= bytes([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]) # Bip32 test vectors
-                seed_ACL= JCconstants.DEFAULT_ACL #{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-                (response, sw1, sw2)= client.cc.card_bip32_import_seed(seed_ACL, seed) 
-            else:
-                print("[satochip] SatochipPlugin: setup_device(): unable to set up applet!  sw12="+hex(sw1)+" "+hex(sw2))#debugSatochip
-                raise RuntimeError('Unable to setup the device with error code:'+hex(sw1)+' '+hex(sw2))
+                authentikey= client.cc.card_bip32_import_seed(seed) 
+            hex_authentikey= authentikey.get_public_key_hex(compressed=True)
+            print_error("[satochip] SatochipPlugin: setup_device(): authentikey="+hex_authentikey)#debugSatochip
+            wizard.storage.put('authentikey', hex_authentikey)
+            wizard.storage.write()
+            print_error("[satochip] SatochipPlugin: setup_device(): authentikey from storage="+wizard.storage.get('authentikey'))#debugSatochip       
+            break
+        
+            # #oldcode
+            # (response, sw1, sw2)=client.cc.card_bip32_get_authentikey()
+            # if sw1==0x90 and sw2==0x00: 
+                # # save authentikey in storage space
+                # client.parser.parse_bip32_get_authentikey(response)
+                # hex_authentikey= client.parser.authentikey.get_public_key_hex(compressed=True)
+                # print_error("[satochip] SatochipPlugin: setup_device(): authentikey="+hex_authentikey)#debugSatochip
+                # wizard.storage.put('authentikey', hex_authentikey)
+                # wizard.storage.write()
+                # print_error("[satochip] SatochipPlugin: setup_device(): authentikey from storage="+wizard.storage.get('authentikey'))#debugSatochip       
+                # break
+            # elif sw1==0x9c and sw2==0x14:    #Import seed
+                # # test seed dialog...
+                # print("[satochip] SatochipPlugin: setup_device(): import seed:") #debugSatochip
+                # self.choose_seed(wizard)
+                # seed= list(self.bip32_seed)
+                # #seed= bytes([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]) # Bip32 test vectors
+                # seed_ACL= JCconstants.DEFAULT_ACL #{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+                # (response, sw1, sw2)= client.cc.card_bip32_import_seed(seed_ACL, seed) 
+            # else:
+                # print("[satochip] SatochipPlugin: setup_device(): unable to set up applet!  sw12="+hex(sw1)+" "+hex(sw2))#debugSatochip
+                # raise RuntimeError('Unable to setup the device with error code:'+hex(sw1)+' '+hex(sw2))
         
     def get_xpub(self, device_id, derivation, xtype, wizard):
         # this seems to be part of the pairing process only, not during normal ops?

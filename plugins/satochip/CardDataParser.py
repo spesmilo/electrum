@@ -56,13 +56,9 @@ class CardDataParser:
         return self.authentikey
         
     def parse_bip32_import_seed(self,response):
-        # response= [data_size | data | sig_size | signature | nb_deleted]
+        # response= [data_size | data | sig_size | signature]
         # where data is coordx
-        #todo: reset authentikey...
-        self.parse_bip32_get_authentikey(response)
-        offset= len(response)-2 #2+data_size+2+sig_size
-        nb_deleted = ((int)(response[offset] & 0xff)<<8) + ((int)(response[offset+1] & 0xff))  
-        return self.authentikey
+        return self.parse_bip32_get_authentikey(response)
 
     def parse_bip32_get_extendedkey(self, response):
         if self.authentikey is None:
@@ -197,7 +193,7 @@ class CardDataParser:
         if sig_size>0 and self.authentikey_coordx:
             sig= response[offset:(offset+sig_size)]
             pubkey= self.get_pubkey_from_signature(self.authentikey_coordx, sig_data, sig)
-            if pubkey.get_public_key_bytes(compressed=True) != self.authentikey.get_public_key_bytes(compressed=True):
+            if pubkey != self.authentikey:
                 raise Exception("signing key is not authentikey!")
         #todo: error checking
         
