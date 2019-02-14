@@ -764,7 +764,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 n_unverif = len(self.wallet.get_unverified_txs())
                 if n_unverif >= 10:
                     # if there are lots left to verify, display this informative text
-                    text += " " + ( _("[verifying %d TXs...]") % n_unverif )
+                    text += " " + ( _("[%d unverified TXs]") % n_unverif )
                 if not self.network.proxy:
                     icon = icon_dict["status_connected"] if num_chains <= 1 else icon_dict["status_connected_fork"]
                 else:
