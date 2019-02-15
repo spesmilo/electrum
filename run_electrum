@@ -26,6 +26,15 @@
 import os
 import sys
 
+
+MIN_PYTHON_VERSION = "3.6.1"  # FIXME duplicated from setup.py
+_min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
+
+
+if sys.version_info[:3] < _min_python_version_tuple:
+    sys.exit("Error: Electrum requires Python version >= %s..." % MIN_PYTHON_VERSION)
+
+
 script_dir = os.path.dirname(os.path.realpath(__file__))
 is_bundle = getattr(sys, 'frozen', False)
 is_local = not is_bundle and os.path.exists(os.path.join(script_dir, "electrum.desktop"))
