@@ -691,7 +691,6 @@ class Network(util.DaemonThread):
     def process_responses(self, interface):
         responses = interface.get_responses()
         for request, response in responses:
-            response['server'] = interface.server  # tell client code where it came from
             if request:
                 method, params, message_id = request
                 k = self.get_index(method, params)

@@ -57,9 +57,9 @@ class Synchronizer(ThreadJob):
     def parse_response(self, response):
         error = True
         try:
-            if not response: return None, None, error, None
+            if not response: return None, None, error
             error = response.get('error')
-            return response['params'], response.get('result'), error, response['server']
+            return response['params'], response.get('result'), error
         finally:
             if error:
                 self.print_error("response error:", response)
@@ -92,7 +92,7 @@ class Synchronizer(ThreadJob):
         return bh2u(hashlib.sha256(status.encode('ascii')).digest())
 
     def on_address_status(self, response):
-        params, result, error, server = self.parse_response(response)
+        params, result, error = self.parse_response(response)
         if error:
             return
         scripthash = params[0]
@@ -109,7 +109,7 @@ class Synchronizer(ThreadJob):
         self.requested_hashes.discard(scripthash)  # Notifications won't be in
 
     def on_address_history(self, response):
-        params, result, error, server = self.parse_response(response)
+        params, result, error = self.parse_response(response)
         if error:
             return
         scripthash = params[0]
@@ -141,7 +141,7 @@ class Synchronizer(ThreadJob):
             self.request_missing_txs(hist)
 
     def tx_response(self, response):
-        params, result, error, server = self.parse_response(response)
+        params, result, error = self.parse_response(response)
         tx_hash = params[0] or ''
         # unconditionally pop. so we don't end up in a "not up to date" state
         # on bad server reply or reorg.
@@ -150,19 +150,19 @@ class Synchronizer(ThreadJob):
         if error:
             # was some response error. note we popped the tx already
             # we assume a blockchain reorg happened and tx disappeared.
-            self.print_error("error from server {} for tx_hash {}, skipping".format(server, tx_hash))
+            self.print_error("error for tx_hash {}, skipping".format(tx_hash))
             return
         try:
             tx = Transaction(result)
             tx.deserialize()
         except Exception:
             traceback.print_exc()
-            self.print_msg("cannot deserialize transaction, skipping", tx_hash, "server:", server)
+            self.print_msg("cannot deserialize transaction, skipping", tx_hash)
             return
         # NB: this is slow, and I am not sure what bug it fixes. Commenting out.
         #if tx_hash != tx.txid():
-        #    self.print_error("received tx does not match expected txid ({} != {}) (server: {}), skipping"
-        #                     .format(tx_hash, tx.txid(), server))
+        #    self.print_error("received tx does not match expected txid ({} != {}), skipping"
+        #                     .format(tx_hash, tx.txid()))
         #    return
         self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
         self.print_error("received tx %s height: %d bytes: %d" %
