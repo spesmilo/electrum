@@ -39,6 +39,10 @@ class App : Application() {
                                     NotificationManager.IMPORTANCE_DEFAULT))
         }
 
+        if (BuildConfig.testnet) {
+            libNetworks.callAttr("set_testnet")
+        }
+
         if (!ACRA.isACRASenderServiceProcess()) {
             initSettings()
             initDaemon()
