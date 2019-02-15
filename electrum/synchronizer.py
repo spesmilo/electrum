@@ -39,6 +39,9 @@ if TYPE_CHECKING:
     from .address_synchronizer import AddressSynchronizer
 
 
+class SynchronizerFailure(Exception): pass
+
+
 def history_status(h):
     if not h:
         return None
@@ -194,18 +197,19 @@ class Synchronizer(SynchronizerBase):
                 raise
         tx = Transaction(result)
         try:
-            tx.deserialize()
-        except Exception:
-            self.print_msg("cannot deserialize transaction, skipping", tx_hash)
-            return
+            tx.deserialize()  # see if raises
+        except Exception as e:
+            # possible scenarios:
+            # 1: server is sending garbage
+            # 2: there is a bug in the deserialization code
+            # 3: there was a segwit-like upgrade that changed the tx structure
+            #    that we don't know about
+            raise SynchronizerFailure(f"cannot deserialize transaction {tx_hash}") from e
         if tx_hash != tx.txid():
-            self.print_error("received tx does not match expected txid ({} != {})"
-                             .format(tx_hash, tx.txid()))
-            return
+            raise SynchronizerFailure(f"received tx does not match expected txid ({tx_hash} != {tx.txid()})")
         tx_height = self.requested_tx.pop(tx_hash)
         self.wallet.receive_tx_callback(tx_hash, tx, tx_height)
-        self.print_error("received tx %s height: %d bytes: %d" %
-                         (tx_hash, tx_height, len(tx.raw)))
+        self.print_error(f"received tx {tx_hash} height: {tx_height} bytes: {len(tx.raw)}")
         # callbacks
         self.wallet.network.trigger_callback('new_transaction', self.wallet, tx)
 
