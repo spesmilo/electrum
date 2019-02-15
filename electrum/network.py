@@ -1188,24 +1188,21 @@ class Network(PrintError):
         return parse_servers(await session.send_request('server.peers.subscribe'))
 
     async def send_multiple_requests(self, servers: List[str], method: str, params: Sequence):
-        num_connecting = len(self.connecting)
-        for server in servers:
-            self._start_interface(server)
-        # sleep a bit
-        for _ in range(10):
-            if len(self.connecting) < num_connecting:
-                break
-            await asyncio.sleep(1)
         responses = dict()
-        async def get_response(iface: Interface):
+        async def get_response(server):
+            interface = Interface(self, server, self.proxy)
+            timeout = self.get_network_timeout_seconds(NetworkTimeout.Urgent)
             try:
-                res = await iface.session.send_request(method, params, timeout=10)
+                await asyncio.wait_for(interface.ready, timeout)
+            except BaseException as e:
+                await interface.close()
+                return
+            try:
+                res = await interface.session.send_request(method, params, timeout=10)
             except Exception as e:
                 res = e
-            responses[iface.server] = res
+            responses[interface.server] = res
         async with TaskGroup() as group:
             for server in servers:
-                interface = self.interfaces.get(server)
-                if interface:
-                    await group.spawn(get_response(interface))
+                await group.spawn(get_response(server))
         return responses
