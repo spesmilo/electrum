@@ -2740,6 +2740,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         d.setMinimumSize(600, 300)
 
         vbox = QVBoxLayout(d)
+        bip38_warn_label = QLabel(_("<b>ERROR: Electron Cash does not support import of passworded BIP38 private keys (private keys starting in 6P...).</b> Decrypt keys to WIF format (starting with 5, K, or L) in order to sweep."))
+        bip38_warn_label.setWordWrap(True)
+        bip38_warn_label.setHidden(True)
+        vbox.addWidget(bip38_warn_label)
         vbox.addWidget(QLabel(_("Enter private keys:")))
 
         keys_e = ScanQRTextEdit(allow_multi=True)
@@ -2759,9 +2763,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def get_priv_keys():
             return keystore.get_private_keys(keys_e.toPlainText())
 
+
         def enable_sweep():
-            sweep_button.setEnabled(bool(get_address_text()
-                                         and get_priv_keys()))
+            try:
+                sweepok = bool(get_address_text() and get_priv_keys())
+                hasbip38 = False
+            except ValueError as e:
+                if e.args != ('bip38',):
+                    raise
+                sweepok = False
+                hasbip38 = True
+            sweep_button.setEnabled(sweepok)
+            bip38_warn_label.setHidden(not hasbip38)
 
         keys_e.textChanged.connect(enable_sweep)
         enable_sweep()
