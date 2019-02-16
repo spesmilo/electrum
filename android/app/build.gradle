@@ -70,6 +70,16 @@ android {
         }
     }
 
+    flavorDimensions "version"
+    productFlavors {
+        MainNet {
+            buildConfigField "boolean", "testnet", "false"
+        }
+        TestNet {
+            buildConfigField "boolean", "testnet", "true"
+        }
+    }
+
     lintOptions {
         disable "MissingTranslation"
     }

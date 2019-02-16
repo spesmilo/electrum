@@ -14,7 +14,7 @@ val py by lazy {
 }
 fun libMod(name: String) = py.getModule("electroncash.$name")!!
 fun guiMod(name: String) = py.getModule("electroncash_gui.android.$name")!!
-
+val libNetworks by lazy { libMod("networks") }
 val guiDaemon by lazy { guiMod("daemon") }
 
 val WATCHDOG_INTERVAL = 1000L
