@@ -715,10 +715,15 @@ def is_address_list(text):
 
 
 def get_private_keys(text):
+    # break by newline
     parts = text.split('\n')
-    parts = map(lambda x: ''.join(x.split()), parts)
-    parts = list(filter(bool, parts))
-    if bool(parts) and all(bitcoin.is_private_key(x) for x in parts):
+    # for each line, remove all whitespace
+    parts = list(filter(bool, (''.join(x.split()) for x in parts)))
+
+    if any(x.startswith('6P') for x in parts):
+        raise ValueError('bip38')
+
+    if parts and all(bitcoin.is_private_key(x) for x in parts):
         return parts
 
 
