@@ -195,45 +195,42 @@ class CardConnector:
         print("apdu:"+str(apdu))
         # send apdu
         while (True):
-            try:
-                (response, sw1, sw2) = self.card_transmit(apdu)
-                
-                # if there is no more memory available, erase cache...
-                #if self.get_sw12(sw1,sw2)==JCconstants.SW_NO_MEMORY_LEFT:
-                if (sw1==0x9C) and (sw2==0x01):
-                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): Reset memory...")#debugSatochip
-                    apdu[3]=apdu[3]^0x80
-                    response, sw1, sw2 = self.card_transmit(apdu)
-                    apdu[3]=apdu[3]&0x7f # reset the flag
-                
-                # check for non-hardened child derivation optimization
-                if ( (response[32]&0x80)== 0x80): 
-                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): Child Derivation optimization...")#debugSatochip
-                    (pubkey, chaincode)= self.parser.parse_bip32_get_extendedkey(response)
-                    coordy= pubkey.get_public_key_bytes(compressed=False)
-                    coordy= list(coordy[33:])
-                    authcoordy= self.parser.authentikey.get_public_key_bytes(compressed=False)
-                    authcoordy= list(authcoordy[33:])
-                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): len(response)="+str(len(response)))#debugSatochip
-                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): len(coordy)="+str(len(coordy)))#debugSatochip
-                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): coordy="+ str(coordy))#debugSatochip
-                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): len(authcoordy)="+str(len(authcoordy)))#debugSatochip
-                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): authcoordy="+ str(authcoordy))#debugSatochip
-                    data= response+[len(coordy)&0xFF00, len(coordy)&0x00FF]+coordy
-                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): len(data)="+ str(len(data)))#debugSatochip
-                    print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): data="+ str(data))#debugSatochip
-                    apdu_opt= [cla, 0x74, 0x00, 0x00, len(data)]
-                    apdu_opt= apdu_opt+data
-                    response_opt, sw1_opt, sw2_opt = self.card_transmit(apdu_opt)
-                else:
-                    #at this point, we have successfully received a response from the card 
-                    break
+            (response, sw1, sw2) = self.card_transmit(apdu)
             
-            except SWException as e:
-                print(str(e))          
-                break
-        
-        return (response, sw1, sw2)      
+            # if there is no more memory available, erase cache...
+            #if self.get_sw12(sw1,sw2)==JCconstants.SW_NO_MEMORY_LEFT:
+            if (sw1==0x9C) and (sw2==0x01):
+                print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): Reset memory...")#debugSatochip
+                apdu[3]=apdu[3]^0x80
+                response, sw1, sw2 = self.card_transmit(apdu)
+                apdu[3]=apdu[3]&0x7f # reset the flag
+            
+            # other (unexpected) error
+            if (sw1!=0x90) or (sw2!=0x00): 
+                raise UnexpectedSW12Error('Unexpected error code SW12='+hex(sw1)+" "+hex(sw2))
+            # check for non-hardened child derivation optimization
+            elif ( (response[32]&0x80)== 0x80): 
+                print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): Child Derivation optimization...")#debugSatochip
+                (pubkey, chaincode)= self.parser.parse_bip32_get_extendedkey(response)
+                coordy= pubkey.get_public_key_bytes(compressed=False)
+                coordy= list(coordy[33:])
+                authcoordy= self.parser.authentikey.get_public_key_bytes(compressed=False)
+                authcoordy= list(authcoordy[33:])
+                print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): len(response)="+str(len(response)))#debugSatochip
+                print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): len(coordy)="+str(len(coordy)))#debugSatochip
+                print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): coordy="+ str(coordy))#debugSatochip
+                print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): len(authcoordy)="+str(len(authcoordy)))#debugSatochip
+                print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): authcoordy="+ str(authcoordy))#debugSatochip
+                data= response+[len(coordy)&0xFF00, len(coordy)&0x00FF]+coordy
+                print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): len(data)="+ str(len(data)))#debugSatochip
+                print_error("[CardConnector] CardConnector: card_bip32_get_extendedkey(): data="+ str(data))#debugSatochip
+                apdu_opt= [cla, 0x74, 0x00, 0x00, len(data)]
+                apdu_opt= apdu_opt+data
+                response_opt, sw1_opt, sw2_opt = self.card_transmit(apdu_opt)
+            #at this point, we have successfully received a response from the card 
+            else:
+                (key, chaincode)= self.parser.parse_bip32_get_extendedkey(response)
+                return (key, chaincode)
     
     def card_sign_message(self, keynbr, message):
         if (type(message)==str):
@@ -422,7 +419,11 @@ class AuthenticationError(Exception):
         
 class UninitializedSeedError(Exception):    
     """Raised when the device is not yet seeded"""
-    pass  
+    pass      
+
+class UnexpectedSW12Error(Exception):    
+    """Raised when the device returns an unexpected error code"""
+    pass     
     
 if __name__ == "__main__":
     

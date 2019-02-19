@@ -22,17 +22,14 @@ def get_xpub(cc, parser, bip32_path):
     # bip32_path is of the form 44'/0'/1'
     print_error("[test_CardConnector] get_xpub(): bip32_path="+bip32_path)#debugSatochip
     (depth, bytepath)= bip32path2bytes(bip32_path)
-    (response, sw1, sw2)= cc.card_bip32_get_extendedkey(bytepath)
-    print_error("[test_CardConnector] SatochipClient: get_xpub(): response="+str(response))#debugSatochip
-    (childkey, childchaincode)= parser.parse_bip32_get_extendedkey(response)
-    print_error("[test_CardConnector] SatochipClient: get_xpub(): depth="+str(depth))#debugSatochip
+    print_error("[test_CardConnector] get_xpub(): depth="+str(depth))#debugSatochip
+    (childkey, childchaincode)= cc.card_bip32_get_extendedkey(bytepath)
     if depth == 0: #masterkey
         fingerprint= bytes([0,0,0,0])
         child_number= bytes([0,0,0,0])
     else: #get parent info
         print_error("[test_CardConnector] SatochipClient: get_xpub(): get xpub for parent")#debugSatochip
-        (response, sw1, sw2)= cc.card_bip32_get_extendedkey(bytepath[0:-4])
-        (parentkey, parentchaincode)=parser.parse_bip32_get_extendedkey(response)
+        (parentkey, parentchaincode)= cc.card_bip32_get_extendedkey(bytepath[0:-4])
         fingerprint= hash_160(parentkey.get_public_key_bytes(compressed=True))[0:4]
         child_number= bytepath[-4:]
     xpub= serialize_xpub('standard', childchaincode, childkey.get_public_key_bytes(compressed=True), depth, fingerprint, child_number)
@@ -126,7 +123,7 @@ class TestCardConnectorMethods(unittest.TestCase):
     def tearDown(self):
         pass
     
-    @unittest.skip("debug")
+    #@unittest.skip("debug")
     def test_card_bip32_get_authentikey(self): 
         print("\n\n[test_CardConnector] test_card_bip32_getauthentikey:") #debugSatochip
         seed= [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
@@ -138,7 +135,7 @@ class TestCardConnectorMethods(unittest.TestCase):
         self.assertEqual(authentikey_hex, authentikeyb_hex)
         self.assertEqual(authentikey_hex, "0489a8fc4af602ca1ddbeb8020e4d629e36e655c47ba62313af4f3405b968f0d5e99a61804578c0f7f5096827adb707a8cb625c83dcf0893196d9418b2baf59039")
 
-    @unittest.skip("debug")
+    #@unittest.skip("debug")
     def test_card_bip32_get_extendedkey_seed_vector1(self):  
         # Bip32 test vectors 1 (https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#Test_Vectors)
         seed= [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
@@ -158,13 +155,10 @@ class TestCardConnectorMethods(unittest.TestCase):
         #subtests
         for i in range(0, len(paths)):
             with self.subTest(i=i):
-                #(depth, bytepath)= bip32path2bytes(paths[i])
-                #(response, sw1, sw2)=self.cc.card_bip32_get_extendedkey(bytepath)
-                #(childkey, childchaincode)= self.parser.parse_bip32_get_extendedkey(response)
                 xpub= get_xpub(self.cc, self.parser, paths[i])
                 self.assertEqual(xpub, xpubs[i])
     
-    @unittest.skip("debug")
+    #@unittest.skip("debug")
     def test_card_bip32_get_extendedkey_seed_vector2(self):
         seed= list(bytes.fromhex("fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542"))
         authentikey= self.cc.card_bip32_import_seed(seed) 
@@ -183,13 +177,10 @@ class TestCardConnectorMethods(unittest.TestCase):
         #subtests
         for i in range(0, len(paths)):
             with self.subTest(i=i):
-                #(depth, bytepath)= bip32path2bytes(paths[i])
-                #(response, sw1, sw2)=self.cc.card_bip32_get_extendedkey(bytepath)
-                #(childkey, childchaincode)= self.parser.parse_bip32_get_extendedkey(response)
                 xpub= get_xpub(self.cc, self.parser, paths[i])
                 self.assertEqual(xpub, xpubs[i])
 
-    @unittest.skip("debug")
+    #@unittest.skip("debug")
     def test_card_bip32_get_extendedkey_seed_vector3(self):
         seed= list(bytes.fromhex("4b381541583be4423346c643850da4b320e46a87ae3d2a4e6da11eba819cd4acba45d239319ac14f863b8d5ab5a0d0c64d2e8a1e7d1457df2e5a3c51c73235be"))
         authentikey= self.cc.card_bip32_import_seed(seed) 
@@ -200,9 +191,6 @@ class TestCardConnectorMethods(unittest.TestCase):
         #subtests
         for i in range(0, len(paths)):
             with self.subTest(i=i):
-                #(depth, bytepath)= bip32path2bytes(paths[i])
-                #(response, sw1, sw2)=self.cc.card_bip32_get_extendedkey(bytepath)
-                #(childkey, childchaincode)= self.parser.parse_bip32_get_extendedkey(response)
                 xpub= get_xpub(self.cc, self.parser, paths[i])
                 self.assertEqual(xpub, xpubs[i])
     
@@ -213,8 +201,7 @@ class TestCardConnectorMethods(unittest.TestCase):
                 "The quick brown fox jumps over the lazy dog",
                 8*"The quick brown fox jumps over the lazy dog"]
         (depth, bytepath)= bip32path2bytes("m/0'")
-        (response, sw1, sw2)=self.cc.card_bip32_get_extendedkey(bytepath)
-        (childkey, childchaincode)= self.parser.parse_bip32_get_extendedkey(response)
+        (childkey, childchaincode)=self.cc.card_bip32_get_extendedkey(bytepath)
         keynbr= 0xFF
         #subtests
         for i in range(0, len(msgs)):

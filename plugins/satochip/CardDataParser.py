@@ -97,11 +97,6 @@ class CardDataParser:
     def parse_message_signature(self, response, message, pubkey):
         
         # Prepend the message for signing as done inside the card!!
-        #header= 'Bitcoin Signed Message:\n'
-        #paddedcontent= bytearray(var_int(len(header)), 'utf-8')
-        #paddedcontent+= bytearray(header, 'utf-8')
-        #paddedcontent= bytearray(var_int(len(message)), 'utf-8')
-        #paddedcontent+= bytearray(message,'utf-8')
         message = to_bytes(message, 'utf8')
         hash = sha256d(msg_magic(message))
         coordx= pubkey.get_public_key_bytes()
