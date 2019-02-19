@@ -546,7 +546,14 @@ class LedgerPlugin(HW_PluginBase):
                    (0x2581, 0x3b7c), # HW.1 ledger production
                    (0x2581, 0x4b7c), # HW.1 ledger test
                    (0x2c97, 0x0000), # Blue
-                   (0x2c97, 0x0001)  # Nano-S
+                   (0x2c97, 0x0001), # Nano-S
+                   (0x2c97, 0x0004), # Nano-X
+                   (0x2c97, 0x0005), # RFU
+                   (0x2c97, 0x0006), # RFU
+                   (0x2c97, 0x0007), # RFU
+                   (0x2c97, 0x0008), # RFU
+                   (0x2c97, 0x0009), # RFU
+                   (0x2c97, 0x000a)  # RFU
                  ]
     SUPPORTED_XTYPES = ('standard', 'p2wpkh-p2sh', 'p2wpkh', 'p2wsh-p2sh', 'p2wsh')
 
