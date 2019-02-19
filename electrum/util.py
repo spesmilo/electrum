@@ -1114,3 +1114,14 @@ class OrderedDictWithIndex(OrderedDict):
             self._key_to_pos[key] = pos
             self._pos_to_key[pos] = key
         return ret
+
+
+def multisig_type(wallet_type):
+    '''If wallet_type is mofn multi-sig, return [m, n],
+    otherwise return None.'''
+    if not wallet_type:
+        return None
+    match = re.match(r'(\d+)of(\d+)', wallet_type)
+    if match:
+        match = [int(x) for x in match.group(1, 2)]
+    return match

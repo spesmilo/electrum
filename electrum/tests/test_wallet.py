@@ -8,7 +8,8 @@ from unittest import TestCase
 import time
 
 from io import StringIO
-from electrum.storage import WalletStorage, FINAL_SEED_VERSION
+from electrum.storage import WalletStorage
+from electrum.json_db import FINAL_SEED_VERSION
 from electrum.wallet import Abstract_Wallet
 from electrum.exchange_rate import ExchangeBase, FxThread
 from electrum.util import TxMinedInfo
