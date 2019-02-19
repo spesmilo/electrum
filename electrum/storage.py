@@ -33,6 +33,7 @@ from . import ecc
 from .util import PrintError, profiler, InvalidPassword, WalletFileException, bfh, standardize_path
 from .plugin import run_hook, plugin_loaders
 
+from .sqlite_db import SqliteDB
 from .json_db import JsonDB
 
 
@@ -48,16 +49,15 @@ STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW = range(0, 3)
 
 class WalletStorage(PrintError):
 
-    def __init__(self, path, *, manual_upgrades=False):
+    def __init__(self, path, *, manual_upgrades=False, use_sql=False):
         self.lock = threading.RLock()
         self.path = standardize_path(path)
         self._file_exists = self.path and os.path.exists(self.path)
-
-        DB_Class = JsonDB
+        DB_Class = SqliteDB# if use_sql else JsonDB
         self.print_error("wallet path", self.path)
         self.pubkey = None
         if self.file_exists():
-            with open(self.path, "r", encoding='utf-8') as f:
+            with open(self.path, "rb") as f:
                 self.raw = f.read()
             self._encryption_version = self._init_encryption_version()
             if not self.is_encrypted():
@@ -66,7 +66,7 @@ class WalletStorage(PrintError):
         else:
             self._encryption_version = STO_EV_PLAINTEXT
             # avoid new wallets getting 'upgraded'
-            self.db = DB_Class('', manual_upgrades=False)
+            self.db = DB_Class(b'', manual_upgrades=False)
 
 
     def load_plugins(self):
@@ -91,10 +91,10 @@ class WalletStorage(PrintError):
             return
         if not self.db.modified():
             return
-        self.db.commit()
+
         s = self.encrypt_before_writing(self.db.dump())
         temp_path = "%s.tmp.%s" % (self.path, os.getpid())
-        with open(temp_path, "w", encoding='utf-8') as f:
+        with open(temp_path, "wb") as f:
             f.write(s)
             f.flush()
             os.fsync(f.fileno())
@@ -219,8 +219,8 @@ class WalletStorage(PrintError):
         self.db.set_modified(True)
 
     def requires_upgrade(self):
-        if not self.is_past_initial_decryption():
-            raise Exception("storage not yet decrypted!")
+        #if not self.is_past_initial_decryption():
+        #    raise Exception("storage not yet decrypted!")
         return self.db.requires_upgrade()
 
     def upgrade(self):
