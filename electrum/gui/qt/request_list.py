@@ -94,10 +94,12 @@ class RequestList(MyTreeView):
                 return
             req = self.parent.get_request_URI(key)
         elif request_type == REQUEST_TYPE_LN:
-            preimage, req, is_received, pay_timestamp = self.wallet.lnworker.invoices.get(key, (None, None, None))
+            req, is_received = self.wallet.lnworker.invoices.get(key) or (None, None)
             if req is None:
                 self.update()
                 return
+        else:
+            raise Exception(f"unknown request type: {request_type}")
         self.parent.receive_address_e.setText(req)
 
     def update(self):
