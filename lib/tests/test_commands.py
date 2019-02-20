@@ -1,5 +1,5 @@
 import unittest
-from decimal import Decimal
+from decimal import Decimal as PyDecimal
 
 from ..commands import Commands
 
@@ -9,7 +9,7 @@ class TestCommands(unittest.TestCase):
     def test_setconfig_non_auth_number(self):
         self.assertEqual(7777, Commands._setconfig_normalize_value('rpcport', "7777"))
         self.assertEqual(7777, Commands._setconfig_normalize_value('rpcport', '7777'))
-        self.assertAlmostEqual(Decimal(2.3), Commands._setconfig_normalize_value('somekey', '2.3'))
+        self.assertAlmostEqual(PyDecimal(2.3), Commands._setconfig_normalize_value('somekey', '2.3'))
 
     def test_setconfig_non_auth_number_as_string(self):
         self.assertEqual("7777", Commands._setconfig_normalize_value('somekey', "'7777'"))

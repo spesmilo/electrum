@@ -25,7 +25,7 @@ import binascii
 import os, sys, re, json, time
 from collections import defaultdict
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 import traceback
 import threading
 import hmac
@@ -230,7 +230,7 @@ def json_encode(obj):
 
 def json_decode(x):
     try:
-        return json.loads(x, parse_float=Decimal)
+        return json.loads(x, parse_float=PyDecimal)
     except:
         return x
 
@@ -412,7 +412,7 @@ def format_satoshis_plain(x, decimal_point = 8):
     """Display a satoshi amount scaled.  Always uses a '.' as a decimal
     point and has no thousands separator"""
     scale_factor = pow(10, decimal_point)
-    return "{:.8f}".format(Decimal(x) / scale_factor).rstrip('0').rstrip('.')
+    return "{:.8f}".format(PyDecimal(x) / scale_factor).rstrip('0').rstrip('.')
 
 
 def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=False, whitespaces=False):

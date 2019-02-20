@@ -21,7 +21,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from decimal import Decimal
+from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 import os
 import re
 import shutil
@@ -152,9 +152,9 @@ def parse_URI(uri, on_pr=None):
         m = re.match(r'([0-9\.]+)X([0-9])', am)
         if m:
             k = int(m.group(2)) - 8
-            amount = Decimal(m.group(1)) * pow(10, k)
+            amount = PyDecimal(m.group(1)) * pow(10, k)
         else:
-            amount = Decimal(am) * bitcoin.COIN
+            amount = PyDecimal(am) * bitcoin.COIN
         out['amount'] = int(amount)
     if 'message' in out:
         out['message'] = out['message']

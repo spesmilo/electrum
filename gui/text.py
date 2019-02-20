@@ -1,6 +1,6 @@
 import tty, sys
 import curses, datetime, locale
-from decimal import Decimal
+from decimal import Decimal as PyDecimal
 import getpass
 
 import electrum
@@ -134,11 +134,11 @@ class ElectrumGui:
                 msg = _("Synchronizing...")
             else:
                 c, u, x =  self.wallet.get_balance()
-                msg = _("Balance")+": %f  "%(Decimal(c) / COIN)
+                msg = _("Balance")+": %f  "%(PyDecimal(c) / COIN)
                 if u:
-                    msg += "  [%f unconfirmed]"%(Decimal(u) / COIN)
+                    msg += "  [%f unconfirmed]"%(PyDecimal(u) / COIN)
                 if x:
-                    msg += "  [%f unmatured]"%(Decimal(x) / COIN)
+                    msg += "  [%f unmatured]"%(PyDecimal(x) / COIN)
         else:
             msg = _("Not connected")
 
@@ -324,12 +324,12 @@ class ElectrumGui:
             self.show_message(_('Invalid Bitcoin address'))
             return
         try:
-            amount = int(Decimal(self.str_amount) * COIN)
+            amount = int(PyDecimal(self.str_amount) * COIN)
         except Exception:
             self.show_message(_('Invalid Amount'))
             return
         try:
-            fee = int(Decimal(self.str_fee) * COIN)
+            fee = int(PyDecimal(self.str_fee) * COIN)
         except Exception:
             self.show_message(_('Invalid Fee'))
             return
@@ -397,13 +397,13 @@ class ElectrumGui:
                 self.network.set_parameters(host, port, protocol, proxy, auto_connect)
 
     def settings_dialog(self):
-        fee = str(Decimal(self.config.fee_per_kb()) / COIN)
+        fee = str(PyDecimal(self.config.fee_per_kb()) / COIN)
         out = self.run_dialog('Settings', [
             {'label':'Default fee', 'type':'satoshis', 'value': fee }
             ], buttons = 1)
         if out:
             if out.get('Default fee'):
-                fee = int(Decimal(out['Default fee']) * COIN)
+                fee = int(PyDecimal(out['Default fee']) * COIN)
                 self.config.set_key('fee_per_kb', fee, True)
 
 

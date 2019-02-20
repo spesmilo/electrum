@@ -9,7 +9,7 @@ from threading import Thread
 import time
 import csv
 import decimal
-from decimal import Decimal
+from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 
 from .bitcoin import COIN
 from .i18n import _
@@ -123,7 +123,7 @@ class BitcoinAverage(ExchangeBase):
 
     def get_rates(self, ccy):
         json = self.get_json('apiv2.bitcoinaverage.com', '/indices/global/ticker/short')
-        return dict([(r.replace("BCH", ""), Decimal(json[r]['last']))
+        return dict([(r.replace("BCH", ""), PyDecimal(json[r]['last']))
                      for r in json if r != 'timestamp'])
 
     def history_ccys(self):
@@ -142,21 +142,21 @@ class Bitmarket(ExchangeBase):
 
     def get_rates(self, ccy):
         json = self.get_json('www.bitmarket.pl', '/json/BCCPLN/ticker.json')
-        return {'PLN': Decimal(json['last'])}
+        return {'PLN': PyDecimal(json['last'])}
 
 
 class BitPay(ExchangeBase):
 
     def get_rates(self, ccy):
         json = self.get_json('bitpay.com', '/api/rates/BCH')
-        return dict([(r['code'], Decimal(r['rate'])) for r in json])
+        return dict([(r['code'], PyDecimal(r['rate'])) for r in json])
 
 
 class Bitso(ExchangeBase):
 
     def get_rates(self, ccy):
         json = self.get_json('api.bitso.com', '/v2/ticker/?book=bch_btc')
-        return {'BTC': Decimal(json['last'])}
+        return {'BTC': PyDecimal(json['last'])}
 
 
 class BitStamp(ExchangeBase):
@@ -166,9 +166,9 @@ class BitStamp(ExchangeBase):
         json_eur = self.get_json('www.bitstamp.net', '/api/v2/ticker/bcheur')
         json_btc = self.get_json('www.bitstamp.net', '/api/v2/ticker/bchbtc')
         return {
-            'USD': Decimal(json_usd['last']),
-            'EUR': Decimal(json_eur['last']),
-            'BTC': Decimal(json_btc['last'])}
+            'USD': PyDecimal(json_usd['last']),
+            'EUR': PyDecimal(json_eur['last']),
+            'BTC': PyDecimal(json_btc['last'])}
 
 
 class Coinbase(ExchangeBase):
@@ -176,7 +176,7 @@ class Coinbase(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('coinbase.com',
                              '/api/v1/currencies/exchange_rates')
-        return dict([(r[7:].upper(), Decimal(json[r]))
+        return dict([(r[7:].upper(), PyDecimal(json[r]))
                      for r in json if r.startswith('bch_to_')])
 
 class Kraken(ExchangeBase):
@@ -186,7 +186,7 @@ class Kraken(ExchangeBase):
         pairs = ['BCH%s' % c for c in ccys]
         json = self.get_json('api.kraken.com',
                              '/0/public/Ticker?pair=%s' % ','.join(pairs))
-        return dict((k[-3:], Decimal(float(v['c'][0])))
+        return dict((k[-3:], PyDecimal(float(v['c'][0])))
                      for k, v in json['result'].items())
 
 
@@ -194,7 +194,7 @@ class CoinFloor(ExchangeBase):
     # CoinFloor API only supports GBP on public API
     def get_rates(self, ccy):
         json = self.get_json('webapi.coinfloor.co.uk:8090/bist/BCH/GBP', '/ticker/')
-        return {'GBP': Decimal(json['last'])}
+        return {'GBP': PyDecimal(json['last'])}
 
 
 class WEX(ExchangeBase):
@@ -207,20 +207,20 @@ class WEX(ExchangeBase):
         json_ltc = self.get_json('wex.nz', '/api/3/ticker/bch_ltc')
         json_eth = self.get_json('wex.nz', '/api/3/ticker/bch_eth')
         json_dsh = self.get_json('wex.nz', '/api/3/ticker/bch_dsh')
-        return {'EUR': Decimal(json_eur['bch_eur']['last']),
-                'RUB': Decimal(json_rub['bch_rur']['last']),
-                'USD': Decimal(json_usd['bch_usd']['last']),
-                'BTC': Decimal(json_btc['bch_btc']['last']),
-                'LTC': Decimal(json_ltc['bch_ltc']['last']),
-                'ETH': Decimal(json_eth['bch_eth']['last']),
-                'DSH': Decimal(json_dsh['bch_dsh']['last'])}
+        return {'EUR': PyDecimal(json_eur['bch_eur']['last']),
+                'RUB': PyDecimal(json_rub['bch_rur']['last']),
+                'USD': PyDecimal(json_usd['bch_usd']['last']),
+                'BTC': PyDecimal(json_btc['bch_btc']['last']),
+                'LTC': PyDecimal(json_ltc['bch_ltc']['last']),
+                'ETH': PyDecimal(json_eth['bch_eth']['last']),
+                'DSH': PyDecimal(json_dsh['bch_dsh']['last'])}
 
 
 class CoinCap(ExchangeBase):
 
     def get_rates(self, ccy):
         json = self.get_json('api.coincap.io', '/v2/rates/bitcoin-cash/')
-        return {'USD': Decimal(json['data']['rateUsd'])}
+        return {'USD': PyDecimal(json['data']['rateUsd'])}
 
     def history_ccys(self):
         return ['USD']
@@ -241,7 +241,7 @@ class CoinGecko(ExchangeBase):
     def get_rates(self, ccy):
         json = self.get_json('api.coingecko.com', '/api/v3/coins/bitcoin-cash?localization=False&sparkline=false')
         prices = json["market_data"]["current_price"]
-        return dict([(a[0].upper(),Decimal(a[1])) for a in prices.items()])
+        return dict([(a[0].upper(),PyDecimal(a[1])) for a in prices.items()])
 
     def history_ccys(self):
         return ['AED', 'ARS', 'AUD', 'BTD', 'BHD', 'BMD', 'BRL', 'BTC',
@@ -403,10 +403,10 @@ class FxThread(ThreadJob):
             self.network.trigger_callback('on_history')
 
     def exchange_rate(self):
-        '''Returns None, or the exchange rate as a Decimal'''
+        '''Returns None, or the exchange rate as a PyDecimal'''
         rate = self.exchange.quotes.get(self.ccy)
         if rate:
-            return Decimal(rate)
+            return PyDecimal(rate)
 
     def format_amount_and_units(self, btc_balance):
         amount_str = self.format_amount(btc_balance)
@@ -428,7 +428,7 @@ class FxThread(ThreadJob):
         if satoshis is None:  # Can happen with incomplete history
             return _("Unknown")
         if rate:
-            value = Decimal(satoshis) / COIN * Decimal(rate)
+            value = PyDecimal(satoshis) / COIN * PyDecimal(rate)
             return "%s" % (self.ccy_amount_str(value, True, default_prec))
         return _("No data")
 
@@ -439,7 +439,7 @@ class FxThread(ThreadJob):
         if rate is None and (datetime.today().date() - d_t.date()).days <= 2:
             rate = self.exchange.quotes.get(self.ccy)
             self.history_used_spot = True
-        return Decimal(rate) if rate is not None else None
+        return PyDecimal(rate) if rate is not None else None
 
     def historical_value_str(self, satoshis, d_t):
         rate = self.history_rate(d_t)
@@ -448,7 +448,7 @@ class FxThread(ThreadJob):
     def historical_value(self, satoshis, d_t):
         rate = self.history_rate(d_t)
         if rate:
-            return Decimal(satoshis) / COIN * Decimal(rate)
+            return PyDecimal(satoshis) / COIN * PyDecimal(rate)
 
     def timestamp_rate(self, timestamp):
         from .util import timestamp_to_datetime
