@@ -35,10 +35,10 @@ import zlib
 from collections import defaultdict
 
 from . import util, bitcoin, ecc
-from .util import PrintError, profiler, InvalidPassword, WalletFileException, bfh, standardize_path, multisig_type
+from .util import PrintError, profiler, InvalidPassword, WalletFileException, bfh, standardize_path, multisig_type, TxMinedInfo
 from .plugin import run_hook, plugin_loaders
 from .keystore import bip44_derivation
-
+from .transaction import Transaction
 
 # seed_version is now used for the version of the wallet file
 
@@ -46,9 +46,6 @@ OLD_SEED_VERSION = 4        # electrum versions < 2.0
 NEW_SEED_VERSION = 11       # electrum versions >= 2.0
 FINAL_SEED_VERSION = 18     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
-
-
-
 
 
 
@@ -61,6 +58,7 @@ class JsonDB(PrintError):
             self.load_data(raw)
         else:
             self.put('seed_version', FINAL_SEED_VERSION)
+        self.load_transactions()
 
     def get(self, key, default=None):
         v = self.data.get(key)
@@ -498,3 +496,151 @@ class JsonDB(PrintError):
                 msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
         raise WalletFileException(msg)
 
+
+    def get_txi(self, tx_hash):
+        return self.txi.get(tx_hash, {}).keys()
+
+    def get_txo(self, tx_hash):
+        return self.txo.get(tx_hash, {}).keys()
+
+    def get_txi_addr(self, tx_hash, address):
+        return self.txi.get(tx_hash, {}).get(address, [])
+
+    def get_txo_addr(self, tx_hash, address):
+        return self.txo.get(tx_hash, {}).get(address, [])
+
+    def add_txi_addr(self, tx_hash, addr, ser, v):
+        if tx_hash not in self.txi:
+            self.txi[tx_hash] = {}
+        d = self.txi[tx_hash]
+        if addr not in d:
+            d[addr] = set()
+        d[addr].add((ser, v))
+
+    def add_txo_addr(self, tx_hash, addr, n, v, is_coinbase):
+        if tx_hash not in self.txo:
+            self.txo[tx_hash] = {}
+        d = self.txo[tx_hash]
+        if addr not in d:
+            d[addr] = []
+        d[addr].append((n, v, is_coinbase))
+
+    def get_txi_keys(self):
+        return self.txi.keys()
+
+    def get_txo_keys(self):
+        return self.txo.keys()
+
+    def remove_txi(self, tx_hash):
+        self.txi.pop(tx_hash, None)
+
+    def remove_txo(self, tx_hash):
+        self.txo.pop(tx_hash, None)
+
+    def get_spent_outpoints(self, prevout_hash):
+        return self.spent_outpoints.get(prevout_hash, {}).keys()
+
+    def get_spent_outpoint(self, prevout_hash, prevout_n):
+        return self.spent_outpoints.get(prevout_hash, {}).get(str(prevout_n))
+
+    def set_spent_outpoint(self, prevout_hash, prevout_n, tx_hash):
+        if prevout_hash not in self.spent_outpoints:
+            self.spent_outpoints[prevout_hash] = {}
+        self.spent_outpoints[prevout_hash][str(prevout_n)] = tx_hash
+
+    def add_transaction(self, tx_hash, tx):
+        self.transactions[tx_hash] = str(tx)
+
+    def remove_transaction(self, tx_hash):
+        self.transactions.pop(tx_hash, None)
+
+    def get_transaction(self, tx_hash):
+        tx = self.transactions.get(tx_hash)
+        return Transaction(tx) if tx else None
+
+    def list_transactions(self):
+        return self.transactions.keys()
+
+    def get_history(self):
+        return self.history.keys()
+
+    def get_addr_history(self, addr):
+        return self.history.get(addr, [])
+
+    def set_addr_history(self, addr, hist):
+        self.history[addr] = hist
+
+    def remove_addr_history(self, addr):
+        self.history.pop(addr, None)
+
+    def list_verified_tx(self):
+        return self.verified_tx.keys()
+
+    def get_verified_tx(self, txid):
+        if txid not in self.verified_tx:
+            return None
+        height, timestamp, txpos, header_hash = self.verified_tx[txid]
+        return TxMinedInfo(height=height,
+                           conf=None,
+                           timestamp=timestamp,
+                           txpos=txpos,
+                           header_hash=header_hash)
+
+    def add_verified_tx(self, txid, info):
+        self.verified_tx[txid] = (info.height, info.timestamp, info.txpos, info.header_hash)
+
+    def remove_verified_tx(self, txid):
+        self.verified_tx.pop(txid, None)
+
+    def update_tx_fees(self, d):
+        return self.tx_fees.update(d)
+
+    def get_tx_fee(self, txid):
+        return self.tx_fees.get(txid)
+
+    def remove_tx_fee(self, txid):
+        self.tx_fees.pop(txid, None)
+
+    def get_data_ref(self, name):
+        if name not in self.data:
+            self.data[name] = {}
+        return self.data[name]
+
+    @profiler
+    def load_transactions(self):
+        # references in self.data
+        self.txi = self.get_data_ref('txi')  # txid -> address -> (prev_outpoint, value)
+        self.txo = self.get_data_ref('txo')  # txid -> address -> (output_index, value, is_coinbase)
+        self.transactions = self.get_data_ref('transactions')   # type: Dict[str, Transaction]
+        self.spent_outpoints = self.get_data_ref('spent_outpoints')
+        self.history = self.get_data_ref('history')  # address -> list(txid, height)
+        self.verified_tx = self.get_data_ref('verified_tx3') # txid -> TxMinedInfo.  Access with self.lock.
+        self.tx_fees = self.get_data_ref('tx_fees')
+
+        # tuple to set
+        for txid, d in list(self.txi.items()):
+            for addr, lst in d.items():
+                self.txi[txid][addr] = set([tuple(x) for x in lst])
+
+        # remove unreferenced tx
+        for tx_hash in self.transactions:
+            if not self.get_txi(tx_hash) and not self.get_txo(tx_hash):
+                self.print_error("removing unreferenced tx", tx_hash)
+                self.transactions.pop(tx_hash)
+
+        # remove unreferenced outpoints
+        for prevout_hash in self.spent_outpoints.keys():
+            d = self.spent_outpoints[prevout_hash]
+            for prevout_n, spending_txid in list(d.items()):
+                if spending_txid not in self.transactions:
+                    self.print_error("removing unreferenced spent outpoint")
+                    d.pop(prevout_n)
+
+    def clear_history(self):
+        self.txi.clear()
+        self.txo.clear()
+        self.spent_outpoints.clear()
+        self.transactions.clear()
+        self.history.clear()
+        self.verified_tx.clear()
+        self.tx_fees.clear()

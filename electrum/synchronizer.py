@@ -139,7 +139,7 @@ class Synchronizer(SynchronizerBase):
                 and not self.requested_tx)
 
     async def _on_address_status(self, addr, status):
-        history = self.wallet.history.get(addr, [])
+        history = self.wallet.db.get_addr_history(addr)
         if history_status(history) == status:
             return
         if addr in self.requested_histories:
@@ -175,7 +175,7 @@ class Synchronizer(SynchronizerBase):
         for tx_hash, tx_height in hist:
             if tx_hash in self.requested_tx:
                 continue
-            if tx_hash in self.wallet.transactions:
+            if tx_hash in self.wallet.db.list_transactions():
                 continue
             transaction_hashes.append(tx_hash)
             self.requested_tx[tx_hash] = tx_height
@@ -216,7 +216,8 @@ class Synchronizer(SynchronizerBase):
     async def main(self):
         self.wallet.set_up_to_date(False)
         # request missing txns, if any
-        for history in self.wallet.history.values():
+        for addr in self.wallet.db.get_history():
+            history = self.wallet.db.get_addr_history(addr)
             # Old electrum servers returned ['*'] when all history for the address
             # was pruned. This no longer happens but may remain in old wallets.
             if history == ['*']: continue

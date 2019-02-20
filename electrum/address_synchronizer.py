@@ -61,6 +61,7 @@ class AddressSynchronizer(PrintError):
 
     def __init__(self, storage: 'WalletStorage'):
         self.storage = storage
+        self.db = self.storage.db
         self.network = None  # type: Network
         # verifier (SPV) and synchronizer are started in start_network
         self.synchronizer = None  # type: Synchronizer
@@ -68,17 +69,6 @@ class AddressSynchronizer(PrintError):
         # locks: if you need to take multiple ones, acquire them in the order they are defined here!
         self.lock = threading.RLock()
         self.transaction_lock = threading.RLock()
-        # address -> list(txid, height)
-        self.history = storage.get('addr_history',{})
-        # Verified transactions.  txid -> TxMinedInfo.  Access with self.lock.
-        verified_tx = storage.get('verified_tx3', {})
-        self.verified_tx = {}  # type: Dict[str, TxMinedInfo]
-        for txid, (height, timestamp, txpos, header_hash) in verified_tx.items():
-            self.verified_tx[txid] = TxMinedInfo(height=height,
-                                                 conf=None,
-                                                 timestamp=timestamp,
-                                                 txpos=txpos,
-                                                 header_hash=header_hash)
         # Transactions pending verification.  txid -> tx_height. Access with self.lock.
         self.unverified_tx = defaultdict(int)
         # true when synchronized
@@ -95,17 +85,16 @@ class AddressSynchronizer(PrintError):
         return func_wrapper
 
     def load_and_cleanup(self):
-        self.load_transactions()
         self.load_local_history()
         self.check_history()
         self.load_unverified_transactions()
         self.remove_local_transactions_we_dont_have()
 
     def is_mine(self, address):
-        return address in self.history
+        return address in self.db.get_history()
 
     def get_addresses(self):
-        return sorted(self.history.keys())
+        return sorted(self.db.get_history())
 
     def get_address_history(self, addr):
         h = []
@@ -128,8 +117,8 @@ class AddressSynchronizer(PrintError):
             return addr
         prevout_hash = txi.get('prevout_hash')
         prevout_n = txi.get('prevout_n')
-        dd = self.txo.get(prevout_hash, {})
-        for addr, l in dd.items():
+        for addr in self.db.get_txo(prevout_hash):
+            l = self.db.get_txo_addr(prevout_hash, addr)
             for n, v, is_cb in l:
                 if n == prevout_n:
                     return addr
@@ -146,7 +135,8 @@ class AddressSynchronizer(PrintError):
 
     def load_unverified_transactions(self):
         # review transactions that are in the history
-        for addr, hist in self.history.items():
+        for addr in self.db.get_history():
+            hist = self.db.get_addr_history(addr)
             for tx_hash, tx_height in hist:
                 # add it in case it was previously unconfirmed
                 self.add_unverified_tx(tx_hash, tx_height)
@@ -167,13 +157,11 @@ class AddressSynchronizer(PrintError):
                 self.verifier = None
             self.storage.put('stored_height', self.get_local_height())
         if write_to_disk:
-            self.save_transactions()
-            self.save_verified_tx()
             self.storage.write()
 
     def add_address(self, address):
-        if address not in self.history:
-            self.history[address] = []
+        if address not in self.db.get_history():
+            self.db.history[address] = []
             self.set_up_to_date(False)
         if self.synchronizer:
             self.synchronizer.add(address)
@@ -191,11 +179,11 @@ class AddressSynchronizer(PrintError):
                     continue
                 prevout_hash = txin['prevout_hash']
                 prevout_n = txin['prevout_n']
-                spending_tx_hash = self.spent_outpoints[prevout_hash].get(prevout_n)
+                spending_tx_hash = self.db.get_spent_outpoint(prevout_hash, prevout_n)
                 if spending_tx_hash is None:
                     continue
                 # this outpoint has already been spent, by spending_tx
-                assert spending_tx_hash in self.transactions
+                assert spending_tx_hash in self.db.list_transactions()
                 conflicting_txns |= {spending_tx_hash}
             if tx_hash in conflicting_txns:
                 # this tx is already in history, so it conflicts with itself
@@ -256,49 +244,39 @@ class AddressSynchronizer(PrintError):
                     self.remove_transaction(tx_hash2)
             # add inputs
             def add_value_from_prev_output():
-                dd = self.txo.get(prevout_hash, {})
                 # note: this nested loop takes linear time in num is_mine outputs of prev_tx
-                for addr, outputs in dd.items():
+                for addr in self.db.get_txo(prevout_hash):
+                    outputs = self.db.get_txo_addr(prevout_hash, addr)
                     # note: instead of [(n, v, is_cb), ...]; we could store: {n -> (v, is_cb)}
                     for n, v, is_cb in outputs:
                         if n == prevout_n:
                             if addr and self.is_mine(addr):
-                                if d.get(addr) is None:
-                                    d[addr] = set()
-                                d[addr].add((ser, v))
+                                self.db.add_txi_addr(tx_hash, addr, ser, v)
                             return
-            self.txi[tx_hash] = d = {}
             for txi in tx.inputs():
                 if txi['type'] == 'coinbase':
                     continue
                 prevout_hash = txi['prevout_hash']
                 prevout_n = txi['prevout_n']
                 ser = prevout_hash + ':%d' % prevout_n
-                self.spent_outpoints[prevout_hash][prevout_n] = tx_hash
+                self.db.set_spent_outpoint(prevout_hash, prevout_n, tx_hash)
                 add_value_from_prev_output()
             # add outputs
-            self.txo[tx_hash] = d = {}
             for n, txo in enumerate(tx.outputs()):
                 v = txo[2]
                 ser = tx_hash + ':%d'%n
                 addr = self.get_txout_address(txo)
                 if addr and self.is_mine(addr):
-                    if d.get(addr) is None:
-                        d[addr] = []
-                    d[addr].append((n, v, is_coinbase))
+                    self.db.add_txo_addr(tx_hash, addr, n, v, is_coinbase)
                     # give v to txi that spends me
-                    next_tx = self.spent_outpoints[tx_hash].get(n)
+                    next_tx = self.db.get_spent_outpoint(tx_hash, n)
                     if next_tx is not None:
-                        dd = self.txi.get(next_tx, {})
-                        if dd.get(addr) is None:
-                            dd[addr] = set()
-                        if (ser, v) not in dd[addr]:
-                            dd[addr].add((ser, v))
+                        self.db.add_txi_addr(next_tx, addr, ser, v)
                         self._add_tx_to_local_history(next_tx)
             # add to local history
             self._add_tx_to_local_history(tx_hash)
             # save
-            self.transactions[tx_hash] = tx
+            self.db.add_transaction(tx_hash, tx)
             return True
 
     def remove_transaction(self, tx_hash):
@@ -328,17 +306,18 @@ class AddressSynchronizer(PrintError):
 
         with self.transaction_lock:
             self.print_error("removing tx from history", tx_hash)
-            tx = self.transactions.pop(tx_hash, None)
+            tx = self.db.remove_transaction(tx_hash)
             remove_from_spent_outpoints()
             self._remove_tx_from_local_history(tx_hash)
-            self.txi.pop(tx_hash, None)
-            self.txo.pop(tx_hash, None)
+            self.db.remove_txi(tx_hash)
+            self.db.remove_txo(tx_hash)
 
     def get_depending_transactions(self, tx_hash):
         """Returns all (grand-)children of tx_hash in this wallet."""
         with self.transaction_lock:
             children = set()
-            for other_hash in self.spent_outpoints[tx_hash].values():
+            for n in self.db.get_spent_outpoints(tx_hash):
+                other_hash = self.db.get_spent_outpoint(tx_hash, n)
                 children.add(other_hash)
                 children |= self.get_depending_transactions(other_hash)
             return children
@@ -354,129 +333,68 @@ class AddressSynchronizer(PrintError):
                 if (tx_hash, height) not in hist:
                     # make tx local
                     self.unverified_tx.pop(tx_hash, None)
-                    self.verified_tx.pop(tx_hash, None)
+                    self.db.remove_verified_tx(tx_hash)
                     if self.verifier:
                         self.verifier.remove_spv_proof_for_tx(tx_hash)
-            self.history[addr] = hist
+            self.db.set_addr_history(addr, hist)
 
         for tx_hash, tx_height in hist:
             # add it in case it was previously unconfirmed
             self.add_unverified_tx(tx_hash, tx_height)
             # if addr is new, we have to recompute txi and txo
-            tx = self.transactions.get(tx_hash)
+            tx = self.db.get_transaction(tx_hash)
             if tx is None:
                 continue
             self.add_transaction(tx_hash, tx, allow_unrelated=True)
 
         # Store fees
-        self.tx_fees.update(tx_fees)
+        self.db.update_tx_fees(tx_fees)
 
-    @profiler
-    def load_transactions(self):
-        # load txi, txo, tx_fees
-        # bookkeeping data of is_mine inputs of transactions
-        self.txi = self.storage.get('txi', {})  # txid -> address -> (prev_outpoint, value)
-        for txid, d in list(self.txi.items()):
-            for addr, lst in d.items():
-                self.txi[txid][addr] = set([tuple(x) for x in lst])
-        # bookkeeping data of is_mine outputs of transactions
-        self.txo = self.storage.get('txo', {})  # txid -> address -> (output_index, value, is_coinbase)
-        self.tx_fees = self.storage.get('tx_fees', {})
-        tx_list = self.storage.get('transactions', {})
-        # load transactions
-        self.transactions = {}
-        for tx_hash, raw in tx_list.items():
-            tx = Transaction(raw)
-            self.transactions[tx_hash] = tx
-            if self.txi.get(tx_hash) is None and self.txo.get(tx_hash) is None:
-                self.print_error("removing unreferenced tx", tx_hash)
-                self.transactions.pop(tx_hash)
-        # load spent_outpoints
-        _spent_outpoints = self.storage.get('spent_outpoints', {})
-        self.spent_outpoints = defaultdict(dict)
-        for prevout_hash, d in _spent_outpoints.items():
-            for prevout_n_str, spending_txid in d.items():
-                prevout_n = int(prevout_n_str)
-                if spending_txid not in self.transactions:
-                    continue  # only care about txns we have
-                self.spent_outpoints[prevout_hash][prevout_n] = spending_txid
 
     @profiler
     def load_local_history(self):
         self._history_local = {}  # address -> set(txid)
         self._address_history_changed_events = defaultdict(asyncio.Event)  # address -> Event
-        for txid in itertools.chain(self.txi, self.txo):
+        for txid in itertools.chain(self.db.get_txi_keys(), self.db.get_txo_keys()):
             self._add_tx_to_local_history(txid)
 
     @profiler
     def check_history(self):
         save = False
-        hist_addrs_mine = list(filter(lambda k: self.is_mine(k), self.history.keys()))
-        hist_addrs_not_mine = list(filter(lambda k: not self.is_mine(k), self.history.keys()))
+        hist_addrs_mine = list(filter(lambda k: self.is_mine(k), self.db.get_history()))
+        hist_addrs_not_mine = list(filter(lambda k: not self.is_mine(k), self.db.get_history()))
         for addr in hist_addrs_not_mine:
-            self.history.pop(addr)
+            self.db.remove_addr_history(addr)
             save = True
         for addr in hist_addrs_mine:
-            hist = self.history[addr]
+            hist = self.db.get_addr_history(addr)
             for tx_hash, tx_height in hist:
-                if self.txi.get(tx_hash) or self.txo.get(tx_hash):
+                if self.db.get_txi(tx_hash) or self.db.get_txo(tx_hash):
                     continue
-                tx = self.transactions.get(tx_hash)
+                tx = self.db.get_transaction(tx_hash)
                 if tx is not None:
                     self.add_transaction(tx_hash, tx, allow_unrelated=True)
                     save = True
         if save:
-            self.save_transactions()
+            self.storage.write()
 
     def remove_local_transactions_we_dont_have(self):
-        txid_set = set(self.txi) | set(self.txo)
-        for txid in txid_set:
+        for txid in itertools.chain(list(self.db.get_txi_keys()), list(self.db.get_txo_keys())):
             tx_height = self.get_tx_height(txid).height
-            if tx_height == TX_HEIGHT_LOCAL and txid not in self.transactions:
+            if tx_height == TX_HEIGHT_LOCAL and txid not in self.db.list_transactions():
                 self.remove_transaction(txid)
-
-    @profiler
-    def save_transactions(self, write=False):
-        with self.transaction_lock:
-            tx = {}
-            for k,v in self.transactions.items():
-                tx[k] = str(v)
-            self.storage.put('transactions', tx)
-            self.storage.put('txi', self.txi)
-            self.storage.put('txo', self.txo)
-            self.storage.put('tx_fees', self.tx_fees)
-            self.storage.put('addr_history', self.history)
-            self.storage.put('spent_outpoints', self.spent_outpoints)
-            if write:
-                self.storage.write()
-
-    def save_verified_tx(self, write=False):
-        with self.lock:
-            verified_tx_to_save = {}
-            for txid, tx_info in self.verified_tx.items():
-                verified_tx_to_save[txid] = (tx_info.height, tx_info.timestamp,
-                                             tx_info.txpos, tx_info.header_hash)
-            self.storage.put('verified_tx3', verified_tx_to_save)
-            if write:
-                self.storage.write()
 
     def clear_history(self):
         with self.lock:
             with self.transaction_lock:
-                self.txi = {}
-                self.txo = {}
-                self.tx_fees = {}
-                self.spent_outpoints = defaultdict(dict)
-                self.history = {}
-                self.verified_tx = {}
-                self.transactions = {}  # type: Dict[str, Transaction]
-                self.save_transactions()
+                self.db.clear_history()
+                self.storage.write()
 
     def get_txpos(self, tx_hash):
         """Returns (height, txpos) tuple, even if the tx is unverified."""
         with self.lock:
-            if tx_hash in self.verified_tx:
-                info = self.verified_tx[tx_hash]
+            if tx_hash in self.db.list_verified_tx():
+                info = self.db.get_verified_tx(tx_hash)
                 return info.height, info.txpos
             elif tx_hash in self.unverified_tx:
                 height = self.unverified_tx[tx_hash]
@@ -540,7 +458,7 @@ class AddressSynchronizer(PrintError):
 
     def _add_tx_to_local_history(self, txid):
         with self.transaction_lock:
-            for addr in itertools.chain(self.txi.get(txid, []), self.txo.get(txid, [])):
+            for addr in itertools.chain(self.db.get_txi(txid), self.db.get_txo(txid)):
                 cur_hist = self._history_local.get(addr, set())
                 cur_hist.add(txid)
                 self._history_local[addr] = cur_hist
@@ -548,7 +466,7 @@ class AddressSynchronizer(PrintError):
 
     def _remove_tx_from_local_history(self, txid):
         with self.transaction_lock:
-            for addr in itertools.chain(self.txi.get(txid, []), self.txo.get(txid, [])):
+            for addr in itertools.chain(self.db.get_txi(txid), self.db.get_txo(txid)):
                 cur_hist = self._history_local.get(addr, set())
                 try:
                     cur_hist.remove(txid)
@@ -573,10 +491,10 @@ class AddressSynchronizer(PrintError):
         await self._address_history_changed_events[addr].wait()
 
     def add_unverified_tx(self, tx_hash, tx_height):
-        if tx_hash in self.verified_tx:
+        if tx_hash in self.db.list_verified_tx():
             if tx_height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
                 with self.lock:
-                    self.verified_tx.pop(tx_hash)
+                    self.db.remove_verified_tx(tx_hash)
                 if self.verifier:
                     self.verifier.remove_spv_proof_for_tx(tx_hash)
         else:
@@ -594,7 +512,7 @@ class AddressSynchronizer(PrintError):
         # Remove from the unverified map and add to the verified map
         with self.lock:
             self.unverified_tx.pop(tx_hash, None)
-            self.verified_tx[tx_hash] = info
+            self.db.add_verified_tx(tx_hash, info)
         tx_mined_status = self.get_tx_height(tx_hash)
         self.network.trigger_callback('verified', self, tx_hash, tx_mined_status)
 
@@ -607,12 +525,13 @@ class AddressSynchronizer(PrintError):
         '''Used by the verifier when a reorg has happened'''
         txs = set()
         with self.lock:
-            for tx_hash, info in list(self.verified_tx.items()):
+            for tx_hash in list(self.db.list_verified_tx()):
+                info = self.db.get_verified_tx(tx_hash)
                 tx_height = info.height
                 if tx_height >= height:
                     header = blockchain.read_header(tx_height)
                     if not header or hash_header(header) != info.header_hash:
-                        self.verified_tx.pop(tx_hash, None)
+                        self.db.remove_verified_tx(tx_hash)
                         # NOTE: we should add these txns to self.unverified_tx,
                         # but with what height?
                         # If on the new fork after the reorg, the txn is at the
@@ -635,8 +554,8 @@ class AddressSynchronizer(PrintError):
 
     def get_tx_height(self, tx_hash: str) -> TxMinedInfo:
         with self.lock:
-            if tx_hash in self.verified_tx:
-                info = self.verified_tx[tx_hash]
+            if tx_hash in self.db.list_verified_tx():
+                info = self.db.get_verified_tx(tx_hash)
                 conf = max(self.get_local_height() - info.height + 1, 0)
                 return info._replace(conf=conf)
             elif tx_hash in self.unverified_tx:
@@ -652,11 +571,7 @@ class AddressSynchronizer(PrintError):
         if self.network:
             self.network.notify('status')
         if up_to_date:
-            self.save_transactions(write=True)
-            # if the verifier is also up to date, persist that too;
-            # otherwise it will persist its results when it finishes
-            if self.verifier and self.verifier.is_up_to_date():
-                self.save_verified_tx(write=True)
+            self.storage.write()
 
     def is_up_to_date(self):
         with self.lock: return self.up_to_date
@@ -666,11 +581,11 @@ class AddressSynchronizer(PrintError):
         """effect of tx on address"""
         delta = 0
         # substract the value of coins sent from address
-        d = self.txi.get(tx_hash, {}).get(address, [])
+        d = self.db.get_txi_addr(tx_hash, address)
         for n, v in d:
             delta -= v
         # add the value of the coins received at address
-        d = self.txo.get(tx_hash, {}).get(address, [])
+        d = self.db.get_txo_addr(tx_hash, address)
         for n, v, cb in d:
             delta += v
         return delta
@@ -679,10 +594,12 @@ class AddressSynchronizer(PrintError):
     def get_tx_value(self, txid):
         """effect of tx on the entire domain"""
         delta = 0
-        for addr, d in self.txi.get(txid, {}).items():
+        for addr in self.db.get_txi(txid):
+            d = self.db.get_txi_addr(txid, addr)
             for n, v in d:
                 delta -= v
-        for addr, d in self.txo.get(txid, {}).items():
+        for addr in self.db.get_txo(txid):
+            d = self.db.get_txo_addr(txid, addr)
             for n, v, cb in d:
                 delta += v
         return delta
@@ -699,7 +616,7 @@ class AddressSynchronizer(PrintError):
             if self.is_mine(addr):
                 is_mine = True
                 is_relevant = True
-                d = self.txo.get(txin['prevout_hash'], {}).get(addr, [])
+                d = self.db.get_txo_addr(txin['prevout_hash'], addr)
                 for n, v, cb in d:
                     if n == txin['prevout_n']:
                         value = v
@@ -748,7 +665,7 @@ class AddressSynchronizer(PrintError):
             is_relevant, is_mine, v, fee = self.get_wallet_delta(tx)
             if fee is None:
                 txid = tx.txid()
-                fee = self.tx_fees.get(txid)
+                fee = self.db.get_tx_fee(txid)
             # only cache non-None, as None can still change while syncing
             if fee is not None:
                 tx._cached_fee = fee
@@ -760,11 +677,11 @@ class AddressSynchronizer(PrintError):
             received = {}
             sent = {}
             for tx_hash, height in h:
-                l = self.txo.get(tx_hash, {}).get(address, [])
+                l = self.db.get_txo_addr(tx_hash, address)
                 for n, v, is_cb in l:
                     received[tx_hash + ':%d'%n] = (height, v, is_cb)
             for tx_hash, height in h:
-                l = self.txi.get(tx_hash, {}).get(address, [])
+                l = self.db.get_txi_addr(tx_hash, address)
                 for txi, v in l:
                     sent[txi] = height
         return received, sent
@@ -849,7 +766,7 @@ class AddressSynchronizer(PrintError):
         return cc, uu, xx
 
     def is_used(self, address):
-        h = self.history.get(address,[])
+        h = self.db.get_addr_history(address)
         return len(h) != 0
 
     def is_empty(self, address):
