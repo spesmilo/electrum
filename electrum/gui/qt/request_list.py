@@ -66,7 +66,7 @@ class RequestList(MyTreeView):
     def __init__(self, parent):
         super().__init__(parent, self.create_menu,
                          stretch_column=self.Columns.DESCRIPTION,
-                         editable_columns=[self.Columns.AMOUNT])
+                         editable_columns=[])
         self.setModel(QStandardItemModel(self))
         self.setSortingEnabled(True)
         self.update()
@@ -151,6 +151,7 @@ class RequestList(MyTreeView):
             date = format_time(lnaddr.date)
             labels = [date, description, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
+            self.set_editability(items)
             items[self.Columns.DATE].setIcon(read_QIcon("lightning.png"))
             items[self.Columns.DATE].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
             items[self.Columns.DATE].setData(key, ROLE_RHASH_OR_ADDR)
