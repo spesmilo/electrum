@@ -30,7 +30,7 @@ import os
 import json
 import threading
 from collections import defaultdict
-from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECKING
+from typing import Sequence, List, Tuple, Optional, Dict, NamedTuple, TYPE_CHECKING, Set
 import binascii
 import base64
 import asyncio
@@ -344,6 +344,10 @@ class ChannelDB:
                  ChannelInfoInDB.node2_id == node_id.hex())
         rows = DBSession.query(ChannelInfoInDB).filter(condition).all()
         return [bytes.fromhex(x.short_channel_id) for x in rows]
+
+    def missing_short_chan_ids(self) -> Set[int]:
+        expr = not_(Policy.short_channel_id.in_(DBSession.query(ChannelInfoInDB.short_channel_id)))
+        return set(DBSession.query(Policy.short_channel_id).filter(expr).all())
 
     def add_verified_channel_info(self, short_id, capacity):
         # called from lnchannelverifier
