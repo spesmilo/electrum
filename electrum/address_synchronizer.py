@@ -336,11 +336,12 @@ class AddressSynchronizer(PrintError):
 
     def get_depending_transactions(self, tx_hash):
         """Returns all (grand-)children of tx_hash in this wallet."""
-        children = set()
-        for other_hash in self.spent_outpoints[tx_hash].values():
-            children.add(other_hash)
-            children |= self.get_depending_transactions(other_hash)
-        return children
+        with self.transaction_lock:
+            children = set()
+            for other_hash in self.spent_outpoints[tx_hash].values():
+                children.add(other_hash)
+                children |= self.get_depending_transactions(other_hash)
+            return children
 
     def receive_tx_callback(self, tx_hash, tx, tx_height):
         self.add_unverified_tx(tx_hash, tx_height)
