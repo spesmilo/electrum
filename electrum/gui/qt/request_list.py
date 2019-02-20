@@ -173,7 +173,6 @@ class RequestList(MyTreeView):
             return
         addr = item.data(ROLE_RHASH_OR_ADDR)
         request_type = item.data(ROLE_REQUEST_TYPE)
-        menu = None
         assert request_type in [REQUEST_TYPE_BITCOIN, REQUEST_TYPE_LN]
         if request_type == REQUEST_TYPE_BITCOIN:
             req = self.wallet.receive_requests.get(addr)
@@ -186,10 +185,9 @@ class RequestList(MyTreeView):
         column_title = self.model().horizontalHeaderItem(column).text()
         column_data = self.model().itemFromIndex(idx).text()
         menu = QMenu(self)
-        if column != self.Columns.TYPE:
-            if column == self.Columns.AMOUNT:
-                column_data = column_data.strip()
-            menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.do_copy(column_title, column_data))
+        if column == self.Columns.AMOUNT:
+            column_data = column_data.strip()
+        menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.do_copy(column_title, column_data))
         if request_type == REQUEST_TYPE_BITCOIN:
             self.create_menu_bitcoin_payreq(menu, addr)
         elif request_type == REQUEST_TYPE_LN:
