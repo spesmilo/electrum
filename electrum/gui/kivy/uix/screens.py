@@ -363,13 +363,13 @@ class ReceiveScreen(CScreen):
         Clock.schedule_once(lambda dt: self.update_qr())
 
     def get_URI(self):
-        from electrum.util import create_URI
+        from electrum.util import create_bip21_uri
         amount = self.screen.amount
         if amount:
             a, u = self.screen.amount.split()
             assert u == self.app.base_unit
             amount = Decimal(a) * pow(10, self.app.decimal_point())
-        return create_URI(self.screen.address, amount, self.screen.message)
+        return create_bip21_uri(self.screen.address, amount, self.screen.message)
 
     @profiler
     def update_qr(self):
