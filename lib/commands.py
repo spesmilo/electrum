@@ -30,7 +30,7 @@ import json
 import ast
 import base64
 from functools import wraps
-from decimal import Decimal
+from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 
 from .import util
 from .util import bfh, bh2u, format_satoshis, json_decode, print_error
@@ -47,7 +47,7 @@ known_commands = {}
 
 def satoshis(amount):
     # satoshi conversion must not be performed by the parser
-    return int(COIN*Decimal(amount)) if amount not in ['!', None] else amount
+    return int(COIN*PyDecimal(amount)) if amount not in ['!', None] else amount
 
 
 class Command:
@@ -233,7 +233,7 @@ class Commands:
         l = self.wallet.get_utxos(exclude_frozen=False)
         for i in l:
             v = i["value"]
-            i["value"] = str(Decimal(v)/COIN) if v is not None else None
+            i["value"] = str(PyDecimal(v)/COIN) if v is not None else None
             i["address"] = i["address"].to_ui_string()
         return l
 
@@ -359,11 +359,11 @@ class Commands:
     def getbalance(self):
         """Return the balance of your wallet. """
         c, u, x = self.wallet.get_balance()
-        out = {"confirmed": str(Decimal(c)/COIN)}
+        out = {"confirmed": str(PyDecimal(c)/COIN)}
         if u:
-            out["unconfirmed"] = str(Decimal(u)/COIN)
+            out["unconfirmed"] = str(PyDecimal(u)/COIN)
         if x:
-            out["unmatured"] = str(Decimal(x)/COIN)
+            out["unmatured"] = str(PyDecimal(x)/COIN)
         return out
 
     @command('n')
@@ -373,8 +373,8 @@ class Commands:
         """
         sh = Address.from_string(address).to_scripthash_hex()
         out = self.network.synchronous_get(('blockchain.scripthash.get_balance', [sh]))
-        out["confirmed"] =  str(Decimal(out["confirmed"])/COIN)
-        out["unconfirmed"] =  str(Decimal(out["unconfirmed"])/COIN)
+        out["confirmed"] =  str(PyDecimal(out["confirmed"])/COIN)
+        out["unconfirmed"] =  str(PyDecimal(out["unconfirmed"])/COIN)
         return out
 
     @command('n')
@@ -764,7 +764,7 @@ command_options = {
 
 # don't use floats because of rounding errors
 from .transaction import tx_from_str
-json_loads = lambda x: json.loads(x, parse_float=lambda x: str(Decimal(x)))
+json_loads = lambda x: json.loads(x, parse_float=lambda x: str(PyDecimal(x)))
 arg_types = {
     'num': int,
     'nbits': int,
@@ -776,8 +776,8 @@ arg_types = {
     'jsontx': json_loads,
     'inputs': json_loads,
     'outputs': json_loads,
-    'fee': lambda x: str(Decimal(x)) if x is not None else None,
-    'amount': lambda x: str(Decimal(x)) if x != '!' else '!',
+    'fee': lambda x: str(PyDecimal(x)) if x is not None else None,
+    'amount': lambda x: str(PyDecimal(x)) if x != '!' else '!',
     'locktime': int,
 }
 

@@ -36,7 +36,7 @@ import json
 import copy
 import errno
 from collections import defaultdict
-from decimal import Decimal
+from decimal import Decimal as PyDecimal  # Qt 5.12 also exports Decimal
 from functools import partial
 
 from .i18n import _
