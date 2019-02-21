@@ -9,9 +9,10 @@ from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               is_compressed_privkey, EncodeBase58Check,
                               script_num_to_hex, push_script, add_number_to_script, int_to_hex,
                               opcodes)
-from electrum.bip32 import (BIP32Node,
+from electrum.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                             xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
-                            is_xpub, convert_bip32_path_to_list_of_uint32)
+                            is_xpub, convert_bip32_path_to_list_of_uint32,
+                            normalize_bip32_derivation)
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum import ecc, crypto, constants
 from electrum.ecc import number_to_string, string_to_number
@@ -463,17 +464,33 @@ class Test_xprv_xpub(SequentialTestCase):
     def test_is_bip32_derivation(self):
         self.assertTrue(is_bip32_derivation("m/0'/1"))
         self.assertTrue(is_bip32_derivation("m/0'/0'"))
+        self.assertTrue(is_bip32_derivation("m/3'/-5/8h/"))
         self.assertTrue(is_bip32_derivation("m/44'/0'/0'/0/0"))
         self.assertTrue(is_bip32_derivation("m/49'/0'/0'/0/0"))
+        self.assertTrue(is_bip32_derivation("m"))
+        self.assertTrue(is_bip32_derivation("m/"))
+        self.assertFalse(is_bip32_derivation("m5"))
         self.assertFalse(is_bip32_derivation("mmmmmm"))
         self.assertFalse(is_bip32_derivation("n/"))
         self.assertFalse(is_bip32_derivation(""))
         self.assertFalse(is_bip32_derivation("m/q8462"))
+        self.assertFalse(is_bip32_derivation("m/-8h"))
 
     def test_convert_bip32_path_to_list_of_uint32(self):
         self.assertEqual([0, 0x80000001, 0x80000001], convert_bip32_path_to_list_of_uint32("m/0/-1/1'"))
         self.assertEqual([], convert_bip32_path_to_list_of_uint32("m/"))
         self.assertEqual([2147483692, 2147488889, 221], convert_bip32_path_to_list_of_uint32("m/44'/5241h/221"))
+
+    def test_convert_bip32_intpath_to_strpath(self):
+        self.assertEqual("m/0/1'/1'", convert_bip32_intpath_to_strpath([0, 0x80000001, 0x80000001]))
+        self.assertEqual("m", convert_bip32_intpath_to_strpath([]))
+        self.assertEqual("m/44'/5241'/221", convert_bip32_intpath_to_strpath([2147483692, 2147488889, 221]))
+
+    def test_normalize_bip32_derivation(self):
+        self.assertEqual("m/0/1'/1'", normalize_bip32_derivation("m/0/1h/1'"))
+        self.assertEqual("m", normalize_bip32_derivation("m////"))
+        self.assertEqual("m/0/2/1'", normalize_bip32_derivation("m/0/2/-1/"))
+        self.assertEqual("m/0/1'/1'/5'", normalize_bip32_derivation("m/0//-1/1'///5h"))
 
     def test_xtype_from_derivation(self):
         self.assertEqual('standard', xtype_from_derivation("m/44'"))

@@ -32,7 +32,7 @@ from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any
 from . import bitcoin
 from . import keystore
 from . import mnemonic
-from .bip32 import is_bip32_derivation, xpub_type
+from .bip32 import is_bip32_derivation, xpub_type, normalize_bip32_derivation
 from .keystore import bip44_derivation, purpose48_derivation
 from .wallet import (Imported_Wallet, Standard_Wallet, Multisig_Wallet,
                      wallet_types, Wallet, Abstract_Wallet)
@@ -340,6 +340,7 @@ class BaseWizard(object):
             return
         if purpose == HWD_SETUP_NEW_WALLET:
             def f(derivation, script_type):
+                derivation = normalize_bip32_derivation(derivation)
                 self.run('on_hw_derivation', name, device_info, derivation, script_type)
             self.derivation_and_script_type_dialog(f)
         elif purpose == HWD_SETUP_DECRYPT_WALLET:
@@ -452,6 +453,7 @@ class BaseWizard(object):
 
     def on_restore_bip39(self, seed, passphrase):
         def f(derivation, script_type):
+            derivation = normalize_bip32_derivation(derivation)
             self.run('on_bip43', seed, passphrase, derivation, script_type)
         self.derivation_and_script_type_dialog(f)
 

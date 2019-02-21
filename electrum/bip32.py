@@ -292,6 +292,8 @@ def convert_bip32_path_to_list_of_uint32(n: str) -> List[int]:
             x = x[:-1]
             prime = BIP32_PRIME
         if x.startswith('-'):
+            if prime:
+                raise ValueError(f"bip32 path child index is signalling hardened level in multiple ways")
             prime = BIP32_PRIME
         child_index = abs(int(x)) | prime
         if child_index > UINT32_MAX:
@@ -300,12 +302,36 @@ def convert_bip32_path_to_list_of_uint32(n: str) -> List[int]:
     return path
 
 
+def convert_bip32_intpath_to_strpath(path: List[int]) -> str:
+    s = "m/"
+    for child_index in path:
+        if not isinstance(child_index, int):
+            raise TypeError(f"bip32 path child index must be int: {child_index}")
+        if not (0 <= child_index <= UINT32_MAX):
+            raise ValueError(f"bip32 path child index out of range: {child_index}")
+        prime = ""
+        if child_index & BIP32_PRIME:
+            prime = "'"
+            child_index = child_index ^ BIP32_PRIME
+        s += str(child_index) + prime + '/'
+    # cut trailing "/"
+    s = s[:-1]
+    return s
+
+
 def is_bip32_derivation(s: str) -> bool:
     try:
-        if not s.startswith('m/'):
+        if not (s == 'm' or s.startswith('m/')):
             return False
         convert_bip32_path_to_list_of_uint32(s)
     except:
         return False
     else:
         return True
+
+
+def normalize_bip32_derivation(s: str) -> str:
+    if not is_bip32_derivation(s):
+        raise ValueError(f"invalid bip32 derivation: {s}")
+    ints = convert_bip32_path_to_list_of_uint32(s)
+    return convert_bip32_intpath_to_strpath(ints)
