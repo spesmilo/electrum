@@ -505,8 +505,7 @@ class Plugin(BasePlugin):
         password = None
         while window.wallet.has_password():
             msg = _("CashShuffle requires access to '{}'.").format(name) + "\n" +  _('Please enter your password')
-            pwdlg = PasswordDialog(parent=None, msg=msg)
-            pwdlg.setWindowModality(Qt.ApplicationModal)  # Set it as app modal to avoid crash bug #59 on linux
+            pwdlg = PasswordDialog(parent=window.top_level_window(), msg=msg)
             password = pwdlg.run()
             if password is None:
                 # User cancelled password input
