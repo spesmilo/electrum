@@ -22,7 +22,7 @@
 # SOFTWARE.
 from .util import ThreadJob, bh2u
 from .bitcoin import Hash, hash_decode, hash_encode
-from .networks import net
+from . import networks
 from .transaction import Transaction
 
 class InnerNodeOfSpvProofIsValidTx(Exception): pass
@@ -62,7 +62,7 @@ class SPV(ThreadJob):
             # if it's in the checkpoint region, we still might not have the header
             header = blockchain.read_header(tx_height)
             if header is None:
-                if tx_height <= net.VERIFICATION_BLOCK_HEIGHT:
+                if tx_height <= networks.net.VERIFICATION_BLOCK_HEIGHT:
                     # Per-header requests might be a lot heavier.
                     # Also, they're not supported as header requests are
                     # currently designed for catching up post-checkpoint headers.
