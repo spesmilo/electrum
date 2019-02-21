@@ -195,7 +195,6 @@ class ElectrumGui(QObject, PrintError):
             self.weak_windows.remove(wr)
         self.weak_windows.append(Weak.ref(w,onFinalized))
         self.build_tray_menu()
-        # FIXME: Remove in favour of the load_wallet hook
         run_hook('on_new_window', w)
         return w
 
