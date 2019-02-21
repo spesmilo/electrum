@@ -29,7 +29,7 @@ import base64
 import time
 import hashlib
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, Union
 
 from urllib.parse import urljoin
 from urllib.parse import quote
@@ -108,7 +108,15 @@ class TrustedCoinException(Exception):
 
 
 class ErrorConnectingServer(Exception):
-    pass
+    def __init__(self, reason: Union[str, Exception] = None):
+        self.reason = reason
+
+    def __str__(self):
+        header = _("Error connecting to {} server").format('TrustedCoin')
+        reason = self.reason
+        if isinstance(reason, BaseException):
+            reason = repr(reason)
+        return f"{header}:\n{reason}" if reason else header
 
 
 class TrustedCoinCosignerClient(PrintError):
@@ -460,7 +468,7 @@ class TrustedCoinPlugin(BasePlugin):
         try:
             billing_info = server.get(wallet.get_user_id()[1])
         except ErrorConnectingServer as e:
-            self.print_error('cannot connect to TrustedCoin server: {}'.format(repr(e)))
+            self.print_error(str(e))
             return
         billing_index = billing_info['billing_index']
         # add segwit billing address; this will be used for actual billing
