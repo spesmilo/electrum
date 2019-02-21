@@ -347,7 +347,19 @@ class ChannelDB:
 
     def missing_short_chan_ids(self) -> Set[int]:
         expr = not_(Policy.short_channel_id.in_(DBSession.query(ChannelInfo.short_channel_id)))
-        return set(DBSession.query(Policy.short_channel_id).filter(expr).all())
+        chan_ids_from_policy = set(x[0] for x in DBSession.query(Policy.short_channel_id).filter(expr).all())
+        if chan_ids_from_policy:
+            return chan_ids_from_policy
+        # fetch channels for node_ids missing in node_info. that will also give us node_announcement
+        expr = not_(ChannelInfo.node1_id.in_(DBSession.query(NodeInfo.node_id)))
+        chan_ids_from_id1 = set(x[0] for x in DBSession.query(ChannelInfo.short_channel_id).filter(expr).all())
+        if chan_ids_from_id1:
+            return chan_ids_from_id1
+        expr = not_(ChannelInfo.node2_id.in_(DBSession.query(NodeInfo.node_id)))
+        chan_ids_from_id2 = set(x[0] for x in DBSession.query(ChannelInfo.short_channel_id).filter(expr).all())
+        if chan_ids_from_id2:
+            return chan_ids_from_id2
+        return set()
 
     def add_verified_channel_info(self, short_id, capacity):
         # called from lnchannelverifier
@@ -390,6 +402,8 @@ class ChannelDB:
             if constants.net.rev_genesis_bytes() != msg_payload['chain_hash']:
                 continue
             channel_info = channel_infos.get(short_channel_id)
+            if not channel_info:
+                continue
             channel_info.on_channel_update(msg_payload, trusted=trusted)
         DBSession.commit()
 

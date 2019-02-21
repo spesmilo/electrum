@@ -59,7 +59,6 @@ class Peer(PrintError):
         self.node_anns = []
         self.chan_anns = []
         self.chan_upds = []
-        self.last_chan_db_upd = time.time()
         self.transport = transport
         self.pubkey = pubkey
         self.lnworker = lnworker
@@ -209,15 +208,31 @@ class Peer(PrintError):
     @log_exceptions
     @handle_disconnect
     async def main_loop(self):
-        """
-        This is used in LNWorker and is necessary so that we don't kill the main
-        task group. It is not merged with _main_loop, so that we can test if the
-        correct exceptions are getting thrown using _main_loop.
-        """
-        await self._main_loop()
+        async with aiorpcx.TaskGroup() as group:
+            await group.spawn(self._gossip_loop())
+            await group.spawn(self._message_loop())
 
-    async def _main_loop(self):
-        """This is separate from main_loop for the tests."""
+    async def _gossip_loop(self):
+        await self.initialized.wait()
+        while True:
+            await asyncio.sleep(5)
+            if self.node_anns:
+                self.channel_db.on_node_announcement(self.node_anns)
+                self.node_anns = []
+            if self.chan_anns:
+                self.channel_db.on_channel_announcement(self.chan_anns)
+                self.chan_anns = []
+            if self.chan_upds:
+                self.channel_db.on_channel_update(self.chan_upds)
+                self.chan_upds = []
+            need_to_get = self.channel_db.missing_short_chan_ids() #type: Set[int]
+            if need_to_get and not self.receiving_channels:
+                self.print_error('QUERYING SHORT CHANNEL IDS; missing', len(need_to_get), 'channels')
+                zlibencoded = zlib.compress(bfh(''.join(need_to_get)))
+                self.send_message('query_short_channel_ids', chain_hash=bytes.fromhex(bitcoin.rev_hex(constants.net.GENESIS)), len=1+len(zlibencoded), encoded_short_ids=b'\x01' + zlibencoded)
+                self.receiving_channels = True
+
+    async def _message_loop(self):
         try:
             await asyncio.wait_for(self.initialize(), 10)
         except (OSError, asyncio.TimeoutError, HandshakeFailed) as e:
@@ -227,21 +242,6 @@ class Peer(PrintError):
         async for msg in self.transport.read_messages():
             self.process_message(msg)
             await asyncio.sleep(.01)
-            if time.time() - self.last_chan_db_upd > 5:
-                self.last_chan_db_upd = time.time()
-                self.channel_db.on_node_announcement(self.node_anns)
-                self.node_anns = []
-                self.channel_db.on_channel_announcement(self.chan_anns)
-                self.chan_anns = []
-                self.channel_db.on_channel_update(self.chan_upds)
-                self.chan_upds = []
-                need_to_get = self.channel_db.missing_short_chan_ids() #type: Set[int]
-                if need_to_get and not self.receiving_channels:
-                    self.print_error('QUERYING SHORT CHANNEL IDS; ', len(need_to_get))
-                    zlibencoded = zlib.compress(b"".join(x.to_bytes(byteorder='big', length=8) for x in need_to_get))
-                    self.send_message('query_short_channel_ids', chain_hash=bytes.fromhex(bitcoin.rev_hex(constants.net.GENESIS)), len=1+len(zlibencoded), encoded_short_ids=b'\x01' + zlibencoded)
-                    self.receiving_channels = True
-
             self.ping_if_required()
 
     def on_reply_short_channel_ids_end(self, payload):

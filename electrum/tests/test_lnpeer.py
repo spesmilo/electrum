@@ -173,7 +173,7 @@ class TestPeer(unittest.TestCase):
         p1 = Peer(mock_lnworker, b"\x00" * 33, mock_transport, request_initial_sync=False)
         mock_lnworker.peer = p1
         with self.assertRaises(LightningPeerConnectionClosed):
-            run(asyncio.wait_for(p1._main_loop(), 1))
+            run(asyncio.wait_for(p1._message_loop(), 1))
 
     def prepare_peers(self):
         k1, k2 = keypair(), keypair()
@@ -231,7 +231,7 @@ class TestPeer(unittest.TestCase):
             print("HTLC ADDED")
             self.assertEqual(await fut, 'Payment received')
             gath.cancel()
-        gath = asyncio.gather(pay(), p1._main_loop(), p2._main_loop())
+        gath = asyncio.gather(pay(), p1._message_loop(), p2._message_loop())
         with self.assertRaises(asyncio.CancelledError):
             run(gath)
 
@@ -254,7 +254,7 @@ class TestPeer(unittest.TestCase):
         # AssertionError is ok since we shouldn't use old routes, and the
         # route finding should fail when channel is closed
         with self.assertRaises(AssertionError):
-            run(asyncio.gather(w1._pay_to_route(route, addr, pay_req), p1._main_loop(), p2._main_loop()))
+            run(asyncio.gather(w1._pay_to_route(route, addr, pay_req), p1._message_loop(), p2._message_loop()))
 
 def run(coro):
     return asyncio.get_event_loop().run_until_complete(coro)
