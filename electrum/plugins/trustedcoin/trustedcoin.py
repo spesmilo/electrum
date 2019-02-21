@@ -37,8 +37,7 @@ from aiohttp import ClientResponse
 
 from electrum import ecc, constants, keystore, version, bip32, bitcoin
 from electrum.bitcoin import TYPE_ADDRESS
-from electrum.bip32 import (deserialize_xpub, deserialize_xprv, bip32_private_key, CKD_pub,
-                            serialize_xpub, bip32_root, bip32_private_derivation, xpub_type)
+from electrum.bip32 import CKD_pub, BIP32Node, xpub_type
 from electrum.crypto import sha256
 from electrum.transaction import TxOutput
 from electrum.mnemonic import Mnemonic, seed_type, is_any_2fa_seed_type
@@ -59,9 +58,8 @@ def get_signing_xpub(xtype):
         raise NotImplementedError('xtype: {}'.format(xtype))
     if xtype == 'standard':
         return xpub
-    _, depth, fingerprint, child_number, c, cK = bip32.deserialize_xpub(xpub)
-    xpub = bip32.serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
-    return xpub
+    node = BIP32Node.from_xkey(xpub)
+    return node._replace(xtype=xtype).to_xpub()
 
 def get_billing_xpub():
     if constants.net.TESTNET:
@@ -388,20 +386,26 @@ def get_user_id(storage):
     short_id = hashlib.sha256(long_id).hexdigest()
     return long_id, short_id
 
-def make_xpub(xpub, s):
-    version, _, _, _, c, cK = deserialize_xpub(xpub)
-    cK2, c2 = bip32._CKD_pub(cK, c, s)
-    return serialize_xpub(version, c2, cK2)
+def make_xpub(xpub, s) -> str:
+    rootnode = BIP32Node.from_xkey(xpub)
+    child_pubkey, child_chaincode = bip32._CKD_pub(parent_pubkey=rootnode.eckey.get_public_key_bytes(compressed=True),
+                                                   parent_chaincode=rootnode.chaincode,
+                                                   child_index=s)
+    child_node = BIP32Node(xtype=rootnode.xtype,
+                           eckey=ecc.ECPubkey(child_pubkey),
+                           chaincode=child_chaincode)
+    return child_node.to_xpub()
 
 def make_billing_address(wallet, num, addr_type):
     long_id, short_id = wallet.get_user_id()
     xpub = make_xpub(get_billing_xpub(), long_id)
-    version, _, _, _, c, cK = deserialize_xpub(xpub)
-    cK, c = CKD_pub(cK, c, num)
+    usernode = BIP32Node.from_xkey(xpub)
+    child_node = usernode.subkey_at_public_derivation([num])
+    pubkey = child_node.eckey.get_public_key_bytes(compressed=True)
     if addr_type == 'legacy':
-        return bitcoin.public_key_to_p2pkh(cK)
+        return bitcoin.public_key_to_p2pkh(pubkey)
     elif addr_type == 'segwit':
-        return bitcoin.public_key_to_p2wpkh(cK)
+        return bitcoin.public_key_to_p2wpkh(pubkey)
     else:
         raise ValueError(f'unexpected billing type: {addr_type}')
 
@@ -538,9 +542,9 @@ class TrustedCoinPlugin(BasePlugin):
         assert is_any_2fa_seed_type(t)
         xtype = 'standard' if t == '2fa' else 'p2wsh'
         bip32_seed = Mnemonic.mnemonic_to_seed(seed, passphrase)
-        xprv, xpub = bip32_root(bip32_seed, xtype)
-        xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
-        return xprv, xpub
+        rootnode = BIP32Node.from_rootseed(bip32_seed, xtype=xtype)
+        child_node = rootnode.subkey_at_private_derivation(derivation)
+        return child_node.to_xprv(), child_node.to_xpub()
 
     @classmethod
     def xkeys_from_seed(self, seed, passphrase):
@@ -721,9 +725,8 @@ class TrustedCoinPlugin(BasePlugin):
         challenge = r.get('challenge')
         message = 'TRUSTEDCOIN CHALLENGE: ' + challenge
         def f(xprv):
-            _, _, _, _, c, k = deserialize_xprv(xprv)
-            pk = bip32_private_key([0, 0], k, c)
-            key = ecc.ECPrivkey(pk)
+            rootnode = BIP32Node.from_xkey(xprv)
+            key = rootnode.subkey_at_private_derivation((0, 0)).eckey
             sig = key.sign_message(message, True)
             return base64.b64encode(sig).decode()
 

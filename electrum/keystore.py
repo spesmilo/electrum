@@ -31,10 +31,8 @@ from typing import Tuple
 from . import bitcoin, ecc, constants, bip32
 from .bitcoin import (deserialize_privkey, serialize_privkey,
                       public_key_to_p2pkh)
-from .bip32 import (bip32_public_derivation, deserialize_xpub, CKD_pub,
-                    bip32_root, deserialize_xprv, bip32_private_derivation,
-                    bip32_private_key, bip32_derivation, BIP32_PRIME,
-                    is_xpub, is_xprv)
+from .bip32 import (convert_bip32_path_to_list_of_uint32, BIP32_PRIME,
+                    is_xpub, is_xprv, BIP32Node)
 from .ecc import string_to_number, number_to_string
 from .crypto import (pw_decode, pw_encode, sha256, sha256d, PW_HASH_VERSION_LATEST,
                      SUPPORTED_PW_HASH_VERSIONS, UnsupportedPasswordHashVersion)
@@ -131,6 +129,9 @@ class Software_KeyStore(KeyStore):
         raise NotImplementedError()  # implemented by subclasses
 
     def check_password(self, password):
+        raise NotImplementedError()  # implemented by subclasses
+
+    def get_private_key(self, *args, **kwargs) -> Tuple[bytes, bool]:
         raise NotImplementedError()  # implemented by subclasses
 
 
@@ -263,7 +264,8 @@ class Xpub:
     def derive_pubkey(self, for_change, n):
         xpub = self.xpub_change if for_change else self.xpub_receive
         if xpub is None:
-            xpub = bip32_public_derivation(self.xpub, "", "/%d"%for_change)
+            rootnode = BIP32Node.from_xkey(self.xpub)
+            xpub = rootnode.subkey_at_public_derivation((for_change,)).to_xpub()
             if for_change:
                 self.xpub_change = xpub
             else:
@@ -272,10 +274,8 @@ class Xpub:
 
     @classmethod
     def get_pubkey_from_xpub(self, xpub, sequence):
-        _, _, _, _, c, cK = deserialize_xpub(xpub)
-        for i in sequence:
-            cK, c = CKD_pub(cK, c, i)
-        return bh2u(cK)
+        node = BIP32Node.from_xkey(xpub).subkey_at_public_derivation(sequence)
+        return node.eckey.get_public_key_hex(compressed=True)
 
     def get_xpubkey(self, c, i):
         s = ''.join(map(lambda x: bitcoin.int_to_hex(x,2), (c, i)))
@@ -334,7 +334,7 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
 
     def check_password(self, password):
         xprv = pw_decode(self.xprv, password, version=self.pw_hash_version)
-        if deserialize_xprv(xprv)[4] != deserialize_xpub(self.xpub)[4]:
+        if BIP32Node.from_xkey(xprv).chaincode != BIP32Node.from_xkey(self.xpub).chaincode:
             raise InvalidPassword()
 
     def update_password(self, old_password, new_password):
@@ -360,14 +360,14 @@ class BIP32_KeyStore(Deterministic_KeyStore, Xpub):
         self.xpub = bip32.xpub_from_xprv(xprv)
 
     def add_xprv_from_seed(self, bip32_seed, xtype, derivation):
-        xprv, xpub = bip32_root(bip32_seed, xtype)
-        xprv, xpub = bip32_private_derivation(xprv, "m/", derivation)
-        self.add_xprv(xprv)
+        rootnode = BIP32Node.from_rootseed(bip32_seed, xtype=xtype)
+        node = rootnode.subkey_at_private_derivation(derivation)
+        self.add_xprv(node.to_xprv())
 
     def get_private_key(self, sequence, password):
         xprv = self.get_master_private_key(password)
-        _, _, _, _, c, k = deserialize_xprv(xprv)
-        pk = bip32_private_key(sequence, k, c)
+        node = BIP32Node.from_xkey(xprv).subkey_at_private_derivation(sequence)
+        pk = node.eckey.get_secret_bytes()
         return pk, True
 
 
@@ -658,7 +658,7 @@ def xtype_from_derivation(derivation: str) -> str:
     elif derivation.startswith("m/45'"):
         return 'standard'
 
-    bip32_indices = list(bip32_derivation(derivation))
+    bip32_indices = convert_bip32_path_to_list_of_uint32(derivation)
     if len(bip32_indices) >= 4:
         if bip32_indices[0] == 48 + BIP32_PRIME:
             # m / purpose' / coin_type' / account' / script_type' / change / address_index

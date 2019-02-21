@@ -126,7 +126,7 @@ class Mnemonic(object):
         print_error("wordlist has %d words"%len(self.wordlist))
 
     @classmethod
-    def mnemonic_to_seed(self, mnemonic, passphrase):
+    def mnemonic_to_seed(self, mnemonic, passphrase) -> bytes:
         PBKDF2_ROUNDS = 2048
         mnemonic = normalize_text(mnemonic)
         passphrase = passphrase or ''

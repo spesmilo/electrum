@@ -9,7 +9,7 @@ from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               is_compressed_privkey, EncodeBase58Check,
                               script_num_to_hex, push_script, add_number_to_script, int_to_hex,
                               opcodes)
-from electrum.bip32 import (bip32_root, bip32_public_derivation, bip32_private_derivation,
+from electrum.bip32 import (BIP32Node,
                             xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
                             is_xpub, convert_bip32_path_to_list_of_uint32)
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
@@ -405,19 +405,18 @@ class Test_xprv_xpub(SequentialTestCase):
          'xtype': 'p2wpkh'},
     )
 
-    def _do_test_bip32(self, seed, sequence):
-        xprv, xpub = bip32_root(bfh(seed), 'standard')
+    def _do_test_bip32(self, seed: str, sequence):
+        node = BIP32Node.from_rootseed(bfh(seed), xtype='standard')
+        xprv, xpub = node.to_xprv(), node.to_xpub()
         self.assertEqual("m/", sequence[0:2])
-        path = 'm'
         sequence = sequence[2:]
         for n in sequence.split('/'):
-            child_path = path + '/' + n
             if n[-1] != "'":
-                xpub2 = bip32_public_derivation(xpub, path, child_path)
-            xprv, xpub = bip32_private_derivation(xprv, path, child_path)
+                xpub2 = BIP32Node.from_xkey(xpub).subkey_at_public_derivation(n).to_xpub()
+            node = BIP32Node.from_xkey(xprv).subkey_at_private_derivation(n)
+            xprv, xpub = node.to_xprv(), node.to_xpub()
             if n[-1] != "'":
                 self.assertEqual(xpub, xpub2)
-            path = child_path
 
         return xpub, xprv
 
@@ -474,7 +473,7 @@ class Test_xprv_xpub(SequentialTestCase):
     def test_convert_bip32_path_to_list_of_uint32(self):
         self.assertEqual([0, 0x80000001, 0x80000001], convert_bip32_path_to_list_of_uint32("m/0/-1/1'"))
         self.assertEqual([], convert_bip32_path_to_list_of_uint32("m/"))
-        self.assertEqual([2147483692, 2147488889, 221], convert_bip32_path_to_list_of_uint32("m/44'/5241'/221"))
+        self.assertEqual([2147483692, 2147488889, 221], convert_bip32_path_to_list_of_uint32("m/44'/5241h/221"))
 
     def test_xtype_from_derivation(self):
         self.assertEqual('standard', xtype_from_derivation("m/44'"))

@@ -3,8 +3,9 @@ import hashlib
 import sys
 import traceback
 
+from electrum import ecc
 from electrum.bitcoin import TYPE_ADDRESS, int_to_hex, var_int
-from electrum.bip32 import serialize_xpub
+from electrum.bip32 import BIP32Node
 from electrum.i18n import _
 from electrum.keystore import Hardware_KeyStore
 from electrum.transaction import Transaction
@@ -112,8 +113,12 @@ class Ledger_Client():
         depth = len(splitPath)
         lastChild = splitPath[len(splitPath) - 1].split('\'')
         childnum = int(lastChild[0]) if len(lastChild) == 1 else 0x80000000 | int(lastChild[0])
-        xpub = serialize_xpub(xtype, nodeData['chainCode'], publicKey, depth, self.i4b(fingerprint), self.i4b(childnum))
-        return xpub
+        return BIP32Node(xtype=xtype,
+                         eckey=ecc.ECPubkey(publicKey),
+                         chaincode=nodeData['chainCode'],
+                         depth=depth,
+                         fingerprint=self.i4b(fingerprint),
+                         child_number=self.i4b(childnum)).to_xpub()
 
     def has_detached_pin_support(self, client):
         try:

@@ -29,8 +29,9 @@ from xmlrpc.client import ServerProxy
 from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import QPushButton
 
-from electrum import util, keystore, ecc, bip32, crypto
+from electrum import util, keystore, ecc, crypto
 from electrum import transaction
+from electrum.bip32 import BIP32Node
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
 from electrum.wallet import Multisig_Wallet
@@ -131,12 +132,12 @@ class Plugin(BasePlugin):
         self.cosigner_list = []
         for key, keystore in wallet.keystores.items():
             xpub = keystore.get_master_public_key()
-            K = bip32.deserialize_xpub(xpub)[-1]
-            _hash = bh2u(crypto.sha256d(K))
+            pubkey = BIP32Node.from_xkey(xpub).eckey.get_public_key_bytes(compressed=True)
+            _hash = bh2u(crypto.sha256d(pubkey))
             if not keystore.is_watching_only():
                 self.keys.append((key, _hash, window))
             else:
-                self.cosigner_list.append((window, xpub, K, _hash))
+                self.cosigner_list.append((window, xpub, pubkey, _hash))
         if self.listener:
             self.listener.set_keyhashes([t[1] for t in self.keys])
 
@@ -221,9 +222,8 @@ class Plugin(BasePlugin):
         if not xprv:
             return
         try:
-            k = bip32.deserialize_xprv(xprv)[-1]
-            EC = ecc.ECPrivkey(k)
-            message = bh2u(EC.decrypt_message(message))
+            privkey = BIP32Node.from_xkey(xprv).eckey
+            message = bh2u(privkey.decrypt_message(message))
         except Exception as e:
             traceback.print_exc(file=sys.stdout)
             window.show_error(_('Error decrypting message') + ':\n' + str(e))

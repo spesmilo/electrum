@@ -229,6 +229,9 @@ class ECPubkey(object):
     def point(self) -> Tuple[int, int]:
         return self._pubkey.point.x(), self._pubkey.point.y()
 
+    def __repr__(self):
+        return f"<ECPubkey {self.get_public_key_hex()}>"
+
     def __mul__(self, other: int):
         if not isinstance(other, int):
             raise TypeError('multiplication not defined for ECPubkey and {}'.format(type(other)))
@@ -374,6 +377,12 @@ class ECPrivkey(ECPubkey):
             raise Exception('invalid EC private key scalar: zero')
         privkey_32bytes = number_to_string(scalar, CURVE_ORDER)
         return privkey_32bytes
+
+    def __repr__(self):
+        return f"<ECPrivkey {self.get_public_key_hex()}>"
+
+    def get_secret_bytes(self) -> bytes:
+        return number_to_string(self.secret_scalar, CURVE_ORDER)
 
     def sign(self, data: bytes, sigencode=None, sigdecode=None) -> bytes:
         if sigencode is None:
