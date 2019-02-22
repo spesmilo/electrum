@@ -800,11 +800,20 @@ def serialize_xpub(xtype, c, cK, depth=0, fingerprint=b'\x00'*4, child_number=b'
     return EncodeBase58Check(xpub)
 
 
+class InvalidXKey(BaseException):
+    pass
+
+class InvalidXKeyFormat(InvalidXKey):
+    pass
+
+class InvalidXKeyLength(InvalidXKey):
+    pass
+
 def deserialize_xkey(xkey, prv, *, net=None):
     if net is None: net = networks.net
     xkey = DecodeBase58Check(xkey)
     if len(xkey) != 78:
-        raise BaseException('Invalid length')
+        raise InvalidXKeyLength('Invalid length')
     depth = xkey[4]
     fingerprint = xkey[5:9]
     child_number = xkey[9:13]
@@ -812,7 +821,7 @@ def deserialize_xkey(xkey, prv, *, net=None):
     header = int('0x' + bh2u(xkey[0:4]), 16)
     headers = net.XPRV_HEADERS if prv else net.XPUB_HEADERS
     if header not in headers.values():
-        raise BaseException('Invalid xpub format', hex(header))
+        raise InvalidXKeyFormat('Invalid xpub format', hex(header))
     xtype = list(headers.keys())[list(headers.values()).index(header)]
     n = 33 if prv else 32
     K_or_k = xkey[13+n:]
