@@ -97,6 +97,10 @@ setup(
             'www/index.html',
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electron-cash.mo',
+        ],
+        'electroncash_plugins.shuffle' : [
+            'servers.json',
+            'protobuf/*.proto'
         ]
     },
     scripts=['electron-cash'],
