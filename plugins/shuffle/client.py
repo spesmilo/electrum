@@ -299,14 +299,17 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             self.print_error("Started")
             self.logger.send("started", "MAINLOG")
             
-            if self.is_offline_mode():
-                # in offline mode we don't do much. We just process the shared
-                # chan for pause/unpause events.
+            if self.is_offline_mode():  # aka: '--offline' cmdline arg
+                # OFFLINE mode: We don't do much. We just process the shared
+                # chan for stop events.  We could have suppressed the creation
+                # of this thread altogether in this mode, but that would have
+                # involved more special case code in qt.py and it was simper
+                # just to do this here. -Calin
                 self.print_error("Offline mode; thread is alive but will not shuffle any coins.")
                 while not self.stop_flg.is_set():
                     self.process_shared_chan()  # this sleeps for up to 10s each time. Its only purpose here is to catch 'stop' signals from rest of app and exit this no-op thread. :)
             else:
-                # in online mode we check coins, check server, start threads, etc.
+                # ONLINE mode: we check coins, check server, start threads, etc.
                 self.check_server()
 
                 if not self.is_wallet_ready():

@@ -3644,7 +3644,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         def ask_then_restart():
             self._restart_timer.deleteLater(); self._restart_timer = None
             self.raise_()
-            # NB: we need to make this question a top-level window, hence we don't use self.question() which has issues/bugs on Mac
             if self.question("{}{}".format(msg + "\n\n" if msg else "", _("Restart the CashShuffle plugin now?"))):
                 p = self.cashshuffle_plugin_if_loaded()
                 if p:
