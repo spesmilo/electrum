@@ -965,16 +965,18 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         req = self.wallet.receive_requests[addr]
         message = self.wallet.labels.get(addr, '')
         amount = req['amount']
-        URI = util.create_URI(addr, amount, message)
+        extra_query_params = {}
         if req.get('time'):
-            URI += "&time=%d"%req.get('time')
+            extra_query_params['time'] = str(int(req.get('time')))
         if req.get('exp'):
-            URI += "&exp=%d"%req.get('exp')
+            extra_query_params['exp'] = str(int(req.get('exp')))
         if req.get('name') and req.get('sig'):
             sig = bfh(req.get('sig'))
             sig = bitcoin.base_encode(sig, base=58)
-            URI += "&name=" + req['name'] + "&sig="+sig
-        return str(URI)
+            extra_query_params['name'] = req['name']
+            extra_query_params['sig'] = sig
+        uri = util.create_bip21_uri(addr, amount, message, extra_query_params=extra_query_params)
+        return str(uri)
 
 
     def sign_payment_request(self, addr):
@@ -1113,7 +1115,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         amount = self.receive_amount_e.get_amount()
         message = self.receive_message_e.text()
         self.save_request_button.setEnabled((amount is not None) or (message != ""))
-        uri = util.create_URI(addr, amount, message)
+        uri = util.create_bip21_uri(addr, amount, message)
         self.receive_qr.setData(uri)
         if self.qr_window and self.qr_window.isVisible():
             self.qr_window.qrw.setData(uri)

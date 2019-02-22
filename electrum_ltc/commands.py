@@ -35,7 +35,7 @@ from decimal import Decimal
 from typing import Optional, TYPE_CHECKING
 
 from .import util, ecc
-from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode
+from .util import bfh, bh2u, format_satoshis, json_decode, print_error, json_encode, is_hash256_str
 from . import bitcoin
 from .bitcoin import is_address,  hash_160, COIN, TYPE_ADDRESS
 from . import bip32
@@ -46,6 +46,7 @@ from .synchronizer import Notifier
 from .storage import WalletStorage
 from . import keystore
 from .wallet import Wallet, Imported_Wallet, Abstract_Wallet
+from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 
 if TYPE_CHECKING:
@@ -762,6 +763,23 @@ class Commands:
         if fee_level is not None:
             fee_level = Decimal(fee_level)
         return self.config.fee_per_kb(dyn=dyn, mempool=mempool, fee_level=fee_level)
+
+    @command('w')
+    def removelocaltx(self, txid):
+        """Remove a 'local' transaction from the wallet, and its dependent
+        transactions.
+        """
+        if not is_hash256_str(txid):
+            raise Exception(f"{repr(txid)} is not a txid")
+        height = self.wallet.get_tx_height(txid).height
+        to_delete = {txid}
+        if height != TX_HEIGHT_LOCAL:
+            raise Exception(f'Only local transactions can be removed. '
+                            f'This tx has height: {height} != {TX_HEIGHT_LOCAL}')
+        to_delete |= self.wallet.get_depending_transactions(txid)
+        for tx_hash in to_delete:
+            self.wallet.remove_transaction(tx_hash)
+        self.wallet.save_transactions(write=True)
 
     @command('')
     def help(self):
