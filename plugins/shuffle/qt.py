@@ -949,7 +949,7 @@ class SendTabExtra(QFrame, PrintError):
             self.titleLabel.setText("<big><b>{}</b></big> &nbsp;&nbsp; ({})"
                                     .format(_("CashShuffle Enabled"), _("Only <i>unshuffled</i> funds will be sent")))
             self.titleLabel.help_text = self.msg2
-            self.pauseBut.setEnabled(bool(self.window.background_process))
+            self.pauseBut.setEnabled(bool(self.window.background_process and not self.window.background_process.is_offline_mode()))
 
         self.window.update_fee()
 
@@ -1009,7 +1009,8 @@ class SendTabExtra(QFrame, PrintError):
             self.pauseBut.setChecked(False)
         self.pauseBut.setText(_("Pause Shuffling") if not self.pauseBut.isChecked() else _("Shuffling Paused"))
 
-        self.pauseBut.setEnabled(bool(self.window.background_process and mode == self.SpendingModeUnshuffled))
+        self.pauseBut.setEnabled(bool(self.window.background_process and mode == self.SpendingModeUnshuffled
+                                      and not self.window.background_process.is_offline_mode()))
 
 
     SpendingModeShuffled = 1

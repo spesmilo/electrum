@@ -299,19 +299,27 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             self.print_error("Started")
             self.logger.send("started", "MAINLOG")
             
-            self.check_server()
+            if self.is_offline_mode():
+                # in offline mode we don't do much. We just process the shared
+                # chan for pause/unpause events.
+                self.print_error("Offline mode; thread is alive but will not shuffle any coins.")
+                while not self.stop_flg.is_set():
+                    self.process_shared_chan()  # this sleeps for up to 10s each time. Its only purpose here is to catch 'stop' signals from rest of app and exit this no-op thread. :)
+            else:
+                # in online mode we check coins, check server, start threads, etc.
+                self.check_server()
 
-            if not self.is_wallet_ready():
-                time.sleep(3.0) # initial delay to hopefully wait for wallet to be ready
+                if not self.is_wallet_ready():
+                    time.sleep(3.0) # initial delay to hopefully wait for wallet to be ready
 
-            while not self.stop_flg.is_set():
-                self.check_for_coins()
-                had_a_completion = self.process_shared_chan() # NB: this blocks for up to self.period (default=10) seconds
-                if had_a_completion:
-                    # force loop to go back to check_for_coins immediately if a thread just successfully ended with a protocol completion
-                    continue
-                self.check_server_if_errored() # NB: this normally is a noop but if server port is bad, blocks for up to 7.5 seconds
-                self.check_idle_threads()
+                while not self.stop_flg.is_set():
+                    self.check_for_coins()
+                    had_a_completion = self.process_shared_chan() # NB: this blocks for up to self.period (default=10) seconds
+                    if had_a_completion:
+                        # force loop to go back to check_for_coins immediately if a thread just successfully ended with a protocol completion
+                        continue
+                    self.check_server_if_errored() # NB: this normally is a noop but if server port is bad, blocks for up to 7.5 seconds
+                    self.check_idle_threads()
             self.print_error("Stopped")
         finally:
             self._unreserve_addresses()
@@ -386,7 +394,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
                 tup = self.shared_chan.get(timeout = timeLeft) # blocking read of the shared msg queue for up to self.period seconds
 
-                if self.stop_flg.is_set(): # check stop flag yet again jus to be safe
+                if self.stop_flg.is_set(): # check stop flag yet again just to be safe
                     return
 
                 if isinstance(tup, tuple): # may be None on join()
@@ -587,6 +595,9 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                      and self.wallet.verifier and self.wallet.verifier.is_up_to_date()
                      and self.wallet.synchronizer and self.wallet.synchronizer.is_up_to_date()
                      and Network.get_instance() )
+
+    def is_offline_mode(self):
+        return bool(not self.wallet or not self.wallet.network)
 
     def check_for_coins(self):
         if self.stop_flg.is_set() or self._paused: return
