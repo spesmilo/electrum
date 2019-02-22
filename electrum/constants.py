@@ -45,7 +45,7 @@ class OceanMainnet:
     ADDRTYPE_P2PKH = 0
     ADDRTYPE_P2SH = 5
     SEGWIT_HRP = "bc"
-    GENESIS = "73902d2a365fff2724e26d975148124268ec6a84991016683817ea2c973b199b"
+    GENESIS = "786331c97fac638be2e962b8b388d5a0506c7e98091da265b5334fad059600fe"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
     CHECKPOINTS = []    # no handling for checkpoins

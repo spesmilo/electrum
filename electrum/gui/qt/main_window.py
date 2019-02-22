@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# Electrum - lightweight Ocean client
 # Copyright (C) 2012 thomasv@gitorious
 #
 # Permission is hereby granted, free of charge, to any person
@@ -28,16 +28,20 @@ import shutil
 import weakref
 import webbrowser
 import csv
-from decimal import Decimal
+from decimal import Decimal as Decimalf
 import base64
 from functools import partial
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
-import PyQt5.QtCore as QtCore
+from PyQt5.QtGui import QPixmap, QKeySequence, QIcon, QCursor
+from PyQt5.QtCore import Qt, QRect, QStringListModel, QSize, pyqtSignal
 
 from .exception_window import Exception_Hook
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import (QMessageBox, QComboBox, QSystemTrayIcon, QTabWidget,
+                             QSpinBox, QMenuBar, QFileDialog, QCheckBox, QLabel,
+                             QVBoxLayout, QGridLayout, QLineEdit, QTreeWidgetItem,
+                             QHBoxLayout, QPushButton, QScrollArea, QTextEdit,
+                             QShortcut, QMainWindow, QCompleter, QInputDialog,
+                             QWidget, QMenu, QSizePolicy, QStatusBar)
 
 from electrum import (keystore, simple_config, ecc, constants, util, bitcoin, commands,
                       coinchooser, paymentrequest)
@@ -61,7 +65,6 @@ from .transaction_dialog import show_transaction
 from .fee_slider import FeeSlider
 from .util import *
 from .installwizard import WIF_HELP_TEXT
-
 
 class StatusBarButton(QPushButton):
     def __init__(self, icon, tooltip, func):
@@ -132,28 +135,30 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.completions = QStringListModel()
 
         self.tabs = tabs = QTabWidget(self)
+        self.tabs.setStyleSheet("QTabBar::tab { height: 26px; width: 78px}")
         self.send_tab = self.create_send_tab()
         self.receive_tab = self.create_receive_tab()
         self.addresses_tab = self.create_addresses_tab()
         self.utxo_tab = self.create_utxo_tab()
+        self.assets_tab = self.create_assets_tab()
         self.console_tab = self.create_console_tab()
         self.contacts_tab = self.create_contacts_tab()
-        tabs.addTab(self.create_history_tab(), QIcon(":icons/tab_history.png"), _('History'))
-        tabs.addTab(self.send_tab, QIcon(":icons/tab_send.png"), _('Send'))
-        tabs.addTab(self.receive_tab, QIcon(":icons/tab_receive.png"), _('Receive'))
+        tabs.addTab(self.create_history_tab(), _('History'))
+        tabs.addTab(self.send_tab, _('Send'))
+        tabs.addTab(self.receive_tab, _('Receive'))
 
-        def add_optional_tab(tabs, tab, icon, description, name):
-            tab.tab_icon = icon
+        def add_optional_tab(tabs, tab, description, name):
             tab.tab_description = description
             tab.tab_pos = len(tabs)
             tab.tab_name = name
             if self.config.get('show_{}_tab'.format(name), False):
-                tabs.addTab(tab, icon, description.replace("&", ""))
+                tabs.addTab(tab, description.replace("&", ""))
 
-        add_optional_tab(tabs, self.addresses_tab, QIcon(":icons/tab_addresses.png"), _("&Addresses"), "addresses")
-        add_optional_tab(tabs, self.utxo_tab, QIcon(":icons/tab_coins.png"), _("Co&ins"), "utxo")
-        add_optional_tab(tabs, self.contacts_tab, QIcon(":icons/tab_contacts.png"), _("Con&tacts"), "contacts")
-        add_optional_tab(tabs, self.console_tab, QIcon(":icons/tab_console.png"), _("Con&sole"), "console")
+        add_optional_tab(tabs, self.addresses_tab, _("&Addresses"), "addresses")
+        add_optional_tab(tabs, self.utxo_tab, _("Co&ins"), "utxo")
+        add_optional_tab(tabs, self.assets_tab, _("As&sets"), "assets")
+        add_optional_tab(tabs, self.contacts_tab, _("Con&tacts"), "contacts")
+        add_optional_tab(tabs, self.console_tab, _("Con&sole"), "console")
 
         tabs.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCentralWidget(tabs)
@@ -242,7 +247,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                         break
                 except AttributeError:
                     pass
-            self.tabs.insertTab(index, tab, tab.tab_icon, tab.tab_description.replace("&", ""))
+            self.tabs.insertTab(index, tab, tab.tab_description.replace("&", ""))
         else:
             i = self.tabs.indexOf(tab)
             self.tabs.removeTab(i)
@@ -349,6 +354,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.history_list.update()
         self.address_list.update()
         self.utxo_list.update()
+        self.assets_list.update()
         self.need_update.set()
         # Once GUI has been initialized check if we want to announce something since the callback has been called before the GUI was initialized
         self.notify_transactions()
@@ -379,7 +385,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.setGeometry(100, 100, 840, 400)
 
     def watching_only_changed(self):
-        name = "Electrum Testnet" if constants.net.TESTNET else "Electrum"
+        name = "Electrum Testnet" if constants.net.TESTNET else "CB Electrum"
         title = '%s %s  -  %s' % (name, self.wallet.electrum_version,
                                         self.wallet.basename())
         extra = [self.wallet.storage.get('wallet_type', '?')]
@@ -397,8 +403,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.wallet.is_watching_only():
             msg = ' '.join([
                 _("This wallet is watching-only."),
-                _("This means you will not be able to spend Bitcoins with it."),
-                _("Make sure you own the seed phrase or the private keys, before you request Bitcoins to be sent to this wallet.")
+                _("This means you will not be able to spend tokens with it."),
+                _("Make sure you own the seed phrase or the private keys, before you request tokens to be sent to this wallet.")
             ])
             self.show_warning(msg, title=_('Information'))
 
@@ -520,6 +526,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         view_menu = menubar.addMenu(_("&View"))
         add_toggle_action(view_menu, self.addresses_tab)
         add_toggle_action(view_menu, self.utxo_tab)
+        add_toggle_action(view_menu, self.assets_tab)
         add_toggle_action(view_menu, self.contacts_tab)
         add_toggle_action(view_menu, self.console_tab)
 
@@ -535,6 +542,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         tools_menu.addSeparator()
 
         paytomany_menu = tools_menu.addAction(_("&Pay to many"), self.paytomany)
+
+        tools_menu.addAction(_("Create redemption"), self.create_redemption)
 
         raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
         raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
@@ -566,11 +575,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def show_about(self):
         QMessageBox.about(self, "Electrum",
                           (_("Version")+" %s" % self.wallet.electrum_version + "\n\n" +
-                           _("Electrum's focus is speed, with low resource usage and simplifying Bitcoin.") + " " +
+                           _("Electrum's focus is speed, with low resource usage and simplifying Ocean sidechains") + " " +
                            _("You do not need to perform regular backups, because your wallet can be "
                               "recovered from a secret phrase that you can memorize or write on paper.") + " " +
                            _("Startup times are instant because it operates in conjunction with high-performance "
-                              "servers that handle the most complicated parts of the Bitcoin system.") + "\n\n" +
+                              "servers that handle the most complicated parts of the Ocean system.") + "\n\n" +
                            _("Uses icons from the Icons8 icon pack (icons8.com).")))
 
     def show_report_bug(self):
@@ -675,7 +684,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             edit.setStyleSheet(ColorScheme.DEFAULT.as_stylesheet())
             fiat_e.is_last_edited = (edit == fiat_e)
             amount = edit.get_amount()
-            rate = self.fx.exchange_rate() if self.fx else Decimal('NaN')
+            rate = self.fx.exchange_rate() if self.fx else Decimalf('NaN')
             if rate.is_nan() or amount is None:
                 if edit is fiat_e:
                     btc_e.setText("")
@@ -686,7 +695,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             else:
                 if edit is fiat_e:
                     btc_e.follows = True
-                    btc_e.setAmount(int(amount / Decimal(rate) * COIN))
+                    btc_e.setAmount(int(amount / Decimalf(rate) * COIN))
                     btc_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
                     btc_e.follows = False
                     if fee_e:
@@ -694,7 +703,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 else:
                     fiat_e.follows = True
                     fiat_e.setText(self.fx.ccy_amount_str(
-                        amount * Decimal(rate) / COIN, False))
+                        amount * Decimalf(rate) / COIN, False))
                     fiat_e.setStyleSheet(ColorScheme.BLUE.as_stylesheet())
                     fiat_e.follows = False
 
@@ -732,6 +741,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 if x:
                     text +=  " [%s unmatured]"%(self.format_amount(x, is_diff=True).strip())
 
+                tokrat = token_ratio(int(self.network.get_local_height()))
+                finemass = c*tokrat/1.0E+8
+                text+=" ("+str("%.4f" % finemass)+" oz)  1 GT = "+str("%.4f" % tokrat)+" oz"
+
                 # append fiat balance and price
                 if self.fx.is_enabled():
                     text += self.fx.get_fiat_status_text(c + u + x,
@@ -762,6 +775,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.request_list.update()
         self.address_list.update()
         self.utxo_list.update()
+        self.assets_list.update()
         self.contact_list.update()
         self.invoice_list.update()
         self.update_completions()
@@ -794,7 +808,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.receive_address_e = ButtonsLineEdit()
         self.receive_address_e.addCopyButton(self.app)
         self.receive_address_e.setReadOnly(True)
-        msg = _('Bitcoin address where the payment should be received. Note that each payment request uses a different Bitcoin address.')
+        msg = _('Ocean address where the payment should be received. Note that each payment request uses a different Ocean address.')
         self.receive_address_label = HelpLabel(_('Receiving address'), msg)
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
         self.receive_address_e.setFocusPolicy(Qt.ClickFocus)
@@ -824,7 +838,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         msg = ' '.join([
             _('Expiration date of your request.'),
             _('This information is seen by the recipient if you send them a signed payment request.'),
-            _('Expired requests have to be deleted manually from your list, in order to free the corresponding Bitcoin addresses.'),
+            _('Expired requests have to be deleted manually from your list, in order to free the corresponding Ocean addresses.'),
             _('The bitcoin address never expires and will always be part of this electrum wallet.'),
         ])
         grid.addWidget(HelpLabel(_('Request expires'), msg), 3, 0)
@@ -1051,7 +1065,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.amount_e = BTCAmountEdit(self.get_decimal_point)
         self.payto_e = PayToEdit(self)
         msg = _('Recipient of the funds.') + '\n\n'\
-              + _('You may enter a Bitcoin address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Bitcoin address)')
+              + _('You may enter an Ocean address, a label from your list of contacts (a list of completions will be proposed), or an alias (email-like address that forwards to a Ocean address)')
         payto_label = HelpLabel(_('Pay to'), msg)
         grid.addWidget(payto_label, 1, 0)
         grid.addWidget(self.payto_e, 1, 1, 1, -1)
@@ -1098,7 +1112,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         hbox.addStretch(1)
         grid.addLayout(hbox, 4, 4)
 
-        msg = _('Bitcoin transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
+        msg = _('Ocean sidechain transactions are in general not free. A transaction fee is paid by the sender of the funds.') + '\n\n'\
               + _('The amount of fee can be decided freely by the sender. However, transactions with low fees take more time to be processed.') + '\n\n'\
               + _('A suggested fee is automatically added to this field. You may override it. The suggested fee increases with the size of the transaction.')
         self.fee_e_label = HelpLabel(_('Fee'), msg)
@@ -1113,7 +1127,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 self.config.set_key('fee_per_kb', fee_rate, False)
 
             if fee_rate:
-                fee_rate = Decimal(fee_rate)
+                fee_rate = Decimalf(fee_rate)
                 self.feerate_e.setAmount(quantize_feerate(fee_rate / 1000))
             else:
                 self.feerate_e.setAmount(None)
@@ -1488,10 +1502,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         for o in outputs:
             if o.address is None:
-                self.show_error(_('Bitcoin Address is None'))
+                self.show_error(_('Ocean Address is None'))
                 return
             if o.type == TYPE_ADDRESS and not bitcoin.is_address(o.address):
-                self.show_error(_('Invalid Bitcoin Address'))
+                self.show_error(_('Invalid Ocean Address'))
                 return
             if o.value is None:
                 self.show_error(_('Invalid Amount'))
@@ -1781,6 +1795,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def create_utxo_tab(self):
         from .utxo_list import UTXOList
         self.utxo_list = l = UTXOList(self)
+        return self.create_list_tab(l)
+
+    def create_assets_tab(self):
+        from .assets_list import AssetsList
+        self.assets_list = l = AssetsList(self)
+        if not l.verified:
+            self.show_warning(_('Warning: Asset mapping authentication failed'))
         return self.create_list_tab(l)
 
     def create_contacts_tab(self):
@@ -2157,7 +2178,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         address  = address.text().strip()
         message = message.toPlainText().strip()
         if not bitcoin.is_address(address):
-            self.show_message(_('Invalid Bitcoin address.'))
+            self.show_message(_('Invalid Ocean address.'))
             return
         if self.wallet.is_watching_only():
             self.show_message(_('This is a watching-only wallet.'))
@@ -2185,7 +2206,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         address  = address.text().strip()
         message = message.toPlainText().strip().encode('utf-8')
         if not bitcoin.is_address(address):
-            self.show_message(_('Invalid Bitcoin address.'))
+            self.show_message(_('Invalid Ocean address.'))
             return
         try:
             # This can throw on invalid base64
@@ -2227,6 +2248,134 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         b = QPushButton(_("Verify"))
         b.clicked.connect(lambda: self.do_verify(address_e, message_e, signature_e))
+        hbox.addWidget(b)
+
+        b = QPushButton(_("Close"))
+        b.clicked.connect(d.accept)
+        hbox.addWidget(b)
+        layout.addLayout(hbox, 4, 1)
+        d.exec_()
+
+    def do_create_redemption(self, tokens, tx_fee):
+
+        coins = self.wallet.get_spendable_coins(None, self.config)
+        
+        ramount = tokens.get_amount()
+        fee_estimator = tx_fee.get_amount()
+
+        tx_desc = 'Redemption transaction'
+
+        addr = self.wallet.get_unused_address()
+        out_type = TYPE_ADDRESS
+
+        outputs = [TxOutput(out_type, addr, ramount)]
+
+        try:
+            is_sweep = bool(self.tx_external_keypairs)
+            tx = self.wallet.make_unsigned_transaction(
+                coins, outputs, self.config, fixed_fee=fee_estimator,
+                is_sweep=is_sweep)
+        except NotEnoughFunds:
+            self.show_message(_("Insufficient funds"))
+            return
+        except BaseException as e:
+            traceback.print_exc(file=sys.stdout)
+            self.show_message(str(e))
+            return
+
+        if not self.network:
+            self.show_error(_("You can't broadcast a transaction without a live network connection."))
+            return
+
+        self.show_transaction(tx,tx_desc)
+
+        self.wallet.set_frozen_state([addr],True)
+
+        self.wallet.set_label(addr, "Frozen for redemption")
+
+        return
+
+#        coins_lock = self.wallet.get_addr_utxo(addr)
+
+#        inputs = []
+#        for x in coins_lock.values():
+#            inputs.append(x)
+
+
+#        tx_desc = 'Redemption locking transaction - export as file'
+
+#        addr_lock = self.wallet.get_unused_address()
+#        out_type = TYPE_ADDRESS
+
+#        outputs_lock = [TxOutput(out_type, addr_lock, ramount-fee_estimator)]
+
+#        for outpoint in coins_lock:
+#            zasset = coins_lock[outpoint]['asset']
+
+#        lock_output = TxOutput(out_type,'1111111111111111111114oLvT2',Decimalf(0.001))
+
+#        outputs_lock.append(lock_output)
+
+#        try:
+#            is_sweep = bool(self.tx_external_keypairs)
+#            tx_lock = self.wallet.make_unsigned_transaction(
+#                inputs, outputs_lock, self.config, fixed_fee=fee_estimator,
+#                is_sweep=is_sweep)
+#        except NotEnoughFunds:
+#            self.show_message(_("Insufficient funds"))
+#            return
+#        except BaseException as e:
+#            traceback.print_exc(file=sys.stdout)
+#            self.show_message(str(e))
+#            return   
+
+#        self.show_transaction(tx,tx_desc)                    
+
+
+    def create_redemption(self):
+        d = WindowModalDialog(self, _('Create redemption'))
+        d.setMinimumSize(440, 160)
+
+        layout = QGridLayout(d)
+
+        layout.addWidget(QLabel(_('Create redemption transaction')), 1, 1)
+
+        required_tokens = BTCAmountEdit(self.get_decimal_point)
+        layout.addWidget(QLabel(_('Required tokens:')), 2, 0)
+        layout.addWidget(required_tokens, 2, 1)
+
+        transaction_fee = BTCAmountEdit(self.get_decimal_point)
+        layout.addWidget(QLabel(_('Fee:')), 3, 0)
+        layout.addWidget(transaction_fee, 3, 1)
+
+        hbox = QHBoxLayout()
+
+        b = QPushButton(_("Create"))
+        b.clicked.connect(lambda: self.do_create_redemption(required_tokens,transaction_fee))
+        hbox.addWidget(b)
+
+        b = QPushButton(_("Close"))
+        b.clicked.connect(d.accept)
+        hbox.addWidget(b)
+        layout.addLayout(hbox, 4, 1)
+        d.exec_()
+
+    def create_burn(self):
+        d = WindowModalDialog(self, _('Create token burn'))
+        d.setMinimumSize(440, 160)
+
+        layout = QGridLayout(d)
+
+        layout.addWidget(QLabel(_('Create token burn transaction')), 1, 1)
+
+        required_tokens = BTCAmountEdit(self.get_decimal_point)
+        layout.addWidget(QLabel(_('Burn address:')), 2, 0)
+        layout.addWidget(required_tokens, 2, 1)
+
+        hbox = QHBoxLayout()
+
+        b = QPushButton(_("Create"))
+        b.clicked.connect(lambda: self.do_create_burn(burn_address))
         hbox.addWidget(b)
 
         b = QPushButton(_("Close"))
@@ -2755,7 +2904,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         units = base_units_list
         msg = (_('Base unit of your wallet.')
-               + '\n1 BTC = 1000 mBTC. 1 mBTC = 1000 bits. 1 bit = 100 sat.\n'
+               + '\n1 CBT = 1000 mCBT. 1 mCBT = 1000 bits. 1 bit = 100 sat.\n'
                + _('This setting affects the Send tab, and all balance related fields.'))
         unit_label = HelpLabel(_('Base unit') + ':', msg)
         unit_combo = QComboBox()
@@ -2808,8 +2957,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         gui_widgets.append((qr_label, qr_combo))
 
         colortheme_combo = QComboBox()
-        colortheme_combo.addItem(_('Light'), 'default')
-        colortheme_combo.addItem(_('Dark'), 'dark')
+        colortheme_combo.addItem(_('Dark'), 'default')
+        colortheme_combo.addItem(_('Light'), 'light')
         index = colortheme_combo.findData(self.config.get('qt_gui_color_theme', 'default'))
         colortheme_combo.setCurrentIndex(index)
         colortheme_label = QLabel(_('Color theme') + ':')

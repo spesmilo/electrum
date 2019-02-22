@@ -811,6 +811,22 @@ class IconCache:
             self.__cache[file_name] = QIcon(file_name)
         return self.__cache[file_name]
 
+def token_ratio(blockheight):
+#function to return the token ratio at the supplied block height
+#The rate is the inflation rate (not the demmurage rate)
+    rate = 0.0101010101010101
+#Hourly inflation rate
+    hrate = (1.0 + rate)**(1.0/(365.0*24.0))
+#The zero ratio is the token ratio at time zero
+    zeroratio = 400.0
+#calculate the number of hours based on the blockheight
+    hours = blockheight // 60
+#calculate the token ratio iteratively based on intermediate rounding to 8 deciaml places
+    ratio = 1.0
+    for it in range(hours):
+        ratio += round(ratio*hrate - ratio,8)
+    tr = zeroratio/ratio
+    return round(tr,8)
 
 if __name__ == "__main__":
     app = QApplication([])

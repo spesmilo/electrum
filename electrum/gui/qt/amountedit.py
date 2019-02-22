@@ -2,8 +2,8 @@
 
 from decimal import Decimal
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtGui import QPalette, QPainter
 from PyQt5.QtWidgets import (QLineEdit, QStyle, QStyleOptionFrame)
 
 from electrum.util import (format_satoshis_plain, decimal_point_to_base_unit_name,

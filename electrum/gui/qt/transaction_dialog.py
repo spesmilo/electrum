@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# Electrum - lightweight Ocean client
 # Copyright (C) 2012 thomasv@gitorious
 #
 # Permission is hereby granted, free of charge, to any person
@@ -60,7 +60,8 @@ def show_transaction(tx, parent, desc=None, prompt_if_unsaved=False):
         parent.show_critical(_("Electrum was unable to deserialize the transaction:") + "\n" + str(e))
     else:
         dialogs.append(d)
-        d.show()
+        d.exec_()
+#        d.show()
 
 
 class TxDialog(QDialog, MessageBoxMixin):

@@ -45,9 +45,9 @@ def inv_dict(d):
     return {v: k for k, v in d.items()}
 
 
-base_units = {'CBT':8, 'mCBT':5, 'bits':2, 'sat':0}
+base_units = {'GT':8, 'mGT':5, 'bits':2, 'sat':0}
 base_units_inverse = inv_dict(base_units)
-base_units_list = ['CBT', 'mCBT', 'bits', 'sat']  # list(dict) does not guarantee order
+base_units_list = ['GT', 'mGT', 'bits', 'sat']  # list(dict) does not guarantee order
 
 
 def decimal_point_to_base_unit_name(dp: int) -> str:
@@ -132,7 +132,7 @@ class Satoshis(object):
         return 'Satoshis(%d)'%self.value
 
     def __str__(self):
-        return format_satoshis(self.value) + " BTC"
+        return format_satoshis(self.value) + " CBT"
 
 class Fiat(object):
     __slots__ = ('value', 'ccy')

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# Electrum - lightweight Ocean client
 # Copyright (C) 2015 Thomas Voegtlin
 #
 # Permission is hereby granted, free of charge, to any person
@@ -25,12 +25,11 @@
 from .util import *
 from electrum.i18n import _
 
-
 class UTXOList(MyTreeWidget):
     filter_columns = [0, 2]  # Address, Label
 
     def __init__(self, parent=None):
-        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Label'), _('Amount'), _('Height'), _('Output point')], 1)
+        MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Address'), _('Token ID'), _('Amount'), _('Mass'), _('Height'), _('Output point')], 1)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
 
@@ -45,13 +44,20 @@ class UTXOList(MyTreeWidget):
         for x in self.utxos:
             address = x.get('address')
             height = x.get('height')
+            asset = x.get('asset')
             name = self.get_name(x)
             label = self.wallet.get_label(x.get('prevout_hash'))
             amount = self.parent.format_amount(x['value'], whitespaces=True)
-            utxo_item = SortableTreeWidgetItem([address, label, amount, '%d'%height, name[0:10] + '...' + name[-2:]])
+            tokrat = token_ratio(self.wallet.get_block_height())
+            rmass = str("%.4f" % (float(x['value'])*tokrat/1.0E+8))
+            rmass_str = rmass+" oz "
+            utxo_item = SortableTreeWidgetItem([address, asset, amount, rmass_str, '%d'%height, name[0:10] + '...' + name[-2:]])
             utxo_item.setFont(0, QFont(MONOSPACE_FONT))
+            utxo_item.setFont(1, QFont(MONOSPACE_FONT))
             utxo_item.setFont(2, QFont(MONOSPACE_FONT))
+            utxo_item.setFont(3, QFont(MONOSPACE_FONT))
             utxo_item.setFont(4, QFont(MONOSPACE_FONT))
+            utxo_item.setFont(5, QFont(MONOSPACE_FONT))
             utxo_item.setData(0, Qt.UserRole, name)
             if self.wallet.is_frozen(address):
                 utxo_item.setBackground(0, ColorScheme.BLUE.as_color(True))
