@@ -18,7 +18,7 @@ import time
 from electrum_ltc.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
 from electrum_ltc.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh,
                                   is_address)
-from electrum_ltc.bip32 import serialize_xpub, deserialize_xpub
+from electrum_ltc.bip32 import BIP32Node
 from electrum_ltc import ecc
 from electrum_ltc.ecc import msg_magic
 from electrum_ltc.wallet import Standard_Wallet
@@ -118,8 +118,8 @@ class DigitalBitbox_Client():
             # only ever returns the mainnet standard type, but it is agnostic
             # to the type when signing.
             if xtype != 'standard' or constants.net.TESTNET:
-                _, depth, fingerprint, child_number, c, cK = deserialize_xpub(xpub, net=constants.BitcoinMainnet)
-                xpub = serialize_xpub(xtype, c, cK, depth, fingerprint, child_number)
+                node = BIP32Node.from_xkey(xpub, net=constants.BitcoinMainnet)
+                xpub = node._replace(xtype=xtype).to_xpub()
             return xpub
         else:
             raise Exception('no reply')

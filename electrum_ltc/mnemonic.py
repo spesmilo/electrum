@@ -30,8 +30,8 @@ import string
 
 import ecdsa
 
-from .util import print_error, resource_path
-from .bitcoin import is_old_seed, is_new_seed
+from .util import print_error, resource_path, bfh, bh2u
+from .crypto import hmac_oneshot
 from . import version
 
 # http://www.asahi-net.or.jp/~ax2s-kmtn/ref/unicode/e_asia.html
@@ -126,7 +126,7 @@ class Mnemonic(object):
         print_error("wordlist has %d words"%len(self.wordlist))
 
     @classmethod
-    def mnemonic_to_seed(self, mnemonic, passphrase):
+    def mnemonic_to_seed(self, mnemonic, passphrase) -> bytes:
         PBKDF2_ROUNDS = 2048
         mnemonic = normalize_text(mnemonic)
         passphrase = passphrase or ''
@@ -181,3 +181,49 @@ class Mnemonic(object):
                 break
         print_error('%d words'%len(seed.split()))
         return seed
+
+
+def is_new_seed(x: str, prefix=version.SEED_PREFIX) -> bool:
+    x = normalize_text(x)
+    s = bh2u(hmac_oneshot(b"Seed version", x.encode('utf8'), hashlib.sha512))
+    return s.startswith(prefix)
+
+
+def is_old_seed(seed: str) -> bool:
+    from . import old_mnemonic
+    seed = normalize_text(seed)
+    words = seed.split()
+    try:
+        # checks here are deliberately left weak for legacy reasons, see #3149
+        old_mnemonic.mn_decode(words)
+        uses_electrum_words = True
+    except Exception:
+        uses_electrum_words = False
+    try:
+        seed = bfh(seed)
+        is_hex = (len(seed) == 16 or len(seed) == 32)
+    except Exception:
+        is_hex = False
+    return is_hex or (uses_electrum_words and (len(words) == 12 or len(words) == 24))
+
+
+def seed_type(x: str) -> str:
+    if is_old_seed(x):
+        return 'old'
+    elif is_new_seed(x):
+        return 'standard'
+    elif is_new_seed(x, version.SEED_PREFIX_SW):
+        return 'segwit'
+    elif is_new_seed(x, version.SEED_PREFIX_2FA):
+        return '2fa'
+    elif is_new_seed(x, version.SEED_PREFIX_2FA_SW):
+        return '2fa_segwit'
+    return ''
+
+
+def is_seed(x: str) -> bool:
+    return bool(seed_type(x))
+
+
+def is_any_2fa_seed_type(seed_type: str) -> bool:
+    return seed_type in ['2fa', '2fa_segwit']

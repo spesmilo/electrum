@@ -2,19 +2,20 @@ import base64
 import sys
 
 from electrum_ltc.bitcoin import (public_key_to_p2pkh, address_from_private_key,
-                                  is_address, is_private_key, is_new_seed, is_old_seed,
-                                  var_int, op_push, address_to_script,
+                                  is_address, is_private_key,
+                                  var_int, _op_push, address_to_script,
                                   deserialize_privkey, serialize_privkey, is_segwit_address,
                                   is_b58_address, address_to_scripthash, is_minikey,
-                                  is_compressed_privkey, seed_type, EncodeBase58Check,
-                                  script_num_to_hex, push_script, add_number_to_script, int_to_hex)
-from electrum_ltc.bip32 import (bip32_root, bip32_public_derivation, bip32_private_derivation,
+                                  is_compressed_privkey, EncodeBase58Check,
+                                  script_num_to_hex, push_script, add_number_to_script, int_to_hex,
+                                  opcodes)
+from electrum_ltc.bip32 import (BIP32Node, convert_bip32_intpath_to_strpath,
                                 xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
-                                is_xpub, convert_bip32_path_to_list_of_uint32)
+                                is_xpub, convert_bip32_path_to_list_of_uint32,
+                                normalize_bip32_derivation)
 from electrum_ltc.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum_ltc import ecc, crypto, constants
 from electrum_ltc.ecc import number_to_string, string_to_number
-from electrum_ltc.transaction import opcodes
 from electrum_ltc.util import bfh, bh2u, InvalidPassword
 from electrum_ltc.storage import WalletStorage
 from electrum_ltc.keystore import xtype_from_derivation
@@ -291,18 +292,18 @@ class Test_bitcoin(SequentialTestCase):
         self.assertEqual(var_int(0x0123456789abcdef), "ffefcdab8967452301")
 
     def test_op_push(self):
-        self.assertEqual(op_push(0x00), '00')
-        self.assertEqual(op_push(0x12), '12')
-        self.assertEqual(op_push(0x4b), '4b')
-        self.assertEqual(op_push(0x4c), '4c4c')
-        self.assertEqual(op_push(0xfe), '4cfe')
-        self.assertEqual(op_push(0xff), '4cff')
-        self.assertEqual(op_push(0x100), '4d0001')
-        self.assertEqual(op_push(0x1234), '4d3412')
-        self.assertEqual(op_push(0xfffe), '4dfeff')
-        self.assertEqual(op_push(0xffff), '4dffff')
-        self.assertEqual(op_push(0x10000), '4e00000100')
-        self.assertEqual(op_push(0x12345678), '4e78563412')
+        self.assertEqual(_op_push(0x00), '00')
+        self.assertEqual(_op_push(0x12), '12')
+        self.assertEqual(_op_push(0x4b), '4b')
+        self.assertEqual(_op_push(0x4c), '4c4c')
+        self.assertEqual(_op_push(0xfe), '4cfe')
+        self.assertEqual(_op_push(0xff), '4cff')
+        self.assertEqual(_op_push(0x100), '4d0001')
+        self.assertEqual(_op_push(0x1234), '4d3412')
+        self.assertEqual(_op_push(0xfffe), '4dfeff')
+        self.assertEqual(_op_push(0xffff), '4dffff')
+        self.assertEqual(_op_push(0x10000), '4e00000100')
+        self.assertEqual(_op_push(0x12345678), '4e78563412')
 
     def test_script_num_to_hex(self):
         # test vectors from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptnum.go#L77
@@ -405,19 +406,18 @@ class Test_xprv_xpub(SequentialTestCase):
          'xtype': 'p2wpkh'},
     )
 
-    def _do_test_bip32(self, seed, sequence):
-        xprv, xpub = bip32_root(bfh(seed), 'standard')
+    def _do_test_bip32(self, seed: str, sequence):
+        node = BIP32Node.from_rootseed(bfh(seed), xtype='standard')
+        xprv, xpub = node.to_xprv(), node.to_xpub()
         self.assertEqual("m/", sequence[0:2])
-        path = 'm'
         sequence = sequence[2:]
         for n in sequence.split('/'):
-            child_path = path + '/' + n
             if n[-1] != "'":
-                xpub2 = bip32_public_derivation(xpub, path, child_path)
-            xprv, xpub = bip32_private_derivation(xprv, path, child_path)
+                xpub2 = BIP32Node.from_xkey(xpub).subkey_at_public_derivation(n).to_xpub()
+            node = BIP32Node.from_xkey(xprv).subkey_at_private_derivation(n)
+            xprv, xpub = node.to_xprv(), node.to_xpub()
             if n[-1] != "'":
                 self.assertEqual(xpub, xpub2)
-            path = child_path
 
         return xpub, xprv
 
@@ -464,17 +464,33 @@ class Test_xprv_xpub(SequentialTestCase):
     def test_is_bip32_derivation(self):
         self.assertTrue(is_bip32_derivation("m/0'/1"))
         self.assertTrue(is_bip32_derivation("m/0'/0'"))
+        self.assertTrue(is_bip32_derivation("m/3'/-5/8h/"))
         self.assertTrue(is_bip32_derivation("m/44'/0'/0'/0/0"))
         self.assertTrue(is_bip32_derivation("m/49'/0'/0'/0/0"))
+        self.assertTrue(is_bip32_derivation("m"))
+        self.assertTrue(is_bip32_derivation("m/"))
+        self.assertFalse(is_bip32_derivation("m5"))
         self.assertFalse(is_bip32_derivation("mmmmmm"))
         self.assertFalse(is_bip32_derivation("n/"))
         self.assertFalse(is_bip32_derivation(""))
         self.assertFalse(is_bip32_derivation("m/q8462"))
+        self.assertFalse(is_bip32_derivation("m/-8h"))
 
     def test_convert_bip32_path_to_list_of_uint32(self):
         self.assertEqual([0, 0x80000001, 0x80000001], convert_bip32_path_to_list_of_uint32("m/0/-1/1'"))
         self.assertEqual([], convert_bip32_path_to_list_of_uint32("m/"))
-        self.assertEqual([2147483692, 2147488889, 221], convert_bip32_path_to_list_of_uint32("m/44'/5241'/221"))
+        self.assertEqual([2147483692, 2147488889, 221], convert_bip32_path_to_list_of_uint32("m/44'/5241h/221"))
+
+    def test_convert_bip32_intpath_to_strpath(self):
+        self.assertEqual("m/0/1'/1'", convert_bip32_intpath_to_strpath([0, 0x80000001, 0x80000001]))
+        self.assertEqual("m", convert_bip32_intpath_to_strpath([]))
+        self.assertEqual("m/44'/5241'/221", convert_bip32_intpath_to_strpath([2147483692, 2147488889, 221]))
+
+    def test_normalize_bip32_derivation(self):
+        self.assertEqual("m/0/1'/1'", normalize_bip32_derivation("m/0/1h/1'"))
+        self.assertEqual("m", normalize_bip32_derivation("m////"))
+        self.assertEqual("m/0/2/1'", normalize_bip32_derivation("m/0/2/-1/"))
+        self.assertEqual("m/0/1'/1'/5'", normalize_bip32_derivation("m/0//-1/1'///5h"))
 
     def test_xtype_from_derivation(self):
         self.assertEqual('standard', xtype_from_derivation("m/44'"))
@@ -719,49 +735,3 @@ class Test_keyImport(SequentialTestCase):
         for priv_details in self.priv_pub_addr:
             self.assertEqual(priv_details['compressed'],
                              is_compressed_privkey(priv_details['priv']))
-
-
-class Test_seeds(SequentialTestCase):
-    """ Test old and new seeds. """
-
-    mnemonics = {
-        ('cell dumb heartbeat north boom tease ship baby bright kingdom rare squeeze', 'old'),
-        ('cell dumb heartbeat north boom tease ' * 4, 'old'),
-        ('cell dumb heartbeat north boom tease ship baby bright kingdom rare badword', ''),
-        ('cElL DuMb hEaRtBeAt nOrTh bOoM TeAsE ShIp bAbY BrIgHt kInGdOm rArE SqUeEzE', 'old'),
-        ('   cElL  DuMb hEaRtBeAt nOrTh bOoM  TeAsE ShIp    bAbY BrIgHt kInGdOm rArE SqUeEzE   ', 'old'),
-        # below seed is actually 'invalid old' as it maps to 33 hex chars
-        ('hurry idiot prefer sunset mention mist jaw inhale impossible kingdom rare squeeze', 'old'),
-        ('cram swing cover prefer miss modify ritual silly deliver chunk behind inform able', 'standard'),
-        ('cram swing cover prefer miss modify ritual silly deliver chunk behind inform', ''),
-        ('ostrich security deer aunt climb inner alpha arm mutual marble solid task', 'standard'),
-        ('OSTRICH SECURITY DEER AUNT CLIMB INNER ALPHA ARM MUTUAL MARBLE SOLID TASK', 'standard'),
-        ('   oStRiCh sEcUrItY DeEr aUnT ClImB       InNeR AlPhA ArM MuTuAl mArBlE   SoLiD TaSk  ', 'standard'),
-        ('x8', 'standard'),
-        ('science dawn member doll dutch real can brick knife deny drive list', '2fa'),
-        ('science dawn member doll dutch real ca brick knife deny drive list', ''),
-        (' sCience dawn   member doll Dutch rEAl can brick knife deny drive  lisT', '2fa'),
-        ('frost pig brisk excite novel report camera enlist axis nation novel desert', 'segwit'),
-        ('  fRoSt pig brisk excIte novel rePort CamEra enlist axis nation nOVeL dEsert ', 'segwit'),
-        ('9dk', 'segwit'),
-    }
-
-    def test_new_seed(self):
-        seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform able"
-        self.assertTrue(is_new_seed(seed))
-
-        seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform"
-        self.assertFalse(is_new_seed(seed))
-
-    def test_old_seed(self):
-        self.assertTrue(is_old_seed(" ".join(["like"] * 12)))
-        self.assertFalse(is_old_seed(" ".join(["like"] * 18)))
-        self.assertTrue(is_old_seed(" ".join(["like"] * 24)))
-        self.assertFalse(is_old_seed("not a seed"))
-
-        self.assertTrue(is_old_seed("0123456789ABCDEF" * 2))
-        self.assertTrue(is_old_seed("0123456789ABCDEF" * 4))
-
-    def test_seed_type(self):
-        for seed_words, _type in self.mnemonics:
-            self.assertEqual(_type, seed_type(seed_words), msg=seed_words)

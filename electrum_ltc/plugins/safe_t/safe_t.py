@@ -4,7 +4,7 @@ import sys
 
 from electrum_ltc.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
 from electrum_ltc.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
-from electrum_ltc.bip32 import deserialize_xpub
+from electrum_ltc.bip32 import BIP32Node
 from electrum_ltc import constants
 from electrum_ltc.i18n import _
 from electrum_ltc.plugin import Device
@@ -220,6 +220,8 @@ class SafeTPlugin(HW_PluginBase):
         language = 'english'
         devmgr = self.device_manager()
         client = devmgr.client_by_id(device_id)
+        if not client:
+            raise Exception(_("The device was disconnected."))
 
         if method == TIM_NEW:
             strength = 64 * (item + 2)  # 128, 192 or 256
@@ -244,13 +246,13 @@ class SafeTPlugin(HW_PluginBase):
                                        label, language)
 
     def _make_node_path(self, xpub, address_n):
-        _, depth, fingerprint, child_num, chain_code, key = deserialize_xpub(xpub)
+        bip32node = BIP32Node.from_xkey(xpub)
         node = self.types.HDNodeType(
-            depth=depth,
-            fingerprint=int.from_bytes(fingerprint, 'big'),
-            child_num=int.from_bytes(child_num, 'big'),
-            chain_code=chain_code,
-            public_key=key,
+            depth=bip32node.depth,
+            fingerprint=int.from_bytes(bip32node.fingerprint, 'big'),
+            child_num=int.from_bytes(bip32node.child_number, 'big'),
+            chain_code=bip32node.chaincode,
+            public_key=bip32node.eckey.get_public_key_bytes(compressed=True),
         )
         return self.types.HDNodePathType(node=node, address_n=address_n)
 

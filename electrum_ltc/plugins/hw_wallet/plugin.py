@@ -26,9 +26,9 @@
 
 from electrum_ltc.plugin import BasePlugin, hook
 from electrum_ltc.i18n import _
-from electrum_ltc.bitcoin import is_address, TYPE_SCRIPT
+from electrum_ltc.bitcoin import is_address, TYPE_SCRIPT, opcodes
 from electrum_ltc.util import bfh, versiontuple, UserFacingException
-from electrum_ltc.transaction import opcodes, TxOutput, Transaction
+from electrum_ltc.transaction import TxOutput, Transaction
 
 
 class HW_PluginBase(BasePlugin):
