@@ -29,6 +29,8 @@ import traceback
 
 from .transaction import Transaction
 from .util import ThreadJob, bh2u
+from . import networks
+from .bitcoin import InvalidXKeyFormat
 
 
 class Synchronizer(ThreadJob):
@@ -43,6 +45,7 @@ class Synchronizer(ThreadJob):
     '''
 
     def __init__(self, wallet, network):
+        self.bad_testnet_wallet = False
         self.wallet = wallet
         self.network = network
         self.new_addresses = set()
@@ -202,19 +205,32 @@ class Synchronizer(ThreadJob):
 
     def run(self):
         '''Called from the network proxy thread main loop.'''
-        # 1. Create new addresses
-        self.wallet.synchronize()
+        if self.bad_testnet_wallet:
+            return
+        try:
+            # 1. Create new addresses
+            self.wallet.synchronize()
 
-        # 2. Subscribe to new addresses
-        with self.lock:
-            addresses = self.new_addresses
-            self.new_addresses = set()
-        if addresses:
-            self.subscribe_to_addresses(addresses)
+            # 2. Subscribe to new addresses
+            with self.lock:
+                addresses = self.new_addresses
+                self.new_addresses = set()
+            if addresses:
+                self.subscribe_to_addresses(addresses)
 
-        # 3. Detect if situation has changed
-        up_to_date = self.is_up_to_date()
-        if up_to_date != self.wallet.is_up_to_date():
-            self.wallet.set_up_to_date(up_to_date)
-            # New in 3.3.6: 'updated' callbacks from synchronizer always specify which wallet, so GUI can ignore irrelevant 'updated' events
-            self.network.trigger_callback('updated', self.wallet)
+            # 3. Detect if situation has changed
+            up_to_date = self.is_up_to_date()
+            if up_to_date != self.wallet.is_up_to_date():
+                self.wallet.set_up_to_date(up_to_date)
+                # New in 3.3.6: 'updated' callbacks from synchronizer always specify which wallet, so GUI can ignore irrelevant 'updated' events
+                self.network.trigger_callback('updated', self.wallet)
+        except InvalidXKeyFormat:
+            # Workaround to buggy testnet wallets that had the wrong xpub..
+            # This is here so that the network thread doesn't get blown up when
+            # encountering such wallets.
+            # See #1164
+            if networks.net.TESTNET:
+                self.print_error("*** ERROR *** Bad format testnet xkey detected. Synchronizer will no longer proceed to synchronize. Please regenerate this testnet wallet from seed to fix this error.")
+                self.bad_testnet_wallet = True
+            else:
+                raise

@@ -379,6 +379,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.hide()
         else:
             self.show()
+            if self._is_invalid_testnet_wallet():
+                self.gui_object.daemon.stop_wallet(self.wallet.storage.path)
+                self._warn_if_invalid_testnet_wallet()
         self.watching_only_changed()
         self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
         run_hook('load_wallet', wallet, self)
@@ -416,6 +419,37 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 _("Make sure you own the seed phrase or the private keys, before you request Bitcoin Cash to be sent to this wallet.")
             ])
             self.show_warning(msg, title=_('Information'))
+
+    def _is_invalid_testnet_wallet(self):
+        if not networks.net.TESTNET:
+            return False
+        is_old_bad = False
+        xkey = ((hasattr(self.wallet, 'get_master_public_key') and self.wallet.get_master_public_key())
+                or None)
+        if xkey:
+            from electroncash.bitcoin import deserialize_xpub, InvalidXKeyFormat
+            try:
+                xp = deserialize_xpub(xkey)
+            except InvalidXKeyFormat:
+                is_old_bad = True
+        return is_old_bad
+
+    def _warn_if_invalid_testnet_wallet(self):
+        ''' This was added after the upgrade from the bad xpub testnet wallets
+        to the good tpub testnet wallet format in version 3.3.6. See #1164.
+        We warn users if they are using the bad wallet format and instruct
+        them on how to upgrade their wallets.'''
+        is_old_bad = self._is_invalid_testnet_wallet()
+        if is_old_bad:
+            msg = ' '.join([
+                _("This testnet wallet has an invalid master key format."),
+                _("(Old versions of Electron Cash before 3.3.6 produced invalid testnet wallets)."),
+                '<br><br>',
+                _("In order to use this wallet without errors with this version of EC, please <b>re-generate this wallet from seed</b>."),
+                "<br><br><em><i>~SPV stopped~</i></em>"
+            ])
+            self.show_critical(msg, title=_('Invalid Master Key'), rich_text=True)
+        return is_old_bad
 
     def open_wallet(self):
         try:
