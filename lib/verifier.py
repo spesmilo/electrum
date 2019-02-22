@@ -131,6 +131,7 @@ class SPV(ThreadJob):
         self.wallet.add_verified_tx(tx_hash, (tx_height, header.get('timestamp'), pos))
         if self.is_up_to_date() and self.wallet.is_up_to_date() and not self.qbusy:
             self.wallet.save_verified_tx(write=True)
+            self.network.trigger_callback('updated', self.wallet)  # This callback will happen very rarely.. mostly right as the last tx is verified. It's to ensure GUI is updated fully.
 
     @classmethod
     def hash_merkle_root(cls, merkle_s, target_hash, pos):

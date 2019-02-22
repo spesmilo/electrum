@@ -381,6 +381,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.show()
             if self._is_invalid_testnet_wallet():
                 self.gui_object.daemon.stop_wallet(self.wallet.storage.path)
+                self._rebuild_history_action.setEnabled(False)
                 self._warn_if_invalid_testnet_wallet()
         self.watching_only_changed()
         self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
@@ -548,6 +549,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.import_privkey_menu = self.private_keys_menu.addAction(_("&Import"), self.do_import_privkey)
         self.export_menu = self.private_keys_menu.addAction(_("&Export"), self.export_privkeys_dialog)
         self.import_address_menu = wallet_menu.addAction(_("Import addresses"), self.import_addresses)
+        wallet_menu.addSeparator()
+        self._rebuild_history_action = wallet_menu.addAction(_("&Rebuild history"), self.rebuild_history)
         wallet_menu.addSeparator()
 
         labels_menu = wallet_menu.addMenu(_("&Labels"))
@@ -3525,6 +3528,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         self.show_transaction(new_tx)
 
+    def rebuild_history(self):
+        if self.gui_object.warn_if_no_network(self):
+            # Don't allow if offline mode.
+            return
+        msg = ' '.join([
+            _('This feature is intended to allow you to rebuild a wallet if it has become corrupted.'),
+            "\n\n"+_('Your entire transaction history will be downloaded again from the server and verified from the blockchain.'),
+            _('Just to be safe, back up your wallet file first!'),
+            "\n\n"+_("Rebuild this wallet's history now?")
+        ])
+        if self.question(msg, title=_("Rebuild Wallet History")):
+            try:
+                self.wallet.rebuild_history()
+            except RuntimeError as e:
+                self.show_error(str(e))
 
 class TxUpdateMgr(QObject, PrintError):
     ''' Manages new transaction notifications and transaction verified
