@@ -3,18 +3,18 @@ import sys
 
 from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
                               is_address, is_private_key, is_new_seed, is_old_seed,
-                              var_int, op_push, address_to_script,
+                              var_int, _op_push, address_to_script,
                               deserialize_privkey, serialize_privkey, is_segwit_address,
                               is_b58_address, address_to_scripthash, is_minikey,
                               is_compressed_privkey, seed_type, EncodeBase58Check,
-                              script_num_to_hex, push_script, add_number_to_script, int_to_hex)
+                              script_num_to_hex, push_script, add_number_to_script, int_to_hex,
+                              opcodes)
 from electrum.bip32 import (bip32_root, bip32_public_derivation, bip32_private_derivation,
                             xpub_from_xprv, xpub_type, is_xprv, is_bip32_derivation,
                             is_xpub, convert_bip32_path_to_list_of_uint32)
 from electrum.crypto import sha256d, SUPPORTED_PW_HASH_VERSIONS
 from electrum import ecc, crypto, constants
 from electrum.ecc import number_to_string, string_to_number
-from electrum.transaction import opcodes
 from electrum.util import bfh, bh2u, InvalidPassword
 from electrum.storage import WalletStorage
 from electrum.keystore import xtype_from_derivation
@@ -291,18 +291,18 @@ class Test_bitcoin(SequentialTestCase):
         self.assertEqual(var_int(0x0123456789abcdef), "ffefcdab8967452301")
 
     def test_op_push(self):
-        self.assertEqual(op_push(0x00), '00')
-        self.assertEqual(op_push(0x12), '12')
-        self.assertEqual(op_push(0x4b), '4b')
-        self.assertEqual(op_push(0x4c), '4c4c')
-        self.assertEqual(op_push(0xfe), '4cfe')
-        self.assertEqual(op_push(0xff), '4cff')
-        self.assertEqual(op_push(0x100), '4d0001')
-        self.assertEqual(op_push(0x1234), '4d3412')
-        self.assertEqual(op_push(0xfffe), '4dfeff')
-        self.assertEqual(op_push(0xffff), '4dffff')
-        self.assertEqual(op_push(0x10000), '4e00000100')
-        self.assertEqual(op_push(0x12345678), '4e78563412')
+        self.assertEqual(_op_push(0x00), '00')
+        self.assertEqual(_op_push(0x12), '12')
+        self.assertEqual(_op_push(0x4b), '4b')
+        self.assertEqual(_op_push(0x4c), '4c4c')
+        self.assertEqual(_op_push(0xfe), '4cfe')
+        self.assertEqual(_op_push(0xff), '4cff')
+        self.assertEqual(_op_push(0x100), '4d0001')
+        self.assertEqual(_op_push(0x1234), '4d3412')
+        self.assertEqual(_op_push(0xfffe), '4dfeff')
+        self.assertEqual(_op_push(0xffff), '4dffff')
+        self.assertEqual(_op_push(0x10000), '4e00000100')
+        self.assertEqual(_op_push(0x12345678), '4e78563412')
 
     def test_script_num_to_hex(self):
         # test vectors from https://github.com/btcsuite/btcd/blob/fdc2bc867bda6b351191b5872d2da8270df00d13/txscript/scriptnum.go#L77

@@ -30,7 +30,8 @@ from PyQt5.QtGui import QFontMetrics
 
 from electrum import bitcoin
 from electrum.util import bfh, PrintError
-from electrum.transaction import TxOutput
+from electrum.transaction import TxOutput, push_script
+from electrum.bitcoin import opcodes
 
 from .qrtextedit import ScanQRTextEdit
 from .completion_text_edit import CompletionTextEdit
@@ -91,7 +92,6 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
             return bitcoin.TYPE_SCRIPT, script
 
     def parse_script(self, x):
-        from electrum.transaction import opcodes, push_script
         script = ''
         for word in x.split():
             if word[0:3] == 'OP_':
