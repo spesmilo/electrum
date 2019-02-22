@@ -36,12 +36,12 @@ from urllib.parse import quote
 from aiohttp import ClientResponse
 
 from electrum import ecc, constants, keystore, version, bip32, bitcoin
-from electrum.bitcoin import TYPE_ADDRESS, is_new_seed, seed_type, is_any_2fa_seed_type
+from electrum.bitcoin import TYPE_ADDRESS
 from electrum.bip32 import (deserialize_xpub, deserialize_xprv, bip32_private_key, CKD_pub,
                             serialize_xpub, bip32_root, bip32_private_derivation, xpub_type)
 from electrum.crypto import sha256
 from electrum.transaction import TxOutput
-from electrum.mnemonic import Mnemonic
+from electrum.mnemonic import Mnemonic, seed_type, is_any_2fa_seed_type
 from electrum.wallet import Multisig_Wallet, Deterministic_Wallet
 from electrum.i18n import _
 from electrum.plugin import BasePlugin, hook

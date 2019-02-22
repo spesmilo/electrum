@@ -29,7 +29,7 @@ from PyQt5.QtWidgets import (QVBoxLayout, QCheckBox, QHBoxLayout, QLineEdit,
                              QLabel, QCompleter, QDialog)
 
 from electrum.i18n import _
-from electrum.mnemonic import Mnemonic
+from electrum.mnemonic import Mnemonic, seed_type
 import electrum.old_mnemonic
 
 from .util import (Buttons, OkButton, WWLabel, ButtonsTextEdit, icon_path,
@@ -161,7 +161,6 @@ class SeedLayout(QVBoxLayout):
         return ' '.join(text.split())
 
     def on_edit(self):
-        from electrum.bitcoin import seed_type
         s = self.get_seed()
         b = self.is_seed(s)
         if not self.is_bip39:

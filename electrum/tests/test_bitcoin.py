@@ -2,11 +2,11 @@ import base64
 import sys
 
 from electrum.bitcoin import (public_key_to_p2pkh, address_from_private_key,
-                              is_address, is_private_key, is_new_seed, is_old_seed,
+                              is_address, is_private_key,
                               var_int, _op_push, address_to_script,
                               deserialize_privkey, serialize_privkey, is_segwit_address,
                               is_b58_address, address_to_scripthash, is_minikey,
-                              is_compressed_privkey, seed_type, EncodeBase58Check,
+                              is_compressed_privkey, EncodeBase58Check,
                               script_num_to_hex, push_script, add_number_to_script, int_to_hex,
                               opcodes)
 from electrum.bip32 import (bip32_root, bip32_public_derivation, bip32_private_derivation,
@@ -719,49 +719,3 @@ class Test_keyImport(SequentialTestCase):
         for priv_details in self.priv_pub_addr:
             self.assertEqual(priv_details['compressed'],
                              is_compressed_privkey(priv_details['priv']))
-
-
-class Test_seeds(SequentialTestCase):
-    """ Test old and new seeds. """
-
-    mnemonics = {
-        ('cell dumb heartbeat north boom tease ship baby bright kingdom rare squeeze', 'old'),
-        ('cell dumb heartbeat north boom tease ' * 4, 'old'),
-        ('cell dumb heartbeat north boom tease ship baby bright kingdom rare badword', ''),
-        ('cElL DuMb hEaRtBeAt nOrTh bOoM TeAsE ShIp bAbY BrIgHt kInGdOm rArE SqUeEzE', 'old'),
-        ('   cElL  DuMb hEaRtBeAt nOrTh bOoM  TeAsE ShIp    bAbY BrIgHt kInGdOm rArE SqUeEzE   ', 'old'),
-        # below seed is actually 'invalid old' as it maps to 33 hex chars
-        ('hurry idiot prefer sunset mention mist jaw inhale impossible kingdom rare squeeze', 'old'),
-        ('cram swing cover prefer miss modify ritual silly deliver chunk behind inform able', 'standard'),
-        ('cram swing cover prefer miss modify ritual silly deliver chunk behind inform', ''),
-        ('ostrich security deer aunt climb inner alpha arm mutual marble solid task', 'standard'),
-        ('OSTRICH SECURITY DEER AUNT CLIMB INNER ALPHA ARM MUTUAL MARBLE SOLID TASK', 'standard'),
-        ('   oStRiCh sEcUrItY DeEr aUnT ClImB       InNeR AlPhA ArM MuTuAl mArBlE   SoLiD TaSk  ', 'standard'),
-        ('x8', 'standard'),
-        ('science dawn member doll dutch real can brick knife deny drive list', '2fa'),
-        ('science dawn member doll dutch real ca brick knife deny drive list', ''),
-        (' sCience dawn   member doll Dutch rEAl can brick knife deny drive  lisT', '2fa'),
-        ('frost pig brisk excite novel report camera enlist axis nation novel desert', 'segwit'),
-        ('  fRoSt pig brisk excIte novel rePort CamEra enlist axis nation nOVeL dEsert ', 'segwit'),
-        ('9dk', 'segwit'),
-    }
-
-    def test_new_seed(self):
-        seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform able"
-        self.assertTrue(is_new_seed(seed))
-
-        seed = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform"
-        self.assertFalse(is_new_seed(seed))
-
-    def test_old_seed(self):
-        self.assertTrue(is_old_seed(" ".join(["like"] * 12)))
-        self.assertFalse(is_old_seed(" ".join(["like"] * 18)))
-        self.assertTrue(is_old_seed(" ".join(["like"] * 24)))
-        self.assertFalse(is_old_seed("not a seed"))
-
-        self.assertTrue(is_old_seed("0123456789ABCDEF" * 2))
-        self.assertTrue(is_old_seed("0123456789ABCDEF" * 4))
-
-    def test_seed_type(self):
-        for seed_words, _type in self.mnemonics:
-            self.assertEqual(_type, seed_type(seed_words), msg=seed_words)

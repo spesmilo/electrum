@@ -1652,12 +1652,12 @@ words = [
 "total",
 "unseen",
 "weapon",
-"weary"
+"weary",
 ]
 
+n = len(words)
+assert n == 1626
 
-
-n = 1626
 
 # Note about US patent no 5892470: Here each word does not represent a given digit.
 # Instead, the digit represented by a word is variable, it depends on the previous word.
