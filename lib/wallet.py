@@ -1538,6 +1538,33 @@ class Abstract_Wallet(PrintError):
         index = self.get_address_index(addr)
         return self.keystore.decrypt_message(index, message, password)
 
+    def rebuild_history(self):
+        ''' This is an advanced function for use in the GUI when the user
+        wants to resynch the whole wallet from scratch, preserving labels
+        and contacts.  Right now this implementation is beta-quality but
+        appears to work great for the most part. '''
+        if not self.network or not self.network.is_connected():
+            raise RuntimeError('Refusing to rebuild wallet without a valid server connection!')
+        if not self.synchronizer or not self.verifier:
+            raise RuntimeError('Refusing to rebuild a stopped wallet!')
+        network = self.network
+        self.stop_threads()
+        do_addr_save = False
+        with self.lock, self.transaction_lock:
+            self.transactions.clear(); self.unverified_tx.clear(); self.verified_tx.clear()
+            self.clear_history()
+            if isinstance(self, Standard_Wallet):
+                # reset the address list to default too, just in case. New synchronizer will pick up the addresses again.
+                self.receiving_addresses, self.change_addresses = self.receiving_addresses[:self.gap_limit], self.change_addresses[:self.gap_limit_for_change]
+                do_addr_save = True
+        if do_addr_save:
+            self.save_addresses()
+        self.save_transactions()
+        self.save_verified_tx()
+        self.storage.write()
+        self.start_threads(network)
+        self.network.trigger_callback('updated', self)
+
 
 class Simple_Wallet(Abstract_Wallet):
     # wallet with a single keystore
