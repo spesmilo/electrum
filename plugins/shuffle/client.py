@@ -267,6 +267,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.last_idle_check = 0
         self.done_utxos = dict()
         self._paused = False
+        self._coins_busy_shuffling = set()  # 'prevout_hash:n' (name) set of all coins that are currently being shuffled by a ProtocolThread.
 
     def set_password(self, password):
         with self.lock:
@@ -472,9 +473,9 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 retVal = True # indicate to interesteed callers that we had a completion. Our thread loop uses this retval to decide to scan for UTXOs to shuffle immediately.
             with self.wallet.lock, self.wallet.transaction_lock:
                 self.wallet.set_frozen_coin_state([sender], False)
-                coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
-                coins_for_shuffling -= {sender}
-                self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
+                self._coins_busy_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
+                self._coins_busy_shuffling -= {sender}
+                self.wallet.storage.put("coins_frozen_by_shuffling", list(self._coins_busy_shuffling))
                 if message.startswith("Error"):
                     # unreserve addresses that were previously reserved iff error
                     self.wallet._addresses_cashshuffle_reserved -= { thr.addr_new_addr, thr.change_addr }
@@ -557,9 +558,9 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             raise RuntimeWarning('Invalid Password caught when trying to export a private key -- if this keeps happening tell the devs!')
         utxo_name = get_name(coin)
         self.wallet.set_frozen_coin_state([utxo_name], True)
-        coins_for_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
-        coins_for_shuffling |= {utxo_name}
-        self.wallet.storage.put("coins_frozen_by_shuffling", list(coins_for_shuffling))
+        self._coins_busy_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
+        self._coins_busy_shuffling |= {utxo_name}
+        self.wallet.storage.put("coins_frozen_by_shuffling", list(self._coins_busy_shuffling))
         inputs = {}
         sks = {}
         public_key = self.wallet.get_public_key(coin['address'])
@@ -602,7 +603,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             name = utxo_name_or_dict
         # name must be an str at this point!
         with self.wallet.lock, self.wallet.transaction_lock:
-            return any(thr for thr in self.threads.values() if thr and thr.coin == name)
+            return name in self._coins_busy_shuffling
 
     def is_wallet_ready(self):
         return bool( self.wallet and self.wallet.is_up_to_date()
