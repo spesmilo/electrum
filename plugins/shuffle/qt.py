@@ -197,8 +197,12 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
         item.setText(5, _("In progress"))
     elif prog.startswith('phase '):
         item.setText(5, _("Phase {}").format(prog.split()[-1]))
-    elif prog == "wait for others": # wait for others
+    elif prog == 'wait for others': # wait for others
         item.setText(5, _("Wait for others"))
+    elif prog.startswith("got players"): # got players > 1
+        num, tot = (int(x) for x in prog.rsplit(' ', 2)[-2:])
+        txt = "{} ({}/{})".format(_("Players"), num, tot)
+        item.setText(5, txt)
     elif prog == "completed":
         item.setText(5, _("Done"))
 
@@ -215,6 +219,14 @@ def update_coin_status(window, coin_name, msg):
         if msg.startswith("Player"):
             if "get session number" in msg:
                 new_in_progress = 'wait for others'
+            elif 'joined the pool' in msg:
+                try:
+                    num = int(msg.split(' ', 2)[1])
+                    if num > 1:
+                        # got more players than just self
+                        new_in_progress = 'got players {} {}'.format(num, window.background_process.poolSize)
+                except (ValueError, IndexError):
+                    pass
             elif "begins CoinShuffle protocol" in msg:
                 new_in_progress = 'in progress'
             elif "reaches phase" in msg:
