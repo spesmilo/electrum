@@ -261,6 +261,8 @@ and there is no warning message.
   compatible. (cculianu)
 * Added "Export contacts" facility to UI so you can export all your contacts to
   a file. (Strangely, we had "Import contacts", but no export!) (cculianu)
+* Added "Wallet -> Rebuild history" to Qt GUI. Allows users to re-synch entire
+  wallet from server, on demand. (commit: a72b2a72, cculianu)
 * Request fee estimate from ElectrumX/ElectronX server every 20 minutes
   (cculianu)
 * Performance improvements for wallets with huge numbers of tx's (cculianu)
