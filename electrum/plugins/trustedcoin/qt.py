@@ -200,7 +200,7 @@ class Plugin(TrustedCoinPlugin):
 
     def go_online_dialog(self, wizard: InstallWizard):
         msg = [
-            _("Your wallet file is: {}.").format(os.path.abspath(wizard.storage.path)),
+            _("Your wallet file is: {}.").format(os.path.abspath(wizard.path)),
             _("You need to be online in order to complete the creation of "
               "your wallet.  If you generated your seed on an offline "
               'computer, click on "{}" to close this window, move your '
@@ -209,6 +209,7 @@ class Plugin(TrustedCoinPlugin):
             _('If you are online, click on "{}" to continue.').format(_('Next'))
         ]
         msg = '\n\n'.join(msg)
+        wizard.create_storage(wizard.path)
         wizard.reset_stack()
         wizard.confirm_dialog(title='', message=msg, run_next = lambda x: wizard.run('accept_terms_of_use'))
 

@@ -46,6 +46,7 @@ from electrum.plugin import run_hook
 from electrum.base_wizard import GoBack
 from electrum.util import (UserCancelled, PrintError, profiler,
                            WalletFileException, BitcoinException, get_new_wallet_name)
+from electrum.wallet import Wallet
 
 from .installwizard import InstallWizard
 
@@ -227,12 +228,18 @@ class ElectrumGui(PrintError):
             else:
                 return
         if not wallet:
-            wizard = InstallWizard(self.config, self.app, self.plugins, None)
+            wizard = InstallWizard(self.config, self.app, self.plugins)
             try:
-                if wizard.select_storage(path, self.daemon.get_wallet):
-                    wallet = wizard.run_and_get_wallet()
+                path, storage = wizard.select_storage(path, self.daemon.get_wallet)
+                # storage is None if file does not exist
+                if storage is None:
+                    wizard.path = path # needed by trustedcoin plugin
+                    wizard.run('new')
+                    storage = wizard.create_storage(path)
+                else:
+                    wizard.run_upgrades(storage)
             except UserCancelled:
-                pass
+                return
             except GoBack as e:
                 self.print_error('[start_new_window] Exception caught (GoBack)', e)
             except (WalletFileException, BitcoinException) as e:
@@ -243,9 +250,10 @@ class ElectrumGui(PrintError):
                 return
             finally:
                 wizard.terminate()
-            if not wallet:
+            # return if wallet creation is not complete
+            if storage is None or storage.get_action():
                 return
-
+            wallet = Wallet(storage)
             if not self.daemon.get_wallet(wallet.storage.path):
                 # wallet was not in memory
                 wallet.start_network(self.daemon.network)

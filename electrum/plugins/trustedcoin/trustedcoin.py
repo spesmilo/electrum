@@ -578,12 +578,9 @@ class TrustedCoinPlugin(BasePlugin):
 
     def on_password(self, wizard, password, encrypt_storage, k1, k2):
         k1.update_password(None, password)
-        wizard.storage.set_keystore_encryption(bool(password))
-        if encrypt_storage:
-            wizard.storage.set_password(password, enc_version=STO_EV_USER_PW)
-        wizard.storage.put('x1/', k1.dump())
-        wizard.storage.put('x2/', k2.dump())
-        wizard.storage.write()
+        wizard.data['x1/'] = k1.dump()
+        wizard.data['x2/'] = k2.dump()
+        wizard.pw_args = password, encrypt_storage, STO_EV_USER_PW
         self.go_online_dialog(wizard)
 
     def restore_wallet(self, wizard):
@@ -618,34 +615,26 @@ class TrustedCoinPlugin(BasePlugin):
             self.create_keystore(wizard, seed, passphrase)
 
     def on_restore_pw(self, wizard, seed, passphrase, password, encrypt_storage):
-        storage = wizard.storage
         xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed, passphrase)
         k1 = keystore.from_xprv(xprv1)
         k2 = keystore.from_xprv(xprv2)
         k1.add_seed(seed)
         k1.update_password(None, password)
         k2.update_password(None, password)
-        storage.put('x1/', k1.dump())
-        storage.put('x2/', k2.dump())
-        long_user_id, short_id = get_user_id(storage)
+        wizard.data['x1/'] = k1.dump()
+        wizard.data['x2/'] = k2.dump()
+        long_user_id, short_id = get_user_id(wizard.data)
         xtype = xpub_type(xpub1)
         xpub3 = make_xpub(get_signing_xpub(xtype), long_user_id)
         k3 = keystore.from_xpub(xpub3)
-        storage.put('x3/', k3.dump())
-
-        storage.set_keystore_encryption(bool(password))
-        if encrypt_storage:
-            storage.set_password(password, enc_version=STO_EV_USER_PW)
-
-        wizard.wallet = Wallet_2fa(storage)
-        wizard.create_addresses()
-
+        wizard.data['x3/'] = k3.dump()
+        wizard.pw_args = password, encrypt_storage, STO_EV_USER_PW
 
     def create_remote_key(self, email, wizard):
-        xpub1 = wizard.storage.get('x1/')['xpub']
-        xpub2 = wizard.storage.get('x2/')['xpub']
+        xpub1 = wizard.data['x1/']['xpub']
+        xpub2 = wizard.data['x2/']['xpub']
         # Generate third key deterministically.
-        long_user_id, short_id = get_user_id(wizard.storage)
+        long_user_id, short_id = get_user_id(wizard.data)
         xtype = xpub_type(xpub1)
         xpub3 = make_xpub(get_signing_xpub(xtype), long_user_id)
         # secret must be sent by the server
@@ -709,16 +698,14 @@ class TrustedCoinPlugin(BasePlugin):
             wizard.terminate()
         else:
             k3 = keystore.from_xpub(xpub3)
-            wizard.storage.put('x3/', k3.dump())
-            wizard.storage.put('use_trustedcoin', True)
-            wizard.storage.write()
-            wizard.wallet = Wallet_2fa(wizard.storage)
-            wizard.run('create_addresses')
+            wizard.data['x3/'] = k3.dump()
+            wizard.data['use_trustedcoin'] = True
+            wizard.terminate()
 
     def on_reset_auth(self, wizard, short_id, seed, passphrase, xpub3):
         xprv1, xpub1, xprv2, xpub2 = self.xkeys_from_seed(seed, passphrase)
-        if (wizard.storage.get('x1/')['xpub'] != xpub1 or
-                wizard.storage.get('x2/')['xpub'] != xpub2):
+        if (wizard.data['x1/']['xpub'] != xpub1 or
+                wizard.data['x2/']['xpub'] != xpub2):
             wizard.show_message(_('Incorrect seed'))
             return
         r = server.get_challenge(short_id)

@@ -530,8 +530,9 @@ class ElectrumWindow(App):
         else:
             return ''
 
-    def on_wizard_complete(self, wizard, wallet):
-        if wallet:  # wizard returned a wallet
+    def on_wizard_complete(self, wizard, storage):
+        if storage:
+            wallet = Wallet(storage)
             wallet.start_network(self.daemon.network)
             self.daemon.add_wallet(wallet)
             self.load_wallet(wallet)
@@ -553,11 +554,10 @@ class ElectrumWindow(App):
                 self.load_wallet(wallet)
         else:
             def launch_wizard():
-                storage = WalletStorage(path, manual_upgrades=True)
-                wizard = Factory.InstallWizard(self.electrum_config, self.plugins, storage)
+                wizard = Factory.InstallWizard(self.electrum_config, self.plugins)
+                wizard.path = path
                 wizard.bind(on_wizard_complete=self.on_wizard_complete)
-                action = wizard.storage.get_action()
-                wizard.run(action)
+                wizard.run('new')
             if not ask_if_wizard:
                 launch_wizard()
             else:
