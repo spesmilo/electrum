@@ -26,11 +26,6 @@ enum Phase {
     BLAME = 7;
 }
 
-enum ShuffleType {
-    DEFAULT = 0;
-    DUST = 1;
-}
-
 message Coins {
   repeated string coins = 1;
 }
@@ -57,7 +52,6 @@ message Address {
 
 message Registration {
     uint64 amount = 1;
-    ShuffleType type = 2;
 }
 
 message VerificationKey {
