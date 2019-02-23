@@ -1452,7 +1452,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.pay_from = list(coins)
         self.redraw_from_list()
 
-    def redraw_from_list(self):
+    def redraw_from_list(self, *, spendable=None):
+        ''' Optional kwarg spendable indicates *which* of the UTXOs in the
+        self.pay_from list are actually spendable.  If this arg is specifid,
+        coins in the self.pay_from list that aren't also in the 'spendable' list
+        will be grayed out in the UI, to indicate that they will not be used.
+        Otherwise all coins will be non-gray (default).
+        (Added for CashShuffle 02/23/2019) '''
         self.from_list.clear()
         self.from_label.setHidden(len(self.pay_from) == 0)
         self.from_list.setHidden(len(self.pay_from) == 0)
@@ -1461,9 +1467,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             h = x['prevout_hash']
             return '{}...{}:{:d}\t{}'.format(h[0:10], h[-10:],
                                              x['prevout_n'], x['address'])
+        def grayify(twi):
+            b = twi.foreground(0)
+            b.setColor(Qt.gray)
+            for i in range(twi.columnCount()):
+                twi.setForeground(i, b)
 
         for item in self.pay_from:
-            self.from_list.addTopLevelItem(QTreeWidgetItem( [format(item), self.format_amount(item['value']) ]))
+            twi = QTreeWidgetItem( [format(item), self.format_amount(item['value']) ])
+            if spendable is not None and item not in spendable:
+                grayify(twi)
+            self.from_list.addTopLevelItem(twi)
 
     def get_contact_payto(self, key):
         _type, label = self.contacts.get(key)
@@ -1955,10 +1969,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def get_coins(self, isInvoice = False):
         coins = []
         if self.pay_from:
-            coins =  self.pay_from
+            coins = self.pay_from.copy()
         else:
             coins = self.wallet.get_spendable_coins(None, self.config, isInvoice)
         run_hook("spendable_coin_filter", self, coins) # may modify coins -- used by CashShuffle if in shuffle = ENABLED mode.
+        if self.pay_from:
+            # coins may have been filtered, so indicate this in the UI
+            self.redraw_from_list(spendable=coins)
         return coins
 
     def spend_coins(self, coins):

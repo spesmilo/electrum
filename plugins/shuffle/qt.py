@@ -99,6 +99,10 @@ def is_coin_shuffled(wallet, coin, txs_in=None):
         cache[name] = answer
     return answer
 
+def is_coin_busy_shuffling(window, utxo_or_name):
+    ''' Convenience wrapper for BackgroundProcess.is_coin_busy_shuffling '''
+    bp = getattr(window, 'background_process', None)
+    return bool(bp and bp.is_coin_busy_shuffling(utxo_or_name))
 
 def get_shuffled_and_unshuffled_coin_totals(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
     ''' Returns a 3-tuple of tuples of (amount_total, num_utxos) that are 'shuffled', 'unshuffled' and 'unshuffled_but_in_progress', respectively. '''
@@ -619,7 +623,7 @@ class Plugin(BasePlugin):
         elif spend_mode == extra.SpendingModeUnshuffled:
             # in Cash-Shuffle mode + unshuffled spending we can ONLY spend unshuffled coins!
             for coin in coins.copy():
-                if is_coin_shuffled(window.wallet, coin):
+                if is_coin_shuffled(window.wallet, coin) or is_coin_busy_shuffling(window, coin):
                     coins.remove(coin)
 
 

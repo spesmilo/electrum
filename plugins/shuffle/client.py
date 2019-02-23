@@ -592,6 +592,18 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         thr.start()
         return True
 
+    def is_coin_busy_shuffling(self, utxo_name_or_dict):
+        ''' Checks the extant running threads (if any) for a match to coin.
+        This is a very accurate real-time indication that a coins is busy
+        shuffling. Used by the spendable_coin_filter in qt.py.'''
+        if isinstance(utxo_name_or_dict, dict):
+            name = get_name(utxo_name_or_dict)
+        else:
+            name = utxo_name_or_dict
+        # name must be an str at this point!
+        with self.wallet.lock, self.wallet.transaction_lock:
+            return any(thr for thr in self.threads.values() if thr and thr.coin == name)
+
     def is_wallet_ready(self):
         return bool( self.wallet and self.wallet.is_up_to_date()
                      and self.wallet.network and self.wallet.network.is_connected()
