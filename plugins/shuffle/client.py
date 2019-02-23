@@ -267,7 +267,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.last_idle_check = 0
         self.done_utxos = dict()
         self._paused = False
-        self._coins_busy_shuffling = set()  # 'prevout_hash:n' (name) set of all coins that are currently being shuffled by a ProtocolThread.
+        self._coins_busy_shuffling = set()  # 'prevout_hash:n' (name) set of all coins that are currently being shuffled by a ProtocolThread. Both wallet locks should be held to read/write this.
 
     def set_password(self, password):
         with self.lock:
@@ -473,8 +473,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 retVal = True # indicate to interesteed callers that we had a completion. Our thread loop uses this retval to decide to scan for UTXOs to shuffle immediately.
             with self.wallet.lock, self.wallet.transaction_lock:
                 self.wallet.set_frozen_coin_state([sender], False)
-                self._coins_busy_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
-                self._coins_busy_shuffling -= {sender}
+                self._coins_busy_shuffling.discard(sender)
                 self.wallet.storage.put("coins_frozen_by_shuffling", list(self._coins_busy_shuffling))
                 if message.startswith("Error"):
                     # unreserve addresses that were previously reserved iff error
@@ -558,8 +557,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             raise RuntimeWarning('Invalid Password caught when trying to export a private key -- if this keeps happening tell the devs!')
         utxo_name = get_name(coin)
         self.wallet.set_frozen_coin_state([utxo_name], True)
-        self._coins_busy_shuffling = set(self.wallet.storage.get("coins_frozen_by_shuffling",[]))
-        self._coins_busy_shuffling |= {utxo_name}
+        self._coins_busy_shuffling.add(utxo_name)
         self.wallet.storage.put("coins_frozen_by_shuffling", list(self._coins_busy_shuffling))
         inputs = {}
         sks = {}
