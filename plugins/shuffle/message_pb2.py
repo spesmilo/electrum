@@ -8,7 +8,6 @@ from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from google.protobuf import reflection as _reflection
 from google.protobuf import symbol_database as _symbol_database
-from google.protobuf import descriptor_pb2
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
@@ -20,9 +19,9 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='plugins/shuffle/protobuf/message.proto',
   package='',
   syntax='proto3',
-  serialized_pb=_b('\n&plugins/shuffle/protobuf/message.proto\"@\n\x06Signed\x12\x17\n\x06packet\x18\x01 \x01(\x0b\x32\x07.Packet\x12\x1d\n\tsignature\x18\x02 \x01(\x0b\x32\n.Signature\"\xc6\x01\n\x06Packet\x12\x0f\n\x07session\x18\x01 \x01(\x0c\x12\x0e\n\x06number\x18\x02 \x01(\r\x12\"\n\x08\x66rom_key\x18\x03 \x01(\x0b\x32\x10.VerificationKey\x12 \n\x06to_key\x18\x04 \x01(\x0b\x32\x10.VerificationKey\x12\x15\n\x05phase\x18\x05 \x01(\x0e\x32\x06.Phase\x12\x19\n\x07message\x18\x06 \x01(\x0b\x32\x08.Message\x12#\n\x0cregistration\x18\x07 \x01(\x0b\x32\r.Registration\"\x16\n\x05\x43oins\x12\r\n\x05\x63oins\x18\x01 \x03(\t\"9\n\nSignatures\x12\x0c\n\x04utxo\x18\x01 \x01(\t\x12\x1d\n\tsignature\x18\x02 \x01(\x0b\x32\n.Signature\"\xf8\x01\n\x07Message\x12\x19\n\x07\x61\x64\x64ress\x18\x01 \x01(\x0b\x32\x08.Address\x12\x1b\n\x03key\x18\x02 \x01(\x0b\x32\x0e.EncryptionKey\x12\x13\n\x04hash\x18\x03 \x01(\x0b\x32\x05.Hash\x12\x1f\n\nsignatures\x18\x04 \x03(\x0b\x32\x0b.Signatures\x12\x0b\n\x03str\x18\x05 \x01(\t\x12\x15\n\x05\x62lame\x18\x06 \x01(\x0b\x32\x06.Blame\x12$\n\x06inputs\x18\x07 \x03(\x0b\x32\x14.Message.InputsEntry\x1a\x35\n\x0bInputsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x15\n\x05value\x18\x02 \x01(\x0b\x32\x06.Coins:\x02\x38\x01\"\x1a\n\x07\x41\x64\x64ress\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\"\x1e\n\x0cRegistration\x12\x0e\n\x06\x61mount\x18\x01 \x01(\x04\"\x1e\n\x0fVerificationKey\x12\x0b\n\x03key\x18\x01 \x01(\t\"\x1c\n\rEncryptionKey\x12\x0b\n\x03key\x18\x01 \x01(\t\",\n\rDecryptionKey\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x0e\n\x06public\x18\x02 \x01(\t\"\x14\n\x04Hash\x12\x0c\n\x04hash\x18\x01 \x01(\x0c\"\x1e\n\tSignature\x12\x11\n\tsignature\x18\x01 \x01(\x0c\"\"\n\x0bTransaction\x12\x13\n\x0btransaction\x18\x01 \x01(\x0c\"\xb9\x01\n\x05\x42lame\x12\x17\n\x06reason\x18\x01 \x01(\x0e\x32\x07.Reason\x12!\n\x07\x61\x63\x63used\x18\x02 \x01(\x0b\x32\x10.VerificationKey\x12\x1b\n\x03key\x18\x03 \x01(\x0b\x32\x0e.DecryptionKey\x12!\n\x0btransaction\x18\x04 \x01(\x0b\x32\x0c.Transaction\x12\x19\n\x07invalid\x18\x05 \x01(\x0b\x32\x08.Invalid\x12\x19\n\x07packets\x18\x06 \x01(\x0b\x32\x08.Packets\"\x1a\n\x07Invalid\x12\x0f\n\x07invalid\x18\x01 \x01(\x0c\"(\n\x06Inputs\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\x12\r\n\x05\x63oins\x18\x02 \x03(\t\"\"\n\x07Packets\x12\x17\n\x06packet\x18\x01 \x03(\x0b\x32\x07.Signed*\x90\x01\n\x05Phase\x12\x08\n\x04NONE\x10\x00\x12\x10\n\x0c\x41NNOUNCEMENT\x10\x01\x12\x0b\n\x07SHUFFLE\x10\x02\x12\r\n\tBROADCAST\x10\x03\x12\x16\n\x12\x45QUIVOCATION_CHECK\x10\x04\x12\x0b\n\x07SIGNING\x10\x05\x12\x1f\n\x1bVERIFICATION_AND_SUBMISSION\x10\x06\x12\t\n\x05\x42LAME\x10\x07*\xc6\x01\n\x06Reason\x12\x15\n\x11INSUFFICIENTFUNDS\x10\x00\x12\x0f\n\x0b\x44OUBLESPEND\x10\x01\x12\x17\n\x13\x45QUIVOCATIONFAILURE\x10\x02\x12\x12\n\x0eSHUFFLEFAILURE\x10\x03\x12!\n\x1dSHUFFLEANDEQUIVOCATIONFAILURE\x10\x04\x12\x14\n\x10INVALIDSIGNATURE\x10\x05\x12\x11\n\rMISSINGOUTPUT\x10\x06\x12\x08\n\x04LIAR\x10\x07\x12\x11\n\rINVALIDFORMAT\x10\x08\x62\x06proto3')
+  serialized_options=None,
+  serialized_pb=_b('\n&plugins/shuffle/protobuf/message.proto\"@\n\x06Signed\x12\x17\n\x06packet\x18\x01 \x01(\x0b\x32\x07.Packet\x12\x1d\n\tsignature\x18\x02 \x01(\x0b\x32\n.Signature\"\xc6\x01\n\x06Packet\x12\x0f\n\x07session\x18\x01 \x01(\x0c\x12\x0e\n\x06number\x18\x02 \x01(\r\x12\"\n\x08\x66rom_key\x18\x03 \x01(\x0b\x32\x10.VerificationKey\x12 \n\x06to_key\x18\x04 \x01(\x0b\x32\x10.VerificationKey\x12\x15\n\x05phase\x18\x05 \x01(\x0e\x32\x06.Phase\x12\x19\n\x07message\x18\x06 \x01(\x0b\x32\x08.Message\x12#\n\x0cregistration\x18\x07 \x01(\x0b\x32\r.Registration\"\x16\n\x05\x43oins\x12\r\n\x05\x63oins\x18\x01 \x03(\t\"9\n\nSignatures\x12\x0c\n\x04utxo\x18\x01 \x01(\t\x12\x1d\n\tsignature\x18\x02 \x01(\x0b\x32\n.Signature\"\xf8\x01\n\x07Message\x12\x19\n\x07\x61\x64\x64ress\x18\x01 \x01(\x0b\x32\x08.Address\x12\x1b\n\x03key\x18\x02 \x01(\x0b\x32\x0e.EncryptionKey\x12\x13\n\x04hash\x18\x03 \x01(\x0b\x32\x05.Hash\x12\x1f\n\nsignatures\x18\x04 \x03(\x0b\x32\x0b.Signatures\x12\x0b\n\x03str\x18\x05 \x01(\t\x12\x15\n\x05\x62lame\x18\x06 \x01(\x0b\x32\x06.Blame\x12$\n\x06inputs\x18\x07 \x03(\x0b\x32\x14.Message.InputsEntry\x1a\x35\n\x0bInputsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x15\n\x05value\x18\x02 \x01(\x0b\x32\x06.Coins:\x02\x38\x01\"\x1a\n\x07\x41\x64\x64ress\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\":\n\x0cRegistration\x12\x0e\n\x06\x61mount\x18\x01 \x01(\x04\x12\x1a\n\x04type\x18\x02 \x01(\x0e\x32\x0c.ShuffleType\"\x1e\n\x0fVerificationKey\x12\x0b\n\x03key\x18\x01 \x01(\t\"\x1c\n\rEncryptionKey\x12\x0b\n\x03key\x18\x01 \x01(\t\",\n\rDecryptionKey\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x0e\n\x06public\x18\x02 \x01(\t\"\x14\n\x04Hash\x12\x0c\n\x04hash\x18\x01 \x01(\x0c\"\x1e\n\tSignature\x12\x11\n\tsignature\x18\x01 \x01(\x0c\"\"\n\x0bTransaction\x12\x13\n\x0btransaction\x18\x01 \x01(\x0c\"\xb9\x01\n\x05\x42lame\x12\x17\n\x06reason\x18\x01 \x01(\x0e\x32\x07.Reason\x12!\n\x07\x61\x63\x63used\x18\x02 \x01(\x0b\x32\x10.VerificationKey\x12\x1b\n\x03key\x18\x03 \x01(\x0b\x32\x0e.DecryptionKey\x12!\n\x0btransaction\x18\x04 \x01(\x0b\x32\x0c.Transaction\x12\x19\n\x07invalid\x18\x05 \x01(\x0b\x32\x08.Invalid\x12\x19\n\x07packets\x18\x06 \x01(\x0b\x32\x08.Packets\"\x1a\n\x07Invalid\x12\x0f\n\x07invalid\x18\x01 \x01(\x0c\"(\n\x06Inputs\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\x12\r\n\x05\x63oins\x18\x02 \x03(\t\"\"\n\x07Packets\x12\x17\n\x06packet\x18\x01 \x03(\x0b\x32\x07.Signed*\x90\x01\n\x05Phase\x12\x08\n\x04NONE\x10\x00\x12\x10\n\x0c\x41NNOUNCEMENT\x10\x01\x12\x0b\n\x07SHUFFLE\x10\x02\x12\r\n\tBROADCAST\x10\x03\x12\x16\n\x12\x45QUIVOCATION_CHECK\x10\x04\x12\x0b\n\x07SIGNING\x10\x05\x12\x1f\n\x1bVERIFICATION_AND_SUBMISSION\x10\x06\x12\t\n\x05\x42LAME\x10\x07*$\n\x0bShuffleType\x12\x0b\n\x07\x44\x45\x46\x41ULT\x10\x00\x12\x08\n\x04\x44UST\x10\x01*\xc6\x01\n\x06Reason\x12\x15\n\x11INSUFFICIENTFUNDS\x10\x00\x12\x0f\n\x0b\x44OUBLESPEND\x10\x01\x12\x17\n\x13\x45QUIVOCATIONFAILURE\x10\x02\x12\x12\n\x0eSHUFFLEFAILURE\x10\x03\x12!\n\x1dSHUFFLEANDEQUIVOCATIONFAILURE\x10\x04\x12\x14\n\x10INVALIDSIGNATURE\x10\x05\x12\x11\n\rMISSINGOUTPUT\x10\x06\x12\x08\n\x04LIAR\x10\x07\x12\x11\n\rINVALIDFORMAT\x10\x08\x62\x06proto3')
 )
-_sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 _PHASE = _descriptor.EnumDescriptor(
   name='Phase',
@@ -32,45 +31,68 @@ _PHASE = _descriptor.EnumDescriptor(
   values=[
     _descriptor.EnumValueDescriptor(
       name='NONE', index=0, number=0,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='ANNOUNCEMENT', index=1, number=1,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='SHUFFLE', index=2, number=2,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='BROADCAST', index=3, number=3,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='EQUIVOCATION_CHECK', index=4, number=4,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='SIGNING', index=5, number=5,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='VERIFICATION_AND_SUBMISSION', index=6, number=6,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='BLAME', index=7, number=7,
-      options=None,
+      serialized_options=None,
       type=None),
   ],
   containing_type=None,
-  options=None,
-  serialized_start=1196,
-  serialized_end=1340,
+  serialized_options=None,
+  serialized_start=1224,
+  serialized_end=1368,
 )
 _sym_db.RegisterEnumDescriptor(_PHASE)
 
 Phase = enum_type_wrapper.EnumTypeWrapper(_PHASE)
+_SHUFFLETYPE = _descriptor.EnumDescriptor(
+  name='ShuffleType',
+  full_name='ShuffleType',
+  filename=None,
+  file=DESCRIPTOR,
+  values=[
+    _descriptor.EnumValueDescriptor(
+      name='DEFAULT', index=0, number=0,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='DUST', index=1, number=1,
+      serialized_options=None,
+      type=None),
+  ],
+  containing_type=None,
+  serialized_options=None,
+  serialized_start=1370,
+  serialized_end=1406,
+)
+_sym_db.RegisterEnumDescriptor(_SHUFFLETYPE)
+
+ShuffleType = enum_type_wrapper.EnumTypeWrapper(_SHUFFLETYPE)
 _REASON = _descriptor.EnumDescriptor(
   name='Reason',
   full_name='Reason',
@@ -79,45 +101,45 @@ _REASON = _descriptor.EnumDescriptor(
   values=[
     _descriptor.EnumValueDescriptor(
       name='INSUFFICIENTFUNDS', index=0, number=0,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='DOUBLESPEND', index=1, number=1,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='EQUIVOCATIONFAILURE', index=2, number=2,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='SHUFFLEFAILURE', index=3, number=3,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='SHUFFLEANDEQUIVOCATIONFAILURE', index=4, number=4,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='INVALIDSIGNATURE', index=5, number=5,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='MISSINGOUTPUT', index=6, number=6,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='LIAR', index=7, number=7,
-      options=None,
+      serialized_options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
       name='INVALIDFORMAT', index=8, number=8,
-      options=None,
+      serialized_options=None,
       type=None),
   ],
   containing_type=None,
-  options=None,
-  serialized_start=1343,
-  serialized_end=1541,
+  serialized_options=None,
+  serialized_start=1409,
+  serialized_end=1607,
 )
 _sym_db.RegisterEnumDescriptor(_REASON)
 
@@ -130,6 +152,8 @@ EQUIVOCATION_CHECK = 4
 SIGNING = 5
 VERIFICATION_AND_SUBMISSION = 6
 BLAME = 7
+DEFAULT = 0
+DUST = 1
 INSUFFICIENTFUNDS = 0
 DOUBLESPEND = 1
 EQUIVOCATIONFAILURE = 2
@@ -155,21 +179,21 @@ _SIGNED = _descriptor.Descriptor(
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='signature', full_name='Signed.signature', index=1,
       number=2, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
@@ -193,56 +217,56 @@ _PACKET = _descriptor.Descriptor(
       has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='number', full_name='Packet.number', index=1,
       number=2, type=13, cpp_type=3, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='from_key', full_name='Packet.from_key', index=2,
       number=3, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='to_key', full_name='Packet.to_key', index=3,
       number=4, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='phase', full_name='Packet.phase', index=4,
       number=5, type=14, cpp_type=8, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='message', full_name='Packet.message', index=5,
       number=6, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='registration', full_name='Packet.registration', index=6,
       number=7, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
@@ -266,14 +290,14 @@ _COINS = _descriptor.Descriptor(
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
@@ -297,21 +321,21 @@ _SIGNATURES = _descriptor.Descriptor(
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='signature', full_name='Signatures.signature', index=1,
       number=2, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
@@ -335,21 +359,21 @@ _MESSAGE_INPUTSENTRY = _descriptor.Descriptor(
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='value', full_name='Message.InputsEntry.value', index=1,
       number=2, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=_descriptor._ParseOptions(descriptor_pb2.MessageOptions(), _b('8\001')),
+  serialized_options=_b('8\001'),
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
@@ -372,56 +396,56 @@ _MESSAGE = _descriptor.Descriptor(
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='key', full_name='Message.key', index=1,
       number=2, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='hash', full_name='Message.hash', index=2,
       number=3, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='signatures', full_name='Message.signatures', index=3,
       number=4, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='str', full_name='Message.str', index=4,
       number=5, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='blame', full_name='Message.blame', index=5,
       number=6, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='inputs', full_name='Message.inputs', index=6,
       number=7, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[_MESSAGE_INPUTSENTRY, ],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
@@ -445,14 +469,14 @@ _ADDRESS = _descriptor.Descriptor(
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
@@ -476,21 +500,28 @@ _REGISTRATION = _descriptor.Descriptor(
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='type', full_name='Registration.type', index=1,
+      number=2, type=14, cpp_type=8, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
   serialized_start=671,
-  serialized_end=701,
+  serialized_end=729,
 )
 
 
@@ -507,21 +538,21 @@ _VERIFICATIONKEY = _descriptor.Descriptor(
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=703,
-  serialized_end=733,
+  serialized_start=731,
+  serialized_end=761,
 )
 
 
@@ -538,21 +569,21 @@ _ENCRYPTIONKEY = _descriptor.Descriptor(
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=735,
-  serialized_end=763,
+  serialized_start=763,
+  serialized_end=791,
 )
 
 
@@ -569,28 +600,28 @@ _DECRYPTIONKEY = _descriptor.Descriptor(
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='public', full_name='DecryptionKey.public', index=1,
       number=2, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=765,
-  serialized_end=809,
+  serialized_start=793,
+  serialized_end=837,
 )
 
 
@@ -607,21 +638,21 @@ _HASH = _descriptor.Descriptor(
       has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=811,
-  serialized_end=831,
+  serialized_start=839,
+  serialized_end=859,
 )
 
 
@@ -638,21 +669,21 @@ _SIGNATURE = _descriptor.Descriptor(
       has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=833,
-  serialized_end=863,
+  serialized_start=861,
+  serialized_end=891,
 )
 
 
@@ -669,21 +700,21 @@ _TRANSACTION = _descriptor.Descriptor(
       has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=865,
-  serialized_end=899,
+  serialized_start=893,
+  serialized_end=927,
 )
 
 
@@ -700,56 +731,56 @@ _BLAME = _descriptor.Descriptor(
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='accused', full_name='Blame.accused', index=1,
       number=2, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='key', full_name='Blame.key', index=2,
       number=3, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='transaction', full_name='Blame.transaction', index=3,
       number=4, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='invalid', full_name='Blame.invalid', index=4,
       number=5, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='packets', full_name='Blame.packets', index=5,
       number=6, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=902,
-  serialized_end=1087,
+  serialized_start=930,
+  serialized_end=1115,
 )
 
 
@@ -766,21 +797,21 @@ _INVALID = _descriptor.Descriptor(
       has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1089,
-  serialized_end=1115,
+  serialized_start=1117,
+  serialized_end=1143,
 )
 
 
@@ -797,28 +828,28 @@ _INPUTS = _descriptor.Descriptor(
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='coins', full_name='Inputs.coins', index=1,
       number=2, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1117,
-  serialized_end=1157,
+  serialized_start=1145,
+  serialized_end=1185,
 )
 
 
@@ -835,21 +866,21 @@ _PACKETS = _descriptor.Descriptor(
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None),
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
   ],
-  options=None,
+  serialized_options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1159,
-  serialized_end=1193,
+  serialized_start=1187,
+  serialized_end=1221,
 )
 
 _SIGNED.fields_by_name['packet'].message_type = _PACKET
@@ -868,6 +899,7 @@ _MESSAGE.fields_by_name['hash'].message_type = _HASH
 _MESSAGE.fields_by_name['signatures'].message_type = _SIGNATURES
 _MESSAGE.fields_by_name['blame'].message_type = _BLAME
 _MESSAGE.fields_by_name['inputs'].message_type = _MESSAGE_INPUTSENTRY
+_REGISTRATION.fields_by_name['type'].enum_type = _SHUFFLETYPE
 _BLAME.fields_by_name['reason'].enum_type = _REASON
 _BLAME.fields_by_name['accused'].message_type = _VERIFICATIONKEY
 _BLAME.fields_by_name['key'].message_type = _DECRYPTIONKEY
@@ -893,7 +925,9 @@ DESCRIPTOR.message_types_by_name['Invalid'] = _INVALID
 DESCRIPTOR.message_types_by_name['Inputs'] = _INPUTS
 DESCRIPTOR.message_types_by_name['Packets'] = _PACKETS
 DESCRIPTOR.enum_types_by_name['Phase'] = _PHASE
+DESCRIPTOR.enum_types_by_name['ShuffleType'] = _SHUFFLETYPE
 DESCRIPTOR.enum_types_by_name['Reason'] = _REASON
+_sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 Signed = _reflection.GeneratedProtocolMessageType('Signed', (_message.Message,), dict(
   DESCRIPTOR = _SIGNED,
@@ -1023,6 +1057,5 @@ Packets = _reflection.GeneratedProtocolMessageType('Packets', (_message.Message,
 _sym_db.RegisterMessage(Packets)
 
 
-_MESSAGE_INPUTSENTRY.has_options = True
-_MESSAGE_INPUTSENTRY._options = _descriptor._ParseOptions(descriptor_pb2.MessageOptions(), _b('8\001'))
+_MESSAGE_INPUTSENTRY._options = None
 # @@protoc_insertion_point(module_scope)
