@@ -71,7 +71,7 @@ class UTXOList(MyTreeView):
             self.insert_utxo(idx, x)
 
     def insert_utxo(self, idx, x):
-        address = x.get('address')
+        address = x['address']
         height = x.get('height')
         name = x.get('prevout_hash') + ":%d"%x.get('prevout_n')
         name_short = x.get('prevout_hash')[:10] + '...' + ":%d"%x.get('prevout_n')
@@ -86,8 +86,10 @@ class UTXOList(MyTreeView):
         utxo_item[self.Columns.OUTPOINT].setFont(QFont(MONOSPACE_FONT))
         utxo_item[self.Columns.ADDRESS].setData(name, Qt.UserRole)
         utxo_item[self.Columns.OUTPOINT].setToolTip(name)
-        if self.wallet.is_frozen(address):
+        if self.wallet.is_frozen_address(address):
             utxo_item[self.Columns.ADDRESS].setBackground(ColorScheme.BLUE.as_color(True))
+        if self.wallet.is_frozen_coin(x):
+            utxo_item[self.Columns.OUTPOINT].setBackground(ColorScheme.BLUE.as_color(True))
         self.model().insertRow(idx, utxo_item)
 
     def selected_column_0_user_roles(self) -> Optional[List[str]]:
@@ -103,13 +105,48 @@ class UTXOList(MyTreeView):
         if not selected:
             return
         menu = QMenu()
-        coins = (self.utxo_dict[name] for name in selected)
+        menu.setSeparatorsCollapsible(True)  # consecutive separators are merged together
+        coins = [self.utxo_dict[name] for name in selected]
         menu.addAction(_("Spend"), lambda: self.parent.spend_coins(coins))
-        if len(selected) == 1:
-            txid = selected[0].split(':')[0]
+        assert len(coins) >= 1, len(coins)
+        if len(coins) == 1:
+            utxo_dict = coins[0]
+            addr = utxo_dict['address']
+            txid = utxo_dict['prevout_hash']
+            # "Details"
             tx = self.wallet.db.get_transaction(txid)
             if tx:
                 label = self.wallet.get_label(txid) or None # Prefer None if empty (None hides the Description: field in the window)
                 menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, label))
+            # "Freeze coin"
+            if not self.wallet.is_frozen_coin(utxo_dict):
+                menu.addAction(_("Freeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo_dict], True))
+            else:
+                menu.addSeparator()
+                menu.addAction(_("Coin is frozen"), lambda: None).setEnabled(False)
+                menu.addAction(_("Unfreeze Coin"), lambda: self.parent.set_frozen_state_of_coins([utxo_dict], False))
+                menu.addSeparator()
+            # "Freeze address"
+            if not self.wallet.is_frozen_address(addr):
+                menu.addAction(_("Freeze Address"), lambda: self.parent.set_frozen_state_of_addresses([addr], True))
+            else:
+                menu.addSeparator()
+                menu.addAction(_("Address is frozen"), lambda: None).setEnabled(False)
+                menu.addAction(_("Unfreeze Address"), lambda: self.parent.set_frozen_state_of_addresses([addr], False))
+                menu.addSeparator()
+        else:
+            # multiple items selected
+            menu.addSeparator()
+            addrs = [utxo_dict['address'] for utxo_dict in coins]
+            is_coin_frozen = [self.wallet.is_frozen_coin(utxo_dict) for utxo_dict in coins]
+            is_addr_frozen = [self.wallet.is_frozen_address(utxo_dict['address']) for utxo_dict in coins]
+            if not all(is_coin_frozen):
+                menu.addAction(_("Freeze Coins"), lambda: self.parent.set_frozen_state_of_coins(coins, True))
+            if any(is_coin_frozen):
+                menu.addAction(_("Unfreeze Coins"), lambda: self.parent.set_frozen_state_of_coins(coins, False))
+            if not all(is_addr_frozen):
+                menu.addAction(_("Freeze Addresses"), lambda: self.parent.set_frozen_state_of_addresses(addrs, True))
+            if any(is_addr_frozen):
+                menu.addAction(_("Unfreeze Addresses"), lambda: self.parent.set_frozen_state_of_addresses(addrs, False))
 
         menu.exec_(self.viewport().mapToGlobal(position))

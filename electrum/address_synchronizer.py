@@ -25,7 +25,7 @@ import threading
 import asyncio
 import itertools
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional, Set, Tuple
 
 from . import bitcoin
 from .bitcoin import COINBASE_MATURITY, TYPE_ADDRESS, TYPE_PUBKEY
@@ -715,17 +715,23 @@ class AddressSynchronizer(PrintError):
         return sum([v for height, v, is_cb in received.values()])
 
     @with_local_height_cached
-    def get_addr_balance(self, address):
+    def get_addr_balance(self, address, *, excluded_coins: Set[str] = None):
         """Return the balance of a bitcoin address:
         confirmed and matured, unconfirmed, unmatured
         """
-        cached_value = self._get_addr_balance_cache.get(address)
-        if cached_value:
-            return cached_value
+        if not excluded_coins:  # cache is only used if there are no excluded_coins
+            cached_value = self._get_addr_balance_cache.get(address)
+            if cached_value:
+                return cached_value
+        if excluded_coins is None:
+            excluded_coins = set()
+        assert isinstance(excluded_coins, set), f"excluded_coins should be set, not {type(excluded_coins)}"
         received, sent = self.get_addr_io(address)
         c = u = x = 0
         local_height = self.get_local_height()
         for txo, (tx_height, v, is_cb) in received.items():
+            if txo in excluded_coins:
+                continue
             if is_cb and tx_height + COINBASE_MATURITY > local_height:
                 x += v
             elif tx_height > 0:
@@ -739,20 +745,21 @@ class AddressSynchronizer(PrintError):
                     u -= v
         result = c, u, x
         # cache result.
-        # Cache needs to be invalidated if a transaction is added to/
-        # removed from history; or on new blocks (maturity...)
-        self._get_addr_balance_cache[address] = result
+        if not excluded_coins:
+            # Cache needs to be invalidated if a transaction is added to/
+            # removed from history; or on new blocks (maturity...)
+            self._get_addr_balance_cache[address] = result
         return result
 
     @with_local_height_cached
-    def get_utxos(self, domain=None, *, excluded=None,
+    def get_utxos(self, domain=None, *, excluded_addresses=None,
                   mature_only: bool = False, confirmed_only: bool = False, nonlocal_only: bool = False):
         coins = []
         if domain is None:
             domain = self.get_addresses()
         domain = set(domain)
-        if excluded:
-            domain = set(domain) - set(excluded)
+        if excluded_addresses:
+            domain = set(domain) - set(excluded_addresses)
         for addr in domain:
             utxos = self.get_addr_utxo(addr)
             for x in utxos.values():
@@ -766,13 +773,17 @@ class AddressSynchronizer(PrintError):
                 continue
         return coins
 
-    def get_balance(self, domain=None):
+    def get_balance(self, domain=None, *, excluded_addresses: Set[str] = None,
+                    excluded_coins: Set[str] = None) -> Tuple[int, int, int]:
         if domain is None:
             domain = self.get_addresses()
-        domain = set(domain)
+        if excluded_addresses is None:
+            excluded_addresses = set()
+        assert isinstance(excluded_addresses, set), f"excluded_addresses should be set, not {type(excluded_addresses)}"
+        domain = set(domain) - excluded_addresses
         cc = uu = xx = 0
         for addr in domain:
-            c, u, x = self.get_addr_balance(addr)
+            c, u, x = self.get_addr_balance(addr, excluded_coins=excluded_coins)
             cc += c
             uu += u
             xx += x
