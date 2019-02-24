@@ -237,12 +237,26 @@ def generate_random_sk():
 class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
     scales = (
-        100000000, # 1.0    BCH ➡
-        10000000,  # 0.1    BCH ➝
-        1000000,   # 0.01   BCH ➟
-        100000,    # 0.001  BCH ⇢
-        10000,     # 0.0001 BCH →
+        1000000000, # 10.0    BCH ➡➡
+        100000000,  #  1.0    BCH ➡
+        10000000,   #  0.1    BCH ➝
+        1000000,    #  0.01   BCH ➟
+        100000,     #  0.001  BCH ⇢
+        10000,      #  0.0001 BCH →
     )
+
+    # The below defaults control coin selection and which pools (scales) we use
+    FEE = 300
+    SORTED_SCALES = sorted(scales)
+    SCALE_ARROWS = ('→','⇢','➟','➝','➡','➡➡')  # if you add a scale above, add an arrow here, in reverse order from above
+    assert len(SORTED_SCALES) == len(SCALE_ARROWS), "Please add a scale arrow if you modify the scales!"
+    SCALE_ARROW_DICT = dict(zip(SORTED_SCALES, SCALE_ARROWS))
+    SCALE_0 = SORTED_SCALES[0]
+    SCALE_N = SORTED_SCALES[-1]
+    UPPER_BOUND_SANS_FEE = SCALE_N*5  # 50 BCH
+    LOWER_BOUND_SANS_FEE = SCALE_0    # 0.0001 BCH
+    UPPER_BOUND = UPPER_BOUND_SANS_FEE + FEE    # 50 BCH + FEE max coin
+    LOWER_BOUND = LOWER_BOUND_SANS_FEE + FEE    # 0.0001 BCH + FEE min coin
 
     # Some class-level vars that influence fine details of thread operation
     # -- Don't change these unless you know what you are doing!
@@ -250,7 +264,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     CHECKER_MAX_TIMEOUT = 15.0  # in seconds.. the maximum amount of time to use for stats port checker (applied if proxy mode, otherwise time will be this value divided by 3.0)
 
     def __init__(self, window, wallet, network_settings,
-                 period = 10.0, logger = None, fee = 300, password=None, timeout=60.0):
+                 period = 10.0, logger = None, fee = FEE, password=None, timeout=60.0):
         super().__init__()
         self.daemon = True
         self.timeout = timeout
@@ -547,15 +561,15 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                                 # Note: the 'is False' is intentional -- we are interested in coins that we know for SURE are not shuffled.
                                 # is_coin_shuffled() also returns None in cases where the tx isn't in the history (a rare occurrence)
                                 if self.wallet.is_coin_shuffled(coin) is False]
-            upper_amount = scale*10 + self.fee
+            upper_amount = min(scale*10 + self.fee, self.UPPER_BOUND_SANS_FEE + self.fee)
             lower_amount = scale + self.fee
             unshuffled_coins_on_scale = [coin for coin in unshuffled_coins
                                          # exclude coins out of range and 'done' coins still in history
                                          # also exclude coinbase coins (see issue #64)
                                          if coin['value'] < upper_amount and coin['value'] >= lower_amount and get_name(coin) not in self.done_utxos and not coin['coinbase']]
-            unshuffled_coins_on_scale.sort(key=lambda x: x['value']*100000000 + (100000000-x['height']))
+            unshuffled_coins_on_scale.sort(key=lambda x: (x['value'], -x['height']))  # sort by value, preferring older coins on tied value
             if unshuffled_coins_on_scale:
-                return unshuffled_coins_on_scale[-1]
+                return unshuffled_coins_on_scale[-1]  # take the largest,oldest on the scale
             return None
         # /
         coin = get_coin_for_shuffling(scale, coins)

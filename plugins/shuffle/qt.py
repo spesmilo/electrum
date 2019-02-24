@@ -44,15 +44,6 @@ from electroncash.transaction import Transaction
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, ERR_BAD_SERVER_PREFIX, MSG_SERVER_OK, PrintErrorThread, get_name, unfreeze_frozen_by_shuffling
 from electroncash_plugins.shuffle.comms import query_server_for_stats, verify_ssl_socket
 
-FEE = 300
-SORTED_SCALES = sorted(BackgroundShufflingThread.scales)
-SCALE_ARROWS = ('→','⇢','➟','➝','➡')
-assert len(SORTED_SCALES) == len(SCALE_ARROWS), "Please add a scale arrow if you modify the scales!"
-SCALE_ARROW_DICT = dict(zip(SORTED_SCALES, SCALE_ARROWS))
-SCALE_0 = SORTED_SCALES[0]
-SCALE_N = SORTED_SCALES[-1]
-UPPER_BOUND = SCALE_N*10 + FEE
-LOWER_BOUND = SCALE_0 + FEE
 # Cash Shuffle server config key
 SHUFFLE_SERVER_KEY = "cashshuffle_server_v2"
 # old keys from previous versions. clean them up from config if seen.
@@ -186,14 +177,15 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
 #        item.setText(5, _("Not mature"))
     elif utxo['coinbase']:  # we disallow coinbase coins
         item.setText(5, _("Coinbase"))
-    elif utxo['value'] >= LOWER_BOUND and utxo['value'] < UPPER_BOUND: # queued_labels
+    elif (utxo['value'] >= BackgroundShufflingThread.LOWER_BOUND
+              and utxo['value'] < BackgroundShufflingThread.UPPER_BOUND): # queued_labels
         if utxo_list.wallet.network and utxo_list.wallet.network.is_connected():
             item.setText(5, _("In queue"))
         else:
             item.setText(5, _("Offline"))
-    elif utxo['value'] >= UPPER_BOUND: # too big
+    elif utxo['value'] >= BackgroundShufflingThread.UPPER_BOUND: # too big
         item.setText(5, _("Too big"))
-    elif utxo['value'] < LOWER_BOUND: # dust
+    elif utxo['value'] < BackgroundShufflingThread.LOWER_BOUND: # dust
         item.setText(5, _("Too small"))
 
     if prog == 'in progress': # in progress
@@ -259,7 +251,7 @@ def update_coin_status(window, coin_name, msg):
                     window.wallet.set_label(txid, _("Shuffle")
                                             + (" {} {} {} {} + {} (-{} sats {})"
                                                .format(tot, window.base_unit(),
-                                                       SCALE_ARROW_DICT.get(scale_orig, '⇒'),
+                                                       BackgroundShufflingThread.SCALE_ARROW_DICT.get(scale_orig, '⇒'),
                                                        scale, chg, fee, _("fee"))
                                                ))
                 except (IndexError, ValueError, TypeError):
@@ -324,7 +316,6 @@ def start_background_shuffling(window, network_settings, period = 10.0, password
                                                           window.wallet,
                                                           network_settings,
                                                           logger = logger,
-                                                          fee = FEE,
                                                           period = period,
                                                           password = password,
                                                           timeout = timeout)
