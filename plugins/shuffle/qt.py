@@ -181,8 +181,11 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
         item.setText(5, _("Frozen"))
     elif utxo['height'] <= 0: # not_confirmed
         item.setText(5, _("Unconfirmed"))
-    elif utxo['coinbase'] and (utxo['height'] + COINBASE_MATURITY > utxo_list.wallet.get_local_height()): # maturity check
-        item.setText(5, _("Not mature"))
+# for now we unconditionally disallow coinbase coins. See CashShuffle issue #64
+#    elif utxo['coinbase'] and (utxo['height'] + COINBASE_MATURITY > utxo_list.wallet.get_local_height()): # maturity check
+#        item.setText(5, _("Not mature"))
+    elif utxo['coinbase']:  # we disallow coinbase coins
+        item.setText(5, _("Coinbase"))
     elif utxo['value'] >= LOWER_BOUND and utxo['value'] < UPPER_BOUND: # queued_labels
         if utxo_list.wallet.network and utxo_list.wallet.network.is_connected():
             item.setText(5, _("In queue"))

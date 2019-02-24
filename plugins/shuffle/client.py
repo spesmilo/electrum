@@ -550,7 +550,9 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             upper_amount = scale*10 + self.fee
             lower_amount = scale + self.fee
             unshuffled_coins_on_scale = [coin for coin in unshuffled_coins
-                                         if coin['value'] < upper_amount and coin['value'] >= lower_amount and get_name(coin) not in self.done_utxos]
+                                         # exclude coins out of range and 'done' coins still in history
+                                         # also exclude coinbase coins (see issue #64)
+                                         if coin['value'] < upper_amount and coin['value'] >= lower_amount and get_name(coin) not in self.done_utxos and not coin['coinbase']]
             unshuffled_coins_on_scale.sort(key=lambda x: x['value']*100000000 + (100000000-x['height']))
             if unshuffled_coins_on_scale:
                 return unshuffled_coins_on_scale[-1]
