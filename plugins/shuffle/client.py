@@ -244,6 +244,11 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         10000,     # 0.0001 BCH →
     )
 
+    # Some class-level vars that influence fine details of thread operation
+    # -- Don't change these unless you know what you are doing!
+    STATS_PORT_RECHECK_TIME = 600.0  # re-check the stats port to pick up pool size changes for UI every 10 mins.
+    CHECKER_MAX_TIMEOUT = 15.0  # in seconds.. the maximum amount of time to use for stats port checker (applied if proxy mode, otherwise time will be this value divided by 3.0)
+
     def __init__(self, window, wallet, network_settings,
                  period = 10.0, logger = None, fee = 300, password=None, timeout=60.0):
         super().__init__()
@@ -264,10 +269,11 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.threads = {scale:None for scale in self.scales}
         self.shared_chan = Channel(switch_timeout=None) # threads write a 3-tuple here: (killme_flg, thr, msg)
         self.stop_flg = threading.Event()
-        self.last_idle_check = 0
+        self.last_idle_check = 0.0  # timestamp in seconds unix time
         self.done_utxos = dict()
         self._paused = False
         self._coins_busy_shuffling = set()  # 'prevout_hash:n' (name) set of all coins that are currently being shuffled by a ProtocolThread. Both wallet locks should be held to read/write this.
+        self._last_server_check = 0.0  # timestamp in seconds unix time
 
     def set_password(self, password):
         with self.lock:
@@ -322,23 +328,26 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                     if had_a_completion:
                         # force loop to go back to check_for_coins immediately if a thread just successfully ended with a protocol completion
                         continue
-                    self.check_server_if_errored() # NB: this normally is a noop but if server port is bad, blocks for up to 7.5 seconds
+                    self.check_server_if_errored_or_not_checked_in_a_while() # NB: this normally is a noop but if server port is bad or not checked in a while, blocks for up to 10.0 seconds
                     self.check_idle_threads()
             self.print_error("Stopped")
         finally:
             self._unreserve_addresses()
             self.logger.send("stopped", "MAINLOG")
 
-    def check_server_if_errored(self):
-        if not self.stop_flg.is_set() and self.window.cashshuffle_get_flag() == 1:
-            # bad server flag is set -- try to rediscover the shuffle port in case it changed
-            return self.check_server(quick = True)
+    def check_server_if_errored_or_not_checked_in_a_while(self):
+        if self.stop_flg.is_set():
+            return
+        errored = self.window.cashshuffle_get_flag() == 1  # bad server flag is set -- try to rediscover the shuffle port in case it changed
+        the_time_has_come = time.time() - self._last_server_check > self.STATS_PORT_RECHECK_TIME  # re-ping stats port every 10 mins to discover poolSize changes for UI
+        if errored or the_time_has_come:
+            return self.check_server(quick = True, ssl_verify = errored)
 
-    def check_server(self, quick = False):
-        def _do_check_server(timeout):
+    def check_server(self, quick = False, ssl_verify = True):
+        def _do_check_server(timeout, ssl_verify):
             try:
                 self.port, self.poolSize, connections, pools = query_server_for_stats(self.host, self.info_port, self.ssl, timeout)
-                if self.ssl and not verify_ssl_socket(self.host, self.port, timeout=timeout):
+                if self.ssl and ssl_verify and not verify_ssl_socket(self.host, self.port, timeout=timeout):
                     self.print_error("SSL Verification failed")
                     return False
                 self.print_error("Server {}:{} told us that it has shufflePort={} poolSize={} connections={}".format(self.host, self.info_port, self.port, self.poolSize, connections))
@@ -347,12 +356,14 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 self.print_error("Exception: {}".format(str(e)))
                 self.print_error("Could not query shuffle port for server {}:{} -- defaulting to {}".format(self.host, self.info_port, self.port))
                 return False
+            finally:
+                self._last_server_check = time.time()
         # /_do_check_server
+        to_hi, to_lo = self.CHECKER_MAX_TIMEOUT, self.CHECKER_MAX_TIMEOUT/3.0  # 15.0,5.0 secs
         if quick:
-            timeout =  7.5 if (Network.get_instance() and Network.get_instance().get_proxies()) else 2.5
-        else:
-            timeout = 12.5 if (Network.get_instance() and Network.get_instance().get_proxies()) else 5.0
-        if not _do_check_server(timeout = timeout):
+            to_hi, to_lo = to_hi*0.6, to_lo*0.6  # 9.0, 3.0 seconds respectively
+        timeout = to_hi if (Network.get_instance() and Network.get_instance().get_proxies()) else to_lo
+        if not _do_check_server(timeout = timeout, ssl_verify = ssl_verify):
             self.logger.send(ERR_SERVER_CONNECT, "MAINLOG")
             return False
         else:
