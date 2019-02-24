@@ -561,7 +561,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                                 # Note: the 'is False' is intentional -- we are interested in coins that we know for SURE are not shuffled.
                                 # is_coin_shuffled() also returns None in cases where the tx isn't in the history (a rare occurrence)
                                 if self.wallet.is_coin_shuffled(coin) is False]
-            upper_amount = min(scale*10 + self.fee, self.UPPER_BOUND_SANS_FEE + self.fee)
+            upper_amount = min(scale*10 + self.fee, self.UPPER_BOUND_SANS_FEE)
             lower_amount = scale + self.fee
             unshuffled_coins_on_scale = [coin for coin in unshuffled_coins
                                          # exclude coins out of range and 'done' coins still in history
