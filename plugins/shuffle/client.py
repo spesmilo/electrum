@@ -485,6 +485,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 self.wallet._last_change = None
                 self.print_error("Freed 'last_change'")
             unfreeze_frozen_by_shuffling(self.wallet)
+            self._coins_busy_shuffling.clear()
 
     def stop_protocol_thread(self, thr, scale, sender, message):
         self.print_error("Stop protocol thread for scale: {}".format(scale))
