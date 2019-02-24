@@ -745,13 +745,14 @@ class AddressSynchronizer(PrintError):
         return result
 
     @with_local_height_cached
-    def get_utxos(self, domain=None, excluded=None, mature=False, confirmed_only=False, nonlocal_only=False):
+    def get_utxos(self, domain=None, *, excluded=None,
+                  mature_only: bool = False, confirmed_only: bool = False, nonlocal_only: bool = False):
         coins = []
         if domain is None:
             domain = self.get_addresses()
         domain = set(domain)
         if excluded:
-            domain = set(domain) - excluded
+            domain = set(domain) - set(excluded)
         for addr in domain:
             utxos = self.get_addr_utxo(addr)
             for x in utxos.values():
@@ -759,7 +760,7 @@ class AddressSynchronizer(PrintError):
                     continue
                 if nonlocal_only and x['height'] == TX_HEIGHT_LOCAL:
                     continue
-                if mature and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
+                if mature_only and x['coinbase'] and x['height'] + COINBASE_MATURITY > self.get_local_height():
                     continue
                 coins.append(x)
                 continue

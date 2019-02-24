@@ -397,7 +397,7 @@ class Abstract_Wallet(AddressSynchronizer):
         confirmed_only = config.get('confirmed_only', False)
         return self.get_utxos(domain,
                               excluded=self.frozen_addresses,
-                              mature=True,
+                              mature_only=True,
                               confirmed_only=confirmed_only,
                               nonlocal_only=nonlocal_only)
 
@@ -740,7 +740,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def is_frozen(self, addr):
         return addr in self.frozen_addresses
 
-    def set_frozen_state(self, addrs, freeze):
+    def set_frozen_state(self, addrs, freeze: bool):
         '''Set frozen state of the addresses to FREEZE, True or False'''
         if all(self.is_mine(addr) for addr in addrs):
             if freeze:

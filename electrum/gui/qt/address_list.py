@@ -218,7 +218,7 @@ class AddressList(MyTreeView):
             else:
                 menu.addAction(_("Unfreeze"), lambda: self.parent.set_frozen_state([addr], False))
 
-        coins = self.wallet.get_utxos(addrs)
+        coins = self.wallet.get_spendable_coins(addrs, config=self.config)
         if coins:
             menu.addAction(_("Spend from"), lambda: self.parent.spend_coins(coins))
 
