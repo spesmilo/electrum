@@ -501,7 +501,7 @@ class TrustedCoinPlugin(BasePlugin):
 
     def make_seed(self, seed_type):
         if not is_any_2fa_seed_type(seed_type):
-            raise BaseException('unexpected seed type: {}'.format(seed_type))
+            raise Exception(f'unexpected seed type: {seed_type}')
         return Mnemonic('english').make_seed(seed_type=seed_type, num_bits=128)
 
     @hook
@@ -550,7 +550,7 @@ class TrustedCoinPlugin(BasePlugin):
     def xkeys_from_seed(self, seed, passphrase):
         t = seed_type(seed)
         if not is_any_2fa_seed_type(t):
-            raise BaseException('unexpected seed type: {}'.format(t))
+            raise Exception(f'unexpected seed type: {t}')
         words = seed.split()
         n = len(words)
         # old version use long seed phrases
