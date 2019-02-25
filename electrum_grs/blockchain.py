@@ -25,8 +25,8 @@ import threading
 from typing import Optional, Dict
 
 from . import util
-from .bitcoin import groestlHash, hash_encode, int_to_hex, rev_hex
-from .crypto import sha256d
+from .bitcoin import hash_encode, int_to_hex, rev_hex
+from .crypto import sha256d, groestlHash
 from . import constants
 from .util import bfh, bh2u
 from .simple_config import SimpleConfig
