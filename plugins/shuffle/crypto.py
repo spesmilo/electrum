@@ -14,7 +14,7 @@ class Crypto(object):
 
     def generate_key_pair(self):
         "generate encryption/decryption pair"
-        self.private_key = ecdsa.util.randrange(pow(2, 256)) % self._r
+        self.private_key = ecdsa.util.randrange( self._r )
         self.eck = EC_KEY(number_to_string(self.private_key, self._r))
         self.public_key = point_to_ser(self.private_key*self.G, True)
 
