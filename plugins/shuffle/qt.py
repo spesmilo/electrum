@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Cash Shuffle - CoinJoin for Bitcoin Cash
-# Copyright (C) 2018 Electron Cash LLC
+# Copyright (C) 2018-2019 Electron Cash LLC
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -34,7 +34,7 @@ from PyQt5.QtWidgets import *
 
 from electroncash.plugins import BasePlugin, hook
 from electroncash.i18n import _
-from electroncash.util import print_error, profiler, PrintError, Weak
+from electroncash.util import print_error, profiler, PrintError, Weak, format_satoshis_plain
 from electroncash.network import Network
 from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton, HelpLabel, OkButton, WindowModalDialog, rate_limited
 from electroncash_gui.qt.password_dialog import PasswordDialog
@@ -445,6 +445,7 @@ class Plugin(BasePlugin):
         self.print_error("OnNetworkDialog", str(nd))
         if not hasattr(nd, "__shuffle_settings__") or not nd.__shuffle_settings__:
             nd.__shuffle_settings__ = st = SettingsTab(nd.nlayout.tabs, None, nd.nlayout.config)
+            st.destroyed.connect(lambda x: print_error("CashShuffle network settings tab destroyed"))
             nd.nlayout.tabs.addTab(st, _("CashShuffle"))
             st.applyChanges.connect(Plugin.try_to_apply_network_dialog_settings)
         elif nd.__shuffle_settings__:
@@ -465,6 +466,7 @@ class Plugin(BasePlugin):
                     nd.nlayout.tabs.removeTab(idx)
                 st.stopNetworkChecker()
                 st.setParent(None)
+                st.deleteLater()  # need to call this otherwise it sticks around :/
                 st = None
             Plugin.network_dialog.__shuffle_settings__ = None
             self.print_error("Removed CashShuffle network settings tab")
@@ -1176,11 +1178,11 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
         vbox.addLayout(hbox2)
         self.statusGB = QGroupBox(_("Status"), self)
         hbox2.addWidget(self.statusGB)
-        hbox3 = QHBoxLayout(self.statusGB)
+        vbox2 = QVBoxLayout(self.statusGB)
         self.statusLabel = QLabel("", self.statusGB)
         self.statusLabel.setMinimumHeight(50)
         self.statusLabel.setAlignment(Qt.AlignAbsolute|Qt.AlignTop)
-        hbox3.addWidget(self.statusLabel)
+        vbox2.addWidget(self.statusLabel)
 
         self.vbox = vbox
 
@@ -1230,105 +1232,6 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
                         _('Active pools'), d['pools'])
             )
 
-        class NetworkChecker(QThread, PrintErrorThread):
-            ''' Runs in a separate thread, checks the server automatically when the settings form changes
-                and publishes results to GUI thread. '''
-            def __init__(self, parent):
-                assert isinstance(parent, SettingsDialog), "Parent to NetworkChecker must be a settings dialog"
-                super().__init__(parent)
-                self.parent = parent
-                self.timer = None # delay checking server in case user is typing in a new one in the custom box
-                self.timerCon = None
-                #self.destroyed.connect(lambda x: self.print_error("Destroyed"))
-            #def __del__(self):
-            #    self.print_error("(Instance deleted)")
-            def run(self): # overrides QThread
-                try:
-                    self.print_error("Started thread.")
-                    def updateStatus(d):
-                        #self.print_error("updateStatus", d) # XXX
-                        is_bad_server, is_bad_ssl, is_offline_mode = False, False, False
-                        try:
-                            if not Network.get_instance():
-                                is_offline_mode = True
-                                raise RuntimeError("No network")
-                                
-                            port, poolSize, connections, pools = query_server_for_stats(d['server'], d['info'], d['ssl'])
-                            if poolSize < 3:
-                                # hard-coded -- do not accept servers with poolSize < 3
-                                is_bad_server = True
-                                raise RuntimeError("PoolSize must be >=3, got: {}".format(poolSize))
-                            if d['ssl'] and not verify_ssl_socket(d['server'], int(port), timeout=7.5):
-                                is_bad_ssl = True
-                                raise RuntimeError("Could not verify SSL server certificate.")
-                                
-                            socket.create_connection((d['server'], port), 5.0).close() # test connectivity to port
-                            self.parent.statusChanged.emit({
-                                'host'   : d['server'],
-                                'status' : _('Ok'),
-                                'poolSize' : str(poolSize),
-                                'connections' : str(connections),
-                                'pools' : str(len(pools))
-                            })
-                        except BaseException as e:
-                            #import traceback
-                            #traceback.print_exc()
-                            self.print_error("exception on connect:",str(e))
-                            if is_offline_mode:
-                                self.parent.statusChanged.emit({'failed' : 'offline_mode'})
-                            elif is_bad_ssl:
-                                self.parent.statusChanged.emit({'failed' : 'ssl'})
-                            elif is_bad_server:
-                                self.parent.statusChanged.emit({'failed' : 'bad'})
-                            else:
-                                self.parent.statusChanged.emit({'failed' : 'failed'})
-                    def onSettingsChange(d):
-                        #self.print_error("onSettingsChange",d) # XXX
-                        self.parent.statusChanged.emit(dict())
-                        updateStatus(d)
-                    def onTimer(t, d):
-                        #self.print_error("onTimer",t.objectName()) # XXX
-                        if t.objectName() == "Virgin Timer":
-                            t.setObjectName("Nonvirgin Timer")
-                            t.setSingleShot(False)
-                            t.start(15000) # fire every 15 seconds to update stats
-                            onSettingsChange(d)
-                        else:
-                            updateStatus(d)
-                    def killTimer():
-                        if self.timer:
-                            #self.print_error("killTimer") # XXX
-                            self.timer.stop()
-                            if self.timerCon:
-                                self.timer.timeout.disconnect(self.timerCon)
-                            self.timeCon = None
-                            self.timer.deleteLater()
-                            self.timer = None
-                    def startTimer(d):
-                        #self.print_error("startTimer",d) # XXX
-                        d = d.copy()
-                        killTimer()
-                        class MyTimer(QTimer, PrintErrorThread):
-                            def __init__(self, parent=None):
-                                QTimer.__init__(self, parent)
-                                #self.destroyed.connect(lambda x: self.print_error("Destroyed"))
-                            #def __del__(self):
-                            #    self.print_error("(Instance deleted)")
-                        self.timer = MyTimer(); self.timer.setObjectName("Virgin Timer")
-                        self.timerCon = self.timer.timeout.connect(lambda: onTimer(self.timer,d))
-                        self.timer.start(250)
-
-                    c = self.parent.settingsChanged.connect(lambda d: startTimer(d))
-                    super().exec_() # Process thread event loop
-                    killTimer()
-                    self.print_error("Exiting thread...")
-                finally:
-                    if c:
-                        self.parent.settingsChanged.disconnect(c)
-                    del c
-            # / run
-        # / NetworkChecker
-
         self.networkChecker = NetworkChecker(self)
         self.networkChecker.conn1 = self.statusChanged.connect(lambda d: onStatusChanged(d))
         def onFormChange():
@@ -1355,6 +1258,108 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
             self.print_error("Stopped network checker.")
     # /
 # /SettingsDialog
+class NetworkChecker(QThread, PrintErrorThread):
+    ''' Runs in a separate thread, checks the server automatically when the settings form changes
+        and publishes results to GUI thread. '''
+    def __init__(self, parent):
+        assert isinstance(parent, SettingsDialog), "Parent to NetworkChecker must be a settings dialog"
+        super().__init__(parent)
+        self.parent = parent
+        self.timer = None # delay checking server in case user is typing in a new one in the custom box
+        self.timerCon = None
+        #self.destroyed.connect(lambda x: self.print_error("Destroyed"))
+    #def __del__(self):
+    #    self.print_error("(Instance deleted)")
+    def run(self): # overrides QThread
+        try:
+            self.print_error("Started thread.")
+            def updateStatus(d):
+                #self.print_error("updateStatus", d) # XXX
+                is_bad_server, is_bad_ssl, is_offline_mode = False, False, False
+                try:
+                    if not Network.get_instance():
+                        is_offline_mode = True
+                        raise RuntimeError("No network")
+
+                    port, poolSize, connections, pools = query_server_for_stats(d['server'], d['info'], d['ssl'])
+                    if poolSize < 3:
+                        # hard-coded -- do not accept servers with poolSize < 3
+                        is_bad_server = True
+                        raise RuntimeError("PoolSize must be >=3, got: {}".format(poolSize))
+                    if d['ssl'] and not verify_ssl_socket(d['server'], int(port), timeout=7.5):
+                        is_bad_ssl = True
+                        raise RuntimeError("Could not verify SSL server certificate.")
+
+                    socket.create_connection((d['server'], port), 5.0).close() # test connectivity to port
+                    self.parent.statusChanged.emit({
+                        'host'   : d['server'],
+                        'status' : _('Ok'),
+                        'poolSize' : str(poolSize),
+                        'connections' : str(connections),
+                        'pools' : str(len(pools)),
+                        'poolsList' : pools,
+                        'name' : d['server'] + ":" + str(d['info']),
+                        'info' : d['info'],
+                        'ssl'  : d['ssl'],
+                    })
+                except BaseException as e:
+                    #import traceback
+                    #traceback.print_exc()
+                    self.print_error("exception on connect:",str(e))
+                    if is_offline_mode:
+                        self.parent.statusChanged.emit({'failed' : 'offline_mode'})
+                    elif is_bad_ssl:
+                        self.parent.statusChanged.emit({'failed' : 'ssl'})
+                    elif is_bad_server:
+                        self.parent.statusChanged.emit({'failed' : 'bad'})
+                    else:
+                        self.parent.statusChanged.emit({'failed' : 'failed'})
+            def onSettingsChange(d):
+                #self.print_error("onSettingsChange",d) # XXX
+                self.parent.statusChanged.emit(dict())
+                updateStatus(d)
+            def onTimer(t, d):
+                #self.print_error("onTimer",t.objectName()) # XXX
+                if t.objectName() == "Virgin Timer":
+                    t.setObjectName("Nonvirgin Timer")
+                    t.setSingleShot(False)
+                    t.start(15000) # fire every 15 seconds to update stats
+                    onSettingsChange(d)
+                else:
+                    updateStatus(d)
+            def killTimer():
+                if self.timer:
+                    #self.print_error("killTimer") # XXX
+                    self.timer.stop()
+                    if self.timerCon:
+                        self.timer.timeout.disconnect(self.timerCon)
+                    self.timeCon = None
+                    self.timer.deleteLater()
+                    self.timer = None
+            def startTimer(d):
+                #self.print_error("startTimer",d) # XXX
+                d = d.copy()
+                killTimer()
+                class MyTimer(QTimer, PrintErrorThread):
+                    def __init__(self, parent=None):
+                        QTimer.__init__(self, parent)
+                        #self.destroyed.connect(lambda x: self.print_error("Destroyed"))
+                    #def __del__(self):
+                    #    self.print_error("(Instance deleted)")
+                self.timer = MyTimer(); self.timer.setObjectName("Virgin Timer")
+                self.timerCon = self.timer.timeout.connect(lambda: onTimer(self.timer,d))
+                self.timer.start(250)
+
+            c = self.parent.settingsChanged.connect(lambda d: startTimer(d))
+            super().exec_() # Process thread event loop
+            killTimer()
+            self.print_error("Exiting thread...")
+        finally:
+            if c:
+                self.parent.settingsChanged.disconnect(c)
+            del c
+    # / run
+# / NetworkChecker
 
 class SettingsTab(SettingsDialog):
     applyChanges = pyqtSignal(object)
@@ -1363,6 +1368,8 @@ class SettingsTab(SettingsDialog):
         super().__init__(parent, title, config, message)
         self.setWindowModality(Qt.NonModal)
         self.setWindowFlags(Qt.Widget) # force non-dialog
+        self.poolWindows = {}  # dict of "Server" -> "PoolsWindow" instances. This keeps top-level windows alive.
+        # add the "Apply" button to the bottom
         self.apply = QPushButton(_("Apply"), self)
         hbox = QHBoxLayout()
         self.vbox.addLayout(hbox)
@@ -1370,4 +1377,120 @@ class SettingsTab(SettingsDialog):
         hbox.addStretch(1)
         hbox.addWidget(self.apply)
         self.apply.clicked.connect(lambda: self.applyChanges.emit(self))
+        # add the "View pools..." button to the bottom
+        vbox = self.statusGB.layout()
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        self.poolsBut = QPushButton(_("View pools..."))
+        f = self.poolsBut.font(); f.setPointSize(f.pointSize()-(2 if sys.platform=='darwin' else 1)); self.poolsBut.setFont(f)
+        hbox.addWidget(self.poolsBut)
+        hbox.addStretch(1)
+        vbox.addLayout(hbox)
+        self.statusChanged.connect(self._stGotStatus)
+        self.poolsBut.setEnabled(False)
+        self._stLastStatus = dict()
+        self.poolsBut.clicked.connect(self._stOnPoolsBut, Qt.DirectConnection)
+        weakSelf = Weak.ref(self)  # prevent access to self as destroyed signal may fire after we're deaed.
+        self.destroyed.connect(lambda x: weakSelf() and weakSelf().poolWindows.clear())
+
+    def _stGotStatus(self, sdict):
+        if sdict.get('status') == _("Ok"):
+            self.poolsBut.setEnabled(True)
+            self._stLastStatus = sdict.copy()
+        else:
+            self.poolsBut.setEnabled(False)
+            self._stlastStatus = dict()
+
+    def _stOnPoolsBut(self):
+        d = self._stLastStatus
+        if not d:
+            return
+        name = d['name']
+        w = self.poolWindows.get(name)
+        if not w:
+            w = PoolsWindow(self, d)
+            self.poolWindows[name] = w
+            w.closed.connect(self._stPoolWinClosed, Qt.QueuedConnection) # clean-up instance
+        w.show(); w.raise_()
+    def _stPoolWinClosed(self, name):
+        window = self.poolWindows.pop(name) # will actually delete the QWidget instance.
+        window.deleteLater() # force Qt delete. This call may be superfluous
 # /SettingsTab
+
+class PoolsWindow(QWidget, PrintError):
+    closed = pyqtSignal(str)
+    def __init__(self, parent, serverDict):
+        super().__init__()  # top-level window
+        self.weakParent = Weak.ref(parent)
+        self.sdict = serverDict.copy()
+        name = self.sdict['name']
+        self.setObjectName(name)
+        self.setWindowTitle("CashShuffle - {} - Pools".format(name))
+        self.vbox = QVBoxLayout(self)
+        # pools group box
+        self.poolsGB = QGroupBox(_("{} Pools").format(name) + " (0)")
+        self.vbox.addWidget(self.poolsGB)
+        vbox2 = QVBoxLayout(self.poolsGB)
+        self.tree = QTreeWidget()
+        self.tree.setMinimumHeight(50)
+        self.tree.setHeaderItem(QTreeWidgetItem(['Scale', 'Members', 'Full']))
+        vbox2.addWidget(self.tree)
+        # bottom buts
+        self.vbox.addStretch()
+        hbox = QHBoxLayout()
+        self.closeBut = QPushButton(_("Close"))
+        hbox.addStretch(1)
+        hbox.addWidget(self.closeBut)
+        self.vbox.addLayout(hbox)
+        # signals
+        self.closeBut.clicked.connect(self.close)
+        self.closeBut.setDefault(True)
+        # etc...
+        self.resize(400,300)
+        #DEBUG
+        dname = self.diagnostic_name()
+        self.destroyed.connect(lambda x: print_error("[{}] destroyed".format(dname)))
+    def diagnostic_name(self):
+        return "{}/{}".format(super().diagnostic_name(), self.objectName())
+    def closeEvent(self, e):
+        super().closeEvent(e)
+        if e.isAccepted():
+            self.print_error("Hide")
+            self.closed.emit(self.objectName())
+            parent = self.weakParent()
+            if isinstance(parent, QWidget) and parent.isVisible() and parent.window().isVisible():
+                # for some reason closing this dialog raises the wallet window and not the network dialog
+                # activate the network dialog if it's up..
+                parent.window().activateWindow()
+            # do stuff related to hiding here...
+    def showEvent(self, e):
+        super().showEvent(e)
+        if e.isAccepted():
+            self.print_error("Show")
+            self.refresh()
+            # do stuff related to refreshing, etc here...
+    def refresh(self):
+        tit = self.poolsGB.title().rsplit(' ', 1)[0]
+        pools = self.sdict.get('poolsList', list()).copy()
+        poolSize = str(self.sdict.get('poolSize', ''))
+        self.poolsGB.setTitle(tit + " ({})".format(len(pools)))
+        self.tree.clear()
+        pools.sort(reverse=True, key=lambda x:(0 if x['full'] else 1, x['amount'], x['members']))
+        for p in pools:
+            self.tree.addTopLevelItem(QTreeWidgetItem([
+                format_satoshis_plain(p['amount']) + " BCH",
+                "{} / {}".format(str(p['members']), poolSize),
+                "√" if p['full'] else '-',
+            ]))
+        if not self.tree.topLevelItemCount():
+            twi = QTreeWidgetItem([_('No Pools'), '', ''])
+            f = twi.font(0); f.setItalic(True); twi.setFont(0, f)
+            self.tree.addTopLevelItem(twi)
+            self.tree.setFirstItemColumnSpanned(twi, True)
+            self.tree.setHeaderHidden(True)
+        else:
+            self.tree.setHeaderHidden(False)
+            for i in range(self.tree.columnCount()):
+                self.tree.resizeColumnToContents(i)
+
+# /PoolsWindow
