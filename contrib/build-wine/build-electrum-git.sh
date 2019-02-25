@@ -33,7 +33,7 @@ if ! which msgfmt > /dev/null 2>&1; then
     exit 1
 fi
 for i in ./locale/*; do
-    dir=$WINEPREFIX/drive_c/electrum/electrum-grs/$i/LC_MESSAGES
+    dir=$WINEPREFIX/drive_c/electrum-grs/electrum_grs/$i/LC_MESSAGES
     mkdir -p $dir
     msgfmt --output-file=$dir/electrum.mo $i/electrum.po || true
 done
