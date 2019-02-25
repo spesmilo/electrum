@@ -24,18 +24,14 @@
 # SOFTWARE.
 import os
 import threading
-import copy
-import re
 import stat
 import hashlib
 import base64
 import zlib
-from collections import defaultdict
 
-from . import util, bitcoin, ecc
+from . import ecc
 from .util import PrintError, profiler, InvalidPassword, WalletFileException, bfh, standardize_path
-from .plugin import run_hook, plugin_loaders
-from .keystore import bip44_derivation
+from .plugin import run_hook
 
 from .json_db import JsonDB
 
@@ -52,7 +48,7 @@ STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW = range(0, 3)
 
 class WalletStorage(PrintError):
 
-    def __init__(self, path, manual_upgrades=False):
+    def __init__(self, path, *, manual_upgrades=False):
         self.db_lock = threading.RLock()
         self.path = standardize_path(path)
         self._file_exists = self.path and os.path.exists(self.path)
@@ -67,11 +63,11 @@ class WalletStorage(PrintError):
                 self.raw = f.read()
             self._encryption_version = self._init_encryption_version()
             if not self.is_encrypted():
-                self.db = DB_Class(self.raw, manual_upgrades)
+                self.db = DB_Class(self.raw, manual_upgrades=manual_upgrades)
         else:
             self._encryption_version = STO_EV_PLAINTEXT
             # avoid new wallets getting 'upgraded'
-            self.db = DB_Class('', False)
+            self.db = DB_Class('', manual_upgrades=False)
 
     def put(self, key,value):
         with self.db_lock:
@@ -108,9 +104,6 @@ class WalletStorage(PrintError):
         self._file_exists = True
         self.print_error("saved", self.path)
         self.modified = False
-
-    def encrypt_before_writing(self, plaintext: str) -> str:
-        return plaintext
 
     def file_exists(self):
         return self._file_exists
@@ -181,7 +174,7 @@ class WalletStorage(PrintError):
             s = None
         self.pubkey = ec_key.get_public_key_hex()
         s = s.decode('utf8')
-        self.db = JsonDB(s, True)
+        self.db = JsonDB(s, manual_upgrades=True)
 
     def encrypt_before_writing(self, plaintext: str) -> str:
         s = plaintext

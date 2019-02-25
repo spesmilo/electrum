@@ -229,6 +229,7 @@ class ElectrumGui(PrintError):
                 return
         if not wallet:
             wizard = InstallWizard(self.config, self.app, self.plugins)
+            storage = None
             try:
                 path, storage = wizard.select_storage(path, self.daemon.get_wallet)
                 # storage is None if file does not exist

@@ -242,7 +242,7 @@ class BaseWizard(object):
         k = keystore.from_master_key(text)
         self.on_keystore(k)
 
-    def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET, storage=None):
+    def choose_hw_device(self, purpose=HWD_SETUP_NEW_WALLET, *, storage=None):
         title = _('Hardware Keystore')
         # check available plugins
         supported_plugins = self.plugins.get_hardware_support()
@@ -311,9 +311,10 @@ class BaseWizard(object):
             descr = f"{label} [{name}, {state}, {transport_str}]"
             choices.append(((name, info), descr))
         msg = _('Select a device') + ':'
-        self.choice_dialog(title=title, message=msg, choices=choices, run_next= lambda *args: self.on_device(*args, purpose=purpose))
+        self.choice_dialog(title=title, message=msg, choices=choices,
+                           run_next=lambda *args: self.on_device(*args, purpose=purpose, storage=storage))
 
-    def on_device(self, name, device_info, *, purpose):
+    def on_device(self, name, device_info, *, purpose, storage=None):
         self.plugin = self.plugins.get_plugin(name)
         try:
             self.plugin.setup_device(device_info, self, purpose)
@@ -550,7 +551,7 @@ class BaseWizard(object):
                 keys = self.keystores[0].dump()
                 self.data['keystore'] = keys
         else:
-            raise BaseException('Unknown wallet type')
+            raise Exception('Unknown wallet type')
         self.pw_args = password, encrypt_storage, storage_enc_version
         self.terminate()
 
@@ -559,11 +560,11 @@ class BaseWizard(object):
             return
         password, encrypt_storage, storage_enc_version = self.pw_args
         storage = WalletStorage(path)
-        for key, value in self.data.items():
-            storage.put(key, value)
-        storage.set_keystore_encryption(bool(password))# and encrypt_keystore)
+        storage.set_keystore_encryption(bool(password))  # and encrypt_keystore)
         if encrypt_storage:
             storage.set_password(password, enc_version=storage_enc_version)
+        for key, value in self.data.items():
+            storage.put(key, value)
         storage.write()
         return storage
 

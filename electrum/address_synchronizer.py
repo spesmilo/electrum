@@ -288,7 +288,7 @@ class AddressSynchronizer(PrintError):
                         continue
                     prevout_hash = txin['prevout_hash']
                     prevout_n = txin['prevout_n']
-                    self.spent_outpoints[prevout_hash].pop(prevout_n, None)
+                    self.spent_outpoints[prevout_hash].pop(prevout_n, None)  # FIXME
                     if not self.spent_outpoints[prevout_hash]:
                         self.spent_outpoints.pop(prevout_hash)
             else:  # expensive but always works
@@ -388,6 +388,7 @@ class AddressSynchronizer(PrintError):
         with self.lock:
             with self.transaction_lock:
                 self.db.clear_history()
+                self.storage.modified = True  # FIXME hack..
                 self.storage.write()
 
     def get_txpos(self, tx_hash):

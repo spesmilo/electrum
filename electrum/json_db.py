@@ -24,19 +24,14 @@
 # SOFTWARE.
 import os
 import ast
-import threading
 import json
 import copy
-import re
-import stat
-import hashlib
-import base64
-import zlib
 from collections import defaultdict
+from typing import Dict
 
-from . import util, bitcoin, ecc
-from .util import PrintError, profiler, InvalidPassword, WalletFileException, bfh, standardize_path, multisig_type, TxMinedInfo
-from .plugin import run_hook, plugin_loaders
+from . import util, bitcoin
+from .util import PrintError, profiler, WalletFileException, multisig_type, TxMinedInfo
+from .plugin import plugin_loaders
 from .keystore import bip44_derivation
 from .transaction import Transaction
 
@@ -48,10 +43,9 @@ FINAL_SEED_VERSION = 18     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
-
 class JsonDB(PrintError):
 
-    def __init__(self, raw, manual_upgrades):
+    def __init__(self, raw, *, manual_upgrades):
         self.data = {}
         self.manual_upgrades = manual_upgrades
         if raw:
@@ -84,19 +78,6 @@ class JsonDB(PrintError):
             return True
         return False
 
-    def get_all_data(self) -> dict:
-        return copy.deepcopy(self.data)
-
-    def overwrite_all_data(self, data: dict) -> None:
-        try:
-            json.dumps(data, cls=util.MyEncoder)
-        except:
-            self.print_error(f"json error: cannot save {repr(data)}")
-            return
-        with self.db_lock:
-            self.modified = True
-            self.data = copy.deepcopy(data)
-
     def commit(self):
         pass
 
@@ -111,7 +92,7 @@ class JsonDB(PrintError):
                 d = ast.literal_eval(s)
                 labels = d.get('labels', {})
             except Exception as e:
-                raise IOError("Cannot read wallet file '%s'" % self.path)
+                raise IOError("Cannot read wallet file")
             self.data = {}
             for key, value in d.items():
                 try:
@@ -482,7 +463,6 @@ class JsonDB(PrintError):
 
     def raise_unsupported_version(self, seed_version):
         msg = "Your wallet has an unsupported seed version."
-        msg += '\n\nWallet file: %s' % os.path.abspath(self.path)
         if seed_version in [5, 7, 8, 9, 10, 14]:
             msg += "\n\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
         if seed_version == 6:
@@ -514,6 +494,7 @@ class JsonDB(PrintError):
             self.txi[tx_hash] = {}
         d = self.txi[tx_hash]
         if addr not in d:
+            # note that as this is a set, we can ignore "duplicates"
             d[addr] = set()
         d[addr].add((ser, v))
 
@@ -522,8 +503,9 @@ class JsonDB(PrintError):
             self.txo[tx_hash] = {}
         d = self.txo[tx_hash]
         if addr not in d:
-            d[addr] = []
-        d[addr].append((n, v, is_coinbase))
+            # note that as this is a set, we can ignore "duplicates"
+            d[addr] = set()
+        d[addr].add((n, v, is_coinbase))
 
     def get_txi_keys(self):
         return self.txi.keys()
@@ -613,7 +595,7 @@ class JsonDB(PrintError):
         self.txo = self.get_data_ref('txo')  # txid -> address -> (output_index, value, is_coinbase)
         self.transactions = self.get_data_ref('transactions')   # type: Dict[str, Transaction]
         self.spent_outpoints = self.get_data_ref('spent_outpoints')
-        self.history = self.get_data_ref('history')  # address -> list(txid, height)
+        self.history = self.get_data_ref('addr_history')  # address -> list(txid, height)
         self.verified_tx = self.get_data_ref('verified_tx3') # txid -> TxMinedInfo.  Access with self.lock.
         self.tx_fees = self.get_data_ref('tx_fees')
 
