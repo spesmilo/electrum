@@ -101,7 +101,7 @@ class Contacts(dict):
         except DNSException as e:
             print_error(f'Error resolving openalias: {repr(e)}')
             return None
-        prefix = 'btc'
+        prefix = 'grs'
         for record in records:
             string = to_string(record.strings[0], 'utf8')
             if string.startswith('oa1:' + prefix):
@@ -119,7 +119,7 @@ class Contacts(dict):
             return regex.search(haystack).groups()[0]
         except AttributeError:
             return None
-            
+
     def _validate(self, data):
         for k, v in list(data.items()):
             if k == 'contacts':
@@ -131,4 +131,3 @@ class Contacts(dict):
                 if _type != 'address':
                     data.pop(k)
         return data
-

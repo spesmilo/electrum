@@ -303,7 +303,7 @@ class SimpleConfig(PrintError):
         return get_fee_within_limits
 
     def eta_to_fee(self, slider_pos) -> Optional[int]:
-        """Returns fee in sat/kbyte."""
+        """Returns fee in gro/kbyte."""
         slider_pos = max(slider_pos, 0)
         slider_pos = min(slider_pos, len(FEE_ETA_TARGETS))
         if slider_pos < len(FEE_ETA_TARGETS):
@@ -315,7 +315,7 @@ class SimpleConfig(PrintError):
 
     @impose_hard_limits_on_fee
     def eta_target_to_fee(self, num_blocks: int) -> Optional[int]:
-        """Returns fee in sat/kbyte."""
+        """Returns fee in gro/kbyte."""
         if num_blocks == 1:
             fee = self.fee_estimates.get(2)
             if fee is not None:
@@ -326,7 +326,7 @@ class SimpleConfig(PrintError):
         return fee
 
     def fee_to_depth(self, target_fee: Real) -> int:
-        """For a given sat/vbyte fee, returns an estimate of how deep
+        """For a given gro/vbyte fee, returns an estimate of how deep
         it would be in the current mempool in vbytes.
         Pessimistic == overestimates the depth.
         """
@@ -338,13 +338,13 @@ class SimpleConfig(PrintError):
         return depth
 
     def depth_to_fee(self, slider_pos) -> int:
-        """Returns fee in sat/kbyte."""
+        """Returns fee in gro/kbyte."""
         target = self.depth_target(slider_pos)
         return self.depth_target_to_fee(target)
 
     @impose_hard_limits_on_fee
     def depth_target_to_fee(self, target: int) -> int:
-        """Returns fee in sat/kbyte.
+        """Returns fee in gro/kbyte.
         target: desired mempool depth in vbytes
         """
         depth = 0
@@ -495,7 +495,7 @@ class SimpleConfig(PrintError):
         return fee_rate
 
     def fee_per_kb(self, dyn: bool=None, mempool: bool=None, fee_level: float=None) -> Union[int, None]:
-        """Returns sat/kvB fee to pay for a txn.
+        """Returns gro/kvB fee to pay for a txn.
         Note: might return None.
 
         fee_level: float between 0.0 and 1.0, representing fee slider position
@@ -519,7 +519,7 @@ class SimpleConfig(PrintError):
         return fee_rate
 
     def fee_per_byte(self):
-        """Returns sat/vB fee to pay for a txn.
+        """Returns gro/vB fee to pay for a txn.
         Note: might return None.
         """
         fee_per_kb = self.fee_per_kb()
@@ -562,7 +562,7 @@ class SimpleConfig(PrintError):
 
 
 def read_user_config(path):
-    """Parse and store the user config settings in electrum.conf into user_config[]."""
+    """Parse and store the user config settings in electrum-grs.conf into user_config[]."""
     if not path:
         return {}
     config_path = os.path.join(path, "config")

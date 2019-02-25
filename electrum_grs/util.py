@@ -576,7 +576,7 @@ def format_fee_satoshis(fee, *, num_zeros=0, precision=None):
 
 
 def quantize_feerate(fee):
-    """Strip sat/byte fee rate of excess precision."""
+    """Strip gro/byte fee rate of excess precision."""
     if fee is None:
         return None
     return Decimal(fee).quantize(_feerate_quanta, rounding=decimal.ROUND_HALF_DOWN)

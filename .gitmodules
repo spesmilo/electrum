@@ -1,6 +1,0 @@
-[[submodule "contrib/deterministic-build/electrum-grs-locale"]
-	path = contrib/deterministic-build/electrum-grs-locale
-	url = https://github.com/groestlcoin/electrum-grs-locale
-[submodule "contrib/CalinsQRReader"]
-	path = contrib/osx/CalinsQRReader
-	url = https://github.com/spesmilo/CalinsQRReader

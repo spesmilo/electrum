@@ -25,7 +25,7 @@ fi
     echo "<<<"
 
     # we could build the kivy atlas potentially?
-    #(cd electrum/gui/kivy/; make theming) || echo "building kivy atlas failed! skipping."
+    #(cd electrum_grs/gui/kivy/; make theming) || echo "building kivy atlas failed! skipping."
 
     python3 setup.py --quiet sdist --format=zip,gztar
 )

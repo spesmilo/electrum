@@ -2,7 +2,7 @@
 
 Revealer
 Do you have something to hide?
-Secret backup plug-in for the electrum wallet.
+Secret backup plug-in for the electrum-grs wallet.
 
 Tiago Romagnani Silveira, 2017
 
@@ -73,7 +73,7 @@ class Plugin(RevealerPlugin):
         return EnterButton(_('Printer Calibration'), partial(self.calibration_dialog, window))
 
     def password_dialog(self, msg=None, parent=None):
-        from electrum.gui.qt.password_dialog import PasswordDialog
+        from electrum_grs.gui.qt.password_dialog import PasswordDialog
         parent = parent or self
         d = PasswordDialog(parent, msg)
         return d.run()

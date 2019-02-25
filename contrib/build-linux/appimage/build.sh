@@ -89,7 +89,7 @@ info "installing pip."
 "$python" -m ensurepip
 
 
-info "preparing electrum-locale."
+info "preparing electrum-grs-locale."
 (
     cd "$PROJECT_ROOT"
     git submodule update --init
@@ -108,7 +108,7 @@ info "preparing electrum-locale."
 )
 
 
-info "installing electrum and its dependencies."
+info "installing electrum-GRS and its dependencies."
 mkdir -p "$CACHEDIR/pip_cache"
 "$python" -m pip install --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements.txt"
 "$python" -m pip install --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-binaries.txt"

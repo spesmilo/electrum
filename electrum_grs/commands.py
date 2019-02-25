@@ -640,7 +640,7 @@ class Commands:
             PR_PAID: 'Paid',
             PR_EXPIRED: 'Expired',
         }
-        out['amount (BTC)'] = format_satoshis(out.get('amount'))
+        out['amount (GRS)'] = format_satoshis(out.get('amount'))
         out['status'] = pr_str[out.get('status', PR_UNKNOWN)]
         return out
 
@@ -746,7 +746,7 @@ class Commands:
 
     @command('n')
     def getfeerate(self, fee_method=None, fee_level=None):
-        """Return current suggested fee rate (in sat/kvByte), according to config
+        """Return current suggested fee rate (in gro/kvByte), according to config
         settings or supplied parameters.
         """
         if fee_method is None:
@@ -791,8 +791,8 @@ param_descriptions = {
     'pubkey': 'Public key',
     'message': 'Clear text message. Use quotes if it contains spaces.',
     'encrypted': 'Encrypted message',
-    'amount': 'Amount to be sent (in BTC). Type \'!\' to send the maximum available.',
-    'requested_amount': 'Requested amount (in BTC).',
+    'amount': 'Amount to be sent (in GRS). Type \'!\' to send the maximum available.',
+    'requested_amount': 'Requested amount (in GRS).',
     'outputs': 'list of ["address", amount]',
     'redeem_script': 'redeem script (hexadecimal)',
 }

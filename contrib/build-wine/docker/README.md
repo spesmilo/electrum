@@ -35,8 +35,8 @@ folder.
         rm -rf $FRESH_CLONE && \
         mkdir -p $FRESH_CLONE && \
         cd $FRESH_CLONE  && \
-        git clone https://github.com/spesmilo/electrum.git && \
-        cd electrum
+        git clone https://github.com/groestlcoin/electrum-grs.git && \
+        cd electrum-grs
     ```
 
     And then build from this directory:

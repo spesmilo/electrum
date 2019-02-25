@@ -10,25 +10,25 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QProgressBar,
                              QHBoxLayout, QPushButton)
 
-from electrum import version
-from electrum import constants
-from electrum import ecc
-from electrum.i18n import _
-from electrum.util import PrintError, make_aiohttp_session
+from electrum_grs import version
+from electrum_grs import constants
+from electrum_grs import ecc
+from electrum_grs.i18n import _
+from electrum_grs.util import PrintError, make_aiohttp_session
 
 
 class UpdateCheck(QWidget, PrintError):
-    url = "https://electrum.org/version"
-    download_url = "https://electrum.org/#download"
+    url = "https://groestlcoin.org/version"
+    download_url = "https://www.groestlcoin.org/groestlcoin-electrum-wallet/"
 
     VERSION_ANNOUNCEMENT_SIGNING_KEYS = (
-        "13xjmVAB1EATPP8RshTE8S8sNwwSUM9p1P",
+        "FWN1qdiRrymSR6jbpbanLYqZpjkEaZouHN",
     )
 
     def __init__(self, main_window, latest_version=None):
         self.main_window = main_window
         QWidget.__init__(self)
-        self.setWindowTitle('Electrum - ' + _('Update Check'))
+        self.setWindowTitle('Electrum-GRS - ' + _('Update Check'))
         self.content = QVBoxLayout()
         self.content.setContentsMargins(*[10]*4)
 
@@ -86,10 +86,10 @@ class UpdateCheck(QWidget, PrintError):
                 self.detail_label.setText(_("You can download the new version from {}.").format(url))
             else:
                 self.heading_label.setText('<h2>' + _("Already up to date") + '</h2>')
-                self.detail_label.setText(_("You are already on the latest version of Electrum."))
+                self.detail_label.setText(_("You are already on the latest version of Electrum-GRS."))
         else:
             self.heading_label.setText('<h2>' + _("Checking for updates...") + '</h2>')
-            self.detail_label.setText(_("Please wait while Electrum checks for available updates."))
+            self.detail_label.setText(_("Please wait while Electrum-GRS checks for available updates."))
 
 
 class UpdateCheckThread(QThread, PrintError):

@@ -21,7 +21,7 @@ folder.
 2. Build image
 
     ```
-    $ sudo docker build -t electrum-android-builder-img electrum/gui/kivy/tools
+    $ sudo docker build -t electrum-android-builder-img electru_grs/gui/kivy/tools
     ```
 
 3. Build locale files
