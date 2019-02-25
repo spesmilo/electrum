@@ -39,7 +39,7 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_PUBKEY, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       hash_encode, var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
                       push_script, int_to_hex, push_script, b58_address_to_hash160)
-from .crypto import sha256d sha256
+from .crypto import sha256d, sha256
 from .keystore import xpubkey_to_address, xpubkey_to_pubkey
 
 
