@@ -543,8 +543,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         paytomany_menu = tools_menu.addAction(_("&Pay to many"), self.paytomany)
 
-        tools_menu.addAction(_("Create redemption"), self.create_redemption)
-
         raw_transaction_menu = tools_menu.addMenu(_("&Load transaction"))
         raw_transaction_menu.addAction(_("&From file"), self.do_process_from_file)
         raw_transaction_menu.addAction(_("&From text"), self.do_process_from_text)
@@ -2256,133 +2254,50 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         layout.addLayout(hbox, 4, 1)
         d.exec_()
 
-    def do_create_redemption(self, tokens, tx_fee):
-
-        coins = self.wallet.get_spendable_coins(None, self.config)
-        
-        ramount = tokens.get_amount()
-        fee_estimator = tx_fee.get_amount()
-
+    def redeem_coins(self, coins):
+        coin_vals = list(coins)
+        fee_estimator = 0
         tx_desc = 'Redemption transaction'
-
         addr = self.wallet.get_unused_address()
         out_type = TYPE_ADDRESS
+        outputs = []
+        lock_output = TxOutput(out_type,'1111111111111111111114oLvT2',0,1,coin_vals[0]['asset'],1)
+        outputs.append(lock_output)
 
-        outputs = [TxOutput(out_type, addr, ramount)]
+        for coin in coin_vals:
+            self.wallet.add_input_info(coin)
+            outp = TxOutput(out_type,addr,coin['value'],1,coin['asset'],1)
+            outputs.append(outp)
 
-        try:
-            is_sweep = bool(self.tx_external_keypairs)
-            tx = self.wallet.make_unsigned_transaction(
-                coins, outputs, self.config, fixed_fee=fee_estimator,
-                is_sweep=is_sweep)
-        except NotEnoughFunds:
-            self.show_message(_("Insufficient funds"))
-            return
-        except BaseException as e:
-            traceback.print_exc(file=sys.stdout)
-            self.show_message(str(e))
-            return
-
-        if not self.network:
-            self.show_error(_("You can't broadcast a transaction without a live network connection."))
-            return
+        tx = Transaction.from_io(coin_vals, outputs)
+        tx.locktime = self.wallet.get_local_height()
 
         self.show_transaction(tx,tx_desc)
-
         self.wallet.set_frozen_state([addr],True)
-
         self.wallet.set_label(addr, "Frozen for redemption")
 
         return
 
-#        coins_lock = self.wallet.get_addr_utxo(addr)
+    def burn_coins(self,coins):
+        coin_vals = list(coins)
+        fee_estimator = 0
+        msg = _('WARNING: Creating burn transaction. Only proceed if instructed by token issuer.') + '\n'
+        msg += _('Do you wish to continue?')
+        if not self.question(msg):
+            return
+        tx_desc = 'Asset burn transaction for redemption'
+        outputs = []
+        for coin in coin_vals:
+            self.wallet.add_input_info(coin)
+            outp = TxOutput(2,'6a',coin['value'],1,coin['asset'],1)
+            outputs.append(outp)
 
-#        inputs = []
-#        for x in coins_lock.values():
-#            inputs.append(x)
+        tx = Transaction.from_io(coin_vals, outputs)
+        tx.locktime = self.wallet.get_local_height()
 
+        self.show_transaction(tx,tx_desc)
 
-#        tx_desc = 'Redemption locking transaction - export as file'
-
-#        addr_lock = self.wallet.get_unused_address()
-#        out_type = TYPE_ADDRESS
-
-#        outputs_lock = [TxOutput(out_type, addr_lock, ramount-fee_estimator)]
-
-#        for outpoint in coins_lock:
-#            zasset = coins_lock[outpoint]['asset']
-
-#        lock_output = TxOutput(out_type,'1111111111111111111114oLvT2',Decimalf(0.001))
-
-#        outputs_lock.append(lock_output)
-
-#        try:
-#            is_sweep = bool(self.tx_external_keypairs)
-#            tx_lock = self.wallet.make_unsigned_transaction(
-#                inputs, outputs_lock, self.config, fixed_fee=fee_estimator,
-#                is_sweep=is_sweep)
-#        except NotEnoughFunds:
-#            self.show_message(_("Insufficient funds"))
-#            return
-#        except BaseException as e:
-#            traceback.print_exc(file=sys.stdout)
-#            self.show_message(str(e))
-#            return   
-
-#        self.show_transaction(tx,tx_desc)                    
-
-
-    def create_redemption(self):
-        d = WindowModalDialog(self, _('Create redemption'))
-        d.setMinimumSize(440, 160)
-
-        layout = QGridLayout(d)
-
-        layout.addWidget(QLabel(_('Create redemption transaction')), 1, 1)
-
-        required_tokens = BTCAmountEdit(self.get_decimal_point)
-        layout.addWidget(QLabel(_('Required tokens:')), 2, 0)
-        layout.addWidget(required_tokens, 2, 1)
-
-        transaction_fee = BTCAmountEdit(self.get_decimal_point)
-        layout.addWidget(QLabel(_('Fee:')), 3, 0)
-        layout.addWidget(transaction_fee, 3, 1)
-
-        hbox = QHBoxLayout()
-
-        b = QPushButton(_("Create"))
-        b.clicked.connect(lambda: self.do_create_redemption(required_tokens,transaction_fee))
-        hbox.addWidget(b)
-
-        b = QPushButton(_("Close"))
-        b.clicked.connect(d.accept)
-        hbox.addWidget(b)
-        layout.addLayout(hbox, 4, 1)
-        d.exec_()
-
-    def create_burn(self):
-        d = WindowModalDialog(self, _('Create token burn'))
-        d.setMinimumSize(440, 160)
-
-        layout = QGridLayout(d)
-
-        layout.addWidget(QLabel(_('Create token burn transaction')), 1, 1)
-
-        required_tokens = BTCAmountEdit(self.get_decimal_point)
-        layout.addWidget(QLabel(_('Burn address:')), 2, 0)
-        layout.addWidget(required_tokens, 2, 1)
-
-        hbox = QHBoxLayout()
-
-        b = QPushButton(_("Create"))
-        b.clicked.connect(lambda: self.do_create_burn(burn_address))
-        hbox.addWidget(b)
-
-        b = QPushButton(_("Close"))
-        b.clicked.connect(d.accept)
-        hbox.addWidget(b)
-        layout.addLayout(hbox, 4, 1)
-        d.exec_()
+        return
 
     @protected
     def do_decrypt(self, message_e, pubkey_e, encrypted_e, password):
