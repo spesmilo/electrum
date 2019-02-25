@@ -1,17 +1,21 @@
 from functools import partial
 import threading
 
-from PyQt5.Qt import Qt
-from PyQt5.Qt import QGridLayout, QInputDialog, QPushButton
-from PyQt5.Qt import QVBoxLayout, QLabel
+from PyQt5.QtCore import Qt, pyqtSignal, QRegExp
+from PyQt5.QtGui import QRegExpValidator
+from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
+                             QHBoxLayout, QButtonGroup, QGroupBox,
+                             QTextEdit, QLineEdit, QRadioButton, QCheckBox, QWidget,
+                             QMessageBox, QFileDialog, QSlider, QTabWidget)
 
-from electrum_grs.gui.qt.util import *
+from electrum_grs.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
+                                  OkButton, CloseButton)
 from electrum_grs.i18n import _
-from electrum_grs.plugin import hook, DeviceMgr
-from electrum_grs.util import PrintError, UserCancelled, bh2u
-from electrum_grs.wallet import Wallet, Standard_Wallet
+from electrum_grs.plugin import hook
+from electrum_grs.util import bh2u
 
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
+from ..hw_wallet.plugin import only_hook_if_libraries_available
 from .safe_t import SafeTPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC
 
 
@@ -70,6 +74,7 @@ class QtPlugin(QtPluginBase):
     def create_handler(self, window):
         return QtHandler(window, self.pin_matrix_widget_class(), self.device)
 
+    @only_hook_if_libraries_available
     @hook
     def receive_menu(self, menu, addrs, wallet):
         if len(addrs) != 1:
@@ -110,7 +115,7 @@ class QtPlugin(QtPluginBase):
             bg = QButtonGroup()
             for i, count in enumerate([12, 18, 24]):
                 rb = QRadioButton(gb)
-                rb.setText(_("%d words") % count)
+                rb.setText(_("{:d} words").format(count))
                 bg.addButton(rb)
                 bg.setId(rb, i)
                 hbox1.addWidget(rb)
@@ -125,7 +130,7 @@ class QtPlugin(QtPluginBase):
             else:
                 msg = _("Enter the master private key beginning with xprv:")
                 def set_enabled():
-                    from electrum_grs.keystore import is_xprv
+                    from electrum_grs.bip32 import is_xprv
                     wizard.next_button.setEnabled(is_xprv(clean_text(text)))
                 text.textChanged.connect(set_enabled)
                 next_enabled = False
@@ -168,12 +173,15 @@ class QtPlugin(QtPluginBase):
 
 
 class Plugin(SafeTPlugin, QtPlugin):
-    icon_unpaired = ":icons/safe-t_unpaired.png"
-    icon_paired = ":icons/safe-t.png"
+    icon_unpaired = "safe-t_unpaired.png"
+    icon_paired = "safe-t.png"
 
     @classmethod
     def pin_matrix_widget_class(self):
-        from safetlib.qt.pinmatrix import PinMatrixWidget
+        # We use a local updated copy of pinmatrix.py until safetlib
+        # releases a new version that includes https://github.com/archos-safe-t/python-safet/commit/b1eab3dba4c04fdfc1fcf17b66662c28c5f2380e
+        # from safetlib.qt.pinmatrix import PinMatrixWidget
+        from .pinmatrix import PinMatrixWidget
         return PinMatrixWidget
 
 
@@ -316,7 +324,7 @@ class SettingsDialog(WindowModalDialog):
 
         def slider_moved():
             mins = timeout_slider.sliderPosition()
-            timeout_minutes.setText(_("%2d minutes") % mins)
+            timeout_minutes.setText(_("{:2d} minutes").format(mins))
 
         def slider_released():
             config.set_session_timeout(timeout_slider.sliderPosition() * 60)

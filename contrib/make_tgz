@@ -1,1 +1,31 @@
-python3 setup.py sdist --format=zip,gztar
+#!/bin/bash
+
+set -e
+
+CONTRIB="$(dirname "$(readlink -e "$0")")"
+ROOT_FOLDER="$CONTRIB"/..
+PACKAGES="$ROOT_FOLDER"/packages/
+LOCALE="$ROOT_FOLDER"/electrum/locale/
+
+if [ ! -d "$LOCALE" ]; then
+  echo "Run make_locale first!"
+  exit 1
+fi
+
+if [ ! -d "$PACKAGES" ]; then
+  echo "Run make_packages first!"
+  exit 1
+fi
+
+(
+    cd "$ROOT_FOLDER"
+
+    echo "'git clean -fx' would delete the following files: >>>"
+    git clean -fx --dry-run
+    echo "<<<"
+
+    # we could build the kivy atlas potentially?
+    #(cd electrum/gui/kivy/; make theming) || echo "building kivy atlas failed! skipping."
+
+    python3 setup.py --quiet sdist --format=zip,gztar
+)

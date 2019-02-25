@@ -130,7 +130,7 @@ class TxDialog(Factory.Popup):
             self.amount_str = format_amount(-amount)
         self.fee_str = format_amount(fee) if fee is not None else _('unknown')
         self.can_sign = self.wallet.can_sign(self.tx)
-        self.ids.output_list.update(self.tx.outputs())
+        self.ids.output_list.update(self.tx.get_outputs_for_UI())
 
     def do_rbf(self):
         from .bump_fee_dialog import BumpFeeDialog

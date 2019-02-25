@@ -1,5 +1,7 @@
-import unittest
-from electrum_grs.util import format_satoshis, parse_URI
+from decimal import Decimal
+
+from electrum_grs.util import (format_satoshis, format_fee_satoshis, parse_URI,
+                           is_hash256_str)
 
 from . import SequentialTestCase
 
@@ -7,56 +9,41 @@ from . import SequentialTestCase
 class TestUtil(SequentialTestCase):
 
     def test_format_satoshis(self):
-        result = format_satoshis(1234)
-        expected = "0.00001234"
-        self.assertEqual(expected, result)
+        self.assertEqual("0.00001234", format_satoshis(1234))
 
     def test_format_satoshis_negative(self):
-        result = format_satoshis(-1234)
-        expected = "-0.00001234"
-        self.assertEqual(expected, result)
+        self.assertEqual("-0.00001234", format_satoshis(-1234))
 
-    def test_format_fee(self):
-        result = format_satoshis(1700/1000, 0, 0)
-        expected = "1.7"
-        self.assertEqual(expected, result)
+    def test_format_fee_float(self):
+        self.assertEqual("1.7", format_fee_satoshis(1700/1000))
+
+    def test_format_fee_decimal(self):
+        self.assertEqual("1.7", format_fee_satoshis(Decimal("1.7")))
 
     def test_format_fee_precision(self):
-        result = format_satoshis(1666/1000, 0, 0, precision=6)
-        expected = "1.666"
-        self.assertEqual(expected, result)
-
-        result = format_satoshis(1666/1000, 0, 0, precision=1)
-        expected = "1.7"
-        self.assertEqual(expected, result)
+        self.assertEqual("1.666",
+                         format_fee_satoshis(1666/1000, precision=6))
+        self.assertEqual("1.7",
+                         format_fee_satoshis(1666/1000, precision=1))
 
     def test_format_satoshis_whitespaces(self):
-        result = format_satoshis(12340, whitespaces=True)
-        expected = "     0.0001234 "
-        self.assertEqual(expected, result)
-
-        result = format_satoshis(1234, whitespaces=True)
-        expected = "     0.00001234"
-        self.assertEqual(expected, result)
+        self.assertEqual("     0.0001234 ",
+                         format_satoshis(12340, whitespaces=True))
+        self.assertEqual("     0.00001234",
+                         format_satoshis(1234, whitespaces=True))
 
     def test_format_satoshis_whitespaces_negative(self):
-        result = format_satoshis(-12340, whitespaces=True)
-        expected = "    -0.0001234 "
-        self.assertEqual(expected, result)
-
-        result = format_satoshis(-1234, whitespaces=True)
-        expected = "    -0.00001234"
-        self.assertEqual(expected, result)
+        self.assertEqual("    -0.0001234 ",
+                         format_satoshis(-12340, whitespaces=True))
+        self.assertEqual("    -0.00001234",
+                         format_satoshis(-1234, whitespaces=True))
 
     def test_format_satoshis_diff_positive(self):
-        result = format_satoshis(1234, is_diff=True)
-        expected = "+0.00001234"
-        self.assertEqual(expected, result)
+        self.assertEqual("+0.00001234",
+                         format_satoshis(1234, is_diff=True))
 
     def test_format_satoshis_diff_negative(self):
-        result = format_satoshis(-1234, is_diff=True)
-        expected = "-0.00001234"
-        self.assertEqual(expected, result)
+        self.assertEqual("-0.00001234", format_satoshis(-1234, is_diff=True))
 
     def _do_test_parse_URI(self, uri, expected):
         result = parse_URI(uri)
@@ -107,3 +94,13 @@ class TestUtil(SequentialTestCase):
 
     def test_parse_URI_parameter_polution(self):
         self.assertRaises(Exception, parse_URI, 'groestlcoin:FZw2mVm2NMhExB81bycsQT1WfjMFhDDGL9?amount=0.0003&label=test&amount=30.0')
+
+    def test_is_hash256_str(self):
+        self.assertTrue(is_hash256_str('09a4c03e3bdf83bbe3955f907ee52da4fc12f4813d459bc75228b64ad08617c7'))
+        self.assertTrue(is_hash256_str('2A5C3F4062E4F2FCCE7A1C7B4310CB647B327409F580F4ED72CB8FC0B1804DFA'))
+        self.assertTrue(is_hash256_str('00' * 32))
+
+        self.assertFalse(is_hash256_str('00' * 33))
+        self.assertFalse(is_hash256_str('qweqwe'))
+        self.assertFalse(is_hash256_str(None))
+        self.assertFalse(is_hash256_str(7))

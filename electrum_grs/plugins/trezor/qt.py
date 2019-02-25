@@ -1,18 +1,21 @@
 from functools import partial
 import threading
 
-from PyQt5.Qt import Qt
-from PyQt5.Qt import QGridLayout, QInputDialog, QPushButton
-from PyQt5.Qt import QVBoxLayout, QLabel
+from PyQt5.QtCore import Qt, QEventLoop, pyqtSignal
+from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QPushButton,
+                             QHBoxLayout, QButtonGroup, QGroupBox, QDialog,
+                             QLineEdit, QRadioButton, QCheckBox, QWidget,
+                             QMessageBox, QFileDialog, QSlider, QTabWidget)
 
-from electrum_grs.gui.qt.util import *
+from electrum_grs.gui.qt.util import (WindowModalDialog, WWLabel, Buttons, CancelButton,
+                                  OkButton, CloseButton)
 from electrum_grs.i18n import _
-from electrum_grs.plugin import hook, DeviceMgr
-from electrum_grs.util import PrintError, UserCancelled, bh2u
-from electrum_grs.wallet import Wallet, Standard_Wallet
+from electrum_grs.plugin import hook
+from electrum_grs.util import bh2u
 
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
-from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER, TIM_MNEMONIC,
+from ..hw_wallet.plugin import only_hook_if_libraries_available
+from .trezor import (TrezorPlugin, TIM_NEW, TIM_RECOVER,
                      RECOVERY_TYPE_SCRAMBLED_WORDS, RECOVERY_TYPE_MATRIX)
 
 
@@ -165,6 +168,7 @@ class QtPlugin(QtPluginBase):
     def create_handler(self, window):
         return QtHandler(window, self.pin_matrix_widget_class(), self.device)
 
+    @only_hook_if_libraries_available
     @hook
     def receive_menu(self, menu, addrs, wallet):
         if len(addrs) != 1:
@@ -196,50 +200,24 @@ class QtPlugin(QtPluginBase):
             text = widget.toPlainText().strip()
             return ' '.join(text.split())
 
-        if method in [TIM_NEW, TIM_RECOVER]:
-            gb = QGroupBox()
-            hbox1 = QHBoxLayout()
-            gb.setLayout(hbox1)
-            vbox.addWidget(gb)
-            gb.setTitle(_("Select your seed length:"))
-            bg_numwords = QButtonGroup()
-            for i, count in enumerate([12, 18, 24]):
-                rb = QRadioButton(gb)
-                rb.setText(_("%d words") % count)
-                bg_numwords.addButton(rb)
-                bg_numwords.setId(rb, i)
-                hbox1.addWidget(rb)
-                rb.setChecked(True)
-            cb_pin = QCheckBox(_('Enable PIN protection'))
-            cb_pin.setChecked(True)
-        else:
-            text = QTextEdit()
-            text.setMaximumHeight(60)
-            if method == TIM_MNEMONIC:
-                msg = _("Enter your BIP39 mnemonic:")
-            else:
-                msg = _("Enter the master private key beginning with xprv:")
-                def set_enabled():
-                    from electrum_grs.keystore import is_xprv
-                    wizard.next_button.setEnabled(is_xprv(clean_text(text)))
-                text.textChanged.connect(set_enabled)
-                next_enabled = False
+        gb = QGroupBox()
+        hbox1 = QHBoxLayout()
+        gb.setLayout(hbox1)
+        vbox.addWidget(gb)
+        gb.setTitle(_("Select your seed length:"))
+        bg_numwords = QButtonGroup()
+        for i, count in enumerate([12, 18, 24]):
+            rb = QRadioButton(gb)
+            rb.setText(_("{:d} words").format(count))
+            bg_numwords.addButton(rb)
+            bg_numwords.setId(rb, i)
+            hbox1.addWidget(rb)
+            rb.setChecked(True)
+        cb_pin = QCheckBox(_('Enable PIN protection'))
+        cb_pin.setChecked(True)
 
-            vbox.addWidget(QLabel(msg))
-            vbox.addWidget(text)
-            pin = QLineEdit()
-            pin.setValidator(QRegExpValidator(QRegExp('[1-9]{0,9}')))
-            pin.setMaximumWidth(100)
-            hbox_pin = QHBoxLayout()
-            hbox_pin.addWidget(QLabel(_("Enter your PIN (digits 1-9):")))
-            hbox_pin.addWidget(pin)
-            hbox_pin.addStretch(1)
-
-        if method in [TIM_NEW, TIM_RECOVER]:
-            vbox.addWidget(WWLabel(RECOMMEND_PIN))
-            vbox.addWidget(cb_pin)
-        else:
-            vbox.addLayout(hbox_pin)
+        vbox.addWidget(WWLabel(RECOMMEND_PIN))
+        vbox.addWidget(cb_pin)
 
         passphrase_msg = WWLabel(PASSPHRASE_HELP_SHORT)
         passphrase_warning = WWLabel(PASSPHRASE_NOT_PIN)
@@ -276,21 +254,16 @@ class QtPlugin(QtPluginBase):
 
         wizard.exec_layout(vbox, next_enabled=next_enabled)
 
-        if method in [TIM_NEW, TIM_RECOVER]:
-            item = bg_numwords.checkedId()
-            pin = cb_pin.isChecked()
-            recovery_type = bg_rectype.checkedId() if bg_rectype else None
-        else:
-            item = ' '.join(str(clean_text(text)).split())
-            pin = str(pin.text())
-            recovery_type = None
+        item = bg_numwords.checkedId()
+        pin = cb_pin.isChecked()
+        recovery_type = bg_rectype.checkedId() if bg_rectype else None
 
         return (item, name.text(), pin, cb_phrase.isChecked(), recovery_type)
 
 
 class Plugin(TrezorPlugin, QtPlugin):
-    icon_unpaired = ":icons/trezor_unpaired.png"
-    icon_paired = ":icons/trezor.png"
+    icon_unpaired = "trezor_unpaired.png"
+    icon_paired = "trezor.png"
 
     @classmethod
     def pin_matrix_widget_class(self):
@@ -437,7 +410,7 @@ class SettingsDialog(WindowModalDialog):
 
         def slider_moved():
             mins = timeout_slider.sliderPosition()
-            timeout_minutes.setText(_("%2d minutes") % mins)
+            timeout_minutes.setText(_("{:2d} minutes").format(mins))
 
         def slider_released():
             config.set_session_timeout(timeout_slider.sliderPosition() * 60)

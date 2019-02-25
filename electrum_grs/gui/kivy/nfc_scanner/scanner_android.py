@@ -117,8 +117,8 @@ class ScannerAndroid(NFCBase):
             recTypes = []
             for record in ndefrecords:
                 recTypes.append({
-                    'type': ''.join(map(unichr, record.getType())),
-                    'payload': ''.join(map(unichr, record.getPayload()))
+                    'type': ''.join(map(chr, record.getType())),
+                    'payload': ''.join(map(chr, record.getPayload()))
                     })
 
             details['recTypes'] = recTypes

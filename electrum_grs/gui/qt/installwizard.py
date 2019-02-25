@@ -1,12 +1,18 @@
+# Copyright (C) 2018 The Electrum developers
+# Distributed under the MIT software license, see the accompanying
+# file LICENCE or http://www.opensource.org/licenses/mit-license.php
 
 import os
 import sys
 import threading
 import traceback
+from typing import Tuple, List, Callable
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtCore import QRect, QEventLoop, Qt, pyqtSignal
+from PyQt5.QtGui import QPalette, QPen, QPainter, QPixmap
+from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QMessageBox,
+                             QVBoxLayout, QLineEdit, QFileDialog, QPushButton,
+                             QGridLayout, QSlider, QScrollArea)
 
 from electrum_grs.wallet import Wallet
 from electrum_grs.storage import WalletStorage
@@ -16,7 +22,8 @@ from electrum_grs.i18n import _
 
 from .seed_dialog import SeedLayout, KeysLayout
 from .network_dialog import NetworkChoiceLayout
-from .util import *
+from .util import (MessageBoxMixin, Buttons, icon_path, ChoicesLayout, WWLabel,
+                   InfoButton)
 from .password_dialog import PasswordLayout, PasswordLayoutForHW, PW_NEW
 
 
@@ -150,12 +157,12 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         hbox.setStretchFactor(scroll, 1)
         outer_vbox.addLayout(hbox)
         outer_vbox.addLayout(Buttons(self.back_button, self.next_button))
-        self.set_icon(':icons/electrum.png')
+        self.set_icon('electrum.png')
         self.show()
         self.raise_()
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
-    def run_and_get_wallet(self, get_wallet_from_daemon):
+    def select_storage(self, path, get_wallet_from_daemon):
 
         vbox = QVBoxLayout()
         hbox = QHBoxLayout()
@@ -179,6 +186,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         vbox.addLayout(hbox2)
         self.set_layout(vbox, title=_('Electrum-GRS wallet'))
 
+        self.storage = WalletStorage(path, manual_upgrades=True)
         wallet_folder = os.path.dirname(self.storage.path)
 
         def on_choose():
@@ -268,7 +276,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                             None, _('Error'),
                             _('Failed to decrypt using this hardware device.') + '\n' +
                             _('If you use a passphrase, make sure it is correct.'))
-                        self.stack = []
+                        self.reset_stack()
                         return self.run_and_get_wallet(get_wallet_from_daemon)
                     except BaseException as e:
                         traceback.print_exc(file=sys.stdout)
@@ -280,7 +288,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                         return
                 else:
                     raise Exception('Unexpected encryption version')
+        return True
 
+    def run_and_get_wallet(self):
         path = self.storage.path
         if self.storage.requires_split():
             self.hide()
@@ -325,7 +335,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     def set_icon(self, filename):
         prior_filename, self.icon_filename = self.icon_filename, filename
-        self.logo.setPixmap(QPixmap(filename).scaledToWidth(60, mode=Qt.SmoothTransformation))
+        self.logo.setPixmap(QPixmap(icon_path(filename))
+                            .scaledToWidth(60, mode=Qt.SmoothTransformation))
         return prior_filename
 
     def set_layout(self, layout, title=None, next_enabled=True):
@@ -428,7 +439,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return slayout.is_ext
 
     def pw_layout(self, msg, kind, force_disable_encrypt_cb):
-        playout = PasswordLayout(None, msg, kind, self.next_button,
+        playout = PasswordLayout(msg=msg, kind=kind, OK_button=self.next_button,
                                  force_disable_encrypt_cb=force_disable_encrypt_cb)
         playout.encrypt_cb.setChecked(True)
         self.exec_layout(playout.layout())
@@ -442,7 +453,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
 
     @wizard_dialog
     def request_storage_encryption(self, run_next):
-        playout = PasswordLayoutForHW(None, MSG_HW_STORAGE_ENCRYPTION, PW_NEW, self.next_button)
+        playout = PasswordLayoutForHW(MSG_HW_STORAGE_ENCRYPTION)
         playout.encrypt_cb.setChecked(True)
         self.exec_layout(playout.layout())
         return playout.encrypt_cb.isChecked()
@@ -505,8 +516,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         return clayout.selected_index()
 
     @wizard_dialog
-    def choice_and_line_dialog(self, title, message1, choices, message2,
-                               test_text, run_next) -> (str, str):
+    def choice_and_line_dialog(self, title: str, message1: str, choices: List[Tuple[str, str, str]],
+                               message2: str, test_text: Callable[[str], int],
+                               run_next, default_choice_idx: int=0) -> Tuple[str, str]:
         vbox = QVBoxLayout()
 
         c_values = [x[0] for x in choices]
@@ -515,7 +527,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         def on_choice_click(clayout):
             idx = clayout.selected_index()
             line.setText(c_default_text[idx])
-        clayout = ChoicesLayout(message1, c_titles, on_choice_click)
+        clayout = ChoicesLayout(message1, c_titles, on_choice_click,
+                                checked_index=default_choice_idx)
         vbox.addLayout(clayout.layout())
 
         vbox.addSpacing(50)

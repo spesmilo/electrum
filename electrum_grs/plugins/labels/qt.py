@@ -2,15 +2,12 @@ from functools import partial
 import traceback
 import sys
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QVBoxLayout)
 
 from electrum_grs.plugin import hook
 from electrum_grs.i18n import _
-from electrum_grs.gui.qt import EnterButton
-from electrum_grs.gui.qt.util import ThreadedButton, Buttons
-from electrum_grs.gui.qt.util import WindowModalDialog, OkButton
+from electrum_grs.gui.qt.util import ThreadedButton, Buttons, EnterButton, WindowModalDialog, OkButton
 
 from .labels import LabelsPlugin
 
@@ -38,11 +35,11 @@ class Plugin(LabelsPlugin):
         hbox = QHBoxLayout()
         hbox.addWidget(QLabel("Label sync options:"))
         upload = ThreadedButton("Force upload",
-                                partial(self.push_thread, wallet),
+                                partial(self.push, wallet),
                                 partial(self.done_processing_success, d),
                                 partial(self.done_processing_error, d))
         download = ThreadedButton("Force download",
-                                  partial(self.pull_thread, wallet, True),
+                                  partial(self.pull, wallet, True),
                                   partial(self.done_processing_success, d),
                                   partial(self.done_processing_error, d))
         vbox = QVBoxLayout()
@@ -75,4 +72,8 @@ class Plugin(LabelsPlugin):
 
     @hook
     def on_close_window(self, window):
+        try:
+            self.obj.labels_changed_signal.disconnect(window.update_tabs)
+        except TypeError:
+            pass  # 'method' object is not connected
         self.stop_wallet(window.wallet)

@@ -85,4 +85,4 @@ dmg dmg Electrum-GRS_uncompressed.dmg electrum-grs-$VERSION.dmg || fail "Unable 
 rm Electrum-GRS_uncompressed.dmg
 
 echo "Done."
-md5sum electrum-grs-$VERSION.dmg
+sha256sum electrum-grs-$VERSION.dmg

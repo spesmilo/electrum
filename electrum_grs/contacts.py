@@ -21,11 +21,9 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import re
+
 import dns
 from dns.exception import DNSException
-import json
-import traceback
-import sys
 
 from . import bitcoin
 from . import dnssec
@@ -67,8 +65,9 @@ class Contacts(dict):
 
     def pop(self, key):
         if key in self.keys():
-            dict.pop(self, key)
+            res = dict.pop(self, key)
             self.save()
+            return res
 
     def resolve(self, k):
         if bitcoin.is_address(k):
@@ -100,7 +99,7 @@ class Contacts(dict):
         try:
             records, validated = dnssec.query(url, dns.rdatatype.TXT)
         except DNSException as e:
-            print_error('Error resolving openalias: ', str(e))
+            print_error(f'Error resolving openalias: {repr(e)}')
             return None
         prefix = 'btc'
         for record in records:

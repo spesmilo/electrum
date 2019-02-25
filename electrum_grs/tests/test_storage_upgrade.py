@@ -6,8 +6,6 @@ from electrum_grs.wallet import Wallet
 
 from .test_wallet import WalletTestCase
 
-from . import SequentialTestCase
-
 
 # TODO add other wallet types: 2fa, xpub-only
 # TODO hw wallet with client version 2.6.x (single-, and multiacc)
@@ -266,7 +264,7 @@ class TestStorageUpgrade(WalletTestCase):
 
         gui_name = 'cmdline'
         # TODO it's probably wasteful to load all plugins... only need Trezor
-        Plugins(config, True, gui_name)
+        Plugins(config, gui_name)
 
     @classmethod
     def tearDownClass(cls):

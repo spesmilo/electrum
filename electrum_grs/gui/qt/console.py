@@ -1,21 +1,19 @@
 
 # source: http://stackoverflow.com/questions/2758159/how-to-embed-a-python-interpreter-in-a-pyqt-widget
 
-import sys, os, re
-import traceback, platform
+import sys
+import os
+import re
+import traceback
+
 from PyQt5 import QtCore
 from PyQt5 import QtGui
 from PyQt5 import QtWidgets
+
 from electrum_grs import util
 from electrum_grs.i18n import _
 
-
-if platform.system() == 'Windows':
-    MONOSPACE_FONT = 'Lucida Console'
-elif platform.system() == 'Darwin':
-    MONOSPACE_FONT = 'Monaco'
-else:
-    MONOSPACE_FONT = 'monospace'
+from .util import MONOSPACE_FONT
 
 
 class OverlayLabel(QtWidgets.QLabel):
@@ -72,8 +70,9 @@ class Console(QtWidgets.QPlainTextEdit):
         self.messageOverlay = OverlayLabel(warning_text, self)
 
     def resizeEvent(self, e):
-        self.messageOverlay.on_resize(self.width() - self.verticalScrollBar().width())
-
+        super().resizeEvent(e)
+        vertical_scrollbar_width = self.verticalScrollBar().width() * self.verticalScrollBar().isVisible()
+        self.messageOverlay.on_resize(self.width() - vertical_scrollbar_width)
 
     def set_json(self, b):
         self.is_json = b
@@ -303,31 +302,34 @@ class Console(QtWidgets.QPlainTextEdit):
 
         super(Console, self).keyPressEvent(event)
 
-
-
     def completions(self):
         cmd = self.getCommand()
         lastword = re.split(' |\(|\)',cmd)[-1]
         beginning = cmd[0:-len(lastword)]
 
         path = lastword.split('.')
+        prefix = '.'.join(path[:-1])
+        prefix = (prefix + '.') if prefix else prefix
         ns = self.namespace.keys()
 
         if len(path) == 1:
             ns = ns
-            prefix = ''
         else:
+            assert len(path) > 1
             obj = self.namespace.get(path[0])
-            prefix = path[0] + '.'
-            ns = dir(obj)
-
+            try:
+                for attr in path[1:-1]:
+                    obj = getattr(obj, attr)
+            except AttributeError:
+                ns = []
+            else:
+                ns = dir(obj)
 
         completions = []
-        for x in ns:
-            if x[0] == '_':continue
-            xx = prefix + x
-            if xx.startswith(lastword):
-                completions.append(xx)
+        for name in ns:
+            if name[0] == '_':continue
+            if name.startswith(path[-1]):
+                completions.append(prefix+name)
         completions.sort()
 
         if not completions:

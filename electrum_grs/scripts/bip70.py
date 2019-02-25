@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # create a BIP70 payment request signed with a certificate
+# FIXME: the code here is outdated, and no longer working
 
 import tlslite
 

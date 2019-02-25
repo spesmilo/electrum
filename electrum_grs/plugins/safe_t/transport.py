@@ -8,6 +8,8 @@ class SafeTTransport(PrintError):
         """Reimplemented safetlib.transport.all_transports so that we can
         enable/disable specific transports.
         """
+        # NOTE: the bridge and UDP transports are disabled as they are using
+        # the same ports as trezor
         try:
             # only to detect safetlib version
             from safetlib.transport import all_transports

@@ -1,6 +1,0 @@
-[submodule "contrib/deterministic-build/electrum-grs-icons"]
-	path = contrib/deterministic-build/electrum-grs-icons
-	url = https://github.com/Groestlcoin/electrum-grs-icons
-[submodule "contrib/deterministic-build/electrum-grs-locale"]
-	path = contrib/deterministic-build/electrum-grs-locale
-	url = https://github.com/Groestlcoin/electrum-grs-locale

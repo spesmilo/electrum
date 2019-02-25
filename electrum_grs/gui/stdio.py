@@ -1,14 +1,18 @@
 from decimal import Decimal
-_ = lambda x:x
-#from i18n import _
+import getpass
+import datetime
+
 from electrum_grs import WalletStorage, Wallet
 from electrum_grs.util import format_satoshis, set_verbosity
 from electrum_grs.bitcoin import is_address, COIN, TYPE_ADDRESS
 from electrum_grs.transaction import TxOutput
-import getpass, datetime
+from electrum_grs.network import TxBroadcastError, BestEffortRequestFailed
+
+_ = lambda x:x  # i18n
 
 # minimal fdisk like gui for console usage
 # written by rofl0r, with some bits stolen from the text gui (ncurses)
+
 
 class ElectrumGui:
 
@@ -34,10 +38,10 @@ class ElectrumGui:
         self.str_fee = ""
 
         self.wallet = Wallet(storage)
-        self.wallet.start_threads(self.network)
+        self.wallet.start_network(self.network)
         self.contacts = self.wallet.contacts
 
-        self.network.register_callback(self.on_network, ['updated', 'banner'])
+        self.network.register_callback(self.on_network, ['wallet_updated', 'network_updated', 'banner'])
         self.commands = [_("[h] - displays this help text"), \
                          _("[i] - display transaction history"), \
                          _("[o] - enter payment order"), \
@@ -50,7 +54,7 @@ class ElectrumGui:
         self.num_commands = len(self.commands)
 
     def on_network(self, event, *args):
-        if event == 'updated':
+        if event in ['wallet_updated', 'network_updated']:
             self.updated()
         elif event == 'banner':
             self.print_banner()
@@ -88,7 +92,7 @@ class ElectrumGui:
         + "%d"%(width[2]+delta)+"s"+"%"+"%d"%(width[3]+delta)+"s"
         messages = []
 
-        for tx_hash, tx_mined_status, delta, balance in self.wallet.get_history():
+        for tx_hash, tx_mined_status, delta, balance in reversed(self.wallet.get_history()):
             if tx_mined_status.conf:
                 timestamp = tx_mined_status.timestamp
                 try:
@@ -200,14 +204,18 @@ class ElectrumGui:
             self.wallet.labels[tx.txid()] = self.str_description
 
         print(_("Please wait..."))
-        status, msg = self.network.broadcast_transaction(tx)
-
-        if status:
+        try:
+            self.network.run_from_another_thread(self.network.broadcast_transaction(tx))
+        except TxBroadcastError as e:
+            msg = e.get_message_for_gui()
+            print(msg)
+        except BestEffortRequestFailed as e:
+            msg = repr(e)
+            print(msg)
+        else:
             print(_('Payment sent.'))
             #self.do_clear()
             #self.update_contacts_tab()
-        else:
-            print(_('Error'))
 
     def network_dialog(self):
         print("use 'electrum-grs setconfig server/proxy' to change your network settings")

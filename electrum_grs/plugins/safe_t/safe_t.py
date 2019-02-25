@@ -2,12 +2,12 @@ from binascii import hexlify, unhexlify
 import traceback
 import sys
 
-from electrum_grs.util import bfh, bh2u, versiontuple, UserCancelled
-from electrum_grs.bitcoin import (b58_address_to_hash160, xpub_from_pubkey, deserialize_xpub,
-                              TYPE_ADDRESS, TYPE_SCRIPT, is_address)
+from electrum_grs.util import bfh, bh2u, versiontuple, UserCancelled, UserFacingException
+from electrum_grs.bitcoin import TYPE_ADDRESS, TYPE_SCRIPT
+from electrum_grs.bip32 import deserialize_xpub
 from electrum_grs import constants
 from electrum_grs.i18n import _
-from electrum_grs.plugin import BasePlugin, Device
+from electrum_grs.plugin import Device
 from electrum_grs.transaction import deserialize, Transaction
 from electrum_grs.keystore import Hardware_KeyStore, is_xpubkey, parse_xpubkey
 from electrum_grs.base_wizard import ScriptTypeNotSupported
@@ -31,7 +31,7 @@ class SafeTKeyStore(Hardware_KeyStore):
         return self.plugin.get_client(self, force_pair)
 
     def decrypt_message(self, sequence, message, password):
-        raise RuntimeError(_('Encryption and decryption are not implemented by {}').format(self.device))
+        raise UserFacingException(_('Encryption and decryption are not implemented by {}').format(self.device))
 
     def sign_message(self, sequence, message, password):
         client = self.get_client()
@@ -51,7 +51,7 @@ class SafeTKeyStore(Hardware_KeyStore):
             pubkeys, x_pubkeys = tx.get_sorted_pubkeys(txin)
             tx_hash = txin['prevout_hash']
             if txin.get('prev_tx') is None and not Transaction.is_segwit_input(txin):
-                raise Exception(_('Offline signing with {} is not supported for legacy inputs.').format(self.device))
+                raise UserFacingException(_('Offline signing with {} is not supported for legacy inputs.').format(self.device))
             prev_tx[tx_hash] = txin['prev_tx']
             for x_pubkey in x_pubkeys:
                 if not is_xpubkey(x_pubkey):
@@ -105,7 +105,13 @@ class SafeTPlugin(HW_PluginBase):
 
     def enumerate(self):
         devices = self.transport_handler.enumerate_devices()
-        return [Device(d.get_path(), -1, d.get_path(), 'Safe-T mini', 0) for d in devices]
+        return [Device(path=d.get_path(),
+                       interface_number=-1,
+                       id_=d.get_path(),
+                       product_key='Safe-T mini',
+                       usage_page=0,
+                       transport_ui_string=d.get_path())
+                for d in devices]
 
     def create_client(self, device, handler):
         try:
@@ -137,7 +143,7 @@ class SafeTPlugin(HW_PluginBase):
             if handler:
                 handler.show_error(msg)
             else:
-                raise Exception(msg)
+                raise UserFacingException(msg)
             return None
 
         return client
@@ -253,8 +259,8 @@ class SafeTPlugin(HW_PluginBase):
         device_id = device_info.device.id_
         client = devmgr.client_by_id(device_id)
         if client is None:
-            raise Exception(_('Failed to create a client for this device.') + '\n' +
-                            _('Make sure it is in the correct state.'))
+            raise UserFacingException(_('Failed to create a client for this device.') + '\n' +
+                                      _('Make sure it is in the correct state.'))
         # fixme: we should use: client.handler = wizard
         client.handler = self.create_handler(wizard)
         if not device_info.initialized:
@@ -300,7 +306,8 @@ class SafeTPlugin(HW_PluginBase):
         client = self.get_client(keystore)
         inputs = self.tx_inputs(tx, True)
         outputs = self.tx_outputs(keystore.get_derivation(), tx)
-        signatures = client.sign_tx(self.get_coin_name(), inputs, outputs, lock_time=tx.locktime)[0]
+        signatures = client.sign_tx(self.get_coin_name(), inputs, outputs,
+                                    lock_time=tx.locktime, version=tx.version)[0]
         signatures = [(bh2u(x) + '01') for x in signatures]
         tx.update_signatures(signatures)
 
@@ -354,11 +361,7 @@ class SafeTPlugin(HW_PluginBase):
                         txinputtype.script_type = self.get_safet_input_script_type(txin['type'])
                     else:
                         def f(x_pubkey):
-                            if is_xpubkey(x_pubkey):
-                                xpub, s = parse_xpubkey(x_pubkey)
-                            else:
-                                xpub = xpub_from_pubkey(0, bfh(x_pubkey))
-                                s = []
+                            xpub, s = parse_xpubkey(x_pubkey)
                             return self._make_node_path(xpub, s)
                         pubkeys = list(map(f, x_pubkeys))
                         multisig = self.types.MultisigRedeemScriptType(

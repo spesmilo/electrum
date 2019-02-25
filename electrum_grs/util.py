@@ -22,8 +22,8 @@
 # SOFTWARE.
 import binascii
 import os, sys, re, json
-from collections import defaultdict
-from typing import NamedTuple
+from collections import defaultdict, OrderedDict
+from typing import NamedTuple, Union, TYPE_CHECKING, Tuple, Optional, Callable
 from datetime import datetime
 import decimal
 from decimal import Decimal
@@ -32,22 +32,43 @@ import urllib
 import threading
 import hmac
 import stat
-import inspect
 from locale import localeconv
+import asyncio
+import urllib.request, urllib.parse, urllib.error
+import builtins
+import json
+import time
+from typing import NamedTuple, Optional
+import ssl
+
+import aiohttp
+from aiohttp_socks import SocksConnector, SocksVer
+from aiorpcx import TaskGroup
+import certifi
 
 from .i18n import _
 
+if TYPE_CHECKING:
+    from .network import Network
+    from .interface import Interface
+    from .simple_config import SimpleConfig
 
-import urllib.request, urllib.parse, urllib.error
-import queue
 
 def inv_dict(d):
     return {v: k for k, v in d.items()}
 
 
-base_units = {'GRS':8, 'mGRS':5, 'uGRS':2}
+ca_path = certifi.where()
+
+
+base_units = {'GRS':8, 'mGRS':5, 'groestls':2, 'gro':0}
 base_units_inverse = inv_dict(base_units)
-base_units_list = ['GRS', 'mGRS', 'uGRS']  # list(dict) does not guarantee order
+base_units_list = ['GRS', 'mGRS', 'groestls', 'gro']  # list(dict) does not guarantee order
+
+DECIMAL_POINT_DEFAULT = 8  # GRS
+
+
+class UnknownBaseUnit(Exception): pass
 
 
 def decimal_point_to_base_unit_name(dp: int) -> str:
@@ -55,7 +76,7 @@ def decimal_point_to_base_unit_name(dp: int) -> str:
     try:
         return base_units_inverse[dp]
     except KeyError:
-        raise Exception('Unknown base unit')
+        raise UnknownBaseUnit(dp) from None
 
 
 def base_unit_name_to_decimal_point(unit_name: str) -> int:
@@ -63,13 +84,12 @@ def base_unit_name_to_decimal_point(unit_name: str) -> int:
     try:
         return base_units[unit_name]
     except KeyError:
-        raise Exception('Unknown base unit')
+        raise UnknownBaseUnit(unit_name) from None
 
 
-def normalize_version(v):
-    return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
-
-class NotEnoughFunds(Exception): pass
+class NotEnoughFunds(Exception):
+    def __str__(self):
+        return _("Insufficient funds")
 
 
 class NoDynamicFeeEstimates(Exception):
@@ -98,20 +118,14 @@ class FileExportFailed(Exception):
         return _("Failed to export to file.") + "\n" + self.message
 
 
-class TimeoutException(Exception):
-    def __init__(self, message=''):
-        self.message = str(message)
-
-    def __str__(self):
-        if not self.message:
-            return _("Operation timed out.")
-        return self.message
-
-
 class WalletFileException(Exception): pass
 
 
 class BitcoinException(Exception): pass
+
+
+class UserFacingException(Exception):
+    """Exception that contains information intended to be shown to the user."""
 
 
 # Throw this exception to unwind the stack like when an error occurs.
@@ -120,6 +134,8 @@ class UserCancelled(Exception):
     '''An exception that is suppressed from the user'''
     pass
 
+
+# note: this is not a NamedTuple as then its json encoding cannot be customized
 class Satoshis(object):
     __slots__ = ('value',)
 
@@ -134,6 +150,14 @@ class Satoshis(object):
     def __str__(self):
         return format_satoshis(self.value) + " GRS"
 
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __ne__(self, other):
+        return not (self == other)
+
+
+# note: this is not a NamedTuple as then its json encoding cannot be customized
 class Fiat(object):
     __slots__ = ('value', 'ccy')
 
@@ -147,13 +171,21 @@ class Fiat(object):
         return 'Fiat(%s)'% self.__str__()
 
     def __str__(self):
-        if self.value.is_nan():
+        if self.value is None or self.value.is_nan():
             return _('No Data')
         else:
             return "{:.2f}".format(self.value) + ' ' + self.ccy
 
+    def __eq__(self, other):
+        return self.ccy == other.ccy and self.value == other.value
+
+    def __ne__(self, other):
+        return not (self == other)
+
+
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
+        # note: this does not get called for namedtuples :(  https://bugs.python.org/issue30343
         from .transaction import Transaction
         if isinstance(obj, Transaction):
             return obj.as_dict()
@@ -174,17 +206,23 @@ class PrintError(object):
     verbosity_filter = ''
 
     def diagnostic_name(self):
-        return self.__class__.__name__
+        return ''
+
+    def log_name(self):
+        msg = self.verbosity_filter or self.__class__.__name__
+        d = self.diagnostic_name()
+        if d: msg += "][" + d
+        return "[%s]" % msg
 
     def print_error(self, *msg):
         if self.verbosity_filter in verbosity or verbosity == '*':
-            print_error("[%s]" % self.diagnostic_name(), *msg)
+            print_error(self.log_name(), *msg)
 
     def print_stderr(self, *msg):
-        print_stderr("[%s]" % self.diagnostic_name(), *msg)
+        print_stderr(self.log_name(), *msg)
 
     def print_msg(self, *msg):
-        print_msg("[%s]" % self.diagnostic_name(), *msg)
+        print_msg(self.log_name(), *msg)
 
 class ThreadJob(PrintError):
     """A job that is run periodically from a thread's main loop.  run() is
@@ -273,10 +311,13 @@ class DaemonThread(threading.Thread, PrintError):
         self.print_error("stopped")
 
 
-verbosity = '*'
-def set_verbosity(b):
+verbosity = ''
+def set_verbosity(filters: Union[str, bool]):
     global verbosity
-    verbosity = b
+    if type(filters) is bool:  # backwards compat
+        verbosity = '*' if filters else ''
+        return
+    verbosity = filters
 
 
 def print_error(*args):
@@ -316,18 +357,8 @@ def constant_time_compare(val1, val2):
 
 # decorator that prints execution time
 def profiler(func):
-    def get_func_name(args):
-        arg_names_from_sig = inspect.getfullargspec(func).args
-        # prepend class name if there is one (and if we can find it)
-        if len(arg_names_from_sig) > 0 and len(args) > 0 \
-                and arg_names_from_sig[0] in ('self', 'cls', 'klass'):
-            classname = args[0].__class__.__name__
-        else:
-            classname = ''
-        name = '{}.{}'.format(classname, func.__name__) if classname else func.__name__
-        return name
     def do_profile(args, kw_args):
-        name = get_func_name(args)
+        name = func.__qualname__
         t0 = time.time()
         o = func(*args, **kw_args)
         t = time.time() - t0
@@ -336,44 +367,24 @@ def profiler(func):
     return lambda *args, **kw_args: do_profile(args, kw_args)
 
 
-def android_ext_dir():
-    import jnius
-    env = jnius.autoclass('android.os.Environment')
-    return env.getExternalStorageDirectory().getPath()
-
 def android_data_dir():
     import jnius
     PythonActivity = jnius.autoclass('org.kivy.android.PythonActivity')
     return PythonActivity.mActivity.getFilesDir().getPath() + '/data'
 
-def android_headers_dir():
-    d = android_ext_dir() + '/org.groestlcoin.electrumgrs'
-    if not os.path.exists(d):
-        try:
-            os.mkdir(d)
-        except FileExistsError:
-            pass  # in case of race
-    return d
 
-def android_check_data_dir():
-    """ if needed, move old directory to sandbox """
-    ext_dir = android_ext_dir()
-    data_dir = android_data_dir()
-    old_electrum_dir = ext_dir + '/electrum'
-    if not os.path.exists(data_dir) and os.path.exists(old_electrum_dir):
-        import shutil
-        new_headers_path = android_headers_dir() + '/blockchain_headers'
-        old_headers_path = old_electrum_dir + '/blockchain_headers'
-        if not os.path.exists(new_headers_path) and os.path.exists(old_headers_path):
-            print_error("Moving headers file to", new_headers_path)
-            shutil.move(old_headers_path, new_headers_path)
-        print_error("Moving data to", data_dir)
-        shutil.move(old_electrum_dir, data_dir)
-    return data_dir
+def ensure_sparse_file(filename):
+    # On modern Linux, no need to do anything.
+    # On Windows, need to explicitly mark file.
+    if os.name == "nt":
+        try:
+            os.system('fsutil sparse setflag "{}" 1'.format(filename))
+        except Exception as e:
+            print_error('error marking file {} as sparse: {}'.format(filename, e))
 
 
 def get_headers_dir(config):
-    return android_headers_dir() if 'ANDROID_DATA' in os.environ else config.path
+    return config.path
 
 
 def assert_datadir_available(config_path):
@@ -396,6 +407,21 @@ def assert_file_in_datadir_available(path, config_path):
             'Should be at {}'.format(path))
 
 
+def standardize_path(path):
+    return os.path.normcase(os.path.realpath(os.path.abspath(path)))
+
+
+def get_new_wallet_name(wallet_folder: str) -> str:
+    i = 1
+    while True:
+        filename = "wallet_%d" % i
+        if filename in os.listdir(wallet_folder):
+            i += 1
+        else:
+            break
+    return filename
+
+
 def assert_bytes(*args):
     """
     porting helper, assert args type
@@ -416,8 +442,7 @@ def assert_str(*args):
         assert isinstance(x, str)
 
 
-
-def to_string(x, enc):
+def to_string(x, enc) -> str:
     if isinstance(x, (bytes, bytearray)):
         return x.decode(enc)
     if isinstance(x, str):
@@ -425,7 +450,8 @@ def to_string(x, enc):
     else:
         raise TypeError("Not a string or bytes like object")
 
-def to_bytes(something, encoding='utf8'):
+
+def to_bytes(something, encoding='utf8') -> bytes:
     """
     cast string to bytes() like object, but for python2 support it's bytearray copy
     """
@@ -440,26 +466,22 @@ def to_bytes(something, encoding='utf8'):
 
 
 bfh = bytes.fromhex
-hfu = binascii.hexlify
 
 
-def bh2u(x):
+def bh2u(x: bytes) -> str:
     """
     str with hex representation of a bytes-like object
 
     >>> x = bytes((1, 2, 10))
     >>> bh2u(x)
     '01020A'
-
-    :param x: bytes
-    :rtype: str
     """
-    return hfu(x).decode('ascii')
+    return x.hex()
 
 
 def user_dir():
     if 'ANDROID_DATA' in os.environ:
-        return android_check_data_dir()
+        return android_data_dir()
     elif os.name == 'posix':
         return os.path.join(os.environ["HOME"], ".electrum-grs")
     elif "APPDATA" in os.environ:
@@ -470,9 +492,38 @@ def user_dir():
         #raise Exception("No home directory found in environment variables.")
         return
 
+
+def resource_path(*parts):
+    return os.path.join(pkg_dir, *parts)
+
+
+# absolute path to python package folder of electrum ("lib")
+pkg_dir = os.path.split(os.path.realpath(__file__))[0]
+
+
 def is_valid_email(s):
     regexp = r"[^@]+@[^@]+\.[^@]+"
     return re.match(regexp, s) is not None
+
+
+def is_hash256_str(text: str) -> bool:
+    if not isinstance(text, str): return False
+    if len(text) != 64: return False
+    try:
+        bytes.fromhex(text)
+    except:
+        return False
+    return True
+
+
+def is_non_negative_integer(val) -> bool:
+    try:
+        val = int(val)
+        if val >= 0:
+            return True
+    except:
+        pass
+    return False
 
 
 def format_satoshis_plain(x, decimal_point = 8):
@@ -490,15 +541,23 @@ def format_satoshis(x, num_zeros=0, decimal_point=8, precision=None, is_diff=Fal
         return 'unknown'
     if precision is None:
         precision = decimal_point
-    decimal_format = ".0" + str(precision) if precision > 0 else ""
+    # format string
+    decimal_format = "." + str(precision) if precision > 0 else ""
     if is_diff:
         decimal_format = '+' + decimal_format
-    result = ("{:" + decimal_format + "f}").format(x / pow (10, decimal_point)).rstrip('0')
+    # initial result
+    scale_factor = pow(10, decimal_point)
+    if not isinstance(x, Decimal):
+        x = Decimal(x).quantize(Decimal('1E-8'))
+    result = ("{:" + decimal_format + "f}").format(x / scale_factor)
+    if "." not in result: result += "."
+    result = result.rstrip('0')
+    # extra decimal places
     integer_part, fract_part = result.split(".")
-    dp = DECIMAL_POINT
     if len(fract_part) < num_zeros:
         fract_part += "0" * (num_zeros - len(fract_part))
-    result = integer_part + dp + fract_part
+    result = integer_part + DECIMAL_POINT + fract_part
+    # leading/trailing whitespaces
     if whitespaces:
         result += " " * (decimal_point - len(fract_part))
         result = " " * (15 - len(result)) + result
@@ -509,8 +568,11 @@ FEERATE_PRECISION = 1  # num fractional decimal places for sat/byte fee rates
 _feerate_quanta = Decimal(10) ** (-FEERATE_PRECISION)
 
 
-def format_fee_satoshis(fee, num_zeros=0):
-    return format_satoshis(fee, num_zeros, 0, precision=FEERATE_PRECISION)
+def format_fee_satoshis(fee, *, num_zeros=0, precision=None):
+    if precision is None:
+        precision = FEERATE_PRECISION
+    num_zeros = min(num_zeros, FEERATE_PRECISION)  # no more zeroes than available prec
+    return format_satoshis(fee, num_zeros=num_zeros, decimal_point=0, precision=precision)
 
 
 def quantize_feerate(fee):
@@ -588,6 +650,8 @@ mainnet_block_explorers = {
                         {'tx': 'tx.dws?', 'addr': 'address.dws?'}),
     'groestlsight': ('https://groestlsight.groestlcoin.org/',
                         {'tx': 'tx/', 'addr': 'address/'}),
+    'blockbook': ('https://blockbook.groestlcoin.org/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain://00000ac5927c594d49cc0bdb81759d0da8297eb614683d3acb62f0703b639023/',
                         {'tx': 'tx/', 'addr': 'address/'}),
 }
@@ -595,35 +659,44 @@ mainnet_block_explorers = {
 testnet_block_explorers = {
     'cryptoID.info': ('https://chainz.cryptoid.info/grs-test/',
                         {'tx': 'tx.dws?', 'addr': 'address.dws?'}),
+    'groestlsight': ('https://groestlsight-test.groestlcoin.org/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
+    'blockbook': ('https://blockbook-test.groestlcoin.org/',
+                        {'tx': 'tx/', 'addr': 'address/'}),
     'system default': ('blockchain://000000ffbb50fc9898cdd36ec163e6ba23230164c0052a28876255b7dcf2cd36/',
                         {'tx': 'tx/', 'addr': 'address/'}),
 }
 
 def block_explorer_info():
     from . import constants
-    return testnet_block_explorers if constants.net.TESTNET else mainnet_block_explorers
+    return mainnet_block_explorers if not constants.net.TESTNET else testnet_block_explorers
 
-def block_explorer(config):
-    return config.get('block_explorer', 'cryptoID.info')
+def block_explorer(config: 'SimpleConfig') -> str:
+    from . import constants
+    default_ = 'cryptoID.info'
+    be_key = config.get('block_explorer', default_)
+    be = block_explorer_info().get(be_key)
+    return be_key if be is not None else default_
 
-def block_explorer_tuple(config):
+def block_explorer_tuple(config: 'SimpleConfig') -> Optional[Tuple[str, dict]]:
     return block_explorer_info().get(block_explorer(config))
 
-def block_explorer_URL(config, kind, item):
+def block_explorer_URL(config: 'SimpleConfig', kind: str, item: str) -> Optional[str]:
     be_tuple = block_explorer_tuple(config)
     if not be_tuple:
         return
-    kind_str = be_tuple[1].get(kind)
-    if not kind_str:
+    explorer_url, explorer_dict = be_tuple
+    kind_str = explorer_dict.get(kind)
+    if kind_str is None:
         return
-    url_parts = [be_tuple[0], kind_str, item]
+    url_parts = [explorer_url, kind_str, item]
     return ''.join(url_parts)
 
 # URL decode
 #_ud = re.compile('%([0-9a-hA-H]{2})', re.MULTILINE)
 #urldecode = lambda x: _ud.sub(lambda m: chr(int(m.group(1), 16)), x)
 
-def parse_URI(uri, on_pr=None):
+def parse_URI(uri: str, on_pr: Callable=None) -> dict:
     from . import bitcoin
     from .bitcoin import COIN
 
@@ -676,18 +749,17 @@ def parse_URI(uri, on_pr=None):
     sig = out.get('sig')
     name = out.get('name')
     if on_pr and (r or (name and sig)):
-        def get_payment_request_thread():
+        async def get_payment_request():
             from . import paymentrequest as pr
             if name and sig:
                 s = pr.serialize_request(out).SerializeToString()
                 request = pr.PaymentRequest(s)
             else:
-                request = pr.get_payment_request(r)
+                request = await pr.get_payment_request(r)
             if on_pr:
                 on_pr(request)
-        t = threading.Thread(target=get_payment_request_thread)
-        t.setDaemon(True)
-        t.start()
+        loop = asyncio.get_event_loop()
+        asyncio.run_coroutine_threadsafe(get_payment_request(), loop)
 
     return out
 
@@ -713,7 +785,6 @@ def raw_input(prompt=None):
         sys.stdout.write(prompt)
     return builtin_raw_input()
 
-import builtins
 builtin_raw_input = builtins.input
 builtins.input = raw_input
 
@@ -728,114 +799,6 @@ def parse_json(message):
     except:
         j = None
     return j, message[n+1:]
-
-
-class timeout(Exception):
-    pass
-
-import socket
-import json
-import ssl
-import time
-
-
-class SocketPipe:
-    def __init__(self, socket):
-        self.socket = socket
-        self.message = b''
-        self.set_timeout(0.1)
-        self.recv_time = time.time()
-
-    def set_timeout(self, t):
-        self.socket.settimeout(t)
-
-    def idle_time(self):
-        return time.time() - self.recv_time
-
-    def get(self):
-        while True:
-            response, self.message = parse_json(self.message)
-            if response is not None:
-                return response
-            try:
-                data = self.socket.recv(1024)
-            except socket.timeout:
-                raise timeout
-            except ssl.SSLError:
-                raise timeout
-            except socket.error as err:
-                if err.errno == 60:
-                    raise timeout
-                elif err.errno in [11, 35, 10035]:
-                    print_error("socket errno %d (resource temporarily unavailable)"% err.errno)
-                    time.sleep(0.2)
-                    raise timeout
-                else:
-                    print_error("pipe: socket error", err)
-                    data = b''
-            except:
-                traceback.print_exc(file=sys.stderr)
-                data = b''
-
-            if not data:  # Connection closed remotely
-                return None
-            self.message += data
-            self.recv_time = time.time()
-
-    def send(self, request):
-        out = json.dumps(request) + '\n'
-        out = out.encode('utf8')
-        self._send(out)
-
-    def send_all(self, requests):
-        out = b''.join(map(lambda x: (json.dumps(x) + '\n').encode('utf8'), requests))
-        self._send(out)
-
-    def _send(self, out):
-        while out:
-            try:
-                sent = self.socket.send(out)
-                out = out[sent:]
-            except ssl.SSLError as e:
-                print_error("SSLError:", e)
-                time.sleep(0.1)
-                continue
-
-
-class QueuePipe:
-
-    def __init__(self, send_queue=None, get_queue=None):
-        self.send_queue = send_queue if send_queue else queue.Queue()
-        self.get_queue = get_queue if get_queue else queue.Queue()
-        self.set_timeout(0.1)
-
-    def get(self):
-        try:
-            return self.get_queue.get(timeout=self.timeout)
-        except queue.Empty:
-            raise timeout
-
-    def get_all(self):
-        responses = []
-        while True:
-            try:
-                r = self.get_queue.get_nowait()
-                responses.append(r)
-            except queue.Empty:
-                break
-        return responses
-
-    def set_timeout(self, t):
-        self.timeout = t
-
-    def send(self, request):
-        self.send_queue.put(request)
-
-    def send_all(self, requests):
-        for request in requests:
-            self.send(request)
-
-
 
 
 def setup_thread_excepthook():
@@ -862,6 +825,10 @@ def setup_thread_excepthook():
         self.run = run_with_except_hook
 
     threading.Thread.__init__ = init
+
+
+def send_exception_to_crash_reporter(e: BaseException):
+    sys.excepthook(type(e), e, e.__traceback__)
 
 
 def versiontuple(v):
@@ -900,11 +867,208 @@ def make_dir(path, allow_symlink=True):
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
 
-TxMinedStatus = NamedTuple("TxMinedStatus", [("height", int),
-                                             ("conf", int),
-                                             ("timestamp", int),
-                                             ("header_hash", str)])
-VerifiedTxInfo = NamedTuple("VerifiedTxInfo", [("height", int),
-                                               ("timestamp", int),
-                                               ("txpos", int),
-                                               ("header_hash", str)])
+def log_exceptions(func):
+    """Decorator to log AND re-raise exceptions."""
+    assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    async def wrapper(*args, **kwargs):
+        self = args[0] if len(args) > 0 else None
+        try:
+            return await func(*args, **kwargs)
+        except asyncio.CancelledError as e:
+            raise
+        except BaseException as e:
+            print_ = self.print_error if hasattr(self, 'print_error') else print_error
+            print_("Exception in", func.__name__, ":", repr(e))
+            try:
+                traceback.print_exc(file=sys.stderr)
+            except BaseException as e2:
+                print_error("traceback.print_exc raised: {}...".format(e2))
+            raise
+    return wrapper
+
+
+def ignore_exceptions(func):
+    """Decorator to silently swallow all exceptions."""
+    assert asyncio.iscoroutinefunction(func), 'func needs to be a coroutine'
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except BaseException as e:
+            pass
+    return wrapper
+
+
+class TxMinedInfo(NamedTuple):
+    height: int                        # height of block that mined tx
+    conf: Optional[int] = None         # number of confirmations (None means unknown)
+    timestamp: Optional[int] = None    # timestamp of block that mined tx
+    txpos: Optional[int] = None        # position of tx in serialized block
+    header_hash: Optional[str] = None  # hash of block that mined tx
+
+
+def make_aiohttp_session(proxy: dict, headers=None, timeout=None):
+    if headers is None:
+        headers = {'User-Agent': 'Electrum'}
+    if timeout is None:
+        timeout = aiohttp.ClientTimeout(total=10)
+    ssl_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=ca_path)
+
+    if proxy:
+        connector = SocksConnector(
+            socks_ver=SocksVer.SOCKS5 if proxy['mode'] == 'socks5' else SocksVer.SOCKS4,
+            host=proxy['host'],
+            port=int(proxy['port']),
+            username=proxy.get('user', None),
+            password=proxy.get('password', None),
+            rdns=True,
+            ssl_context=ssl_context,
+        )
+    else:
+        connector = aiohttp.TCPConnector(ssl_context=ssl_context)
+
+    return aiohttp.ClientSession(headers=headers, timeout=timeout, connector=connector)
+
+
+class SilentTaskGroup(TaskGroup):
+
+    def spawn(self, *args, **kwargs):
+        # don't complain if group is already closed.
+        if self._closed:
+            raise asyncio.CancelledError()
+        return super().spawn(*args, **kwargs)
+
+
+class NetworkJobOnDefaultServer(PrintError):
+    """An abstract base class for a job that runs on the main network
+    interface. Every time the main interface changes, the job is
+    restarted, and some of its internals are reset.
+    """
+    def __init__(self, network: 'Network'):
+        asyncio.set_event_loop(network.asyncio_loop)
+        self.network = network
+        self.interface = None  # type: Interface
+        self._restart_lock = asyncio.Lock()
+        self._reset()
+        asyncio.run_coroutine_threadsafe(self._restart(), network.asyncio_loop)
+        network.register_callback(self._restart, ['default_server_changed'])
+
+    def _reset(self):
+        """Initialise fields. Called every time the underlying
+        server connection changes.
+        """
+        self.group = SilentTaskGroup()
+
+    async def _start(self, interface: 'Interface'):
+        self.interface = interface
+        await interface.group.spawn(self._start_tasks)
+
+    async def _start_tasks(self):
+        """Start tasks in self.group. Called every time the underlying
+        server connection changes.
+        """
+        raise NotImplementedError()  # implemented by subclasses
+
+    async def stop(self):
+        await self.group.cancel_remaining()
+
+    @log_exceptions
+    async def _restart(self, *args):
+        interface = self.network.interface
+        if interface is None:
+            return  # we should get called again soon
+
+        async with self._restart_lock:
+            await self.stop()
+            self._reset()
+            await self._start(interface)
+
+    @property
+    def session(self):
+        s = self.interface.session
+        assert s is not None
+        return s
+
+
+def create_and_start_event_loop() -> Tuple[asyncio.AbstractEventLoop,
+                                           asyncio.Future,
+                                           threading.Thread]:
+    def on_exception(loop, context):
+        """Suppress spurious messages it appears we cannot control."""
+        SUPPRESS_MESSAGE_REGEX = re.compile('SSL handshake|Fatal read error on|'
+                                            'SSL error in data received')
+        message = context.get('message')
+        if message and SUPPRESS_MESSAGE_REGEX.match(message):
+            return
+        loop.default_exception_handler(context)
+
+    loop = asyncio.get_event_loop()
+    loop.set_exception_handler(on_exception)
+    # loop.set_debug(1)
+    stopping_fut = asyncio.Future()
+    loop_thread = threading.Thread(target=loop.run_until_complete,
+                                         args=(stopping_fut,),
+                                         name='EventLoop')
+    loop_thread.start()
+    return loop, stopping_fut, loop_thread
+
+
+class OrderedDictWithIndex(OrderedDict):
+    """An OrderedDict that keeps track of the positions of keys.
+
+    Note: very inefficient to modify contents, except to add new items.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self._key_to_pos = {}
+        self._pos_to_key = {}
+
+    def _recalc_index(self):
+        self._key_to_pos = {key: pos for (pos, key) in enumerate(self.keys())}
+        self._pos_to_key = {pos: key for (pos, key) in enumerate(self.keys())}
+
+    def pos_from_key(self, key):
+        return self._key_to_pos[key]
+
+    def value_from_pos(self, pos):
+        key = self._pos_to_key[pos]
+        return self[key]
+
+    def popitem(self, *args, **kwargs):
+        ret = super().popitem(*args, **kwargs)
+        self._recalc_index()
+        return ret
+
+    def move_to_end(self, *args, **kwargs):
+        ret = super().move_to_end(*args, **kwargs)
+        self._recalc_index()
+        return ret
+
+    def clear(self):
+        ret = super().clear()
+        self._recalc_index()
+        return ret
+
+    def pop(self, *args, **kwargs):
+        ret = super().pop(*args, **kwargs)
+        self._recalc_index()
+        return ret
+
+    def update(self, *args, **kwargs):
+        ret = super().update(*args, **kwargs)
+        self._recalc_index()
+        return ret
+
+    def __delitem__(self, *args, **kwargs):
+        ret = super().__delitem__(*args, **kwargs)
+        self._recalc_index()
+        return ret
+
+    def __setitem__(self, key, *args, **kwargs):
+        is_new_key = key not in self
+        ret = super().__setitem__(key, *args, **kwargs)
+        if is_new_key:
+            pos = len(self) - 1
+            self._key_to_pos[key] = pos
+            self._pos_to_key[pos] = key
+        return ret

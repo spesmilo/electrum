@@ -23,8 +23,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import os
-import sys
-import hmac
 import math
 import hashlib
 import unicodedata
@@ -32,7 +30,7 @@ import string
 
 import ecdsa
 
-from .util import print_error
+from .util import print_error, resource_path
 from .bitcoin import is_old_seed, is_new_seed
 from . import version
 
@@ -76,7 +74,7 @@ def is_CJK(c):
     return False
 
 
-def normalize_text(seed):
+def normalize_text(seed: str) -> str:
     # normalize
     seed = unicodedata.normalize('NFKD', seed)
     # lower
@@ -90,7 +88,7 @@ def normalize_text(seed):
     return seed
 
 def load_wordlist(filename):
-    path = os.path.join(os.path.dirname(__file__), 'wordlist', filename)
+    path = resource_path('wordlist', filename)
     with open(path, 'r', encoding='utf-8') as f:
         s = f.read().strip()
     s = unicodedata.normalize('NFKD', s)
@@ -114,9 +112,10 @@ filenames = {
 }
 
 
-
+# FIXME every time we instantiate this class, we read the wordlist from disk
+# and store a new copy of it in memory
 class Mnemonic(object):
-    # Seed derivation no longer follows BIP39
+    # Seed derivation does not follow BIP39
     # Mnemonic phrase uses a hash based checksum, instead of a wordlist-dependent checksum
 
     def __init__(self, lang=None):
@@ -130,6 +129,7 @@ class Mnemonic(object):
     def mnemonic_to_seed(self, mnemonic, passphrase):
         PBKDF2_ROUNDS = 2048
         mnemonic = normalize_text(mnemonic)
+        passphrase = passphrase or ''
         passphrase = normalize_text(passphrase)
         return hashlib.pbkdf2_hmac('sha512', mnemonic.encode('utf-8'), b'electrum' + passphrase.encode('utf-8'), iterations = PBKDF2_ROUNDS)
 

@@ -6,8 +6,7 @@ dist/
 *.egg/
 contrib/pyinstaller/
 Electrum*.egg-info/
-electrum_grs/gui/qt/icons_rc.py
-locale/
+electrum_grs/locale/
 .devlocaltmp/
 *_trial_temp
 packages
@@ -17,11 +16,17 @@ packages
 *.bash*
 *.pip/
 env/
-.tox/
 .buildozer/
 bin/
 /app.fil
+.idea
 
-# tox files
+# icons
+electrum/gui/kivy/theming/light-0.png
+electrum/gui/kivy/theming/light.atlas
+
+# tests/tox
+.tox/
 .cache/
 .coverage
+.pytest_cache

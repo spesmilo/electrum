@@ -37,8 +37,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.encoders import encode_base64
 
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+from PyQt5.QtCore import QObject, pyqtSignal, QThread
 from PyQt5.QtWidgets import (QVBoxLayout, QLabel, QGridLayout, QLineEdit,
                              QInputDialog)
 
@@ -91,7 +90,7 @@ class Processor(threading.Thread, PrintError):
                 self.M = imaplib.IMAP4_SSL(self.imap_server)
                 self.M.login(self.username, self.password)
             except BaseException as e:
-                self.print_error('connecting failed: {}'.format(e))
+                self.print_error('connecting failed: {}'.format(repr(e)))
                 self.connect_wait *= 2
             else:
                 self.reset_connect_wait()
@@ -100,7 +99,7 @@ class Processor(threading.Thread, PrintError):
                 try:
                     self.poll()
                 except BaseException as e:
-                    self.print_error('polling failed: {}'.format(e))
+                    self.print_error('polling failed: {}'.format(repr(e)))
                     break
                 time.sleep(self.polling_interval)
             time.sleep(random.randint(0, self.connect_wait))

@@ -1,7 +1,6 @@
 import ast
 import sys
 import os
-import unittest
 import tempfile
 import shutil
 

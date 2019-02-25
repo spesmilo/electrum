@@ -3,32 +3,36 @@
 # digitalbitbox.com
 #
 
-try:
-    from electrum_grs.crypto import Hash, EncodeAES, DecodeAES
-    from electrum_grs.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh, is_address,
-                                  serialize_xpub, deserialize_xpub)
-    from electrum_grs import ecc
-    from electrum_grs.ecc import msg_magic
-    from electrum_grs.wallet import Standard_Wallet
-    from electrum_grs import constants
-    from electrum_grs.transaction import Transaction
-    from electrum_grs.i18n import _
-    from electrum_grs.keystore import Hardware_KeyStore
-    from ..hw_wallet import HW_PluginBase
-    from electrum_grs.util import print_error, to_string, UserCancelled
-    from electrum_grs.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
+import base64
+import binascii
+import hashlib
+import hmac
+import json
+import math
+import os
+import re
+import struct
+import sys
+import time
 
-    import time
+from electrum_grs.crypto import sha256d, EncodeAES_base64, EncodeAES_bytes, DecodeAES_bytes, hmac_oneshot
+from electrum_grs.bitcoin import (TYPE_ADDRESS, push_script, var_int, public_key_to_p2pkh,
+                              is_address)
+from electrum_grs.bip32 import serialize_xpub, deserialize_xpub
+from electrum_grs import ecc
+from electrum_grs.ecc import msg_magic
+from electrum_grs.wallet import Standard_Wallet
+from electrum_grs import constants
+from electrum_grs.transaction import Transaction
+from electrum_grs.i18n import _
+from electrum_grs.keystore import Hardware_KeyStore
+from ..hw_wallet import HW_PluginBase
+from electrum_grs.util import print_error, to_string, UserCancelled, UserFacingException
+from electrum_grs.base_wizard import ScriptTypeNotSupported, HWD_SETUP_NEW_WALLET
+from electrum_grs.network import Network
+
+try:
     import hid
-    import json
-    import math
-    import binascii
-    import struct
-    import hashlib
-    import requests
-    import base64
-    import os
-    import sys
     DIGIBOX = True
 except ImportError as e:
     DIGIBOX = False
@@ -41,6 +45,17 @@ except ImportError as e:
 
 def to_hexstr(s):
     return binascii.hexlify(s).decode('ascii')
+
+
+def derive_keys(x):
+    h = sha256d(x)
+    h = hashlib.sha512(h).digest()
+    return (h[:32],h[32:])
+
+MIN_MAJOR_VERSION = 5
+
+ENCRYPTION_PRIVKEY_KEY = 'encryptionprivkey'
+CHANNEL_ID_KEY = 'comserverchannelid'
 
 class DigitalBitbox_Client():
 
@@ -109,19 +124,17 @@ class DigitalBitbox_Client():
         else:
             raise Exception('no reply')
 
-
     def dbb_has_password(self):
         reply = self.hid_send_plain(b'{"ping":""}')
         if 'ping' not in reply:
-            raise Exception(_('Device communication error. Please unplug and replug your Digital Bitbox.'))
+            raise UserFacingException(_('Device communication error. Please unplug and replug your Digital Bitbox.'))
         if reply['ping'] == 'password':
             return True
         return False
 
 
-    def stretch_key(self, key):
-        import hmac
-        return to_hexstr(hashlib.pbkdf2_hmac('sha512', key.encode('utf-8'), b'Digital Bitbox', iterations = 20480))
+    def stretch_key(self, key: bytes):
+        return to_hexstr(hashlib.pbkdf2_hmac('sha512', key, b'Digital Bitbox', iterations = 20480))
 
 
     def backup_password_dialog(self):
@@ -157,6 +170,12 @@ class DigitalBitbox_Client():
 
 
     def check_device_dialog(self):
+        match = re.search(r'v([0-9])+\.[0-9]+\.[0-9]+', self.dbb_hid.get_serial_number_string())
+        if match is None:
+            raise Exception("error detecting firmware version")
+        major_version = int(match.group(1))
+        if major_version < MIN_MAJOR_VERSION:
+            raise Exception("Please upgrade to the newest firmware using the BitBox Desktop app: https://shiftcrypto.ch/start")
         # Set password if fresh device
         if self.password is None and not self.dbb_has_password():
             if not self.setupRunning:
@@ -220,7 +239,7 @@ class DigitalBitbox_Client():
                 return
         else:
             if self.hid_send_encrypt(b'{"device":"info"}')['device']['lock']:
-                raise Exception(_("Full 2FA enabled. This is not supported yet."))
+                raise UserFacingException(_("Full 2FA enabled. This is not supported yet."))
             # Use existing seed
         self.isInitialized = True
 
@@ -265,7 +284,7 @@ class DigitalBitbox_Client():
         except (FileNotFoundError, jsonDecodeError):
             return
 
-        if 'encryptionprivkey' not in dbb_config or 'comserverchannelid' not in dbb_config:
+        if ENCRYPTION_PRIVKEY_KEY not in dbb_config or CHANNEL_ID_KEY not in dbb_config:
             return
 
         choices = [
@@ -279,21 +298,21 @@ class DigitalBitbox_Client():
 
         if reply == 0:
             if self.plugin.is_mobile_paired():
-                del self.plugin.digitalbitbox_config['encryptionprivkey']
-                del self.plugin.digitalbitbox_config['comserverchannelid']
+                del self.plugin.digitalbitbox_config[ENCRYPTION_PRIVKEY_KEY]
+                del self.plugin.digitalbitbox_config[CHANNEL_ID_KEY]
         elif reply == 1:
             # import pairing from dbb app
-            self.plugin.digitalbitbox_config['encryptionprivkey'] = dbb_config['encryptionprivkey']
-            self.plugin.digitalbitbox_config['comserverchannelid'] = dbb_config['comserverchannelid']
+            self.plugin.digitalbitbox_config[ENCRYPTION_PRIVKEY_KEY] = dbb_config[ENCRYPTION_PRIVKEY_KEY]
+            self.plugin.digitalbitbox_config[CHANNEL_ID_KEY] = dbb_config[CHANNEL_ID_KEY]
         self.plugin.config.set_key('digitalbitbox', self.plugin.digitalbitbox_config)
 
     def dbb_generate_wallet(self):
         key = self.stretch_key(self.password)
-        filename = ("Electrum-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf")
-        msg = ('{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, 'Digital Bitbox Electrum-GRS Plugin')).encode('utf8')
+        filename = ("Electrum-GRS-" + time.strftime("%Y-%m-%d-%H-%M-%S") + ".pdf")
+        msg = ('{"seed":{"source": "create", "key": "%s", "filename": "%s", "entropy": "%s"}}' % (key, filename, to_hexstr(os.urandom(32)))).encode('utf8')
         reply = self.hid_send_encrypt(msg)
         if 'error' in reply:
-            raise Exception(reply['error']['message'])
+            raise UserFacingException(reply['error']['message'])
 
 
     def dbb_erase(self):
@@ -303,16 +322,16 @@ class DigitalBitbox_Client():
         hid_reply = self.hid_send_encrypt(b'{"reset":"__ERASE__"}')
         self.handler.finished()
         if 'error' in hid_reply:
-            raise Exception(hid_reply['error']['message'])
+            raise UserFacingException(hid_reply['error']['message'])
         else:
             self.password = None
-            raise Exception('Device erased')
+            raise UserFacingException('Device erased')
 
 
     def dbb_load_backup(self, show_msg=True):
         backups = self.hid_send_encrypt(b'{"backup":"list"}')
         if 'error' in backups:
-            raise Exception(backups['error']['message'])
+            raise UserFacingException(backups['error']['message'])
         try:
             f = self.handler.win.query_choice(_("Choose a backup file:"), backups['backup'])
         except Exception:
@@ -329,7 +348,7 @@ class DigitalBitbox_Client():
         hid_reply = self.hid_send_encrypt(msg)
         self.handler.finished()
         if 'error' in hid_reply:
-            raise Exception(hid_reply['error']['message'])
+            raise UserFacingException(hid_reply['error']['message'])
         return True
 
 
@@ -387,24 +406,32 @@ class DigitalBitbox_Client():
             r = to_string(r, 'utf8')
             reply = json.loads(r)
         except Exception as e:
-            print_error('Exception caught ' + str(e))
+            print_error('Exception caught ' + repr(e))
         return reply
 
 
     def hid_send_encrypt(self, msg):
+        sha256_byte_len = 32
         reply = ""
         try:
-            secret = Hash(self.password)
-            msg = EncodeAES(secret, msg)
-            reply = self.hid_send_plain(msg)
+            encryption_key, authentication_key = derive_keys(self.password)
+            msg = EncodeAES_bytes(encryption_key, msg)
+            hmac_digest = hmac_oneshot(authentication_key, msg, hashlib.sha256)
+            authenticated_msg = base64.b64encode(msg + hmac_digest)
+            reply = self.hid_send_plain(authenticated_msg)
             if 'ciphertext' in reply:
-                reply = DecodeAES(secret, ''.join(reply["ciphertext"]))
+                b64_unencoded = bytes(base64.b64decode(''.join(reply["ciphertext"])))
+                reply_hmac = b64_unencoded[-sha256_byte_len:]
+                hmac_calculated = hmac_oneshot(authentication_key, b64_unencoded[:-sha256_byte_len], hashlib.sha256)
+                if not hmac.compare_digest(reply_hmac, hmac_calculated):
+                    raise Exception("Failed to validate HMAC")
+                reply = DecodeAES_bytes(encryption_key, b64_unencoded[:-sha256_byte_len])
                 reply = to_string(reply, 'utf8')
                 reply = json.loads(reply)
             if 'error' in reply:
                 self.password = None
         except Exception as e:
-            print_error('Exception caught ' + str(e))
+            print_error('Exception caught ' + repr(e))
         return reply
 
 
@@ -447,7 +474,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
         try:
             message = message.encode('utf8')
             inputPath = self.get_derivation() + "/%d/%d" % sequence
-            msg_hash = Hash(msg_magic(message))
+            msg_hash = sha256d(msg_magic(message))
             inputHash = to_hexstr(msg_hash)
             hasharray = []
             hasharray.append({'hash': inputHash, 'keypath': inputPath})
@@ -525,7 +552,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     if x_pubkey in derivations:
                         index = derivations.get(x_pubkey)
                         inputPath = "%s/%d/%d" % (self.get_derivation(), index[0], index[1])
-                        inputHash = Hash(binascii.unhexlify(tx.serialize_preimage(i)))
+                        inputHash = sha256d(binascii.unhexlify(tx.serialize_preimage(i)))
                         hasharray_i = {'hash': to_hexstr(inputHash), 'keypath': inputPath}
                         hasharray.append(hasharray_i)
                         inputhasharray.append(inputHash)
@@ -576,7 +603,7 @@ class DigitalBitbox_KeyStore(Hardware_KeyStore):
                     },
                 }
                 if tx_dbb_serialized is not None:
-                    msg["sign"]["meta"] = to_hexstr(Hash(tx_dbb_serialized))
+                    msg["sign"]["meta"] = to_hexstr(sha256d(tx_dbb_serialized))
                 msg = json.dumps(msg).encode('ascii')
                 dbb_client = self.plugin.get_client(self)
 
@@ -709,21 +736,22 @@ class DigitalBitboxPlugin(HW_PluginBase):
 
 
     def is_mobile_paired(self):
-        return 'encryptionprivkey' in self.digitalbitbox_config
+        return ENCRYPTION_PRIVKEY_KEY in self.digitalbitbox_config
 
 
     def comserver_post_notification(self, payload):
         assert self.is_mobile_paired(), "unexpected mobile pairing error"
         url = 'https://digitalbitbox.com/smartverification/index.php'
-        key_s = base64.b64decode(self.digitalbitbox_config['encryptionprivkey'])
+        key_s = base64.b64decode(self.digitalbitbox_config[ENCRYPTION_PRIVKEY_KEY])
         args = 'c=data&s=0&dt=0&uuid=%s&pl=%s' % (
-            self.digitalbitbox_config['comserverchannelid'],
-            EncodeAES(key_s, json.dumps(payload).encode('ascii')).decode('ascii'),
+            self.digitalbitbox_config[CHANNEL_ID_KEY],
+            EncodeAES_base64(key_s, json.dumps(payload).encode('ascii')).decode('ascii'),
         )
         try:
-            requests.post(url, args)
+            text = Network.send_http_on_proxy('post', url, body=args.encode('ascii'), headers={'content-type': 'application/x-www-form-urlencoded'})
+            print_error('digitalbitbox reply from server', text)
         except Exception as e:
-            self.handler.show_error(str(e))
+            self.handler.show_error(repr(e)) # repr because str(Exception()) == ''
 
 
     def get_xpub(self, device_id, derivation, xtype, wizard):

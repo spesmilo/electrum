@@ -1,6 +1,8 @@
 #!/bin/bash
 # Run this after a new release to update dependencies
 
+set -e
+
 venv_dir=~/.electrum-venv
 contrib=$(dirname "$0")
 

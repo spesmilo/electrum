@@ -5,12 +5,19 @@
 import os
 import sys
 import platform
-import imp
+import importlib.util
 import argparse
 import subprocess
 
 from setuptools import setup, find_packages
 from setuptools.command.install import install
+
+MIN_PYTHON_VERSION = "3.6.1"
+_min_python_version_tuple = tuple(map(int, (MIN_PYTHON_VERSION.split("."))))
+
+
+if sys.version_info[:3] < _min_python_version_tuple:
+    sys.exit("Error: Electrum requires Python version >= %s..." % MIN_PYTHON_VERSION)
 
 with open('contrib/requirements/requirements.txt') as f:
     requirements = f.read().splitlines()
@@ -18,10 +25,10 @@ with open('contrib/requirements/requirements.txt') as f:
 with open('contrib/requirements/requirements-hw.txt') as f:
     requirements_hw = f.read().splitlines()
 
-version = imp.load_source('version', 'electrum_grs/version.py')
-
-if sys.version_info[:3] < (3, 4, 0):
-    sys.exit("Error: Electrum-GRS requires Python version >= 3.4.0...")
+# load version.py; needlessly complicated alternative to "imp.load_source":
+version_spec = importlib.util.spec_from_file_location('version', 'electrum_grs/version.py')
+version_module = version = importlib.util.module_from_spec(version_spec)
+version_spec.loader.exec_module(version_module)
 
 data_files = []
 
@@ -40,7 +47,7 @@ if platform.system() in ['Linux', 'FreeBSD', 'DragonFly']:
             usr_share = os.path.expanduser('~/.local/share')
     data_files += [
         (os.path.join(usr_share, 'applications/'), ['electrum-grs.desktop']),
-        (os.path.join(usr_share, icons_dirname), ['icons/electrum-grs.png'])
+        (os.path.join(usr_share, icons_dirname), ['electrum_grs/gui/icons/electrum-grs.png']),
     ]
 
 extras_require = {
@@ -51,26 +58,10 @@ extras_require = {
 extras_require['full'] = [pkg for sublist in list(extras_require.values()) for pkg in sublist]
 
 
-class CustomInstallCommand(install):
-    def run(self):
-        install.run(self)
-        # potentially build Qt icons file
-        try:
-            import PyQt5
-        except ImportError:
-            pass
-        else:
-            try:
-                path = os.path.join(self.install_lib, "electrum_grs/gui/qt/icons_rc.py")
-                if not os.path.exists(path):
-                    subprocess.call(["pyrcc5", "icons.qrc", "-o", path])
-            except Exception as e:
-                print('Warning: building icons file failed with {}'.format(e))
-
-
 setup(
     name="Electrum-grs",
     version=version.ELECTRUM_VERSION,
+    python_requires='>={}'.format(MIN_PYTHON_VERSION),
     install_requires=requirements,
     extras_require=extras_require,
     packages=[
@@ -88,6 +79,9 @@ setup(
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
         ],
+        'electrum.gui': [
+            'icons/*',
+        ],
     },
     scripts=['electrum_grs/electrum-grs'],
     data_files=data_files,
@@ -97,7 +91,4 @@ setup(
     license="MIT Licence",
     url="https://groestlcoin.org",
     long_description="""Lightweight Groestlcoin Wallet""",
-    cmdclass={
-        'install': CustomInstallCommand,
-    },
 )

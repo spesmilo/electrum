@@ -1,20 +1,22 @@
 from functools import partial
 
-from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
-from .digitalbitbox import DigitalBitboxPlugin
-
 from electrum_grs.i18n import _
 from electrum_grs.plugin import hook
 from electrum_grs.wallet import Standard_Wallet
 
+from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
+from ..hw_wallet.plugin import only_hook_if_libraries_available
+from .digitalbitbox import DigitalBitboxPlugin
+
 
 class Plugin(DigitalBitboxPlugin, QtPluginBase):
-    icon_unpaired = ":icons/digitalbitbox_unpaired.png"
-    icon_paired = ":icons/digitalbitbox.png"
+    icon_unpaired = "digitalbitbox_unpaired.png"
+    icon_paired = "digitalbitbox.png"
 
     def create_handler(self, window):
         return DigitalBitbox_Handler(window)
 
+    @only_hook_if_libraries_available
     @hook
     def receive_menu(self, menu, addrs, wallet):
         if type(wallet) is not Standard_Wallet:

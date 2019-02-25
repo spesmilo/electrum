@@ -20,16 +20,29 @@ folder.
 2. Build image
 
     ```
-    $ sudo docker build --no-cache -t electrum-grs-wine-builder-img contrib/build-wine/docker
+    $ sudo docker build -t electrum-grs-wine-builder-img contrib/build-wine/docker
     ```
 
     Note: see [this](https://stackoverflow.com/a/40516974/7499128) if having dns problems
 
 3. Build Windows binaries
 
+    It's recommended to build from a fresh clone
+    (but you can skip this if reproducibility is not necessary).
+
+    ```
+    $ FRESH_CLONE=contrib/build-wine/fresh_clone && \
+        rm -rf $FRESH_CLONE && \
+        mkdir -p $FRESH_CLONE && \
+        cd $FRESH_CLONE  && \
+        git clone https://github.com/spesmilo/electrum.git && \
+        cd electrum
+    ```
+
+    And then build from this directory:
     ```
     $ git checkout $REV
-    $ sudo docker run \
+    $ sudo docker run -it \
         --name electrum-grs-wine-builder-cont \
         -v $PWD:/opt/wine64/drive_c/electrum-grs \
         --rm \

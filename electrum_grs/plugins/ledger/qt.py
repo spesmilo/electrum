@@ -1,21 +1,28 @@
+from functools import partial
+
 #from btchip.btchipPersoWizard import StartBTChipPersoDialog
+
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QInputDialog, QLabel, QVBoxLayout, QLineEdit
 
 from electrum_grs.i18n import _
 from electrum_grs.plugin import hook
 from electrum_grs.wallet import Standard_Wallet
-from electrum_grs.gui.qt.util import *
+from electrum_grs.gui.qt.util import WindowModalDialog
 
 from .ledger import LedgerPlugin
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
+from ..hw_wallet.plugin import only_hook_if_libraries_available
 
 
 class Plugin(LedgerPlugin, QtPluginBase):
-    icon_unpaired = ":icons/ledger_unpaired.png"
-    icon_paired = ":icons/ledger.png"
+    icon_unpaired = "ledger_unpaired.png"
+    icon_paired = "ledger.png"
 
     def create_handler(self, window):
         return Ledger_Handler(window)
 
+    @only_hook_if_libraries_available
     @hook
     def receive_menu(self, menu, addrs, wallet):
         if type(wallet) is not Standard_Wallet:
@@ -42,7 +49,7 @@ class Ledger_Handler(QtHandlerBase):
         else:
             self.word = str(response[0])
         self.done.set()
-    
+
     def message_dialog(self, msg):
         self.clear_dialog()
         self.dialog = dialog = WindowModalDialog(self.top_level_window(), _("Ledger Status"))
@@ -61,19 +68,19 @@ class Ledger_Handler(QtHandlerBase):
         dialog.exec_()
         self.word = dialog.pin
         self.done.set()
-                    
+
     def get_auth(self, data):
         self.done.clear()
         self.auth_signal.emit(data)
         self.done.wait()
         return self.word
-        
+
     def get_setup(self):
         self.done.clear()
         self.setup_signal.emit()
         self.done.wait()
-        return 
-        
+        return
+
     def setup_dialog(self):
         self.show_error(_('Initialization of Ledger HW devices is currently disabled.'))
         return

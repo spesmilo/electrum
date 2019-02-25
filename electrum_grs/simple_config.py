@@ -14,7 +14,7 @@ from .util import (user_dir, print_error, PrintError, make_dir,
                    NoDynamicFeeEstimates, format_fee_satoshis, quantize_feerate)
 from .i18n import _
 
-FEE_ETA_TARGETS = [25, 10, 5, 2]
+FEE_ETA_TARGETS = [5, 4, 3, 2]
 FEE_DEPTH_TARGETS = [10000000, 5000000, 2000000, 1000000, 500000, 200000, 100000]
 
 # satoshi per kbyte
@@ -139,6 +139,12 @@ class SimpleConfig(PrintError):
         if not self.is_modifiable(key):
             self.print_stderr("Warning: not changing config key '%s' set on the command line" % key)
             return
+        try:
+            json.dumps(key)
+            json.dumps(value)
+        except:
+            self.print_error(f"json error: cannot save {repr(key)} ({repr(value)})")
+            return
         self._set_key_in_user_config(key, value, save)
 
     def _set_key_in_user_config(self, key, value, save=True):
@@ -195,7 +201,7 @@ class SimpleConfig(PrintError):
         base_unit = self.user_config.get('base_unit')
         if isinstance(base_unit, str):
             self._set_key_in_user_config('base_unit', None)
-            map_ = {'btc':8, 'mbtc':5, 'ubtc':2, 'bits':2, 'sat':0}
+            map_ = {'grs':8, 'mgrs':5, 'ugrs':2, 'groestls':2, 'gro':0}
             decimal_point = map_.get(base_unit.lower())
             self._set_key_in_user_config('decimal_point', decimal_point)
 
@@ -241,7 +247,7 @@ class SimpleConfig(PrintError):
 
         # command line -w option
         if self.get('wallet_path'):
-            return os.path.join(self.get('cwd'), self.get('wallet_path'))
+            return os.path.join(self.get('cwd', ''), self.get('wallet_path'))
 
         # path in config file
         path = self.get('default_wallet_path')
@@ -443,7 +449,7 @@ class SimpleConfig(PrintError):
         else:
             fee_rate = self.fee_per_kb(dyn=False)
             pos = self.static_fee_index(fee_rate)
-            maxp = 9
+            maxp = len(FEERATE_STATIC_VALUES) - 1
         return maxp, pos, fee_rate
 
     def static_fee(self, i):

@@ -1,9 +1,11 @@
-from electrum_grs.i18n import _
-from PyQt5.QtGui import *
-from PyQt5.QtCore import *
+import threading
+
+from PyQt5.QtGui import QCursor
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QSlider, QToolTip
 
-import threading
+from electrum_grs.i18n import _
+
 
 class FeeSlider(QSlider):
 

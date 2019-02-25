@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+
+# Parameterize
+PYTHON_VERSION=3.6.4
+BUILDDIR=/tmp/electrum-build
+PACKAGE=Electrum
+GIT_REPO=https://github.com/spesmilo/electrum
+LIBSECP_VERSION="b408c6a8b287003d1ade5709e6f7bc3c7f1d5be7"
+
+. $(dirname "$0")/base.sh
+
+src_dir=$(dirname "$0")
+cd $src_dir/../..
+
+export PYTHONHASHSEED=22
+VERSION=`git describe --tags --dirty --always`
+
+which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
+which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
+
+# Code Signing: See https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Procedures/Procedures.html
+APP_SIGN=""
+if [ -n "$1" ]; then
+    # Test the identity is valid for signing by doing this hack. There is no other way to do this.
+    cp -f /bin/ls ./CODESIGN_TEST
+    codesign -s "$1" --dryrun -f ./CODESIGN_TEST > /dev/null 2>&1
+    res=$?
+    rm -f ./CODESIGN_TEST
+    if ((res)); then
+        fail "Code signing identity \"$1\" appears to be invalid."
+    fi
+    unset res
+    APP_SIGN="$1"
+    info "Code signing enabled using identity \"$APP_SIGN\""
+else
+    warn "Code signing DISABLED. Specify a valid macOS Developer identity installed on the system as the first argument to this script to enable signing."
+fi
+
+info "Installing Python $PYTHON_VERSION"
+export PATH="~/.pyenv/bin:~/.pyenv/shims:~/Library/Python/3.6/bin:$PATH"
+if [ -d "~/.pyenv" ]; then
+  pyenv update
+else
+  curl -L https://raw.githubusercontent.com/pyenv/pyenv-installer/master/bin/pyenv-installer | bash > /dev/null 2>&1
+fi
+PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install -s $PYTHON_VERSION && \
+pyenv global $PYTHON_VERSION || \
+fail "Unable to use Python $PYTHON_VERSION"
+
+
+info "install dependencies specific to binaries"
+# note that this also installs pinned versions of both pip and setuptools
+python3 -m pip install -Ir ./contrib/deterministic-build/requirements-binaries.txt --user \
+    || fail "Could not install pyinstaller"
+
+
+info "Installing pyinstaller"
+python3 -m pip install -I --user pyinstaller==3.4 --no-use-pep517 || fail "Could not install pyinstaller"
+
+info "Using these versions for building $PACKAGE:"
+sw_vers
+python3 --version
+echo -n "Pyinstaller "
+pyinstaller --version
+
+rm -rf ./dist
+
+git submodule init
+git submodule update
+
+rm  -rf $BUILDDIR > /dev/null 2>&1
+mkdir $BUILDDIR
+
+cp -R ./contrib/deterministic-build/electrum-locale/locale/ ./electrum/locale/
+
+
+info "Downloading libusb..."
+curl https://homebrew.bintray.com/bottles/libusb-1.0.22.el_capitan.bottle.tar.gz | \
+tar xz --directory $BUILDDIR
+cp $BUILDDIR/libusb/1.0.22/lib/libusb-1.0.dylib contrib/osx
+echo "82c368dfd4da017ceb32b12ca885576f325503428a4966cc09302cbd62702493  contrib/osx/libusb-1.0.dylib" | \
+    shasum -a 256 -c || fail "libusb checksum mismatched"
+
+info "Building libsecp256k1"
+brew install autoconf automake libtool
+git clone https://github.com/bitcoin-core/secp256k1 $BUILDDIR/secp256k1
+pushd $BUILDDIR/secp256k1
+git reset --hard $LIBSECP_VERSION
+git clean -f -x -q
+./autogen.sh
+./configure --enable-module-recovery --enable-experimental --enable-module-ecdh --disable-jni
+make
+popd
+cp $BUILDDIR/secp256k1/.libs/libsecp256k1.0.dylib contrib/osx
+
+info "Building CalinsQRReader..."
+d=contrib/osx/CalinsQRReader
+pushd $d
+rm -fr build
+# prefer building using xcode ourselves. otherwise fallback to prebuilt binary
+xcodebuild || cp -r prebuilt_qr build || fail "Could not build CalinsQRReader"
+popd
+DoCodeSignMaybe "CalinsQRReader.app" "${d}/build/Release/CalinsQRReader.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+
+
+info "Installing requirements..."
+python3 -m pip install -Ir ./contrib/deterministic-build/requirements.txt --user || \
+fail "Could not install requirements"
+
+info "Installing hardware wallet requirements..."
+python3 -m pip install -Ir ./contrib/deterministic-build/requirements-hw.txt --user || \
+fail "Could not install hardware wallet requirements"
+
+info "Building $PACKAGE..."
+python3 -m pip install --user . > /dev/null || fail "Could not build $PACKAGE"
+
+info "Faking timestamps..."
+for d in ~/Library/Python/ ~/.pyenv .; do
+  pushd $d
+  find . -exec touch -t '200101220000' {} +
+  popd
+done
+
+info "Building binary"
+APP_SIGN="$APP_SIGN" pyinstaller --noconfirm --ascii --clean --name $VERSION contrib/osx/osx.spec || fail "Could not build binary"
+
+info "Adding bitcoin URI types to Info.plist"
+plutil -insert 'CFBundleURLTypes' \
+	-xml '<array><dict> <key>CFBundleURLName</key> <string>bitcoin</string> <key>CFBundleURLSchemes</key> <array><string>bitcoin</string></array> </dict></array>' \
+	-- dist/$PACKAGE.app/Contents/Info.plist \
+	|| fail "Could not add keys to Info.plist. Make sure the program 'plutil' exists and is installed."
+
+DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+
+info "Creating .DMG"
+hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION.dmg || fail "Could not create .DMG"
+
+DoCodeSignMaybe ".DMG" "dist/electrum-${VERSION}.dmg" "$APP_SIGN" # If APP_SIGN is empty will be a noop
+
+if [ -z "$APP_SIGN" ]; then
+    warn "App was built successfully but was not code signed. Users may get security warnings from macOS."
+    warn "Specify a valid code signing identity as the first argument to this script to enable code signing."
+fi

@@ -24,10 +24,8 @@
 # SOFTWARE.
 
 import base64
-import hmac
 import hashlib
-from typing import Union
-
+from typing import Union, Tuple
 
 import ecdsa
 from ecdsa.ecdsa import curve_secp256k1, generator_secp256k1
@@ -36,8 +34,10 @@ from ecdsa.ellipticcurve import Point
 from ecdsa.util import string_to_number, number_to_string
 
 from .util import bfh, bh2u, assert_bytes, print_error, to_bytes, InvalidPassword, profiler
-from .crypto import (sha256, Hash, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
+from .crypto import (sha256, sha256d, aes_encrypt_with_iv, aes_decrypt_with_iv, hmac_oneshot)
 from .ecc_fast import do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1
+from . import msqr
+from . import constants
 
 
 do_monkey_patching_of_python_ecdsa_internals_with_libsecp256k1()
@@ -53,31 +53,31 @@ def point_at_infinity():
     return ECPubkey(None)
 
 
-def sig_string_from_der_sig(der_sig, order=CURVE_ORDER):
+def sig_string_from_der_sig(der_sig: bytes, order=CURVE_ORDER) -> bytes:
     r, s = ecdsa.util.sigdecode_der(der_sig, order)
     return ecdsa.util.sigencode_string(r, s, order)
 
 
-def der_sig_from_sig_string(sig_string, order=CURVE_ORDER):
+def der_sig_from_sig_string(sig_string: bytes, order=CURVE_ORDER) -> bytes:
     r, s = ecdsa.util.sigdecode_string(sig_string, order)
     return ecdsa.util.sigencode_der_canonize(r, s, order)
 
 
-def der_sig_from_r_and_s(r, s, order=CURVE_ORDER):
+def der_sig_from_r_and_s(r: int, s: int, order=CURVE_ORDER) -> bytes:
     return ecdsa.util.sigencode_der_canonize(r, s, order)
 
 
-def get_r_and_s_from_der_sig(der_sig, order=CURVE_ORDER):
+def get_r_and_s_from_der_sig(der_sig: bytes, order=CURVE_ORDER) -> Tuple[int, int]:
     r, s = ecdsa.util.sigdecode_der(der_sig, order)
     return r, s
 
 
-def get_r_and_s_from_sig_string(sig_string, order=CURVE_ORDER):
+def get_r_and_s_from_sig_string(sig_string: bytes, order=CURVE_ORDER) -> Tuple[int, int]:
     r, s = ecdsa.util.sigdecode_string(sig_string, order)
     return r, s
 
 
-def sig_string_from_r_and_s(r, s, order=CURVE_ORDER):
+def sig_string_from_r_and_s(r: int, s: int, order=CURVE_ORDER) -> bytes:
     return ecdsa.util.sigencode_string_canonize(r, s, order)
 
 
@@ -94,23 +94,22 @@ def point_to_ser(P, compressed=True) -> bytes:
     return bfh('04'+('%064x' % x)+('%064x' % y))
 
 
-def get_y_coord_from_x(x, odd=True):
+def get_y_coord_from_x(x: int, odd: bool=True) -> int:
     curve = curve_secp256k1
     _p = curve.p()
     _a = curve.a()
     _b = curve.b()
-    for offset in range(128):
-        Mx = x + offset
-        My2 = pow(Mx, 3, _p) + _a * pow(Mx, 2, _p) + _b % _p
-        My = pow(My2, (_p + 1) // 4, _p)
-        if curve.contains_point(Mx, My):
-            if odd == bool(My & 1):
-                return My
-            return _p - My
-    raise Exception('ECC_YfromX: No Y found')
+    x = x % _p
+    y2 = (pow(x, 3, _p) + _a * x + _b) % _p
+    y = msqr.modular_sqrt(y2, _p)
+    if curve.contains_point(x, y):
+        if odd == bool(y & 1):
+            return y
+        return _p - y
+    raise InvalidECPointException()
 
 
-def ser_to_point(ser: bytes) -> (int, int):
+def ser_to_point(ser: bytes) -> Tuple[int, int]:
     if ser[0] not in (0x02, 0x03, 0x04):
         raise ValueError('Unexpected first byte: {}'.format(ser[0]))
     if ser[0] == 0x04:
@@ -227,7 +226,7 @@ class ECPubkey(object):
     def get_public_key_hex(self, compressed=True):
         return bh2u(self.get_public_key_bytes(compressed))
 
-    def point(self) -> (int, int):
+    def point(self) -> Tuple[int, int]:
         return self._pubkey.point.x(), self._pubkey.point.y()
 
     def __mul__(self, other: int):
@@ -296,6 +295,14 @@ class ECPubkey(object):
     def is_at_infinity(self):
         return self == point_at_infinity()
 
+    @classmethod
+    def is_pubkey_bytes(cls, b: bytes):
+        try:
+            ECPubkey(b)
+            return True
+        except:
+            return False
+
 
 def msg_magic(message: bytes) -> bytes:
     from .bitcoin import var_int
@@ -303,16 +310,17 @@ def msg_magic(message: bytes) -> bytes:
     return b"\x1cGroestlCoin Signed Message:\n" + length + message
 
 
-def verify_message_with_address(address: str, sig65: bytes, message: bytes):
+def verify_message_with_address(address: str, sig65: bytes, message: bytes, *, net=None):
     from .bitcoin import pubkey_to_address
     assert_bytes(sig65, message)
+    if net is None: net = constants.net
     try:
         h = sha256(msg_magic(message))
         public_key, compressed = ECPubkey.from_signature65(sig65, h)
         # check public key using the address
         pubkey_hex = public_key.get_public_key_hex(compressed)
         for txin_type in ['p2pkh','p2wpkh','p2wpkh-p2sh']:
-            addr = pubkey_to_address(txin_type, pubkey_hex)
+            addr = pubkey_to_address(txin_type, pubkey_hex, net=net)
             if address == addr:
                 break
         else:
@@ -321,7 +329,7 @@ def verify_message_with_address(address: str, sig65: bytes, message: bytes):
         public_key.verify_message_hash(sig65[1:], h)
         return True
     except Exception as e:
-        print_error("Verification error: {0}".format(e))
+        print_error(f"Verification error: {repr(e)}")
         return False
 
 
@@ -404,7 +412,7 @@ class ECPrivkey(ECPubkey):
         sig65, recid = bruteforce_recid(sig_string)
         return sig65
 
-    def decrypt_message(self, encrypted, magic=b'BIE1'):
+    def decrypt_message(self, encrypted: Tuple[str, bytes], magic: bytes=b'BIE1') -> bytes:
         encrypted = base64.b64decode(encrypted)
         if len(encrypted) < 85:
             raise Exception('invalid ciphertext: length')
@@ -429,6 +437,6 @@ class ECPrivkey(ECPubkey):
         return aes_decrypt_with_iv(key_e, iv, ciphertext)
 
 
-def construct_sig65(sig_string, recid, is_compressed):
+def construct_sig65(sig_string: bytes, recid: int, is_compressed: bool) -> bytes:
     comp = 4 if is_compressed else 0
     return bytes([27 + recid + comp]) + sig_string

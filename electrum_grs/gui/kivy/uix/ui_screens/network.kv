@@ -24,10 +24,7 @@ Popup:
 
                 CardSeparator
                 SettingsItem:
-                    proxy: app.proxy_config.get('mode')
-                    host: app.proxy_config.get('host')
-                    port: app.proxy_config.get('port')
-                    title: _("Proxy") + ': ' + ((self.host +':' + self.port) if self.proxy else _('None'))
+                    title: _("Proxy") + ': ' + app.proxy_str
                     description: _('Proxy configuration')
                     action: lambda x: app.popup_dialog('proxy')
 
@@ -36,6 +33,13 @@ Popup:
                     title: _("Auto-connect") + ': ' + ('ON' if app.auto_connect else 'OFF')
                     description: _("Select your server automatically")
                     action: app.toggle_auto_connect
+
+                CardSeparator
+                SettingsItem:
+                    title: _("One-server mode") + ': ' + ('ON' if app.oneserver else 'OFF')
+                    description: _("Only connect to a single server")
+                    action: app.toggle_oneserver
+                    disabled: app.auto_connect and not app.oneserver
 
                 CardSeparator
                 SettingsItem:

@@ -27,8 +27,8 @@
 from electrum_grs.plugin import BasePlugin, hook
 from electrum_grs.i18n import _
 from electrum_grs.bitcoin import is_address, TYPE_SCRIPT
-from electrum_grs.util import bfh, versiontuple
-from electrum_grs.transaction import opcodes, TxOutput
+from electrum_grs.util import bfh, versiontuple, UserFacingException
+from electrum_grs.transaction import opcodes, TxOutput, Transaction
 
 
 class HW_PluginBase(BasePlugin):
@@ -86,22 +86,34 @@ class HW_PluginBase(BasePlugin):
 
         Returns 'unknown' if library is found but cannot determine version.
         Raises 'ImportError' if library is not found.
+        Raises 'LibraryFoundButUnusable' if found but there was some problem (includes version num).
         """
         raise NotImplementedError()
 
     def check_libraries_available(self) -> bool:
+        def version_str(t):
+            return ".".join(str(i) for i in t)
+
         try:
+            # this might raise ImportError or LibraryFoundButUnusable
             library_version = self.get_library_version()
+            # if no exception so far, we might still raise LibraryFoundButUnusable
+            if (library_version == 'unknown'
+                    or versiontuple(library_version) < self.minimum_library
+                    or hasattr(self, "maximum_library") and versiontuple(library_version) >= self.maximum_library):
+                raise LibraryFoundButUnusable(library_version=library_version)
         except ImportError:
             return False
-        if library_version == 'unknown' or \
-                versiontuple(library_version) < self.minimum_library:
+        except LibraryFoundButUnusable as e:
+            library_version = e.library_version
+            max_version_str = version_str(self.maximum_library) if hasattr(self, "maximum_library") else "inf"
             self.libraries_available_message = (
-                    _("Library version for '{}' is too old.").format(self.name)
-                    + '\nInstalled: {}, Needed: {}'
-                    .format(library_version, self.minimum_library))
+                    _("Library version for '{}' is incompatible.").format(self.name)
+                    + '\nInstalled: {}, Needed: {} <= x < {}'
+                    .format(library_version, version_str(self.minimum_library), max_version_str))
             self.print_stderr(self.libraries_available_message)
             return False
+
         return True
 
     def get_library_not_available_message(self) -> str:
@@ -113,14 +125,13 @@ class HW_PluginBase(BasePlugin):
         return message
 
 
-def is_any_tx_output_on_change_branch(tx):
-    if not hasattr(tx, 'output_info'):
+def is_any_tx_output_on_change_branch(tx: Transaction):
+    if not tx.output_info:
         return False
-    for _type, address, amount in tx.outputs():
-        info = tx.output_info.get(address)
+    for o in tx.outputs():
+        info = tx.output_info.get(o.address)
         if info is not None:
-            index, xpubs, m = info.address_index, info.sorted_xpubs, info.num_sig
-            if index[0] == 1:
+            if info.address_index[0] == 1:
                 return True
     return False
 
@@ -131,7 +142,21 @@ def trezor_validate_op_return_output_and_get_data(output: TxOutput) -> bytes:
     script = bfh(output.address)
     if not (script[0] == opcodes.OP_RETURN and
             script[1] == len(script) - 2 and script[1] <= 75):
-        raise Exception(_("Only OP_RETURN scripts, with one constant push, are supported."))
+        raise UserFacingException(_("Only OP_RETURN scripts, with one constant push, are supported."))
     if output.value != 0:
-        raise Exception(_("Amount for OP_RETURN output must be zero."))
+        raise UserFacingException(_("Amount for OP_RETURN output must be zero."))
     return script[2:]
+
+
+def only_hook_if_libraries_available(func):
+    # note: this decorator must wrap @hook, not the other way around,
+    # as 'hook' uses the name of the function it wraps
+    def wrapper(self, *args, **kwargs):
+        if not self.libraries_available: return None
+        return func(self, *args, **kwargs)
+    return wrapper
+
+
+class LibraryFoundButUnusable(Exception):
+    def __init__(self, library_version='unknown'):
+        self.library_version = library_version

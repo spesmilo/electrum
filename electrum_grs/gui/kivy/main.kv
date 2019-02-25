@@ -238,7 +238,7 @@
     padding: dp(12)
     spacing: dp(5)
     screen: None
-    on_release:
+    on_state:
         self.screen.show_menu(args[0]) if self.state == 'down' else self.screen.hide_menu()
     canvas.before:
         Color:
@@ -307,8 +307,6 @@
     carousel: carousel
     do_default_tab: False
     Carousel:
-        scroll_timeout: 250
-        scroll_distance: '100dp'
         anim_type: 'out_quart'
         min_move: .05
         anim_move_duration: .1
@@ -435,7 +433,7 @@ BoxLayout:
                 size_hint: 1, 1
                 bold: True
                 color: 0.7, 0.7, 0.7, 1
-                text: app.status
+                text: app.wallet_name
                 font_size: '22dp'
                 #minimum_width: '1dp'
                 on_release: app.popup_dialog('status')

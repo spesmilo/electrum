@@ -23,12 +23,13 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from PyQt5.QtGui import *
 import re
 from decimal import Decimal
 
+from PyQt5.QtGui import QFontMetrics
+
 from electrum_grs import bitcoin
-from electrum_grs.util import bfh
+from electrum_grs.util import bfh, PrintError
 from electrum_grs.transaction import TxOutput
 
 from .qrtextedit import ScanQRTextEdit
@@ -40,7 +41,8 @@ RE_ALIAS = '(.*?)\s*\<([0-9A-Za-z]{1,})\>'
 frozen_style = "QWidget { background-color:none; border:none;}"
 normal_style = "QPlainTextEdit { }"
 
-class PayToEdit(CompletionTextEdit, ScanQRTextEdit):
+
+class PayToEdit(CompletionTextEdit, ScanQRTextEdit, PrintError):
 
     def __init__(self, win):
         CompletionTextEdit.__init__(self)
@@ -213,6 +215,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit):
         if self.is_pr:
             return
         key = str(self.toPlainText())
+        key = key.strip()  # strip whitespaces
         if key == self.previous_payto:
             return
         self.previous_payto = key
@@ -223,7 +226,8 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit):
             return
         try:
             data = self.win.contacts.resolve(key)
-        except:
+        except Exception as e:
+            self.print_error(f'error resolving address/alias: {repr(e)}')
             return
         if not data:
             return
@@ -237,7 +241,7 @@ class PayToEdit(CompletionTextEdit, ScanQRTextEdit):
 
         #if self.win.config.get('openalias_autoadd') == 'checked':
         self.win.contacts[key] = ('openalias', name)
-        self.win.contact_list.on_update()
+        self.win.contact_list.update()
 
         self.setFrozen(True)
         if data.get('type') == 'openalias':

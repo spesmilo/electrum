@@ -5,7 +5,7 @@ Electrum-GRS - Lightweight Groestlcoin client
 
   Licence: MIT Licence
   Author: Groestlcoin Developers
-  Language: Python
+  Language: Python (>= 3.6)
   Homepage: https://groestlcoin.org/
 
 
@@ -31,7 +31,7 @@ Qt interface, install the Qt dependencies::
     sudo apt-get install python3-pyqt5
 
 If you downloaded the official package (tar.gz), you can run
-Electrum-GRS from its root directory, without installing it on your
+Electrum-GRS from its root directory without installing it on your
 system; all the python dependencies are included in the 'packages'
 directory. To run Electrum-GRS from its root directory, just do::
 
@@ -40,10 +40,10 @@ directory. To run Electrum-GRS from its root directory, just do::
 You can also install Electrum-GRS on your system, by running this command::
 
     sudo apt-get install python3-setuptools
-    pip3 install .[fast]
+    python3 -m pip install .[fast]
 
 This will download and install the Python dependencies used by
-Electrum-GRS, instead of using the 'packages' directory.
+Electrum-GRS instead of using the 'packages' directory.
 The 'fast' extra contains some optional dependencies that we think
 are often useful but they are not strictly needed.
 
@@ -63,16 +63,7 @@ Check out the code from GitHub::
 
 Run install (this should install dependencies)::
 
-    pip3 install .[fast]
-
-Render the SVG icons to PNGs (optional)::
-
-    for i in lock unlock confirmed status_lagging status_disconnected status_connected_proxy status_connected status_waiting preferences; do convert -background none icons/$i.svg icons/$i.png; done
-
-Compile the icons file for Qt::
-
-    sudo apt-get install pyqt5-dev-tools
-    pyrcc5 icons.qrc -o electrum_grs/gui/qt/icons_rc.py
+    python3 -m pip install .[fast]
 
 Compile the protobuf description file::
 
@@ -90,25 +81,25 @@ Create translations (optional)::
 Creating Binaries
 =================
 
+Linux
+-----
 
-To create binaries, create the 'packages' directory::
+See :code:`contrib/build-linux/README.md`.
 
-    ./contrib/make_packages
-
-This directory contains the python dependencies used by Electrum-GRS.
 
 Mac OS X / macOS
---------
+----------------
 
-See `contrib/build-osx/`.
+See :code:`contrib/osx/README.md`.
+
 
 Windows
 -------
 
-See `contrib/build-wine/`.
+See :code:`contrib/build-wine/docker/README.md`.
 
 
 Android
 -------
 
-See `electrum_grs/gui/kivy/Readme.md` file.
+See :code:`electrum_grs/gui/kivy/Readme.md`.
