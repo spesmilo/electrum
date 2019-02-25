@@ -445,7 +445,6 @@ class Plugin(BasePlugin):
         self.print_error("OnNetworkDialog", str(nd))
         if not hasattr(nd, "__shuffle_settings__") or not nd.__shuffle_settings__:
             nd.__shuffle_settings__ = st = SettingsTab(nd.nlayout.tabs, None, nd.nlayout.config)
-            st.destroyed.connect(lambda x: print_error("CashShuffle network settings tab destroyed"))
             nd.nlayout.tabs.addTab(st, _("CashShuffle"))
             st.applyChanges.connect(Plugin.try_to_apply_network_dialog_settings)
         elif nd.__shuffle_settings__:
@@ -464,7 +463,7 @@ class Plugin(BasePlugin):
                     if nd.nlayout.tabs.currentIndex() == idx:
                         nd.nlayout.tabs.setCurrentIndex(0)
                     nd.nlayout.tabs.removeTab(idx)
-                st.stopNetworkChecker()
+                st.kill()
                 st.setParent(None)
                 st.deleteLater()  # need to call this otherwise it sticks around :/
                 st = None
@@ -1038,10 +1037,15 @@ class SendTabExtra(QFrame, PrintError):
         return self.SpendingModeUnknown
 
 
-
-class SettingsDialog(WindowModalDialog, PrintErrorThread):
+class NetworkCheckerDelegateMixin:
+    '''Abstract base for classes receiving data from the NetworkChecker.
+    SettingsDialog implements this, as does the PoolsWindow.'''
     settingsChanged = pyqtSignal(dict)
     statusChanged = pyqtSignal(dict)
+
+class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegateMixin):
+    # from base: settingsChanged = pyqtSignal(dict)
+    # from base: statusChanged = pyqtSignal(dict)
     formChanged = pyqtSignal()
 
     _DEFAULT_HOST_SUBSTR = "shuffle.servo.cash"  # on fresh install, prefer this server as default (substring match)
@@ -1055,8 +1059,6 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
             self.setWindowModality(Qt.ApplicationModal)
             self.setMinimumSize(500, 200)
         self.setup(message)
-        # NB: don't enable this as it may cause crashes
-        #self.destroyed.connect(lambda x: self.print_error("Destroyed"))
 
     #def __del__(self):
     #    self.print_error("(Instance deleted)")
@@ -1261,13 +1263,19 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread):
 class NetworkChecker(QThread, PrintErrorThread):
     ''' Runs in a separate thread, checks the server automatically when the settings form changes
         and publishes results to GUI thread. '''
+    pollTimeSecs = 15.0
+    checkShufflePort = True
+    verifySSL = True  # if true, verify the ssl socket of the shuffle port when checking the server
+
     def __init__(self, parent):
-        assert isinstance(parent, SettingsDialog), "Parent to NetworkChecker must be a settings dialog"
+        assert isinstance(parent, NetworkCheckerDelegateMixin), "Parent to NetworkChecker must be a NetworkCheckerDelegateMixin"
         super().__init__(parent)
         self.parent = parent
         self.timer = None # delay checking server in case user is typing in a new one in the custom box
         self.timerCon = None
-        #self.destroyed.connect(lambda x: self.print_error("Destroyed"))
+        dname = self.diagnostic_name()
+        self.destroyed.connect(lambda x: print_error("[{}] Destroyed".format(dname)))
+        print_error("[{}] created".format(dname))
     #def __del__(self):
     #    self.print_error("(Instance deleted)")
     def run(self): # overrides QThread
@@ -1286,11 +1294,12 @@ class NetworkChecker(QThread, PrintErrorThread):
                         # hard-coded -- do not accept servers with poolSize < 3
                         is_bad_server = True
                         raise RuntimeError("PoolSize must be >=3, got: {}".format(poolSize))
-                    if d['ssl'] and not verify_ssl_socket(d['server'], int(port), timeout=7.5):
+                    if d['ssl'] and self.verifySSL and not verify_ssl_socket(d['server'], int(port), timeout=7.5):
                         is_bad_ssl = True
                         raise RuntimeError("Could not verify SSL server certificate.")
 
-                    socket.create_connection((d['server'], port), 5.0).close() # test connectivity to port
+                    if self.checkShufflePort:
+                        socket.create_connection((d['server'], port), 5.0).close() # test connectivity to port
                     self.parent.statusChanged.emit({
                         'host'   : d['server'],
                         'status' : _('Ok'),
@@ -1323,7 +1332,7 @@ class NetworkChecker(QThread, PrintErrorThread):
                 if t.objectName() == "Virgin Timer":
                     t.setObjectName("Nonvirgin Timer")
                     t.setSingleShot(False)
-                    t.start(15000) # fire every 15 seconds to update stats
+                    t.start(self.pollTimeSecs*1e3) # fire every 15 seconds to update stats
                     onSettingsChange(d)
                 else:
                     updateStatus(d)
@@ -1337,7 +1346,7 @@ class NetworkChecker(QThread, PrintErrorThread):
                     self.timer.deleteLater()
                     self.timer = None
             def startTimer(d):
-                #self.print_error("startTimer",d) # XXX
+                #self.print_error("startTimer",self.pollTimeSecs,d) # XXX
                 d = d.copy()
                 killTimer()
                 class MyTimer(QTimer, PrintErrorThread):
@@ -1390,8 +1399,14 @@ class SettingsTab(SettingsDialog):
         self.poolsBut.setEnabled(False)
         self._stLastStatus = dict()
         self.poolsBut.clicked.connect(self._stOnPoolsBut, Qt.DirectConnection)
-        weakSelf = Weak.ref(self)  # prevent access to self as destroyed signal may fire after we're deaed.
-        self.destroyed.connect(lambda x: weakSelf() and weakSelf().poolWindows.clear())
+        #DEBUG
+        dname = self.diagnostic_name()
+        self.destroyed.connect(lambda x: print_error("[{}] destroyed".format(dname)))
+
+    def kill(self):
+        self.stopNetworkChecker()
+        for n in self.poolWindows.copy():
+            self._stPoolWinKill(n)
 
     def _stGotStatus(self, sdict):
         if sdict.get('status') == _("Ok"):
@@ -1408,21 +1423,27 @@ class SettingsTab(SettingsDialog):
         name = d['name']
         w = self.poolWindows.get(name)
         if not w:
-            w = PoolsWindow(self, d)
+            w = PoolsWindow(self, d, self.get_form())
             self.poolWindows[name] = w
-            w.closed.connect(self._stPoolWinClosed, Qt.QueuedConnection) # clean-up instance
+            w.closed.connect(self._stPoolWinKill, Qt.QueuedConnection) # clean-up instance
         w.show(); w.raise_()
-    def _stPoolWinClosed(self, name):
+    def _stPoolWinKill(self, name):
         window = self.poolWindows.pop(name) # will actually delete the QWidget instance.
+        window.stopNetworkChecker()
         window.deleteLater() # force Qt delete. This call may be superfluous
 # /SettingsTab
 
-class PoolsWindow(QWidget, PrintError):
+class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
     closed = pyqtSignal(str)
-    def __init__(self, parent, serverDict):
+    # from base: settingsChanged = pyqtSignal(dict)
+    # from base: statusChanged = pyqtSignal(dict)
+
+    def __init__(self, parent, serverDict, settings):
         super().__init__()  # top-level window
         self.weakParent = Weak.ref(parent)
         self.sdict = serverDict.copy()
+        self.settings = settings
+        self.networkChecker = None
         name = self.sdict['name']
         self.setObjectName(name)
         self.setWindowTitle("CashShuffle - {} - Pools".format(name))
@@ -1432,6 +1453,7 @@ class PoolsWindow(QWidget, PrintError):
         self.vbox.addWidget(self.poolsGB)
         vbox2 = QVBoxLayout(self.poolsGB)
         self.tree = QTreeWidget()
+        self.tree.setSelectionMode(QAbstractItemView.NoSelection)
         self.tree.setMinimumHeight(50)
         self.tree.setHeaderItem(QTreeWidgetItem(['Scale', 'Members', 'Full']))
         vbox2.addWidget(self.tree)
@@ -1447,6 +1469,7 @@ class PoolsWindow(QWidget, PrintError):
         self.closeBut.setDefault(True)
         # etc...
         self.resize(400,300)
+        self.statusChanged.connect(self.refresh)
         #DEBUG
         dname = self.diagnostic_name()
         self.destroyed.connect(lambda x: print_error("[{}] destroyed".format(dname)))
@@ -1455,7 +1478,7 @@ class PoolsWindow(QWidget, PrintError):
     def closeEvent(self, e):
         super().closeEvent(e)
         if e.isAccepted():
-            self.print_error("Hide")
+            #self.print_error("Close")
             self.closed.emit(self.objectName())
             parent = self.weakParent()
             if isinstance(parent, QWidget) and parent.isVisible() and parent.window().isVisible():
@@ -1463,13 +1486,22 @@ class PoolsWindow(QWidget, PrintError):
                 # activate the network dialog if it's up..
                 parent.window().activateWindow()
             # do stuff related to hiding here...
+    def hideEvent(self, e):
+        super().hideEvent(e)
+        if e.isAccepted():
+            #self.print_error("Hide")
+            self.stopNetworkChecker()
     def showEvent(self, e):
         super().showEvent(e)
         if e.isAccepted():
-            self.print_error("Show")
-            self.refresh()
+            #self.print_error("Show")
+            self.refresh(self.sdict)
+            self.startNetworkChecker()
             # do stuff related to refreshing, etc here...
-    def refresh(self):
+    def refresh(self, sdict):
+        if not sdict:
+            return
+        self.sdict = sdict.copy()
         tit = self.poolsGB.title().rsplit(' ', 1)[0]
         pools = self.sdict.get('poolsList', list()).copy()
         poolSize = str(self.sdict.get('poolSize', ''))
@@ -1492,5 +1524,18 @@ class PoolsWindow(QWidget, PrintError):
             self.tree.setHeaderHidden(False)
             for i in range(self.tree.columnCount()):
                 self.tree.resizeColumnToContents(i)
-
+    def startNetworkChecker(self):
+        if self.networkChecker: return
+        self.networkChecker = nc = NetworkChecker(self)
+        nc.pollTimeSecs, nc.verifySSL, nc.checkShufflePort = 2.0, False, False
+        self.print_error("Starting network checker...")
+        self.networkChecker.start()
+        QTimer.singleShot(500, lambda: self.settingsChanged.emit(self.settings)) # kicks off the timer
+    def stopNetworkChecker(self):
+        if self.networkChecker:
+            self.networkChecker.quit()
+            self.networkChecker.wait()
+            self.networkChecker.deleteLater()
+            self.networkChecker = None
+            self.print_error("Stopped network checker.")
 # /PoolsWindow
