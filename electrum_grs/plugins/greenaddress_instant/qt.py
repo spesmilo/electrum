@@ -101,7 +101,7 @@ class Plugin(BasePlugin):
                 resp.raise_for_status()
                 return await resp.json()
             url = "https://greenaddress.it/verify/?signature=%s&txhash=%s" % (urllib.parse.quote(sig), tx.txid())
-            response = Network.send_http_on_proxy('get', url, headers = {'User-Agent': 'Electrum'}, on_finish=handle_request)
+            response = Network.send_http_on_proxy('get', url, headers = {'User-Agent': 'Electrum-GRS'}, on_finish=handle_request)
 
             # 3. display the result
             if response.get('verified'):

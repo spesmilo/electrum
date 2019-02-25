@@ -42,7 +42,7 @@ datas = [
     (home+'electrum_grs/locale', 'electrum_grs/locale'),
     (home+'electrum_grs/plugins', 'electrum_grs/plugins'),
     ('C:\\Program Files (x86)\\ZBar\\bin\\', '.'),
-    (home+'electrum/gui/icons', 'electrum/gui/icons'),
+    (home+'electrum_grs/gui/icons', 'electrum_grs/gui/icons'),
 ]
 datas += collect_data_files('trezorlib')
 datas += collect_data_files('safetlib')
