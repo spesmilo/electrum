@@ -3,6 +3,7 @@ from electroncash.bitcoin import deserialize_privkey, regenerate_key, EC_KEY, ge
 from electroncash.address import Address
 from electroncash.util import PrintError, InvalidPassword
 from electroncash.network import Network
+from electroncash.wallet import dust_threshold
 
 ERR_SERVER_CONNECT = "Error: cannot connect to server"
 ERR_BAD_SERVER_PREFIX = "Error: Bad server:"
@@ -33,12 +34,17 @@ def unfreeze_frozen_by_shuffling(wallet):
 
 class ProtocolThread(threading.Thread, PrintErrorThread):
     """
-    This class emulate thread with protocol run
+    Thread encapsulating a particular shuffle of a particular coin. There are
+    from 0 up to len(BackgroundShufflingThread.scales) of these active at any
+    time per wallet. BackgroundShufflingThread creates/kills these in
+    _make_protocol_thread. (The actual shuffle logic and rules are implemented
+    in class 'Round' in coin_shuffle.py which this class wraps and calls into).
     """
-    def __init__(self, host, port, coin,
+    def __init__(self, *, host, port, coin,
                  amount, fee, sk, sks, inputs, pubk,
                  addr_new_addr, change_addr, logger=None, ssl=False,
-                 comm_timeout = 60.0, ctimeout = 5.0, total_amount=0):
+                 comm_timeout=60.0, ctimeout=5.0, total_amount=0,
+                 fake_change=False):
 
         super(ProtocolThread, self).__init__()
         self.daemon = True
@@ -66,6 +72,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         self.addr_new = addr_new_addr.to_storage_string() # used by internal protocol code
         self.change_addr = change_addr #outside
         self.change = change_addr.to_storage_string() #inside
+        self.fake_change = fake_change
         self.protocol = None
         self.tx = None
         self.ts = time.time()
@@ -82,7 +89,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
 
     @not_time_to_die
     def register_on_the_pool(self):
-        "This method trying to register player on the pool"
+        "Register the player on the pool"
         self.messages.make_greeting(self.vk, int(self.amount))
         msg = self.messages.packets.SerializeToString()
         self.comm.send(msg)
@@ -128,7 +135,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
 
     @not_time_to_die
     def gather_the_keys(self):
-        "This method gather the verification keys from other players in the pool"
+        "This method gathers the verification keys from other players in the pool"
         messages = b''
         for _ in range(self.number_of_players):
             messages += self.comm.recv()
@@ -156,7 +163,6 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         coin = Coin(Network.get_instance())
         crypto = Crypto()
         self.messages.clear_packets()
-        # begin_phase = Phase('Announcement')
         begin_phase = 'Announcement'
         # Make Round
         self.protocol = Round(
@@ -164,7 +170,8 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
             self.comm, self.comm, self.logger,
             self.session, begin_phase, self.amount, self.fee,
             self.sk, self.sks, self.all_inputs, self.vk,
-            self.players, self.addr_new, self.change, total_amount = self.total_amount
+            self.players, self.addr_new, self.change, total_amount = self.total_amount,
+            fake_change = self.fake_change
         )
         if not self.done.is_set():
             self.protocol.start_protocol()
@@ -253,18 +260,16 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     SCALE_ARROW_DICT = dict(zip(SORTED_SCALES, SCALE_ARROWS))
     SCALE_0 = SORTED_SCALES[0]
     SCALE_N = SORTED_SCALES[-1]
-    UPPER_BOUND_SANS_FEE = SCALE_N*5  # 50 BCH
-    LOWER_BOUND_SANS_FEE = SCALE_0    # 0.0001 BCH
-    UPPER_BOUND = UPPER_BOUND_SANS_FEE + FEE    # 50 BCH + FEE max coin
-    LOWER_BOUND = LOWER_BOUND_SANS_FEE + FEE    # 0.0001 BCH + FEE min coin
+    UPPER_BOUND = SCALE_N*5             # 50 BCH hard limit to max shuffle coin
+    LOWER_BOUND = SCALE_0 + FEE         # 0.0001 BCH + FEE minimum coin
 
     # Some class-level vars that influence fine details of thread operation
     # -- Don't change these unless you know what you are doing!
-    STATS_PORT_RECHECK_TIME = 600.0  # re-check the stats port to pick up pool size changes for UI every 10 mins.
+    STATS_PORT_RECHECK_TIME = 60.0  # re-check the stats port to pick up pool size changes for UI every 1 mins.
     CHECKER_MAX_TIMEOUT = 15.0  # in seconds.. the maximum amount of time to use for stats port checker (applied if proxy mode, otherwise time will be this value divided by 3.0)
 
     def __init__(self, window, wallet, network_settings,
-                 period = 10.0, logger = None, fee = FEE, password=None, timeout=60.0):
+                 period = 10.0, logger = None, password=None, timeout=60.0):
         super().__init__()
         self.daemon = True
         self.timeout = timeout
@@ -277,7 +282,6 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.port = 1337 # default value -- will get set to real value from server's stat port in run() method
         self.poolSize = 3 # default value -- will get set to real value from server's stat port in run() method
         self.ssl = network_settings.get("ssl", None)
-        self.fee = fee
         self.lock = threading.RLock()
         self.password = password
         self.threads = {scale:None for scale in self.scales}
@@ -353,9 +357,9 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         if self.stop_flg.is_set():
             return
         errored = self.window.cashshuffle_get_flag() == 1  # bad server flag is set -- try to rediscover the shuffle port in case it changed
-        the_time_has_come = time.time() - self._last_server_check > self.STATS_PORT_RECHECK_TIME  # re-ping stats port every 10 mins to discover poolSize changes for UI
+        the_time_has_come = time.time() - self._last_server_check > self.STATS_PORT_RECHECK_TIME  # re-ping stats port every 1 mins to discover poolSize changes for UI
         if errored or the_time_has_come:
-            return self.check_server(quick = True, ssl_verify = errored)
+            return self.check_server(quick = not errored, ssl_verify = errored)
 
     def check_server(self, quick = False, ssl_verify = True):
         def _do_check_server(timeout, ssl_verify):
@@ -503,7 +507,9 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 self.wallet.storage.put("coins_frozen_by_shuffling", list(self._coins_busy_shuffling))
                 if message.startswith("Error"):
                     # unreserve addresses that were previously reserved iff error
-                    self.wallet._addresses_cashshuffle_reserved -= { thr.addr_new_addr, thr.change_addr }
+                    self.wallet._addresses_cashshuffle_reserved.discard(thr.addr_new_addr)
+                    if not thr.fake_change:
+                        self.wallet._addresses_cashshuffle_reserved.discard(thr.change_addr)
                     #self.print_error("Unreserving", thr.addr_new_addr, thr.change_addr)
             self.tell_gui_to_refresh()
             self.logger.send(message, sender)
@@ -562,8 +568,8 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                                 # Note: the 'is False' is intentional -- we are interested in coins that we know for SURE are not shuffled.
                                 # is_coin_shuffled() also returns None in cases where the tx isn't in the history (a rare occurrence)
                                 if self.wallet.is_coin_shuffled(coin) is False]
-            upper_amount = min(scale*10 + self.fee, self.UPPER_BOUND_SANS_FEE)
-            lower_amount = scale + self.fee
+            upper_amount = min(scale*10 + self.FEE, self.UPPER_BOUND)
+            lower_amount = scale + self.FEE
             unshuffled_coins_on_scale = [coin for coin in unshuffled_coins
                                          # exclude coins out of range and 'done' coins still in history
                                          # also exclude coinbase coins (see issue #64)
@@ -605,14 +611,28 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             address = self.wallet.create_new_address(for_change = False)
             if address not in self.wallet._addresses_cashshuffle_reserved:
                 output = address
-        change = self.wallet.cashshuffle_get_new_change_address(for_shufflethread=True)
-        self.wallet._addresses_cashshuffle_reserved |= {output, change} # NB: only modify this when holding wallet locks
-        self.print_error("Scale {} Coin {} OutAddr {} Change {} make_protocol_thread".format(scale, utxo_name, output.to_storage_string(), change.to_storage_string()))
+        # Reserve the output address so other threads don't use it
+        self.wallet._addresses_cashshuffle_reserved.add(output)   # NB: only modify this when holding wallet locks
+        # Check if we will really use the change address. We won't be receving to it if the change is below dust threshold (see #67)
+        will_receive_change = coin['value'] - scale - self.FEE >= dust_threshold(Network.get_instance())
+        if will_receive_change:
+            change = self.wallet.cashshuffle_get_new_change_address(for_shufflethread=True)
+            # We anticipate using the change address in the shuffle tx, so reserve this address
+            self.wallet._addresses_cashshuffle_reserved.add(change)
+        else:
+            # We still have to specify a change address to the protocol even if it won't be used. :/
+            # We'll just take whatever address. The leftover dust amount will go to fee.
+            change = self.wallet.get_change_addresses()[0]
+        self.print_error("Scale {} Coin {} OutAddr {} {} {} make_protocol_thread".format(scale, utxo_name, output.to_storage_string(), "Change" if will_receive_change else "FakeChange",change.to_storage_string()))
         #self.print_error("Reserved addresses:", self.wallet._addresses_cashshuffle_reserved)
         ctimeout = 12.5 if (Network.get_instance() and Network.get_instance().get_proxies()) else 5.0 # allow for 12.5 second connection timeouts if using a proxy server
-        thr = ProtocolThread(self.host, self.port, utxo_name,
-                             scale, self.fee, id_sk, sks, inputs, id_pub, output, change,
-                             logger=None, ssl=self.ssl, comm_timeout = self.timeout, ctimeout = ctimeout, total_amount = coin['value'])
+        thr = ProtocolThread(host=self.host, port=self.port, ssl=self.ssl,
+                             comm_timeout=self.timeout, ctimeout=ctimeout,  # comm timeout and connect timeout
+                             coin=utxo_name,
+                             amount=scale, fee=self.FEE, total_amount=coin['value'],
+                             addr_new_addr=output, change_addr=change, fake_change=not will_receive_change,
+                             sk=id_sk, sks=sks, inputs=inputs, pubk=id_pub,
+                             logger=None)
         thr.logger = ChannelSendLambda(lambda msg: self.protocol_thread_callback(thr, msg))
         self.threads[scale] = thr
         coins.remove(coin)
@@ -656,7 +676,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                                 coins = self.wallet.get_utxos(exclude_frozen = True, confirmed_only = True, mature = True)
                             if not coins: break # coins mutates as we iterate so check that we still have candidate coins
                             did_start = self._make_protocol_thread(scale, coins)
-                            need_refresh = did_start or need_refresh # once need_refresh is set to True, it remains True
+                            need_refresh = need_refresh or did_start # once need_refresh is set to True, it remains True
                 except RuntimeWarning as e:
                     self.print_error("check_for_threads error: {}".format(str(e)))
         if need_refresh:

@@ -11,7 +11,8 @@ class Round(PrintErrorThread):
     def __init__(self, coin, crypto, messages,
                  inchan, outchan, logchan,
                  session, phase, amount, fee,
-                 sk, sks, inputs, pubkey, players, addr_new, change, total_amount = 0):
+                 sk, sks, inputs, pubkey, players, addr_new, change, total_amount = 0,
+                 fake_change = False):
         self.coin = coin
         self.crypto = crypto
         self.inchan = inchan
@@ -44,6 +45,7 @@ class Round(PrintErrorThread):
         self.debug = False
         self.transaction = None
         self.tx = None
+        self.fake_change = fake_change
         self.done = None
         if self.number_of_players == len(set(players.values())):
             if self.vk in players.values():
@@ -341,7 +343,12 @@ class Round(PrintErrorThread):
                 # Register the txid as belonging to cashshuffle, unconditionally.
                 # This is because even if broadcast failed, maybe one of our peers was able to send it for us,
                 # and so we want it to get the appropriate label in the history.
-                tot_scale_change_fee = "{} {} {} {}".format(self.total_amount, self.amount, self.total_amount-self.amount-self.fee, self.fee)
+                fee = self.fee
+                chg = self.total_amount-self.amount-self.fee
+                if self.fake_change:
+                    fee += chg
+                    chg = 0
+                tot_scale_change_fee = "{} {} {} {}".format(self.total_amount, self.amount, chg, fee)
                 self.logchan.send("shuffle_txid: {} {}".format(self.transaction.txid(), tot_scale_change_fee))
             if not res:
                 self.logchan.send("Error: blockchain network fault!")
@@ -645,7 +652,7 @@ class Round(PrintErrorThread):
 
         for player,inp in self.inputs.items():
             is_funds_sufficient = self.coin.check_inputs_for_sufficient_funds(inp, self.amount + self.fee)
-            if is_funds_sufficient == None:
+            if is_funds_sufficient is None:
                 self.logchan.send("Error: Check inputs for sufficient funds failed!")
                 self.done = True
                 return None

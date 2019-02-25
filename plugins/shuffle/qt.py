@@ -26,6 +26,7 @@
 from __future__ import absolute_import
 
 import os, sys, json, copy, socket, time
+from collections import defaultdict
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -68,17 +69,14 @@ def is_coin_shuffled(wallet, coin, txs_in=None):
             tx = txs[tx_id]
             outputs = tx.outputs()
             inputs_len = len(tx.inputs())
-            outputs_groups = {}
+            outputs_groups = defaultdict(list)
             for out_n, output in enumerate(outputs):
                 amount = output[2]
-                if outputs_groups.get(amount):
-                    outputs_groups[amount].append(out_n)
-                else:
-                    outputs_groups[amount] = [out_n]
-            for amount in outputs_groups:
-                group_len = len(outputs_groups[amount])
+                outputs_groups[amount].append(out_n)
+            for amount, group in outputs_groups.items():
+                group_len = len(group)
                 if group_len > 2 and amount in BackgroundShufflingThread.scales:
-                    if n in outputs_groups[amount] and inputs_len >= group_len:
+                    if n in group and inputs_len >= group_len:
                         return True
             return False
         else:
@@ -185,7 +183,7 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
             item.setText(5, _("Offline"))
     elif utxo['value'] >= BackgroundShufflingThread.UPPER_BOUND: # too big
         item.setText(5, _("Too big"))
-    elif utxo['value'] < BackgroundShufflingThread.LOWER_BOUND: # dust
+    elif utxo['value'] < BackgroundShufflingThread.LOWER_BOUND: # too small
         item.setText(5, _("Too small"))
 
     if prog == 'in progress': # in progress
@@ -246,13 +244,15 @@ def update_coin_status(window, coin_name, msg):
                 txid = words[1]
                 try:
                     tot, scale_orig, chg, fee = [int(w) for w in words[2:6]] # parse satoshis
+                    is_dusty_fee = not chg and fee - BackgroundShufflingThread.FEE > 0
                     # satoshis -> display format
-                    tot, scale, chg = window.format_amount(tot), window.format_amount(scale_orig), window.format_amount(chg)
+                    tot, scale, chg = window.format_amount(tot), window.format_amount(scale_orig), window.format_amount(chg) if chg else ''
+                    chgtxt = " + {} ".format(chg) if chg else " "
                     window.wallet.set_label(txid, _("Shuffle")
-                                            + (" {} {} {} {} + {} (-{} sats {})"
+                                            + (" {} {} {} {}{}(-{} sats {})"
                                                .format(tot, window.base_unit(),
                                                        BackgroundShufflingThread.SCALE_ARROW_DICT.get(scale_orig, '⇒'),
-                                                       scale, chg, fee, _("fee"))
+                                                       scale, chgtxt, fee, _("fee") if not is_dusty_fee else _("dusty fee"))
                                                ))
                 except (IndexError, ValueError, TypeError):
                     # Hmm. Some sort of parse error. Just label it 'CashShuffle'

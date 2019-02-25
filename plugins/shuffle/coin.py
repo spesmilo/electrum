@@ -5,6 +5,7 @@ from electroncash.bitcoin import (
     pubkey_from_signature, msg_magic, TYPE_ADDRESS)
 from electroncash.transaction import Transaction, int_to_hex
 from electroncash.address import Address
+from electroncash.wallet import dust_threshold
 import ecdsa
 from .client import PrintErrorThread
 
@@ -84,6 +85,7 @@ class Coin(PrintErrorThread):
 
     def make_unsigned_transaction(self, amount, fee, all_inputs, outputs, changes):
         "make unsigned transaction"
+        dust = dust_threshold(self.network)
         coins = {}
         tx_inputs = []
         amounts = {}
@@ -115,9 +117,9 @@ class Coin(PrintErrorThread):
         tx_outputs = [(TYPE_ADDRESS, Address.from_string(output), int(amount))
                       for output in outputs]
         transaction = Transaction.from_io(tx_inputs, tx_outputs)
-        tx_changes = [(TYPE_ADDRESS, Address.from_string(changes[player]), int(amounts[player] - amount -fee))
+        tx_changes = [(TYPE_ADDRESS, Address.from_string(changes[player]), int(amounts[player] - amount - fee))
                       for player in sorted(changes)
-                      if Address.is_valid(changes[player]) and int(amounts[player] - amount -fee) > 0]
+                      if Address.is_valid(changes[player]) and int(amounts[player] - amount - fee) >= dust]
         transaction.add_outputs(tx_changes)
         return transaction
 
