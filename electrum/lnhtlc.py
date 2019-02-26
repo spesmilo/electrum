@@ -159,7 +159,7 @@ class HTLCManager:
         return sent + received
 
     def received_in_ctn(self, ctn):
-        return [self.log[REMOTE]['adds'][htlc_id] for htlc_id, ctnheights in self.log[REMOTE]['settles'].items() if ctnheights[LOCAL] == ctn]
+        return [self.log[REMOTE]['adds'][htlc_id] for htlc_id, ctnheights in self.log[REMOTE]['settles'].items() if ctnheights[REMOTE] == ctn]
 
     def sent_in_ctn(self, ctn):
         return [self.log[LOCAL]['adds'][htlc_id] for htlc_id, ctnheights in self.log[LOCAL]['settles'].items() if ctnheights[LOCAL] == ctn]
