@@ -435,7 +435,17 @@ class Channel(PrintError):
         )
         assert self.signature_fits(ctx)
 
-        return RevokeAndAck(last_secret, next_point), "current htlcs"
+        received = self.hm.received_in_ctn(self.config[LOCAL].ctn)
+        sent = self.hm.sent_in_ctn(self.config[LOCAL].ctn)
+        for htlc in received:
+            self.payment_completed(self, RECEIVED, htlc, None)
+        for htlc in sent:
+            preimage = self.preimages.pop(htlc.htlc_id)
+            self.payment_completed(self, SENT, htlc, preimage)
+        received_this_batch = htlcsum(received)
+        sent_this_batch = htlcsum(sent)
+
+        return RevokeAndAck(last_secret, next_point), (received_this_batch, sent_this_batch)
 
     def points(self):
         last_small_num = self.config[LOCAL].ctn
@@ -459,7 +469,7 @@ class Channel(PrintError):
             if tx is not None:
                 self.lnwatcher.add_sweep_tx(outpoint, prev_txid, tx.as_dict())
 
-    def receive_revocation(self, revocation) -> Tuple[int, int]:
+    def receive_revocation(self, revocation: RevokeAndAck):
         self.print_error("receive_revocation")
 
         cur_point = self.config[REMOTE].current_per_commitment_point
@@ -483,16 +493,6 @@ class Channel(PrintError):
             if self.constraints.is_initiator and self.pending_fee[FUNDEE_ACKED]:
                 self.pending_fee[FUNDER_SIGNED] = True
 
-        received = self.hm.received_in_ctn(self.config[REMOTE].ctn + 1)
-        sent = self.hm.sent_in_ctn(self.config[REMOTE].ctn + 1)
-        for htlc in received:
-            self.payment_completed(self, RECEIVED, htlc, None)
-        for htlc in sent:
-            preimage = self.preimages.pop(htlc.htlc_id)
-            self.payment_completed(self, SENT, htlc, preimage)
-        received_this_batch = htlcsum(received)
-        sent_this_batch = htlcsum(sent)
-
         next_point = self.config[REMOTE].next_per_commitment_point
 
         self.hm.recv_rev()
@@ -509,8 +509,6 @@ class Channel(PrintError):
 
         self.set_remote_commitment()
         self.remote_commitment_to_be_revoked = prev_remote_commitment
-
-        return received_this_batch, sent_this_batch
 
     def balance(self, subject, ctn=None):
         """

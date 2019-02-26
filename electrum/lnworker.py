@@ -565,7 +565,7 @@ class LNWorker(PrintError):
         self.storage.put('lightning_preimages', self.preimages)
         self.storage.write()
 
-    def get_preimage_and_timestamp(self, payment_hash: bytes) -> bytes:
+    def get_preimage_and_timestamp(self, payment_hash: bytes) -> Tuple[bytes, int]:
         try:
             preimage_hex, timestamp = self.preimages[bh2u(payment_hash)]
             preimage = bfh(preimage_hex)

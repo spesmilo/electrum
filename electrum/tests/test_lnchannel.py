@@ -433,10 +433,10 @@ class TestChannel(unittest.TestCase):
 
         bob_channel.receive_new_commitment(aliceSig2, aliceHtlcSigs2)
 
-        bobRevocation2, _ = bob_channel.revoke_current_commitment()
+        bobRevocation2, (received, sent) = bob_channel.revoke_current_commitment()
+        self.assertEqual(one_bitcoin_in_msat, received)
         bob_channel.serialize()
-        received, sent = alice_channel.receive_revocation(bobRevocation2)
-        self.assertEqual(sent, one_bitcoin_in_msat)
+        alice_channel.receive_revocation(bobRevocation2)
         alice_channel.serialize()
 
         # At this point, Bob should have 6 BTC settled, with Alice still having
