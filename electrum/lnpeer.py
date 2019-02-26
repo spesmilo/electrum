@@ -379,6 +379,7 @@ class Peer(PrintError):
                        payment_completed=self.lnworker.payment_completed)
         chan.lnwatcher = self.lnwatcher
         chan.get_preimage = self.lnworker.get_preimage  # FIXME hack.
+        chan.save_preimage = self.lnworker.save_preimage  # FIXME hack.
         sig_64, _ = chan.sign_next_commitment()
         self.send_message("funding_created",
             temporary_channel_id=temp_channel_id,
@@ -472,6 +473,7 @@ class Peer(PrintError):
                        payment_completed=self.lnworker.payment_completed)
         chan.lnwatcher = self.lnwatcher
         chan.get_preimage = self.lnworker.get_preimage  # FIXME hack.
+        chan.save_preimage = self.lnworker.save_preimage  # FIXME hack.
         remote_sig = funding_created['signature']
         chan.receive_new_commitment(remote_sig, [])
         sig_64, _ = chan.sign_next_commitment()

@@ -28,6 +28,7 @@ import binascii
 import json
 from enum import Enum, auto
 from typing import Optional, Dict, List, Tuple, NamedTuple, Set, Callable, Iterable, Sequence
+import time
 
 from . import ecc
 from .util import bfh, PrintError, bh2u
@@ -120,10 +121,9 @@ class Channel(PrintError):
             return super().diagnostic_name()
 
     def __init__(self, state, *, sweep_address=None, name=None,
-                 payment_completed: Optional[Callable[['Channel', Direction, UpdateAddHtlc, bytes], None]] = None):
-        self.preimages = {}
+                 payment_completed: Optional[Callable[['Channel', Direction, UpdateAddHtlc], None]] = None):
         if not payment_completed:
-            payment_completed = lambda this, x, y, z: None
+            payment_completed = lambda this, x, y: None
         self.sweep_address = sweep_address
         self.payment_completed = payment_completed
         assert 'local_state' not in state
@@ -438,10 +438,9 @@ class Channel(PrintError):
         received = self.hm.received_in_ctn(self.config[LOCAL].ctn)
         sent = self.hm.sent_in_ctn(self.config[LOCAL].ctn)
         for htlc in received:
-            self.payment_completed(self, RECEIVED, htlc, None)
+            self.payment_completed(self, RECEIVED, htlc)
         for htlc in sent:
-            preimage = self.preimages.pop(htlc.htlc_id)
-            self.payment_completed(self, SENT, htlc, preimage)
+            self.payment_completed(self, SENT, htlc)
         received_this_batch = htlcsum(received)
         sent_this_batch = htlcsum(sent)
 
@@ -625,8 +624,12 @@ class Channel(PrintError):
         assert htlc.payment_hash == sha256(preimage)
         assert htlc_id not in log['settles']
         self.hm.recv_settle(htlc_id)
-        self.preimages[htlc_id] = preimage
-        # we don't save the preimage because we don't need to forward it anyway
+        try:
+            self.save_preimage(htlc.payment_hash, preimage, timestamp=int(time.time()))
+        except AttributeError as e:
+            # save_preimage is not defined in the unit tests... this is ugly as hell. FIXME
+            import traceback
+            traceback.print_exc()
 
     def fail_htlc(self, htlc_id):
         self.print_error("fail_htlc")

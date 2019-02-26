@@ -79,7 +79,8 @@ class LNWorker(PrintError):
         self.channels = {}  # type: Dict[bytes, Channel]
         for x in wallet.storage.get("channels", []):
             c = Channel(x, sweep_address=self.sweep_address, payment_completed=self.payment_completed)
-            c.get_preimage = self.get_preimage
+            c.get_preimage = self.get_preimage  # FIXME hack.
+            c.save_preimage = self.save_preimage  # FIXME hack.
             self.channels[c.channel_id] = c
             c.set_remote_commitment()
             c.set_local_commitment(c.current_commitment(LOCAL))
@@ -126,11 +127,10 @@ class LNWorker(PrintError):
             self.print_error('saved lightning gossip timestamp')
 
     def payment_completed(self, chan: Channel, direction: Direction,
-                          htlc: UpdateAddHtlc, preimage: Optional[bytes]):
+                          htlc: UpdateAddHtlc):
         chan_id = chan.channel_id
-        preimage = preimage if preimage else self.get_preimage(htlc.payment_hash)
+        preimage = self.get_preimage(htlc.payment_hash)
         timestamp = int(time.time())
-        self.save_preimage(htlc.payment_hash, preimage, timestamp=timestamp)
         self.network.trigger_callback('ln_payment_completed', timestamp, direction, htlc, preimage, chan_id)
 
     def get_invoice_status(self, payment_hash):
