@@ -553,6 +553,7 @@ class Plugin(BasePlugin):
 
     def on_close(self):
         self.del_network_dialog_tab()
+        PoolsWinMgr.killInstance()
         for window in self.windows.copy():
             self.on_close_window(window)
             window.update_status()
@@ -711,6 +712,17 @@ class Plugin(BasePlugin):
             else:
                 window.print_error("WARNING: Window lacks a BackgroundProcess, FIXME!")
 
+    def view_pools(self, window):
+        assert isinstance(window, ElectrumWindow), "view_pools must be passed an ElectrumWindow object! FIXME!"
+        settings = __class__.get_and_validate_network_settings(window.config)
+        if settings:
+            sdict = settings.copy()
+            sdict['name'] = "{}:{}".format(sdict['server'], sdict['info'])
+            PoolsWinMgr.show(sdict, settings, parent_window=window, modal=False)
+        else:
+            # this should not normally be reachable in the UI, hence why we don't i18n the error string.
+            window.show_error("CashShuffle is not properly set up -- no server defined! Please select a server from the settings.")
+
     def settings_dialog(self, window, msg=None, restart_ask = True):
         def window_parent(w):
             # this is needed because WindowModalDialog overrides window.parent
@@ -779,6 +791,18 @@ class Plugin(BasePlugin):
     @staticmethod
     def get_network_settings(config):
         return copy.deepcopy(config.get(SHUFFLE_SERVER_KEY, None))
+
+    @staticmethod
+    def get_and_validate_network_settings(config):
+        selected = dict()
+        try:
+            # try and pre-populate from config
+            current = __class__.get_network_settings(config)
+            dummy = (current["server"], current["info"], current["ssl"]); del dummy;
+            selected = current
+        except (KeyError, TypeError):
+            pass
+        return selected
 
     def settings_widget(self, window):
         weakMeth = Weak(self.settings_dialog)
@@ -1055,10 +1079,15 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
         self.config = config
         self.networkChecker = None
         self.serverOk = None
+        self._vpLastStatus = dict()
         if not isinstance(self, SettingsTab):
             self.setWindowModality(Qt.ApplicationModal)
             self.setMinimumSize(500, 200)
         self.setup(message)
+
+        #DEBUG
+        dname = self.diagnostic_name()
+        self.destroyed.connect(lambda x: print_error("[{}] destroyed".format(dname)))
 
     #def __del__(self):
     #    self.print_error("(Instance deleted)")
@@ -1134,18 +1163,12 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
             self.cb.setCurrentIndex(custIdx)
         elif defIdx > -1:
             self.cb.setCurrentIndex(defIdx)
-    def refreshFromSettings(self):
-        selected = dict()
-        try:
-            # try and pre-populate from config
-            current = self.config.get(SHUFFLE_SERVER_KEY, dict())
-            dummy = (current["server"], current["info"], current["ssl"]); del dummy;
-            selected = current
-        except KeyError:
-            pass
 
+    def refreshFromSettings(self):
+        selected = Plugin.get_and_validate_network_settings(self.config)
         self.setup_combo_box(selected = selected)
         return selected
+
     def setup(self, msg):
         vbox = QVBoxLayout(self)
         if not msg:
@@ -1189,9 +1212,37 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
         self.vbox = vbox
 
         if not isinstance(self, SettingsTab):
+            # add close button only if not SettingsTab
             vbox.addStretch()
             buttons = Buttons(CloseButton(self), OkButton(self))
             vbox.addLayout(buttons)
+
+        # NEW! add the "View pools..." button to the bottom
+        vbox = self.statusGB.layout()
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        self.poolsBut = QPushButton(_("View pools..."))
+        f = self.poolsBut.font(); f.setPointSize(f.pointSize()-(2 if sys.platform=='darwin' else 1)); self.poolsBut.setFont(f)
+        hbox.addWidget(self.poolsBut)
+        hbox.addStretch(1)
+        vbox.addLayout(hbox)
+        self.statusChanged.connect(self._vpGotStatus)
+        self.poolsBut.setEnabled(False)
+        self.poolsBut.clicked.connect(self._vpOnPoolsBut, Qt.DirectConnection)
+
+    def kill(self):
+        self.stopNetworkChecker()
+
+    def _vpGotStatus(self, sdict):
+        if sdict.get('status') == _("Ok"):
+            self.poolsBut.setEnabled(True)
+            self._vpLastStatus = sdict.copy()
+        else:
+            self.poolsBut.setEnabled(False)
+            self._vplastStatus = dict()
+
+    def _vpOnPoolsBut(self):
+        w = PoolsWinMgr.show(self._vpLastStatus, self.get_form(), modal=True)
 
     def startNetworkChecker(self):
         if self.networkChecker: return
@@ -1274,7 +1325,7 @@ class NetworkChecker(QThread, PrintErrorThread):
         self.timer = None # delay checking server in case user is typing in a new one in the custom box
         self.timerCon = None
         dname = self.diagnostic_name()
-        self.destroyed.connect(lambda x: print_error("[{}] Destroyed".format(dname)))
+        self.destroyed.connect(lambda x: print_error("[{}] destroyed".format(dname)))
         print_error("[{}] created".format(dname))
     #def __del__(self):
     #    self.print_error("(Instance deleted)")
@@ -1352,7 +1403,7 @@ class NetworkChecker(QThread, PrintErrorThread):
                 class MyTimer(QTimer, PrintErrorThread):
                     def __init__(self, parent=None):
                         QTimer.__init__(self, parent)
-                        #self.destroyed.connect(lambda x: self.print_error("Destroyed"))
+                        #self.destroyed.connect(lambda x: self.print_error("destroyed"))
                     #def __del__(self):
                     #    self.print_error("(Instance deleted)")
                 self.timer = MyTimer(); self.timer.setObjectName("Virgin Timer")
@@ -1377,7 +1428,6 @@ class SettingsTab(SettingsDialog):
         super().__init__(parent, title, config, message)
         self.setWindowModality(Qt.NonModal)
         self.setWindowFlags(Qt.Widget) # force non-dialog
-        self.poolWindows = {}  # dict of "Server" -> "PoolsWindow" instances. This keeps top-level windows alive.
         # add the "Apply" button to the bottom
         self.apply = QPushButton(_("Apply"), self)
         hbox = QHBoxLayout()
@@ -1386,61 +1436,85 @@ class SettingsTab(SettingsDialog):
         hbox.addStretch(1)
         hbox.addWidget(self.apply)
         self.apply.clicked.connect(lambda: self.applyChanges.emit(self))
-        # add the "View pools..." button to the bottom
-        vbox = self.statusGB.layout()
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        self.poolsBut = QPushButton(_("View pools..."))
-        f = self.poolsBut.font(); f.setPointSize(f.pointSize()-(2 if sys.platform=='darwin' else 1)); self.poolsBut.setFont(f)
-        hbox.addWidget(self.poolsBut)
-        hbox.addStretch(1)
-        vbox.addLayout(hbox)
-        self.statusChanged.connect(self._stGotStatus)
-        self.poolsBut.setEnabled(False)
-        self._stLastStatus = dict()
-        self.poolsBut.clicked.connect(self._stOnPoolsBut, Qt.DirectConnection)
+    def _vpOnPoolsBut(self):
+        w = PoolsWinMgr.show(self._vpLastStatus, self.get_form(), modal=False, parent_window=self)
+# /SettingsTab
+
+class PoolsWinMgr(QObject, PrintError):
+    _instance = None
+    def __init__(self):
+        assert not PoolsWinMgr._instance, "More than 1 PoolsWinMgr instance detected -- PoolsWinMgr is a singleton!"
+        super().__init__()
+        PoolsWinMgr._instance = self
+        self.poolWindows = {}
+        self.print_error("created")
         #DEBUG
         dname = self.diagnostic_name()
         self.destroyed.connect(lambda x: print_error("[{}] destroyed".format(dname)))
-
-    def kill(self):
-        self.stopNetworkChecker()
-        for n in self.poolWindows.copy():
-            self._stPoolWinKill(n)
-
-    def _stGotStatus(self, sdict):
-        if sdict.get('status') == _("Ok"):
-            self.poolsBut.setEnabled(True)
-            self._stLastStatus = sdict.copy()
-        else:
-            self.poolsBut.setEnabled(False)
-            self._stlastStatus = dict()
-
-    def _stOnPoolsBut(self):
-        d = self._stLastStatus
-        if not d:
+    def __del__(self):
+        if hasattr(super(), '__del__'):
+            super().__del__()
+        print_error("[{}] finalized".format(__class__.__name__))
+        PoolsWinMgr._instance = None
+    #public methods
+    @classmethod
+    def instance(cls):
+        if not cls._instance:
+            cls._instance = cls()
+        return cls._instance
+    @classmethod
+    def killInstance(cls):
+        if cls._instance:
+            cls._instance._killAll()
+            cls._instance.deleteLater()
+            cls._instance = None
+    @classmethod
+    def show(cls, stats_dict, network_settings, *, parent_window=None, modal=False):
+        mgr = cls.instance()
+        return mgr._createOrShow(stats_dict, network_settings, parent_window=parent_window, modal=modal)
+    #private methods
+    def _createOrShow(self, stats_dict, network_settings, *, parent_window=None, modal=False):
+        d = stats_dict
+        if not isinstance(d, dict) or not d or not network_settings:
+            self.print_error("createOrShow: got invalid args.. will not create/show a window")
             return
         name = d['name']
         w = self.poolWindows.get(name)
+        if w and ((modal and w.windowModality() != Qt.ApplicationModal)
+                  or (not modal and w.windowModality() != Qt.NonModal)):
+            self.print_error("Found extant window {} but modal spec != extant modal, killing...".format(name))
+            self._kill(name)
+            w = None
         if not w:
-            w = PoolsWindow(self, d, self.get_form())
+            self.print_error("Creating", name)
+            w = PoolsWindow(parent_window, d, network_settings, modal=modal)
             self.poolWindows[name] = w
-            w.closed.connect(self._stPoolWinKill, Qt.QueuedConnection) # clean-up instance
+            w.closed.connect(self._kill, Qt.QueuedConnection) # clean-up instance
+        else:
+            self.print_error("Updating", name)
+            w.weakParent = Weak.ref(parent_window) if parent_window else None
+            w.settings = network_settings
         w.show(); w.raise_()
-    def _stPoolWinKill(self, name):
+        return w
+    def _kill(self, name):
         window = self.poolWindows.pop(name) # will actually delete the QWidget instance.
         window.stopNetworkChecker()
         window.deleteLater() # force Qt delete. This call may be superfluous
-# /SettingsTab
+        self.print_error("Killed", name)
+    def _killAll(self):
+        for n in self.poolWindows.copy():
+            self._kill(n)
+# /PoolsWinMgr
 
 class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
     closed = pyqtSignal(str)
     # from base: settingsChanged = pyqtSignal(dict)
     # from base: statusChanged = pyqtSignal(dict)
 
-    def __init__(self, parent, serverDict, settings):
+    def __init__(self, parent, serverDict, settings, modal=False):
         super().__init__()  # top-level window
-        self.weakParent = Weak.ref(parent)
+        self.setWindowModality(Qt.ApplicationModal if modal else Qt.NonModal)
+        self.weakParent = Weak.ref(parent) if parent else None
         self.sdict = serverDict.copy()
         self.settings = settings
         self.networkChecker = None
@@ -1467,9 +1541,9 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         # signals
         self.closeBut.clicked.connect(self.close)
         self.closeBut.setDefault(True)
+        self.statusChanged.connect(self.refresh)
         # etc...
         self.resize(400,300)
-        self.statusChanged.connect(self.refresh)
         #DEBUG
         dname = self.diagnostic_name()
         self.destroyed.connect(lambda x: print_error("[{}] destroyed".format(dname)))
@@ -1480,11 +1554,20 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         if e.isAccepted():
             #self.print_error("Close")
             self.closed.emit(self.objectName())
-            parent = self.weakParent()
+            parent = self.weakParent and self.weakParent()
             if isinstance(parent, QWidget) and parent.isVisible() and parent.window().isVisible():
-                # for some reason closing this dialog raises the wallet window and not the network dialog
-                # activate the network dialog if it's up..
-                parent.window().activateWindow()
+                try:
+                    # for some reason closing this dialog raises the wallet window and not the network dialog
+                    # activate the network dialog if it's up..
+                    parent.window().activateWindow()
+                except RuntimeError as e:
+                    # Deal with wrapped C/C++ object deleted. For some reason
+                    # the weakRef is still alive even after C/C++ deletion
+                    # (and no other references referencing the object!).
+                    if 'C++' in str(e):
+                        self.print_error("Underlying C/C++ object deleted. Working around PyQt5 bugs and ignoring...")
+                    else:
+                        raise
             # do stuff related to hiding here...
     def hideEvent(self, e):
         super().hideEvent(e)

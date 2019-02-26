@@ -2149,12 +2149,15 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.toggle_cashshuffle
         )
         self.cashshuffle_toggle_action = QAction("", self.cashshuffle_status_button) # action text will get set in update_cashshuffle_icon()
-        self.cashshuffle_toggle_action.triggered.connect(lambda x=None: self.toggle_cashshuffle())
+        self.cashshuffle_toggle_action.triggered.connect(self.toggle_cashshuffle)
         self.cashshuffle_settings_action = QAction("", self.cashshuffle_status_button)
-        self.cashshuffle_settings_action.triggered.connect(lambda x=None: self.show_cashshuffle_settings())
+        self.cashshuffle_settings_action.triggered.connect(self.show_cashshuffle_settings)
+        self.cashshuffle_viewpools_action = QAction(_("View pools..."), self.cashshuffle_status_button)
+        self.cashshuffle_viewpools_action.triggered.connect(self.show_cashshuffle_pools)
         self.cashshuffle_status_button.addAction(self.cashshuffle_toggle_action)
         sep = QAction(self.cashshuffle_status_button); sep.setSeparator(True)
         self.cashshuffle_status_button.addAction(sep)
+        self.cashshuffle_status_button.addAction(self.cashshuffle_viewpools_action)
         self.cashshuffle_status_button.addAction(self.cashshuffle_settings_action)
         self.cashshuffle_status_button.setContextMenuPolicy(Qt.ActionsContextMenu)
 
@@ -2948,11 +2951,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             self.cashshuffle_status_button.setToolTip(_("Toggle CashShuffle\nRight-click for context menu"))
             self.cashshuffle_toggle_action.setText(_("Enable CashShuffle") if not en else _("Disable CashShuffle"))
             self.cashshuffle_settings_action.setText(_("CashShuffle Settings..."))
+            self.cashshuffle_viewpools_action.setEnabled(True)
         elif self._cash_shuffle_flag == 1: # Network server error
             self.cashshuffle_status_button.setStatusTip(_('CashShuffle Error: Could not connect to server'))
             self.cashshuffle_status_button.setToolTip(_('Right-click to select a different CashShuffle server'))
             self.cashshuffle_settings_action.setText(_("Resolve Server Problem..."))
+            self.cashshuffle_viewpools_action.setEnabled(False)
         self.cashshuffle_settings_action.setVisible(en or loaded)
+        self.cashshuffle_viewpools_action.setVisible(en)
 
     def show_cashshuffle_settings(self):
         p = self.cashshuffle_plugin_if_loaded()
@@ -2962,6 +2968,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 # had error
                 msg = _("There was a problem connecting to this server.\nPlease choose a different CashShuffle server.")
             p.settings_dialog(self, msg)
+
+    def show_cashshuffle_pools(self):
+        p = self.cashshuffle_plugin_if_loaded()
+        if p:
+            p.view_pools(self)
 
     def toggle_cashshuffle(self):
         if not self.is_wallet_cashshuffle_compatible():
