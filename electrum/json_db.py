@@ -599,10 +599,11 @@ class JsonDB(PrintError):
         self.verified_tx = self.get_data_ref('verified_tx3') # txid -> TxMinedInfo.  Access with self.lock.
         self.tx_fees = self.get_data_ref('tx_fees')
 
-        # tuple to set
-        for txid, d in list(self.txi.items()):
-            for addr, lst in d.items():
-                self.txi[txid][addr] = set([tuple(x) for x in lst])
+        # convert list to set
+        for t in self.txi, self.txo:
+            for d in t.values():
+                for addr, lst in d.items():
+                    d[addr] = set([tuple(x) for x in lst])
 
         # remove unreferenced tx
         for tx_hash in self.transactions:
