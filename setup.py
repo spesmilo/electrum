@@ -79,7 +79,7 @@ setup(
             'wordlist/*.txt',
             'locale/*/LC_MESSAGES/electrum.mo',
         ],
-        'electrum.gui': [
+        'electrum_grs.gui': [
             'icons/*',
         ],
     },
