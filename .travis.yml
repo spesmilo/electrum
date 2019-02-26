@@ -72,7 +72,8 @@ jobs:
       script: ./contrib/osx/make_osx
       after_script: ls -lah dist && md5 dist/*
       after_success: true
-    - name: "AppImage build"
+    - if: branch = master  # don't build binaries on lightning branch
+      name: "AppImage build"
       language: c
       python: false
       services:
