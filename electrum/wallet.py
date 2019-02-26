@@ -54,7 +54,7 @@ from .util import multisig_type
 from .storage import STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW, WalletStorage
 from . import transaction, bitcoin, coinchooser, paymentrequest, ecc, bip32
 from .transaction import Transaction, TxOutput, TxOutputHwInfo
-from .plugin import run_hook
+from .plugin import run_hook, plugin_loaders
 from .address_synchronizer import (AddressSynchronizer, TX_HEIGHT_LOCAL,
                                    TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED)
 from .paymentrequest import (PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED,
@@ -1838,6 +1838,9 @@ class Wallet(object):
 
     def __new__(self, storage):
         wallet_type = storage.get('wallet_type')
+        # check here if I need to load a plugin
+        if wallet_type in plugin_loaders:
+            plugin_loaders[wallet_type]()
         WalletClass = Wallet.wallet_class(wallet_type)
         wallet = WalletClass(storage)
         # Convert hardware wallets restored with older versions of

@@ -629,6 +629,7 @@ class TrustedCoinPlugin(BasePlugin):
         k3 = keystore.from_xpub(xpub3)
         wizard.data['x3/'] = k3.dump()
         wizard.pw_args = password, encrypt_storage, STO_EV_USER_PW
+        wizard.terminate()
 
     def create_remote_key(self, email, wizard):
         xpub1 = wizard.data['x1/']['xpub']

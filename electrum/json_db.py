@@ -31,7 +31,6 @@ from typing import Dict
 
 from . import util, bitcoin
 from .util import PrintError, profiler, WalletFileException, multisig_type, TxMinedInfo
-from .plugin import plugin_loaders
 from .keystore import bip44_derivation
 from .transaction import Transaction
 
@@ -104,11 +103,6 @@ class JsonDB(PrintError):
                 self.data[key] = value
         if not isinstance(self.data, dict):
             raise WalletFileException("Malformed wallet file (not dict)")
-
-        # check here if I need to load a plugin
-        t = self.get('wallet_type')
-        l = plugin_loaders.get(t)
-        if l: l()
 
         if not self.manual_upgrades:
             if self.requires_split():
