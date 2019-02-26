@@ -178,7 +178,7 @@ class RequestList(MyTreeView):
         if request_type == REQUEST_TYPE_BITCOIN:
             req = self.wallet.receive_requests.get(addr)
         elif request_type == REQUEST_TYPE_LN:
-            req = self.wallet.lnworker.invoices[addr][1]
+            req = self.wallet.lnworker.invoices[addr][0]
         if req is None:
             self.update()
             return

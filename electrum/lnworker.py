@@ -125,11 +125,12 @@ class LNWorker(PrintError):
             self.storage.write()
             self.print_error('saved lightning gossip timestamp')
 
-    def payment_completed(self, chan, direction, htlc, _preimage):
+    def payment_completed(self, chan: Channel, direction: Direction,
+                          htlc: UpdateAddHtlc, preimage: Optional[bytes]):
         chan_id = chan.channel_id
-        preimage = _preimage if _preimage else self.get_preimage(htlc.payment_hash)
-        timestamp = time.time()
-        self.save_preimage(htlc.payment_hash, preimage, timestamp)
+        preimage = preimage if preimage else self.get_preimage(htlc.payment_hash)
+        timestamp = int(time.time())
+        self.save_preimage(htlc.payment_hash, preimage, timestamp=timestamp)
         self.network.trigger_callback('ln_payment_completed', timestamp, direction, htlc, preimage, chan_id)
 
     def get_invoice_status(self, payment_hash):
@@ -552,11 +553,13 @@ class LNWorker(PrintError):
                                        + routing_hints),
                            self.node_keypair.privkey)
         self.save_invoice(payment_hash, invoice, RECEIVED)
-        self.save_preimage(payment_hash, payment_preimage, 0)
+        self.save_preimage(payment_hash, payment_preimage, timestamp=None)
         return invoice
 
-    def save_preimage(self, payment_hash:bytes, preimage:bytes, timestamp:int):
+    def save_preimage(self, payment_hash: bytes, preimage: bytes, *, timestamp: Optional[int]):
         assert sha256(preimage) == payment_hash
+        if timestamp is not None:
+            timestamp = int(timestamp)
         key = bh2u(payment_hash)
         self.preimages[key] = bh2u(preimage), timestamp
         self.storage.put('lightning_preimages', self.preimages)

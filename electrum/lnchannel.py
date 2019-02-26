@@ -119,7 +119,8 @@ class Channel(PrintError):
         except:
             return super().diagnostic_name()
 
-    def __init__(self, state, sweep_address = None, name = None, payment_completed : Optional[Callable[[Direction, UpdateAddHtlc, bytes], None]] = None):
+    def __init__(self, state, *, sweep_address=None, name=None,
+                 payment_completed: Optional[Callable[['Channel', Direction, UpdateAddHtlc, bytes], None]] = None):
         self.preimages = {}
         if not payment_completed:
             payment_completed = lambda this, x, y, z: None
