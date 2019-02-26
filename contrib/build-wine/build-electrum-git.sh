@@ -20,7 +20,7 @@ cd tmp
 
 pushd $WINEPREFIX/drive_c/electrum-grs
 
-# Load electrum-grs-icons and electrum-grs-locale for this release
+# Load electrum-grs-locale for this release
 git submodule init
 git submodule update
 
