@@ -1494,6 +1494,7 @@ class PoolsWinMgr(QObject, PrintError):
             self.print_error("Updating", name)
             w.weakParent = Weak.ref(parent_window) if parent_window else None
             w.settings = network_settings
+            w.settingsChanged.emit(w.settings)
         w.show(); w.raise_()
         return w
     def _kill(self, name):
