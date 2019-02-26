@@ -265,16 +265,22 @@ class Blockchain(util.PrintError):
         bits = cls.target_to_bits(target)
         if bits != header.get('bits'):
             raise Exception("bits mismatch: %s vs %s" % (bits, header.get('bits')))
-        if int('0x' + _hash, 16) > target:
-            raise Exception("insufficient proof of work: %s vs target %s" % (int('0x' + _hash, 16), target))
+        block_hash_as_num = int.from_bytes(bfh(_hash), byteorder='big')
+        if block_hash_as_num > target:
+            raise Exception(f"insufficient proof of work: {block_hash_as_num} vs target {target}")
 
-    def verify_chunk(self, index, data):
-        num = len(data) // 80
-        prev_hash = self.get_hash(index * 2016 - 1)
+    def verify_chunk(self, index: int, data: bytes) -> None:
+        num = len(data) // HEADER_SIZE
+        start_height = index * 2016
+        prev_hash = self.get_hash(start_height - 1)
         chain = []
         for i in range(num):
-            height = index*2016 + i
-            raw_header = data[i*80:(i+1) * 80]
+            height = start_height + i
+            try:
+                expected_header_hash = self.get_hash(height)
+            except MissingHeader:
+                expected_header_hash = None
+            raw_header = data[i*HEADER_SIZE : (i+1)*HEADER_SIZE]
             header = deserialize_header(raw_header, height)
             # DGW3 requires access to recent (unsaved) headers.
             if USE_DIFF_RETARGET:
@@ -282,7 +288,7 @@ class Blockchain(util.PrintError):
                 if not len(chain) % 100:
                     chain = chain[-100:]
             target = self.get_target(height, chain)
-            self.verify_header(header, prev_hash, target)
+            self.verify_header(header, prev_hash, target, expected_header_hash)
             prev_hash = hash_header(header)
 
     @with_lock
@@ -453,9 +459,10 @@ class Blockchain(util.PrintError):
                 raise MissingHeader(height)
             return hash_header(header)
 
-    def bits_to_target(self, bits):
+    @classmethod
+    def bits_to_target(cls, bits: int) -> int:
         bitsN = (bits >> 24) & 0xff
-        if not (bitsN >= 0x03 and bitsN <= 0x1e):
+        if not (0x03 <= bitsN <= 0x1e):
             raise Exception("First part of bits should be in [0x03, 0x1e]")
         bitsBase = bits & 0xffffff
         if not (0x8000 <= bitsBase <= 0x7fffff):
@@ -473,7 +480,7 @@ class Blockchain(util.PrintError):
             bitsBase >>= 8
         return bitsN << 24 | bitsBase
 
-    def get_target_dgw3(self, block_height, chain=None):
+    def get_target_dgw3(self, block_height, chain=None) -> int:
         if chain is None:
             chain = []
 
@@ -536,7 +543,7 @@ class Blockchain(util.PrintError):
         bnNew = int(min(max_target, (bnNew * nActualTimespan) // nTargetTimespan))
         return bnNew
 
-    def get_target(self, block_height, chain=None):
+    def get_target(self, block_height, chain=None) -> int:
         if chain is None:
             chain = []  # Do not use mutables as default values!
 
@@ -549,8 +556,41 @@ class Blockchain(util.PrintError):
             return 0
         return self.get_target_dgw3(block_height, chain)
 
+    def chainwork_of_header_at_height(self, height: int) -> int:
+        """work done by single header at given height"""
+        chunk_idx = height // 2016 - 1
+        target = self.get_target(chunk_idx)
+        work = ((2 ** 256 - target - 1) // (target + 1)) + 1
+        return work
 
-    def can_connect(self, header, check_height=True):
+    @with_lock
+    def get_chainwork(self, height=None) -> int:
+        if height is None:
+            height = max(0, self.height())
+        if constants.net.TESTNET:
+            # On testnet/regtest, difficulty works somewhat different.
+            # It's out of scope to properly implement that.
+            return height
+        last_retarget = height // 2016 * 2016 - 1
+        cached_height = last_retarget
+        while _CHAINWORK_CACHE.get(self.get_hash(cached_height)) is None:
+            if cached_height <= -1:
+                break
+            cached_height -= 2016
+        assert cached_height >= -1, cached_height
+        running_total = _CHAINWORK_CACHE[self.get_hash(cached_height)]
+        while cached_height < last_retarget:
+            cached_height += 2016
+            work_in_single_header = self.chainwork_of_header_at_height(cached_height)
+            work_in_chunk = 2016 * work_in_single_header
+            running_total += work_in_chunk
+            _CHAINWORK_CACHE[self.get_hash(cached_height)] = running_total
+        cached_height += 2016
+        work_in_single_header = self.chainwork_of_header_at_height(cached_height)
+        work_in_last_partial_chunk = (height % 2016 + 1) * work_in_single_header
+        return running_total + work_in_last_partial_chunk
+
+    def can_connect(self, header: dict, check_height: bool=True) -> bool:
         if header is None:
             return False
         height = header['block_height']
