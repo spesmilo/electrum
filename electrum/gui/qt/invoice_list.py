@@ -39,6 +39,13 @@ from .util import (MyTreeView, read_QIcon, MONOSPACE_FONT, PR_UNPAID,
                    import_meta_gui, export_meta_gui, pr_icons)
 
 
+REQUEST_TYPE_BITCOIN = 0
+REQUEST_TYPE_LN = 1
+
+ROLE_REQUEST_TYPE = Qt.UserRole
+ROLE_REQUEST_ID = Qt.UserRole + 1
+
+
 class InvoiceList(MyTreeView):
 
     class Columns(IntEnum):
@@ -80,7 +87,8 @@ class InvoiceList(MyTreeView):
             self.set_editability(items)
             items[self.Columns.DATE].setIcon(read_QIcon('bitcoin.png'))
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
-            items[self.Columns.DATE].setData(key, role=Qt.UserRole)
+            items[self.Columns.DATE].setData(key, role=ROLE_REQUEST_ID)
+            items[self.Columns.DATE].setData(REQUEST_TYPE_BITCOIN, role=ROLE_REQUEST_TYPE)
             self.model().insertRow(idx, items)
 
         lnworker = self.parent.wallet.lnworker
@@ -99,10 +107,11 @@ class InvoiceList(MyTreeView):
             date_str = format_time(lnaddr.date)
             labels = [date_str, description, amount_str, pr_tooltips.get(status,'')]
             items = [QStandardItem(e) for e in labels]
-            #items[self.Columns.DATE].setData(REQUEST_TYPE_LN, ROLE_REQUEST_TYPE)
-            #items[self.Columns.DATE].setData(key, ROLE_RHASH_OR_ADDR)
+            self.set_editability(items)
             items[self.Columns.DATE].setIcon(read_QIcon('lightning.png'))
             items[self.Columns.STATUS].setIcon(read_QIcon(pr_icons.get(status)))
+            items[self.Columns.DATE].setData(key, role=ROLE_REQUEST_ID)
+            items[self.Columns.DATE].setData(REQUEST_TYPE_LN, role=ROLE_REQUEST_TYPE)
             self.model().insertRow(self.model().rowCount(), items)
 
         self.selectionModel().select(self.model().index(0,0), QItemSelectionModel.SelectCurrent)
@@ -127,18 +136,31 @@ class InvoiceList(MyTreeView):
         item_col0 = self.model().itemFromIndex(idx.sibling(idx.row(), self.Columns.DATE))
         if not item or not item_col0:
             return
-        key = item_col0.data(Qt.UserRole)
+        key = item_col0.data(ROLE_REQUEST_ID)
+        request_type = item_col0.data(ROLE_REQUEST_TYPE)
+        assert request_type in [REQUEST_TYPE_BITCOIN, REQUEST_TYPE_LN]
         column = idx.column()
         column_title = self.model().horizontalHeaderItem(column).text()
         column_data = item.text()
-        status = self.parent.invoices.get_status(key)
         menu = QMenu(self)
         if column_data:
             if column == self.Columns.AMOUNT:
                 column_data = column_data.strip()
             menu.addAction(_("Copy {}").format(column_title), lambda: self.parent.app.clipboard().setText(column_data))
-        menu.addAction(_("Details"), lambda: self.parent.show_invoice(key))
-        if status == PR_UNPAID:
-            menu.addAction(_("Pay Now"), lambda: self.parent.do_pay_invoice(key))
-        menu.addAction(_("Delete"), lambda: self.parent.delete_invoice(key))
+        if request_type == REQUEST_TYPE_BITCOIN:
+            self.create_menu_bitcoin_payreq(menu, key)
+        elif request_type == REQUEST_TYPE_LN:
+            self.create_menu_ln_payreq(menu, key)
         menu.exec_(self.viewport().mapToGlobal(position))
+
+    def create_menu_bitcoin_payreq(self, menu, payreq_key):
+        status = self.parent.invoices.get_status(payreq_key)
+        menu.addAction(_("Details"), lambda: self.parent.show_invoice(payreq_key))
+        if status == PR_UNPAID:
+            menu.addAction(_("Pay Now"), lambda: self.parent.do_pay_invoice(payreq_key))
+        menu.addAction(_("Delete"), lambda: self.parent.delete_invoice(payreq_key))
+
+    def create_menu_ln_payreq(self, menu, payreq_key):
+        req = self.parent.wallet.lnworker.invoices[payreq_key][0]
+        menu.addAction(_("Copy Lightning invoice"), lambda: self.parent.do_copy('Lightning invoice', req))
+        menu.addAction(_("Delete"), lambda: self.parent.delete_lightning_payreq(payreq_key))

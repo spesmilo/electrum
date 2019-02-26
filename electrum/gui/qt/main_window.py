@@ -1022,6 +1022,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     def delete_lightning_payreq(self, payreq_key):
         self.wallet.lnworker.delete_invoice(payreq_key)
         self.request_list.update()
+        self.invoice_list.update()
         self.clear_receive_tab()
 
     def get_request_URI(self, addr):
