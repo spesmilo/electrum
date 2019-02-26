@@ -11,11 +11,15 @@ class HTLCManager:
         else:
             assert type(log) is dict
             log = {HTLCOwner(int(x)): y for x, y in deepcopy(log).items()}
+            # log[sub]['ctn'] is the ctn for the oldest unrevoked ctx of sub
             for sub in (LOCAL, REMOTE):
                 log[sub]['adds'] = {int(x): UpdateAddHtlc(*y) for x, y in log[sub]['adds'].items()}
                 coerceHtlcOwner2IntMap = lambda x: {HTLCOwner(int(y)): z for y, z in x.items()}
+
+                # "side who offered htlc" -> action -> htlc_id -> whose ctx -> ctn
                 log[sub]['locked_in'] = {int(x): coerceHtlcOwner2IntMap(y) for x, y in log[sub]['locked_in'].items()}
                 log[sub]['settles'] = {int(x): coerceHtlcOwner2IntMap(y) for x, y in log[sub]['settles'].items()}
+                # FIXME "fails" should be handled like "settles"
                 log[sub]['fails'] = {int(x): y for x, y in log[sub]['fails'].items()}
         self.log = log
 
@@ -159,10 +163,14 @@ class HTLCManager:
         return sent + received
 
     def received_in_ctn(self, ctn):
-        return [self.log[REMOTE]['adds'][htlc_id] for htlc_id, ctnheights in self.log[REMOTE]['settles'].items() if ctnheights[REMOTE] == ctn]
+        return [self.log[REMOTE]['adds'][htlc_id]
+                for htlc_id, ctnheights in self.log[REMOTE]['settles'].items()
+                if ctnheights[LOCAL] == ctn]
 
     def sent_in_ctn(self, ctn):
-        return [self.log[LOCAL]['adds'][htlc_id] for htlc_id, ctnheights in self.log[LOCAL]['settles'].items() if ctnheights[LOCAL] == ctn]
+        return [self.log[LOCAL]['adds'][htlc_id]
+                for htlc_id, ctnheights in self.log[LOCAL]['settles'].items()
+                if ctnheights[LOCAL] == ctn]
 
     def send_fail(self, htlc_id):
         self.log[REMOTE]['fails'][htlc_id] = self.log[REMOTE]['ctn'] + 1
