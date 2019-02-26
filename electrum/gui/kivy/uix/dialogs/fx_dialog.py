@@ -27,7 +27,19 @@ Builder.load_string('''
                 on_text: popup.on_currency(self.text)
 
         Widget:
-            size_hint: 1, 0.1
+            size_hint: 1, 0.05
+
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint: 1, 0.2
+            Label:
+                text: _('History rates')
+            CheckBox:
+                id:hist
+                on_active: popup.on_checkbox_history(self.active)
+
+        Widget:
+            size_hint: 1, 0.05
 
         BoxLayout:
             orientation: 'horizontal'
@@ -41,7 +53,7 @@ Builder.load_string('''
                 on_text: popup.on_exchange(self.text)
 
         Widget:
-            size_hint: 1, 0.2
+            size_hint: 1, 0.1
 
         BoxLayout:
             orientation: 'horizontal'
@@ -77,11 +89,12 @@ class FxDialog(Factory.Popup):
         self.config = config
         self.callback = callback
         self.fx = self.app.fx
-        self.fx.set_history_config(True)
+        self.fx.set_history_config(False)
+        self.ids.hist.active = False
         self.add_currencies()
 
     def add_exchanges(self):
-        exchanges = sorted(self.fx.get_exchanges_by_ccy(self.fx.get_currency(), True)) if self.fx.is_enabled() else []
+        exchanges = sorted(self.fx.get_exchanges_by_ccy(self.fx.get_currency(), self.ids.hist.active)) if self.fx.is_enabled() else []
         mx = self.fx.exchange.name() if self.fx.is_enabled() else ''
         ex = self.ids.exchanges
         ex.values = exchanges
@@ -94,10 +107,15 @@ class FxDialog(Factory.Popup):
             self.fx.set_exchange(text)
 
     def add_currencies(self):
-        currencies = [_('None')] + self.fx.get_currencies(True)
+        currencies = [_('None')] + self.fx.get_currencies(self.ids.hist.active)
         my_ccy = self.fx.get_currency() if self.fx.is_enabled() else _('None')
         self.ids.ccy.values = currencies
         self.ids.ccy.text = my_ccy
+
+    def on_checkbox_history(self, checked):
+        self.fx.set_history_config(checked)
+        self.ids.hist.active = checked
+        self.add_currencies()
 
     def on_currency(self, ccy):
         b = (ccy != _('None'))
