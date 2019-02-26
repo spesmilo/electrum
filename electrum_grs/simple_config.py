@@ -375,7 +375,7 @@ class SimpleConfig(PrintError):
         l = list(self.fee_estimates.items()) + [(1, self.eta_to_fee(4))]
         dist = map(lambda x: (x[0], abs(x[1] - fee_per_kb)), l)
         min_target, min_value = min(dist, key=operator.itemgetter(1))
-        if fee_per_kb < self.fee_estimates.get(25)/2:
+        if fee_per_kb < self.fee_estimates.get(5)/2:
             min_target = -1
         return min_target
 

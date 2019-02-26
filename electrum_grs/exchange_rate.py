@@ -140,9 +140,9 @@ class BlockchainInfo(ExchangeBase):
         return "Blockchain"
 
 class Bittrex(ExchangeBase):
-    def get_rates(self, ccy):
+    async def get_rates(self, ccy):
         quote_currencies = {}
-        resp = self.get_json('bittrex.com', '/api/v1.1/public/getticker?market=BTC-GRS')
+        resp = await self.get_json('bittrex.com', '/api/v1.1/public/getticker?market=BTC-GRS')
         grs_btc_rate = quote_currencies['BTC'] = Decimal(resp['result']['Last'])
 
         # Get BTC/fiat rates from BlockchainInfo.
@@ -152,7 +152,7 @@ class Bittrex(ExchangeBase):
         return quote_currencies
 
 class GRSTicker(ExchangeBase):
-    def get_rates(self, ccy):
+    async def get_rates(self, ccy):
         url = 'https://groestlcoin.org/grsticker.php'
         response = requests.request('GET', url,
                                     headers={'User-Agent' : 'Electrum-GRS'})
@@ -166,39 +166,39 @@ class GRSTicker(ExchangeBase):
         return quote_currencies
 
 class CryptoCompare(ExchangeBase):
-    def get_rates(self, ccy):
+    async def get_rates(self, ccy):
         tsyms = ','.join(self.history_ccys())
-        result = self.get_json('min-api.cryptocompare.com', '/data/price?fsym=GRS&tsyms={}&extraParams=ElectrumGRS'.format(tsyms))
+        result = await self.get_json('min-api.cryptocompare.com', '/data/price?fsym=GRS&tsyms={}&extraParams=ElectrumGRS'.format(tsyms))
         return dict((k, Decimal(v)) for k, v in result.items())
 
     def history_ccys(self):
         return ['AED', 'AUD', 'CAD', 'CHF', 'CNY', 'EUR', 'GBP', 'INR', 'JPY', 'KRW', 'PKR', 'RUB', 'SEK', 'USD', 'BTC']
 
-    def request_history(self, ccy):
-        result = self.get_json('min-api.cryptocompare.com', '/data/histoday?fsym=GRS&tsym={}&limit=100&aggregate=1&extraParams=ElectrumGRS'.format(ccy))
+    async def request_history(self, ccy):
+        result = await self.get_json('min-api.cryptocompare.com', '/data/histoday?fsym=GRS&tsym={}&limit=100&aggregate=1&extraParams=ElectrumGRS'.format(ccy))
         result = result.get('Data', [])
         return dict((datetime.fromtimestamp(i['time']).strftime('%Y-%m-%d'), float(i['close'])) for i in result)
 
 class Huobi(ExchangeBase):
-    def get_rates(self, ccy):
-        json = self.get_json('api.huobi.pro', '/market/trade?symbol=grsbtc')
+    async def get_rates(self, ccy):
+        json = await self.get_json('api.huobi.pro', '/market/trade?symbol=grsbtc')
         return {'BTC': Decimal(json['tick']['data'][0]['price'])}
 
 class Upbit(ExchangeBase):
-    def get_rates(self, ccy):
-        json = self.get_json('api.upbit.com', '/v1/ticker?markets=BTC-GRS')
+    async def get_rates(self, ccy):
+        json = await self.get_json('api.upbit.com', '/v1/ticker?markets=BTC-GRS')
         return {'BTC': Decimal(json[0]['trade_price'])}
 
 class Binance(ExchangeBase):
-    def get_rates(self, ccy):
-        json = self.get_json('binance.com', '/api/v3/ticker/price?symbol=GRSBTC')
+    async def get_rates(self, ccy):
+        json = await self.get_json('binance.com', '/api/v3/ticker/price?symbol=GRSBTC')
         return {'BTC': Decimal(json['price'])}
 
     def history_ccys(self):
         return ['BTC']
 
-    def request_history(self, ccy):
-        json = self.get_json('binance.com', '/api/v1/klines?symbol=GRSBTC&interval=1d')
+    async def request_history(self, ccy):
+        json = await self.get_json('binance.com', '/api/v1/klines?symbol=GRSBTC&interval=1d')
         return dict((datetime.fromtimestamp(i[0] / 1000.0).strftime('%Y-%m-%d'), float(i[4])) for i in json)
 
 
