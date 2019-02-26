@@ -224,7 +224,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             interests = ['wallet_updated', 'network_updated', 'blockchain_updated',
                          'new_transaction', 'status',
                          'banner', 'verified', 'fee', 'fee_histogram', 'on_quotes',
-                         'on_history', 'channel', 'channels', 'ln_status', 'ln_message']
+                         'on_history', 'channel', 'channels', 'ln_status', 'ln_message',
+                         'ln_payment_completed']
             # To avoid leaking references to "self" that prevent the
             # window from being GC-ed when closed, callbacks should be
             # methods of this class only, and specifically not be
@@ -375,6 +376,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
             self.update_status()
         elif event == 'ln_status':
             self.need_update_ln.set()
+        elif event == 'ln_payment_completed':
+            # FIXME it is really inefficient to force update the whole GUI
+            # just for a single LN payment. individual rows in lists should be updated instead.
+            # consider: history tab, invoice list, request list
+            self.need_update.set()
         else:
             self.logger.info(f"unexpected network message: {event} {args}")
 
