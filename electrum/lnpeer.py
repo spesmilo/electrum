@@ -36,7 +36,7 @@ from .lnutil import (Outpoint, LocalConfig, RECEIVED, UpdateAddHtlc,
                      get_ln_flag_pair_of_bit, privkey_to_pubkey, UnknownPaymentHash, MIN_FINAL_CLTV_EXPIRY_ACCEPTED,
                      LightningPeerConnectionClosed, HandshakeFailed, NotFoundChanAnnouncementForUpdate,
                      MINIMUM_MAX_HTLC_VALUE_IN_FLIGHT_ACCEPTED, MAXIMUM_HTLC_MINIMUM_MSAT_ACCEPTED,
-                     MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED)
+                     MAXIMUM_REMOTE_TO_SELF_DELAY_ACCEPTED, RemoteMisbehaving)
 from .lntransport import LNTransport, LNTransportBase
 from .lnmsg import encode_msg, decode_msg
 
@@ -79,6 +79,7 @@ class Peer(PrintError):
         self.attempted_route = {}
         self.orphan_channel_updates = OrderedDict()
         self.sent_commitment_for_ctn_last = defaultdict(lambda: None)  # type: Dict[Channel, Optional[int]]
+        self.recv_commitment_for_ctn_last = defaultdict(lambda: None)  # type: Dict[Channel, Optional[int]]
         self._local_changed_events = defaultdict(asyncio.Event)
         self._remote_changed_events = defaultdict(asyncio.Event)
 
@@ -822,12 +823,13 @@ class Peer(PrintError):
 
     def maybe_send_commitment(self, chan: Channel):
         ctn_to_sign = chan.get_current_ctn(REMOTE) + 1
+        # if there are no changes, we will not (and must not) send a new commitment
         pending, current = chan.hm.pending_htlcs(REMOTE), chan.hm.current_htlcs(REMOTE)
-        if (pending == current \
+        if (pending == current
                 and chan.pending_feerate(REMOTE) == chan.constraints.feerate) \
                 or ctn_to_sign == self.sent_commitment_for_ctn_last[chan]:
             return
-        self.print_error('send_commitment. old number htlcs: {len(current)}, new number htlcs: {len(pending)}')
+        self.print_error(f'send_commitment. old number htlcs: {len(current)}, new number htlcs: {len(pending)}')
         sig_64, htlc_sigs = chan.sign_next_commitment()
         self.send_message("commitment_signed", channel_id=chan.channel_id, signature=sig_64, num_htlcs=len(htlc_sigs), htlc_signature=b"".join(htlc_sigs))
         self.sent_commitment_for_ctn_last[chan] = ctn_to_sign
@@ -884,6 +886,14 @@ class Peer(PrintError):
         self.print_error("on_commitment_signed")
         channel_id = payload['channel_id']
         chan = self.channels[channel_id]
+        ctn_to_recv = chan.get_current_ctn(LOCAL) + 1
+        # make sure there were changes to the ctx, otherwise the remote peer is misbehaving
+        if (chan.hm.pending_htlcs(LOCAL) == chan.hm.current_htlcs(LOCAL)
+            and chan.pending_feerate(LOCAL) == chan.constraints.feerate) \
+                or ctn_to_recv == self.recv_commitment_for_ctn_last[chan]:
+            raise RemoteMisbehaving('received commitment_signed without any change')
+        self.recv_commitment_for_ctn_last[chan] = ctn_to_recv
+
         data = payload["htlc_signature"]
         htlc_sigs = [data[i:i+64] for i in range(0, len(data), 64)]
         chan.receive_new_commitment(payload["signature"], htlc_sigs)
