@@ -36,6 +36,9 @@ from .storage import STO_EV_USER_PW, STO_EV_XPUB_PW, get_derivation_used_for_hw_
 from .i18n import _
 from .util import UserCancelled, InvalidPassword
 
+from .util import print_error
+
+
 # hardware device setup purpose
 HWD_SETUP_NEW_WALLET, HWD_SETUP_DECRYPT_WALLET = range(0, 2)
 
@@ -225,6 +228,7 @@ class BaseWizard(object):
         else:
             debug_msg = ''
             for name, description, plugin in support:
+                print_error("[base_wizard] BaseWizard: choose_hw_device(): plugin-name:"+name)#debugSatochip
                 try:
                     # FIXME: side-effect: unpaired_device_info sets client.handler
                     u = devmgr.unpaired_device_infos(None, plugin, devices=scanned_devices)
@@ -258,6 +262,7 @@ class BaseWizard(object):
         self.choice_dialog(title=title, message=msg, choices=choices, run_next= lambda *args: self.on_device(*args, purpose=purpose))
 
     def on_device(self, name, device_info, *, purpose):
+        print_error("[baze_wizard] BaseWizard: on_device()")#debugSatochip
         self.plugin = self.plugins.get_plugin(name)
         try:
             self.plugin.setup_device(device_info, self, purpose)
@@ -299,6 +304,7 @@ class BaseWizard(object):
             raise Exception('unknown purpose: %s' % purpose)
 
     def derivation_and_script_type_dialog(self, f):
+        print_error("[baze_wizard] BaseWizard: derivation_and_script_type_dialog()")#debugSatochip
         message1 = _('Choose the type of addresses in your wallet.')
         message2 = '\n'.join([
             _('You can override the suggested derivation path.'),
@@ -330,6 +336,7 @@ class BaseWizard(object):
                 # let the user choose again
 
     def on_hw_derivation(self, name, device_info, derivation, xtype):
+        print_error("[baze_wizard] BaseWizard: on_hw_derivation()")#debugSatochip
         from .keystore import hardware_keystore
         try:
             xpub = self.plugin.get_xpub(device_info.device.id_, derivation, xtype, self)
@@ -397,6 +404,7 @@ class BaseWizard(object):
         self.on_keystore(k)
 
     def on_keystore(self, k):
+        print_error("[baze_wizard] BaseWizard: on_keystore()")#debugSatochip
         has_xpub = isinstance(k, keystore.Xpub)
         if has_xpub:
             from .bitcoin import xpub_type
@@ -435,6 +443,7 @@ class BaseWizard(object):
                 self.run('create_wallet')
 
     def create_wallet(self):
+        print_error("[baze_wizard] BaseWizard: create_wallet()")#debugSatochip
         encrypt_keystore = any(k.may_have_password() for k in self.keystores)
         # note: the following condition ("if") is duplicated logic from
         # wallet.get_available_storage_encryption_version()
@@ -471,6 +480,7 @@ class BaseWizard(object):
 
     def on_password(self, password, *, encrypt_storage,
                     storage_enc_version=STO_EV_USER_PW, encrypt_keystore):
+        print_error("[baze_wizard] BaseWizard: on_password()")#debugSatochip
         self.storage.set_keystore_encryption(bool(password) and encrypt_keystore)
         if encrypt_storage:
             self.storage.set_password(password, enc_version=storage_enc_version)
@@ -549,6 +559,7 @@ class BaseWizard(object):
             f('')
 
     def create_addresses(self):
+        print_error("[baze_wizard] BaseWizard: create_addresses()")#debugSatochip
         def task():
             self.wallet.synchronize()
             self.wallet.storage.write()

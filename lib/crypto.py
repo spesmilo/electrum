@@ -125,6 +125,10 @@ def sha256(x: bytes) -> bytes:
     x = to_bytes(x, 'utf8')
     return bytes(hashlib.sha256(x).digest())
 
+def sha256d(x: bytes) -> bytes:
+    x = to_bytes(x, 'utf8')
+    out = bytes(sha256(sha256(x)))
+    return out
 
 def Hash(x: bytes) -> bytes:
     x = to_bytes(x, 'utf8')

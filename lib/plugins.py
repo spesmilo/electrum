@@ -96,6 +96,7 @@ class Plugins(DaemonThread):
         if name in self.plugins:
             return self.plugins[name]
         full_name = 'electrum_plugins.' + name + '.' + self.gui_name
+        print_error("[plugins] Plugins: load_plugin(): fullname:"+full_name)#debugSatochip
         loader = pkgutil.find_loader(full_name)
         if not loader:
             raise RuntimeError("%s implementation for %s plugin not found"
@@ -337,6 +338,7 @@ class DeviceMgr(ThreadJob, PrintError):
             self.recognised_hardware.add(pair)
 
     def register_enumerate_func(self, func):
+        print_error("[plugins] DeviceMgr: register_enumerate_func: adding function:"+str(func))#debugSatochip
         self.enumerate_func.add(func)
 
     def create_client(self, device, handler, plugin):
@@ -344,6 +346,7 @@ class DeviceMgr(ThreadJob, PrintError):
         client = self.client_lookup(device.id_)
         if client:
             return client
+        print_error("[plugins] DeviceMgr: create_client(): creating client...")#debugSatochip
         client = plugin.create_client(device, handler)
         if client:
             self.print_error("Registering", client)
@@ -461,6 +464,7 @@ class DeviceMgr(ThreadJob, PrintError):
     def unpaired_device_infos(self, handler, plugin, devices=None):
         '''Returns a list of DeviceInfo objects: one for each connected,
         unpaired device accepted by the plugin.'''
+        print_error("[plugins] DeviceMgr: unpaired_device_infos(): plugin:"+plugin.name+" nb_devices:"+str(len(devices)))#debugSatochip
         if not plugin.libraries_available:
             raise Exception('Missing libraries for {}'.format(plugin.name))
         if devices is None:
@@ -468,8 +472,10 @@ class DeviceMgr(ThreadJob, PrintError):
         devices = [dev for dev in devices if not self.xpub_by_id(dev.id_)]
         infos = []
         for device in devices:
+            print_error("[plugins] DeviceMgr: unpaired_device_infos(): device-product-key:"+ " device-path:"+device.path)#debugSatochip
             if device.product_key not in plugin.DEVICE_IDS:
                 continue
+            print_error("[plugins] DeviceMgr: unpaired_device_infos(): device-product-key:"+str(device.product_key[0])+" "+str(device.product_key[1])+ " device-path:"+device.path)#debugSatochip
             client = self.create_client(device, handler, plugin)
             if not client:
                 continue
@@ -525,6 +531,7 @@ class DeviceMgr(ThreadJob, PrintError):
         devices = []
         for d in hid_list:
             product_key = (d['vendor_id'], d['product_id'])
+            self.print_error("Found device with VID:"+str(d['vendor_id'])+" PID:"+str(d['product_id']))#debugSatochip
             if product_key in self.recognised_hardware:
                 # Older versions of hid don't provide interface_number
                 interface_number = d.get('interface_number', -1)
@@ -533,8 +540,9 @@ class DeviceMgr(ThreadJob, PrintError):
                 if len(id_) == 0:
                     id_ = str(d['path'])
                 id_ += str(interface_number) + str(usage_page)
-                devices.append(Device(d['path'], interface_number,
-                                      id_, product_key, usage_page))
+                devices.append(Device(d['path'], interface_number, id_, product_key, usage_page))                                      
+                self.print_error("Found recognized device with VID:"+str(d['vendor_id'])+" PID:"+str(d['product_id'])+" ID_:"+id_)#debugSatochip
+            
         return devices
 
     def scan_devices(self):
@@ -544,8 +552,10 @@ class DeviceMgr(ThreadJob, PrintError):
         devices = self._scan_devices_with_hid()
 
         # Let plugin handlers enumerate devices we don't know about
+        self.print_error("Number of enumerate_func: "+str(len(self.enumerate_func))) #DebugSatochip
         for f in self.enumerate_func:
             try:
+                self.print_error("Trying enumerate_func:"+f.__name__) #DebugSatochip
                 new_devices = f()
             except BaseException as e:
                 self.print_error('custom device enum failed. func {}, error {}'
@@ -569,4 +579,6 @@ class DeviceMgr(ThreadJob, PrintError):
         for id_ in disconnected_ids:
             self.unpair_id(id_)
 
+        self.print_error("Found "+ str(len(devices)) + " devices...")#DebugSatochip
+        
         return devices
