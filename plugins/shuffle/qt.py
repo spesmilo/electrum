@@ -1082,7 +1082,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
         self._vpLastStatus = dict()
         if not isinstance(self, SettingsTab):
             self.setWindowModality(Qt.ApplicationModal)
-            self.setMinimumSize(500, 200)
+            self.setMinimumSize(400, 350)
         self.setup(message)
 
         #DEBUG
@@ -1518,6 +1518,7 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         self.sdict = serverDict.copy()
         self.settings = settings
         self.networkChecker = None
+        self.needsColumnSizing = True
         name = self.sdict['name']
         self.setObjectName(name)
         self.setWindowTitle("CashShuffle - {} - Pools".format(name))
@@ -1605,8 +1606,10 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
             self.tree.setHeaderHidden(True)
         else:
             self.tree.setHeaderHidden(False)
-            for i in range(self.tree.columnCount()):
-                self.tree.resizeColumnToContents(i)
+            if self.needsColumnSizing:
+                for i in range(self.tree.columnCount()):
+                    self.tree.resizeColumnToContents(i)
+                self.needsColumnSizing = False
     def startNetworkChecker(self):
         if self.networkChecker: return
         self.networkChecker = nc = NetworkChecker(self)
