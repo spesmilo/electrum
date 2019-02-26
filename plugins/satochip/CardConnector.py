@@ -1,7 +1,7 @@
 from smartcard.CardType import AnyCardType
 from smartcard.CardRequest import CardRequest
 from smartcard.CardConnectionObserver import ConsoleCardConnectionObserver
-from smartcard.Exceptions import CardRequestTimeoutException
+from smartcard.Exceptions import CardConnectionException, CardRequestTimeoutException
 from smartcard.util import toHexString, toBytes
 from smartcard.sw.SWExceptions import SWException
 
@@ -37,9 +37,9 @@ class CardConnector:
             self.pin_nbr=None
             self.pin=None
         except CardRequestTimeoutException:
-            print('time-out: no card inserted during last 10s')
+            print_error('time-out: no card inserted during last 10s')
         except Exception as exc:
-            print("Error during connection:", exc)
+            print_error("Error during connection:", exc)
     
     def set_pin(self, pin_nbr, pin):
         self.pin_nbr=pin_nbr
@@ -47,13 +47,30 @@ class CardConnector:
         return
     
     def card_transmit(self, apdu):
-        (response, sw1, sw2) = self.cardservice.connection.transmit(apdu)
-        if (sw1==0x9C) and (sw2==0x06):
-            if self.pin is not None:
-                (response, sw1, sw2)= self.card_verify_PIN(self.pin_nbr, self.pin) # to do: if pin is none
-            (response, sw1, sw2)= self.cardservice.connection.transmit(apdu)
-        return (response, sw1, sw2)
-    
+        try:
+            (response, sw1, sw2) = self.cardservice.connection.transmit(apdu)
+            if (sw1==0x9C) and (sw2==0x06):
+                if self.pin is not None:
+                    (response, sw1, sw2)= self.card_verify_PIN(self.pin_nbr, self.pin) # to do: if pin is none
+                else:
+                    print_error("[CardConnector] card_transmit(): self.pin is none...")
+                (response, sw1, sw2)= self.cardservice.connection.transmit(apdu)
+            return (response, sw1, sw2)
+        except CardConnectionException: 
+            # may be the carde has been removed
+            try:
+                self.cardrequest = CardRequest(timeout=10, cardType=self.cardtype)
+                self.cardservice = self.cardrequest.waitforcard()
+                # attach the console tracer
+                self.observer = ConsoleCardConnectionObserver()
+                self.cardservice.connection.addObserver(self.observer)
+                # connect to the card and perform a few transmits
+                self.cardservice.connection.connect()
+            except CardRequestTimeoutException:
+                print('time-out: no card inserted during last 10s')
+            except Exception as exc:
+                print("Error during connection:", exc)
+        
     def card_get_ATR(self):
         return self.cardservice.connection.getATR()
     
@@ -204,7 +221,6 @@ class CardConnector:
                 apdu[3]=apdu[3]^0x80
                 response, sw1, sw2 = self.card_transmit(apdu)
                 apdu[3]=apdu[3]&0x7f # reset the flag
-            
             # other (unexpected) error
             if (sw1!=0x90) or (sw2!=0x00): 
                 raise UnexpectedSW12Error('Unexpected error code SW12='+hex(sw1)+" "+hex(sw2))

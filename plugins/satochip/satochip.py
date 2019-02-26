@@ -23,13 +23,13 @@ from electrum.mnemonic import Mnemonic
 from electrum.keystore import bip39_to_seed
 
 #pysatochip
-from .CardConnector import CardConnector
+from .CardConnector import CardConnector, UninitializedSeedError
 from .CardDataParser import CardDataParser
 from .JCconstants import JCconstants
 from .TxParser import TxParser
 
 from smartcard.sw.SWExceptions import SWException
-from smartcard.Exceptions import CardConnectionException
+from smartcard.Exceptions import CardConnectionException, CardRequestTimeoutException
 from smartcard.CardType import AnyCardType
 from smartcard.CardRequest import CardRequest
 
@@ -330,32 +330,28 @@ class SatochipPlugin(HW_PluginBase):
         #if not self.libraries_available:
         #    return
 
-        self.device_manager().register_devices(self.DEVICE_IDS)
+        #self.device_manager().register_devices(self.DEVICE_IDS)
         self.device_manager().register_enumerate_func(self.detect_smartcard_reader)
         
     def get_library_version(self):
         return '0.0.1'
     
     def detect_smartcard_reader(self):
-    
         print_error("[satochip] SatochipPlugin: detect_smartcard_reader")#debugSatochip
-        
-        # self.cardtype = AnyCardType()
-        # try:
-            # cardrequest = CardRequest(timeout=10, cardType=self.cardtype)
-        # except CardRequestTimeoutException:
-            # print('time-out: no card inserted during last 10s')
-        # except Exception as exc:
-            # print("Error during connection:", exc)
-        # if cardrequest:
-            # return [Device("/satochip", -1, "/satochip", (SATOCHIP_VID,SATOCHIP_PID), 0)]
-        
-        #reader= CardConnector() #todo: this resets the smartcard state and invalidates any shared information...
-        reader= True
-        if reader:
+        self.cardtype = AnyCardType()
+        try:
+            cardrequest = CardRequest(timeout=5, cardType=self.cardtype)
+            cardservice = cardrequest.waitforcard()
+            print_error("[satochip] SatochipPlugin: detect_smartcard_reader: found card!")#debugSatochip
             return [Device("/satochip", -1, "/satochip", (SATOCHIP_VID,SATOCHIP_PID), 0)]
-            #return [Device("/satochip", -1, "/satochip", "SATOCHIP", 0)]
+        except CardRequestTimeoutException:
+            print('time-out: no card inserted during last 5s')
+            return []
+        except Exception as exc:
+            print("Error during connection:", exc)
+            return []
         return []
+        
     
     def create_client(self, device, handler):
         print_error("[satochip] SatochipPlugin: create_client()")#debugSatochip

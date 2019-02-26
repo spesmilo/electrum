@@ -15,8 +15,6 @@ from electrum.base_wizard import ScriptTypeNotSupported
 from ..hw_wallet import HW_PluginBase
 from ..hw_wallet.plugin import is_any_tx_output_on_change_branch
 
-from electrum.util import print_stderr, print_error #debugSatochip
-
 # TREZOR initialization methods
 TIM_NEW, TIM_RECOVER, TIM_MNEMONIC, TIM_PRIVKEY = range(0, 4)
 RECOVERY_TYPE_SCRAMBLED_WORDS, RECOVERY_TYPE_MATRIX = range(0, 2)
@@ -94,7 +92,6 @@ class TrezorPlugin(HW_PluginBase):
     MAX_LABEL_LEN = 32
 
     def __init__(self, parent, config, name):
-        print_error("[trezor] TrezorPlugin: init()")#debugSatochip
         HW_PluginBase.__init__(self, parent, config, name)
 
         try:
