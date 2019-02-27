@@ -58,9 +58,7 @@ def is_coin_shuffled(wallet, coin, txs_in=None):
         if txs_in:
             txs = txs_in
         else:
-            with wallet.lock:
-                with wallet.transaction_lock:
-                    txs = wallet.transactions
+            txs = wallet.transactions
         if tx_id in txs:
             tx = txs[tx_id]
             outputs = tx.outputs()
@@ -85,7 +83,7 @@ def is_coin_shuffled(wallet, coin, txs_in=None):
     return answer
 
 def is_coin_busy_shuffling(window, utxo_or_name):
-    ''' Convenience wrapper for BackgroundProcess.is_coin_busy_shuffling '''
+    ''' Convenience wrapper for BackgroundShufflingThread.is_coin_busy_shuffling '''
     bp = getattr(window, 'background_process', None)
     return bool(bp and bp.is_coin_busy_shuffling(utxo_or_name))
 
@@ -152,6 +150,12 @@ def get_shuffled_and_unshuffled_coins(wallet, exclude_frozen = False, mature = F
                             wallet.print_error("Warning: get_shuffled_and_unshuffled_coins got an 'unknown' utxo: {}",name)
     return shuf, unshuf, uprog
 
+def network_callback(window, event, *args):
+    ''' This gets called in the network thread. It should just emit signals to GUI
+    if it is to do any GUI work. '''
+    if event == 'new_transaction':
+        if len(args) == 2 and hasattr(window, 'wallet') and args[1] is window.wallet and args[0]:
+            window._shuffle_sigs.tx.emit(window, args[0])
 
 def my_custom_item_setup(utxo_list, utxo, name, item):
     if not hasattr(utxo_list.wallet, 'is_coin_shuffled'):
@@ -195,6 +199,19 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
     elif prog == "completed":
         item.setText(5, _("Done"))
 
+def _make_label(window, tot, scale_orig, chg, fee):
+    is_dusty_fee = not chg and fee - BackgroundShufflingThread.FEE > 0
+    # satoshis -> display format
+    tot, scale, chg = window.format_amount(tot), window.format_amount(scale_orig), window.format_amount(chg) if chg else ''
+    chgtxt = " + {} ".format(chg) if chg else " "
+    return ( _("Shuffle") + (" {} {} {} {}{}(-{} sats {})"
+                             .format(tot, window.base_unit(),
+                                     BackgroundShufflingThread.SCALE_ARROW_DICT.get(scale_orig, '⇒'),
+                                     scale, chgtxt, fee, _("fee") if not is_dusty_fee else _("dusty fee")
+                                     )
+                             )
+           )
+
 def update_coin_status(window, coin_name, msg):
     if getattr(window.utxo_list, "in_progress", None) is None:
         return
@@ -227,7 +244,7 @@ def update_coin_status(window, coin_name, msg):
                 except (IndexError, ValueError):
                     pass
             elif msg.endswith("complete protocol"):
-                new_in_progress = "completed"  # NB: this means we "leak" statuses as this final status never gets cleaned up. FIXME. there is a race condition anyway between code that picks up UTXOs for shuffling and the wallet code
+                new_in_progress = "completed"  # NB: these don't leak. they eventually get cleaned up by the 'forget ' command from the background thread after some time
         elif msg.startswith("Error"):
             new_in_progress = None # flag to remove from progress list
             if ERR_SERVER_CONNECT in msg or ERR_BAD_SERVER_PREFIX in msg:
@@ -236,24 +253,36 @@ def update_coin_status(window, coin_name, msg):
             new_in_progress = None
         elif msg.startswith("shuffle_txid:"): # TXID message -- call "set_label"
             words = msg.split()
+            label = _("CashShuffle")  # fallback on parse error
             if len(words) >= 2:
                 txid = words[1]
                 try:
                     tot, scale_orig, chg, fee = [int(w) for w in words[2:6]] # parse satoshis
-                    is_dusty_fee = not chg and fee - BackgroundShufflingThread.FEE > 0
-                    # satoshis -> display format
-                    tot, scale, chg = window.format_amount(tot), window.format_amount(scale_orig), window.format_amount(chg) if chg else ''
-                    chgtxt = " + {} ".format(chg) if chg else " "
-                    window.wallet.set_label(txid, _("Shuffle")
-                                            + (" {} {} {} {}{}(-{} sats {})"
-                                               .format(tot, window.base_unit(),
-                                                       BackgroundShufflingThread.SCALE_ARROW_DICT.get(scale_orig, '⇒'),
-                                                       scale, chgtxt, fee, _("fee") if not is_dusty_fee else _("dusty fee"))
-                                               ))
-                except (IndexError, ValueError, TypeError):
-                    # Hmm. Some sort of parse error. Just label it 'CashShuffle'
-                    window.wallet.set_label(txid, _("CashShuffle"))
-                window.update_wallet()
+                    label = _make_label(window, tot, scale_orig, chg, fee)
+                except (IndexError, ValueError, TypeError) as e:
+                    # Hmm. Some sort of parse error. We'll label it 'CashShuffle'
+                    window.print_error("*** WARNING: Could not parse shuffle_txid message:", str(e), msg)
+            window.wallet.set_label(txid, label)
+            window.update_wallet()
+        elif msg.startswith("add_tentative_shuffle:"):
+            # add_tentative_shuffle: utxo outaddr tot scale chg fee
+            # This is a mechanism as a workaround for issue #70 -- it's possible for last player to delay and cause other players to miss the txid.
+            try:
+                words = msg.split()
+                utxo, addr = words[1:3]
+                tot, scale, chg, fee = [int(x) for x in words[3:7]] # parse satoshis
+                window._shuffle_tentative[utxo] = (addr, tot, scale, chg, fee) # remember this tentative shuffle so we can generate a label for it if we see a matching tx come in later
+            except (IndexError, ValueError, TypeError) as e:
+                # Some sort of parse error...
+                window.print_error("*** WARNING: Could not parse add_tentative_shuffle message:", str(e), msg)
+        elif msg.startswith("del_tentative_shuffle:"):
+            try:
+                utxo = msg.split()[1]
+                window._shuffle_tentative.pop(utxo, None)  # tolerate del commands for missing values from dict
+            except IndexError as e:
+                # Some sort of parse error...
+                window.print_error("*** WARNING: Could not parse del_tentative_shuffle message:", str(e), msg)
+
 
         if not msg.startswith("Error") and not msg.startswith("Exit"):
             window.cashshuffle_set_flag(0) # 0 means ok
@@ -276,7 +305,6 @@ def update_coin_status(window, coin_name, msg):
             window.cashshuffle_set_flag(0) # server is ok now.
 
 
-
     if prev_in_progress != new_in_progress:
         if new_in_progress is None:
             window.utxo_list.in_progress.pop(coin_name, None)
@@ -284,7 +312,48 @@ def update_coin_status(window, coin_name, msg):
             window.utxo_list.in_progress[coin_name] = new_in_progress
         window.utxo_list.update()
 
-class electrum_console_logger(QObject):
+def _got_tx(window, tx):
+    ''' GUI thread: Got a new transaction for a window, so see if we should
+    apply the shuffle_tentative label to it. The below mechanism is a
+    workaround for bug #70. '''
+    t = getattr(window, '_shuffle_tentative', None)
+    if not t:
+        # Most of the time this code path is taken as the dict is usually empty.
+        # It only ever has entries when a shuffle failed at phase 4.
+        return
+    inputs, outputs = tx.inputs(), tx.outputs()
+    for utxo, info in t.copy().items():
+        # loop through all of the "tentative tx's" we have. this dict should be very small,
+        # it only contains entries for shuffles that timed out in phase 4 where last player took too long (bug #70)
+        addr, tot, scale, chg, fee = info
+        for txin in inputs:
+            if get_name(txin) == utxo:
+                # found the coin in the incoming tx. Now make sure it's our anticipated shuffle tx that failed and not some other tx, so we apply the correct label only when it's the phase-4-failed shuffle tx.
+                for n, txout in enumerate(outputs):
+                    # Search the outputs of this tx to make sure they match what we expected for scale, out_addr...
+                    typ, _addr, amount = txout
+                    # the below checks make sure it matches what we expected from the failed shuffle, and also that the coin is shuffled (paranoia check).
+                    if isinstance(_addr, Address) and amount == scale and _addr.to_storage_string() == addr:
+                        txid = tx.txid()
+                        if is_coin_shuffled(window.wallet, {'prevout_hash':txid, 'prevout_n':n}, [tx]):
+                            # all checks pass -- we successfully recovered from bug #70! Hurray!
+                            window.wallet.set_label(txid, _make_label(window, tot, scale, chg, fee))
+                            window.print_error("CashShuffle: found coin {} in tentative shuffle cache, applied label".format(utxo))
+                            window.update_wallet()
+                        else:
+                            # hmm. this branch is very very unlikely.
+                            window.print_error("CashShuffle: found coin {} in shuffle cache, but its tx is not a shuffle tx; label not applied".format(utxo))
+                        break
+                else:
+                    # This coin was spent in this tx, but it appears to not be the tx we anticipated.. Last player didn't broadcast and we spent it later (perhaps as a re-shuffle or other).
+                    window.print_error("CashShuffle: removing spent coin {} from tentative shuffle cache, label not applied".format(utxo))
+                t.pop(utxo)  # unconditionally remove this tentative coin from the dict since either way it's spent
+                return
+
+
+class MsgForwarder(QObject):
+    ''' Forwards messages from BackgroundShufflingThread to the GUI thread using
+        Qt signal magic. See function update_coin_status above. '''
 
     gotMessage = pyqtSignal(str, str)
 
@@ -306,7 +375,7 @@ class electrum_console_logger(QObject):
             pass
 
 def start_background_shuffling(window, network_settings, period = 10.0, password = None, timeout = 60.0):
-    logger = electrum_console_logger(window)
+    logger = MsgForwarder(window)
 
     window.background_process = BackgroundShufflingThread(window,
                                                           window.wallet,
@@ -322,8 +391,16 @@ def monkey_patches_apply(window):
         if getattr(window, '_shuffle_patched_', None):
             return
         window.background_process = None
-        window._shuffle_patched_ = True
         window.send_tab_shuffle_extra = SendTabExtra(window)
+        window._shuffle_tentative = dict()
+        class Sigs(QObject):
+            tx = pyqtSignal(QObject, object)
+        window._shuffle_sigs = sigs = Sigs(window)
+        sigs.tx.connect(_got_tx)
+        window._shuffle_network_callback = lambda event, *args: network_callback(window, event, *args)
+        if window.network:
+            window.network.register_callback(window._shuffle_network_callback, ['new_transaction'])
+        window._shuffle_patched_ = True
         print_error("[shuffle] Patched window")
 
     def patch_utxo_list(utxo_list):
@@ -358,6 +435,14 @@ def monkey_patches_remove(window):
     def restore_window(window):
         if not getattr(window, '_shuffle_patched_', None):
             return
+        if window.network:
+            window.network.unregister_callback(window._shuffle_network_callback)
+        delattr(window, '_shuffle_network_callback')
+        try: window._shuffle_sigs.tx.disconnect()
+        except TypeError: pass
+        window._shuffle_sigs.deleteLater()
+        delattr(window, "_shuffle_sigs")
+        delattr(window, '_shuffle_tentative')
         window.send_tab_shuffle_extra.setParent(None); window.send_tab_shuffle_extra.deleteLater();
         delattr(window, 'send_tab_shuffle_extra')
         delattr(window, 'background_process')
@@ -706,7 +791,7 @@ class Plugin(BasePlugin):
                 else:
                     window.print_error("ERROR: could not load network settings, FIXME!")
             else:
-                window.print_error("WARNING: Window lacks a BackgroundProcess, FIXME!")
+                window.print_error("WARNING: Window lacks a background_process, FIXME!")
 
     def view_pools(self, window):
         assert isinstance(window, ElectrumWindow), "view_pools must be passed an ElectrumWindow object! FIXME!"

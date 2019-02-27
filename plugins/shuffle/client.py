@@ -542,7 +542,9 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         self.print_error("Scale: {} Message: '{}'".format(scale, message.strip()))
         if message.startswith("Error") or message.startswith("Exit"):
             signal_stop_thread(thr, message) # sends request to shared channel. our thread will join
-        elif message.startswith("shuffle_txid:"): # TXID message -- forward to GUI so it can call "set_label"
+        elif (message.startswith("shuffle_txid:")  # TXID message -- forward to GUI so it can call "set_label"
+                  or message.startswith('add_tentative_shuffle:')  # tentative shuffle messages.. forward to GUI as well to process their data.
+                  or message.startswith('del_tentative_shuffle:')):
             fwd_message(thr, message)
         elif message.endswith("complete protocol"):
             signal_stop_thread(thr, message) # sends request to shared channel

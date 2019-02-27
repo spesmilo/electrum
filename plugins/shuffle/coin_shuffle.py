@@ -302,6 +302,8 @@ class Round(PrintErrorThread):
             self.messages.add_signatures(signatures)
             self.send_message()
             self.log_message("send transction signatures")
+            # workaround for issue #70
+            self.logchan.send("add_tentative_shuffle: {}".format(self._get_tentative_shuffle_string()))
 
 
     def process_verification_and_submission(self):
@@ -345,6 +347,7 @@ class Round(PrintErrorThread):
                 # This is because even if broadcast failed, maybe one of our peers was able to send it for us,
                 # and so we want it to get the appropriate label in the history.
                 tot_scale_change_fee = self._get_total_scale_change_fee_str()
+                self.logchan.send("del_tentative_shuffle: {}".format(self.utxo))
                 self.logchan.send("shuffle_txid: {} {}".format(self.transaction.txid(), tot_scale_change_fee))
             if not res:
                 self.logchan.send("Error: blockchain network fault!")
@@ -364,6 +367,9 @@ class Round(PrintErrorThread):
             fee += chg
             chg = 0
         return "{} {} {} {}".format(self.total_amount, self.amount, chg, fee)
+
+    def _get_tentative_shuffle_string(self):
+        return "{} {} {}".format(self.utxo, self.addr_new, self._get_total_scale_change_fee_str())
 
 #Processing the Blame phases
 
