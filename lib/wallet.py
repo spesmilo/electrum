@@ -828,7 +828,7 @@ class Abstract_Wallet(PrintError):
         self.tx_fees.update(tx_fees)
         
         if self.network:
-            self.network.trigger_callback('on_history')
+            self.network.trigger_callback('on_history', self)
 
     def get_history(self, domain=None):
         # get domain
