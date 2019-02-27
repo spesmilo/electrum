@@ -168,11 +168,11 @@ class MessageBoxMixin:
     def top_level_window(self):
         return self.top_level_window_recurse()
 
-    def question(self, msg, parent=None, title=None, icon=None, defaultButton=QMessageBox.No):
+    def question(self, msg, parent=None, title=None, icon=None, defaultButton=QMessageBox.No, **kwargs):
         Yes, No = QMessageBox.Yes, QMessageBox.No
         return self.msg_box(icon or QMessageBox.Question,
                             parent, title or '',
-                            msg, buttons=Yes|No, defaultButton=defaultButton) == Yes
+                            msg, buttons=Yes|No, defaultButton=defaultButton, **kwargs) == Yes
 
     def show_warning(self, msg, parent=None, title=None, **kwargs):
         return self.msg_box(QMessageBox.Warning, parent,
@@ -190,21 +190,67 @@ class MessageBoxMixin:
         return self.msg_box(QMessageBox.Information, parent,
                             title or _('Information'), msg, **kwargs)
 
-    def msg_box(self, icon, parent, title, text, buttons=QMessageBox.Ok,
-                defaultButton=QMessageBox.NoButton, rich_text=False, detail_text=None):
+    def msg_box(self, icon, parent, title, text,
+                buttons=QMessageBox.Ok,  # Also accepts a list/tuple of str's (for custom buttons)
+                defaultButton=QMessageBox.NoButton,  # IFF buttons is a list, use a string appearing in the list to specify this
+                rich_text=False, detail_text=None, informative_text=None,
+                checkbox_text=None, checkbox_ischecked=False,  # If checkbox_text is set, will add a checkbox, and return value becomes a tuple (result(), isChecked())
+                escapeButton=QMessageBox.NoButton  # IFF buttons is a list, use a string appearing in the list to specify this
+                ):
+        ''' Note about 'new' msg_box API (this applies to all of the above functions that call into this as well):
+            - `icon' may not be either a standard QMessageBox.Icon or a QPixmap for a custom icon.
+            - `buttons' may be a list of translated button texts to use, or the old-style QMessageBox.StandardButtons bitfields
+            - If `buttons' is a list, the result returned will be an index (int) into this list, signifying which button was clicked.
+            - If `buttons' is a list of button texts, then defaultButton= and escapeButton= must also be the text of the button you want to give the designated property to
+            - If the `checkbox_text' arg is set, the return value will be a tuple of: ( result(), checkbox.isChecked() )
+              (otherwise it's just simple value: result(), if no checkbox_text is specified)
+        '''
         parent = parent or self.top_level_window()
-        d = QMessageBoxMixin(icon, title, str(text), buttons, parent)
+        d = QMessageBoxMixin(parent)
         d.setWindowModality(Qt.WindowModal)
-        d.setDefaultButton(defaultButton)
+        d.setWindowTitle(title)
+        if isinstance(buttons, (list, tuple)):
+            # new! We support a button list, which specifies button text
+            # defaultButton must match which button to be default
+            # Return value will be the index of the button push in this list!
+            for b in buttons:
+                assert isinstance(b, (str, QAbstractButton)), "MessageBoxMixin msg_box API usage error: expected a list of str's or QAbstractButtons!"
+                role = QMessageBox.AcceptRole if defaultButton == b else QMessageBox.RejectRole
+                but = d.addButton(b, role)
+                if b == defaultButton:
+                    d.setDefaultButton(but)
+                if b == escapeButton:
+                    d.setEscapeButton(but)
+        else:
+            # Was the plain-old Qt.StandardButtons usage
+            d.setStandardButtons(buttons)
+            d.setDefaultButton(defaultButton)
+            d.setEscapeButton(escapeButton)
+        if isinstance(icon, QPixmap):
+            # New! Icon can be a pixmap!
+            d.setIconPixmap(icon)
+        else:
+            d.setIcon(icon)
         if detail_text and isinstance(detail_text, str):
             d.setDetailedText(detail_text)
+        if informative_text and isinstance(informative_text, str):
+            d.setInformativeText(informative_text)
         if rich_text:
             d.setTextInteractionFlags(Qt.TextSelectableByMouse|Qt.LinksAccessibleByMouse)
             d.setTextFormat(Qt.RichText)
         else:
             d.setTextInteractionFlags(Qt.TextSelectableByMouse)
             d.setTextFormat(Qt.PlainText)
-        ret = d.exec_()
+        d.setText(str(text))
+        if checkbox_text and isinstance(checkbox_text, str):
+            chk = QCheckBox(checkbox_text)
+            d.setCheckBox(chk)
+            chk.setChecked(bool(checkbox_ischecked))
+            d.exec_()
+            ret = d.result(), chk.isChecked() # new API returns a tuple if a checkbox is specified
+        else:
+            d.exec_()
+            ret = d.result() # old/no checkbox api
         d.setParent(None) # Force GC sooner rather than later.
         return ret
 
