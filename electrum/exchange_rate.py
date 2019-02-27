@@ -72,6 +72,7 @@ class ExchangeBase(PrintError):
             self.print_error("received fx quotes")
         except BaseException as e:
             self.print_error("failed fx quotes:", repr(e))
+            # traceback.print_exc()
             self.quotes = {}
         self.on_quotes()
 
@@ -99,7 +100,7 @@ class ExchangeBase(PrintError):
             h = await self.request_history(ccy)
             self.print_error("received fx history for", ccy)
         except BaseException as e:
-            self.print_error("failed fx history:", e)
+            self.print_error("failed fx history:", repr(e))
             #traceback.print_exc()
             return
         filename = os.path.join(cache_dir, self.name() + '_' + ccy)
@@ -124,6 +125,12 @@ class ExchangeBase(PrintError):
     def historical_rate(self, ccy, d_t):
         return self.history.get(ccy, {}).get(d_t.strftime('%Y-%m-%d'), 'NaN')
 
+    async def request_history(self, ccy):
+        raise NotImplementedError()  # implemented by subclasses
+
+    async def get_rates(self, ccy):
+        raise NotImplementedError()  # implemented by subclasses
+
     async def get_currencies(self):
         rates = await self.get_rates('')
         return sorted([str(a) for (a, b) in rates.items() if b is not None and len(a)==3])
@@ -136,9 +143,8 @@ class BitcoinAverage(ExchangeBase):
                      for r in json if r != 'timestamp'])
 
     def history_ccys(self):
-        return ['AUD', 'BRL', 'CAD', 'CHF', 'CNY', 'EUR', 'GBP', 'IDR', 'ILS',
-                'MXN', 'NOK', 'NZD', 'PLN', 'RON', 'RUB', 'SEK', 'SGD', 'USD',
-                'ZAR']
+        # BitcoinAverage seems to have historical data for all ccys it supports
+        return CURRENCIES[self.name()]
 
     async def request_history(self, ccy):
         history = await self.get_csv('apiv2.bitcoinaverage.com',
@@ -152,9 +158,6 @@ class Bitcointoyou(ExchangeBase):
     async def get_rates(self, ccy):
         json = await self.get_json('bitcointoyou.com', "/API/ticker.aspx")
         return {'BRL': Decimal(json['ticker']['last'])}
-
-    def history_ccys(self):
-        return ['BRL']
 
 
 class BitcoinVenezuela(ExchangeBase):
@@ -211,9 +214,14 @@ class Bitso(ExchangeBase):
 
 class BitStamp(ExchangeBase):
 
+    async def get_currencies(self):
+        return ['USD', 'EUR']
+
     async def get_rates(self, ccy):
-        json = await self.get_json('www.bitstamp.net', '/api/ticker/')
-        return {'USD': Decimal(json['last'])}
+        if ccy in CURRENCIES[self.name()]:
+            json = await self.get_json('www.bitstamp.net', f'/api/v2/ticker/btc{ccy.lower()}/')
+            return {ccy: Decimal(json['last'])}
+        return {}
 
 
 class Bitvalor(ExchangeBase):

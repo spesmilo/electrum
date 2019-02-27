@@ -109,6 +109,7 @@
         "NZD",
         "OMR",
         "PAB",
+        "PAX",
         "PEN",
         "PGK",
         "PHP",
@@ -149,6 +150,7 @@
         "UYU",
         "UZS",
         "VEF",
+        "VES",
         "VND",
         "VUV",
         "WST",
@@ -164,7 +166,8 @@
         "ZWL"
     ],
     "BitStamp": [
-        "USD"
+        "USD",
+        "EUR"
     ],
     "Bitbank": [
         "JPY"
@@ -320,7 +323,7 @@
         "USD",
         "UYU",
         "UZS",
-        "VEF",
+        "VES",
         "VND",
         "VUV",
         "WST",
@@ -338,15 +341,18 @@
         "ZMW",
         "ZWL"
     ],
+    "BitcoinVenezuela": [
+        "ARS",
+        "ETH",
+        "EUR",
+        "LTC",
+        "USD",
+        "VEF",
+        "XMR"
+    ],
     "Bitcointoyou": [
         "BRL"
     ],
-    "BitcoinVenezuela": [
-        "ARS",
-        "EUR",
-        "USD",
-        "VEF"
-    ],    
     "Bitmarket": [
         "PLN"
     ],
@@ -561,6 +567,7 @@
         "AWG",
         "AZN",
         "BAM",
+        "BAT",
         "BBD",
         "BCH",
         "BDT",
@@ -572,6 +579,8 @@
         "BOB",
         "BRL",
         "BSD",
+        "BSV",
+        "BTC",
         "BTN",
         "BWP",
         "BYN",
@@ -597,6 +606,7 @@
         "EGP",
         "ERN",
         "ETB",
+        "ETC",
         "ETH",
         "EUR",
         "FJD",
@@ -718,12 +728,11 @@
         "XPT",
         "YER",
         "ZAR",
+        "ZEC",
         "ZMK",
         "ZMW",
+        "ZRX",
         "ZWL"
-    ],
-    "Foxbit": [
-        "BRL"
     ],
     "Kraken": [
         "CAD",
@@ -736,8 +745,9 @@
         "AED",
         "ARS",
         "AUD",
+        "BAM",
         "BDT",
-        "BHD",
+        "BGN",
         "BOB",
         "BRL",
         "BWP",
@@ -757,7 +767,9 @@
         "GBP",
         "GEL",
         "GHS",
+        "GTQ",
         "HKD",
+        "HNL",
         "HRK",
         "HUF",
         "IDR",
@@ -777,33 +789,36 @@
         "NGN",
         "NOK",
         "NZD",
+        "OMR",
         "PAB",
         "PEN",
         "PHP",
         "PKR",
         "PLN",
-        "PYG",
+        "QAR",
         "RON",
         "RSD",
         "RUB",
+        "RWF",
         "SAR",
         "SEK",
         "SGD",
         "SZL",
         "THB",
         "TRY",
+        "TTD",
         "TWD",
         "TZS",
         "UAH",
         "UGX",
         "USD",
         "UYU",
-        "VEF",
+        "VES",
         "VND",
         "XAF",
+        "XMR",
         "XRP",
-        "ZAR",
-        "ZMW"
+        "ZAR"
     ],
     "MercadoBitcoin": [
         "BRL"
@@ -814,10 +829,8 @@
     "TheRockTrading": [
         "EUR"
     ],
-    "WEX": [
-        "EUR",
-        "RUB",
-        "USD"
+    "Zaif": [
+        "JPY"
     ],
     "itBit": []
 }
