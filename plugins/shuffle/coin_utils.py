@@ -9,17 +9,9 @@ from electroncash.wallet import dust_threshold
 import ecdsa
 from .client import PrintErrorThread
 
-def address_from_public_key(public_key):
-    "get address from public key"
-    return Address.from_pubkey(public_key)
-
-
-
 
 class CoinUtils(PrintErrorThread):
-    """
-    Utility functions for interaction with the blockchain/electrumx servers.
-    """
+    """ Utility functions for transactions, blockchain, & electrumx servers. """
 
     def __init__(self, network):
         self.network = network
@@ -52,7 +44,7 @@ class CoinUtils(PrintErrorThread):
         total = 0
         try:
             for public_key, pk_inputs in inputs.items():
-                address = address_from_public_key(public_key)
+                address = Address.from_pubkey(public_key)
                 unspent_list = self.getaddressunspent(address)
                 utxos = {
                     _utxo_name(utxo) : utxo['value']
@@ -70,7 +62,7 @@ class CoinUtils(PrintErrorThread):
     def get_coins(self, inputs):
         coins = {}
         for public_key in inputs:
-            address = address_from_public_key(public_key)
+            address = Address.from_pubkey(public_key)
             coins[public_key] = []
             unspent_list = self.getaddressunspent(address)
             utxo_hashes = {(utxo["tx_hash"] + ":" + str(utxo["tx_pos"])):utxo for utxo in unspent_list}
@@ -103,7 +95,7 @@ class CoinUtils(PrintErrorThread):
             for pubkey, utxos in pubkey_utxos.items():
                 for utxo in utxos:
                     utxo['type'] = 'p2pkh'
-                    utxo['address'] = address_from_public_key(pubkey)
+                    utxo['address'] = Address.from_pubkey(pubkey)
                     utxo['pubkeys'] = [pubkey]
                     utxo['x_pubkeys'] = [pubkey]
                     utxo['prevout_hash'] = utxo['tx_hash']
@@ -140,10 +132,10 @@ class CoinUtils(PrintErrorThread):
         return signatures
 
     def add_transaction_signatures(self, transaction, signatures):
-        "Add players signatures from transaction"
+        "Add players' signatures to transaction"
         inputs = transaction.inputs()
         for i, txin in enumerate(inputs):
-            sig_index = txin['tx_hash'] + ":"+str(txin['tx_pos'])
+            sig_index = txin['tx_hash'] + ":" + str(txin['tx_pos'])
             if signatures.get(sig_index, None):
                 inputs[i]['signatures'] = [signatures[sig_index].decode()]
         transaction.raw = transaction.serialize()
