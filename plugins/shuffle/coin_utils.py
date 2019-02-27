@@ -149,9 +149,14 @@ class CoinUtils(PrintErrorThread):
         transaction.raw = transaction.serialize()
 
 
-    def verify_tx_signature(self, signature, transaction, verification_key, tx_hash):
-        "It verifies the transaction signatures"
-        txin = list(filter(lambda x: verification_key in x['pubkeys'] and (x['tx_hash'] + ":" + str(x['tx_pos']))== tx_hash, transaction.inputs()))
+    def verify_tx_signature(self, signature, transaction, verification_key, utxo):
+        '''Verify the signature for a specific utxo ("prevout_hash:n") given a
+        transaction and verification key.'''
+        txin = list(filter(lambda x: (verification_key in x['pubkeys']
+                                      and utxo == "{}:{}".format( x['tx_hash'],
+                                                                  x['tx_pos'] )
+                                      ),
+                           transaction.inputs() ))
         if txin:
             tx_num = transaction.inputs().index(txin[0])
             pre_hash = Hash(bfh(transaction.serialize_preimage(tx_num)))

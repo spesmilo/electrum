@@ -325,14 +325,14 @@ class Round(PrintErrorThread):
             self.log_message("got transction signatures")
             pubkeys = {}
             for vk, vk_pubkeys in self.inputs.items():
-                for pubkey, tx_hashes in vk_pubkeys.items():
-                    for tx_hash in tx_hashes:
-                        pubkeys[tx_hash] = pubkey
+                for pubkey, utxos in vk_pubkeys.items():
+                    for utxo in utxos:
+                        pubkeys[utxo] = pubkey
             for player, vk in self.players.items():
                 self.messages.packets.ParseFromString(self.inbox[phase][vk])
                 player_signatures = self.messages.get_signatures()
-                for tx_hash, sig in player_signatures.items():
-                    if not self.coin_utils.verify_tx_signature(sig, self.transaction, pubkeys[tx_hash], tx_hash):
+                for utxo, sig in player_signatures.items():
+                    if not self.coin_utils.verify_tx_signature(sig, self.transaction, pubkeys[utxo], utxo):
                         self.messages.blame_wrong_transaction_signature(self.players[player])
                         self.send_message()
                         self.logchan.send('Blame: wrong transaction signature from player ' +
