@@ -170,9 +170,19 @@ class MessageBoxMixin:
 
     def question(self, msg, parent=None, title=None, icon=None, defaultButton=QMessageBox.No, **kwargs):
         Yes, No = QMessageBox.Yes, QMessageBox.No
-        return self.msg_box(icon or QMessageBox.Question,
-                            parent, title or '',
-                            msg, buttons=Yes|No, defaultButton=defaultButton, **kwargs) == Yes
+        retval = self.msg_box(icon or QMessageBox.Question,
+                              parent, title or '',
+                              msg, buttons=Yes|No, defaultButton=defaultButton, **kwargs)
+        if isinstance(retval, (list, tuple)):
+            # do some mogrification for new api
+            x, *etc = retval
+            # old-style API compat. result button is transformed to bool
+            x = (x == Yes)
+            retval = (x, *etc)
+        else:
+            # old-style api -- simple result returned
+            retval = retval == Yes
+        return retval
 
     def show_warning(self, msg, parent=None, title=None, **kwargs):
         return self.msg_box(QMessageBox.Warning, parent,
