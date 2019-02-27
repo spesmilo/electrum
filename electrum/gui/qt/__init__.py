@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# Electrum - lightweight Ocean client
 # Copyright (C) 2012 thomasv@gitorious
 #
 # Permission is hereby granted, free of charge, to any person
@@ -23,6 +23,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import os
 import signal
 import sys
 import traceback
@@ -33,9 +34,10 @@ try:
 except Exception:
     sys.exit("Error: Could not import PyQt5 on Linux systems, you may try 'sudo apt-get install python3-pyqt5'")
 
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
+from PyQt5.QtGui import QGuiApplication
+from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QWidget, QMenu,
+                             QMessageBox)
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 import PyQt5.QtCore as QtCore
 
 from electrum.i18n import _, set_language
@@ -121,11 +123,11 @@ class ElectrumGui:
         run_hook('init_qt', self)
 
     def set_dark_theme_if_needed(self):
-        use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'dark'
+        use_dark_theme = self.config.get('qt_gui_color_theme', 'default') == 'default'
         if use_dark_theme:
             try:
-                import qdarkstyle
-                self.app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
+                import qdarkgraystyle
+                self.app.setStyleSheet(qdarkgraystyle.load_stylesheet())
             except BaseException as e:
                 use_dark_theme = False
                 print_error('Error setting dark theme: {}'.format(e))

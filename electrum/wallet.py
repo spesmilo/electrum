@@ -190,6 +190,9 @@ class Abstract_Wallet(AddressSynchronizer):
 
         self.coin_price_cache = {}
 
+    def get_block_height(self):
+        return self.network.get_local_height()
+
     def load_and_cleanup(self):
         self.load_keystore()
         self.load_addresses()
@@ -509,7 +512,6 @@ class Abstract_Wallet(AddressSynchronizer):
             if fee is not None:
                 size = tx.estimated_size()
                 fee_per_byte = fee / size
-                extra.append(format_fee_satoshis(fee_per_byte) + ' sat/b')
             if fee is not None and height in (TX_HEIGHT_UNCONF_PARENT, TX_HEIGHT_UNCONFIRMED) \
                and self.network and self.network.config.has_fee_mempool():
                 exp_n = self.network.config.fee_to_depth(fee_per_byte)
@@ -953,7 +955,7 @@ class Abstract_Wallet(AddressSynchronizer):
     def add_payment_request(self, req, config):
         addr = req['address']
         if not bitcoin.is_address(addr):
-            raise Exception(_('Invalid Bitcoin address.'))
+            raise Exception(_('Invalid Ocean address.'))
         if not self.is_mine(addr):
             raise Exception(_('Address not in wallet.'))
 

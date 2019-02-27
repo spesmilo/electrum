@@ -128,7 +128,7 @@ def read_blockchains(config):
         forkpoint = int(filename.split('_')[2])
         parent_id = int(filename.split('_')[1])
         b = Blockchain(config, forkpoint, parent_id)
-        self.print_error("forkpoint:{0}\nparent_id:{1}".format(forkpoint, parent_id))
+        util.print_error("forkpoint:{0}\nparent_id:{1}".format(forkpoint, parent_id))
         h = b.read_header(b.forkpoint)
         if b.parent().can_connect(h, check_height=False):
             blockchains[b.forkpoint] = b

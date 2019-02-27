@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Electrum - lightweight Bitcoin client
+# Electrum - lightweight Ocean client
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -28,7 +28,8 @@ import traceback
 from PyQt5.QtCore import QObject
 import PyQt5.QtCore as QtCore
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import (QWidget, QLabel, QPushButton, QTextEdit,
+                             QMessageBox, QHBoxLayout, QVBoxLayout)
 
 from electrum.i18n import _
 from electrum.base_crash_reporter import BaseCrashReporter

@@ -698,7 +698,7 @@ def xpub_from_xprv(xprv):
 
 
 def bip32_root(seed, xtype):
-    I = hmac_oneshot(b"Bitcoin seed", seed, hashlib.sha512)
+    I = hmac_oneshot(b"Ocean wallet seed", seed, hashlib.sha512)
     master_k = I[0:32]
     master_c = I[32:]
     # create xprv first, as that will check if master_k is within curve order
