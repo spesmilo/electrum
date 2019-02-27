@@ -120,12 +120,9 @@ class Channel(PrintError):
         except:
             return super().diagnostic_name()
 
-    def __init__(self, state, *, sweep_address=None, name=None,
-                 payment_completed: Optional[Callable[['Channel', Direction, UpdateAddHtlc], None]] = None):
-        if not payment_completed:
-            payment_completed = lambda this, x, y: None
+    def __init__(self, state, *, sweep_address=None, name=None, lnworker=None):
+        self.lnworker = lnworker
         self.sweep_address = sweep_address
-        self.payment_completed = payment_completed
         assert 'local_state' not in state
         self.config = {}
         self.config[LOCAL] = state["local_config"]
@@ -437,10 +434,11 @@ class Channel(PrintError):
 
         received = self.hm.received_in_ctn(self.config[LOCAL].ctn)
         sent = self.hm.sent_in_ctn(self.config[LOCAL].ctn)
-        for htlc in received:
-            self.payment_completed(self, RECEIVED, htlc)
-        for htlc in sent:
-            self.payment_completed(self, SENT, htlc)
+        if self.lnworker:
+            for htlc in received:
+                self.lnworker.payment_completed(self, RECEIVED, htlc)
+            for htlc in sent:
+                self.lnworker.payment_completed(self, SENT, htlc)
         received_this_batch = htlcsum(received)
         sent_this_batch = htlcsum(sent)
 
@@ -616,11 +614,8 @@ class Channel(PrintError):
         assert htlc_id not in log['settles']
         self.hm.send_settle(htlc_id)
         # save timestamp in LNWorker.preimages
-        try:
-            self.save_preimage(htlc.payment_hash, preimage, timestamp=int(time.time()))
-        except:
-            import traceback
-            traceback.print_exc()
+        if self.lnworker:
+            self.lnworker.save_preimage(htlc.payment_hash, preimage, timestamp=int(time.time()))
 
     def receive_htlc_settle(self, preimage, htlc_id):
         self.print_error("receive_htlc_settle")
@@ -629,12 +624,8 @@ class Channel(PrintError):
         assert htlc.payment_hash == sha256(preimage)
         assert htlc_id not in log['settles']
         self.hm.recv_settle(htlc_id)
-        try:
-            self.save_preimage(htlc.payment_hash, preimage, timestamp=int(time.time()))
-        except AttributeError as e:
-            # save_preimage is not defined in the unit tests... this is ugly as hell. FIXME
-            import traceback
-            traceback.print_exc()
+        if self.lnworker:
+            self.lnworker.save_preimage(htlc.payment_hash, preimage, timestamp=int(time.time()))
 
     def fail_htlc(self, htlc_id):
         self.print_error("fail_htlc")

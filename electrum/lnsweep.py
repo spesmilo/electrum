@@ -157,7 +157,7 @@ def create_sweeptxs_for_our_latest_ctx(chan: 'Channel', ctx: Transaction,
     def create_txns_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Tuple[Optional[Transaction], Optional[Transaction]]:
         if is_received_htlc:
             try:
-                preimage = chan.get_preimage(htlc.payment_hash)
+                preimage = chan.lnworker.get_preimage(htlc.payment_hash)
             except UnknownPaymentHash as e:
                 print_error(f'trying to sweep htlc from our latest ctx but getting {repr(e)}')
                 return None, None
@@ -260,7 +260,7 @@ def create_sweeptxs_for_their_latest_ctx(chan: 'Channel', ctx: Transaction,
     def create_sweeptx_for_htlc(htlc: 'UpdateAddHtlc', is_received_htlc: bool) -> Optional[Transaction]:
         if not is_received_htlc:
             try:
-                preimage = chan.get_preimage(htlc.payment_hash)
+                preimage = chan.lnworker.get_preimage(htlc.payment_hash)
             except UnknownPaymentHash as e:
                 print_error(f'trying to sweep htlc from their latest ctx but getting {repr(e)}')
                 return None

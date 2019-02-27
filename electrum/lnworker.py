@@ -78,9 +78,7 @@ class LNWorker(PrintError):
         self.peers = {}  # type: Dict[bytes, Peer]  # pubkey -> Peer
         self.channels = {}  # type: Dict[bytes, Channel]
         for x in wallet.storage.get("channels", []):
-            c = Channel(x, sweep_address=self.sweep_address, payment_completed=self.payment_completed)
-            c.get_preimage = self.get_preimage  # FIXME hack.
-            c.save_preimage = self.save_preimage  # FIXME hack.
+            c = Channel(x, sweep_address=self.sweep_address, lnworker=self)
             self.channels[c.channel_id] = c
             c.set_remote_commitment()
             c.set_local_commitment(c.current_commitment(LOCAL))
