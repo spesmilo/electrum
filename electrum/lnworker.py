@@ -13,6 +13,7 @@ import socket
 import json
 from datetime import datetime, timezone
 from functools import partial
+from collections import defaultdict
 
 import dns.resolver
 import dns.exception
@@ -140,28 +141,40 @@ class LNWorker(PrintError):
         return PR_PAID
 
     def get_payments(self):
+        # return one item per payment_hash
         # note: with AMP we will have several channels per payment
-        out = {}
+        out = defaultdict(list)
         for chan in self.channels.values():
-            out.update(chan.get_payments())
+            d = chan.get_payments()
+            for k, v in d.items():
+                out[k].append(v)
         return out
 
     def get_history(self):
         out = []
-        for chan_id, htlc, direction, status in self.get_payments().values():
-            key = bh2u(htlc.payment_hash)
-            timestamp = self.preimages[key][1] if key in self.preimages else None
+        for payment_hash, plist in self.get_payments().items():
+            if len(plist) == 1:
+                chan_id, htlc, _direction, status = plist[0]
+                direction = 'sent' if _direction == SENT else 'received'
+                amount_msat= int(_direction) * htlc.amount_msat
+                label = ''
+            else:
+                # assume forwarding
+                direction = 'forwarding'
+                amount_msat = sum([int(_direction) * htlc.amount_msat for chan_id, htlc, _direction, status in plist])
+                status = ''
+                label = _('Forwarding')
+
+            timestamp = self.preimages[payment_hash][1] if payment_hash in self.preimages else None
             item = {
-                'type':'payment',
+                'type': 'payment',
+                'label': label,
                 'timestamp':timestamp or 0,
-                'date':timestamp_to_datetime(timestamp),
-                'direction': 'sent' if direction == SENT else 'received',
-                'status':status,
-                'amount_msat':htlc.amount_msat,
-                'payment_hash':bh2u(htlc.payment_hash),
-                'channel_id':bh2u(chan_id),
-                'htlc_id':htlc.htlc_id,
-                'cltv_expiry':htlc.cltv_expiry,
+                'date': timestamp_to_datetime(timestamp),
+                'direction': direction,
+                'status': status,
+                'amount_msat': amount_msat,
+                'payment_hash': payment_hash
             }
             out.append(item)
         # add funding events
@@ -170,7 +183,7 @@ class LNWorker(PrintError):
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'type': 'channel_opening',
-                'label': _('Channel opening'),
+                'label': _('Open channel'),
                 'txid': funding_txid,
                 'amount_msat': chan.balance(LOCAL, ctn=0),
                 'direction': 'received',
@@ -182,7 +195,7 @@ class LNWorker(PrintError):
             item = {
                 'channel_id': bh2u(chan.channel_id),
                 'txid':closing_txid,
-                'label': _('Channel closure'),
+                'label': _('Close channel'),
                 'type': 'channel_closure',
                 'amount_msat': chan.balance(LOCAL),
                 'direction': 'sent',
@@ -193,7 +206,7 @@ class LNWorker(PrintError):
         out.sort(key=lambda x: (x.get('timestamp') or float("inf")))
         balance_msat = 0
         for item in out:
-            balance_msat += item['amount_msat'] * (1 if item['direction']=='received' else -1)
+            balance_msat += item['amount_msat']
             item['balance_msat'] = balance_msat
         return out
 

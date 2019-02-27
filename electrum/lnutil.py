@@ -408,8 +408,8 @@ class HTLCOwner(IntFlag):
         return HTLCOwner(-self)
 
 class Direction(IntFlag):
-    SENT = 3
-    RECEIVED = 4
+    SENT = -1
+    RECEIVED = 1
 
 SENT = Direction.SENT
 RECEIVED = Direction.RECEIVED

@@ -281,7 +281,7 @@ class HistoryModel(QAbstractItemModel, Logger):
             transactions[txid] = tx_item
         for tx_item in lightning_history:
             txid = tx_item.get('txid')
-            ln_value = tx_item['amount_msat']/1000 * (-1 if tx_item['direction'] =='sent' else 1)
+            ln_value = tx_item['amount_msat']/1000.
             if txid and txid in transactions:
                 item = transactions[txid]
                 item['label'] = tx_item['label'] + ' (%s)'%self.parent.format_amount_and_units(tx_item['amount_msat']/1000)
