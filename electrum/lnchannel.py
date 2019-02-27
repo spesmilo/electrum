@@ -615,7 +615,12 @@ class Channel(PrintError):
         assert htlc.payment_hash == sha256(preimage)
         assert htlc_id not in log['settles']
         self.hm.send_settle(htlc_id)
-        # not saving preimage because it's already saved in LNWorker.invoices
+        # save timestamp in LNWorker.preimages
+        try:
+            self.save_preimage(htlc.payment_hash, preimage, timestamp=int(time.time()))
+        except:
+            import traceback
+            traceback.print_exc()
 
     def receive_htlc_settle(self, preimage, htlc_id):
         self.print_error("receive_htlc_settle")
