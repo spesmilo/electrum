@@ -14,7 +14,7 @@ class PrintErrorThread(PrintError):
         n = super().diagnostic_name()
         return "{} ({})".format(n, int(threading.get_ident())&0xfffff)
 
-from .coin import Coin
+from .coin_utils import CoinUtils
 from .crypto import Crypto
 from .messages import Messages
 from .coin_shuffle import Round
@@ -161,18 +161,18 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     @not_time_to_die
     def start_protocol(self):
         "This method starts the protocol thread"
-        coin = Coin(Network.get_instance())
+        coin_utils = CoinUtils(Network.get_instance())
         crypto = Crypto()
         self.messages.clear_packets()
         begin_phase = 'Announcement'
         # Make Round
         self.protocol = Round(
-            coin, crypto, self.messages,
+            coin_utils, crypto, self.messages,
             self.comm, self.comm, self.logger,
             self.session, begin_phase, self.amount, self.fee,
             self.sk, self.sks, self.all_inputs, self.vk,
-            self.players, self.addr_new, self.change, total_amount = self.total_amount,
-            fake_change = self.fake_change
+            self.players, self.addr_new, self.change, self.coin,
+            total_amount = self.total_amount, fake_change = self.fake_change
         )
         if not self.done.is_set():
             self.protocol.start_protocol()

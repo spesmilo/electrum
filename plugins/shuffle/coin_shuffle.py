@@ -8,12 +8,12 @@ class Round(PrintErrorThread):
     several failed rounds until they have eliminated malicious players.
     """
 
-    def __init__(self, coin, crypto, messages,
+    def __init__(self, coin_utils, crypto, messages,
                  inchan, outchan, logchan,
                  session, phase, amount, fee,
-                 sk, sks, inputs, pubkey, players, addr_new, change, total_amount = 0,
-                 fake_change = False):
-        self.coin = coin
+                 sk, sks, inputs, pubkey, players, addr_new, change, utxo,
+                 total_amount = 0, fake_change = False):
+        self.coin_utils = coin_utils
         self.crypto = crypto
         self.inchan = inchan
         self.outchan = outchan
@@ -39,6 +39,7 @@ class Round(PrintErrorThread):
         self.new_addresses = []
         self.addr_new = addr_new
         self.change = change
+        self.utxo = utxo
         self.change_addresses = {}
         self.signatures = dict()
         self.inbox = {self.messages.phases[phase]:{} for phase in self.messages.phases}
@@ -287,16 +288,16 @@ class Round(PrintErrorThread):
                     return
             self.phase = 'VerificationAndSubmission'
             self.log_message("reaches phase 5")
-            self.transaction = self.coin.make_unsigned_transaction(self.amount,
-                                                                   self.fee,
-                                                                   self.inputs,
-                                                                   self.new_addresses,
-                                                                   self.change_addresses)
+            self.transaction = self.coin_utils.make_unsigned_transaction(self.amount,
+                                                                         self.fee,
+                                                                         self.inputs,
+                                                                         self.new_addresses,
+                                                                         self.change_addresses)
             if not self.transaction:
                 self.logchan.send("Error: Could not make unsigned transaction")
                 self.done = True
                 return
-            signatures = self.coin.get_transaction_signature(self.transaction, self.inputs[self.vk], self.sks)
+            signatures = self.coin_utils.get_transaction_signature(self.transaction, self.inputs[self.vk], self.sks)
             self.messages.clear_packets()
             self.messages.add_signatures(signatures)
             self.send_message()
@@ -329,7 +330,7 @@ class Round(PrintErrorThread):
                 self.messages.packets.ParseFromString(self.inbox[phase][vk])
                 player_signatures = self.messages.get_signatures()
                 for tx_hash, sig in player_signatures.items():
-                    if not self.coin.verify_tx_signature(sig, self.transaction, pubkeys[tx_hash], tx_hash):
+                    if not self.coin_utils.verify_tx_signature(sig, self.transaction, pubkeys[tx_hash], tx_hash):
                         self.messages.blame_wrong_transaction_signature(self.players[player])
                         self.send_message()
                         self.logchan.send('Blame: wrong transaction signature from player ' +
@@ -337,8 +338,8 @@ class Round(PrintErrorThread):
                         self.done = True
                         return
                     self.signatures.update(player_signatures)
-            self.coin.add_transaction_signatures(self.transaction, self.signatures)
-            res, status = self.coin.broadcast_transaction(self.transaction)
+            self.coin_utils.add_transaction_signatures(self.transaction, self.signatures)
+            res, status = self.coin_utils.broadcast_transaction(self.transaction)
             if self.transaction.txid():
                 # Register the txid as belonging to cashshuffle, unconditionally.
                 # This is because even if broadcast failed, maybe one of our peers was able to send it for us,
@@ -621,7 +622,7 @@ class Round(PrintErrorThread):
         Check for signature in packets in the messages objec.
         """
         for sig, msg, player in self.messages.get_signatures_and_packets():
-            if not self.coin.verify_signature(sig, msg, player):
+            if not self.coin_utils.verify_signature(sig, msg, player):
                 self.messages.blame_invalid_signature(player)
                 self.send_message()
                 self.logchan.send('Blame: player ' + player + ' message with wrong signature!')
@@ -657,7 +658,7 @@ class Round(PrintErrorThread):
         offenders = list()
 
         for player,inp in self.inputs.items():
-            is_funds_sufficient = self.coin.check_inputs_for_sufficient_funds(inp, self.amount + self.fee)
+            is_funds_sufficient = self.coin_utils.check_inputs_for_sufficient_funds(inp, self.amount + self.fee)
             if is_funds_sufficient is None:
                 self.logchan.send("Error: Check inputs for sufficient funds failed!")
                 self.done = True

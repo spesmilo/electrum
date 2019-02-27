@@ -517,7 +517,7 @@ class Plugin(BasePlugin):
             if password is None:
                 # User cancelled password input
                 self.window_set_cashshuffle(window, False)
-                window.show_error(_("CashShuffle didn't get the password, disabling for this wallet."), parent=window)
+                window.show_error(_("CashShuffle password prompt canceled; disabling for this wallet."), parent=window)
                 return
             try:
                 window.wallet.check_password(password)

@@ -16,10 +16,9 @@ def address_from_public_key(public_key):
 
 
 
-class Coin(PrintErrorThread):
+class CoinUtils(PrintErrorThread):
     """
-    it is a class for interaction with blockchain interaction
-    will be fake functions for now
+    Utility functions for interaction with the blockchain/electrumx servers.
     """
 
     def __init__(self, network):
