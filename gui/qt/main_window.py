@@ -3667,6 +3667,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return False
         return True
 
+    _cs_reminder_pixmap = None
     def do_cash_shuffle_reminder(self):
         if not self.wallet or not self.is_wallet_cashshuffle_compatible():
             return
@@ -3675,33 +3676,27 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         enabled = cashshuffle_flag and p and p.is_enabled()
         noprompt = self.config.get('shuffle_noprompt2', False)
         if not enabled and not noprompt:
-            d = WindowModalDialog(self.top_level_window(), title=_('Would you like to turn on CashShuffle?'))
-            d.setMinimumSize(400, 200)
-            vbox = QVBoxLayout(d)
+            if __class__._cs_reminder_pixmap is None:
+                # lazy init. Cache it to class level.
+                __class__._cs_reminder_pixmap = QPixmap(":icons/cash_shuffle5.png").scaledToWidth(150, Qt.SmoothTransformation)
+            icon = __class__._cs_reminder_pixmap
             message = '''
-            <img src=":icons/cash_shuffle5.png" align="left" width=150 />
-            <br clear="left" />
-            <big>{}</big>
-            <p>{}</p>
-            <p>{}</p>
+            <big>{}</big></b>
             <p>{}</p>
             '''.format(_("CashShuffle is disabled for this wallet.") if not cashshuffle_flag else _("CashShuffle is disabled."),
-                       _("If you enable it, Electron Cash will shuffle your coins for greater privacy. However, you will pay fractions of a penny per shuffle in transaction fees."),
-                       _("Would you like to enable CashShuffle for this wallet?"),
-                       _("(You can always toggle it later using the CashShuffle button)"))
-            notice = QLabel(message)
-            notice.setWordWrap(True)
-            vbox.addWidget(notice)
-
-            vbox.addStretch(1)
-            sweep_button = OkButton(d, _('Enable CashShuffle'))
-            vbox.addLayout(Buttons(CancelButton(d, _("Not now")), sweep_button))
-            csnoprompt_cb = QCheckBox(_("Don't ask me again"));
-            f = csnoprompt_cb.font(); f.setPointSize(8 if sys.platform.startswith('win') else 10); csnoprompt_cb.setFont(f)
-            vbox.addWidget(csnoprompt_cb)
-            if d.exec_():
+                       _("Would you like to enable CashShuffle for this wallet?"))
+            info = ' '.join([_("If you enable it, Electron Cash will shuffle your coins for greater <b>privacy</b>. However, you will pay fractions of a penny per shuffle in transaction fees."),
+                             _("(You can always toggle it later using the CashShuffle button.)")])
+            res, chkd = self.msg_box(icon=icon,
+                                     parent=self.top_level_window(),
+                                     title=_('Would you like to turn on CashShuffle?'),
+                                     text=message, rich_text=True, informative_text=info,
+                                     checkbox_text=_("Don't ask me again"),
+                                     buttons=(_('Enable CashShuffle'), _("Not now")),
+                                     defaultButton=_('Enable CashShuffle'), escapeButton=("Not now") )
+            if res == 0:
                 self.toggle_cashshuffle()
-            if csnoprompt_cb.isChecked():
+            if chkd:
                 self.config.set_key('shuffle_noprompt2', True)
 
     _restart_timer = None
