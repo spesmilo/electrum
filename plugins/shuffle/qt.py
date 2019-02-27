@@ -44,11 +44,7 @@ from electroncash.bitcoin import COINBASE_MATURITY
 from electroncash.transaction import Transaction
 from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, ERR_BAD_SERVER_PREFIX, MSG_SERVER_OK, PrintErrorThread, get_name, unfreeze_frozen_by_shuffling
 from electroncash_plugins.shuffle.comms import query_server_for_stats, verify_ssl_socket
-
-# Cash Shuffle server config key
-SHUFFLE_SERVER_KEY = "cashshuffle_server_v2"
-# old keys from previous versions. clean them up from config if seen.
-DELETE_KEYS = ('cashshuffle_server', 'cashshuffle_server_v1',)
+from electroncash_plugins.shuffle.common import * # config keys, etc
 
 def is_coin_shuffled(wallet, coin, txs_in=None):
     cache = getattr(wallet, "_is_shuffled_cache", dict())
@@ -138,7 +134,7 @@ def get_shuffled_and_unshuffled_coins(wallet, exclude_frozen = False, mature = F
     if hasattr(wallet, 'is_coin_shuffled'):
         with wallet.lock:
             with wallet.transaction_lock:
-                coins_frozen_by_shuffling = set(wallet.storage.get("coins_frozen_by_shuffling", list()))
+                coins_frozen_by_shuffling = set(wallet.storage.get(COINS_FROZEN_BY_SHUFFLING, list()))
                 utxos = wallet.get_utxos(exclude_frozen = exclude_frozen, mature = mature, confirmed_only = confirmed_only)
                 txs = wallet.transactions
                 for utxo in utxos:
@@ -474,10 +470,10 @@ class Plugin(BasePlugin):
         return window in self.windows
 
     def window_wants_cashshuffle(self, window):
-        return window.wallet.storage.get("cashshuffle_enabled", False)
+        return window.wallet.storage.get(CASHSHUFFLE_ENABLED, False)
 
     def window_set_wants_cashshuffle(self, window, b):
-        window.wallet.storage.put("cashshuffle_enabled", bool(b))
+        window.wallet.storage.put(CASHSHUFFLE_ENABLED, bool(b))
 
     def window_set_cashshuffle(self, window, b):
         if not b and self.window_has_cashshuffle(window):
@@ -898,7 +894,7 @@ class SendTabExtra(QFrame, PrintError):
         self.titleLabel.setParent(self)
         l.addWidget(self.titleLabel, 0, 1, 1, 4)
         self.spendButtons = QButtonGroup(self)
-        spend_mode = self.wallet.storage.get('shuffle_spend_mode', self.SpendingModeUnknown)
+        spend_mode = self.wallet.storage.get(SHUFFLE_SPEND_MODE, self.SpendingModeUnknown)
         # Shuffled
         self.shufLabel = HelpLabel("Shuffled available:", self.msg)
         m = _("Shuffled (private) funds")
@@ -973,7 +969,7 @@ class SendTabExtra(QFrame, PrintError):
 
     def onSpendRadio(self, ignored = None):
         which = self.spendingMode()
-        self.wallet.storage.put("shuffle_spend_mode", which)
+        self.wallet.storage.put(SHUFFLE_SPEND_MODE, which)
         if which == self.SpendingModeShuffled:
             self.titleLabel.setText("<big><b>{}</b></big> &nbsp;&nbsp; ({})"
                                     .format(_("CashShuffle Enabled"), _("Only <b>shuffled</b> funds will be sent")))
@@ -985,6 +981,19 @@ class SendTabExtra(QFrame, PrintError):
                                     .format(_("CashShuffle Enabled"), _("Only <i>unshuffled</i> funds will be sent")))
             self.titleLabel.help_text = self.msg2
             self.pauseBut.setEnabled(bool(self.window.background_process and not self.window.background_process.is_offline_mode()))
+            noprompt = self.wallet.storage.get(SPEND_UNSHUFFLED_NAGGER_NOPROMPT, False)
+            if not noprompt:
+                ans, chk = self.window.question(
+                        msg=_('You are now spending <b><i>unshuffled</i></b> coins. Are you sure?'),
+                        informative_text=_('Spending and linking these coins may compromise your privacy not only for new received coins, but also for your past spending of shuffled coins.'),
+                        title=_("Privacy Warning"), rich_text=True,
+                        checkbox_text=_("Don't ask me again"), checkbox_ischecked=noprompt,
+                    )
+                if chk:
+                    self.wallet.storage.put(SPEND_UNSHUFFLED_NAGGER_NOPROMPT, bool(chk))
+                if not ans:
+                    self.spendShuffled.animateClick()
+                    return
 
         self.window.update_fee()
 

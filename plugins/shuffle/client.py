@@ -19,18 +19,19 @@ from .crypto import Crypto
 from .messages import Messages
 from .coin_shuffle import Round
 from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_server_for_stats, verify_ssl_socket, BadServerPacketError
+from .common import *  # for COINS_FROZEN_BY_SHUFFLING and other shared symbols
 
 def get_name(coin):
     return "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
 
 def unfreeze_frozen_by_shuffling(wallet):
     with wallet.lock, wallet.transaction_lock:
-        coins_frozen_by_shuffling = wallet.storage.get("coins_frozen_by_shuffling", list())
+        coins_frozen_by_shuffling = wallet.storage.get(COINS_FROZEN_BY_SHUFFLING, list())
         if coins_frozen_by_shuffling:
             l = len(coins_frozen_by_shuffling)
             if l: wallet.print_error("Freed {} frozen-by-shuffling UTXOs".format(l))
             wallet.set_frozen_coin_state(coins_frozen_by_shuffling, False)
-        wallet.storage.put("coins_frozen_by_shuffling", None) # deletes key altogether from storage
+        wallet.storage.put(COINS_FROZEN_BY_SHUFFLING, None) # deletes key altogether from storage
 
 class ProtocolThread(threading.Thread, PrintErrorThread):
     """
@@ -504,7 +505,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             with self.wallet.lock, self.wallet.transaction_lock:
                 self.wallet.set_frozen_coin_state([sender], False)
                 self._coins_busy_shuffling.discard(sender)
-                self.wallet.storage.put("coins_frozen_by_shuffling", list(self._coins_busy_shuffling))
+                self.wallet.storage.put(COINS_FROZEN_BY_SHUFFLING, list(self._coins_busy_shuffling))
                 if message.startswith("Error"):
                     # unreserve addresses that were previously reserved iff error
                     self.wallet._addresses_cashshuffle_reserved.discard(thr.addr_new_addr)
@@ -592,7 +593,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         utxo_name = get_name(coin)
         self.wallet.set_frozen_coin_state([utxo_name], True)
         self._coins_busy_shuffling.add(utxo_name)
-        self.wallet.storage.put("coins_frozen_by_shuffling", list(self._coins_busy_shuffling))
+        self.wallet.storage.put(COINS_FROZEN_BY_SHUFFLING, list(self._coins_busy_shuffling))
         inputs = {}
         sks = {}
         public_key = self.wallet.get_public_key(coin['address'])
