@@ -238,10 +238,10 @@ class Round(PrintErrorThread):
             self.messages.packets.ParseFromString(self.inbox[phase][sender])
             self.new_addresses = self.messages.get_new_addresses()
             if self.addr_new in self.new_addresses:
-                self.log_message("receive addresses and found itsefs")
+                self.log_message("received addresses and found self")
             else:
                 self.logchan.send("Blame: Player " + str(self.me) +
-                                  "  not found itselfs new address")
+                                  " did not find self in new address")
                 self.skipped_equivocation_check(sender)
                 return
             self.phase = 'EquivocationCheck'
@@ -343,12 +343,7 @@ class Round(PrintErrorThread):
                 # Register the txid as belonging to cashshuffle, unconditionally.
                 # This is because even if broadcast failed, maybe one of our peers was able to send it for us,
                 # and so we want it to get the appropriate label in the history.
-                fee = self.fee
-                chg = self.total_amount-self.amount-self.fee
-                if self.fake_change:
-                    fee += chg
-                    chg = 0
-                tot_scale_change_fee = "{} {} {} {}".format(self.total_amount, self.amount, chg, fee)
+                tot_scale_change_fee = self._get_total_scale_change_fee_str()
                 self.logchan.send("shuffle_txid: {} {}".format(self.transaction.txid(), tot_scale_change_fee))
             if not res:
                 self.logchan.send("Error: blockchain network fault!")
@@ -357,6 +352,17 @@ class Round(PrintErrorThread):
                 self.tx = self.transaction
                 self.log_message("complete protocol")
             self.done = True
+
+    def _get_total_scale_change_fee_str(self):
+        ''' Returns a string that breaks down the actual:
+        "total_input scale change fee" used in the shuffle. Useful for the
+        shuffle_txid: internal message '''
+        fee = self.fee
+        chg = self.total_amount - self.amount - self.fee
+        if self.fake_change:
+            fee += chg
+            chg = 0
+        return "{} {} {} {}".format(self.total_amount, self.amount, chg, fee)
 
 #Processing the Blame phases
 
