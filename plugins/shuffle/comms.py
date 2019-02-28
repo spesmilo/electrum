@@ -186,7 +186,9 @@ def query_server_for_stats(host : str, stat_port : int, ssl : bool, timeout = No
     stat_endpoint = "http{}://{}:{}/stats".format(secure, host, stat_port)
     res = requests.get(stat_endpoint, verify=False, timeout=timeout, proxies=proxies)
     json = res.json()
-    return int(json["shufflePort"]), int(json["poolSize"]), int(json["connections"]), json['pools']
+    return (int(json["shufflePort"]), int(json["poolSize"]),
+            int(json["connections"]), json['pools'],
+            int(json.get('banScore',0)), bool(json.get('banned',False)))
 
 def verify_ssl_socket(host, port, timeout = 5.0):
     path = (Network.get_instance() and Network.get_instance().config and Network.get_instance().config.path) or None

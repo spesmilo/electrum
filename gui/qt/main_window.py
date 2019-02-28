@@ -2970,6 +2970,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 # had error
                 msg = _("There was a problem connecting to this server.\nPlease choose a different CashShuffle server.")
             p.settings_dialog(self, msg)
+            #else:  # commented-out. Enable this if you want to use the non-modal network settings as the destination for this action
+            #    # no error -- use the free-floating non-modal network dialog
+            #    if not p.show_cashshuffle_tab_in_network_dialog(self):
+            #        # Huh. Network dialog creation/show failed. Fall back to modal window
+            #        p.settings_dialog(self, msg)
 
     def show_cashshuffle_pools(self):
         p = self.cashshuffle_plugin_if_loaded()

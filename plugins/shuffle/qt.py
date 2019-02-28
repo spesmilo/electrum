@@ -384,6 +384,7 @@ def start_background_shuffling(window, network_settings, period = 10.0, password
     window.background_process = BackgroundShufflingThread(window,
                                                           window.wallet,
                                                           network_settings,
+                                                          # version = whatever,
                                                           logger = logger,
                                                           period = period,
                                                           password = password,
@@ -536,6 +537,16 @@ class Plugin(BasePlugin):
             # they may have a fake view if they didn't apply the last settings, refresh the view
             st = nd.__shuffle_settings__
             st.refreshFromSettings()
+
+    def show_cashshuffle_tab_in_network_dialog(self, window):
+        window.gui_object.show_network_dialog(window)
+        nd = Plugin.network_dialog
+        if nd and getattr(nd, '__shuffle_settings__', None):
+            st = nd.__shuffle_settings__
+            nd.nlayout.tabs.setCurrentWidget(st)
+            nd.activateWindow()
+            return True
+        return False
 
     def del_network_dialog_tab(self):
         # delete the shuffle settings widget
@@ -1449,11 +1460,11 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
             self.statusLabel.setText(
                 '''
                 <b>{}:</b> <i>{}</i><br>
-                <b>{}:</b> <font color="green">{}</font> &nbsp;&nbsp;&nbsp;
+                <b>{}:</b> <font color="{}">{}</font> {} &nbsp;&nbsp;&nbsp;{}
                 <small>{}: {} &nbsp;&nbsp;&nbsp; {}: {} &nbsp;&nbsp;&nbsp; {}: {}</small>
                 '''
                 .format(_('Server'), d['host'],
-                        _('Status'), d['status'],
+                        _('Status'), "green" if not d['banned'] else "#dd4444", d['status'], "&nbsp;&nbsp;<b>{}</b> {}".format(_("Ban score:"),d['banScore']) if d['banScore'] else '', '<br>' if d['banScore'] else '',
                         _('Pool size'), d['poolSize'],
                         _('Connections'),
                         d['connections'],
@@ -1515,7 +1526,8 @@ class NetworkChecker(QThread, PrintErrorThread):
                         is_offline_mode = True
                         raise RuntimeError("No network")
 
-                    port, poolSize, connections, pools = query_server_for_stats(d['server'], d['info'], d['ssl'])
+                    port, poolSize, connections, pools, banScore, banned = query_server_for_stats(d['server'], d['info'], d['ssl'])
+
                     if poolSize < 3:
                         # hard-coded -- do not accept servers with poolSize < 3
                         is_bad_server = True
@@ -1528,11 +1540,13 @@ class NetworkChecker(QThread, PrintErrorThread):
                         socket.create_connection((d['server'], port), 5.0).close() # test connectivity to port
                     self.parent.statusChanged.emit({
                         'host'   : d['server'],
-                        'status' : _('Ok'),
+                        'status' : _('Ok') if not banned else _('Banned'),
                         'poolSize' : str(poolSize),
                         'connections' : str(connections),
                         'pools' : str(len(pools)),
                         'poolsList' : pools,
+                        'banScore' : banScore,
+                        'banned' : banned,
                         'name' : d['server'] + ":" + str(d['info']),
                         'info' : d['info'],
                         'ssl'  : d['ssl'],
@@ -1706,7 +1720,7 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         self.tree = QTreeWidget()
         self.tree.setSelectionMode(QAbstractItemView.NoSelection)
         self.tree.setMinimumHeight(50)
-        self.tree.setHeaderItem(QTreeWidgetItem(['Scale', 'Members', 'Full']))
+        self.tree.setHeaderItem(QTreeWidgetItem([_('Tier'), _('Members'), _('Version'), _('Full')]))
         vbox2.addWidget(self.tree)
         # bottom buts
         self.vbox.addStretch()
@@ -1767,15 +1781,16 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         poolSize = str(self.sdict.get('poolSize', ''))
         self.poolsGB.setTitle(tit + " ({})".format(len(pools)))
         self.tree.clear()
-        pools.sort(reverse=True, key=lambda x:(0 if x['full'] else 1, x['amount'], x['members']))
+        pools.sort(reverse=True, key=lambda x:(0 if x['full'] else 1, x['amount'], x['members'], -x['version']))
         for p in pools:
             self.tree.addTopLevelItem(QTreeWidgetItem([
                 format_satoshis_plain(p['amount']) + " BCH",
                 "{} / {}".format(str(p['members']), poolSize),
+                str(p['version']),
                 "√" if p['full'] else '-',
             ]))
         if not self.tree.topLevelItemCount():
-            twi = QTreeWidgetItem([_('No Pools'), '', ''])
+            twi = QTreeWidgetItem([_('No Pools'), '', '', ''])
             f = twi.font(0); f.setItalic(True); twi.setFont(0, f)
             self.tree.addTopLevelItem(twi)
             self.tree.setFirstItemColumnSpanned(twi, True)

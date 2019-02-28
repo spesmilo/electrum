@@ -2,7 +2,7 @@ from . import message_pb2 as message_factory
 
 from random import shuffle
 
-class Messages(object):
+class Messages:
 
     def check_for_length(f):
         "Wrapper for number of packets in message"
@@ -33,13 +33,26 @@ class Messages(object):
         """
         return getattr(message_factory, name.replace(' ', '').upper(), None)
 
-    def make_greeting(self, verification_key, amount):
+    # types
+    DEFAULT = message_factory.DEFAULT
+    DUST = message_factory.DUST
+    
+    def make_greeting(self, verification_key, amount, typ, version):
         """
         This method makes a greeting message for entering the pool with verification_key
+        Params:
+            `amount`: the tier in satoshis
+            `typ`: Shuffle type. One of the types above (DEFAULT or DUST)
+            `version`: A version integer. Defaults to 0. Use version ints to
+            keep clients speaking different versions of the protocol
+            or using different 'consensus' rules from interfering with each
+            other.
         """
         packet = self.packets.packet.add()
         packet.packet.from_key.key = verification_key
         packet.packet.registration.amount = amount
+        packet.packet.registration.type = typ
+        packet.packet.registration.version = version
 
     def form_all_packets(self, eck, session, number, vk_from, vk_to, phase):
         """

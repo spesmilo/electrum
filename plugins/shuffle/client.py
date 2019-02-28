@@ -43,12 +43,13 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     """
     def __init__(self, *, host, port, coin,
                  amount, fee, sk, sks, inputs, pubk,
-                 addr_new_addr, change_addr, logger=None, ssl=False,
+                 addr_new_addr, change_addr, version, logger=None, ssl=False,
                  comm_timeout=60.0, ctimeout=5.0, total_amount=0,
                  fake_change=False):
 
         super(ProtocolThread, self).__init__()
         self.daemon = True
+        self.version = version
         self.messages = Messages()
         self.comm = Comm(host, port, ssl=ssl, timeout = comm_timeout, infoText = "Scale: {}".format(amount))
         self.ctimeout = ctimeout
@@ -91,7 +92,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     @not_time_to_die
     def register_on_the_pool(self):
         "Register the player on the pool"
-        self.messages.make_greeting(self.vk, int(self.amount))
+        self.messages.make_greeting(self.vk, int(self.amount), Messages.DEFAULT, self.version)
         msg = self.messages.packets.SerializeToString()
         self.comm.send(msg)
         req = self.comm.recv()
@@ -254,7 +255,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     )
 
     # The below defaults control coin selection and which pools (scales) we use
-    FEE = 300
+    FEE = 270  # Fee formula should be roughly 270 for first input + 200 for each additional input. Right now we support only 1 input per shuffler.
     SORTED_SCALES = sorted(scales)
     SCALE_ARROWS = ('→','⇢','➟','➝','➡','➡➡')  # if you add a scale above, add an arrow here, in reverse order from above
     assert len(SORTED_SCALES) == len(SCALE_ARROWS), "Please add a scale arrow if you modify the scales!"
@@ -270,23 +271,27 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     CHECKER_MAX_TIMEOUT = 15.0  # in seconds.. the maximum amount of time to use for stats port checker (applied if proxy mode, otherwise time will be this value divided by 3.0)
 
     def __init__(self, window, wallet, network_settings,
+                 version=100,  # protocol version. old clients use 0. Must be an int. Version=100 is for the new fee-270.
                  period = 10.0, logger = None, password=None, timeout=60.0):
         super().__init__()
         self.daemon = True
         self.timeout = timeout
+        self.version = version
         self.period = period
         self.logger = logger
         self.wallet = wallet
         self.window = window
         self.host = network_settings.get("host", None)
         self.info_port = network_settings.get("info", None)
-        self.port = 1337 # default value -- will get set to real value from server's stat port in run() method
-        self.poolSize = 3 # default value -- will get set to real value from server's stat port in run() method
+        self.port = 1337  # default value -- will get set to real value from server's stat port in run() method
+        self.poolSize = 3  # default value -- will get set to real value from server's stat port in run() method
+        self.banScore = 0  # comes from stats port -- our own personal ban score
+        self.banned = False  # comes from stats port. True if our IP is banned (default ban duration: 30 mins)
         self.ssl = network_settings.get("ssl", None)
         self.lock = threading.RLock()
         self.password = password
         self.threads = {scale:None for scale in self.scales}
-        self.shared_chan = Channel(switch_timeout=None) # threads write a 3-tuple here: (killme_flg, thr, msg)
+        self.shared_chan = Channel(switch_timeout=None)  # threads write a 3-tuple here: (killme_flg, thr, msg)
         self.stop_flg = threading.Event()
         self.last_idle_check = 0.0  # timestamp in seconds unix time
         self.done_utxos = dict()
@@ -365,7 +370,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     def check_server(self, quick = False, ssl_verify = True):
         def _do_check_server(timeout, ssl_verify):
             try:
-                self.port, self.poolSize, connections, pools = query_server_for_stats(self.host, self.info_port, self.ssl, timeout)
+                self.port, self.poolSize, connections, pools, self.banScore, self.banned = query_server_for_stats(self.host, self.info_port, self.ssl, timeout)
                 if self.ssl and ssl_verify and not verify_ssl_socket(self.host, self.port, timeout=timeout):
                     self.print_error("SSL Verification failed")
                     return False
@@ -635,7 +640,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                              amount=scale, fee=self.FEE, total_amount=coin['value'],
                              addr_new_addr=output, change_addr=change, fake_change=not will_receive_change,
                              sk=id_sk, sks=sks, inputs=inputs, pubk=id_pub,
-                             logger=None)
+                             logger=None, version=self.version)
         thr.logger = ChannelSendLambda(lambda msg: self.protocol_thread_callback(thr, msg))
         self.threads[scale] = thr
         coins.remove(coin)
