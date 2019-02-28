@@ -26,6 +26,11 @@ enum Phase {
     BLAME = 7;
 }
 
+enum ShuffleType {
+    DEFAULT = 0;
+    DUST = 1;
+}
+
 message Coins {
   repeated string coins = 1;
 }
@@ -39,10 +44,12 @@ message Message {
     Address address = 1;
     EncryptionKey key = 2;
     Hash hash = 3;
+    // map<string, Signature> signatures = 4;
     repeated Signatures signatures = 4;
     string str = 5;
     Blame blame = 6;
     map<string, Coins> inputs = 7;
+    // repeated Signatures signatures = 7;
 }
 
 
@@ -52,6 +59,8 @@ message Address {
 
 message Registration {
     uint64 amount = 1;
+    ShuffleType type = 2;
+    uint64 version = 3;
 }
 
 message VerificationKey {

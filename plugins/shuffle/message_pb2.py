@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='plugins/shuffle/protobuf/message.proto',
   package='',
   syntax='proto3',
-  serialized_pb=_b('\n&plugins/shuffle/protobuf/message.proto\"@\n\x06Signed\x12\x17\n\x06packet\x18\x01 \x01(\x0b\x32\x07.Packet\x12\x1d\n\tsignature\x18\x02 \x01(\x0b\x32\n.Signature\"\xc6\x01\n\x06Packet\x12\x0f\n\x07session\x18\x01 \x01(\x0c\x12\x0e\n\x06number\x18\x02 \x01(\r\x12\"\n\x08\x66rom_key\x18\x03 \x01(\x0b\x32\x10.VerificationKey\x12 \n\x06to_key\x18\x04 \x01(\x0b\x32\x10.VerificationKey\x12\x15\n\x05phase\x18\x05 \x01(\x0e\x32\x06.Phase\x12\x19\n\x07message\x18\x06 \x01(\x0b\x32\x08.Message\x12#\n\x0cregistration\x18\x07 \x01(\x0b\x32\r.Registration\"\x16\n\x05\x43oins\x12\r\n\x05\x63oins\x18\x01 \x03(\t\"9\n\nSignatures\x12\x0c\n\x04utxo\x18\x01 \x01(\t\x12\x1d\n\tsignature\x18\x02 \x01(\x0b\x32\n.Signature\"\xf8\x01\n\x07Message\x12\x19\n\x07\x61\x64\x64ress\x18\x01 \x01(\x0b\x32\x08.Address\x12\x1b\n\x03key\x18\x02 \x01(\x0b\x32\x0e.EncryptionKey\x12\x13\n\x04hash\x18\x03 \x01(\x0b\x32\x05.Hash\x12\x1f\n\nsignatures\x18\x04 \x03(\x0b\x32\x0b.Signatures\x12\x0b\n\x03str\x18\x05 \x01(\t\x12\x15\n\x05\x62lame\x18\x06 \x01(\x0b\x32\x06.Blame\x12$\n\x06inputs\x18\x07 \x03(\x0b\x32\x14.Message.InputsEntry\x1a\x35\n\x0bInputsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x15\n\x05value\x18\x02 \x01(\x0b\x32\x06.Coins:\x02\x38\x01\"\x1a\n\x07\x41\x64\x64ress\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\"\x1e\n\x0cRegistration\x12\x0e\n\x06\x61mount\x18\x01 \x01(\x04\"\x1e\n\x0fVerificationKey\x12\x0b\n\x03key\x18\x01 \x01(\t\"\x1c\n\rEncryptionKey\x12\x0b\n\x03key\x18\x01 \x01(\t\",\n\rDecryptionKey\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x0e\n\x06public\x18\x02 \x01(\t\"\x14\n\x04Hash\x12\x0c\n\x04hash\x18\x01 \x01(\x0c\"\x1e\n\tSignature\x12\x11\n\tsignature\x18\x01 \x01(\x0c\"\"\n\x0bTransaction\x12\x13\n\x0btransaction\x18\x01 \x01(\x0c\"\xb9\x01\n\x05\x42lame\x12\x17\n\x06reason\x18\x01 \x01(\x0e\x32\x07.Reason\x12!\n\x07\x61\x63\x63used\x18\x02 \x01(\x0b\x32\x10.VerificationKey\x12\x1b\n\x03key\x18\x03 \x01(\x0b\x32\x0e.DecryptionKey\x12!\n\x0btransaction\x18\x04 \x01(\x0b\x32\x0c.Transaction\x12\x19\n\x07invalid\x18\x05 \x01(\x0b\x32\x08.Invalid\x12\x19\n\x07packets\x18\x06 \x01(\x0b\x32\x08.Packets\"\x1a\n\x07Invalid\x12\x0f\n\x07invalid\x18\x01 \x01(\x0c\"(\n\x06Inputs\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\x12\r\n\x05\x63oins\x18\x02 \x03(\t\"\"\n\x07Packets\x12\x17\n\x06packet\x18\x01 \x03(\x0b\x32\x07.Signed*\x90\x01\n\x05Phase\x12\x08\n\x04NONE\x10\x00\x12\x10\n\x0c\x41NNOUNCEMENT\x10\x01\x12\x0b\n\x07SHUFFLE\x10\x02\x12\r\n\tBROADCAST\x10\x03\x12\x16\n\x12\x45QUIVOCATION_CHECK\x10\x04\x12\x0b\n\x07SIGNING\x10\x05\x12\x1f\n\x1bVERIFICATION_AND_SUBMISSION\x10\x06\x12\t\n\x05\x42LAME\x10\x07*\xc6\x01\n\x06Reason\x12\x15\n\x11INSUFFICIENTFUNDS\x10\x00\x12\x0f\n\x0b\x44OUBLESPEND\x10\x01\x12\x17\n\x13\x45QUIVOCATIONFAILURE\x10\x02\x12\x12\n\x0eSHUFFLEFAILURE\x10\x03\x12!\n\x1dSHUFFLEANDEQUIVOCATIONFAILURE\x10\x04\x12\x14\n\x10INVALIDSIGNATURE\x10\x05\x12\x11\n\rMISSINGOUTPUT\x10\x06\x12\x08\n\x04LIAR\x10\x07\x12\x11\n\rINVALIDFORMAT\x10\x08\x62\x06proto3')
+  serialized_pb=_b('\n&plugins/shuffle/protobuf/message.proto\"@\n\x06Signed\x12\x17\n\x06packet\x18\x01 \x01(\x0b\x32\x07.Packet\x12\x1d\n\tsignature\x18\x02 \x01(\x0b\x32\n.Signature\"\xc6\x01\n\x06Packet\x12\x0f\n\x07session\x18\x01 \x01(\x0c\x12\x0e\n\x06number\x18\x02 \x01(\r\x12\"\n\x08\x66rom_key\x18\x03 \x01(\x0b\x32\x10.VerificationKey\x12 \n\x06to_key\x18\x04 \x01(\x0b\x32\x10.VerificationKey\x12\x15\n\x05phase\x18\x05 \x01(\x0e\x32\x06.Phase\x12\x19\n\x07message\x18\x06 \x01(\x0b\x32\x08.Message\x12#\n\x0cregistration\x18\x07 \x01(\x0b\x32\r.Registration\"\x16\n\x05\x43oins\x12\r\n\x05\x63oins\x18\x01 \x03(\t\"9\n\nSignatures\x12\x0c\n\x04utxo\x18\x01 \x01(\t\x12\x1d\n\tsignature\x18\x02 \x01(\x0b\x32\n.Signature\"\xf8\x01\n\x07Message\x12\x19\n\x07\x61\x64\x64ress\x18\x01 \x01(\x0b\x32\x08.Address\x12\x1b\n\x03key\x18\x02 \x01(\x0b\x32\x0e.EncryptionKey\x12\x13\n\x04hash\x18\x03 \x01(\x0b\x32\x05.Hash\x12\x1f\n\nsignatures\x18\x04 \x03(\x0b\x32\x0b.Signatures\x12\x0b\n\x03str\x18\x05 \x01(\t\x12\x15\n\x05\x62lame\x18\x06 \x01(\x0b\x32\x06.Blame\x12$\n\x06inputs\x18\x07 \x03(\x0b\x32\x14.Message.InputsEntry\x1a\x35\n\x0bInputsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x15\n\x05value\x18\x02 \x01(\x0b\x32\x06.Coins:\x02\x38\x01\"\x1a\n\x07\x41\x64\x64ress\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\"K\n\x0cRegistration\x12\x0e\n\x06\x61mount\x18\x01 \x01(\x04\x12\x1a\n\x04type\x18\x02 \x01(\x0e\x32\x0c.ShuffleType\x12\x0f\n\x07version\x18\x03 \x01(\x04\"\x1e\n\x0fVerificationKey\x12\x0b\n\x03key\x18\x01 \x01(\t\"\x1c\n\rEncryptionKey\x12\x0b\n\x03key\x18\x01 \x01(\t\",\n\rDecryptionKey\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x0e\n\x06public\x18\x02 \x01(\t\"\x14\n\x04Hash\x12\x0c\n\x04hash\x18\x01 \x01(\x0c\"\x1e\n\tSignature\x12\x11\n\tsignature\x18\x01 \x01(\x0c\"\"\n\x0bTransaction\x12\x13\n\x0btransaction\x18\x01 \x01(\x0c\"\xb9\x01\n\x05\x42lame\x12\x17\n\x06reason\x18\x01 \x01(\x0e\x32\x07.Reason\x12!\n\x07\x61\x63\x63used\x18\x02 \x01(\x0b\x32\x10.VerificationKey\x12\x1b\n\x03key\x18\x03 \x01(\x0b\x32\x0e.DecryptionKey\x12!\n\x0btransaction\x18\x04 \x01(\x0b\x32\x0c.Transaction\x12\x19\n\x07invalid\x18\x05 \x01(\x0b\x32\x08.Invalid\x12\x19\n\x07packets\x18\x06 \x01(\x0b\x32\x08.Packets\"\x1a\n\x07Invalid\x12\x0f\n\x07invalid\x18\x01 \x01(\x0c\"(\n\x06Inputs\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\x12\r\n\x05\x63oins\x18\x02 \x03(\t\"\"\n\x07Packets\x12\x17\n\x06packet\x18\x01 \x03(\x0b\x32\x07.Signed*\x90\x01\n\x05Phase\x12\x08\n\x04NONE\x10\x00\x12\x10\n\x0c\x41NNOUNCEMENT\x10\x01\x12\x0b\n\x07SHUFFLE\x10\x02\x12\r\n\tBROADCAST\x10\x03\x12\x16\n\x12\x45QUIVOCATION_CHECK\x10\x04\x12\x0b\n\x07SIGNING\x10\x05\x12\x1f\n\x1bVERIFICATION_AND_SUBMISSION\x10\x06\x12\t\n\x05\x42LAME\x10\x07*$\n\x0bShuffleType\x12\x0b\n\x07\x44\x45\x46\x41ULT\x10\x00\x12\x08\n\x04\x44UST\x10\x01*\xc6\x01\n\x06Reason\x12\x15\n\x11INSUFFICIENTFUNDS\x10\x00\x12\x0f\n\x0b\x44OUBLESPEND\x10\x01\x12\x17\n\x13\x45QUIVOCATIONFAILURE\x10\x02\x12\x12\n\x0eSHUFFLEFAILURE\x10\x03\x12!\n\x1dSHUFFLEANDEQUIVOCATIONFAILURE\x10\x04\x12\x14\n\x10INVALIDSIGNATURE\x10\x05\x12\x11\n\rMISSINGOUTPUT\x10\x06\x12\x08\n\x04LIAR\x10\x07\x12\x11\n\rINVALIDFORMAT\x10\x08\x62\x06proto3')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -65,12 +65,35 @@ _PHASE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=1196,
-  serialized_end=1340,
+  serialized_start=1241,
+  serialized_end=1385,
 )
 _sym_db.RegisterEnumDescriptor(_PHASE)
 
 Phase = enum_type_wrapper.EnumTypeWrapper(_PHASE)
+_SHUFFLETYPE = _descriptor.EnumDescriptor(
+  name='ShuffleType',
+  full_name='ShuffleType',
+  filename=None,
+  file=DESCRIPTOR,
+  values=[
+    _descriptor.EnumValueDescriptor(
+      name='DEFAULT', index=0, number=0,
+      options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='DUST', index=1, number=1,
+      options=None,
+      type=None),
+  ],
+  containing_type=None,
+  options=None,
+  serialized_start=1387,
+  serialized_end=1423,
+)
+_sym_db.RegisterEnumDescriptor(_SHUFFLETYPE)
+
+ShuffleType = enum_type_wrapper.EnumTypeWrapper(_SHUFFLETYPE)
 _REASON = _descriptor.EnumDescriptor(
   name='Reason',
   full_name='Reason',
@@ -116,8 +139,8 @@ _REASON = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=1343,
-  serialized_end=1541,
+  serialized_start=1426,
+  serialized_end=1624,
 )
 _sym_db.RegisterEnumDescriptor(_REASON)
 
@@ -130,6 +153,8 @@ EQUIVOCATION_CHECK = 4
 SIGNING = 5
 VERIFICATION_AND_SUBMISSION = 6
 BLAME = 7
+DEFAULT = 0
+DUST = 1
 INSUFFICIENTFUNDS = 0
 DOUBLESPEND = 1
 EQUIVOCATIONFAILURE = 2
@@ -477,6 +502,20 @@ _REGISTRATION = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
+    _descriptor.FieldDescriptor(
+      name='type', full_name='Registration.type', index=1,
+      number=2, type=14, cpp_type=8, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='version', full_name='Registration.version', index=2,
+      number=3, type=4, cpp_type=4, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
   ],
   extensions=[
   ],
@@ -490,7 +529,7 @@ _REGISTRATION = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=671,
-  serialized_end=701,
+  serialized_end=746,
 )
 
 
@@ -520,8 +559,8 @@ _VERIFICATIONKEY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=703,
-  serialized_end=733,
+  serialized_start=748,
+  serialized_end=778,
 )
 
 
@@ -551,8 +590,8 @@ _ENCRYPTIONKEY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=735,
-  serialized_end=763,
+  serialized_start=780,
+  serialized_end=808,
 )
 
 
@@ -589,8 +628,8 @@ _DECRYPTIONKEY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=765,
-  serialized_end=809,
+  serialized_start=810,
+  serialized_end=854,
 )
 
 
@@ -620,8 +659,8 @@ _HASH = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=811,
-  serialized_end=831,
+  serialized_start=856,
+  serialized_end=876,
 )
 
 
@@ -651,8 +690,8 @@ _SIGNATURE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=833,
-  serialized_end=863,
+  serialized_start=878,
+  serialized_end=908,
 )
 
 
@@ -682,8 +721,8 @@ _TRANSACTION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=865,
-  serialized_end=899,
+  serialized_start=910,
+  serialized_end=944,
 )
 
 
@@ -748,8 +787,8 @@ _BLAME = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=902,
-  serialized_end=1087,
+  serialized_start=947,
+  serialized_end=1132,
 )
 
 
@@ -779,8 +818,8 @@ _INVALID = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1089,
-  serialized_end=1115,
+  serialized_start=1134,
+  serialized_end=1160,
 )
 
 
@@ -817,8 +856,8 @@ _INPUTS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1117,
-  serialized_end=1157,
+  serialized_start=1162,
+  serialized_end=1202,
 )
 
 
@@ -848,8 +887,8 @@ _PACKETS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1159,
-  serialized_end=1193,
+  serialized_start=1204,
+  serialized_end=1238,
 )
 
 _SIGNED.fields_by_name['packet'].message_type = _PACKET
@@ -868,6 +907,7 @@ _MESSAGE.fields_by_name['hash'].message_type = _HASH
 _MESSAGE.fields_by_name['signatures'].message_type = _SIGNATURES
 _MESSAGE.fields_by_name['blame'].message_type = _BLAME
 _MESSAGE.fields_by_name['inputs'].message_type = _MESSAGE_INPUTSENTRY
+_REGISTRATION.fields_by_name['type'].enum_type = _SHUFFLETYPE
 _BLAME.fields_by_name['reason'].enum_type = _REASON
 _BLAME.fields_by_name['accused'].message_type = _VERIFICATIONKEY
 _BLAME.fields_by_name['key'].message_type = _DECRYPTIONKEY
@@ -893,6 +933,7 @@ DESCRIPTOR.message_types_by_name['Invalid'] = _INVALID
 DESCRIPTOR.message_types_by_name['Inputs'] = _INPUTS
 DESCRIPTOR.message_types_by_name['Packets'] = _PACKETS
 DESCRIPTOR.enum_types_by_name['Phase'] = _PHASE
+DESCRIPTOR.enum_types_by_name['ShuffleType'] = _SHUFFLETYPE
 DESCRIPTOR.enum_types_by_name['Reason'] = _REASON
 
 Signed = _reflection.GeneratedProtocolMessageType('Signed', (_message.Message,), dict(
