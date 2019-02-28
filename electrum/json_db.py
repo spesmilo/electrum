@@ -600,7 +600,7 @@ class JsonDB(PrintError):
                     d[addr] = set([tuple(x) for x in lst])
 
         # remove unreferenced tx
-        for tx_hash in self.transactions:
+        for tx_hash in list(self.transactions.keys()):
             if not self.get_txi(tx_hash) and not self.get_txo(tx_hash):
                 self.print_error("removing unreferenced tx", tx_hash)
                 self.transactions.pop(tx_hash)
