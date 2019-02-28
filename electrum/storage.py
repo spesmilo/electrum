@@ -63,12 +63,12 @@ class WalletStorage(PrintError):
             self._encryption_version = self._init_encryption_version()
             if not self.is_encrypted():
                 self.db = DB_Class(self.raw, manual_upgrades=manual_upgrades)
+                self.load_plugins()
         else:
             self._encryption_version = STO_EV_PLAINTEXT
             # avoid new wallets getting 'upgraded'
             self.db = DB_Class('', manual_upgrades=False)
 
-        self.load_plugins()
 
     def load_plugins(self):
         wallet_type = self.db.get('wallet_type')
@@ -179,6 +179,7 @@ class WalletStorage(PrintError):
         self.pubkey = ec_key.get_public_key_hex()
         s = s.decode('utf8')
         self.db = JsonDB(s, manual_upgrades=True)
+        self.load_plugins()
 
     def encrypt_before_writing(self, plaintext: str) -> str:
         s = plaintext
