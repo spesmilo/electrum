@@ -1892,7 +1892,7 @@ def restore_wallet_from_text(text, *, path, network, passphrase=None, password=N
         k = keystore.Imported_KeyStore({})
         storage.put('keystore', k.dump())
         wallet = Imported_Wallet(storage)
-        keys = keystore.get_private_keys(text)
+        keys = keystore.get_private_keys(text, allow_spaces_inside_key=False)
         good_inputs, bad_inputs = wallet.import_private_keys(keys, None, write_to_disk=False)
         # FIXME tell user about bad_inputs
         if not good_inputs:
