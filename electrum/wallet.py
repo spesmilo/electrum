@@ -1201,7 +1201,6 @@ class Abstract_Wallet(AddressSynchronizer):
         self._update_password_for_keystore(old_pw, new_pw)
         encrypt_keystore = self.can_have_keystore_encryption()
         self.storage.set_keystore_encryption(bool(new_pw) and encrypt_keystore)
-
         self.storage.write()
 
     def sign_message(self, address, message, password):
@@ -1385,7 +1384,6 @@ class Imported_Wallet(Simple_Wallet):
             self.addresses[address] = {}
             self.add_address(address)
         self.save_addresses()
-        self.save_transactions(write=write_to_disk)
         return good_addr, bad_addr
 
     def import_address(self, address: str) -> str:
@@ -1398,7 +1396,6 @@ class Imported_Wallet(Simple_Wallet):
     def delete_address(self, address):
         if address not in self.addresses:
             return
-
         transactions_to_remove = set()  # only referred to by this address
         transactions_new = set()  # txs that are not only referred to by address
         with self.lock:
@@ -1412,20 +1409,15 @@ class Imported_Wallet(Simple_Wallet):
                         transactions_new.add(tx_hash)
             transactions_to_remove -= transactions_new
             self.db.remove_history(address)
-
             for tx_hash in transactions_to_remove:
                 self.remove_transaction(tx_hash)
                 self.db.remove_tx_fee(tx_hash)
                 self.db.remove_verified_tx(tx_hash)
                 self.unverified_tx.pop(tx_hash, None)
                 self.db.remove_transaction(tx_hash)
-            self.save_verified_tx()
-        self.save_transactions()
-
         self.set_label(address, None)
         self.remove_payment_request(address, {})
         self.set_frozen_state([address], False)
-
         pubkey = self.get_public_key(address)
         self.addresses.pop(address)
         if pubkey:
@@ -1442,7 +1434,6 @@ class Imported_Wallet(Simple_Wallet):
                 self.keystore.delete_imported_key(pubkey)
                 self.save_keystore()
         self.save_addresses()
-
         self.storage.write()
 
     def get_address_index(self, address):

@@ -282,27 +282,20 @@ class AddressSynchronizer(PrintError):
     def remove_transaction(self, tx_hash):
         def remove_from_spent_outpoints():
             # undo spends in spent_outpoints
-            if tx is not None:  # if we have the tx, this branch is faster
+            if tx is not None:
+                # if we have the tx, this branch is faster
                 for txin in tx.inputs():
                     if txin['type'] == 'coinbase':
                         continue
                     prevout_hash = txin['prevout_hash']
                     prevout_n = txin['prevout_n']
-                    self.spent_outpoints[prevout_hash].pop(prevout_n, None)  # FIXME
-                    if not self.spent_outpoints[prevout_hash]:
-                        self.spent_outpoints.pop(prevout_hash)
-            else:  # expensive but always works
-                for prevout_hash, d in list(self.spent_outpoints.items()):
-                    for prevout_n, spending_txid in d.items():
-                        if spending_txid == tx_hash:
-                            self.spent_outpoints[prevout_hash].pop(prevout_n, None)
-                            if not self.spent_outpoints[prevout_hash]:
-                                self.spent_outpoints.pop(prevout_hash)
-            # Remove this tx itself; if nothing spends from it.
-            # It is not so clear what to do if other txns spend from it, but it will be
-            # removed when those other txns are removed.
-            if not self.spent_outpoints[tx_hash]:
-                self.spent_outpoints.pop(tx_hash)
+                    self.db.remove_spent_outpoint(prevout_hash, prevout_n)
+            else:
+                # expensive but always works
+                for prevout_hash, prevout_n in list(self.db.list_spent_outpoints()):
+                    spending_txid = self.db.get_spent_outpoint(prevout_hash, prevout_n)
+                    if spending_txid == tx_hash:
+                        self.db.remove_spent_outpoint(prevout_hash, prevout_n)
 
         with self.transaction_lock:
             self.print_error("removing tx from history", tx_hash)

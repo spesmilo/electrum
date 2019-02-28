@@ -1719,7 +1719,7 @@ class TestWalletHistory_EvilGapLimit(TestCaseForTestnet):
         w.storage.put('stored_height', 1316917 + 100)
         for txid in self.transactions:
             tx = Transaction(self.transactions[txid])
-            w.transactions[tx.txid()] = tx
+            w.add_transaction(tx.txid(), tx)
         # txn A is an external incoming txn paying to addr (3) and (15)
         # txn B is an external incoming txn paying to addr (4) and (25)
         # txn C is an internal transfer txn from addr (25) -- to -- (1) and (25)

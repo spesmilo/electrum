@@ -49,10 +49,9 @@ STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW = range(0, 3)
 class WalletStorage(PrintError):
 
     def __init__(self, path, *, manual_upgrades=False):
-        self.db_lock = threading.RLock()
+        self.lock = threading.RLock()
         self.path = standardize_path(path)
         self._file_exists = self.path and os.path.exists(self.path)
-        self.modified = False
 
         DB_Class = JsonDB
         self.path = path
@@ -70,23 +69,21 @@ class WalletStorage(PrintError):
             self.db = DB_Class('', manual_upgrades=False)
 
     def put(self, key,value):
-        with self.db_lock:
-            self.modified |= self.db.put(key, value)
+        self.db.put(key, value)
 
     def get(self, key, default=None):
-        with self.db_lock:
-            return self.db.get(key, default)
+        return self.db.get(key, default)
 
     @profiler
     def write(self):
-        with self.db_lock:
+        with self.lock:
             self._write()
 
     def _write(self):
         if threading.currentThread().isDaemon():
             self.print_error('warning: daemon thread cannot write db')
             return
-        if not self.modified:
+        if not self.db.modified():
             return
         self.db.commit()
         s = self.encrypt_before_writing(self.db.dump())
@@ -103,7 +100,7 @@ class WalletStorage(PrintError):
         os.chmod(self.path, mode)
         self._file_exists = True
         self.print_error("saved", self.path)
-        self.modified = False
+        self.db.set_modified(False)
 
     def file_exists(self):
         return self._file_exists
@@ -209,8 +206,7 @@ class WalletStorage(PrintError):
             self.pubkey = None
             self._encryption_version = STO_EV_PLAINTEXT
         # make sure next storage.write() saves changes
-        with self.db_lock:
-            self.modified = True
+        self.db.set_modified(True)
 
     def requires_upgrade(self):
         return self.db.requires_upgrade()
