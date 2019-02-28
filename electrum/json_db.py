@@ -70,6 +70,13 @@ class JsonDB(PrintError):
                 return func(self, *args, **kwargs)
         return wrapper
 
+    def locked(func):
+        def wrapper(self, *args, **kwargs):
+            with self.lock:
+                return func(self, *args, **kwargs)
+        return wrapper
+
+    @locked
     def get(self, key, default=None):
         v = self.data.get(key)
         if v is None:
@@ -443,7 +450,6 @@ class JsonDB(PrintError):
     def convert_account(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
-
         self.put('accounts', None)
 
     def _is_upgrade_method_needed(self, min_version, max_version):
@@ -457,6 +463,7 @@ class JsonDB(PrintError):
         else:
             return True
 
+    @locked
     def get_seed_version(self):
         seed_version = self.get('seed_version')
         if not seed_version:
@@ -488,16 +495,19 @@ class JsonDB(PrintError):
                 msg += "\nPlease open this file with Electrum 1.9.8, and move your coins to a new wallet."
         raise WalletFileException(msg)
 
-
+    @locked
     def get_txi(self, tx_hash):
-        return self.txi.get(tx_hash, {}).keys()
+        return list(self.txi.get(tx_hash, {}).keys())
 
+    @locked
     def get_txo(self, tx_hash):
-        return self.txo.get(tx_hash, {}).keys()
+        return list(self.txo.get(tx_hash, {}).keys())
 
+    @locked
     def get_txi_addr(self, tx_hash, address):
         return self.txi.get(tx_hash, {}).get(address, [])
 
+    @locked
     def get_txo_addr(self, tx_hash, address):
         return self.txo.get(tx_hash, {}).get(address, [])
 
@@ -521,11 +531,13 @@ class JsonDB(PrintError):
             d[addr] = set()
         d[addr].add((n, v, is_coinbase))
 
-    def get_txi_keys(self):
-        return self.txi.keys()
+    @locked
+    def list_txi(self):
+        return list(self.txi.keys())
 
-    def get_txo_keys(self):
-        return self.txo.keys()
+    @locked
+    def list_txo(self):
+        return list(self.txo.keys())
 
     @modifier
     def remove_txi(self, tx_hash):
@@ -535,15 +547,18 @@ class JsonDB(PrintError):
     def remove_txo(self, tx_hash):
         self.txo.pop(tx_hash, None)
 
+    @locked
     def list_spent_outpoints(self):
         return [(h, n)
                 for h in self.spent_outpoints.keys()
                 for n in self.get_spent_outpoints(h)
         ]
 
+    @locked
     def get_spent_outpoints(self, prevout_hash):
-        return self.spent_outpoints.get(prevout_hash, {}).keys()
+        return list(self.spent_outpoints.get(prevout_hash, {}).keys())
 
+    @locked
     def get_spent_outpoint(self, prevout_hash, prevout_n):
         return self.spent_outpoints.get(prevout_hash, {}).get(str(prevout_n))
 
@@ -567,16 +582,20 @@ class JsonDB(PrintError):
     def remove_transaction(self, tx_hash):
         self.transactions.pop(tx_hash, None)
 
+    @locked
     def get_transaction(self, tx_hash):
         tx = self.transactions.get(tx_hash)
         return Transaction(tx) if tx else None
 
+    @locked
     def list_transactions(self):
-        return self.transactions.keys()
+        return list(self.transactions.keys())
 
+    @locked
     def get_history(self):
-        return self.history.keys()
+        return list(self.history.keys())
 
+    @locked
     def get_addr_history(self, addr):
         return self.history.get(addr, [])
 
@@ -588,9 +607,11 @@ class JsonDB(PrintError):
     def remove_addr_history(self, addr):
         self.history.pop(addr, None)
 
+    @locked
     def list_verified_tx(self):
-        return self.verified_tx.keys()
+        return list(self.verified_tx.keys())
 
+    @locked
     def get_verified_tx(self, txid):
         if txid not in self.verified_tx:
             return None
@@ -613,6 +634,7 @@ class JsonDB(PrintError):
     def update_tx_fees(self, d):
         return self.tx_fees.update(d)
 
+    @locked
     def get_tx_fee(self, txid):
         return self.tx_fees.get(txid)
 
@@ -620,6 +642,7 @@ class JsonDB(PrintError):
     def remove_tx_fee(self, txid):
         self.tx_fees.pop(txid, None)
 
+    @locked
     def get_data_ref(self, name):
         if name not in self.data:
             self.data[name] = {}
@@ -656,6 +679,7 @@ class JsonDB(PrintError):
                     self.print_error("removing unreferenced spent outpoint")
                     d.pop(prevout_n)
 
+    @modifier
     def clear_history(self):
         self.txi.clear()
         self.txo.clear()

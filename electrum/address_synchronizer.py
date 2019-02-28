@@ -292,7 +292,7 @@ class AddressSynchronizer(PrintError):
                     self.db.remove_spent_outpoint(prevout_hash, prevout_n)
             else:
                 # expensive but always works
-                for prevout_hash, prevout_n in list(self.db.list_spent_outpoints()):
+                for prevout_hash, prevout_n in self.db.list_spent_outpoints():
                     spending_txid = self.db.get_spent_outpoint(prevout_hash, prevout_n)
                     if spending_txid == tx_hash:
                         self.db.remove_spent_outpoint(prevout_hash, prevout_n)
@@ -348,7 +348,7 @@ class AddressSynchronizer(PrintError):
     def load_local_history(self):
         self._history_local = {}  # address -> set(txid)
         self._address_history_changed_events = defaultdict(asyncio.Event)  # address -> Event
-        for txid in itertools.chain(self.db.get_txi_keys(), self.db.get_txo_keys()):
+        for txid in itertools.chain(self.db.list_txi(), self.db.list_txo()):
             self._add_tx_to_local_history(txid)
 
     @profiler
@@ -372,7 +372,7 @@ class AddressSynchronizer(PrintError):
             self.storage.write()
 
     def remove_local_transactions_we_dont_have(self):
-        for txid in itertools.chain(list(self.db.get_txi_keys()), list(self.db.get_txo_keys())):
+        for txid in itertools.chain(self.db.list_txi(), self.db.list_txo()):
             tx_height = self.get_tx_height(txid).height
             if tx_height == TX_HEIGHT_LOCAL and txid not in self.db.list_transactions():
                 self.remove_transaction(txid)
@@ -519,7 +519,7 @@ class AddressSynchronizer(PrintError):
         '''Used by the verifier when a reorg has happened'''
         txs = set()
         with self.lock:
-            for tx_hash in list(self.db.list_verified_tx()):
+            for tx_hash in self.db.list_verified_tx():
                 info = self.db.get_verified_tx(tx_hash)
                 tx_height = info.height
                 if tx_height >= height:
