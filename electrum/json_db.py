@@ -185,18 +185,18 @@ class JsonDB(PrintError):
     @profiler
     def upgrade(self):
         self.print_error('upgrading wallet format')
-        self.convert_imported()
-        self.convert_wallet_type()
-        self.convert_account()
-        self.convert_version_13_b()
-        self.convert_version_14()
-        self.convert_version_15()
-        self.convert_version_16()
-        self.convert_version_17()
-        self.convert_version_18()
+        self._convert_imported()
+        self._convert_wallet_type()
+        self._convert_account()
+        self._convert_version_13_b()
+        self._convert_version_14()
+        self._convert_version_15()
+        self._convert_version_16()
+        self._convert_version_17()
+        self._convert_version_18()
         self.put('seed_version', FINAL_SEED_VERSION)  # just to be sure
 
-    def convert_wallet_type(self):
+    def _convert_wallet_type(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
 
@@ -285,7 +285,7 @@ class JsonDB(PrintError):
         self.put('keypairs', None)
         self.put('key_type', None)
 
-    def convert_version_13_b(self):
+    def _convert_version_13_b(self):
         # version 13 is ambiguous, and has an earlier and a later structure
         if not self._is_upgrade_method_needed(0, 13):
             return
@@ -304,7 +304,7 @@ class JsonDB(PrintError):
 
         self.put('seed_version', 13)
 
-    def convert_version_14(self):
+    def _convert_version_14(self):
         # convert imported wallets for 3.0
         if not self._is_upgrade_method_needed(13, 13):
             return
@@ -333,7 +333,7 @@ class JsonDB(PrintError):
                 self.put('wallet_type', 'imported')
         self.put('seed_version', 14)
 
-    def convert_version_15(self):
+    def _convert_version_15(self):
         if not self._is_upgrade_method_needed(14, 14):
             return
         if self.get('seed_type') == 'segwit':
@@ -341,7 +341,7 @@ class JsonDB(PrintError):
             raise Exception('unsupported derivation (development segwit, v14)')
         self.put('seed_version', 15)
 
-    def convert_version_16(self):
+    def _convert_version_16(self):
         # fixes issue #3193 for Imported_Wallets with addresses
         # also, previous versions allowed importing any garbage as an address
         #       which we now try to remove, see pr #3191
@@ -384,7 +384,7 @@ class JsonDB(PrintError):
 
         self.put('seed_version', 16)
 
-    def convert_version_17(self):
+    def _convert_version_17(self):
         # delete pruned_txo; construct spent_outpoints
         if not self._is_upgrade_method_needed(16, 16):
             return
@@ -406,19 +406,19 @@ class JsonDB(PrintError):
 
         self.put('seed_version', 17)
 
-    def convert_version_18(self):
+    def _convert_version_18(self):
         # delete verified_tx3 as its structure changed
         if not self._is_upgrade_method_needed(17, 17):
             return
         self.put('verified_tx3', None)
         self.put('seed_version', 18)
 
-    # def convert_version_19(self):
+    # def _convert_version_19(self):
     #     TODO for "next" upgrade:
     #       - move "pw_hash_version" from keystore to storage
     #     pass
 
-    def convert_imported(self):
+    def _convert_imported(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
 
@@ -447,7 +447,7 @@ class JsonDB(PrintError):
         else:
             raise WalletFileException('no addresses or privkeys')
 
-    def convert_account(self):
+    def _convert_account(self):
         if not self._is_upgrade_method_needed(0, 13):
             return
         self.put('accounts', None)
@@ -473,14 +473,14 @@ class JsonDB(PrintError):
                                       '(highest supported storage version: {}, version of this file: {})'
                                       .format(FINAL_SEED_VERSION, seed_version))
         if seed_version==14 and self.get('seed_type') == 'segwit':
-            self.raise_unsupported_version(seed_version)
+            self._raise_unsupported_version(seed_version)
         if seed_version >=12:
             return seed_version
         if seed_version not in [OLD_SEED_VERSION, NEW_SEED_VERSION]:
-            self.raise_unsupported_version(seed_version)
+            self._raise_unsupported_version(seed_version)
         return seed_version
 
-    def raise_unsupported_version(self, seed_version):
+    def _raise_unsupported_version(self, seed_version):
         msg = "Your wallet has an unsupported seed version."
         if seed_version in [5, 7, 8, 9, 10, 14]:
             msg += "\n\nTo open this wallet, try 'git checkout seed_v%d'"%seed_version
@@ -580,7 +580,8 @@ class JsonDB(PrintError):
 
     @modifier
     def remove_transaction(self, tx_hash):
-        self.transactions.pop(tx_hash, None)
+        tx = self.transactions.pop(tx_hash, None)
+        return Transaction(tx) if tx else None
 
     @locked
     def get_transaction(self, tx_hash):
