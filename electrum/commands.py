@@ -567,9 +567,10 @@ class Commands:
     @command('n')
     def gettransaction(self, txid):
         """Retrieve a transaction. """
-        if self.wallet and txid in self.wallet.transactions:
-            tx = self.wallet.transactions[txid]
-        else:
+        tx = None
+        if self.wallet:
+            tx = self.wallet.db.get_transaction(txid)
+        if tx is None:
             raw = self.network.run_from_another_thread(self.network.get_transaction(txid))
             if raw:
                 tx = Transaction(raw)
