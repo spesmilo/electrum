@@ -19,7 +19,7 @@
 """  
 import hashlib
 from electrum.ecc import ECPubkey, msg_magic, InvalidECPointException
-from electrum.util import to_bytes
+from electrum.util import to_bytes, print_error
 #from electrum.bitcoin import var_int
 from electrum.crypto import sha256d
 
@@ -66,7 +66,7 @@ class CardDataParser:
         
         # double signature: first is self-signed, second by authentikey
         # firs self-signed sig: data= coordx
-        print('[CardDataParser] parse_bip32_get_extendedkey: first signature recovery')
+        print_error('[CardDataParser] parse_bip32_get_extendedkey: first signature recovery')
         self.chaincode= bytearray(response[0:32])
         data_size = ((response[32] & 0x7f)<<8) + (response[33] & 0xff) # (response[32] & 0x80) is ignored (optimization flag)
         data= response[34:(32+2+data_size)]
@@ -82,7 +82,7 @@ class CardDataParser:
         self.pubkey_coordx= coordx
         
         # second signature by authentikey
-        print('[CardDataParser] parse_bip32_get_extendedkey: second signature recovery')
+        print_error('[CardDataParser] parse_bip32_get_extendedkey: second signature recovery')
         msg2_size= msg_size+2+sig_size
         msg2= response[0:msg2_size]
         sig2_size = ((response[msg2_size] & 0xff)<<8) + (response[msg2_size+1] & 0xff)  
@@ -100,14 +100,13 @@ class CardDataParser:
         message = to_bytes(message, 'utf8')
         hash = sha256d(msg_magic(message))
         coordx= pubkey.get_public_key_bytes()
-        print('[CardDataParser] parse_message_signature: coordx='+coordx.hex())
+        #print_error('[CardDataParser] parse_message_signature: coordx='+coordx.hex())
         
         recid=-1
         for id in range(4):
-            print('[CardDataParser] parse_message_signature: id='+str(id))
+            #print_error('[CardDataParser] parse_message_signature: id='+str(id))
             compsig=self.parse_to_compact_sig(response, id, compressed=True)
-            print('    Compact sig size:'+str(len(compsig)))
-            print('    Compact sig:'+compsig.hex())
+            #print_error('    Compact sig:'+compsig.hex())
             # remove header byte
             compsig2= compsig[1:]
             
@@ -117,9 +116,8 @@ class CardDataParser:
             except InvalidECPointException:
                 continue
                 
-            print("    pkbytes:"+pkbytes.hex())
-            #pkbytes= pkbytes[1:]
-            print("    coordx:"+coordx.hex())
+            #print_error("    pkbytes:"+pkbytes.hex())
+            #print_error("    coordx:"+coordx.hex())
             
             if coordx==pkbytes:
                 recid=id
@@ -127,7 +125,6 @@ class CardDataParser:
         
         if recid == -1:
             raise ValueError("Unable to recover public key from signature")        
-        print('[CardDataParser] parse_message_signature: compsig='+compsig.hex())
         
         return compsig
         
@@ -137,8 +134,6 @@ class CardDataParser:
         data= bytearray(data)
         sig= bytearray(sig)
         coordx= bytearray(coordx)
-        print('Sig size:'+str(len(sig)))
-        print('Sig:'+sig.hex())
         
         digest=hashlib.sha256()
         digest.update(data)
@@ -147,10 +142,9 @@ class CardDataParser:
         recid=-1
         pubkey=None
         for id in range(4):
-            print('[CardDataParser] get_pubkey_from_signature: id='+str(id))
+            #print_error('[CardDataParser] get_pubkey_from_signature: id='+str(id))
             compsig=self.parse_to_compact_sig(sig, id, compressed=True)
-            print('    Compact sig size:'+str(len(compsig)))
-            print('    Compact sig:'+compsig.hex())
+            #print_error('    Compact sig:'+compsig.hex())
             # remove header byte
             compsig= compsig[1:]
             
@@ -161,8 +155,8 @@ class CardDataParser:
                 continue
             
             pkbytes= pkbytes[1:]
-            print("    pkbytes:"+pkbytes.hex())
-            print("    coordx:"+coordx.hex())
+            #print_error("    pkbytes:"+pkbytes.hex())
+            #print_error("    coordx:"+coordx.hex())
             
             if coordx==pkbytes:
                 recid=id

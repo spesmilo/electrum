@@ -1,115 +1,100 @@
-Electrum - Lightweight Bitcoin client
-=====================================
+Electrum-Satochip - Lightweight Bitcoin client for the Satochip Hardware Wallet
+=================================================================================
 
 ::
 
   Licence: MIT Licence
-  Author: Thomas Voegtlin
+  Author: Thomas Voegtlin, modified by Toporin
   Language: Python
-  Homepage: https://electrum.org/
+  Homepage: 
 
+Introduction
+============
 
-.. image:: https://travis-ci.org/spesmilo/electrum.svg?branch=master
-    :target: https://travis-ci.org/spesmilo/electrum
-    :alt: Build Status
-.. image:: https://coveralls.io/repos/github/spesmilo/electrum/badge.svg?branch=master
-    :target: https://coveralls.io/github/spesmilo/electrum?branch=master
-    :alt: Test coverage statistics
-.. image:: https://img.shields.io/badge/help-translating-blue.svg
-    :target: https://crowdin.com/project/electrum
-    :alt: Help translating Electrum online
+This is a fork of Electrum modified for use with the Satochip Hardware Wallet. To use it, you need a device with the Satochip Javacard Applet installed.
+If the wallet is not intialized yet, Electrum will perform the setup (you only need to do this once). During setup, a seed is created: this seed allows you to recover your wallet at anytime, so make sure to BACKUP THE SEED SECURELY! During setup, a PIN code is also created: this PIN allows to unlock th device to access your funds. If you try too many wrong PIN, your device will be locked indefinitely (it is 'bricked'). If you loose your PIN or brick your device, you can only recover your funds with the seed backup.
 
+The Satochip wallet is currently in Beta, use with caution! In this phase, it is strongly recommended to use the software on the Bitcoin testnet only.
+This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
 
+Rem: Electrum uses Python 3.x. In case of error, check first that you are not trying to run Electrum with Python 2.x or with Python 2.x libraries.
 
+Development version (Windows 64bits)
+=====================================
 
+Install the latest python 3.6 release from https://www.python.org (https://www.python.org/downloads/release/python-368/)
+(Caution: installing another release than 3.6 may cause incompatibility issues with pyscard)
 
-Getting started
-===============
+Check out the code from GitHub:
 
-Electrum is a pure python application. If you want to use the
+Open a PowerShell command line in the electrum folder
+
+In PowerShell, install the electrum dependencies::
+    python -m pip install .   
+    
+You may also ned to install Python3-pyqt5::
+    python -m pip install pyqt5
+    
+Install pyscard from https://pyscard.sourceforge.io/
+Pyscard is required to connect to the smartcard::
+    python -m pip install pyscard
+In case of error message, you may also install pyscard from the installer:
+Download the .whl files from https://sourceforge.net/projects/pyscard/files/pyscard/pyscard%201.9.7/ and run::
+    python -m pip install pyscard-1.9.7-cp36-cp36m-win_amd64.whl
+
+In PowerShell, run electrum on the testnet (-v allows for verbose output)::
+    python .\electrum -v --testnet
+    
+
+Development version (Ubuntu)
+==============================
+(Electrum requires Python 3.6, which should be installed by default on Ubuntu)
+(If necessary, install pip: sudo apt-get install python3-pip)
+
+Electrum is a pure python application. To use the
 Qt interface, install the Qt dependencies::
-
     sudo apt-get install python3-pyqt5
 
-If you downloaded the official package (tar.gz), you can run
-Electrum from its root directory, without installing it on your
-system; all the python dependencies are included in the 'packages'
-directory. To run Electrum from its root directory, just do::
-
-    ./electrum
-
-You can also install Electrum on your system, by running this command::
-
-    sudo apt-get install python3-setuptools
-    pip3 install .[fast]
-
-This will download and install the Python dependencies used by
-Electrum, instead of using the 'packages' directory.
-The 'fast' extra contains some optional dependencies that we think
-are often useful but they are not strictly needed.
-
-If you cloned the git repository, you need to compile extra files
-before you can run Electrum. Read the next section, "Development
-Version".
-
-
-
-Development version
-===================
-
-Check out the code from GitHub::
-
-    git clone git://github.com/spesmilo/electrum.git
+Check out the code from GitHub:    
+    git clone git://github.com/Toporin/electrum.git
     cd electrum
-
+    
+In the electrum folder:    
+    
 Run install (this should install dependencies)::
-
-    pip3 install .[fast]
-
-Render the SVG icons to PNGs (optional)::
-
-    for i in lock unlock confirmed status_lagging status_disconnected status_connected_proxy status_connected status_waiting preferences; do convert -background none icons/$i.svg icons/$i.png; done
-
-Compile the icons file for Qt::
-
-    sudo apt-get install pyqt5-dev-tools
-    pyrcc5 icons.qrc -o gui/qt/icons_rc.py
-
-Compile the protobuf description file::
-
-    sudo apt-get install protobuf-compiler
-    protoc --proto_path=lib/ --python_out=lib/ lib/paymentrequest.proto
-
-Create translations (optional)::
-
-    sudo apt-get install python-requests gettext
-    ./contrib/make_locale
-
-
+    python3 -m pip install .
+    
+Install pyscard (https://pyscard.sourceforge.io/)
+Pyscard is required to connect to the smartcard:: 
+    sudo apt-get install pcscd
+    sudo apt-get install python3-pyscard
+(For alternatives, see https://github.com/LudovicRousseau/pyscard/blob/master/INSTALL.md for more detailed installation instructions)
+ 
+To run Electrum use::
+ python3 electrum -v --testnet 
+ 
+ 
+Test suite
+=============
+ 
+To run the test suite, run::
+    python -m unittest plugins.satochip.test_CardConnector
+ 
+The test suite uses the following default PIN code: "12345678".
+If you run the test suite after (or before) electrum, you may block the card if the PIN used are not the same!
+If the card is locked, you will have to reinstall the javacard applet on the card.
 
 
-Creating Binaries
-=================
 
 
-To create binaries, create the 'packages' directory::
-
-    ./contrib/make_packages
-
-This directory contains the python dependencies used by Electrum.
-
-Mac OS X / macOS
---------
-
-See `contrib/build-osx/`.
-
-Windows
--------
-
-See `contrib/build-wine/`.
 
 
-Android
--------
 
-See `gui/kivy/Readme.txt` file.
+
+
+    
+    
+    
+    
+
+

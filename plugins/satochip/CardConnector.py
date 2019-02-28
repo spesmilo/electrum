@@ -67,9 +67,9 @@ class CardConnector:
                 # connect to the card and perform a few transmits
                 self.cardservice.connection.connect()
             except CardRequestTimeoutException:
-                print('time-out: no card inserted during last 10s')
+                print_error('time-out: no card inserted during last 10s')
             except Exception as exc:
-                print("Error during connection:", exc)
+                print_error("Error during connection:", exc)
         
     def card_get_ATR(self):
         return self.cardservice.connection.getATR()
@@ -172,7 +172,7 @@ class CardConnector:
         # send apdu 
         response, sw1, sw2 = self.card_transmit(apdu) 
         if sw1==0x9c and sw2==0x14: 
-            print("[CardConnector] card_bip32_get_authentikey(): Seed is not initialized => Raising error!")
+            print_error("[CardConnector] card_bip32_get_authentikey(): Seed is not initialized => Raising error!")
             raise UninitializedSeedError('Seed is not initialized')
         # compute corresponding pubkey and send to chip for future use
         if (sw1==0x90) and (sw2==0x00):
@@ -209,7 +209,6 @@ class CardConnector:
         le= len(path)
         apdu=[cla, ins, p1, p2, le]
         apdu+= path
-        print("apdu:"+str(apdu))
         # send apdu
         while (True):
             (response, sw1, sw2) = self.card_transmit(apdu)

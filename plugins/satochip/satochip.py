@@ -1,4 +1,5 @@
 from struct import pack, unpack
+from os import urandom
 import hashlib
 import sys
 import traceback
@@ -408,13 +409,15 @@ class SatochipPlugin(HW_PluginBase):
                         break
                 pin_0= list(pin_0)
                 client.cc.set_pin(0, pin_0) #cache PIN value in client
-                pin_tries_0= 0x10;
+                pin_tries_0= 0x05;
                 ublk_tries_0= 0x01;
-                ublk_0=[0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]
+                # PUK code can be used when PIN is unknown and the card is locked
+                # We use a random value as the PUK is not used currently in the electrum GUI
+                ublk_0= list(urandom(16)); 
                 pin_tries_1= 0x01
                 ublk_tries_1= 0x01
-                pin_1=[0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]
-                ublk_1=[0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]
+                pin_1= list(urandom(16)); #the second pin is not used currently
+                ublk_1= list(urandom(16));
                 secmemsize= 32 # number of slot reserved in memory cache
                 memsize= 0x0000 # RFU
                 create_object_ACL= 0x01
