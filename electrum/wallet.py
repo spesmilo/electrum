@@ -45,10 +45,11 @@ from .util import (NotEnoughFunds, PrintError, UserCancelled, profiler,
                    format_satoshis, format_fee_satoshis, NoDynamicFeeEstimates,
                    WalletFileException, BitcoinException,
                    InvalidPassword, format_time, timestamp_to_datetime, Satoshis,
-                   Fiat, bfh, bh2u, TxMinedInfo)
+                   Fiat, bfh, bh2u, TxMinedInfo, print_error)
 from .bitcoin import (COIN, TYPE_ADDRESS, is_address, address_to_script,
                       is_minikey, relayfee, dust_threshold)
 from .crypto import sha256d
+from . import keystore
 from .keystore import load_keystore, Hardware_KeyStore
 from .util import multisig_type
 from .storage import STO_EV_PLAINTEXT, STO_EV_USER_PW, STO_EV_XPUB_PW, WalletStorage
@@ -62,6 +63,7 @@ from .paymentrequest import (PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED,
 from .contacts import Contacts
 from .interface import RequestTimedOut
 from .ecc_fast import is_using_fast_ecc
+from .mnemonic import Mnemonic
 
 if TYPE_CHECKING:
     from .network import Network
@@ -1848,3 +1850,78 @@ class Wallet(object):
         if wallet_type in wallet_constructors:
             return wallet_constructors[wallet_type]
         raise WalletFileException("Unknown wallet type: " + str(wallet_type))
+
+
+def create_new_wallet(*, path, passphrase=None, password=None, encrypt_file=True, segwit=True):
+    """Create a new wallet"""
+    storage = WalletStorage(path)
+    if storage.file_exists():
+        raise Exception("Remove the existing wallet first!")
+
+    seed_type = 'segwit' if segwit else 'standard'
+    seed = Mnemonic('en').make_seed(seed_type)
+    k = keystore.from_seed(seed, passphrase)
+    storage.put('keystore', k.dump())
+    storage.put('wallet_type', 'standard')
+    wallet = Wallet(storage)
+    wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
+    wallet.synchronize()
+    msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
+
+    wallet.storage.write()
+    return {'seed': seed, 'wallet': wallet, 'msg': msg}
+
+
+def restore_wallet_from_text(text, *, path, network, passphrase=None, password=None, encrypt_file=True):
+    """Restore a wallet from text. Text can be a seed phrase, a master
+    public key, a master private key, a list of bitcoin addresses
+    or bitcoin private keys."""
+    storage = WalletStorage(path)
+    if storage.file_exists():
+        raise Exception("Remove the existing wallet first!")
+
+    text = text.strip()
+    if keystore.is_address_list(text):
+        wallet = Imported_Wallet(storage)
+        addresses = text.split()
+        good_inputs, bad_inputs = wallet.import_addresses(addresses, write_to_disk=False)
+        # FIXME tell user about bad_inputs
+        if not good_inputs:
+            raise Exception("None of the given addresses can be imported")
+    elif keystore.is_private_key_list(text, allow_spaces_inside_key=False):
+        k = keystore.Imported_KeyStore({})
+        storage.put('keystore', k.dump())
+        wallet = Imported_Wallet(storage)
+        keys = keystore.get_private_keys(text)
+        good_inputs, bad_inputs = wallet.import_private_keys(keys, None, write_to_disk=False)
+        # FIXME tell user about bad_inputs
+        if not good_inputs:
+            raise Exception("None of the given privkeys can be imported")
+    else:
+        if keystore.is_seed(text):
+            k = keystore.from_seed(text, passphrase)
+        elif keystore.is_master_key(text):
+            k = keystore.from_master_key(text)
+        else:
+            raise Exception("Seed or key not recognized")
+        storage.put('keystore', k.dump())
+        storage.put('wallet_type', 'standard')
+        wallet = Wallet(storage)
+
+    assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
+    wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
+    wallet.synchronize()
+
+    if network:
+        wallet.start_network(network)
+        print_error("Recovering wallet...")
+        wallet.wait_until_synchronized()
+        wallet.stop_threads()
+        # note: we don't wait for SPV
+        msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
+    else:
+        msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
+               "Start a daemon (not offline) to sync history.")
+
+    wallet.storage.write()
+    return {'wallet': wallet, 'msg': msg}

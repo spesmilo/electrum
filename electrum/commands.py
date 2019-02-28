@@ -46,7 +46,7 @@ from .paymentrequest import PR_PAID, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .synchronizer import Notifier
 from .storage import WalletStorage
 from . import keystore
-from .wallet import Wallet, Imported_Wallet, Abstract_Wallet
+from .wallet import Wallet, Imported_Wallet, Abstract_Wallet, create_new_wallet, restore_wallet_from_text
 from .address_synchronizer import TX_HEIGHT_LOCAL
 from .mnemonic import Mnemonic
 
@@ -139,22 +139,16 @@ class Commands:
     @command('')
     def create(self, passphrase=None, password=None, encrypt_file=True, segwit=False):
         """Create a new wallet"""
-        storage = WalletStorage(self.config.get_wallet_path())
-        if storage.file_exists():
-            raise Exception("Remove the existing wallet first!")
-
-        seed_type = 'segwit' if segwit else 'standard'
-        seed = Mnemonic('en').make_seed(seed_type)
-        k = keystore.from_seed(seed, passphrase)
-        storage.put('keystore', k.dump())
-        storage.put('wallet_type', 'standard')
-        wallet = Wallet(storage)
-        wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
-        wallet.synchronize()
-        msg = "Please keep your seed in a safe place; if you lose it, you will not be able to restore your wallet."
-
-        wallet.storage.write()
-        return {'seed': seed, 'path': wallet.storage.path, 'msg': msg}
+        d = create_new_wallet(path=self.config.get_wallet_path(),
+                              passphrase=passphrase,
+                              password=password,
+                              encrypt_file=encrypt_file,
+                              segwit=segwit)
+        return {
+            'seed': d['seed'],
+            'path': d['wallet'].storage.path,
+            'msg': d['msg'],
+        }
 
     @command('')
     def restore(self, text, passphrase=None, password=None, encrypt_file=True):
@@ -162,55 +156,16 @@ class Commands:
         public key, a master private key, a list of bitcoin addresses
         or bitcoin private keys. If you want to be prompted for your
         seed, type '?' or ':' (concealed) """
-        storage = WalletStorage(self.config.get_wallet_path())
-        if storage.file_exists():
-            raise Exception("Remove the existing wallet first!")
-
-        text = text.strip()
-        if keystore.is_address_list(text):
-            wallet = Imported_Wallet(storage)
-            addresses = text.split()
-            good_inputs, bad_inputs = wallet.import_addresses(addresses, write_to_disk=False)
-            # FIXME tell user about bad_inputs
-            if not good_inputs:
-                raise Exception("None of the given addresses can be imported")
-        elif keystore.is_private_key_list(text, allow_spaces_inside_key=False):
-            k = keystore.Imported_KeyStore({})
-            storage.put('keystore', k.dump())
-            wallet = Imported_Wallet(storage)
-            keys = keystore.get_private_keys(text)
-            good_inputs, bad_inputs = wallet.import_private_keys(keys, None, write_to_disk=False)
-            # FIXME tell user about bad_inputs
-            if not good_inputs:
-                raise Exception("None of the given privkeys can be imported")
-        else:
-            if keystore.is_seed(text):
-                k = keystore.from_seed(text, passphrase)
-            elif keystore.is_master_key(text):
-                k = keystore.from_master_key(text)
-            else:
-                raise Exception("Seed or key not recognized")
-            storage.put('keystore', k.dump())
-            storage.put('wallet_type', 'standard')
-            wallet = Wallet(storage)
-
-        assert not storage.file_exists(), "file was created too soon! plaintext keys might have been written to disk"
-        wallet.update_password(old_pw=None, new_pw=password, encrypt_storage=encrypt_file)
-        wallet.synchronize()
-
-        if self.network:
-            wallet.start_network(self.network)
-            print_error("Recovering wallet...")
-            wallet.wait_until_synchronized()
-            wallet.stop_threads()
-            # note: we don't wait for SPV
-            msg = "Recovery successful" if wallet.is_found() else "Found no history for this wallet"
-        else:
-            msg = ("This wallet was restored offline. It may contain more addresses than displayed. "
-                   "Start a daemon (not offline) to sync history.")
-
-        wallet.storage.write()
-        return {'path': wallet.storage.path, 'msg': msg}
+        d = restore_wallet_from_text(text,
+                                     path=self.config.get_wallet_path(),
+                                     passphrase=passphrase,
+                                     password=password,
+                                     encrypt_file=encrypt_file,
+                                     network=self.network)
+        return {
+            'path': d['wallet'].storage.path,
+            'msg': d['msg'],
+        }
 
     @command('wp')
     def password(self, password=None, new_password=None):
