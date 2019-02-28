@@ -3673,11 +3673,11 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def do_cash_shuffle_reminder(self):
         if not self.wallet or not self.is_wallet_cashshuffle_compatible():
             return
-        from electroncash_plugins.shuffle.common import SHUFFLE_NAGGER_NOPROMPT, CASHSHUFFLE_ENABLED
+        from electroncash_plugins.shuffle.conf_keys import ConfKeys
         p = self.cashshuffle_plugin_if_loaded()
-        cashshuffle_flag = self.wallet.storage.get(CASHSHUFFLE_ENABLED, False)
+        cashshuffle_flag = self.wallet.storage.get(ConfKeys.PerWallet.ENABLED, False)
         enabled = cashshuffle_flag and p and p.is_enabled()
-        noprompt = self.config.get(SHUFFLE_NAGGER_NOPROMPT, False)
+        noprompt = self.config.get(ConfKeys.Global.MAIN_WINDOW_NAGGER_NOPROMPT, False)
         if not enabled and not noprompt:
             if __class__._cs_reminder_pixmap is None:
                 # lazy init. Cache it to class level.
@@ -3700,7 +3700,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if res == 0:
                 self.toggle_cashshuffle()
             if chkd:
-                self.config.set_key(SHUFFLE_NAGGER_NOPROMPT, True)
+                self.config.set_key(ConfKeys.Global.MAIN_WINDOW_NAGGER_NOPROMPT, True)
 
     _restart_timer = None
     def restart_cashshuffle(self, msg = None):
