@@ -18,6 +18,9 @@ class ConfKeys:
         DEFUNCT = []
         
         ENABLED = 'cashshuffle_enabled'  # whether cashshuffle is enabeld for this wallet.
+        SESSION_COUNTER = 'shuffle_session_counter'  # the number of times this wallet window has run cashshuffle. Incremented on each enabling, per wallet.
+        SHUFFLE_COUNTER = 'shuffle_shuffle_counter'  # the number of successful shuffles we have performed with this plugin for this wallet.
         COINS_FROZEN_BY_SHUFFLING = 'coins_frozen_by_shuffling' # list of coins frozen by shuffling. in case we crash.
         SPEND_MODE = 'shuffle_spend_mode' # the "spend shuffled" or "spend unshuffled" mode selected in the UI Send tab.
         SPEND_UNSHUFFLED_NAGGER_NOPROMPT = 'shuffle_spend_unshuffled_nonag'  # Whether or not to nag the user when they select "spend unshuffled" in Send tab.
+        DISABLE_NAGGER_NOPROMPT = 'shuffle_disable_nonag'

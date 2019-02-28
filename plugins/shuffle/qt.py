@@ -265,6 +265,7 @@ def update_coin_status(window, coin_name, msg):
                     # Hmm. Some sort of parse error. We'll label it 'CashShuffle'
                     window.print_error("*** WARNING: Could not parse shuffle_txid message:", str(e), msg)
             window.wallet.set_label(txid, label)
+            Plugin._increment_shuffle_counter(window)
             window.update_wallet()
         elif msg.startswith("add_tentative_shuffle:"):
             # add_tentative_shuffle: utxo outaddr tot scale chg fee
@@ -340,6 +341,7 @@ def _got_tx(window, tx):
                         if is_coin_shuffled(window.wallet, {'prevout_hash':txid, 'prevout_n':n}, [tx]):
                             # all checks pass -- we successfully recovered from bug #70! Hurray!
                             window.wallet.set_label(txid, _make_label(window, tot, scale, chg, fee))
+                            Plugin._increment_shuffle_counter(window)
                             window.print_error("CashShuffle: found coin {} in tentative shuffle cache, applied label".format(utxo))
                             window.update_wallet()
                         else:
@@ -603,6 +605,9 @@ class Plugin(BasePlugin):
             password = pwdlg.run()
             if password is None:
                 # User cancelled password input
+                if not self.warn_if_shuffle_disable_not_ok(window, msg=_('CashShuffle will now be <i>disabled</i> for a wallet which has previously had it <b>enabled</b>. Are you sure?')):
+                    # User was warned and opted to try again to enable
+                    continue
                 self.window_set_cashshuffle(window, False)
                 window.show_error(_("CashShuffle password prompt canceled; disabling for this wallet."), parent=window)
                 return
@@ -625,6 +630,7 @@ class Plugin(BasePlugin):
         network_settings['host'] = network_settings.pop('server')
         monkey_patches_apply(window)
         self.windows.append(window)
+        self._increment_session_counter(window)
         window.update_status()
         window.utxo_list.update()
         start_background_shuffling(window, network_settings, password=password)
@@ -919,6 +925,62 @@ class Plugin(BasePlugin):
                     setter(k)
             if ct:
                 self.print_error("Found and removed {} deprecated keys from {}".format(ct, thing))
+
+    # counters: shuffle counter and session counter
+    @classmethod
+    def _increment_generic_counter(cls, window, key):
+        window.wallet.storage.put(key, cls._get_generic_counter(window, key) + 1)
+    @staticmethod
+    def _get_generic_counter(window, key):
+        try:
+            ctr = int(window.wallet.storage.get(key, 0))
+        except (ValueError, TypeError):  # paranoia
+            # stored value must have not been an int. :(
+            ctr = 0
+        return ctr
+    @classmethod
+    def _increment_session_counter(cls, window):
+        cls._increment_generic_counter(window, ConfKeys.PerWallet.SESSION_COUNTER)
+    @classmethod
+    def _get_session_counter(cls, window):
+        return cls._get_generic_counter(window, ConfKeys.PerWallet.SESSION_COUNTER)
+    @classmethod
+    def _increment_shuffle_counter(cls, window):
+        cls._increment_generic_counter(window, ConfKeys.PerWallet.SHUFFLE_COUNTER)
+    @classmethod
+    def _get_shuffle_counter(cls, window):
+        return cls._get_generic_counter(window, ConfKeys.PerWallet.SHUFFLE_COUNTER)
+    # /counters
+
+    def warn_if_shuffle_disable_not_ok(self, window, *, msg=None):
+        '''
+        Determine if disabling (or not re-enabling in the case of a pw dialog
+        cancel) of cash shuffle is ok for this wallet.
+
+        This method may block the GUI with a local modal dialog asking the user
+        if they are sure.
+
+        In the future, we may also put code to say "shuffles pending, please
+        wait..." in a cancellable progress-type dialog.
+
+        Returns True if calling code should proceed with disable action.
+        '''
+        # Note -- window may not necessarily be shuffle patched as this
+        # may be called from the password dialog
+        noprompt = window.wallet.storage.get(ConfKeys.PerWallet.DISABLE_NAGGER_NOPROMPT, False)
+        if not noprompt and type(self)._get_session_counter(window) > 0:
+            if msg is None:
+                msg = _('You are now <i>disabling</i> CashShuffle for this wallet. Are you sure?')
+            ans, chk = window.question(
+                    msg=msg,
+                    informative_text=_('Spending and linking coins with CashShuffle disabled may compromise your privacy for both shuffled and unshuffled coins in this wallet.'),
+                    title=_("Privacy Warning"), rich_text=True,
+                    checkbox_text=_("Never ask for this wallet"), checkbox_ischecked=noprompt,
+                )
+            if chk:
+                window.wallet.storage.put(ConfKeys.PerWallet.DISABLE_NAGGER_NOPROMPT, bool(chk))
+            return bool(ans)
+        return True
 
 
 class SendTabExtraDisabled(QFrame, PrintError):

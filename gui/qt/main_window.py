@@ -2985,7 +2985,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         p = p0 or plugins.enable_internal_plugin("shuffle")
         if not p:
             raise RuntimeError("Could not find CashShuffle plugin")
-        enable_flag = not p.window_has_cashshuffle(self)
+        was_enabled = p.window_has_cashshuffle(self)
+        if was_enabled and not p.warn_if_shuffle_disable_not_ok(self):
+            # user at nag screen said "no", so abort
+            self.update_cashshuffle_icon()
+            return
+        enable_flag = not was_enabled
         self._cash_shuffle_flag = 0
         KillPopupLabel("CashShuffleError")
         if not p0:
