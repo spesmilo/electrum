@@ -4,14 +4,17 @@ from electroncash.network import Network
 from electroncash.interface import Connection
 from electroncash.util import print_error
 
-# Temporary hack to suppress InsecureRequestWarning. Need to actually do a
-# whole song and dance to verify SSL certs. Blergh.
-# https://urllib3.readthedocs.io/en/latest/user-guide.html#ssl
-#
-# Note: We do end up verifying SSL certs per-socket, but we do it explicitly
-# in verify_ssl_socket() in this fiile, and not necessarily for _every_ urllib3
-# request.
-requests.urllib3.disable_warnings(requests.urllib3.exceptions.InsecureRequestWarning)
+# urllib3 may be missing from requests namespace in older requests versions. safe to ignore. See Electron-Cash#1172
+if hasattr(requests, 'urllib3'):
+    # Temporary hack to suppress InsecureRequestWarning. Need to actually do a
+    # whole song and dance to verify SSL certs. Blergh.
+    # https://urllib3.readthedocs.io/en/latest/user-guide.html#ssl
+    #
+    # Note: We do end up verifying SSL certs per-socket, but we do it explicitly
+    # in verify_ssl_socket() in this fiile, and not necessarily for _every_ urllib3
+    # request.
+    requests.urllib3.disable_warnings(requests.urllib3.exceptions.InsecureRequestWarning)
+
 
 class Channel(queue.Queue):
     """ simple Queue wrapper for using recv and send """
