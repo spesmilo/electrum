@@ -287,7 +287,7 @@ class Network(PrintError):
         return fut.result()
 
     @staticmethod
-    def get_instance():
+    def get_instance() -> Optional["Network"]:
         return INSTANCE
 
     def with_recent_servers_lock(func):
@@ -1147,8 +1147,8 @@ class Network(PrintError):
                     raise
             await asyncio.sleep(0.1)
 
-
-    async def _send_http_on_proxy(self, method: str, url: str, params: str = None, body: bytes = None, json: dict = None, headers=None, on_finish=None):
+    @classmethod
+    async def _send_http_on_proxy(cls, method: str, url: str, params: str = None, body: bytes = None, json: dict = None, headers=None, on_finish=None):
         async def default_on_finish(resp: ClientResponse):
             resp.raise_for_status()
             return await resp.text()
@@ -1156,7 +1156,9 @@ class Network(PrintError):
             headers = {}
         if on_finish is None:
             on_finish = default_on_finish
-        async with make_aiohttp_session(self.proxy) as session:
+        network = cls.get_instance()
+        proxy = network.proxy if network else None
+        async with make_aiohttp_session(proxy) as session:
             if method == 'get':
                 async with session.get(url, params=params, headers=headers) as resp:
                     return await on_finish(resp)
@@ -1171,11 +1173,15 @@ class Network(PrintError):
             else:
                 assert False
 
-    @staticmethod
-    def send_http_on_proxy(method, url, **kwargs):
-        network = Network.get_instance()
-        assert network._loop_thread is not threading.currentThread()
-        coro = asyncio.run_coroutine_threadsafe(network._send_http_on_proxy(method, url, **kwargs), network.asyncio_loop)
+    @classmethod
+    def send_http_on_proxy(cls, method, url, **kwargs):
+        network = cls.get_instance()
+        if network:
+            assert network._loop_thread is not threading.currentThread()
+            loop = network.asyncio_loop
+        else:
+            loop = asyncio.get_event_loop()
+        coro = asyncio.run_coroutine_threadsafe(cls._send_http_on_proxy(method, url, **kwargs), loop)
         return coro.result(5)
 
 

@@ -155,7 +155,7 @@
         "USD",
         "UYU",
         "UZS",
-        "VEF",
+        "VES",
         "VND",
         "VUV",
         "WST",
@@ -202,6 +202,7 @@
         "AWG",
         "AZN",
         "BAM",
+        "BAT",
         "BBD",
         "BCH",
         "BDT",
@@ -213,6 +214,7 @@
         "BOB",
         "BRL",
         "BSD",
+        "BSV",
         "BTC",
         "BTN",
         "BWP",
@@ -239,6 +241,7 @@
         "EGP",
         "ERN",
         "ETB",
+        "ETC",
         "ETH",
         "EUR",
         "FJD",
@@ -360,8 +363,10 @@
         "XPT",
         "YER",
         "ZAR",
+        "ZEC",
         "ZMK",
         "ZMW",
+        "ZRX",
         "ZWL"
     ],
     "CoinSpot": [
@@ -389,10 +394,5 @@
     ],
     "TheRockTrading": [
         "EUR"
-    ],
-    "WEX": [
-        "EUR",
-        "RUB",
-        "USD"
     ]
 }
