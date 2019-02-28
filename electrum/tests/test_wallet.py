@@ -14,6 +14,7 @@ from electrum.wallet import Abstract_Wallet
 from electrum.exchange_rate import ExchangeBase, FxThread
 from electrum.util import TxMinedInfo
 from electrum.bitcoin import COIN
+from electrum.json_db import JsonDB
 
 from . import SequentialTestCase
 
@@ -74,7 +75,9 @@ class TestWalletStorage(WalletTestCase):
 
         with open(self.wallet_path, "r") as f:
             contents = f.read()
-        self.assertEqual(some_dict, json.loads(contents))
+        d = json.loads(contents)
+        for key, value in some_dict.items():
+            self.assertEqual(d[key], value)
 
 class FakeExchange(ExchangeBase):
     def __init__(self, rate):
@@ -95,7 +98,8 @@ class FakeWallet:
     def __init__(self, fiat_value):
         super().__init__()
         self.fiat_value = fiat_value
-        self.transactions = self.verified_tx = {'abc': 'Tx'}
+        self.db = JsonDB("{}", manual_upgrades=True)
+        self.db.transactions = self.db.verified_tx = {'abc':'Tx'}
 
     def get_tx_height(self, txid):
         # because we use a current timestamp, and history is empty,
