@@ -14,6 +14,10 @@ class Messages:
         return wrapper
 
     def __init__(self):
+        self.clear_packets()
+
+    def clear_packets(self):
+        "clear the packets"
         self.packets = message_factory.Packets()
         self.phases = {
             'Announcement':message_factory.ANNOUNCEMENT,
@@ -24,7 +28,6 @@ class Messages:
             'Signing':message_factory.SIGNING,
             'Blame':message_factory.BLAME,
             }
-
 
     def blame_reason(self, name):
         """
@@ -200,19 +203,19 @@ class Messages:
     def add_signatures(self, signatures):
         "adds signatures to NEW packet"
         packet = self.packets.packet.add()
-        for k in signatures:
+        for utxo, sig in signatures.items():
             packet.packet.message.signatures.add()
-            packet.packet.message.signatures[-1].utxo = k
-            packet.packet.message.signatures[-1].signature.signature = signatures[k]
+            packet.packet.message.signatures[-1].utxo = utxo
+            packet.packet.message.signatures[-1].signature.signature = sig
 
     def shuffle_packets(self):
         "shuffle the packets"
         packs = [p for p in self.packets.packet]
         shuffle(packs)
         self.clear_packets()
-        for i in range(0, len(packs)):
+        for p in packs:
             self.packets.packet.add()
-            self.packets.packet[-1].CopyFrom(packs[i])
+            self.packets.packet[-1].CopyFrom(p)
 
     def encryption_keys_count(self):
         "counts the number of encryption keys"
@@ -326,6 +329,3 @@ class Messages:
         "gets strs values from the packets"
         return [packet.packet.message.str for packet in self.packets.packet]
 
-    def clear_packets(self):
-        "clear the packets"
-        self.__init__()
