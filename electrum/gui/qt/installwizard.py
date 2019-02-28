@@ -317,7 +317,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     self.show_warning(_('The file was removed'))
                 return
             self.show()
-            self.data = storage.data
+            self.data = storage.db.data # FIXME
             self.run(action)
             for k, v in self.data.items():
                 storage.put(k, v)

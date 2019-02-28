@@ -31,7 +31,7 @@ import zlib
 
 from . import ecc
 from .util import PrintError, profiler, InvalidPassword, WalletFileException, bfh, standardize_path
-from .plugin import run_hook
+from .plugin import run_hook, plugin_loaders
 
 from .json_db import JsonDB
 
@@ -67,6 +67,13 @@ class WalletStorage(PrintError):
             self._encryption_version = STO_EV_PLAINTEXT
             # avoid new wallets getting 'upgraded'
             self.db = DB_Class('', manual_upgrades=False)
+
+        self.load_plugins()
+
+    def load_plugins(self):
+        wallet_type = self.db.get('wallet_type')
+        if wallet_type in plugin_loaders:
+            plugin_loaders[wallet_type]()
 
     def put(self, key,value):
         self.db.put(key, value)

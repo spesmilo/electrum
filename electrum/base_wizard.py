@@ -566,6 +566,7 @@ class BaseWizard(object):
         for key, value in self.data.items():
             storage.put(key, value)
         storage.write()
+        storage.load_plugins()
         return storage
 
     def show_xpub_and_add_cosigners(self, xpub):
