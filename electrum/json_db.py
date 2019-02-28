@@ -105,6 +105,7 @@ class JsonDB(PrintError):
     def commit(self):
         pass
 
+    @locked
     def dump(self):
         return json.dumps(self.data, indent=4, sort_keys=True, cls=util.MyEncoder)
 
@@ -659,19 +660,16 @@ class JsonDB(PrintError):
         self.history = self.get_data_ref('addr_history')  # address -> list(txid, height)
         self.verified_tx = self.get_data_ref('verified_tx3') # txid -> TxMinedInfo.  Access with self.lock.
         self.tx_fees = self.get_data_ref('tx_fees')
-
         # convert list to set
         for t in self.txi, self.txo:
             for d in t.values():
                 for addr, lst in d.items():
                     d[addr] = set([tuple(x) for x in lst])
-
         # remove unreferenced tx
         for tx_hash in list(self.transactions.keys()):
             if not self.get_txi(tx_hash) and not self.get_txo(tx_hash):
                 self.print_error("removing unreferenced tx", tx_hash)
                 self.transactions.pop(tx_hash)
-
         # remove unreferenced outpoints
         for prevout_hash in self.spent_outpoints.keys():
             d = self.spent_outpoints[prevout_hash]
