@@ -13,7 +13,7 @@ src_dir=$(dirname "$0")
 cd $src_dir/../..
 
 export PYTHONHASHSEED=22
-VERSION=`git describe --tags --dirty --always`
+VERSION=3.3.4
 
 which brew > /dev/null 2>&1 || fail "Please install brew from https://brew.sh/ to continue"
 which xcodebuild > /dev/null 2>&1 || fail "Please install Xcode and xcode command line tools to continue"
@@ -133,7 +133,7 @@ plutil -insert 'CFBundleURLTypes' \
 DoCodeSignMaybe "app bundle" "dist/${PACKAGE}.app" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
 info "Creating .DMG"
-hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-$VERSION.dmg || fail "Could not create .DMG"
+hdiutil create -fs HFS+ -volname $PACKAGE -srcfolder dist/$PACKAGE.app dist/electrum-grs-$VERSION.dmg || fail "Could not create .DMG"
 
 DoCodeSignMaybe ".DMG" "dist/electrum-grs-${VERSION}.dmg" "$APP_SIGN" # If APP_SIGN is empty will be a noop
 
