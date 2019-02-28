@@ -1506,6 +1506,9 @@ class Deterministic_Wallet(Abstract_Wallet):
     def __init__(self, storage):
         Abstract_Wallet.__init__(self, storage)
         self.gap_limit = storage.get('gap_limit', 20)
+        # generate addresses now. note that without libsecp this might block
+        # for a few seconds!
+        self.synchronize()
 
     def has_seed(self):
         return self.keystore.has_seed()

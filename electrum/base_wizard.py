@@ -621,11 +621,3 @@ class BaseWizard(object):
             self.line_dialog(run_next=f, title=title, message=message, default='', test=lambda x: x==passphrase)
         else:
             f('')
-
-    def create_addresses(self):
-        def task():
-            self.wallet.synchronize()
-            self.wallet.storage.write()
-            self.terminate()
-        msg = _("Electrum is generating your addresses, please wait...")
-        self.waiting_dialog(task, msg)
