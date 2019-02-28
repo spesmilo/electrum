@@ -25,24 +25,30 @@ Development version (Windows 64bits)
 Install the latest python 3.6 release from https://www.python.org (https://www.python.org/downloads/release/python-368/)
 (Caution: installing another release than 3.6 may cause incompatibility issues with pyscard)
 
-Check out the code from GitHub:
+Clone or download the code from GitHub.
 
 Open a PowerShell command line in the electrum folder
 
 In PowerShell, install the electrum dependencies::
+
     python -m pip install .   
     
 You may also ned to install Python3-pyqt5::
+
     python -m pip install pyqt5
     
 Install pyscard from https://pyscard.sourceforge.io/
 Pyscard is required to connect to the smartcard::
+
     python -m pip install pyscard
+    
 In case of error message, you may also install pyscard from the installer:
 Download the .whl files from https://sourceforge.net/projects/pyscard/files/pyscard/pyscard%201.9.7/ and run::
+
     python -m pip install pyscard-1.9.7-cp36-cp36m-win_amd64.whl
 
 In PowerShell, run electrum on the testnet (-v allows for verbose output)::
+
     python .\electrum -v --testnet
     
 
@@ -53,24 +59,29 @@ Development version (Ubuntu)
 
 Electrum is a pure python application. To use the
 Qt interface, install the Qt dependencies::
+
     sudo apt-get install python3-pyqt5
 
-Check out the code from GitHub:    
+Check out the code from GitHub::
+    
     git clone git://github.com/Toporin/electrum.git
     cd electrum
     
 In the electrum folder:    
     
 Run install (this should install dependencies)::
+
     python3 -m pip install .
     
 Install pyscard (https://pyscard.sourceforge.io/)
 Pyscard is required to connect to the smartcard:: 
+
     sudo apt-get install pcscd
     sudo apt-get install python3-pyscard
 (For alternatives, see https://github.com/LudovicRousseau/pyscard/blob/master/INSTALL.md for more detailed installation instructions)
  
 To run Electrum use::
+
  python3 electrum -v --testnet 
  
  
@@ -78,6 +89,7 @@ Test suite
 =============
  
 To run the test suite, run::
+
     python -m unittest plugins.satochip.test_CardConnector
  
 The test suite uses the following default PIN code: "12345678".
