@@ -62,6 +62,11 @@ class LNWatcher(AddressSynchronizer):
         # this maps funding_outpoints to ListenerItems, which have an event for when the watcher is done,
         # and a queue for seeing which txs are being published
         self.tx_progress = {} # type: Dict[str, ListenerItem]
+        # status gets populated when we run
+        self.channel_status = {}
+
+    def get_channel_status(self, outpoint):
+        return self.channel_status.get(outpoint, 'unknown')
 
     def set_remote_watchtower(self):
         watchtower_url = self.config.get('watchtower_url')
@@ -161,11 +166,16 @@ class LNWatcher(AddressSynchronizer):
         txid = self.spent_outpoints[prev_txid].get(int(index))
         result = {outpoint:txid}
         if txid is None:
+            self.channel_status[outpoint] = 'open'
             self.print_error('keep watching because outpoint is unspent')
             return True, result
         keep_watching = (self.get_tx_mined_depth(txid) != TxMinedDepth.DEEP)
         if keep_watching:
+            self.channel_status[outpoint] = 'closed (%d)' % self.get_tx_height(txid).conf
             self.print_error('keep watching because spending tx is not deep')
+        else:
+            self.channel_status[funding_outpoint] = 'closed (deep)'
+
         tx = self.transactions[txid]
         for i, o in enumerate(tx.outputs()):
             if o.address not in self.get_addresses():

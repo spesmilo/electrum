@@ -33,42 +33,67 @@ import PyQt5.QtCore as QtCore
 from electrum.i18n import _
 from .util import *
 
-help_wt = _("""A watchtower is a process that monitors your channels while you are offline, and prevents the other party from stealing funds in the channel.""")
-help_local = _("""Electrum runs a watchtower on your computer. This process will persist after you close your wallet. It will not persist if you exit Electrum from the tray menu""")
-help_remote = _("""To run a remote watchtower, start an electrum daemon on a computer that is always connected to the Internet, and set 'watchtower_host' and 'watchtower_port' in its config""")
+help_about = _("""The local watchtower will persist on this computer after you close
+your wallet, but it requires to be online regularly.""")
+
+help_remote = _(""" To setup a remote watchtower, configure a remote electrum daemon
+with 'watchtower_host' and 'watchtower_port' """)
+
+class WatcherList(MyTreeView):
+    def __init__(self, parent):
+        super().__init__(parent, self.create_menu, stretch_column=0, editable_columns=[])
+        self.setModel(QStandardItemModel(self))
+        self.setSortingEnabled(True)
+        self.update()
+
+    def create_menu(self, x):
+        pass
+
+    def update(self):
+        self.model().clear()
+        self.update_headers({0:_('Outpoint'), 1:_('Tx'), 2:_('Status')})
+        for outpoint, sweep_dict in self.parent.lnwatcher.sweepstore.items():
+            status = self.parent.lnwatcher.get_channel_status(outpoint)
+            items = [QStandardItem(e) for e in [outpoint, "%d"%len(sweep_dict), status]]
+            self.model().insertRow(self.model().rowCount(), items)
+
 
 class WatchTowerWindow(QDialog):
 
     def __init__(self, gui_object):
         QDialog.__init__(self)
         self.gui_object = gui_object
-        self.lnwatcher = gui_object.daemon.network.lnwatcher
-        self.wallet = self.lnwatcher
         self.config = gui_object.config
+        self.lnwatcher = gui_object.daemon.network.lnwatcher
         self.setWindowTitle(_('Watchtower'))
         self.setMinimumSize(600, 20)
-        vbox = QVBoxLayout(self)
         watchtower_url = self.config.get('watchtower_url')
         self.watchtower_e = QLineEdit(watchtower_url)
-        self.channel_list = QTreeWidget(self)
-        self.channel_list.setHeaderLabels([_('Node ID'), _('Amount')])
-
-        vbox.addWidget(WWLabel(help_wt))
-        vbox.addStretch(1)
-        vbox.addWidget(HelpLabel(_('Local Watchtower') + ':', help_local))
-        vbox.addWidget(self.channel_list)
-        vbox.addStretch(1)        
-        g = QGridLayout()
-        g.addWidget(HelpLabel(_('Remote Watchtower') + ':', help_remote), 1, 0)
+        self.channel_list = WatcherList(self)
+        # local
+        local_w = QWidget()
+        vbox_local = QVBoxLayout(local_w)
+        vbox_local.addWidget(WWLabel(help_about))
+        vbox_local.addWidget(self.channel_list)
+        # remote
+        remote_w = QWidget()
+        vbox_remote = QVBoxLayout(remote_w)
+        vbox_remote.addWidget(WWLabel(help_remote))
+        g = QGridLayout(remote_w)
+        g.addWidget(QLabel(_('URL') + ':'), 1, 0)
         g.addWidget(self.watchtower_e, 1, 1)
-        vbox.addLayout(g)
-        vbox.addStretch(1)
+        vbox_remote.addLayout(g)
+        vbox_remote.addStretch(1)
+        # tabs
+        tabs = QTabWidget()
+        tabs.addTab(local_w, _('Local'))
+        tabs.addTab(remote_w, _('Remote'))
+        vbox = QVBoxLayout(self)
+        vbox.addWidget(tabs)
         b = QPushButton(_('Close'))
         b.clicked.connect(self.on_close)
         vbox.addLayout(Buttons(b))
-        
-    def update(self):
-        pass
+        self.channel_list.update()
 
     def on_close(self):
         url = self.watchtower_e.text()
