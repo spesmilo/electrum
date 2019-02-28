@@ -174,7 +174,7 @@ class LNWatcher(AddressSynchronizer):
             self.channel_status[outpoint] = 'closed (%d)' % self.get_tx_height(txid).conf
             self.print_error('keep watching because spending tx is not deep')
         else:
-            self.channel_status[funding_outpoint] = 'closed (deep)'
+            self.channel_status[outpoint] = 'closed (deep)'
 
         tx = self.transactions[txid]
         for i, o in enumerate(tx.outputs()):
