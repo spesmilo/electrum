@@ -27,6 +27,7 @@ from electrum.i18n import _
 import requests
 import json
 from electrum import bitcoin, ecc
+from electrum import constants
 import base64
 
 class AssetsList(MyTreeWidget):
@@ -35,57 +36,72 @@ class AssetsList(MyTreeWidget):
         MyTreeWidget.__init__(self, parent, self.create_menu, [ _('Serial No.'), _('Year'), _('Manufacturer'), _('Asset Fine Mass'), _('Mass Owned'), _('Fraction')],2)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.setSortingEnabled(True)
-        self.url = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
-        getmap = requests.request('GET', self.url, timeout=10)
-        self.amap = getmap.json()
-        self.controller_pubkeys = []
-        self.controller_pubkeys.append("045cb05851130ee7aa09ca43dae988d36ab6b8dbb06dd3948295b919084056d4ce2f2438add60811f7cb7898e17890dcfa4246309f17a7b2b14446d5e3d25b5bc9")
-        self.controller_pubkeys.append("04925c07cdc8b04b6f4ab84e6e120648d91517911d2a28decf9ad37cae333413a58975c89eeec3fac0b576b23927df84bc6093d2e8c997effd928cd7defa627db7")
-        self.controller_pubkeys.append("04de3441f8a7ecb17417cc764143bda6f19ee5dc85de94534af5a411cd6ef12b59054419dbbc46c139787fce75f1be9901a8e0aadcfd2462c3fafba995d342483e")
-        self.verified = self.verify_mapping_sig()
+        self.verified = False
+        self.amap = {}
+        if self.config.get('get_map'):
+            try:
+                r = requests.request('GET', self.config.get('mapping_url'), timeout=2)
+                r.raise_for_status()
+            except requests.exceptions.HTTPError as errh:
+                self.getmap = 'http_error'
+                return
+            except requests.exceptions.ConnectionError as errc:
+                self.getmap = 'connection_error'
+                return
+            except requests.exceptions.Timeout as errt:
+                self.getmap = 'timeout_error'
+                return
+            except requests.exceptions.RequestException as err:
+                self.getmap = 'request_exception'
+                return
+            self.getmap = 'connected'
+            self.amap = r.json()
+            self.controller_pubkeys = [constants.net.CONTROLER1,constants.net.CONTROLER2,constants.net.CONTROLER3]
+            self.verified = self.verify_mapping_sig()
 
     def on_update(self):
-        self.wallet = self.parent.wallet
-        tokrat = token_ratio(self.wallet.get_block_height())
-        tokens = {}
-        ownassets = {}
-        item = self.currentItem()
-        self.clear()
-        self.utxos = self.wallet.get_utxos()
-        for x in self.utxos:
-            asset = x.get('asset')
-            amount = float(x['value'])
-            if asset in ownassets:
-                tokens[asset] += amount
-            else:
-                tokens[asset] = amount
+        if self.config.get('get_map'):
+            self.wallet = self.parent.wallet
+            tokrat = token_ratio(self.wallet.get_block_height())
+            tokens = {}
+            ownassets = {}
+            item = self.currentItem()
+            self.clear()
+            self.utxos = self.wallet.get_utxos()
+            for x in self.utxos:
+                asset = x.get('asset')
+                amount = float(x['value'])
+                if asset in tokens:
+                    tokens[asset] += amount
+                else:
+                    tokens[asset] = amount
 
-        for tokenid in tokens:
-            for i,j in self.amap["assets"].items():
-                if j["tokenid"] == tokenid:
-                    if j["ref"] in ownassets:
-                        ownassets[j["ref"]] += tokens[tokenid]
-                    else:
-                        ownassets[j["ref"]] = tokens[tokenid]
-                    if j["mass"] < tokens[tokenid]*tokrat/1.0E+8:
-                        tokens[tokenid] -= j["mass"]*1.0E+8/tokrat
-                    else:
-                        tokens[tokenid] = 0
+            for tokenid in tokens:
+                for i,j in self.amap["assets"].items():
+                    if j["tokenid"] == tokenid:
+                        if j["ref"] in ownassets:
+                            ownassets[j["ref"]] += tokens[tokenid]
+                        else:
+                            ownassets[j["ref"]] = tokens[tokenid]
+                        if j["mass"] < tokens[tokenid]*tokrat/1.0E+8:
+                            tokens[tokenid] -= j["mass"]*1.0E+8/tokrat
+                        else:
+                            tokens[tokenid] = 0
 
-        for myasset in ownassets:
-            rmass = str("%.4f" % (float(ownassets[myasset])*tokrat/1.0E+8))+" oz "
-            tmass = str("%.4f" % (float(self.get_mass_assetid(myasset))))+" oz "
-            fraction = 100*(float(ownassets[myasset])*tokrat/1.0E+8)/float(self.get_mass_assetid(myasset))
-            fraction_str = str("%.4f" % fraction)+" %"
-            asset_ref = myasset.split("-")
-            if len(asset_ref) != 3: return
-            asset_item = SortableTreeWidgetItem([asset_ref[0], asset_ref[1], asset_ref[2], tmass, rmass, fraction_str])
-            asset_item.setFont(0, QFont(MONOSPACE_FONT))
-            asset_item.setFont(1, QFont(MONOSPACE_FONT))
-            asset_item.setFont(2, QFont(MONOSPACE_FONT))
-            asset_item.setFont(3, QFont(MONOSPACE_FONT))
-            asset_item.setFont(4, QFont(MONOSPACE_FONT))
-            self.addChild(asset_item)
+            for myasset in ownassets:
+                rmass = str("%.4f" % (float(ownassets[myasset])*tokrat/1.0E+8))+" oz "
+                tmass = str("%.4f" % (float(self.get_mass_assetid(myasset))))+" oz "
+                fraction = 100*(float(ownassets[myasset])*tokrat/1.0E+8)/float(self.get_mass_assetid(myasset))
+                fraction_str = str("%.4f" % fraction)+" %"
+                asset_ref = myasset.split("-")
+                if len(asset_ref) != 3: return
+                asset_item = SortableTreeWidgetItem([asset_ref[0], asset_ref[1], asset_ref[2], tmass, rmass, fraction_str])
+                asset_item.setFont(0, QFont(MONOSPACE_FONT))
+                asset_item.setFont(1, QFont(MONOSPACE_FONT))
+                asset_item.setFont(2, QFont(MONOSPACE_FONT))
+                asset_item.setFont(3, QFont(MONOSPACE_FONT))
+                asset_item.setFont(4, QFont(MONOSPACE_FONT))
+                self.addChild(asset_item)
 
     def create_menu(self, position):
         selected = [x.data(0, Qt.UserRole) for x in self.selectedItems()]

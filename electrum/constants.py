@@ -48,6 +48,7 @@ class OceanMainnet:
     GENESIS = "786331c97fac638be2e962b8b388d5a0506c7e98091da265b5334fad059600fe"
     DEFAULT_PORTS = {'t': '50001', 's': '50002'}
     DEFAULT_SERVERS = read_json('servers.json', {})
+    MAPPING_URL = 'https://s3.eu-west-2.amazonaws.com/cb-mapping/map.json'
     CHECKPOINTS = []    # no handling for checkpoins
 
     XPRV_HEADERS = {
@@ -67,6 +68,10 @@ class OceanMainnet:
 
     }
     BIP44_COIN_TYPE = 0
+
+    CONTROLER1 = "045cb05851130ee7aa09ca43dae988d36ab6b8dbb06dd3948295b919084056d4ce2f2438add60811f7cb7898e17890dcfa4246309f17a7b2b14446d5e3d25b5bc9"
+    CONTROLER2 = "04925c07cdc8b04b6f4ab84e6e120648d91517911d2a28decf9ad37cae333413a58975c89eeec3fac0b576b23927df84bc6093d2e8c997effd928cd7defa627db7"
+    CONTROLER3 = "04de3441f8a7ecb17417cc764143bda6f19ee5dc85de94534af5a411cd6ef12b59054419dbbc46c139787fce75f1be9901a8e0aadcfd2462c3fafba995d342483e"
 
 # Current Testnet purposes
 class OceanTestnet(OceanMainnet):

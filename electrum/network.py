@@ -189,6 +189,7 @@ class Network(util.DaemonThread):
             self.blockchain_index = 0
         # Server for addresses and transactions
         self.default_server = self.config.get('server', None)
+        self.mapping_server = self.config.get('mapping_url', constants.net.MAPPING_URL)
         # Sanitize default server
         if self.default_server:
             try:
@@ -239,6 +240,7 @@ class Network(util.DaemonThread):
         self.interface = None              # note: needs self.interface_lock
         self.interfaces = {}               # note: needs self.interface_lock
         self.auto_connect = self.config.get('auto_connect', True)
+        self.get_mapping = self.config.get('get_map', False)
         self.connecting = set()
         self.requested_chunks = set()
         self.socket_queue = queue.Queue()
@@ -516,6 +518,12 @@ class Network(util.DaemonThread):
         self.connecting = set()
         # Get a new queue - no old pending connections thanks!
         self.socket_queue = queue.Queue()
+
+    def set_mapping(self, get_map, mapping_url):
+        self.config.set_key('mapping_url', mapping_url, False)
+        self.config.set_key('get_map', get_map, True)
+        self.get_mapping = get_map
+        self.mapping_server = mapping_url
 
     def set_parameters(self, host, port, protocol, proxy, auto_connect):
         proxy_str = serialize_proxy(proxy)

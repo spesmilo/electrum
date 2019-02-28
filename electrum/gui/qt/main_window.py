@@ -1798,8 +1798,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
     def create_assets_tab(self):
         from .assets_list import AssetsList
         self.assets_list = l = AssetsList(self)
-        if not l.verified:
-            self.show_warning(_('Warning: Asset mapping authentication failed'))
+        if self.network.get_mapping:
+            url = self.network.mapping_server
+            if l.getmap != 'connected':
+                self.show_warning(_('Warning: mapping not recieved. '+l.getmap))
+                self.network.set_mapping(False,url)
+            elif not l.verified:
+                self.show_warning(_('Warning: Asset mapping authentication failed'))
+                self.network.set_mapping(False,url)
         return self.create_list_tab(l)
 
     def create_contacts_tab(self):

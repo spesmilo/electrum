@@ -191,10 +191,12 @@ class NetworkChoiceLayout(object):
 
         self.tabs = tabs = QTabWidget()
         server_tab = QWidget()
+        mapping_tab = QWidget()
         proxy_tab = QWidget()
         blockchain_tab = QWidget()
         tabs.addTab(blockchain_tab, _('Overview'))
         tabs.addTab(server_tab, _('Server'))
+        tabs.addTab(mapping_tab, _('Mapping'))
         tabs.addTab(proxy_tab, _('Proxy'))
 
         # server tab
@@ -205,7 +207,7 @@ class NetworkChoiceLayout(object):
         self.server_host.setFixedWidth(200)
         self.server_port = QLineEdit()
         self.server_port.setFixedWidth(60)
-        self.autoconnect_cb = QCheckBox(_('Select server automatically'))
+        self.autoconnect_cb = QCheckBox(_('Select mapping server automatically'))
         self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
 
         self.server_host.editingFinished.connect(self.set_server)
@@ -228,6 +230,30 @@ class NetworkChoiceLayout(object):
         grid.addWidget(QLabel(label), 2, 0, 1, 5)
         self.servers_list = ServerListWidget(self)
         grid.addWidget(self.servers_list, 3, 0, 1, 5)
+
+        # mapping tab
+        grid = QGridLayout(mapping_tab)
+        grid.setSpacing(8)
+
+        self.map_host = QLineEdit()
+        self.map_host.setFixedWidth(270)
+        self.getmapping = QCheckBox(_('Retrieve asset mapping data'))
+        self.getmapping.setEnabled(self.config.is_modifiable('get_map'))
+
+        self.map_host.editingFinished.connect(self.set_mapping)
+        self.getmapping.clicked.connect(self.set_mapping)
+        self.getmapping.clicked.connect(self.update)
+
+        msg = ' '.join([
+            _("If asset mapping is enabled, the wallet will retrieve the asset mapping object from the remote server and authenticate it. "),
+            _("Asset information is then displayed in the Assets tab.")
+        ])
+        grid.addWidget(self.getmapping, 0, 0, 1, 3)
+        grid.addWidget(HelpButton(msg), 0, 4)
+
+        grid.addWidget(QLabel(_('Asset map URL') + ':'), 1, 0)
+        grid.addWidget(self.map_host, 1, 1, 1, 4)
+        grid.setRowStretch(7, 1)
 
         # Proxy tab
         grid = QGridLayout(proxy_tab)
@@ -334,8 +360,20 @@ class NetworkChoiceLayout(object):
             for w in [self.autoconnect_cb, self.server_host, self.server_port, self.servers_list]:
                 w.setEnabled(False)
 
+    def enable_set_mapping(self):
+        if self.config.is_modifiable('mapping_url'):
+            enabled = self.getmapping.isChecked()
+            self.map_host.setEnabled(enabled)
+        else:
+            for w in [self.getmapping, self.map_host]:
+                w.setEnabled(False)
+
     def update(self):
         host, port, protocol, proxy_config, auto_connect = self.network.get_parameters()
+
+        self.map_host.setText(self.network.mapping_server)
+        self.getmapping.setChecked(self.network.get_mapping)
+
         self.server_host.setText(host)
         self.server_port.setText(port)
         self.autoconnect_cb.setChecked(auto_connect)
@@ -348,6 +386,7 @@ class NetworkChoiceLayout(object):
         self.servers = self.network.get_servers()
         self.servers_list.update(self.servers, self.protocol, self.tor_cb.isChecked())
         self.enable_set_server()
+        self.enable_set_mapping()
 
         height_str = "%d "%(self.network.get_local_height()) + _('blocks')
         self.height_label.setText(height_str)
@@ -445,6 +484,11 @@ class NetworkChoiceLayout(object):
         port = str(self.server_port.text())
         auto_connect = self.autoconnect_cb.isChecked()
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
+
+    def set_mapping(self):
+        host = str(self.map_host.text())
+        get_map = self.getmapping.isChecked()
+        self.network.set_mapping(get_map, host)
 
     def set_proxy(self):
         host, port, protocol, proxy, auto_connect = self.network.get_parameters()
