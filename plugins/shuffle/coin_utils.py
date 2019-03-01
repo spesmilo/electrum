@@ -53,7 +53,7 @@ class CoinUtils(PrintErrorThread):
                 for utxo in pk_inputs:
                     val = utxos.get(utxo)
                     if val is None:
-                        return None
+                        return False  # utxo does not exist or was spent
                     total += val
             return total >= amount
         except:
@@ -179,6 +179,10 @@ class CoinUtils(PrintErrorThread):
 
     def verify_signature(self, signature, message, verification_key):
         "This method verifies signature of message"
-        pk, compressed = pubkey_from_signature(signature, Hash(msg_magic(message)))
-        pubkey = point_to_ser(pk.pubkey.point, compressed).hex()
-        return pubkey == verification_key
+        try:
+            pk, compressed = pubkey_from_signature(signature, Hash(msg_magic(message)))
+            pubkey = point_to_ser(pk.pubkey.point, compressed).hex()
+            return pubkey == verification_key
+        except Exception as e:
+            self.print_error("verify_signature:", repr(e))
+            return False

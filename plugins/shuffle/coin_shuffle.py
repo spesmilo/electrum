@@ -2,6 +2,9 @@ from .client import PrintErrorThread, ERR_BAD_SERVER_PREFIX
 from .comms import BadServerPacketError
 from electroncash.util import profiler
 
+class ImplementationMissing(RuntimeError):
+    pass
+
 class Round(PrintErrorThread):
     """
     A single round of the protocol. It is possible that the players may go through
@@ -87,6 +90,9 @@ class Round(PrintErrorThread):
         except BadServerPacketError as e:
             self.print_error(str(e))
             self.logchan.send(ERR_BAD_SERVER_PREFIX + (" {}".format(str(e))))
+        except ImplementationMissing as e:
+            self.print_error(str(e))
+            self.logchan.send("Error: ImplementationMissing -- original programmer's implentation is incomplete. FIXME!")
         finally:
             self.done = True
 
@@ -140,13 +146,20 @@ class Round(PrintErrorThread):
         if self.check_for_blame():
             self.process_blame()
         else:
-            {'Announcement' : self.process_announcement,
-             'Shuffling' : self.process_shuffling,
-             'BroadcastOutput' : self.process_broadcast_output,
-             'EquivocationCheck' : self.process_equivocation_check,
-             'VerificationAndSubmission' : self.process_verification_and_submission,
-             'Blame' : self.process_blame
-            }[self.phase]()
+            handler = {
+                'Announcement' : self.process_announcement,
+                'Shuffling' : self.process_shuffling,
+                'BroadcastOutput' : self.process_broadcast_output,
+                'EquivocationCheck' : self.process_equivocation_check,
+                'VerificationAndSubmission' : self.process_verification_and_submission,
+                'Blame' : self.process_blame
+            }.get(self.phase)
+            if handler:
+                handler()
+            else:
+                # Grrr. For some reason Yura didn't implement all the possible inbox handlers. :(
+                # FIXME
+                raise ImplementationMissing("Could not find a handler for inbox phase: {} -- FIXME!".format(self.phase))
 
 # Processing of normal phases
     def process_announcement(self):
@@ -384,12 +397,19 @@ class Round(PrintErrorThread):
         phase = self.messages.phases[self.phase]
         reason = self.messages.get_blame_reason()
         br = self.messages.blame_reason
-        {
+        handler = {
             br('Insufficient Funds') : self.process_blame_insufficient_funds,
             br('Equivocation failure') : self.process_blame_equivocation_failure,
             br('Shuffle Failure') : self.process_blame_shuffle_failure,
             br('Shuffle and Equivocation Failure') : self.process_blame_shuffle_and_equivocation_failure
-        }[reason](phase, reason)
+        }.get(reason)
+        if handler:
+            handler(phase, reason)
+        else:
+            # Grrr. For some reason Yura didn't implement all the possible blame handlers in messages_pb2.py. This codepath is
+            # reached on verify signature failure -- but the blame appears to happen elsewhere anyway.
+            # TODO: FIXME
+            raise ImplementationMissing("Could not find a handler for blame reason: {} in phase: {} -- FIXME!".format(reason, phase))
 
     def process_blame_insufficient_funds(self, phase, reason):
         """
@@ -680,13 +700,16 @@ class Round(PrintErrorThread):
             self.players = {player:vk
                             for player,vk in self.players.items()
                             if vk not in offenders}
+            # invert the player -> vk map
+            offender_names = { v: k for k,v in old_players.items() }
             for offender in offenders:
+                if self.vk == offender:
+                    # don't blame self.
+                    continue
                 self.messages.blame_insufficient_funds(offender)
                 self.send_message()
-                old_players_keys = list(old_players.keys())
-                old_players_vals = list(old_players.values())
                 self.logchan.send('Blame: insufficient funds of player ' +
-                                  str(old_players_keys[old_players_vals.index(offender)]))
+                                  str(offender_names.get(offender)))
             if len(self.players) > 1:
                 self.number_of_players = len(self.players)
             else:
@@ -694,7 +717,7 @@ class Round(PrintErrorThread):
                 self.done = True
                 return False
             if self.vk in offenders:
-                self.logchan.send('Error: players funds is not enough')
+                self.logchan.send('Error: I appear to lack the funds!')
                 self.done = True
                 return False
             return False
