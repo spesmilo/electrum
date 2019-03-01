@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QMessageBox,
 
 from electrum.wallet import Wallet
 from electrum.storage import WalletStorage
-from electrum.util import UserCancelled, InvalidPassword
+from electrum.util import UserCancelled, InvalidPassword, WalletFileException
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
 from electrum.i18n import _
 
@@ -307,7 +307,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             return
 
         action = storage.get_action()
-        if action: #< and action not in ('new', 'upgrade_storage'):
+        if action and storage.requires_upgrade():
+            raise WalletFileException('Incomplete wallet files cannot be upgraded.')
+        if action:
             self.hide()
             msg = _("The file '{}' contains an incompletely created wallet.\n"
                     "Do you want to complete its creation now?").format(path)
