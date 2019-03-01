@@ -665,7 +665,7 @@ class Commands:
         tx = Transaction(tx)
         if not self.wallet.add_transaction(tx.txid(), tx):
             return False
-        self.wallet.save_transactions()
+        self.wallet.storage.write()
         return tx.txid()
 
     @command('wp')
@@ -735,7 +735,7 @@ class Commands:
         to_delete |= self.wallet.get_depending_transactions(txid)
         for tx_hash in to_delete:
             self.wallet.remove_transaction(tx_hash)
-        self.wallet.save_transactions(write=True)
+        self.wallet.storage.write()
 
     @command('')
     def help(self):

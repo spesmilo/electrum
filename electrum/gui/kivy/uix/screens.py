@@ -118,7 +118,7 @@ class HistoryScreen(CScreen):
 
     def show_tx(self, obj):
         tx_hash = obj.tx_hash
-        tx = self.app.wallet.transactions.get(tx_hash)
+        tx = self.app.wallet.db.get_transaction(tx_hash)
         if not tx:
             return
         self.app.tx_dialog(tx)
