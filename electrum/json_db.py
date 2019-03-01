@@ -105,6 +105,12 @@ class JsonDB(PrintError):
                 self.data[key] = copy.deepcopy(value)
                 return True
         elif key in self.data:
+            # clear current contents in case of references
+            cur_val = self.data[key]
+            clear_method = getattr(cur_val, "clear", None)
+            if callable(clear_method):
+                clear_method()
+            # pop from dict to delete key
             self.data.pop(key)
             return True
         return False
