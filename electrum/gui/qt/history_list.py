@@ -80,13 +80,14 @@ TX_ICONS = [
 class HistoryColumns(IntEnum):
     STATUS = 0
     DESCRIPTION = 1
-    COIN_VALUE = 2
-    ONCHAIN_BALANCE = 3
-    CHANNELS_BALANCE = 4
-    FIAT_VALUE = 5
-    FIAT_ACQ_PRICE = 6
-    FIAT_CAP_GAINS = 7
-    TXID = 8
+    AMOUNT = 2
+    LN_AMOUNT = 3
+    BALANCE = 4
+    LN_BALANCE = 5
+    FIAT_VALUE = 6
+    FIAT_ACQ_PRICE = 7
+    FIAT_CAP_GAINS = 8
+    TXID = 9
 
 class HistorySortModel(QSortFilterProxyModel):
     def lessThan(self, source_left: QModelIndex, source_right: QModelIndex):
@@ -167,11 +168,13 @@ class HistoryModel(QAbstractItemModel, Logger):
                     (-timestamp, conf, -status, -height, -txpos) if not is_lightning else (-timestamp, 0,0,0,0),
                 HistoryColumns.DESCRIPTION:
                     tx_item['label'] if 'label' in tx_item else None,
-                HistoryColumns.COIN_VALUE:
+                HistoryColumns.AMOUNT:
                     tx_item['value'].value if 'value' in tx_item else None,
-                HistoryColumns.ONCHAIN_BALANCE:
+                HistoryColumns.LN_AMOUNT:
+                    tx_item['ln_value'].value if 'ln_value' in tx_item else None,
+                HistoryColumns.BALANCE:
                     tx_item['balance'].value if not is_lightning else None,
-                HistoryColumns.CHANNELS_BALANCE:
+                HistoryColumns.LN_BALANCE:
                     tx_item['balance_msat'] if 'balance_msat' in tx_item else None,
                 HistoryColumns.FIAT_VALUE:
                     tx_item['fiat_value'].value if 'fiat_value' in tx_item else None,
@@ -197,7 +200,7 @@ class HistoryModel(QAbstractItemModel, Logger):
             elif col == HistoryColumns.DESCRIPTION and role == Qt.DecorationRole and not is_lightning\
                     and self.parent.wallet.invoices.paid.get(tx_hash):
                 return QVariant(read_QIcon("seal"))
-            elif col in (HistoryColumns.DESCRIPTION, HistoryColumns.COIN_VALUE) \
+            elif col in (HistoryColumns.DESCRIPTION, HistoryColumns.AMOUNT) \
                     and role == Qt.ForegroundRole and not is_lightning and tx_item['value'].value < 0:
                 red_brush = QBrush(QColor("#BC1E1E"))
                 return QVariant(red_brush)
@@ -210,15 +213,19 @@ class HistoryModel(QAbstractItemModel, Logger):
             return QVariant(status_str)
         elif col == HistoryColumns.DESCRIPTION and 'label' in tx_item:
             return QVariant(tx_item['label'])
-        elif col == HistoryColumns.COIN_VALUE and 'value' in tx_item:
+        elif col == HistoryColumns.AMOUNT and 'value' in tx_item:
             value = tx_item['value'].value
             v_str = self.parent.format_amount(value, is_diff=True, whitespaces=True)
             return QVariant(v_str)
-        elif col == HistoryColumns.ONCHAIN_BALANCE and not is_lightning:
+        elif col == HistoryColumns.LN_AMOUNT and 'ln_value' in tx_item:
+            ln_value = tx_item['ln_value'].value
+            v_str = self.parent.format_amount(ln_value, is_diff=True, whitespaces=True)
+            return QVariant(v_str)
+        elif col == HistoryColumns.BALANCE and not is_lightning:
             balance = tx_item['balance'].value
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             return QVariant(balance_str)
-        elif col == HistoryColumns.CHANNELS_BALANCE and 'balance_msat' in tx_item:
+        elif col == HistoryColumns.LN_BALANCE and 'balance_msat' in tx_item:
             balance = tx_item['balance_msat']//1000
             balance_str = self.parent.format_amount(balance, whitespaces=True)
             return QVariant(balance_str)
@@ -285,11 +292,11 @@ class HistoryModel(QAbstractItemModel, Logger):
             if txid and txid in transactions:
                 item = transactions[txid]
                 item['label'] = tx_item['label'] + ' (%s)'%self.parent.format_amount_and_units(tx_item['amount_msat']/1000)
-                item['value'] = Satoshis(item['value'].value + ln_value)
+                item['ln_value'] = Satoshis(ln_value)
                 item['balance_msat'] = tx_item['balance_msat']
             else:
                 tx_item['lightning'] = True
-                tx_item['value'] = Satoshis(ln_value)
+                tx_item['ln_value'] = Satoshis(ln_value)
                 key = tx_item['payment_hash'] if 'payment_hash' in tx_item else tx_item['type'] + tx_item['channel_id']
                 transactions[key] = tx_item
         self.beginInsertRows(QModelIndex(), 0, len(transactions)-1)
@@ -378,9 +385,10 @@ class HistoryModel(QAbstractItemModel, Logger):
         return {
             HistoryColumns.STATUS: _('Date'),
             HistoryColumns.DESCRIPTION: _('Description'),
-            HistoryColumns.COIN_VALUE: _('Amount'),
-            HistoryColumns.ONCHAIN_BALANCE: _('Balance'),
-            HistoryColumns.CHANNELS_BALANCE: u'\U0001f5f2  ' + _('Channels balance'),
+            HistoryColumns.AMOUNT: _('Amount'),
+            HistoryColumns.LN_AMOUNT: u'\U0001f5f2',
+            HistoryColumns.BALANCE: _('Balance'),
+            HistoryColumns.LN_BALANCE: u'\U0001f5f2',
             HistoryColumns.FIAT_VALUE: fiat_title,
             HistoryColumns.FIAT_ACQ_PRICE: fiat_acq_title,
             HistoryColumns.FIAT_CAP_GAINS: fiat_cg_title,
@@ -403,7 +411,7 @@ class HistoryModel(QAbstractItemModel, Logger):
 class HistoryList(MyTreeView, AcceptFileDragDrop):
     filter_columns = [HistoryColumns.STATUS,
                       HistoryColumns.DESCRIPTION,
-                      HistoryColumns.COIN_VALUE,
+                      HistoryColumns.AMOUNT,
                       HistoryColumns.TXID]
 
     def tx_item_from_proxy_row(self, proxy_row):
