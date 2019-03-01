@@ -1834,17 +1834,23 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
                 if not is_my_settings:
                     grayify(twi)
                 self.tree.addTopLevelItem(twi)
+
+        def sizeColumnsToFit():
+            for i in range(self.tree.columnCount()):
+                self.tree.resizeColumnToContents(i)
+
         if not self.tree.topLevelItemCount():
             twi = QTreeWidgetItem([_('No Pools'), '', '', '', ''])
             f = twi.font(0); f.setItalic(True); twi.setFont(0, f)
             self.tree.addTopLevelItem(twi)
             self.tree.setFirstItemColumnSpanned(twi, True)
             self.tree.setHeaderHidden(True)
+            sizeColumnsToFit()  # in no pools mode we unconditionally size to fit
+            self.needsColumnSizing = True  # once we enter this "No pools.." mode, we need to force resize columns next time we have real entries to avoid layout weirdness
         else:
             self.tree.setHeaderHidden(False)
-            if self.needsColumnSizing:
-                for i in range(self.tree.columnCount()):
-                    self.tree.resizeColumnToContents(i)
+            if self.needsColumnSizing:  # this flag suppresses resizing each refresh to allow users to manually size the columns after a display with real data appears.
+                sizeColumnsToFit()
                 self.needsColumnSizing = False
     def startNetworkChecker(self):
         if self.networkChecker: return
