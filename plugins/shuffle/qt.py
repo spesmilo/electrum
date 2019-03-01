@@ -1719,6 +1719,7 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         # pools group box
         self.poolsGB = QGroupBox(_("{} Pools").format(name) + " (0)")
         self.vbox.addWidget(self.poolsGB)
+        self.vbox.setStretchFactor(self.poolsGB, 2)
         vbox2 = QVBoxLayout(self.poolsGB)
         self.tree = QTreeWidget()
         self.tree.setSelectionMode(QAbstractItemView.NoSelection)
