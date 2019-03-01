@@ -39,7 +39,7 @@ from PyQt5.QtWidgets import (QMenu, QHeaderView, QLabel, QMessageBox,
                              QPushButton, QComboBox, QVBoxLayout, QCalendarWidget,
                              QGridLayout)
 
-from electrum.address_synchronizer import TX_HEIGHT_LOCAL
+from electrum.address_synchronizer import TX_HEIGHT_LOCAL, TX_HEIGHT_FUTURE
 from electrum.i18n import _
 from electrum.util import (block_explorer_URL, profiler, TxMinedInfo,
                            OrderedDictWithIndex, timestamp_to_datetime,
@@ -632,7 +632,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
         is_unconfirmed = height <= 0
         pr_key = self.wallet.invoices.paid.get(tx_hash)
         menu = QMenu()
-        if height == TX_HEIGHT_LOCAL:
+        if height in [TX_HEIGHT_FUTURE, TX_HEIGHT_LOCAL]:
             menu.addAction(_("Remove"), lambda: self.remove_local_tx(tx_hash))
         menu.addAction(_("Copy Transaction ID"), lambda: self.parent.app.clipboard().setText(tx_hash))
 

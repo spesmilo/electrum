@@ -349,21 +349,23 @@ class LNWorker(PrintError):
             broadcast = True
             if e_tx.cltv_expiry:
                 local_height = self.network.get_local_height()
-                if local_height > e_tx.cltv_expiry:
-                    self.print_error(e_tx.name, 'CLTV ({} > {}) fulfilled'.format(local_height, e_tx.cltv_expiry))
-                else:
+                remaining = e_tx.cltv_expiry - local_height
+                if remaining > 0:
                     self.print_error(e_tx.name, 'waiting for {}: CLTV ({} > {}), funding outpoint {} and tx {}'
                                      .format(e_tx.name, local_height, e_tx.cltv_expiry, funding_outpoint[:8], prev_txid[:8]))
                     broadcast = False
             if e_tx.csv_delay:
-                num_conf = self.network.lnwatcher.get_tx_height(prev_txid).conf
-                if num_conf < e_tx.csv_delay:
+                prev_height = self.network.lnwatcher.get_tx_height(prev_txid)
+                remaining = e_tx.csv_delay - prev_height.conf
+                if remaining > 0:
                     self.print_error(e_tx.name, 'waiting for {}: CSV ({} >= {}), funding outpoint {} and tx {}'
-                                     .format(e_tx.name, num_conf, e_tx.csv_delay, funding_outpoint[:8], prev_txid[:8]))
+                                     .format(e_tx.name, prev_height.conf, e_tx.csv_delay, funding_outpoint[:8], prev_txid[:8]))
                     broadcast = False
             if broadcast:
                 if not await self.network.lnwatcher.broadcast_or_log(funding_outpoint, e_tx):
                     self.print_error(e_tx.name, f'could not publish encumbered tx: {str(e_tx)}, prevout: {prevout}')
+            else:
+                self.wallet.add_future_tx(e_tx, remaining)
 
 
     @log_exceptions
