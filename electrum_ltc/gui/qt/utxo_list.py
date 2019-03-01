@@ -107,7 +107,7 @@ class UTXOList(MyTreeView):
         menu.addAction(_("Spend"), lambda: self.parent.spend_coins(coins))
         if len(selected) == 1:
             txid = selected[0].split(':')[0]
-            tx = self.wallet.transactions.get(txid)
+            tx = self.wallet.db.get_transaction(txid)
             if tx:
                 label = self.wallet.get_label(txid) or None # Prefer None if empty (None hides the Description: field in the window)
                 menu.addAction(_("Details"), lambda: self.parent.show_transaction(tx, label))

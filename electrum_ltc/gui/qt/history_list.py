@@ -547,7 +547,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             self.show_transaction(tx_item['txid'])
 
     def show_transaction(self, tx_hash):
-        tx = self.wallet.transactions.get(tx_hash)
+        tx = self.wallet.db.get_transaction(tx_hash)
         if not tx:
             return
         label = self.wallet.get_label(tx_hash) or None # prefer 'None' if not defined (force tx dialog to hide Description field if missing)
@@ -568,7 +568,9 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             column_title = self.hm.headerData(column, Qt.Horizontal, Qt.DisplayRole)
             column_data = self.hm.data(idx, Qt.DisplayRole).value()
         tx_hash = tx_item['txid']
-        tx = self.wallet.transactions[tx_hash]
+        tx = self.wallet.db.get_transaction(tx_hash)
+        if not tx:
+            return
         tx_URL = block_explorer_URL(self.config, 'tx', tx_hash)
         height = self.wallet.get_tx_height(tx_hash).height
         is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
@@ -613,7 +615,7 @@ class HistoryList(MyTreeView, AcceptFileDragDrop):
             return
         for tx in to_delete:
             self.wallet.remove_transaction(tx)
-        self.wallet.save_transactions(write=True)
+        self.wallet.storage.write()
         # need to update at least: history_list, utxo_list, address_list
         self.parent.need_update.set()
 
