@@ -140,6 +140,7 @@ class HistoryModel(QAbstractItemModel, Logger):
         timestamp = tx_item['timestamp']
         if is_lightning:
             status = 0
+            txpos = tx_item['txpos']
             if timestamp is None:
                 status_str = 'unconfirmed'
             else:
@@ -165,7 +166,7 @@ class HistoryModel(QAbstractItemModel, Logger):
                 HistoryColumns.STATUS:
                     # height breaks ties for unverified txns
                     # txpos breaks ties for verified same block txns
-                    (-timestamp, conf, -status, -height, -txpos) if not is_lightning else (-timestamp, 0,0,0,0),
+                    (-timestamp, conf, -status, -height, -txpos) if not is_lightning else (-timestamp, 0,0,0,-txpos),
                 HistoryColumns.DESCRIPTION:
                     tx_item['label'] if 'label' in tx_item else None,
                 HistoryColumns.AMOUNT:
@@ -286,7 +287,7 @@ class HistoryModel(QAbstractItemModel, Logger):
         for tx_item in r['transactions']:
             txid = tx_item['txid']
             transactions[txid] = tx_item
-        for tx_item in lightning_history:
+        for i, tx_item in enumerate(lightning_history):
             txid = tx_item.get('txid')
             ln_value = tx_item['amount_msat']/1000.
             if txid and txid in transactions:
@@ -297,8 +298,10 @@ class HistoryModel(QAbstractItemModel, Logger):
             else:
                 tx_item['lightning'] = True
                 tx_item['ln_value'] = Satoshis(ln_value)
+                tx_item['txpos'] = i # for sorting
                 key = tx_item['payment_hash'] if 'payment_hash' in tx_item else tx_item['type'] + tx_item['channel_id']
                 transactions[key] = tx_item
+
         self.beginInsertRows(QModelIndex(), 0, len(transactions)-1)
         self.transactions = transactions
         self.endInsertRows()
