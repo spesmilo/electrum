@@ -399,11 +399,9 @@ class JsonDB(PrintError):
 
         self.put('pruned_txo', None)
 
-        from .transaction import Transaction
-        transactions = self.get('transactions', {})  # txid -> raw_tx
+        transactions = self.get('transactions', {})  # txid -> Transaction
         spent_outpoints = defaultdict(dict)
-        for txid, raw_tx in transactions.items():
-            tx = Transaction(raw_tx)
+        for txid, tx in transactions.items():
             for txin in tx.inputs():
                 if txin['type'] == 'coinbase':
                     continue
