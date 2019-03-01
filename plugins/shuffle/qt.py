@@ -484,6 +484,11 @@ def monkey_patches_remove(window):
     restore_utxo_list(window.utxo_list)
     restore_wallet(window.wallet)
 
+def _elide(x, maxlen=30, startlen=8):
+    ''' Useful for eliding GUI text with an ellipsis ... in the middle '''
+    if len(x) > maxlen and startlen + 3 < maxlen:
+        return x[:startlen] + "..." + x[-(maxlen-startlen-3):]
+    return x
 
 class Plugin(BasePlugin):
 
@@ -1330,14 +1335,10 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
         servers = load_servers("servers.json")
         selIdx, defIdx = (-1,)*2
         self.cb.clear()
-        def elide(x):
-            if len(x) > 30:
-                return x[:13] + "..." + x[-14:]
-            return x
         for host, d0 in sorted(servers.items()):
             d = d0.copy()
             d['server'] = host
-            item = elide(host) + (' [ssl]' if d['ssl'] else '')
+            item = _elide(host) + (' [ssl]' if d['ssl'] else '')
             self.cb.addItem(item, d)
             if selected and selected == d:
                 selIdx = self.cb.count()-1
@@ -1466,7 +1467,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
                 <b>{}:</b> <font color="{}">{}</font> {} &nbsp;&nbsp;&nbsp;{}
                 <small>{}: {} &nbsp;&nbsp;&nbsp; {}: {} &nbsp;&nbsp;&nbsp; {}: {}</small>
                 '''
-                .format(_('Server'), d['host'],
+                .format(_('Server'), _elide(d['host'], maxlen=40, startlen=12),
                         _('Status'), "green" if not d['banned'] else "#dd4444", d['status'], "&nbsp;&nbsp;<b>{}</b> {}".format(_("Ban score:"),d['banScore']) if d['banScore'] else '', '<br>' if d['banScore'] else '',
                         _('Pool size'), d['poolSize'],
                         _('Connections'),
@@ -1717,10 +1718,10 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         self.needsColumnSizing = True
         name = self.sdict['name']
         self.setObjectName(name)
-        self.setWindowTitle("CashShuffle - {} - Pools".format(name))
+        self.setWindowTitle("CashShuffle - {} - Pools".format(_elide(name)))
         self.vbox = QVBoxLayout(self)
         # pools group box
-        self.poolsGB = QGroupBox(_("{} Pools").format(name) + " (0)")
+        self.poolsGB = QGroupBox(_("{} Pools").format(_elide(name)) + " (0)")
         self.vbox.addWidget(self.poolsGB)
         self.vbox.setStretchFactor(self.poolsGB, 2)
         vbox2 = QVBoxLayout(self.poolsGB)
