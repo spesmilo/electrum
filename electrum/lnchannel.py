@@ -603,6 +603,10 @@ class Channel(PrintError):
         sub = LOCAL if direction == SENT else REMOTE
         return htlcsum(self.hm.settled_htlcs_by(sub, self.config[sub].ctn))
 
+    def get_unfulfilled_htlcs(self):
+        log = self.hm.log[REMOTE]
+        return [v for x,v in log['adds'].items() if x not in log['settles']]
+
     def settle_htlc(self, preimage, htlc_id):
         """
         SettleHTLC attempts to settle an existing outstanding received HTLC.

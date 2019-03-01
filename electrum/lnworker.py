@@ -368,6 +368,16 @@ class LNWorker(PrintError):
             else:
                 self.wallet.add_future_tx(e_tx, remaining)
 
+    def is_dangerous(self, chan):
+        for x in chan.get_unfulfilled_htlcs():
+            dust_limit = chan.config[REMOTE].dust_limit_sat * 1000
+            delay = x.cltv_expiry - self.network.get_local_height()
+            if x.amount_msat > 10 * dust_limit and delay < 3:
+                self.print_error('htlc is dangerous')
+                return True
+            else:
+                self.print_error('htlc is not dangerous', delay)
+        return False
 
     @log_exceptions
     async def on_network_update(self, event, *args):
@@ -381,6 +391,9 @@ class LNWorker(PrintError):
             if args[0] != lnwatcher:
                 return
         for chan in channels:
+            if chan.get_state() in ["OPEN", "DISCONNECTED"] and self.is_dangerous(chan):
+                await self.force_close_channel(chan.channel_id)
+                continue
             if chan.short_channel_id is None:
                 self.save_short_chan_id(chan)
             if chan.get_state() == "OPENING" and chan.short_channel_id:
