@@ -10,8 +10,8 @@ from .satochip import SatochipPlugin
 from ..hw_wallet.qt import QtHandlerBase, QtPluginBase
 
 class Plugin(SatochipPlugin, QtPluginBase):
-    icon_unpaired = ":icons/ledger_unpaired.png" #TODO: create own icon
-    icon_paired = ":icons/ledger.png"
+    icon_unpaired = ":icons/satochip_unpaired.png"
+    icon_paired = ":icons/satochip.png"
     
     #def __init__(self, parent, config, name):
     #    BasePlugin.__init__(self, parent, config, name)
