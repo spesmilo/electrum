@@ -43,6 +43,13 @@ FINAL_SEED_VERSION = 18     # electrum >= 2.7 will set this to prevent
                             # old versions from overwriting new format
 
 
+class JsonDBJsonEncoder(util.MyEncoder):
+    def default(self, obj):
+        if isinstance(obj, Transaction):
+            return str(obj)
+        return super().default(obj)
+
+
 class JsonDB(PrintError):
 
     def __init__(self, raw, *, manual_upgrades):
@@ -88,8 +95,8 @@ class JsonDB(PrintError):
     @modifier
     def put(self, key, value):
         try:
-            json.dumps(key, cls=util.MyEncoder)
-            json.dumps(value, cls=util.MyEncoder)
+            json.dumps(key, cls=JsonDBJsonEncoder)
+            json.dumps(value, cls=JsonDBJsonEncoder)
         except:
             self.print_error(f"json error: cannot save {repr(key)} ({repr(value)})")
             return False
@@ -107,7 +114,7 @@ class JsonDB(PrintError):
 
     @locked
     def dump(self):
-        return json.dumps(self.data, indent=4, sort_keys=True, cls=util.MyEncoder)
+        return json.dumps(self.data, indent=4, sort_keys=True, cls=JsonDBJsonEncoder)
 
     def load_data(self, s):
         try:
@@ -576,18 +583,17 @@ class JsonDB(PrintError):
         self.spent_outpoints[prevout_hash][str(prevout_n)] = tx_hash
 
     @modifier
-    def add_transaction(self, tx_hash, tx):
-        self.transactions[tx_hash] = str(tx)
+    def add_transaction(self, tx_hash: str, tx: Transaction) -> None:
+        assert isinstance(tx, Transaction)
+        self.transactions[tx_hash] = tx
 
     @modifier
-    def remove_transaction(self, tx_hash):
-        tx = self.transactions.pop(tx_hash, None)
-        return Transaction(tx) if tx else None
+    def remove_transaction(self, tx_hash) -> Optional[Transaction]:
+        return self.transactions.pop(tx_hash, None)
 
     @locked
-    def get_transaction(self, tx_hash) -> Optional[Transaction]:
-        tx = self.transactions.get(tx_hash)
-        return Transaction(tx) if tx else None
+    def get_transaction(self, tx_hash: str) -> Optional[Transaction]:
+        return self.transactions.get(tx_hash)
 
     @locked
     def list_transactions(self):
@@ -656,13 +662,16 @@ class JsonDB(PrintError):
     @profiler
     def load_transactions(self):
         # references in self.data
-        self.txi = self.get_data_ref('txi')  # txid -> address -> (prev_outpoint, value)
-        self.txo = self.get_data_ref('txo')  # txid -> address -> (output_index, value, is_coinbase)
+        self.txi = self.get_data_ref('txi')  # txid -> address -> list of (prev_outpoint, value)
+        self.txo = self.get_data_ref('txo')  # txid -> address -> list of (output_index, value, is_coinbase)
         self.transactions = self.get_data_ref('transactions')   # type: Dict[str, Transaction]
         self.spent_outpoints = self.get_data_ref('spent_outpoints')
-        self.history = self.get_data_ref('addr_history')  # address -> list(txid, height)
-        self.verified_tx = self.get_data_ref('verified_tx3') # txid -> TxMinedInfo.  Access with self.lock.
+        self.history = self.get_data_ref('addr_history')  # address -> list of (txid, height)
+        self.verified_tx = self.get_data_ref('verified_tx3')  # txid -> (height, timestamp, txpos, header_hash)
         self.tx_fees = self.get_data_ref('tx_fees')
+        # convert raw hex transactions to Transaction objects
+        for tx_hash, raw_tx in self.transactions.items():
+            self.transactions[tx_hash] = Transaction(raw_tx)
         # convert list to set
         for t in self.txi, self.txo:
             for d in t.values():

@@ -199,7 +199,7 @@ class MyEncoder(json.JSONEncoder):
             return obj.isoformat(' ')[:-3]
         if isinstance(obj, set):
             return list(obj)
-        return super(MyEncoder, self).default(obj)
+        return super().default(obj)
 
 class PrintError(object):
     '''A handy base class'''
