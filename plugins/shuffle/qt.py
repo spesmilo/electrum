@@ -1824,8 +1824,8 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         self.tree.clear()
         try:
             pools.sort(reverse=True, key=lambda x:(0 if x['full'] else 1, x['amount'], x['members'], -x.get('version',0)))
-        except KeyError:
-            # hmm. Pools dict is missing keys.  Assume bad input. Clear list and proceed with a 'no pools' message
+        except (KeyError, ValueError, TypeError):
+            # hmm. Pools dict is missing or has bad keys. Assume bad input. Clear list and proceed with a 'no pools' message
             pools = []
         for c in range(2,4):
             self.tree.setColumnHidden(c, simple)
