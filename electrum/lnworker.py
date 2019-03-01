@@ -194,10 +194,10 @@ class LNWorker(PrintError):
                 continue
             item = {
                 'channel_id': bh2u(chan.channel_id),
-                'txid':closing_txid,
+                'txid': closing_txid,
                 'label': _('Close channel'),
                 'type': 'channel_closure',
-                'amount_msat': chan.balance(LOCAL),
+                'amount_msat': -chan.balance(LOCAL),
                 'direction': 'sent',
                 'timestamp': closing_timestamp,
             }
