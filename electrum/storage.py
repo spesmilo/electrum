@@ -234,7 +234,6 @@ class WalletStorage(PrintError):
             storage = WalletStorage(path)
             storage.db.data = data
             storage.db.upgrade()
-            storage.modified = True
             storage.write()
             out.append(path)
         return out

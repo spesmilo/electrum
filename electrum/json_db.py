@@ -28,7 +28,7 @@ import json
 import copy
 import threading
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, Optional
 
 from . import util, bitcoin
 from .util import PrintError, profiler, WalletFileException, multisig_type, TxMinedInfo
@@ -585,7 +585,7 @@ class JsonDB(PrintError):
         return Transaction(tx) if tx else None
 
     @locked
-    def get_transaction(self, tx_hash):
+    def get_transaction(self, tx_hash) -> Optional[Transaction]:
         tx = self.transactions.get(tx_hash)
         return Transaction(tx) if tx else None
 
@@ -631,6 +631,9 @@ class JsonDB(PrintError):
     @modifier
     def remove_verified_tx(self, txid):
         self.verified_tx.pop(txid, None)
+
+    def is_in_verified_tx(self, txid):
+        return txid in self.verified_tx
 
     @modifier
     def update_tx_fees(self, d):

@@ -183,7 +183,7 @@ class AddressSynchronizer(PrintError):
                 if spending_tx_hash is None:
                     continue
                 # this outpoint has already been spent, by spending_tx
-                assert spending_tx_hash in self.db.list_transactions()
+                assert self.db.get_transaction(spending_tx_hash)
                 conflicting_txns |= {spending_tx_hash}
             if tx_hash in conflicting_txns:
                 # this tx is already in history, so it conflicts with itself
@@ -374,22 +374,21 @@ class AddressSynchronizer(PrintError):
     def remove_local_transactions_we_dont_have(self):
         for txid in itertools.chain(self.db.list_txi(), self.db.list_txo()):
             tx_height = self.get_tx_height(txid).height
-            if tx_height == TX_HEIGHT_LOCAL and txid not in self.db.list_transactions():
+            if tx_height == TX_HEIGHT_LOCAL and not self.db.get_transaction(txid):
                 self.remove_transaction(txid)
 
     def clear_history(self):
         with self.lock:
             with self.transaction_lock:
                 self.db.clear_history()
-                self.storage.modified = True  # FIXME hack..
                 self.storage.write()
 
     def get_txpos(self, tx_hash):
         """Returns (height, txpos) tuple, even if the tx is unverified."""
         with self.lock:
-            if tx_hash in self.db.list_verified_tx():
-                info = self.db.get_verified_tx(tx_hash)
-                return info.height, info.txpos
+            verified_tx_mined_info = self.db.get_verified_tx(tx_hash)
+            if verified_tx_mined_info:
+                return verified_tx_mined_info.height, verified_tx_mined_info.txpos
             elif tx_hash in self.unverified_tx:
                 height = self.unverified_tx[tx_hash]
                 return (height, 0) if height > 0 else ((1e9 - height), 0)
@@ -485,7 +484,7 @@ class AddressSynchronizer(PrintError):
         await self._address_history_changed_events[addr].wait()
 
     def add_unverified_tx(self, tx_hash, tx_height):
-        if tx_hash in self.db.list_verified_tx():
+        if self.db.is_in_verified_tx(tx_hash):
             if tx_height in (TX_HEIGHT_UNCONFIRMED, TX_HEIGHT_UNCONF_PARENT):
                 with self.lock:
                     self.db.remove_verified_tx(tx_hash)
@@ -548,10 +547,10 @@ class AddressSynchronizer(PrintError):
 
     def get_tx_height(self, tx_hash: str) -> TxMinedInfo:
         with self.lock:
-            if tx_hash in self.db.list_verified_tx():
-                info = self.db.get_verified_tx(tx_hash)
-                conf = max(self.get_local_height() - info.height + 1, 0)
-                return info._replace(conf=conf)
+            verified_tx_mined_info = self.db.get_verified_tx(tx_hash)
+            if verified_tx_mined_info:
+                conf = max(self.get_local_height() - verified_tx_mined_info.height + 1, 0)
+                return verified_tx_mined_info._replace(conf=conf)
             elif tx_hash in self.unverified_tx:
                 height = self.unverified_tx[tx_hash]
                 return TxMinedInfo(height=height, conf=0)

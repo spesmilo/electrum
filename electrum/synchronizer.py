@@ -175,7 +175,7 @@ class Synchronizer(SynchronizerBase):
         for tx_hash, tx_height in hist:
             if tx_hash in self.requested_tx:
                 continue
-            if tx_hash in self.wallet.db.list_transactions():
+            if self.wallet.db.get_transaction(tx_hash):
                 continue
             transaction_hashes.append(tx_hash)
             self.requested_tx[tx_hash] = tx_height

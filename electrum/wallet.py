@@ -278,7 +278,7 @@ class Abstract_Wallet(AddressSynchronizer):
         return changed
 
     def set_fiat_value(self, txid, ccy, text, fx, value_sat):
-        if txid not in self.db.list_transactions():
+        if not self.db.get_transaction(txid):
             return
         # since fx is inserting the thousands separator,
         # and not util, also have fx remove it
@@ -360,7 +360,7 @@ class Abstract_Wallet(AddressSynchronizer):
         height = conf = timestamp = None
         tx_hash = tx.txid()
         if tx.is_complete():
-            if tx_hash in self.db.list_transactions():
+            if self.db.get_transaction(tx_hash):
                 label = self.get_label(tx_hash)
                 tx_mined_status = self.get_tx_height(tx_hash)
                 height, conf = tx_mined_status.height, tx_mined_status.conf
