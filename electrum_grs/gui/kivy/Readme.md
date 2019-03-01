@@ -21,7 +21,7 @@ folder.
 2. Build image
 
     ```
-    $ sudo docker build -t electrum-android-builder-img electru_grs/gui/kivy/tools
+    $ sudo docker build -t electrum-grs-android-builder-img electrum_grs/gui/kivy/tools
     ```
 
 3. Build locale files
@@ -40,11 +40,11 @@ folder.
 
     ```
     $ sudo docker run -it --rm \
-        --name electrum-android-builder-cont \
+        --name electrum-grs-android-builder-cont \
         -v $PWD:/home/user/wspace/electrum_grs \
         -v ~/.keystore:/home/user/.keystore \
         --workdir /home/user/wspace/electrum_grs \
-        electrum-android-builder-img \
+        electrum-grs-android-builder-img \
         ./contrib/make_apk
     ```
     This mounts the project dir inside the container,
