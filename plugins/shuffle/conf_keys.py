@@ -11,6 +11,7 @@ class ConfKeys:
 
         SERVER = "cashshuffle_server_v2" # specifies server config to use
         MAIN_WINDOW_NAGGER_NOPROMPT = 'shuffle_noprompt2' # specifies whether to nag user about "this wallet has cashshuffle disabled" on wallet startup. see main_window.py
+        VIEW_POOLS_SIMPLE = 'shuffle_view_pools_simple'  # specifies that the "Pools" window shows a reduced/simplified view. Defaults to True if not found in conf.
 
     class PerWallet:
         '''The below are per-wallet and go in wallet.storage'''

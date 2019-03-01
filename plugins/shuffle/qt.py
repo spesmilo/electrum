@@ -819,7 +819,7 @@ class Plugin(BasePlugin):
         if settings:
             sdict = settings.copy()
             sdict['name'] = "{}:{}".format(sdict['server'], sdict['info'])
-            PoolsWinMgr.show(sdict, settings, parent_window=window, modal=False)
+            PoolsWinMgr.show(sdict, settings, window.config, parent_window=window, modal=False)
         else:
             # this should not normally be reachable in the UI, hence why we don't i18n the error string.
             window.show_error("CashShuffle is not properly set up -- no server defined! Please select a server from the settings.")
@@ -1428,7 +1428,7 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
             self._vplastStatus = dict()
 
     def _vpOnPoolsBut(self):
-        w = PoolsWinMgr.show(self._vpLastStatus, self.get_form(), modal=True)
+        w = PoolsWinMgr.show(self._vpLastStatus, self.get_form(), self.config, modal=True)
 
     def startNetworkChecker(self):
         if self.networkChecker: return
@@ -1626,10 +1626,12 @@ class SettingsTab(SettingsDialog):
         hbox.addWidget(self.apply)
         self.apply.clicked.connect(lambda: self.applyChanges.emit(self))
     def _vpOnPoolsBut(self):
-        w = PoolsWinMgr.show(self._vpLastStatus, self.get_form(), modal=False, parent_window=self)
+        w = PoolsWinMgr.show(self._vpLastStatus, self.get_form(), self.config, modal=False, parent_window=self)
 # /SettingsTab
 
 class PoolsWinMgr(QObject, PrintError):
+    simpleChangedSig = pyqtSignal()
+
     _instance = None
     def __init__(self):
         assert not PoolsWinMgr._instance, "More than 1 PoolsWinMgr instance detected -- PoolsWinMgr is a singleton!"
@@ -1658,11 +1660,11 @@ class PoolsWinMgr(QObject, PrintError):
             cls._instance.deleteLater()
             cls._instance = None
     @classmethod
-    def show(cls, stats_dict, network_settings, *, parent_window=None, modal=False):
+    def show(cls, stats_dict, network_settings, config, *, parent_window=None, modal=False):
         mgr = cls.instance()
-        return mgr._createOrShow(stats_dict, network_settings, parent_window=parent_window, modal=modal)
+        return mgr._createOrShow(stats_dict, network_settings, config, parent_window=parent_window, modal=modal)
     #private methods
-    def _createOrShow(self, stats_dict, network_settings, *, parent_window=None, modal=False):
+    def _createOrShow(self, stats_dict, network_settings, config, *, parent_window=None, modal=False):
         d = stats_dict
         if not isinstance(d, dict) or not d or not network_settings:
             self.print_error("createOrShow: got invalid args.. will not create/show a window")
@@ -1676,7 +1678,7 @@ class PoolsWinMgr(QObject, PrintError):
             w = None
         if not w:
             self.print_error("Creating", name)
-            w = PoolsWindow(parent_window, d, network_settings, modal=modal)
+            w = PoolsWindow(config, parent_window, d, network_settings, modal=modal)
             self.poolWindows[name] = w
             w.closed.connect(self._kill, Qt.QueuedConnection) # clean-up instance
         else:
@@ -1701,10 +1703,11 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
     # from base: settingsChanged = pyqtSignal(dict)
     # from base: statusChanged = pyqtSignal(dict)
 
-    def __init__(self, parent, serverDict, settings, modal=False):
+    def __init__(self, config, pseudo_parent, serverDict, settings, modal=False):
         super().__init__()  # top-level window
         self.setWindowModality(Qt.ApplicationModal if modal else Qt.NonModal)
-        self.weakParent = Weak.ref(parent) if parent else None
+        self.config = config
+        self.weakParent = Weak.ref(pseudo_parent) if pseudo_parent else None
         self.sdict = serverDict.copy()
         self.settings = settings
         self.networkChecker = None
@@ -1720,8 +1723,13 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         self.tree = QTreeWidget()
         self.tree.setSelectionMode(QAbstractItemView.NoSelection)
         self.tree.setMinimumHeight(50)
-        self.tree.setHeaderItem(QTreeWidgetItem([_('Tier'), _('Members'), _('Version'), _('Full')]))
+        self.tree.setHeaderItem(QTreeWidgetItem([_('Tier'), _('Members'), _('Type'), _('Version'), _('Full')]))
         vbox2.addWidget(self.tree)
+        # The "simple view" checkbox
+        hbox = QHBoxLayout()
+        self.simpleChk = QCheckBox(_("Omit incompatible pools"))  # NB: checkbox state will be set in self.refresh()
+        hbox.addWidget(self.simpleChk)
+        vbox2.addLayout(hbox)
         # bottom buts
         self.vbox.addStretch()
         hbox = QHBoxLayout()
@@ -1733,6 +1741,8 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         self.closeBut.clicked.connect(self.close)
         self.closeBut.setDefault(True)
         self.statusChanged.connect(self.refresh)
+        self.simpleChk.clicked.connect(self._setSimple)
+        # NB: some signal/slot connections are also made in showEvent()
         # etc...
         self.resize(400,300)
         #DEBUG
@@ -1764,33 +1774,67 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         super().hideEvent(e)
         if e.isAccepted():
             #self.print_error("Hide")
+            try: PoolsWinMgr.instance().simpleChangedSig.disconnect(self._simpleChangedSlot)
+            except TypeError: pass  # Not connected.
             self.stopNetworkChecker()
     def showEvent(self, e):
         super().showEvent(e)
         if e.isAccepted():
             #self.print_error("Show")
+            PoolsWinMgr.instance().simpleChangedSig.connect(self._simpleChangedSlot)
             self.refresh(self.sdict)
             self.startNetworkChecker()
             # do stuff related to refreshing, etc here...
+    def _isSimple(self):
+        return bool(self.config.get(ConfKeys.Global.VIEW_POOLS_SIMPLE, True))
+    def _setSimple(self, b):
+        b = bool(b)
+        if b != self._isSimple():
+            self.config.set_key(ConfKeys.Global.VIEW_POOLS_SIMPLE, b)
+            self.needsColumnSizing = True
+            PoolsWinMgr.instance().simpleChangedSig.emit()
+    def _simpleChangedSlot(self):
+        self.refresh(self.sdict)
     def refresh(self, sdict):
+        # NB: sdict may be non-empty (has actual results) but still contain no
+        # pools if server has no pools. It's only empty before we get a response
+        # from stats port.
         if not sdict:
             return
-        self.sdict = sdict.copy()
+        if self.sdict is not sdict:
+            self.sdict = sdict.copy()
+        simple = self._isSimple()
+        self.simpleChk.setChecked(simple)
+        mysettings = BackgroundShufflingThread.latest_shuffle_settings
         tit = self.poolsGB.title().rsplit(' ', 1)[0]
         pools = self.sdict.get('poolsList', list()).copy()
         poolSize = str(self.sdict.get('poolSize', ''))
         self.poolsGB.setTitle(tit + " ({})".format(len(pools)))
         self.tree.clear()
         pools.sort(reverse=True, key=lambda x:(0 if x['full'] else 1, x['amount'], x['members'], -x['version']))
+        for c in range(2,4):
+            self.tree.setColumnHidden(c, simple)
+        def grayify(twi):
+            b = twi.foreground(0)
+            b.setColor(Qt.gray)
+            for i in range(twi.columnCount()):
+                twi.setForeground(i, b)
         for p in pools:
-            self.tree.addTopLevelItem(QTreeWidgetItem([
-                format_satoshis_plain(p['amount']) + " BCH",
-                "{} / {}".format(str(p['members']), poolSize),
-                str(p['version']),
-                "√" if p['full'] else '-',
-            ]))
+            typ, version = p.get('type', mysettings.type_name), p.get('version', mysettings.version)
+            is_my_settings = typ == mysettings.type_name and version == mysettings.version
+            if not simple or is_my_settings:
+                twi = QTreeWidgetItem([
+                    format_satoshis_plain(p['amount']) + " BCH",
+                    "{} / {}".format(str(p['members']), poolSize),
+                    str(p['type']).lower(),
+                    str(p['version']),
+                    "√" if p['full'] else '-',
+                ])
+                if not is_my_settings:
+                    grayify(twi)
+                self.tree.addTopLevelItem(twi)
         if not self.tree.topLevelItemCount():
-            twi = QTreeWidgetItem([_('No Pools'), '', '', ''])
+            twi = QTreeWidgetItem([_('No Pools'), '', '', '', ''])
             f = twi.font(0); f.setItalic(True); twi.setFont(0, f)
             self.tree.addTopLevelItem(twi)
             self.tree.setFirstItemColumnSpanned(twi, True)

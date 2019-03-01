@@ -1,4 +1,5 @@
 import ecdsa, threading, time, queue
+from collections import namedtuple
 from electroncash.bitcoin import deserialize_privkey, regenerate_key, EC_KEY, generator_secp256k1, number_to_string
 from electroncash.address import Address
 from electroncash.util import PrintError, InvalidPassword
@@ -45,11 +46,14 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
                  amount, fee, sk, sks, inputs, pubk,
                  addr_new_addr, change_addr, version, logger=None, ssl=False,
                  comm_timeout=60.0, ctimeout=5.0, total_amount=0,
-                 fake_change=False):
+                 fake_change=False,
+                 typ=Messages.DEFAULT  # NB: For now only 'DEFAULT' type is supported
+                 ):
 
         super(ProtocolThread, self).__init__()
         self.daemon = True
         self.version = version
+        self.type = typ
         self.messages = Messages()
         self.comm = Comm(host, port, ssl=ssl, timeout = comm_timeout, infoText = "Scale: {}".format(amount))
         self.ctimeout = ctimeout
@@ -92,7 +96,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     @not_time_to_die
     def register_on_the_pool(self):
         "Register the player on the pool"
-        self.messages.make_greeting(self.vk, int(self.amount), Messages.DEFAULT, self.version)
+        self.messages.make_greeting(self.vk, int(self.amount), self.type, self.version)
         msg = self.messages.packets.SerializeToString()
         self.comm.send(msg)
         req = self.comm.recv()
@@ -255,6 +259,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     )
 
     # The below defaults control coin selection and which pools (scales) we use
+    PROTOCOL_VERSION = 100  # protocol version. old clients use 0. Must be an int. Version=100 is for the new fee-270. In the future this may be a dynamic quantity but for now it's always this value.
     FEE = 270  # Fee formula should be roughly 270 for first input + 200 for each additional input. Right now we support only 1 input per shuffler.
     SORTED_SCALES = sorted(scales)
     SCALE_ARROWS = ('→','⇢','➟','➝','➡','➡➡')  # if you add a scale above, add an arrow here, in reverse order from above
@@ -270,13 +275,22 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     STATS_PORT_RECHECK_TIME = 60.0  # re-check the stats port to pick up pool size changes for UI every 1 mins.
     CHECKER_MAX_TIMEOUT = 15.0  # in seconds.. the maximum amount of time to use for stats port checker (applied if proxy mode, otherwise time will be this value divided by 3.0)
 
+    ShuffleSettings = namedtuple("ShuffleSettings", "type, type_name, version, scale, input_amount, fee")
+    latest_shuffle_settings = ShuffleSettings(Messages.DEFAULT, Messages.TYPE_NAME_DICT[Messages.DEFAULT], PROTOCOL_VERSION, 0, 0, FEE)
+
     def __init__(self, window, wallet, network_settings,
-                 version=100,  # protocol version. old clients use 0. Must be an int. Version=100 is for the new fee-270.
-                 period = 10.0, logger = None, password=None, timeout=60.0):
+                 version=PROTOCOL_VERSION,
+                 period = 10.0, logger = None, password=None, timeout=60.0,
+                 typ=Messages.DEFAULT  # NB: Only DEFAULT is currently supported
+                 ):
         super().__init__()
         self.daemon = True
         self.timeout = timeout
         self.version = version
+        self.type = typ
+        assert self.type == Messages.DEFAULT, "BackgroundShufflingThread currently only supports DEFAULT shuffles"
+        cls = type(self)
+        cls.latest_shuffle_settings = cls.ShuffleSettings(self.type, Messages.TYPE_NAME_DICT[self.type], self.version, 0, 0, self.FEE)
         self.period = period
         self.logger = logger
         self.wallet = wallet
@@ -640,8 +654,10 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                              amount=scale, fee=self.FEE, total_amount=coin['value'],
                              addr_new_addr=output, change_addr=change, fake_change=not will_receive_change,
                              sk=id_sk, sks=sks, inputs=inputs, pubk=id_pub,
-                             logger=None, version=self.version)
+                             logger=None, version=self.version, typ=self.type)
         thr.logger = ChannelSendLambda(lambda msg: self.protocol_thread_callback(thr, msg))
+        cls = type(self)
+        cls.latest_shuffle_settings = cls.ShuffleSettings(thr.type, Messages.TYPE_NAME_DICT[thr.type], thr.version, scale, coin['value'], self.FEE)
         self.threads[scale] = thr
         coins.remove(coin)
         thr.start()

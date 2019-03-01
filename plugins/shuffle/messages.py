@@ -39,6 +39,11 @@ class Messages:
     # types
     DEFAULT = message_factory.DEFAULT
     DUST = message_factory.DUST
+
+    TYPE_NAME_DICT = {
+        # These should match the strings returned by the stats port.
+        DEFAULT : "DEFAULT", DUST : "DUST"
+    }
     
     def make_greeting(self, verification_key, amount, typ, version):
         """
