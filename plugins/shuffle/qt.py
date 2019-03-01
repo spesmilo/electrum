@@ -1330,10 +1330,14 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
         servers = load_servers("servers.json")
         selIdx, defIdx = (-1,)*2
         self.cb.clear()
+        def elide(x):
+            if len(x) > 30:
+                return x[:13] + "..." + x[-14:]
+            return x
         for host, d0 in sorted(servers.items()):
             d = d0.copy()
             d['server'] = host
-            item = host + (' [ssl]' if d['ssl'] else '')
+            item = elide(host) + (' [ssl]' if d['ssl'] else '')
             self.cb.addItem(item, d)
             if selected and selected == d:
                 selIdx = self.cb.count()-1
