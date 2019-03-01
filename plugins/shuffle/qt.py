@@ -1420,12 +1420,11 @@ class SettingsDialog(WindowModalDialog, PrintErrorThread, NetworkCheckerDelegate
         self.stopNetworkChecker()
 
     def _vpGotStatus(self, sdict):
-        if sdict.get('status') == _("Ok"):
+        self._vpLastStatus = sdict.copy()
+        if sdict.get('status') in (_("Ok"), _("Banned")):
             self.poolsBut.setEnabled(True)
-            self._vpLastStatus = sdict.copy()
         else:
             self.poolsBut.setEnabled(False)
-            self._vplastStatus = dict()
 
     def _vpOnPoolsBut(self):
         w = PoolsWinMgr.show(self._vpLastStatus, self.get_form(), self.config, modal=True)
@@ -1721,6 +1720,10 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         self.vbox.addWidget(self.poolsGB)
         self.vbox.setStretchFactor(self.poolsGB, 2)
         vbox2 = QVBoxLayout(self.poolsGB)
+        # ban label
+        self.banLabel = HelpLabel('', _("Bans usually occur when other shufflers detected invalid inputs coming from your client. Ban are temporary and usually last up to 30 minutes.\n\nThey may happen occasionally in rare circumstances. However, if this keeps happening please contact the developers and file a bug report."))
+        self.banLabel.setHidden(True)
+        vbox2.addWidget(self.banLabel)
         self.tree = QTreeWidget()
         self.tree.setSelectionMode(QAbstractItemView.NoSelection)
         self.tree.setMinimumHeight(50)
@@ -1808,11 +1811,22 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         self.simpleChk.setChecked(simple)
         mysettings = BackgroundShufflingThread.latest_shuffle_settings
         tit = self.poolsGB.title().rsplit(' ', 1)[0]
+        # handle if we detected a ban
+        if self.sdict.get('banned'):
+            banScore = self.sdict.get('banScore') or 0
+            self.banLabel.setText('<font color="#dd4444"><b>{}</b></font> (ban score: {})'.format(_("Banned"), banScore))
+            self.banLabel.setHidden(False)
+        else:
+            self.banLabel.setHidden(True)
         pools = self.sdict.get('poolsList', list()).copy()
         poolSize = str(self.sdict.get('poolSize', ''))
         self.poolsGB.setTitle(tit + " ({})".format(len(pools)))
         self.tree.clear()
-        pools.sort(reverse=True, key=lambda x:(0 if x['full'] else 1, x['amount'], x['members'], -x['version']))
+        try:
+            pools.sort(reverse=True, key=lambda x:(0 if x['full'] else 1, x['amount'], x['members'], -x.get('version',0)))
+        except KeyError:
+            # hmm. Pools dict is missing keys.  Assume bad input. Clear list and proceed with a 'no pools' message
+            pools = []
         for c in range(2,4):
             self.tree.setColumnHidden(c, simple)
         def grayify(twi):
@@ -1827,8 +1841,8 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
                 twi = QTreeWidgetItem([
                     format_satoshis_plain(p['amount']) + " BCH",
                     "{} / {}".format(str(p['members']), poolSize),
-                    str(p['type']).lower(),
-                    str(p['version']),
+                    str(p.get('type','?')).lower(),
+                    str(p.get('version','?')),
                     "√" if p['full'] else '-',
                 ])
                 if not is_my_settings:
