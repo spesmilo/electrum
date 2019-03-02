@@ -53,8 +53,12 @@ from .update_checker import UpdateChecker
 class ElectrumGui(QObject, PrintError):
     new_window_signal = pyqtSignal(str, object)
 
+    instance = None
+
     def __init__(self, config, daemon, plugins):
         super(__class__, self).__init__() # QObject init
+        assert __class__.instance is None, "ElectrumGui is a singleton, yet an instance appears to already exist! FIXME!"
+        __class__.instance = self
         set_language(config.get('language'))
         # Uncomment this call to verify objects are being properly
         # GC-ed when windows are closed
@@ -80,6 +84,9 @@ class ElectrumGui(QObject, PrintError):
         self.timer = QTimer(self); self.timer.setSingleShot(False); self.timer.setInterval(500) #msec
         self.gc_timer = QTimer(self); self.gc_timer.setSingleShot(True); self.gc_timer.timeout.connect(ElectrumGui.gc); self.gc_timer.setInterval(333) #msec
         self.nd = None
+        # Dark Theme -- ideally set this before any widgets are created.
+        self.set_dark_theme_if_needed()
+        # /
         self.update_checker = UpdateChecker()
         self.update_checker_timer = QTimer(self); self.update_checker_timer.timeout.connect(self.on_auto_update_timeout); self.update_checker_timer.setSingleShot(False)
         self.update_checker.got_new_version.connect(lambda x: self.show_update_checker(parent=None, skip_check=True))
@@ -91,11 +98,21 @@ class ElectrumGui(QObject, PrintError):
         self.build_tray_menu()
         self.tray.show()
         self.new_window_signal.connect(self.start_new_window)
-        self.set_dark_theme_if_needed()
         if self.has_auto_update_check():
             self._start_auto_update_timer(first_run = True)
         run_hook('init_qt', self)
+        # We did this once already in the set_dark_theme call, but we do this
+        # again here just in case some plugin modified the color scheme.
         ColorScheme.update_from_widget(QWidget())
+
+    def __del__(self):
+        stale = True
+        if __class__.instance is self:
+            stale = False
+            __class__.instance = None
+        print_error("[{}] finalized{}".format(__class__.__name__, ' (stale instance)' if stale else ''))
+        if hasattr(super(), '__del__'):
+            super().__del__()
 
     def is_dark_theme_available(self):
         try:
@@ -246,8 +263,6 @@ class ElectrumGui(QObject, PrintError):
         self.windows.remove(window)
         self.build_tray_menu()
         # save wallet path of last open window
-        if not self.windows:
-            self.config.save_last_wallet(window.wallet)
         run_hook('on_close_window', window)
         # GC on ElectrumWindows takes forever to actually happen due to the
         # circular reference zoo they create around them (they end up stuck in
@@ -258,6 +273,15 @@ class ElectrumGui(QObject, PrintError):
         # (which itslef is a relatively infrequent UI event, so it's
         # an acceptable tradeoff).
         self.gc_schedule()
+
+        if not self.windows:
+            self.config.save_last_wallet(window.wallet)
+            # NB: we now unconditionally quit the app after the last wallet
+            # window is closed, even if a network dialog or some other window is
+            # open.  It was bizarre behavior to keep the app open when
+            # things like a transaction dialog or the network dialog were still
+            # up.
+            __class__._quit_after_last_window()  # checks if qApp.quitOnLastWindowClosed() is True, and if so, calls qApp.quit()
 
     def gc_schedule(self):
         ''' Schedule garbage collection to happen in the near future.
@@ -336,6 +360,13 @@ class ElectrumGui(QObject, PrintError):
             else:
                 self._stop_auto_update_timer()
 
+    @staticmethod
+    def _quit_after_last_window():
+        # on some platforms, not only does exec_ not return but not even
+        # aboutToQuit is emitted (but following this, it should be emitted)
+        if qApp.quitOnLastWindowClosed():
+            qApp.quit()
+
     def main(self):
         try:
             self.init_network()
@@ -353,12 +384,8 @@ class ElectrumGui(QObject, PrintError):
             return
         signal.signal(signal.SIGINT, lambda *args: self.app.quit())
 
-        def quit_after_last_window():
-            # on some platforms, not only does exec_ not return but not even
-            # aboutToQuit is emitted (but following this, it should be emitted)
-            if self.app.quitOnLastWindowClosed():
-                self.app.quit()
-        self.app.lastWindowClosed.connect(quit_after_last_window)
+        self.app.setQuitOnLastWindowClosed(True)
+        self.app.lastWindowClosed.connect(__class__._quit_after_last_window)
 
         def clean_up():
             # Just in case we get an exception as we exit, uninstall the Exception_Hook
