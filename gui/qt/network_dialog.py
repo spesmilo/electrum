@@ -32,7 +32,7 @@ import PyQt5.QtCore as QtCore
 
 from electroncash.i18n import _
 from electroncash import networks
-from electroncash.util import print_error, Weak
+from electroncash.util import print_error, Weak, PrintError
 from electroncash.network import serialize_server, deserialize_server, get_eligible_servers
 
 from .util import *
@@ -62,6 +62,30 @@ class NetworkDialog(QDialog, MessageBoxMixin):
     def on_update(self):
         ''' This always runs in main GUI thread '''
         self.nlayout.update()
+
+    def closeEvent(self, e):
+        # Warn if non-SSL mode when closing dialog
+        if (not self.nlayout.ssl_cb.isChecked()
+                and not self.nlayout.tor_cb.isChecked()
+                and not self.nlayout.server_host.text().lower().endswith('.onion')
+                and not self.nlayout.config.get('non_ssl_noprompt', False)):
+            ok, chk = self.question(''.join([_("You have selected non-SSL mode for your server settings."), ' ',
+                                             _("Using this mode presents a potential security risk."), '\n\n',
+                                             _("Are you sure you wish to proceed?")]),
+                                    detail_text=''.join([
+                                             _("All of your traffic to the blockchain servers will be sent unencrypted."), ' ',
+                                             _("Additionally, you may also be vulnerable to man-in-the-middle attacks."), ' ',
+                                             _("It is strongly recommended that you go back and enable SSL mode."),
+                                             ]),
+                                    rich_text=False,
+                                    title=_('Security Warning'),
+                                    icon=QMessageBox.Critical,
+                                    checkbox_text=("Don't ask me again"))
+            if chk: self.nlayout.config.set_key('non_ssl_noprompt', True)
+            if not ok:
+                e.ignore()
+                return
+        super().closeEvent(e)
 
 
 
@@ -209,7 +233,7 @@ class ServerListWidget(QTreeWidget):
         self.setIndentation(0)
         wl_only = network.is_whitelist_only()
         for _host, d in sorted(servers.items()):
-            if _host.endswith('.onion') and not use_tor:
+            if _host.lower().endswith('.onion') and not use_tor:
                 continue
             port = d.get(protocol)
             if port:
@@ -235,7 +259,7 @@ class ServerListWidget(QTreeWidget):
         h.setSectionResizeMode(2, QHeaderView.ResizeToContents)
 
 
-class NetworkChoiceLayout(QObject):
+class NetworkChoiceLayout(QObject, PrintError):
 
     def __init__(self, parent, network, config, wizard=False):
         super().__init__(parent)
@@ -279,11 +303,14 @@ class NetworkChoiceLayout(QObject):
         self.server_host.setFixedWidth(200)
         self.server_port = QLineEdit()
         self.server_port.setFixedWidth(60)
+        self.ssl_cb = QCheckBox(_('Use SSL'))
         self.autoconnect_cb = QCheckBox(_('Select server automatically'))
         self.autoconnect_cb.setEnabled(self.config.is_modifiable('auto_connect'))
 
-        self.server_host.editingFinished.connect(self.set_server)
-        self.server_port.editingFinished.connect(self.set_server)
+        weakSelf = Weak.ref(self)  # Qt/Python GC hygeine: avoid strong references to self in lambda slots.
+        self.server_host.editingFinished.connect(lambda: weakSelf() and weakSelf().set_server(onion_hack=True))
+        self.server_port.editingFinished.connect(lambda: weakSelf() and weakSelf().set_server(onion_hack=True))
+        self.ssl_cb.clicked.connect(self.change_protocol)
         self.autoconnect_cb.clicked.connect(self.set_server)
         self.autoconnect_cb.clicked.connect(self.update)
 
@@ -309,24 +336,29 @@ class NetworkChoiceLayout(QObject):
         grid.addWidget(HelpButton(msg), 1, 4)
 
 
-        grid.addWidget(QLabel(_('Server') + ':'), 2, 0)
-        grid.addWidget(self.server_host, 2, 1, 1, 2)
-        grid.addWidget(self.server_port, 2, 3)
+        grid.addWidget(self.ssl_cb, 2, 0, 1, 3)
+        self.ssl_help = HelpButton(_('SSL is used to authenticate and encrypt your connections with the blockchain servers.') + "\n\n"
+                                   + _('Due to potential security risks, you may only disable SSL when using a Tor Proxy.'))
+        grid.addWidget(self.ssl_help, 2, 4)
+
+        grid.addWidget(QLabel(_('Server') + ':'), 3, 0)
+        grid.addWidget(self.server_host, 3, 1, 1, 2)
+        grid.addWidget(self.server_port, 3, 3)
 
         self.server_list_label = label = QLabel('') # will get set by self.update()
-        grid.addWidget(label, 3, 0, 1, 5)
+        grid.addWidget(label, 4, 0, 1, 5)
         self.servers_list = ServerListWidget(self)
-        grid.addWidget(self.servers_list, 4, 0, 1, 5)
+        grid.addWidget(self.servers_list, 5, 0, 1, 5)
         self.legend_label = label = WWLabel('') # will get populated with the legend by self.update()
         self.legend_label.linkActivated.connect(self.on_view_blacklist)
-        grid.addWidget(label, 5, 0, 1, 4)
+        grid.addWidget(label, 6, 0, 1, 4)
         msg = ' '.join([
             _("Preferred servers ({}) are servers you have designated as reliable and/or trustworthy.").format(ServerFlag.Symbol[ServerFlag.Preferred]),
             _("Initially, the preferred list is the hard-coded list of known-good servers vetted by the Electron Cash developers."),
             _("You can add or remove any server from this list and optionally elect to only connect to preferred servers."),
             "\n\n"+_("Banned servers ({}) are servers deemed unreliable and/or untrustworthy, and so they will never be connected-to by Electron Cash.").format(ServerFlag.Symbol[ServerFlag.Banned])
         ])
-        grid.addWidget(HelpButton(msg), 5, 4)
+        grid.addWidget(HelpButton(msg), 6, 4)
 
         # Proxy tab
         grid = QGridLayout(proxy_tab)
@@ -446,6 +478,10 @@ class NetworkChoiceLayout(QObject):
         preferred_only = self.network.is_whitelist_only()
         self.server_host.setText(host)
         self.server_port.setText(port)
+        self.ssl_cb.setChecked(protocol=='s')
+        ssl_disable = self.ssl_cb.isChecked() and not self.tor_cb.isChecked() and not host.lower().endswith('.onion')
+        for w in [self.ssl_cb]:#, self.ssl_help]:
+            w.setDisabled(ssl_disable)
         self.autoconnect_cb.setChecked(auto_connect)
         self.preferred_only_cb.setChecked(preferred_only)
 
@@ -454,7 +490,15 @@ class NetworkChoiceLayout(QObject):
 
         self.set_protocol(protocol)
         self.servers = self.network.get_servers()
-        self.server_list_label.setText((_('Server peers') if self.network.is_connected() else _('Servers')) + " ({})".format(len(self.servers)))
+        def protocol_suffix():
+            if protocol == 't':
+                return '  (non-SSL)'
+            elif protocol == 's':
+                return '  [SSL]'
+            return ''
+        server_list_txt = (_('Server peers') if self.network.is_connected() else _('Servers')) + " ({})".format(len(self.servers))
+        server_list_txt += protocol_suffix()
+        self.server_list_label.setText(server_list_txt)
         if self.network.blacklisted_servers:
             bl_srv_ct_str = ' ({}) <a href="ViewBanList">{}</a>'.format(len(self.network.blacklisted_servers), _("View ban list..."))
         else:
@@ -469,6 +513,7 @@ class NetworkChoiceLayout(QObject):
         self.height_label.setText(height_str)
         n = len(self.network.get_interfaces())
         status = _("Connected to %d nodes.")%n if n else _("Not connected")
+        if n: status += protocol_suffix()
         self.status_label.setText(status)
         chains = self.network.get_blockchains()
         if len(chains)>1:
@@ -551,14 +596,22 @@ class NetworkChoiceLayout(QObject):
                 port = pp.get(protocol)
         self.server_host.setText(host)
         self.server_port.setText(port)
+        self.ssl_cb.setChecked(protocol=='s')
 
     def accept(self):
         pass
 
-    def set_server(self):
+    def set_server(self, onion_hack=False):
         host, port, protocol, proxy, auto_connect = self.network.get_parameters()
         host = str(self.server_host.text())
         port = str(self.server_port.text())
+        protocol = 's' if self.ssl_cb.isChecked() else 't'
+        if onion_hack:
+            # Fix #1174 -- bring back from the dead non-SSL support for .onion only in a safe way
+            if host.lower().endswith('.onion'):
+                self.print_error("Onion/TCP hack: detected .onion, forcing TCP (non-SSL) mode")
+                protocol = 't'
+                self.ssl_cb.setChecked(False)
         auto_connect = self.autoconnect_cb.isChecked()
         self.network.set_parameters(host, port, protocol, proxy, auto_connect)
 
