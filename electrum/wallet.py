@@ -626,7 +626,7 @@ class Abstract_Wallet(AddressSynchronizer):
             # is_mine outputs should not be spent yet
             # to avoid cancelling our own dependent transactions
             txid = tx.txid()
-            if any([self.is_mine(o.address) and self.spent_outpoints[txid].get(output_idx)
+            if any([self.is_mine(o.address) and self.db.get_spent_outpoint(txid, output_idx)
                     for output_idx, o in enumerate(tx.outputs())]):
                 continue
             # all inputs should be is_mine
