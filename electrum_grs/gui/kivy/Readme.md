@@ -65,7 +65,7 @@ You probably need to clear the cache: `rm -rf .buildozer/android/platform/build/
 Assuming `adb` is installed:
 ```
 $ adb -d install -r bin/Electrum-GRS-*-debug.apk
-$ adb shell monkey -p org.groestlcoin.electrum-grs 1
+$ adb shell monkey -p org.groestlcoin.electrumGRS 1
 ```
 
 
@@ -74,7 +74,7 @@ $ adb shell monkey -p org.groestlcoin.electrum-grs 1
 $ sudo docker run -it --rm \
     -v $PWD:/home/user/wspace/electrum_grs \
     --workdir /home/user/wspace/electrum_grs \
-    electrum-android-builder-img
+    electrum-grs-android-builder-img
 ```
 
 

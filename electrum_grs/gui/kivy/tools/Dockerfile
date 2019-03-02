@@ -70,7 +70,7 @@ RUN "${ANDROID_SDK_HOME}/tools/bin/sdkmanager" "platforms;android-24" > /dev/nul
     chmod +x "${ANDROID_SDK_HOME}/tools/bin/avdmanager"
 
 
-ENV USER="user"
+ENV USER="root"
 ENV HOME_DIR="/home/${USER}"
 ENV WORK_DIR="${HOME_DIR}/wspace" \
     PATH="${HOME_DIR}/.local/bin:${PATH}"
@@ -111,19 +111,19 @@ RUN apt -y update -qq \
 
 
 # prepare non root env
-RUN useradd --create-home --shell /bin/bash ${USER}
+#RUN useradd --create-home --shell /bin/bash ${USER}
 
 # with sudo access and no password
-RUN usermod -append --groups sudo ${USER}
-RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+#RUN usermod -append --groups sudo ${USER}
+#RUN echo "%sudo ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 
 WORKDIR ${WORK_DIR}
 
 # user needs ownership/write access to these directories
-RUN chown --recursive ${USER} ${WORK_DIR} ${ANDROID_SDK_HOME}
-RUN chown ${USER} /opt
-USER ${USER}
+#RUN chown --recursive ${USER} ${WORK_DIR} ${ANDROID_SDK_HOME}
+#RUN chown ${USER} /opt
+#USER ${USER}
 
 
 RUN python3 -m pip install --upgrade cython==0.28.6
