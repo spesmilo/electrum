@@ -24,31 +24,33 @@
 # SOFTWARE.
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget, QDialog, QPushButton, QSizePolicy
 
 
-from electroncash_gui.qt.qrcodewidget import QRCodeWidget
-from .util import WWLabel
+from electroncash_gui.qt.qrcodewidget import QRCodeWidget, save_to_file, copy_to_clipboard
+from .util import WWLabel, Buttons, MessageBoxMixin
 from electroncash.i18n import _
+from electroncash.util import Weak
 
-
-class QR_Window(QWidget):
+class QR_Window(QWidget, MessageBoxMixin):
 
     def __init__(self):
         super().__init__() # Top-level window. Parent needs to hold a reference to us and clean us up appropriately.
         self.setWindowTitle('Electron Cash - ' + _('Payment Request'))
-        self.setMinimumSize(800, 250)
         self.label = ''
         self.amount = 0
         self.setFocusPolicy(Qt.NoFocus)
+        self.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
 
-        main_box = QHBoxLayout()
-
+        main_box = QHBoxLayout(self)
+        main_box.setContentsMargins(12,12,12,12)
         self.qrw = QRCodeWidget()
-        main_box.addWidget(self.qrw, 1)
+        self.qrw.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
+        main_box.addWidget(self.qrw, 2)
 
         vbox = QVBoxLayout()
-        main_box.addLayout(vbox)
+        vbox.setContentsMargins(12,12,12,12)
+        main_box.addLayout(vbox,2)
         main_box.addStretch(1)
 
         self.address_label = WWLabel()
@@ -63,8 +65,17 @@ class QR_Window(QWidget):
         self.amount_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         vbox.addWidget(self.amount_label)
 
-        vbox.addStretch(1)
-        self.setLayout(main_box)
+        vbox.addStretch(2)
+
+        copyBut = QPushButton(_("Copy QR Image"))
+        saveBut = QPushButton(_("Save QR Image"))
+        vbox.addLayout(Buttons(copyBut, saveBut))
+
+        weakSelf = Weak.ref(self)  # Qt & Python GC hygeine: don't hold references to self in non-method slots as it appears Qt+Python GC don't like this too much and may leak memory in that case.
+        weakQ = Weak.ref(self.qrw)
+        copyBut.clicked.connect(lambda: copy_to_clipboard(weakQ(), weakSelf()))
+        saveBut.clicked.connect(lambda: save_to_file(weakQ(), weakSelf()))
+
 
 
     def set_content(self, win, address_text, amount, message, url):
@@ -76,3 +87,16 @@ class QR_Window(QWidget):
         self.amount_label.setText(amount_text)
         self.msg_label.setText(message)
         self.qrw.setData(url)
+        self.layout().activate()
+
+    def closeEvent(self, e):
+        # May have modal up when closed -- because wallet window may force-close
+        # us when it is gets closed (See ElectrumWindow.clean_up in
+        # main_window.py).
+        # .. So kill the "QR Code Copied to clipboard" modal dialog that may
+        # be up as it can cause a crash for this window to be closed with it
+        # still up.
+        for c in self.findChildren(QDialog):
+            if c.isWindow() and c.isModal() and c.isVisible():
+                c.reject()  # break out of local event loop for dialog as we are about to die and we will be invalidated.
+        super().closeEvent(e)
