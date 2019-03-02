@@ -671,15 +671,17 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             total_amount = 0
             for tx in txns:
                 is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                if is_relevant:
-                    total_amount += v
-            self.notify(_("{} new transactions received: Total amount received in the new transactions {}")
+                if not is_relevant:
+                    continue
+                total_amount += v
+            self.notify(_("{} new transactions: Total amount received in the new transactions {}")
                         .format(len(txns), self.format_amount_and_units(total_amount)))
         else:
             for tx in txns:
                 is_relevant, is_mine, v, fee = self.wallet.get_wallet_delta(tx)
-                if is_relevant:
-                    self.notify(_("New transaction received: {}").format(self.format_amount_and_units(v)))
+                if not is_relevant:
+                    continue
+                self.notify(_("New transaction: {}").format(self.format_amount_and_units(v)))
 
     def notify(self, message):
         if self.tray:
