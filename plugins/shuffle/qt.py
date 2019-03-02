@@ -675,6 +675,9 @@ class Plugin(BasePlugin):
     def on_close_window(self, window):
         def didRemove(window):
             self.print_error("Window '{}' removed".format(window.wallet.basename()))
+            if not self.disabled_windows and not self.windows:
+                # fix for #85 -- Pool View windows keep app open after last window closed
+                PoolsWinMgr.instance().closeAll()
         if self._window_remove_from_disabled(window):
             didRemove(window)
             return
@@ -1663,6 +1666,12 @@ class PoolsWinMgr(QObject, PrintError):
             cls._instance._killAll()
             cls._instance.deleteLater()
             cls._instance = None
+    @classmethod
+    def closeAll(cls):
+        ''' This implicitly will also delete all the windows when event loop next runs. '''
+        if cls._instance:
+            for n,w in cls._instance.poolWindows.copy().items():
+                w.close()
     @classmethod
     def show(cls, stats_dict, network_settings, config, *, parent_window=None, modal=False):
         mgr = cls.instance()
