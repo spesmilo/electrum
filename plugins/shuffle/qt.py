@@ -1669,8 +1669,10 @@ class PoolsWinMgr(QObject, PrintError):
     @classmethod
     def closeAll(cls):
         ''' This implicitly will also delete all the windows when event loop next runs. '''
-        if cls._instance:
-            for n,w in cls._instance.poolWindows.copy().items():
+        app = QApplication.instance()
+        if app:
+            poolWins = [w for w in app.topLevelWidgets() if isinstance(w, PoolsWindow)]
+            for w in poolWins:
                 w.close()
     @classmethod
     def show(cls, stats_dict, network_settings, config, *, parent_window=None, modal=False):
@@ -1693,13 +1695,15 @@ class PoolsWinMgr(QObject, PrintError):
             self.print_error("Creating", name)
             w = PoolsWindow(config, parent_window, d, network_settings, modal=modal)
             self.poolWindows[name] = w
-            w.closed.connect(self._kill, Qt.QueuedConnection) # clean-up instance
+            w.closed.connect(self._kill) # clean-up instance
         else:
             self.print_error("Updating", name)
             w.weakParent = Weak.ref(parent_window) if parent_window else None
             w.settings = network_settings
             w.settingsChanged.emit(w.settings)
-        w.show(); w.raise_()
+        if w.isMinimized():
+            w.showNormal()
+        w.show(); w.raise_(); w.activateWindow()
         return w
     def _kill(self, name):
         window = self.poolWindows.pop(name) # will actually delete the QWidget instance.
