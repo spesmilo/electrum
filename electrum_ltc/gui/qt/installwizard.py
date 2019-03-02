@@ -304,7 +304,8 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
             if self.question(msg):
                 os.remove(path)
                 self.show_warning(_('The file was removed'))
-            return
+            # raise now, to avoid having the old storage opened
+            raise UserCancelled()
 
         action = storage.get_action()
         if action and storage.requires_upgrade():

@@ -8,20 +8,21 @@ from electrum_ltc import constants
 from .test_wallet import WalletTestCase
 
 
-def testnet_wallet(func):
-    # note: it's ok to modify global network constants in subclasses of SequentialTestCase
-    def wrapper(self, *args, **kwargs):
-        constants.set_testnet()
-        try:
-            return func(self, *args, **kwargs)
-        finally:
-            constants.set_mainnet()
-    return wrapper
-
-
 # TODO add other wallet types: 2fa, xpub-only
 # TODO hw wallet with client version 2.6.x (single-, and multiacc)
 class TestStorageUpgrade(WalletTestCase):
+
+    def testnet_wallet(func):
+        # note: it's ok to modify global network constants in subclasses of SequentialTestCase
+        def wrapper(self, *args, **kwargs):
+            constants.set_testnet()
+            try:
+                return func(self, *args, **kwargs)
+            finally:
+                constants.set_mainnet()
+        return wrapper
+
+##########
 
     def test_upgrade_from_client_1_9_8_seeded(self):
         wallet_str = "{'addr_history':{'LRLeVkmShS9bXwbFJxXxrMxQgBJb1CxRW4':[],'LPi4d5i97ayJLNvgWdFJHrmnrmkr3BAgdS':[],'LXupCaL8GsoAAC3c6ayRuQiF6oKd6jzvF2':[],'LbGiejb64pNXrjPZfiauVkchFQksBnFjrz':[],'LXxqjQvF2cEDJ58YLFJvPAT8155Q4q6D63':[],'LhVBwnh66BYu2i8tGGG7BpxGrm7Uz9RSMq':[],'LhPe5cGcQiGM4rJg8uRxuDmA43dzQUckM4':[],'Lc2ZerD7r4iMufWnkUFRVoqj8zaUdra9gy':[]},'accounts_expanded':{},'master_public_key':'756d1fe6ded28d43d4fea902a9695feb785447514d6e6c3bdf369f7c3432fdde4409e4efbffbcf10084d57c5a98d1f34d20ac1f133bdb64fa02abf4f7bde1dfb','use_encryption':False,'seed':'2605aafe50a45bdf2eb155302437e678','accounts':{0:{0:['LXxqjQvF2cEDJ58YLFJvPAT8155Q4q6D63','LhPe5cGcQiGM4rJg8uRxuDmA43dzQUckM4','LRLeVkmShS9bXwbFJxXxrMxQgBJb1CxRW4','LhVBwnh66BYu2i8tGGG7BpxGrm7Uz9RSMq','LPi4d5i97ayJLNvgWdFJHrmnrmkr3BAgdS'],1:['LbGiejb64pNXrjPZfiauVkchFQksBnFjrz','Lc2ZerD7r4iMufWnkUFRVoqj8zaUdra9gy','LXupCaL8GsoAAC3c6ayRuQiF6oKd6jzvF2']}},'seed_version':4}"
