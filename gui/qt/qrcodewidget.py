@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
 import os
 import qrcode
 
-from electroncash import get_config, util
+from electroncash import util
 from electroncash.i18n import _
 from .util import WindowModalDialog
 
@@ -102,7 +102,6 @@ class QRDialog(WindowModalDialog):
 
         vbox = QVBoxLayout()
         qrw = QRCodeWidget(data)
-        qscreen = QApplication.primaryScreen()
         vbox.addWidget(qrw, 1)
         if show_text:
             text = QTextEdit()
@@ -112,27 +111,27 @@ class QRDialog(WindowModalDialog):
         hbox = QHBoxLayout()
         hbox.addStretch(1)
 
-        config = get_config()
-        if config:
-            filename = os.path.join(config.path, "qrcode.png")
+        weakSelf = util.Weak.ref(self)  # Qt & Python GC hygeine: don't hold references to self in non-method slots as it appears Qt+Python GC don't like this too much and may leak memory in that case.
 
-            def print_qr():
-                p = qscreen.grabWindow(qrw.winId())
-                p.save(filename, 'png')
-                self.show_message(_("QR code saved to file") + " " + filename)
+        def print_qr():
+            from .main_window import ElectrumWindow
+            p = qrw.grab()
+            filename = ElectrumWindow.static_getSaveFileName(title=_("Save QR Image"), filename="qrcode.png", parent=weakSelf(), filter="*.png")
+            p.save(filename, 'png')
+            weakSelf() and weakSelf().show_message(_("QR code saved to file") + " " + filename)
 
-            def copy_to_clipboard():
-                p = qscreen.grabWindow(qrw.winId())
-                QApplication.clipboard().setPixmap(p)
-                self.show_message(_("QR code copied to clipboard"))
+        def copy_to_clipboard():
+            p = qrw.grab()
+            QApplication.clipboard().setPixmap(p)
+            weakSelf() and weakSelf().show_message(_("QR code copied to clipboard"))
 
-            b = QPushButton(_("Copy"))
-            hbox.addWidget(b)
-            b.clicked.connect(copy_to_clipboard)
+        b = QPushButton(_("Copy"))
+        hbox.addWidget(b)
+        b.clicked.connect(copy_to_clipboard)
 
-            b = QPushButton(_("Save"))
-            hbox.addWidget(b)
-            b.clicked.connect(print_qr)
+        b = QPushButton(_("Save"))
+        hbox.addWidget(b)
+        b.clicked.connect(print_qr)
 
         b = QPushButton(_("Close"))
         hbox.addWidget(b)
