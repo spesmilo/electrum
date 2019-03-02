@@ -36,7 +36,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 
-from electroncash import keystore
+from electroncash import keystore, get_config
 from electroncash.address import Address, ScriptOutput
 from electroncash.bitcoin import COIN, TYPE_ADDRESS, TYPE_SCRIPT
 from electroncash import networks
@@ -658,18 +658,32 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
     # custom wrappers for getOpenFileName and getSaveFileName, that remember the path selected by the user
     def getOpenFileName(self, title, filter = ""):
-        directory = self.config.get('io_dir', os.path.expanduser('~'))
-        fileName, __ = QFileDialog.getOpenFileName(self, title, directory, filter)
-        if fileName and directory != os.path.dirname(fileName):
-            self.config.set_key('io_dir', os.path.dirname(fileName), True)
-        return fileName
+        return __class__.static_getOpenFileName(title=title, filter=filter, config=self.config, parent=self)
 
     def getSaveFileName(self, title, filename, filter = ""):
-        directory = self.config.get('io_dir', os.path.expanduser('~'))
+        return __class__.static_getSaveFileName(title=title, filename=filename, filter=filter, config=self.config, parent=self)
+
+    @staticmethod
+    def static_getOpenFileName(*, title, parent=None, config=None, filter=""):
+        if not config:
+            config = get_config()
+        userdir = os.path.expanduser('~')
+        directory = config.get('io_dir', userdir) if config else userdir
+        fileName, __ = QFileDialog.getOpenFileName(parent, title, directory, filter)
+        if fileName and directory != os.path.dirname(fileName) and config:
+            config.set_key('io_dir', os.path.dirname(fileName), True)
+        return fileName
+
+    @staticmethod
+    def static_getSaveFileName(*, title, filename, parent=None, config=None, filter=""):
+        if not config:
+            config = get_config()
+        userdir = os.path.expanduser('~')
+        directory = config.get('io_dir', userdir) if config else userdir
         path = os.path.join( directory, filename )
-        fileName, __ = QFileDialog.getSaveFileName(self, title, path, filter)
-        if fileName and directory != os.path.dirname(fileName):
-            self.config.set_key('io_dir', os.path.dirname(fileName), True)
+        fileName, __ = QFileDialog.getSaveFileName(parent, title, path, filter)
+        if fileName and directory != os.path.dirname(fileName) and config:
+            config.set_key('io_dir', os.path.dirname(fileName), True)
         return fileName
 
     def timer_actions(self):
@@ -939,10 +953,14 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.new_request_button = QPushButton(_('New'))
         self.new_request_button.clicked.connect(self.new_payment_request)
 
-        self.receive_qr = QRCodeWidget(fixedSize=200)
-        self.receive_qr.mouseReleaseEvent = lambda x: self.toggle_qr_window()
-        self.receive_qr.enterEvent = lambda x: self.app.setOverrideCursor(QCursor(Qt.PointingHandCursor))
-        self.receive_qr.leaveEvent = lambda x: self.app.setOverrideCursor(QCursor(Qt.ArrowCursor))
+        weakSelf = Weak.ref(self)
+        class MyQRCodeWidget(QRCodeWidget):
+            def mouseReleaseEvent(self, e):
+                ''' to make the QRWidget clickable '''
+                weakSelf() and weakSelf().show_qr_window()
+
+        self.receive_qr = MyQRCodeWidget(fixedSize=200)
+        self.receive_qr.setCursor(QCursor(Qt.PointingHandCursor))
 
         self.receive_buttons = buttons = QHBoxLayout()
         buttons.addStretch(1)
@@ -1096,20 +1114,21 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.expires_combo.show()
         self.set_receive_address(self.wallet.get_receiving_address())
 
-    def toggle_qr_window(self):
+    def show_qr_window(self):
         from . import qrwindow
         if not self.qr_window:
             self.qr_window = qrwindow.QR_Window()
-            self.qr_window.setVisible(True)
-            self.qr_window_geometry = self.qr_window.geometry()
-        else:
-            if not self.qr_window.isVisible():
-                self.qr_window.setVisible(True)
-                self.qr_window.setGeometry(self.qr_window_geometry)
-            else:
-                self.qr_window_geometry = self.qr_window.geometry()
-                self.qr_window.setVisible(False)
+            self.qr_window.setAttribute(Qt.WA_DeleteOnClose, True)
+            weakSelf = Weak.ref(self)
+            def destroyed_clean(x):
+                if weakSelf():
+                    weakSelf().qr_window = None
+                    weakSelf().print_error("QR Window destroyed.")
+            self.qr_window.destroyed.connect(destroyed_clean)
         self.update_receive_qr()
+        self.qr_window.show()
+        self.qr_window.raise_()
+        self.qr_window.activateWindow()
 
     def show_send_tab(self):
         self.tabs.setCurrentIndex(self.tabs.indexOf(self.send_tab))
@@ -1129,7 +1148,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.save_request_button.setEnabled((amount is not None) or (message != ""))
         uri = web.create_URI(self.receive_address, amount, message)
         self.receive_qr.setData(uri)
-        if self.qr_window and self.qr_window.isVisible():
+        if self.qr_window:
             self.qr_window.set_content(self, self.receive_address_e.text(), amount,
                                        message, uri)
 
@@ -2321,6 +2340,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         d = QRDialog(data, parent or self, title)
         d.exec_()
+        d.setParent(None)  # Help Python GC this sooner rather than later
 
     @protected
     def show_private_key(self, address, password):
