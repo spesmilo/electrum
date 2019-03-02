@@ -149,7 +149,7 @@ p4a.source_dir = /opt/python-for-android
 warn_on_root=0
 
 # (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
-log_level = 1
+log_level = 2
 
 
 # -----------------------------------------------------------------------------
