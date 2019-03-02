@@ -1118,7 +1118,10 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                     weakSelf().print_error("QR Window destroyed.")
             self.qr_window.destroyed.connect(destroyed_clean)
         self.update_receive_qr()
-        self.qr_window.show()
+        if self.qr_window.isMinimized():
+            self.qr_window.showNormal()
+        else:
+            self.qr_window.show()
         self.qr_window.raise_()
         self.qr_window.activateWindow()
 
