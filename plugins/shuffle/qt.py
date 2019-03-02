@@ -673,17 +673,19 @@ class Plugin(BasePlugin):
 
     @hook
     def on_close_window(self, window):
-        def didRemove(window):
-            self.print_error("Window '{}' removed".format(window.wallet.basename()))
+        try:
+            def didRemove(window):
+                self.print_error("Window '{}' removed".format(window.wallet.basename()))
+            if self._window_remove_from_disabled(window):
+                didRemove(window)
+                return
+            if self._disable_for_window(window, add_to_disabled = False):
+                didRemove(window)
+                return
+        finally:
             if not self.disabled_windows and not self.windows:
                 # fix for #85 -- Pool View windows keep app open after last window closed
-                PoolsWinMgr.instance().closeAll()
-        if self._window_remove_from_disabled(window):
-            didRemove(window)
-            return
-        if self._disable_for_window(window, add_to_disabled = False):
-            didRemove(window)
-            return
+                pwm = PoolsWinMgr.instance(False); pwm and pwm.closeAll()
 
     def _disable_for_window(self, window, add_to_disabled = True):
         if window not in self.windows:
@@ -1650,14 +1652,17 @@ class PoolsWinMgr(QObject, PrintError):
         dname = self.diagnostic_name()
         self.destroyed.connect(lambda x: print_error("[{}] destroyed".format(dname)))
     def __del__(self):
+        stale = True
+        if PoolsWinMgr._instance is self:
+            PoolsWinMgr._instance = None
+            stale = False
+        print_error("[{}] finalized{}".format(__class__.__name__, " (stale instance)" if stale else ''))
         if hasattr(super(), '__del__'):
             super().__del__()
-        print_error("[{}] finalized".format(__class__.__name__))
-        PoolsWinMgr._instance = None
     #public methods
     @classmethod
-    def instance(cls):
-        if not cls._instance:
+    def instance(cls, create_if_missing=True):
+        if not cls._instance and create_if_missing:
             cls._instance = cls()
         return cls._instance
     @classmethod
@@ -1773,25 +1778,24 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
     def diagnostic_name(self):
         return "{}/{}".format(super().diagnostic_name(), self.objectName())
     def closeEvent(self, e):
+        #self.print_error("Close")
+        self.closed.emit(self.objectName())
+        parent = self.weakParent and self.weakParent()
+        if isinstance(parent, QWidget) and parent.isVisible() and parent.window().isVisible():
+            try:
+                # for some reason closing this dialog raises the wallet window and not the network dialog
+                # activate the network dialog if it's up..
+                parent.window().activateWindow()
+            except RuntimeError as e:
+                # Deal with wrapped C/C++ object deleted. For some reason
+                # the weakRef is still alive even after C/C++ deletion
+                # (and no other references referencing the object!).
+                if 'C++' in str(e):
+                    self.print_error("Underlying C/C++ object deleted. Working around PyQt5 bugs and ignoring...")
+                else:
+                    raise
         super().closeEvent(e)
-        if e.isAccepted():
-            #self.print_error("Close")
-            self.closed.emit(self.objectName())
-            parent = self.weakParent and self.weakParent()
-            if isinstance(parent, QWidget) and parent.isVisible() and parent.window().isVisible():
-                try:
-                    # for some reason closing this dialog raises the wallet window and not the network dialog
-                    # activate the network dialog if it's up..
-                    parent.window().activateWindow()
-                except RuntimeError as e:
-                    # Deal with wrapped C/C++ object deleted. For some reason
-                    # the weakRef is still alive even after C/C++ deletion
-                    # (and no other references referencing the object!).
-                    if 'C++' in str(e):
-                        self.print_error("Underlying C/C++ object deleted. Working around PyQt5 bugs and ignoring...")
-                    else:
-                        raise
-            # do stuff related to hiding here...
+        e.accept()
     def hideEvent(self, e):
         super().hideEvent(e)
         if e.isAccepted():
