@@ -128,6 +128,8 @@ WORKDIR ${WORK_DIR}
 
 RUN python3 -m pip install --upgrade cython==0.28.6
 
+RUN python3 -m pip install wheel
+
 RUN python3 -m pip install groestlcoin_hash
 
 # prepare git

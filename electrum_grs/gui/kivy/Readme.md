@@ -41,9 +41,9 @@ folder.
     ```
     $ sudo docker run -it --rm \
         --name electrum-grs-android-builder-cont \
-        -v $PWD:/home/user/wspace/electrum_grs \
+        -v $PWD:/home/user/wspace/electrum-grs \
         -v ~/.keystore:/home/user/.keystore \
-        --workdir /home/user/wspace/electrum_grs \
+        --workdir /home/user/wspace/electrum-grs \
         electrum-grs-android-builder-img \
         ./contrib/make_apk
     ```
