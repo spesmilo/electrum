@@ -263,7 +263,7 @@ class AddressSynchronizer(PrintError):
                 add_value_from_prev_output()
             # add outputs
             for n, txo in enumerate(tx.outputs()):
-                v = txo[2]
+                v = txo.value
                 ser = tx_hash + ':%d'%n
                 addr = self.get_txout_address(txo)
                 if addr and self.is_mine(addr):
