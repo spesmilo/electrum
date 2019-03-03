@@ -673,19 +673,14 @@ class Plugin(BasePlugin):
 
     @hook
     def on_close_window(self, window):
-        try:
-            def didRemove(window):
-                self.print_error("Window '{}' removed".format(window.wallet.basename()))
-            if self._window_remove_from_disabled(window):
-                didRemove(window)
-                return
-            if self._disable_for_window(window, add_to_disabled = False):
-                didRemove(window)
-                return
-        finally:
-            if not self.disabled_windows and not self.windows:
-                # fix for #85 -- Pool View windows keep app open after last window closed
-                pwm = PoolsWinMgr.instance(False); pwm and pwm.closeAll()
+        def didRemove(window):
+            self.print_error("Window '{}' removed".format(window.wallet.basename()))
+        if self._window_remove_from_disabled(window):
+            didRemove(window)
+            return
+        if self._disable_for_window(window, add_to_disabled = False):
+            didRemove(window)
+            return
 
     def _disable_for_window(self, window, add_to_disabled = True):
         if window not in self.windows:
