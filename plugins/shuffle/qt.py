@@ -26,7 +26,6 @@
 from __future__ import absolute_import
 
 import os, sys, json, copy, socket, time
-from collections import defaultdict
 
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -44,113 +43,15 @@ from electroncash.wallet import Abstract_Wallet
 from electroncash_gui.qt.util import EnterButton, Buttons, CloseButton, HelpLabel, OkButton, WindowModalDialog, rate_limited
 from electroncash_gui.qt.password_dialog import PasswordDialog
 from electroncash_gui.qt.main_window import ElectrumWindow
-from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, ERR_BAD_SERVER_PREFIX, MSG_SERVER_OK, PrintErrorThread, get_name, unfreeze_frozen_by_shuffling
+from electroncash_plugins.shuffle.client import BackgroundShufflingThread, ERR_SERVER_CONNECT, ERR_BAD_SERVER_PREFIX, MSG_SERVER_OK, PrintErrorThread
 from electroncash_plugins.shuffle.comms import query_server_for_stats, verify_ssl_socket
 from electroncash_plugins.shuffle.conf_keys import ConfKeys  # config keys per wallet and global
-
-def is_coin_shuffled(wallet, coin, txs_in=None):
-    cache = getattr(wallet, "_is_shuffled_cache", dict())
-    tx_id, n = coin['prevout_hash'], coin['prevout_n']
-    name = "{}:{}".format(tx_id, n)
-    answer = cache.get(name, None)
-    if answer is not None:
-        # check cache, if cache hit, return answer and avoid the lookup below
-        return answer
-    def doChk():
-        if txs_in:
-            txs = txs_in
-        else:
-            txs = wallet.transactions
-        if tx_id in txs:
-            tx = txs[tx_id]
-            outputs = tx.outputs()
-            inputs_len = len(tx.inputs())
-            outputs_groups = defaultdict(list)
-            for out_n, output in enumerate(outputs):
-                amount = output[2]
-                outputs_groups[amount].append(out_n)
-            for amount, group in outputs_groups.items():
-                group_len = len(group)
-                if group_len > 2 and amount in BackgroundShufflingThread.scales:
-                    if n in group and inputs_len >= group_len:
-                        return True
-            return False
-        else:
-            return None
-    # /doChk
-    answer = doChk()
-    if answer is not None:
-        # cache the answer iff it's a definitive answer True/False only
-        cache[name] = answer
-    return answer
+from electroncash_plugins.shuffle.coin_utils import CoinUtils
 
 def is_coin_busy_shuffling(window, utxo_or_name):
     ''' Convenience wrapper for BackgroundShufflingThread.is_coin_busy_shuffling '''
     bp = getattr(window, 'background_process', None)
     return bool(bp and bp.is_coin_busy_shuffling(utxo_or_name))
-
-def get_shuffled_and_unshuffled_coin_totals(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
-    ''' Returns a 3-tuple of tuples of (amount_total, num_utxos) that are 'shuffled', 'unshuffled' and 'unshuffled_but_in_progress', respectively. '''
-    shuf, unshuf, uprog = wallet.get_shuffled_and_unshuffled_coins(exclude_frozen, mature, confirmed_only)
-    ret, lists = [(0,0),(0,0),(0,0)], ( shuf, unshuf, uprog )
-    i = 0
-    for l in lists:
-        tot = 0
-        n = 0
-        for c in l:
-            tot += c['value']
-            n += 1
-        ret[i] = (tot, n)
-        i += 1
-    return tuple(ret)
-
-# Called from either the wallet code or the shufflethread.
-# The wallet code calls this when spending either shuffled-only or unshuffled-only coins in a tx.
-def cashshuffle_get_new_change_address(wallet, for_shufflethread=False):
-    with wallet.lock:
-        with wallet.transaction_lock:
-            if not for_shufflethread and wallet._last_change and not wallet.get_address_history(wallet._last_change):
-                # if they keep hitting preview on the same tx, give them the same change each time
-                return wallet._last_change
-            change = None
-            for address in wallet.get_change_addresses():
-                if address not in wallet._addresses_cashshuffle_reserved and not wallet.get_address_history(address):
-                    change = address
-                    break
-            while not change:
-                address = wallet.create_new_address(for_change = True)
-                if address not in wallet._addresses_cashshuffle_reserved:
-                    change = address
-            wallet._addresses_cashshuffle_reserved.add(change)
-            if not for_shufflethread:
-                # new change address generated for code outside the shuffle threads. cache and return it next time.
-                wallet._last_change = change
-            return change
-
-@profiler
-def get_shuffled_and_unshuffled_coins(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
-    ''' Returns a 3-tupe of mutually exclusive lists: shuffled_utxos, unshuffled_utxos, and unshuffled_but_in_progress '''
-    shuf, unshuf, uprog = [], [], []
-    if hasattr(wallet, 'is_coin_shuffled'):
-        with wallet.lock:
-            with wallet.transaction_lock:
-                coins_frozen_by_shuffling = set(wallet.storage.get(ConfKeys.PerWallet.COINS_FROZEN_BY_SHUFFLING, list()))
-                utxos = wallet.get_utxos(exclude_frozen = exclude_frozen, mature = mature, confirmed_only = confirmed_only)
-                txs = wallet.transactions
-                for utxo in utxos:
-                    state = wallet.is_coin_shuffled(utxo, txs)
-                    if state:
-                        shuf.append(utxo)
-                    else:
-                        name = get_name(utxo)
-                        if state is not None:
-                            if name not in coins_frozen_by_shuffling:
-                                unshuf.append(utxo)
-                            else:
-                                uprog.append(utxo)
-                        else:
-                            wallet.print_error("Warning: get_shuffled_and_unshuffled_coins got an 'unknown' utxo: {}",name)
-    return shuf, unshuf, uprog
 
 def network_callback(window, event, *args):
     ''' This gets called in the network thread. It should just emit signals to GUI
@@ -330,7 +231,7 @@ def _got_tx(window, tx):
         # it only contains entries for shuffles that timed out in phase 4 where last player took too long (bug #70)
         addr, tot, scale, chg, fee = info
         for txin in inputs:
-            if get_name(txin) == utxo:
+            if CoinUtils.get_name(txin) == utxo:
                 # found the coin in the incoming tx. Now make sure it's our anticipated shuffle tx that failed and not some other tx, so we apply the correct label only when it's the phase-4-failed shuffle tx.
                 for n, txout in enumerate(outputs):
                     # Search the outputs of this tx to make sure they match what we expected for scale, out_addr...
@@ -338,7 +239,7 @@ def _got_tx(window, tx):
                     # the below checks make sure it matches what we expected from the failed shuffle, and also that the coin is shuffled (paranoia check).
                     if isinstance(_addr, Address) and amount == scale and _addr.to_storage_string() == addr:
                         txid = tx.txid()
-                        if is_coin_shuffled(window.wallet, {'prevout_hash':txid, 'prevout_n':n}, [tx]):
+                        if CoinUtils.is_coin_shuffled(window.wallet, {'prevout_hash':txid, 'prevout_n':n}, [tx]):
                             # all checks pass -- we successfully recovered from bug #70! Hurray!
                             window.wallet.set_label(txid, _make_label(window, tot, scale, chg, fee))
                             Plugin._increment_shuffle_counter(window)
@@ -422,13 +323,13 @@ def monkey_patches_apply(window):
     def patch_wallet(wallet):
         if getattr(wallet, '_shuffle_patched_', None):
             return
-        wallet.is_coin_shuffled = lambda coin, txs=None: is_coin_shuffled(wallet, coin, txs)
-        wallet.get_shuffled_and_unshuffled_coins = lambda *args, **kwargs: get_shuffled_and_unshuffled_coins(wallet, *args, **kwargs)
-        wallet.cashshuffle_get_new_change_address = lambda for_shufflethread=False: cashshuffle_get_new_change_address(wallet,for_shufflethread = for_shufflethread)
+        wallet.is_coin_shuffled = lambda coin, txs=None: CoinUtils.is_coin_shuffled(wallet, coin, txs)
+        wallet.get_shuffled_and_unshuffled_coins = lambda *args, **kwargs: CoinUtils.get_shuffled_and_unshuffled_coins(wallet, *args, **kwargs)
+        wallet.cashshuffle_get_new_change_address = lambda for_shufflethread=False: CoinUtils.get_new_change_address_safe(wallet, for_shufflethread=for_shufflethread)
         wallet._is_shuffled_cache = dict()
         wallet._addresses_cashshuffle_reserved = set()
         wallet._last_change = None
-        unfreeze_frozen_by_shuffling(wallet)
+        CoinUtils.unfreeze_frozen_by_shuffling(wallet)
         wallet._shuffle_patched_ = True
         print_error("[shuffle] Patched wallet")
 
@@ -477,7 +378,7 @@ def monkey_patches_remove(window):
         delattr(wallet, "_is_shuffled_cache")
         delattr(wallet, '_shuffle_patched_')
         delattr(wallet, "_last_change")
-        unfreeze_frozen_by_shuffling(wallet)
+        CoinUtils.unfreeze_frozen_by_shuffling(wallet)
         print_error("[shuffle] Unpatched wallet")
 
     restore_window(window)
@@ -732,12 +633,12 @@ class Plugin(BasePlugin):
         if spend_mode == extra.SpendingModeShuffled:
             # in Cash-Shuffle mode + shuffled spending we can ONLY spend shuffled coins!
             for coin in coins.copy():
-                if not is_coin_shuffled(window.wallet, coin):
+                if not CoinUtils.is_coin_shuffled(window.wallet, coin):
                     coins.remove(coin)
         elif spend_mode == extra.SpendingModeUnshuffled:
             # in Cash-Shuffle mode + unshuffled spending we can ONLY spend unshuffled coins!
             for coin in coins.copy():
-                if is_coin_shuffled(window.wallet, coin) or is_coin_busy_shuffling(window, coin):
+                if CoinUtils.is_coin_shuffled(window.wallet, coin) or is_coin_busy_shuffling(window, coin):
                     coins.remove(coin)
 
 
@@ -745,7 +646,7 @@ class Plugin(BasePlugin):
     def balance_label_extra(self, window):
         if window not in self.windows:
             return
-        shuf, unshuf, uprog = get_shuffled_and_unshuffled_coin_totals(window.wallet)
+        shuf, unshuf, uprog = CoinUtils.get_shuffled_and_unshuffled_coin_totals(window.wallet)
         totShuf, nShuf = shuf
         window.send_tab_shuffle_extra.refresh(shuf, unshuf, uprog)
         if nShuf:
@@ -757,7 +658,7 @@ class Plugin(BasePlugin):
         if window not in self.windows:
             return
 
-        shuf, unshuf, uprog = get_shuffled_and_unshuffled_coin_totals(window.wallet)
+        shuf, unshuf, uprog = CoinUtils.get_shuffled_and_unshuffled_coin_totals(window.wallet)
         totShuf, nShuf, totUnshuf, nUnshuf, totInProg, nInProg = *shuf, *unshuf, *uprog
 
         extra = window.send_tab_shuffle_extra
@@ -1206,7 +1107,7 @@ class SendTabExtra(QFrame, PrintError):
             # this can happen if this timer fires after the wallet was "un-monkey-patched". It's the price we pay for @rate_limied. :)
             return
         if shuf is None or unshuf is None or inprog is None:
-            shuf, unshuf, inprog = get_shuffled_and_unshuffled_coin_totals(self.window.wallet)
+            shuf, unshuf, inprog = CoinUtils.get_shuffled_and_unshuffled_coin_totals(self.window.wallet)
         amount, n, amountUnshuf, nUnshuf, amountInProg, nInProg = *shuf, *unshuf, *inprog
         bt = ( "<b>{}</b> {}", ("<b>{}</b> %s <small>(%s)</small>"%(_("Coins"),_("UTXOs"))) ) # bold text template
         nt = ( "{} {}", ("{} %s <small>(%s)</small>"%(_("Coins"),_("UTXOs"))) ) # normal text template

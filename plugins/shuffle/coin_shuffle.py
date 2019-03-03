@@ -346,10 +346,9 @@ class Round(PrintErrorThread):
                 player_signatures = self.messages.get_signatures()
                 for utxo, sig in player_signatures.items():
                     if not self.coin_utils.verify_tx_signature(sig, self.transaction, pubkeys[utxo], utxo):
-                        self.messages.blame_wrong_transaction_signature(self.players[player])
+                        self.messages.blame_wrong_transaction_signature(vk)
                         self.send_message()
-                        self.logchan.send('Blame: wrong transaction signature from player ' +
-                                          str(player))
+                        self.logchan.send('Blame: wrong transaction signature from player {}'.format(player))
                         self.done = True
                         return
                     self.signatures.update(player_signatures)

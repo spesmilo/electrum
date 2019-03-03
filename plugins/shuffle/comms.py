@@ -74,7 +74,7 @@ class Comm(PrintErrorThread):
         self.magic = bytes.fromhex("42bcc32669467873")
         self.MAX_BLOCK_SIZE = bufsize
         self.timeout = timeout
-        self.recvbuf = b''
+        self.recvbuf = bytearray()
         self.ssl = ssl
         self.infoText = infoText
         self._connected = False
@@ -114,7 +114,7 @@ class Comm(PrintErrorThread):
             return len(self.recvbuf)
         def READ():
             try:
-                self.recvbuf += self._recv() # will always return non-zero data or will raise
+                self.recvbuf.extend( self._recv() ) # will always return non-zero data or will raise
             except socket.timeout as e:
                 self.print_error("Socket timeout ({}): {}".format(self.socket.gettimeout(), str(e)))
                 raise e
@@ -126,21 +126,21 @@ class Comm(PrintErrorThread):
                 if LEN() <= 12:
                     READ()
                 else:
-                    magic = self.recvbuf[0:8]
+                    magic = self.recvbuf[:8]
                     if magic != self.magic:
-                        raise BadServerPacketError("Bad magic in message: '{}'".format(str(self.recvbuf)))
+                        raise BadServerPacketError("Bad magic in message: 0x{}".format(magic.hex()))
                     msg_length = int.from_bytes(self.recvbuf[8:12], byteorder='big')
                     if msg_length > self.MAX_MSG_LENGTH:
-                        raise BadServerPacketError("Got a packet with msg_length={} > {} (max)".format(msg_length,self.MAX_MSG_LENGTH))
+                        raise BadServerPacketError("Got a packet with msg_length={} > {} (max)".format(msg_length, self.MAX_MSG_LENGTH))
                     elif msg_length <= 0:
                         raise BadServerPacketError("Got a packet with msg_length={}".format(msg_length))
-                    self.recvbuf = self.recvbuf[12:] # consume packet header, loop will now spend its time in the else clause below..
+                    del self.recvbuf[:12] # consume packet header, loop will now spend its time in the else clause below..
             else:
                 if LEN() < msg_length:
                     READ()
                 else:
-                    ret = self.recvbuf[:msg_length]
-                    self.recvbuf = self.recvbuf[msg_length:] # consume data
+                    ret = bytes( self.recvbuf[:msg_length] ) # return a copy of the message as bytes
+                    del self.recvbuf[:msg_length] # consume data
                     return ret
         raise OSError(errno.ENOTCONN, "Not connected")
 
@@ -164,6 +164,7 @@ class Comm(PrintErrorThread):
                     # Socket was not actually connected
                     pass
                 finally:
+                    del self.recvbuf[:]  # just to be safe, clear out recvbuf data, if any
                     try: self.socket.close()  # fileno() is now -1
                     except OSError: pass
 

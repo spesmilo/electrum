@@ -22,18 +22,6 @@ from .coin_shuffle import Round
 from .comms import Channel, ChannelWithPrint, ChannelSendLambda, Comm, query_server_for_stats, verify_ssl_socket, BadServerPacketError
 from .conf_keys import ConfKeys  # config keys per wallet and global
 
-def get_name(coin):
-    return "{}:{}".format(coin['prevout_hash'],coin['prevout_n'])
-
-def unfreeze_frozen_by_shuffling(wallet):
-    with wallet.lock, wallet.transaction_lock:
-        coins_frozen_by_shuffling = wallet.storage.get(ConfKeys.PerWallet.COINS_FROZEN_BY_SHUFFLING, list())
-        if coins_frozen_by_shuffling:
-            l = len(coins_frozen_by_shuffling)
-            if l: wallet.print_error("Freed {} frozen-by-shuffling UTXOs".format(l))
-            wallet.set_frozen_coin_state(coins_frozen_by_shuffling, False)
-        wallet.storage.put(ConfKeys.PerWallet.COINS_FROZEN_BY_SHUFFLING, None) # deletes key altogether from storage
-
 class ProtocolThread(threading.Thread, PrintErrorThread):
     """
     Thread encapsulating a particular shuffle of a particular coin. There are
@@ -142,8 +130,10 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     @not_time_to_die
     def gather_the_keys(self):
         "This method gathers the verification keys from other players in the pool"
+        self.players.clear()
+        self.all_inputs.clear()
         messages = b''
-        for _ in range(self.number_of_players):
+        for __ in range(self.number_of_players):
             messages += self.comm.recv()
         self.messages.packets.ParseFromString(messages)
         for packet in self.messages.packets.packet:
@@ -151,13 +141,13 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
             player_key = str(packet.packet.from_key.key)
             self.players[player_number] = player_key
             self.all_inputs[player_key] = {}
-            for pk,inp in packet.packet.message.inputs.items():
+            for pk, inp in packet.packet.message.inputs.items():
                 self.all_inputs[player_key][pk] = inp.coins[:]
         if self.players:
-            self.logger.send('Player ' +str(self.number)+ " get " + str(len(self.players))+".\n")
+            self.logger.send('Player {} get {}.'.format(self.number, len(self.players)))
         #check if all keys are different
-        if len(set(self.players.values())) is not self.number_of_players:
-            self.logger.send('Error: Duplicate keys in player list!')
+        if len(self.all_inputs) != self.number_of_players:
+            self.logger.send('Error: Duplicate or extra keys in player list!')
             self.done.set()
         if self.number_of_players < 3:
             self.logger.send('{} Refusing to play with {} players. Minimum 3 required.'.format(ERR_BAD_SERVER_PREFIX,self.number_of_players))
@@ -508,7 +498,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             if self.wallet._last_change:
                 self.wallet._last_change = None
                 self.print_error("Freed 'last_change'")
-            unfreeze_frozen_by_shuffling(self.wallet)
+            CoinUtils.unfreeze_frozen_by_shuffling(self.wallet)
             self._coins_busy_shuffling.clear()
 
     def stop_protocol_thread(self, thr, scale, sender, message):
@@ -592,10 +582,14 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                                 if self.wallet.is_coin_shuffled(coin) is False]
             upper_amount = min(scale*10 + self.FEE, self.UPPER_BOUND)
             lower_amount = scale + self.FEE
+            _get_name = CoinUtils.get_name
             unshuffled_coins_on_scale = [coin for coin in unshuffled_coins
                                          # exclude coins out of range and 'done' coins still in history
                                          # also exclude coinbase coins (see issue #64)
-                                         if coin['value'] < upper_amount and coin['value'] >= lower_amount and get_name(coin) not in self.done_utxos and not coin['coinbase']]
+                                         if (coin['value'] < upper_amount
+                                             and coin['value'] >= lower_amount
+                                             and _get_name(coin) not in self.done_utxos
+                                             and not coin['coinbase']) ]
             unshuffled_coins_on_scale.sort(key=lambda x: (x['value'], -x['height']))  # sort by value, preferring older coins on tied value
             if unshuffled_coins_on_scale:
                 return unshuffled_coins_on_scale[-1]  # take the largest,oldest on the scale
@@ -611,7 +605,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
             # and we didn't yet get informed of the new password.  In which case we give up for now and 10 seconds later
             # (the next 'period' time), this coin will be picked up again.
             raise RuntimeWarning('Invalid Password caught when trying to export a private key -- if this keeps happening tell the devs!')
-        utxo_name = get_name(coin)
+        utxo_name = CoinUtils.get_name(coin)
         self.wallet.set_frozen_coin_state([utxo_name], True)
         self._coins_busy_shuffling.add(utxo_name)
         self.wallet.storage.put(ConfKeys.PerWallet.COINS_FROZEN_BY_SHUFFLING, list(self._coins_busy_shuffling))
@@ -668,7 +662,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         This is a very accurate real-time indication that a coins is busy
         shuffling. Used by the spendable_coin_filter in qt.py.'''
         if isinstance(utxo_name_or_dict, dict):
-            name = get_name(utxo_name_or_dict)
+            name = CoinUtils.get_name(utxo_name_or_dict)
         else:
             name = utxo_name_or_dict
         # name must be an str at this point!
