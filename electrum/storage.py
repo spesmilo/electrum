@@ -119,7 +119,7 @@ class WalletStorage(PrintError):
             if encryption is disabled completely (self.is_encrypted() == False),
             or if encryption is enabled but the contents have already been decrypted.
         """
-        return bool(self.data)
+        return bool(self.db.data)
 
     def is_encrypted(self):
         """Return if storage encryption is currently enabled."""

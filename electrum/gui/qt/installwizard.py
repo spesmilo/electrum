@@ -270,7 +270,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                         return
                 elif self.temp_storage.is_encrypted_with_hw_device():
                     try:
-                        self.run('choose_hw_device', HWD_SETUP_DECRYPT_WALLET, self.temp_storage)
+                        self.run('choose_hw_device', HWD_SETUP_DECRYPT_WALLET, storage=self.temp_storage)
                     except InvalidPassword as e:
                         QMessageBox.information(
                             None, _('Error'),
