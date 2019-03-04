@@ -241,7 +241,7 @@ def _got_tx(window, tx):
                     # the below checks make sure it matches what we expected from the failed shuffle, and also that the coin is shuffled (paranoia check).
                     if isinstance(_addr, Address) and amount == amt and _addr.to_storage_string() == addr:
                         txid = tx.txid()
-                        if CoinUtils.is_coin_shuffled(window.wallet, {'prevout_hash':txid, 'prevout_n':n}, [tx]):
+                        if CoinUtils.is_coin_shuffled(window.wallet, {'prevout_hash':txid, 'prevout_n':n}, {txid: tx}):
                             # all checks pass -- we successfully recovered from bug #70! Hurray!
                             window.wallet.set_label(txid, _make_label(window, tot, amt, chg, fee, scale))
                             Plugin._increment_shuffle_counter(window)
