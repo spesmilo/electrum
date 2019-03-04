@@ -299,7 +299,8 @@ class BaseWizard(object):
                 _('Debug message') + '\n',
                 debug_msg
             ])
-            self.confirm_dialog(title=title, message=msg, run_next= lambda x: self.choose_hw_device(purpose))
+            self.confirm_dialog(title=title, message=msg,
+                                run_next=lambda x: self.choose_hw_device(purpose, storage=storage))
             return
         # select device
         self.devices = devices
@@ -326,15 +327,15 @@ class BaseWizard(object):
                             + _('Please try again.'))
             devmgr = self.plugins.device_manager
             devmgr.unpair_id(device_info.device.id_)
-            self.choose_hw_device(purpose)
+            self.choose_hw_device(purpose, storage=storage)
             return
         except (UserCancelled, GoBack):
-            self.choose_hw_device(purpose)
+            self.choose_hw_device(purpose, storage=storage)
             return
         except BaseException as e:
             traceback.print_exc(file=sys.stderr)
             self.show_error(str(e))
-            self.choose_hw_device(purpose)
+            self.choose_hw_device(purpose, storage=storage)
             return
         if purpose == HWD_SETUP_NEW_WALLET:
             def f(derivation, script_type):

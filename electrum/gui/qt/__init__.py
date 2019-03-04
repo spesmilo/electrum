@@ -28,6 +28,7 @@ import signal
 import sys
 import traceback
 import threading
+from typing import Optional
 
 
 try:
@@ -46,9 +47,9 @@ from electrum.plugin import run_hook
 from electrum.base_wizard import GoBack
 from electrum.util import (UserCancelled, PrintError, profiler,
                            WalletFileException, BitcoinException, get_new_wallet_name)
-from electrum.wallet import Wallet
+from electrum.wallet import Wallet, Abstract_Wallet
 
-from .installwizard import InstallWizard
+from .installwizard import InstallWizard, WalletAlreadyOpenInMemory
 
 
 from .util import get_default_language, read_QIcon, ColorScheme
@@ -191,7 +192,7 @@ class ElectrumGui(PrintError):
                                 self.network_updated_signal_obj)
         self.nd.show()
 
-    def create_window_for_wallet(self, wallet):
+    def _create_window_for_wallet(self, wallet):
         w = ElectrumWindow(self, wallet)
         self.windows.append(w)
         self.build_tray_menu()
@@ -212,9 +213,10 @@ class ElectrumGui(PrintError):
         return wrapper
 
     @count_wizards_in_progress
-    def start_new_window(self, path, uri, app_is_starting=False):
+    def start_new_window(self, path, uri, *, app_is_starting=False):
         '''Raises the window for the wallet if it is open.  Otherwise
         opens the wallet and creates a new window for it'''
+        wallet = None
         try:
             wallet = self.daemon.load_wallet(path, None)
         except BaseException as e:
@@ -222,49 +224,20 @@ class ElectrumGui(PrintError):
             d = QMessageBox(QMessageBox.Warning, _('Error'),
                             _('Cannot load wallet') + ' (1):\n' + str(e))
             d.exec_()
-            if app_is_starting:
-                # do not return so that the wizard can appear
-                wallet = None
-            else:
+            # if app is starting, still let wizard to appear
+            if not app_is_starting:
                 return
         if not wallet:
-            wizard = InstallWizard(self.config, self.app, self.plugins)
-            storage = None
-            try:
-                path, storage = wizard.select_storage(path, self.daemon.get_wallet)
-                # storage is None if file does not exist
-                if storage is None:
-                    wizard.path = path # needed by trustedcoin plugin
-                    wizard.run('new')
-                    storage = wizard.create_storage(path)
-                else:
-                    wizard.run_upgrades(storage)
-            except UserCancelled:
-                return
-            except GoBack as e:
-                self.print_error('[start_new_window] Exception caught (GoBack)', e)
-            except (WalletFileException, BitcoinException) as e:
-                traceback.print_exc(file=sys.stderr)
-                d = QMessageBox(QMessageBox.Warning, _('Error'),
-                                _('Cannot load wallet') + ' (2):\n' + str(e))
-                d.exec_()
-                return
-            finally:
-                wizard.terminate()
-            # return if wallet creation is not complete
-            if storage is None or storage.get_action():
-                return
-            wallet = Wallet(storage)
-            if not self.daemon.get_wallet(wallet.storage.path):
-                # wallet was not in memory
-                wallet.start_network(self.daemon.network)
-                self.daemon.add_wallet(wallet)
+            wallet = self._start_wizard_to_select_or_create_wallet(path)
+        if not wallet:
+            return
+        # create or raise window
         try:
             for w in self.windows:
                 if w.wallet.storage.path == wallet.storage.path:
                     break
             else:
-                w = self.create_window_for_wallet(wallet)
+                w = self._create_window_for_wallet(wallet)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
             d = QMessageBox(QMessageBox.Warning, _('Error'),
@@ -283,6 +256,37 @@ class ElectrumGui(PrintError):
         # this will activate the window
         w.activateWindow()
         return w
+
+    def _start_wizard_to_select_or_create_wallet(self, path) -> Optional[Abstract_Wallet]:
+        wizard = InstallWizard(self.config, self.app, self.plugins)
+        try:
+            path, storage = wizard.select_storage(path, self.daemon.get_wallet)
+            # storage is None if file does not exist
+            if storage is None:
+                wizard.path = path  # needed by trustedcoin plugin
+                wizard.run('new')
+                storage = wizard.create_storage(path)
+            else:
+                wizard.run_upgrades(storage)
+        except (UserCancelled, GoBack):
+            return
+        except WalletAlreadyOpenInMemory as e:
+            return e.wallet
+        except (WalletFileException, BitcoinException) as e:
+            traceback.print_exc(file=sys.stderr)
+            d = QMessageBox(QMessageBox.Warning, _('Error'),
+                            _('Cannot load wallet') + ' (2):\n' + str(e))
+            d.exec_()
+            return
+        finally:
+            wizard.terminate()
+        # return if wallet creation is not complete
+        if storage is None or storage.get_action():
+            return
+        wallet = Wallet(storage)
+        wallet.start_network(self.daemon.network)
+        self.daemon.add_wallet(wallet)
+        return wallet
 
     def close_window(self, window):
         if window in self.windows:

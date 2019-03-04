@@ -6,7 +6,7 @@ import os
 import sys
 import threading
 import traceback
-from typing import Tuple, List, Callable
+from typing import Tuple, List, Callable, NamedTuple, Optional
 
 from PyQt5.QtCore import QRect, QEventLoop, Qt, pyqtSignal
 from PyQt5.QtGui import QPalette, QPen, QPainter, QPixmap
@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (QWidget, QDialog, QLabel, QHBoxLayout, QMessageBox,
                              QVBoxLayout, QLineEdit, QFileDialog, QPushButton,
                              QGridLayout, QSlider, QScrollArea)
 
-from electrum.wallet import Wallet
+from electrum.wallet import Wallet, Abstract_Wallet
 from electrum.storage import WalletStorage
 from electrum.util import UserCancelled, InvalidPassword, WalletFileException
 from electrum.base_wizard import BaseWizard, HWD_SETUP_DECRYPT_WALLET, GoBack
@@ -104,6 +104,11 @@ def wizard_dialog(func):
     return func_wrapper
 
 
+class WalletAlreadyOpenInMemory(Exception):
+    def __init__(self, wallet: Abstract_Wallet):
+        super().__init__()
+        self.wallet = wallet
+
 
 # WindowModalDialog must come first as it overrides show_error
 class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
@@ -162,7 +167,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         self.raise_()
         self.refresh_gui()  # Need for QT on MacOSX.  Lame.
 
-    def select_storage(self, path, get_wallet_from_daemon):
+    def select_storage(self, path, get_wallet_from_daemon) -> Tuple[str, Optional[WalletStorage]]:
 
         vbox = QVBoxLayout()
         hbox = QHBoxLayout()
@@ -254,7 +259,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 break
             wallet_from_memory = get_wallet_from_daemon(self.temp_storage.path)
             if wallet_from_memory:
-                return wallet_from_memory
+                raise WalletAlreadyOpenInMemory(wallet_from_memory)
             if self.temp_storage.file_exists() and self.temp_storage.is_encrypted():
                 if self.temp_storage.is_encrypted_with_user_pw():
                     password = self.pw_e.text()
@@ -267,7 +272,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     except BaseException as e:
                         traceback.print_exc(file=sys.stdout)
                         QMessageBox.information(None, _('Error'), str(e))
-                        return
+                        raise UserCancelled()
                 elif self.temp_storage.is_encrypted_with_hw_device():
                     try:
                         self.run('choose_hw_device', HWD_SETUP_DECRYPT_WALLET, storage=self.temp_storage)
@@ -281,11 +286,9 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                     except BaseException as e:
                         traceback.print_exc(file=sys.stdout)
                         QMessageBox.information(None, _('Error'), str(e))
-                        return
-                    if self.temp_storage.is_past_initial_decryption():
-                        break
-                    else:
-                        return
+                        raise UserCancelled()
+                    assert self.temp_storage.is_past_initial_decryption()
+                    break
                 else:
                     raise Exception('Unexpected encryption version')
 
