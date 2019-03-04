@@ -67,8 +67,7 @@
     "electrum.imaginary.cash": {
         "pruning": "-",
         "s": "50002",
-        "t": "50001",
-        "version": "1.4"
+        "version": "1.4.1"
     },
     "electrum.leblancnet.us": {
         "pruning": "-",
@@ -87,5 +86,16 @@
         "s": "50002",
         "t": "50001",
         "version": "1.4"
+    },
+    "7nshufncf3nmp7pa42oqhnj6whsjgo2eok4jveex62tczuhvqur5ciad.onion": {
+        "pruning": "-",
+        "t": "50001",
+        "version": "1.4.1"
+    },
+    "kisternetg2pq7wx.onion": {
+        "pruning": "-",
+        "t": "50001",
+        "version": "1.4"
     }
 }
+
