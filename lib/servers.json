@@ -91,5 +91,11 @@
         "pruning": "-",
         "t": "50001",
         "version": "1.4.1"
+    },
+    "kisternetg2pq7wx.onion": {
+        "pruning": "-",
+        "t": "50001",
+        "version": "1.4"
     }
 }
+
