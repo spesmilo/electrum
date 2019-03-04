@@ -76,6 +76,8 @@ class AddressSynchronizer(PrintError):
         # thread local storage for caching stuff
         self.threadlocal_cache = threading.local()
 
+        self._get_addr_balance_cache = {}
+
         self.load_and_cleanup()
 
     def with_transaction_lock(func):
@@ -146,6 +148,10 @@ class AddressSynchronizer(PrintError):
         if self.network is not None:
             self.synchronizer = Synchronizer(self)
             self.verifier = SPV(self.network, self)
+            self.network.register_callback(self.on_blockchain_updated, ['blockchain_updated'])
+
+    def on_blockchain_updated(self, event, *args):
+        self._get_addr_balance_cache = {}  # invalidate cache
 
     def stop_threads(self, write_to_disk=True):
         if self.network:
@@ -155,6 +161,7 @@ class AddressSynchronizer(PrintError):
             if self.verifier:
                 asyncio.run_coroutine_threadsafe(self.verifier.stop(), self.network.asyncio_loop)
                 self.verifier = None
+            self.network.unregister_callback(self.on_blockchain_updated)
             self.storage.put('stored_height', self.get_local_height())
         if write_to_disk:
             self.storage.write()
@@ -252,6 +259,7 @@ class AddressSynchronizer(PrintError):
                         if n == prevout_n:
                             if addr and self.is_mine(addr):
                                 self.db.add_txi_addr(tx_hash, addr, ser, v)
+                                self._get_addr_balance_cache.pop(addr, None)  # invalidate cache
                             return
             for txi in tx.inputs():
                 if txi['type'] == 'coinbase':
@@ -268,6 +276,7 @@ class AddressSynchronizer(PrintError):
                 addr = self.get_txout_address(txo)
                 if addr and self.is_mine(addr):
                     self.db.add_txo_addr(tx_hash, addr, n, v, is_coinbase)
+                    self._get_addr_balance_cache.pop(addr, None)  # invalidate cache
                     # give v to txi that spends me
                     next_tx = self.db.get_spent_outpoint(tx_hash, n)
                     if next_tx is not None:
@@ -302,6 +311,8 @@ class AddressSynchronizer(PrintError):
             tx = self.db.remove_transaction(tx_hash)
             remove_from_spent_outpoints()
             self._remove_tx_from_local_history(tx_hash)
+            for addr in itertools.chain(self.db.get_txi(tx_hash), self.db.get_txo(tx_hash)):
+                self._get_addr_balance_cache.pop(addr, None)  # invalidate cache
             self.db.remove_txi(tx_hash)
             self.db.remove_txo(tx_hash)
 
@@ -708,6 +719,9 @@ class AddressSynchronizer(PrintError):
         """Return the balance of a bitcoin address:
         confirmed and matured, unconfirmed, unmatured
         """
+        cached_value = self._get_addr_balance_cache.get(address)
+        if cached_value:
+            return cached_value
         received, sent = self.get_addr_io(address)
         c = u = x = 0
         local_height = self.get_local_height()
@@ -723,7 +737,12 @@ class AddressSynchronizer(PrintError):
                     c -= v
                 else:
                     u -= v
-        return c, u, x
+        result = c, u, x
+        # cache result.
+        # Cache needs to be invalidated if a transaction is added to/
+        # removed from history; or on new blocks (maturity...)
+        self._get_addr_balance_cache[address] = result
+        return result
 
     @with_local_height_cached
     def get_utxos(self, domain=None, excluded=None, mature=False, confirmed_only=False, nonlocal_only=False):
