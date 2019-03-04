@@ -31,10 +31,11 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     in class 'Round' in coin_shuffle.py which this class wraps and calls into).
     """
     def __init__(self, *, host, port, coin,
-                 amount, fee, sk, sks, inputs, pubk,
-                 addr_new_addr, change_addr, version, logger=None, ssl=False,
-                 comm_timeout=60.0, ctimeout=5.0, total_amount=0,
-                 fake_change=False,
+                 scale, fee, sk, sks, inputs, pubk,
+                 addr_new_addr, change_addr, version, coin_value,
+                 logger=None, ssl=False,
+                 comm_timeout=60.0, ctimeout=5.0,
+                 reserved_change=True,
                  typ=Messages.DEFAULT  # NB: For now only 'DEFAULT' type is supported
                  ):
 
@@ -43,7 +44,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         self.version = version
         self.type = typ
         self.messages = Messages()
-        self.comm = Comm(host, port, ssl=ssl, timeout = comm_timeout, infoText = "Scale: {}".format(amount))
+        self.comm = Comm(host, port, ssl=ssl, timeout = comm_timeout, infoText = "Scale: {}".format(scale))
         self.ctimeout = ctimeout
         if not logger:
             self.logger = ChannelWithPrint()
@@ -54,19 +55,20 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         self.number = None
         self.number_of_players = None
         self.players = {}
-        self.amount = amount
+        self.scale = scale
         self.coin = coin
         self.fee = fee
         self.sk = sk
         self.sks = sks
         self.inputs = inputs
-        self.total_amount = total_amount
+        assert coin_value > 0, "Coin value must be > 0!"
+        self.coin_value = coin_value
         self.all_inputs = {}
         self.addr_new_addr = addr_new_addr # used by outside code
         self.addr_new = addr_new_addr.to_storage_string() # used by internal protocol code
         self.change_addr = change_addr #outside
         self.change = change_addr.to_storage_string() #inside
-        self.fake_change = fake_change
+        self.reserved_change = reserved_change
         self.protocol = None
         self.tx = None
         self.ts = time.time()
@@ -84,7 +86,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
     @not_time_to_die
     def register_on_the_pool(self):
         "Register the player on the pool"
-        self.messages.make_greeting(self.vk, int(self.amount), self.type, self.version)
+        self.messages.make_greeting(self.vk, int(self.scale), self.type, self.version)
         msg = self.messages.packets.SerializeToString()
         self.comm.send(msg)
         req = self.comm.recv()
@@ -164,10 +166,10 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
         self.protocol = Round(
             coin_utils, crypto, self.messages,
             self.comm, self.comm, self.logger,
-            self.session, begin_phase, self.amount, self.fee,
+            self.session, begin_phase, self.scale, self.fee,
             self.sk, self.sks, self.all_inputs, self.vk,
             self.players, self.addr_new, self.change, self.coin,
-            total_amount = self.total_amount, fake_change = self.fake_change
+            coin_value = self.coin_value
         )
         if not self.done.is_set():
             self.protocol.start_protocol()
@@ -196,7 +198,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
                 return
             self.start_protocol()
         finally:
-            self.logger.send("Exit: Scale '{}' Coin '{}'".format(self.amount, self.coin))
+            self.logger.send("Exit: Scale '{}' Coin '{}'".format(self.scale, self.coin))
             self.comm.close()  # simply force socket close if exiting thread for any reason
 
     def stop(self):
@@ -220,7 +222,7 @@ class ProtocolThread(threading.Thread, PrintErrorThread):
 
     def diagnostic_name(self):
         n = super().diagnostic_name()
-        return "{} <Scale: {}> ".format(n, self.amount)
+        return "{} <Scale: {}> ".format(n, self.scale)
 
 
 def keys_from_priv(priv_key):
@@ -240,7 +242,7 @@ def generate_random_sk():
 class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
 
     scales = (
-        1000000000, # 10.0    BCH ➡➡
+        1000000000, # 10.0    BCH ➡
         100000000,  #  1.0    BCH ➡
         10000000,   #  0.1    BCH ➝
         1000000,    #  0.01   BCH ➟
@@ -249,10 +251,10 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
     )
 
     # The below defaults control coin selection and which pools (scales) we use
-    PROTOCOL_VERSION = 100  # protocol version. old clients use 0. Must be an int. Version=100 is for the new fee-270. In the future this may be a dynamic quantity but for now it's always this value.
+    PROTOCOL_VERSION = 200  # protocol version. old clients use 0. Must be an int. Version=100 is for the new fee-270. Version=200 is for new dynamic amounts. In the future this may be a dynamic quantity but for now it's always this value.
     FEE = 270  # Fee formula should be roughly 270 for first input + 200 for each additional input. Right now we support only 1 input per shuffler.
     SORTED_SCALES = sorted(scales)
-    SCALE_ARROWS = ('→','⇢','➟','➝','➡','➡➡')  # if you add a scale above, add an arrow here, in reverse order from above
+    SCALE_ARROWS = ('→','⇢','➟','➝','➡','➡')  # if you add a scale above, add an arrow here, in reverse order from above
     assert len(SORTED_SCALES) == len(SCALE_ARROWS), "Please add a scale arrow if you modify the scales!"
     SCALE_ARROW_DICT = dict(zip(SORTED_SCALES, SCALE_ARROWS))
     SCALE_0 = SORTED_SCALES[0]
@@ -444,7 +446,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                     ''' Got a message from the ProtocolThread '''
 
                     killme, thr, message = tup
-                    scale, sender = thr.amount, thr.coin
+                    scale, sender = thr.scale, thr.coin
                     if killme:
                         res = self.stop_protocol_thread(thr, scale, sender, message) # implicitly forwards message to gui thread
                         if res:
@@ -518,7 +520,7 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 if message.startswith("Error"):
                     # unreserve addresses that were previously reserved iff error
                     self.wallet._addresses_cashshuffle_reserved.discard(thr.addr_new_addr)
-                    if not thr.fake_change:
+                    if thr.reserved_change:
                         self.wallet._addresses_cashshuffle_reserved.discard(thr.change_addr)
                     #self.print_error("Unreserving", thr.addr_new_addr, thr.change_addr)
             self.tell_gui_to_refresh()
@@ -541,12 +543,12 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
         ''' This callback runs in the ProtocolThread's thread context '''
         def signal_stop_thread(thr, message):
             ''' Sends the stop request to our run() thread, which will join on this thread context '''
-            self.print_error("Signalling stop for scale: {}".format(thr.amount))
+            self.print_error("Signalling stop for scale: {}".format(thr.scale))
             self.shared_chan.send((True, thr, message))
         def fwd_message(thr, message):
-            #self.print_error("Fwd msg for: Scale='{}' Msg='{}'".format(thr.amount, message))
+            #self.print_error("Fwd msg for: Scale='{}' Msg='{}'".format(thr.scale, message))
             self.shared_chan.send((False, thr, message))
-        scale = thr.amount
+        scale = thr.scale
         thr.ts = time.time()
         self.print_error("Scale: {} Message: '{}'".format(scale, message.strip()))
         if message.startswith("Error") or message.startswith("Exit"):
@@ -629,24 +631,34 @@ class BackgroundShufflingThread(threading.Thread, PrintErrorThread):
                 output = address
         # Reserve the output address so other threads don't use it
         self.wallet._addresses_cashshuffle_reserved.add(output)   # NB: only modify this when holding wallet locks
-        # Check if we will really use the change address. We won't be receving to it if the change is below dust threshold (see #67)
-        will_receive_change = coin['value'] - scale - self.FEE >= dust_threshold(Network.get_instance())
-        if will_receive_change:
+        # Check if we will really use the change address. We definitely won't
+        # be receving to it if the change is below dust threshold (see #67).
+        # Furthermore, we may not receive change even if this check predicts we
+        # will due to #68.
+        may_receive_change = coin['value'] - scale - self.FEE >= dust_threshold(Network.get_instance())
+        if may_receive_change:
             change = self.wallet.cashshuffle_get_new_change_address(for_shufflethread=True)
-            # We anticipate using the change address in the shuffle tx, so reserve this address
+            # We anticipate (maybe) using the change address in the shuffle tx,
+            # so reserve this address. Note that due to "smallest player raises
+            # shuffle amount" rules in version=200+ (#68) we WON'T necessarily
+            # USE this change address. (In that case it will be freed up later
+            # after shuffling anyway so no address leaking occurs).
+            # We just reserve it if we think we MAY need it.
             self.wallet._addresses_cashshuffle_reserved.add(change)
         else:
-            # We still have to specify a change address to the protocol even if it won't be used. :/
-            # We'll just take whatever address. The leftover dust amount will go to fee.
+            # (The leftover dust amount will go to fee.)
+            # We still have to specify a change address to the protocol even if
+            # it definitely won't be used. :/
+            # We'll just take 'whatever' address.
             change = self.wallet.get_change_addresses()[0]
-        self.print_error("Scale {} Coin {} OutAddr {} {} {} make_protocol_thread".format(scale, utxo_name, output.to_storage_string(), "Change" if will_receive_change else "FakeChange",change.to_storage_string()))
+        self.print_error("Scale {} Coin {} OutAddr {} {} {} make_protocol_thread".format(scale, utxo_name, output.to_storage_string(), "Change" if may_receive_change else "FakeChange", change.to_storage_string()))
         #self.print_error("Reserved addresses:", self.wallet._addresses_cashshuffle_reserved)
         ctimeout = 12.5 if (Network.get_instance() and Network.get_instance().get_proxies()) else 5.0 # allow for 12.5 second connection timeouts if using a proxy server
         thr = ProtocolThread(host=self.host, port=self.port, ssl=self.ssl,
                              comm_timeout=self.timeout, ctimeout=ctimeout,  # comm timeout and connect timeout
                              coin=utxo_name,
-                             amount=scale, fee=self.FEE, total_amount=coin['value'],
-                             addr_new_addr=output, change_addr=change, fake_change=not will_receive_change,
+                             scale=scale, fee=self.FEE, coin_value=coin['value'],
+                             addr_new_addr=output, change_addr=change, reserved_change=may_receive_change,
                              sk=id_sk, sks=sks, inputs=inputs, pubk=id_pub,
                              logger=None, version=self.version, typ=self.type)
         thr.logger = ChannelSendLambda(lambda msg: self.protocol_thread_callback(thr, msg))

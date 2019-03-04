@@ -13,9 +13,9 @@ class Round(PrintErrorThread):
 
     def __init__(self, coin_utils, crypto, messages,
                  inchan, outchan, logchan,
-                 session, phase, amount, fee,
+                 session, phase, scale, fee,
                  sk, sks, inputs, pubkey, players, addr_new, change, utxo,
-                 total_amount = 0, fake_change = False):
+                 coin_value):
         self.coin_utils = coin_utils
         self.crypto = crypto
         self.inchan = inchan
@@ -24,17 +24,19 @@ class Round(PrintErrorThread):
         self.session = session
         self.messages = messages
         self.phase = phase
-        self.total_amount = total_amount
-        assert (amount > 0), 'Wrong amount value'
-        self.amount = amount
-        assert (fee > 0), 'Wrong fee value'
+        assert coin_value > 0, 'Coin value must be > 0!'
+        self.coin_value = coin_value
+        assert scale > 0, 'Scale value must be > 0!'
+        self.scale = scale
+        self.shuffle_amount = scale # this will grow to be the largest amount possible based on the smallest player participating
+        assert fee > 0, 'Fee value must be > 0!'
         self.fee = fee
         self.sk = sk
         self.sks = sks
         self.inputs = inputs
         self.me = None
         self.number_of_players = None
-        assert(isinstance(players, dict)), "Players should be stored in dict"
+        assert isinstance(players, dict), "Players should be stored in a dict"
         self.players = players
         self.number_of_players = len(players)
         self.vk = pubkey
@@ -49,7 +51,7 @@ class Round(PrintErrorThread):
         self.debug = False
         self.transaction = None
         self.tx = None
-        self.fake_change = fake_change
+        self.did_use_change = True  # This will get recomputed later as the shuffle proceeds based on actual amounts in shuffle (#68)
         self.done = None
         if self.number_of_players == len(set(players.values())):
             if self.vk in players.values():
@@ -77,21 +79,21 @@ class Round(PrintErrorThread):
         3. Broadcasts the new key for other players
         4. Starts the main protocol loop
         """
-        assert (self.amount > 0), "Wrong amount for transction"
-        self.log_message("begins CoinShuffle protocol " + " with " +
-                         str(self.number_of_players) + " players.")
+        assert self.scale > 0, "Wrong scale for transaction"
+        self.log_message("begins CoinShuffle protocol with {} players."
+                         .format(self.number_of_players))
         try:
-            if self.blame_insufficient_funds():
+            if self.check_and_blame_insufficient_funds():  # NB: this may raise AssertionError. If it does, we want the crash reporter.
                 self.broadcast_new_key()
             self.protocol_loop()
         except OSError as e: # Socket closed or timed out
-            self.print_error(str(e))
+            self.print_error(repr(e))
             self.logchan.send("Error: Socket closed or timed out")
         except BadServerPacketError as e:
-            self.print_error(str(e))
-            self.logchan.send(ERR_BAD_SERVER_PREFIX + (" {}".format(str(e))))
+            self.print_error(repr(e))
+            self.logchan.send("{} {}".format(ERR_BAD_SERVER_PREFIX, str(e)))
         except ImplementationMissing as e:
-            self.print_error(str(e))
+            self.print_error(repr(e))
             self.logchan.send("Error: ImplementationMissing -- original programmer's implentation is incomplete. FIXME!")
         finally:
             self.done = True
@@ -301,7 +303,7 @@ class Round(PrintErrorThread):
                     return
             self.phase = 'VerificationAndSubmission'
             self.log_message("reaches phase 5")
-            self.transaction = self.coin_utils.make_unsigned_transaction(self.amount,
+            self.transaction = self.coin_utils.make_unsigned_transaction(self.shuffle_amount,
                                                                          self.fee,
                                                                          self.inputs,
                                                                          self.new_addresses,
@@ -374,11 +376,11 @@ class Round(PrintErrorThread):
         "total_input scale change fee" used in the shuffle. Useful for the
         shuffle_txid: internal message '''
         fee = self.fee
-        chg = self.total_amount - self.amount - self.fee
-        if self.fake_change:
+        chg = self.coin_value - self.shuffle_amount - self.fee
+        if not self.did_use_change:
             fee += chg
             chg = 0
-        return "{} {} {} {}".format(self.total_amount, self.amount, chg, fee)
+        return "{} {} {} {} {}".format(self.coin_value, self.shuffle_amount, chg, fee, self.scale)
 
     def _get_tentative_shuffle_string(self):
         return "{} {} {}".format(self.utxo, self.addr_new, self._get_total_scale_change_fee_str())
@@ -675,23 +677,33 @@ class Round(PrintErrorThread):
         self.logchan.send("Player " + str(self.me) + " " + message)
 
 # Miscellaneous functions
-    def blame_insufficient_funds(self):
+    def check_and_blame_insufficient_funds(self):
         """
         Checks for all players to have a sufficient funds to do the shuffling
         Enter the Blame phase if someone have no funds for shuffling
         """
         offenders = list()
-
-        for player,inp in self.inputs.items():
-            is_funds_sufficient = self.coin_utils.check_inputs_for_sufficient_funds(inp, self.amount + self.fee)
+        totals = set()
+        self.shuffle_amount = self.scale
+        for player, inp in self.inputs.items():
+            is_funds_sufficient, tot = self.coin_utils.check_inputs_for_sufficient_funds_and_return_total(inp, self.scale + self.fee)
             if is_funds_sufficient is None:
                 self.logchan.send("Error: Check inputs for sufficient funds failed!")
                 self.done = True
                 return None
             elif not is_funds_sufficient:
                 offenders.append(player)
+            else:
+                assert tot is not None
+                totals.add(tot)
         if len(offenders) == 0:
             self.log_message("finds sufficient funds")
+            assert totals
+            self.shuffle_amount = min(totals) - self.fee
+            self.log_message("adjusts shuffle amount to {} BCH".format(self.shuffle_amount / 1e8))
+            assert self.shuffle_amount >= self.scale
+            # recompute did_use_change here.
+            self.did_use_change = self.coin_value - self.shuffle_amount - self.fee >= self.coin_utils.dust_threshold()
             return True
         else:
             self.phase = "Blame"

@@ -27,7 +27,7 @@ class CoinUtils(PrintErrorThread):
         sh = address.to_scripthash_hex()
         return self.network.synchronous_get(('blockchain.scripthash.listunspent', [sh]))
 
-    def check_inputs_for_sufficient_funds(self, inputs, amount):
+    def check_inputs_for_sufficient_funds_and_return_total(self, inputs, amount):
         """
         This function check on blockchain for sufficient funds.
 
@@ -41,8 +41,9 @@ class CoinUtils(PrintErrorThread):
         2. check if utxo from inputs are in the utxo list on blockchain for these pubkeys
             2.a return None if there is a utxo from list not in utxo set from blockchain
             2.b return None if utxo in list is not confirmed
-        3. return True if summary values of utxos are greater then amount and False otherwise
+        3. return True, total_amt if summary values of utxos are greater then amount and False,None otherwise
         """
+        assert amount > 0, "Amount must be > 0!"
         def _utxo_name(x): return x['tx_hash'] + ":" + str(x['tx_pos'])
         total = 0
         try:
@@ -51,7 +52,7 @@ class CoinUtils(PrintErrorThread):
                     address = Address.from_pubkey(public_key)
                 except AddressError:
                     # refuse to accept something that doesn't parse as a pubkey
-                    return False
+                    return False, None
                 unspent_list = self.getaddressunspent(address)
                 utxos = {
                     _utxo_name(utxo) : utxo['value']
@@ -60,14 +61,18 @@ class CoinUtils(PrintErrorThread):
                 for utxo in pk_inputs:
                     val = utxos.get(utxo)
                     if val is None:
-                        return False  # utxo does not exist or was spent
+                        return False, None  # utxo does not exist or was spent
                     total += val
-            return total >= amount
+            answer = total >= amount
+            if answer:
+                return True, total  
+            return False, None  
+
         except BaseException as e:
             #import traceback
             #traceback.print_exc()
             self.print_error("check_inputs_for_sufficient_funds: ", repr(e))
-            return None
+        return None, None
 
     def get_coins(self, inputs):
         coins = {}
@@ -87,9 +92,12 @@ class CoinUtils(PrintErrorThread):
         return coins
 
 
+    def dust_threshold(self):
+        return dust_threshold(self.network)
+
     def make_unsigned_transaction(self, amount, fee, all_inputs, outputs, changes):
         ''' make unsigned transaction '''
-        dust = dust_threshold(self.network)  # always 546 for now, but this call is here in case something more sophisticated happens in the future
+        dust = self.dust_threshold()  # always 546 for now, but this call is here in case something more sophisticated happens in the future
         coins = {}
         tx_inputs = []
         amounts = {}
@@ -300,16 +308,9 @@ class CoinUtils(PrintErrorThread):
     def get_shuffled_and_unshuffled_coin_totals(wallet, exclude_frozen = False, mature = False, confirmed_only = False):
         ''' Returns a 3-tuple of tuples of (amount_total, num_utxos) that are 'shuffled', 'unshuffled' and 'unshuffled_but_in_progress', respectively. '''
         shuf, unshuf, uprog = wallet.get_shuffled_and_unshuffled_coins(exclude_frozen, mature, confirmed_only)
-        ret, lists = [(0,0),(0,0),(0,0)], ( shuf, unshuf, uprog )
-        i = 0
-        for l in lists:
-            tot = 0
-            n = 0
-            for c in l:
-                tot += c['value']
-                n += 1
-            ret[i] = (tot, n)
-            i += 1
+        ret = []
+        for l in ( shuf, unshuf, uprog ):
+            ret.append( (sum(c['value'] for c in l), len(l)) )
         return tuple(ret)
 
     # Called from either the wallet code or the shufflethread.

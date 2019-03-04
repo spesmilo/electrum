@@ -67,10 +67,16 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
     prog = utxo_list.in_progress.get(name, "")
     frozenstring = item.data(0, Qt.UserRole+1) or ""
 
+    u_value = utxo['value']
+
     if utxo_list.wallet.is_coin_shuffled(utxo):  # already shuffled
         item.setText(5, _("Shuffled"))
     elif not prog and ("a" in frozenstring or "c" in frozenstring):
         item.setText(5, _("Frozen"))
+    elif u_value >= BackgroundShufflingThread.UPPER_BOUND: # too big
+        item.setText(5, _("Too big"))
+    elif u_value < BackgroundShufflingThread.LOWER_BOUND: # too small
+        item.setText(5, _("Too small"))
     elif utxo['height'] <= 0: # not_confirmed
         item.setText(5, _("Unconfirmed"))
 # for now we unconditionally disallow coinbase coins. See CashShuffle issue #64
@@ -78,16 +84,12 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
 #        item.setText(5, _("Not mature"))
     elif utxo['coinbase']:  # we disallow coinbase coins
         item.setText(5, _("Coinbase"))
-    elif (utxo['value'] >= BackgroundShufflingThread.LOWER_BOUND
-              and utxo['value'] < BackgroundShufflingThread.UPPER_BOUND): # queued_labels
+    elif (u_value >= BackgroundShufflingThread.LOWER_BOUND
+              and u_value < BackgroundShufflingThread.UPPER_BOUND): # queued_labels
         if utxo_list.wallet.network and utxo_list.wallet.network.is_connected():
             item.setText(5, _("In queue"))
         else:
             item.setText(5, _("Offline"))
-    elif utxo['value'] >= BackgroundShufflingThread.UPPER_BOUND: # too big
-        item.setText(5, _("Too big"))
-    elif utxo['value'] < BackgroundShufflingThread.LOWER_BOUND: # too small
-        item.setText(5, _("Too small"))
 
     if prog == 'in progress': # in progress
         item.setText(5, _("In progress"))
@@ -102,15 +104,15 @@ def my_custom_item_setup(utxo_list, utxo, name, item):
     elif prog == "completed":
         item.setText(5, _("Done"))
 
-def _make_label(window, tot, scale_orig, chg, fee):
+def _make_label(window, tot, shufamt, chg, fee, scale):
     is_dusty_fee = not chg and fee - BackgroundShufflingThread.FEE > 0
     # satoshis -> display format
-    tot, scale, chg = window.format_amount(tot), window.format_amount(scale_orig), window.format_amount(chg) if chg else ''
+    tot, shufamt, chg = window.format_amount(tot), window.format_amount(shufamt), window.format_amount(chg) if chg else ''
     chgtxt = " + {} ".format(chg) if chg else " "
     return ( _("Shuffle") + (" {} {} {} {}{}(-{} sats {})"
                              .format(tot, window.base_unit(),
-                                     BackgroundShufflingThread.SCALE_ARROW_DICT.get(scale_orig, '⇒'),
-                                     scale, chgtxt, fee, _("fee") if not is_dusty_fee else _("dusty fee")
+                                     BackgroundShufflingThread.SCALE_ARROW_DICT.get(scale, '⇒'),
+                                     shufamt, chgtxt, fee, _("fee") if not is_dusty_fee else _("dusty fee")
                                      )
                              )
            )
@@ -160,8 +162,8 @@ def update_coin_status(window, coin_name, msg):
             if len(words) >= 2:
                 txid = words[1]
                 try:
-                    tot, scale_orig, chg, fee = [int(w) for w in words[2:6]] # parse satoshis
-                    label = _make_label(window, tot, scale_orig, chg, fee)
+                    tot, shufamt, chg, fee, scale = [int(w) for w in words[2:7]] # parse satoshis
+                    label = _make_label(window, tot, shufamt, chg, fee, scale)
                 except (IndexError, ValueError, TypeError) as e:
                     # Hmm. Some sort of parse error. We'll label it 'CashShuffle'
                     window.print_error("*** WARNING: Could not parse shuffle_txid message:", str(e), msg)
@@ -174,8 +176,8 @@ def update_coin_status(window, coin_name, msg):
             try:
                 words = msg.split()
                 utxo, addr = words[1:3]
-                tot, scale, chg, fee = [int(x) for x in words[3:7]] # parse satoshis
-                window._shuffle_tentative[utxo] = (addr, tot, scale, chg, fee) # remember this tentative shuffle so we can generate a label for it if we see a matching tx come in later
+                tot, shufamt, chg, fee, scale = [int(x) for x in words[3:8]] # parse satoshis
+                window._shuffle_tentative[utxo] = (addr, tot, shufamt, chg, fee, scale) # remember this tentative shuffle so we can generate a label for it if we see a matching tx come in later
             except (IndexError, ValueError, TypeError) as e:
                 # Some sort of parse error...
                 window.print_error("*** WARNING: Could not parse add_tentative_shuffle message:", str(e), msg)
@@ -229,7 +231,7 @@ def _got_tx(window, tx):
     for utxo, info in t.copy().items():
         # loop through all of the "tentative tx's" we have. this dict should be very small,
         # it only contains entries for shuffles that timed out in phase 4 where last player took too long (bug #70)
-        addr, tot, scale, chg, fee = info
+        addr, tot, amt, chg, fee, scale = info
         for txin in inputs:
             if CoinUtils.get_name(txin) == utxo:
                 # found the coin in the incoming tx. Now make sure it's our anticipated shuffle tx that failed and not some other tx, so we apply the correct label only when it's the phase-4-failed shuffle tx.
@@ -241,7 +243,7 @@ def _got_tx(window, tx):
                         txid = tx.txid()
                         if CoinUtils.is_coin_shuffled(window.wallet, {'prevout_hash':txid, 'prevout_n':n}, [tx]):
                             # all checks pass -- we successfully recovered from bug #70! Hurray!
-                            window.wallet.set_label(txid, _make_label(window, tot, scale, chg, fee))
+                            window.wallet.set_label(txid, _make_label(window, tot, amt, chg, fee, scale))
                             Plugin._increment_shuffle_counter(window)
                             window.print_error("CashShuffle: found coin {} in tentative shuffle cache, applied label".format(utxo))
                             window.update_wallet()
@@ -976,7 +978,6 @@ class SendTabExtra(QFrame, PrintError):
         self.titleLabel.setParent(self)
         l.addWidget(self.titleLabel, 0, 1, 1, 4)
         self.spendButtons = QButtonGroup(self)
-        spend_mode = self.wallet.storage.get(ConfKeys.PerWallet.SPEND_MODE, self.SpendingModeUnknown)
         # Shuffled
         self.shufLabel = HelpLabel("Shuffled available:", self.msg)
         m = _("Shuffled (private) funds")
@@ -990,8 +991,6 @@ class SendTabExtra(QFrame, PrintError):
         self.spendShuffled = QRadioButton(_("Spend Shuffled"), self); self.spendShuffled.setToolTip(_("Spend only your shuffled (private) coins"))
         l.addWidget(self.spendShuffled, 1, 4)
         self.spendButtons.addButton(self.spendShuffled)
-        if spend_mode != self.SpendingModeUnshuffled:
-            self.spendShuffled.setChecked(True)
         # Unshuffled
         self.unshufLabel = HelpLabel("Unshuffled available:", self.msg2)
         m = _("Funds that are not yet shuffled")
@@ -1005,8 +1004,8 @@ class SendTabExtra(QFrame, PrintError):
         self.spendUnshuffled = QRadioButton(_("Spend Unshuffled"), self); self.spendUnshuffled.setToolTip(_("Spend only your unshuffled coins"))
         l.addWidget(self.spendUnshuffled, 2, 4)
         self.spendButtons.addButton(self.spendUnshuffled)
-        if spend_mode == self.SpendingModeUnshuffled:
-            self.spendUnshuffled.setChecked(True)
+
+        self.spendShuffled.setChecked(True)
 
         # In Progress
         self.msg3 = _("Funds that are busy being shuffled are not available for spending until they are shuffled. To spend these funds immediately, use the 'Pause Shuffling' button to temporarily suspend CashShuffle.")
@@ -1052,7 +1051,6 @@ class SendTabExtra(QFrame, PrintError):
 
     def onSpendRadio(self, ignored = None):
         which = self.spendingMode()
-        self.wallet.storage.put(ConfKeys.PerWallet.SPEND_MODE, which)
         if which == self.SpendingModeShuffled:
             self.titleLabel.setText("<big><b>{}</b></big> &nbsp;&nbsp; ({})"
                                     .format(_("CashShuffle Enabled"), _("Only <b>shuffled</b> funds will be sent")))
