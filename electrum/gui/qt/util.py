@@ -704,6 +704,7 @@ class ColorScheme:
     YELLOW = ColorSchemeItem("#897b2a", "#ffff00")
     RED = ColorSchemeItem("#7c1111", "#f18c8c")
     BLUE = ColorSchemeItem("#123b7c", "#8cb3f2")
+    GREY = ColorSchemeItem("#2F4F4F", "#2F4F4F")
     DEFAULT = ColorSchemeItem("black", "white")
 
     @staticmethod

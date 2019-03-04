@@ -486,6 +486,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
 
         wallet_menu = menubar.addMenu(_("&Wallet"))
         wallet_menu.addAction(_("&Information"), self.show_master_public_keys)
+        wallet_menu.addAction(_("&Register"), lambda: webbrowser.open("http://commerceblock.com"))
         wallet_menu.addSeparator()
         self.password_menu = wallet_menu.addAction(_("&Password"), self.change_password_dialog)
         self.seed_menu = wallet_menu.addAction(_("&Seed"), self.show_seed_dialog)
@@ -1770,6 +1771,12 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         self.utxo_list.update()
         self.update_fee()
 
+    def set_registered_state(self, addrs, reg):
+        self.wallet.set_registered_state(addrs, reg)
+        self.address_list.update()
+        self.utxo_list.update()
+        self.update_fee()
+
     def create_list_tab(self, l, toolbar=None):
         w = QWidget()
         w.searchable_list = l
@@ -2578,6 +2585,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             def export_addresses(filename):
                 derived_addresses = []
                 for addr in self.wallet.get_addresses():
+
                     derived_addresses.append("{} {}".format(addr, ''.join(self.wallet.get_public_keys(addr, False))))
                 export_meta(derived_addresses, filename)
             export_meta_gui(self, _('addresses'), export_addresses)

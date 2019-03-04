@@ -176,6 +176,7 @@ class Abstract_Wallet(AddressSynchronizer):
         self.multiple_change       = storage.get('multiple_change', False)
         self.labels                = storage.get('labels', {})
         self.frozen_addresses      = set(storage.get('frozen_addresses',[]))
+        self.registered_addresses  = set(storage.get('registered_addresses',[]))
         self.fiat_value            = storage.get('fiat_value', {})
         self.receive_requests      = storage.get('payment_requests', {})
         self.contracts             = storage.get('contracts', [])
@@ -632,6 +633,9 @@ class Abstract_Wallet(AddressSynchronizer):
     def is_frozen(self, addr):
         return addr in self.frozen_addresses
 
+    def is_registered(self, addr):
+        return addr in self.registered_addresses
+
     def set_frozen_state(self, addrs, freeze):
         '''Set frozen state of the addresses to FREEZE, True or False'''
         if all(self.is_mine(addr) for addr in addrs):
@@ -640,6 +644,17 @@ class Abstract_Wallet(AddressSynchronizer):
             else:
                 self.frozen_addresses -= set(addrs)
             self.storage.put('frozen_addresses', list(self.frozen_addresses))
+            return True
+        return False
+
+    def set_registered_state(self, addrs, freeze):
+        '''Set frozen state of the addresses to REGISTERED, True or False'''
+        if all(self.is_mine(addr) for addr in addrs):
+            if freeze:
+                self.registered_addresses |= set(addrs)
+            else:
+                self.registered_addresses -= set(addrs)
+            self.storage.put('registered_addresses', list(self.registered_addresses))
             return True
         return False
 
