@@ -23,12 +23,13 @@ PYTHON="wine $PYHOME/python.exe -OO -B"
 # based on https://superuser.com/questions/497940/script-to-verify-a-signature-with-gpg
 verify_signature() {
     local file=$1 keyring=$2 out=
-    if out=$(gpg --no-default-keyring --keyring "$keyring" --status-fd 1 --verify "$file" 2>/dev/null) &&
-       echo "$out" | grep -qs "^\[GNUPG:\] VALIDSIG "; then
+    echo "Verifying PGP signature for $(basename $file .asc) ..."
+    if out=$(gpg --no-default-keyring --keyring "$keyring" --status-fd 1 --verify "$file" 2>/dev/null) \
+            && echo "$out" | grep -qs "^\[GNUPG:\] VALIDSIG "; then
         return 0
     else
         echo "$out" >&2
-        exit 0
+        exit 1
     fi
 }
 
@@ -39,7 +40,7 @@ verify_hash() {
         return 0
     else
         echo "$file $actual_hash (unexpected hash)" >&2
-        exit 0
+        exit 1
     fi
 }
 
@@ -61,17 +62,30 @@ echo "done"
 
 cd tmp
 
+#NB: Use NOPGP=1 env var to skip this verify pgp keys stuff (for developer testing without having to wait)
+if [ -z "$NOPGP" ]; then
+    # note: you might need "sudo apt-get install dirmngr" for the following
+    # keys from https://www.python.org/downloads/#pubkeys
+    echo "Downloading Python dev keyring (may take a few minutes)..."
+    KEYRING_PYTHON_DEV=keyring-electroncash-build-python-dev.gpg
+    KEY_SERVERS="keyserver.ubuntu.com keyserver.pgp.com pgp.mit.edu"
+    got1=""
+    # Try a bunch of PGP servers. The fastest one is usually the ubuntu one...
+    for key_server in $KEY_SERVERS; do
+        echo "Downloading from ${key_server}..."
+        gpg -v --no-default-keyring --keyring $KEYRING_PYTHON_DEV --keyserver $key_server --recv-keys 531F072D39700991925FED0C0EDDC5F26A45C816 26DEA9D4613391EF3E25C9FF0A5B101836580288 CBC547978A3964D14B9AB36A6AF053F07D9DC8D2 C01E1CAD5EA2C4F0B8E3571504C367C218ADD4FF 12EF3DC38047DA382D18A5B999CDEA9DA4135B38 8417157EDBE73D9EAC1E539B126EB563A74B06BF DBBF2EEBF925FAADCF1F3FFFD9866941EA5BBD71 2BA0DB82515BBB9EFFAC71C5C9BE28DEE6DF025C 0D96DF4D4110E5C43FBFB17F2D347EA6AA65421D C9B104B3DD3AA72D7CCB1066FB9921286F5E1540 97FC712E4C024BBEA48A61ED3A5CA953F73C700D 7ED10B6531D7C8E1BC296021FC624643487034E5 && got1=1 && break
+    done
+    if [ -z "$got1" ]; then
+        echo "Failed to download PGP keys."
+        exit 1
+    fi
+fi
 # Install Python
-# note: you might need "sudo apt-get install dirmngr" for the following
-# keys from https://www.python.org/downloads/#pubkeys
-echo "Downloading Python dev keyring (may take a few minutes)..."
-KEYRING_PYTHON_DEV=keyring-electrum-build-python-dev.gpg
-gpg --no-default-keyring --keyring $KEYRING_PYTHON_DEV --keyserver pgp.mit.edu --recv-keys 531F072D39700991925FED0C0EDDC5F26A45C816 26DEA9D4613391EF3E25C9FF0A5B101836580288 CBC547978A3964D14B9AB36A6AF053F07D9DC8D2 C01E1CAD5EA2C4F0B8E3571504C367C218ADD4FF 12EF3DC38047DA382D18A5B999CDEA9DA4135B38 8417157EDBE73D9EAC1E539B126EB563A74B06BF DBBF2EEBF925FAADCF1F3FFFD9866941EA5BBD71 2BA0DB82515BBB9EFFAC71C5C9BE28DEE6DF025C 0D96DF4D4110E5C43FBFB17F2D347EA6AA65421D C9B104B3DD3AA72D7CCB1066FB9921286F5E1540 97FC712E4C024BBEA48A61ED3A5CA953F73C700D 7ED10B6531D7C8E1BC296021FC624643487034E5
 for msifile in core dev exe lib pip tools; do
     echo "Installing $msifile..."
     wget "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi"
     wget "https://www.python.org/ftp/python/$PYTHON_VERSION/win32/${msifile}.msi.asc"
-    verify_signature "${msifile}.msi.asc" $KEYRING_PYTHON_DEV
+    [ -z "$NOPGP" ] && verify_signature "${msifile}.msi.asc" $KEYRING_PYTHON_DEV
     wine msiexec /i "${msifile}.msi" /qb TARGETDIR=C:/python$PYTHON_VERSION
 done
 
