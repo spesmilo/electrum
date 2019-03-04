@@ -239,7 +239,7 @@ def _got_tx(window, tx):
                     # Search the outputs of this tx to make sure they match what we expected for scale, out_addr...
                     typ, _addr, amount = txout
                     # the below checks make sure it matches what we expected from the failed shuffle, and also that the coin is shuffled (paranoia check).
-                    if isinstance(_addr, Address) and amount == scale and _addr.to_storage_string() == addr:
+                    if isinstance(_addr, Address) and amount == amt and _addr.to_storage_string() == addr:
                         txid = tx.txid()
                         if CoinUtils.is_coin_shuffled(window.wallet, {'prevout_hash':txid, 'prevout_n':n}, [tx]):
                             # all checks pass -- we successfully recovered from bug #70! Hurray!
