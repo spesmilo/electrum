@@ -28,7 +28,7 @@ import sys
 import copy
 import traceback
 from functools import partial
-from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict
+from typing import List, TYPE_CHECKING, Tuple, NamedTuple, Any, Dict, Optional
 
 from . import bitcoin
 from . import keystore
@@ -137,7 +137,7 @@ class BaseWizard(object):
         exc = None
         def on_finished():
             if exc is None:
-                self.terminate()
+                self.terminate(storage=storage)
             else:
                 raise exc
         def do_upgrade():
@@ -570,6 +570,9 @@ class BaseWizard(object):
         storage.write()
         storage.load_plugins()
         return storage
+
+    def terminate(self, *, storage: Optional[WalletStorage] = None):
+        raise NotImplementedError()  # implemented by subclasses
 
     def show_xpub_and_add_cosigners(self, xpub):
         self.show_xpub_dialog(xpub=xpub, run_next=lambda x: self.run('choose_keystore'))

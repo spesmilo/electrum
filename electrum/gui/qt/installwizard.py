@@ -479,7 +479,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
     def action_dialog(self, action, run_next):
         self.run(action)
 
-    def terminate(self):
+    def terminate(self, **kwargs):
         self.accept_signal.emit()
 
     def waiting_dialog(self, task, msg, on_finished=None):
