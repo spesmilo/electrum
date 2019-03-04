@@ -1575,10 +1575,10 @@ class Deterministic_Wallet(Abstract_Wallet):
 
     def num_unused_trailing_addresses(self, addresses):
         k = 0
-        for a in addresses[::-1]:
-            if a in self.db.get_history():
+        for addr in addresses[::-1]:
+            if self.db.get_addr_history(addr):
                 break
-            k = k + 1
+            k += 1
         return k
 
     def min_acceptable_gap(self):
@@ -1587,12 +1587,12 @@ class Deterministic_Wallet(Abstract_Wallet):
         nmax = 0
         addresses = self.get_receiving_addresses()
         k = self.num_unused_trailing_addresses(addresses)
-        for a in addresses[0:-k]:
-            if a in self.db.get_history():
+        for addr in addresses[0:-k]:
+            if self.db.get_addr_history(addr):
                 n = 0
             else:
                 n += 1
-                if n > nmax: nmax = n
+                nmax = max(nmax, n)
         return nmax + 1
 
     def load_addresses(self):
@@ -1647,7 +1647,7 @@ class Deterministic_Wallet(Abstract_Wallet):
             return False
         prev_addresses = addr_list[max(0, i - limit):max(0, i)]
         for addr in prev_addresses:
-            if addr in self.db.get_history():
+            if self.db.get_addr_history(addr):
                 return False
         return True
 

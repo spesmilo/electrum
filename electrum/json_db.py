@@ -607,6 +607,10 @@ class JsonDB(PrintError):
     def get_history(self):
         return list(self.history.keys())
 
+    def is_addr_in_history(self, addr):
+        # does not mean history is non-empty!
+        return addr in self.history
+
     @locked
     def get_addr_history(self, addr):
         return self.history.get(addr, [])

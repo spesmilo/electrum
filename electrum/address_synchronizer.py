@@ -91,7 +91,7 @@ class AddressSynchronizer(PrintError):
         self.remove_local_transactions_we_dont_have()
 
     def is_mine(self, address):
-        return address in self.db.get_history()
+        return self.db.is_addr_in_history(address)
 
     def get_addresses(self):
         return sorted(self.db.get_history())
@@ -160,7 +160,7 @@ class AddressSynchronizer(PrintError):
             self.storage.write()
 
     def add_address(self, address):
-        if address not in self.db.get_history():
+        if not self.db.get_addr_history(address):
             self.db.history[address] = []
             self.set_up_to_date(False)
         if self.synchronizer:
