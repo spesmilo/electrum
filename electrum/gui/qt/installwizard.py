@@ -283,8 +283,10 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                         traceback.print_exc(file=sys.stdout)
                         QMessageBox.information(None, _('Error'), str(e))
                         raise UserCancelled()
-                    assert self.temp_storage.is_past_initial_decryption()
-                    break
+                    if self.temp_storage.is_past_initial_decryption():
+                        break
+                    else:
+                        raise UserCancelled()
                 else:
                     raise Exception('Unexpected encryption version')
 
