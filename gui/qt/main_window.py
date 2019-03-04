@@ -1959,9 +1959,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         if self.question(_("Do you want to remove {} from your wallet?"
                            .format(addr.to_ui_string()))):
             self.wallet.delete_address(addr)
-            self.address_list.update()
-            self.history_list.update()
-            self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
+            self.update_tabs()
+            self.update_status()
             self.clear_receive_tab()
 
     def get_coins(self, isInvoice = False):
@@ -2955,9 +2954,8 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             if self.num_zeros != value:
                 self.num_zeros = value
                 self.config.set_key('num_zeros', value, True)
-                self.history_list.update()
-                self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
-                self.address_list.update()
+                self.update_tabs()
+                self.update_status()
         nz.valueChanged.connect(on_nz)
         gui_widgets.append((nz_label, nz))
 
@@ -3057,12 +3055,9 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
                 raise Exception('Unknown base unit')
             self.config.set_key('decimal_point', self.decimal_point, True)
             nz.setMaximum(self.decimal_point)
-            self.history_list.update()
-            self.history_updated_signal.emit() # inform things like address_dialog that there's a new history
-            self.request_list.update()
-            self.address_list.update()
             for edit, amount in zip(edits, amounts):
                 edit.setAmount(amount)
+            self.update_tabs()
             self.update_status()
         unit_combo.currentIndexChanged.connect(lambda x: on_unit(x, nz))
         gui_widgets.append((unit_label, unit_combo))
