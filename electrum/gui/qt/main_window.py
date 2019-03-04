@@ -2573,12 +2573,38 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         export_meta_gui(self, _('labels'), export_labels)
 
     def do_export_addresses(self):
-        def export_addresses(filename):
-            derived_addresses = []
-            for addr in self.wallet.get_addresses():
-                derived_addresses.append("{} {}".format(addr, ''.join(self.wallet.get_public_keys(addr, False))))
-            export_meta(derived_addresses, filename)
-        export_meta_gui(self, _('addresses'), export_addresses)
+        
+        def accept_termsandconditions():
+            def export_addresses(filename):
+                derived_addresses = []
+                for addr in self.wallet.get_addresses():
+                    derived_addresses.append("{} {}".format(addr, ''.join(self.wallet.get_public_keys(addr, False))))
+                export_meta(derived_addresses, filename)
+            export_meta_gui(self, _('addresses'), export_addresses)
+
+        d = WindowModalDialog(self, _('Export addresses'))
+        d.setMinimumWidth(660)
+
+        layout = QGridLayout(d)
+
+        contract_e = QTextEdit()
+        contract_e.setText(self.config.contract_text)
+        contract_e.setReadOnly(True)
+        layout.addWidget(QLabel(_('Export addresses are embedded with the SHA256 hash of the following terms and conditions:')), 1, 0)
+        layout.addWidget(contract_e, 2, 0)
+        layout.setRowStretch(2,3)
+
+        hbox = QHBoxLayout()
+
+        b = QPushButton(_("Accept"))
+        b.clicked.connect(lambda: accept_termsandconditions())
+        hbox.addWidget(b)
+
+        b = QPushButton(_("Close"))
+        b.clicked.connect(d.accept)
+        hbox.addWidget(b)
+        layout.addLayout(hbox, 3, 0)
+        d.exec_()
 
     def sweep_key_dialog(self):
         d = WindowModalDialog(self, title=_('Sweep private keys'))

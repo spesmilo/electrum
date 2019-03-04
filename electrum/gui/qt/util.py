@@ -177,6 +177,12 @@ class CancelButton(QPushButton):
         QPushButton.__init__(self, label or _("Cancel"))
         self.clicked.connect(dialog.reject)
 
+class AcceptButton(QPushButton):
+    def __init__(self, dialog, label=None):
+        QPushButton.__init__(self, label or _("Accept"))
+        self.clicked.connect(dialog.accept)
+        self.setDefault(True)
+
 class MessageBoxMixin(object):
     def top_level_window_recurse(self, window=None, test_func=None):
         window = window or self
@@ -761,7 +767,7 @@ def import_meta_gui(electrum_window, title, importer, on_success):
 def export_meta_gui(electrum_window, title, exporter):
     filter_ = "JSON (*.json);;All files (*)"
     filename = electrum_window.getSaveFileName(_("Select file to save your {}").format(title),
-                                               'electrum_{}.json'.format(title), filter_)
+                                               'cbwallet_{}.json'.format(title), filter_)
     if not filename:
         return
     try:

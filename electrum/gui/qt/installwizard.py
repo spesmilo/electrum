@@ -415,7 +415,7 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
         title = _('Confirm Seed')
         message = ' '.join([
             _('Your seed is important!'),
-            _('If you lose your seed, your money will be permanently lost.'),
+            _('If you lose your seed, your tokens will be permanently lost.'),
             _('To make sure that you have properly saved your seed, please retype it here.')
         ])
         seed, is_bip39, is_ext = self.seed_input(title, message, test, None)

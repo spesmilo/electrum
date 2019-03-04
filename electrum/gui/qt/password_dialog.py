@@ -303,3 +303,4 @@ class PasswordDialog(WindowModalDialog):
         if not self.exec_():
             return
         return self.pw.text()
+

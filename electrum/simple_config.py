@@ -300,6 +300,7 @@ class SimpleConfig(PrintError):
         try:
             with open(contract_path, "r", encoding='utf-8') as f:
                 data = f.read()
+                self.contract_text = data
         except:
             print_error("Warning: Cannot read contract file.", contract_path)
             return {}
