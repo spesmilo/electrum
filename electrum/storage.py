@@ -54,7 +54,6 @@ class WalletStorage(PrintError):
         self._file_exists = self.path and os.path.exists(self.path)
 
         DB_Class = JsonDB
-        self.path = path
         self.print_error("wallet path", self.path)
         self.pubkey = None
         if self.file_exists():
