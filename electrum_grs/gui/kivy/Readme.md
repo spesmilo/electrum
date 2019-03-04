@@ -27,12 +27,14 @@ folder.
 3. Build locale files
 
     ```
+    $ sudo apt-get install gettext -y
     $ ./contrib/make_locale
     ```
 
 4. Prepare pure python dependencies
 
     ```
+    $ sudo apt-get install python3-setuptools python3-pip python3-dev python3-wheel autogen autoconf libtool -y
     $ ./contrib/make_packages
     ```
 
@@ -42,7 +44,7 @@ folder.
     $ sudo docker run -it --rm \
         --name electrum-grs-android-builder-cont \
         -v $PWD:/home/user/wspace/electrum-grs \
-        -v ~/.keystore:/home/user/.keystore \
+        -v ~/.keystore:/root/.keystore \
         --workdir /home/user/wspace/electrum-grs \
         electrum-grs-android-builder-img \
         ./contrib/make_apk
