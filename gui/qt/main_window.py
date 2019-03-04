@@ -3708,32 +3708,38 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
             return
         from electroncash_plugins.shuffle.conf_keys import ConfKeys
         p = self.cashshuffle_plugin_if_loaded()
-        cashshuffle_flag = self.wallet.storage.get(ConfKeys.PerWallet.ENABLED, False)
+        storage = self.wallet.storage
+        cashshuffle_flag = storage.get(ConfKeys.PerWallet.ENABLED, False)
         enabled = cashshuffle_flag and p and p.is_enabled()
-        noprompt = self.config.get(ConfKeys.Global.MAIN_WINDOW_NAGGER_NOPROMPT, False)
-        if not enabled and not noprompt:
-            if __class__._cs_reminder_pixmap is None:
-                # lazy init. Cache it to class level.
-                __class__._cs_reminder_pixmap = QPixmap(":icons/cash_shuffle5.png").scaledToWidth(150, Qt.SmoothTransformation)
-            icon = __class__._cs_reminder_pixmap
-            message = '''
-            <big>{}</big></b>
-            <p>{}</p>
-            '''.format(_("CashShuffle is disabled for this wallet.") if not cashshuffle_flag else _("CashShuffle is disabled."),
-                       _("Would you like to enable CashShuffle for this wallet?"))
-            info = ' '.join([_("If you enable it, Electron Cash will shuffle your coins for greater <b>privacy</b>. However, you will pay fractions of a penny per shuffle in transaction fees."),
-                             _("(You can always toggle it later using the CashShuffle button.)")])
-            res, chkd = self.msg_box(icon=icon,
-                                     parent=self.top_level_window(),
-                                     title=_('Would you like to turn on CashShuffle?'),
-                                     text=message, rich_text=True, informative_text=info,
-                                     checkbox_text=_("Don't ask me again"),
-                                     buttons=(_('Enable CashShuffle'), _("Not now")),
-                                     defaultButton=_('Enable CashShuffle'), escapeButton=("Not now") )
+        nagger_answer = storage.get(ConfKeys.PerWallet.MAIN_WINDOW_NAGGER_ANSWER, None)
+        if not enabled:
+            if nagger_answer is None:  # nagger_answer is None if they've never said "Never ask"
+                if __class__._cs_reminder_pixmap is None:
+                    # lazy init. Cache it to class level.
+                    __class__._cs_reminder_pixmap = QPixmap(":icons/cash_shuffle5.png").scaledToWidth(150, Qt.SmoothTransformation)
+                icon = __class__._cs_reminder_pixmap
+                message = '''
+                <big>{}</big></b>
+                <p>{}</p>
+                '''.format(_("CashShuffle is disabled for this wallet.") if not cashshuffle_flag else _("CashShuffle is disabled."),
+                           _("Would you like to enable CashShuffle for this wallet?"))
+                info = ' '.join([_("If you enable it, Electron Cash will shuffle your coins for greater <b>privacy</b>. However, you will pay fractions of a penny per shuffle in transaction fees."),
+                                 _("(You can always toggle it later using the CashShuffle button.)")])
+                res, chkd = self.msg_box(icon=icon,
+                                         parent=self.top_level_window(),
+                                         title=_('Would you like to turn on CashShuffle?'),
+                                         text=message, rich_text=True, informative_text=info,
+                                         checkbox_text=_("Never ask for this wallet"),
+                                         buttons=(_('Enable CashShuffle'), _("Not now")),
+                                         defaultButton=_('Enable CashShuffle'), escapeButton=("Not now") )
+                if chkd:
+                    # they don't want to be asked again, so just remember what they answered and apply this answer each time.
+                    storage.put(ConfKeys.PerWallet.MAIN_WINDOW_NAGGER_ANSWER, bool(res==0))
+            else:
+                # They's specified "Never ask", so apply whatever button they pushed when they said that as the auto-setting.
+                res = 0 if nagger_answer else 1  # if nagge_answer was True, no prompt, just auto-enable, otherwise leave it disabled.
             if res == 0:
                 self.toggle_cashshuffle()
-            if chkd:
-                self.config.set_key(ConfKeys.Global.MAIN_WINDOW_NAGGER_NOPROMPT, True)
 
     _restart_timer = None
     def restart_cashshuffle(self, msg = None):
