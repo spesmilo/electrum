@@ -212,32 +212,28 @@ class InstallWizard(QDialog, MessageBoxMixin, BaseWizard):
                 traceback.print_exc(file=sys.stderr)
                 self.temp_storage = None
                 self.next_button.setEnabled(False)
+            user_needs_to_enter_password = False
             if self.temp_storage:
                 if not self.temp_storage.file_exists():
                     msg =_("This file does not exist.") + '\n' \
                           + _("Press 'Next' to create this wallet, or choose another file.")
-                    pw = False
                 elif not wallet_from_memory:
                     if self.temp_storage.is_encrypted_with_user_pw():
                         msg = _("This file is encrypted with a password.") + '\n' \
                               + _('Enter your password or choose another file.')
-                        pw = True
+                        user_needs_to_enter_password = True
                     elif self.temp_storage.is_encrypted_with_hw_device():
                         msg = _("This file is encrypted using a hardware device.") + '\n' \
                               + _("Press 'Next' to choose device to decrypt.")
-                        pw = False
                     else:
                         msg = _("Press 'Next' to open this wallet.")
-                        pw = False
                 else:
                     msg = _("This file is already open in memory.") + "\n" \
                         + _("Press 'Next' to create/focus window.")
-                    pw = False
             else:
                 msg = _('Cannot read file')
-                pw = False
             self.msg_label.setText(msg)
-            if pw:
+            if user_needs_to_enter_password:
                 self.pw_label.show()
                 self.pw_e.show()
                 self.pw_e.setFocus()

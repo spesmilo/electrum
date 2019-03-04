@@ -221,9 +221,8 @@ class ElectrumGui(PrintError):
             wallet = self.daemon.load_wallet(path, None)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
-            d = QMessageBox(QMessageBox.Warning, _('Error'),
-                            _('Cannot load wallet') + ' (1):\n' + str(e))
-            d.exec_()
+            QMessageBox.warning(None, _('Error'),
+                                _('Cannot load wallet') + ' (1):\n' + str(e))
             # if app is starting, still let wizard to appear
             if not app_is_starting:
                 return
@@ -233,29 +232,27 @@ class ElectrumGui(PrintError):
             return
         # create or raise window
         try:
-            for w in self.windows:
-                if w.wallet.storage.path == wallet.storage.path:
+            for window in self.windows:
+                if window.wallet.storage.path == wallet.storage.path:
                     break
             else:
-                w = self._create_window_for_wallet(wallet)
+                window = self._create_window_for_wallet(wallet)
         except BaseException as e:
             traceback.print_exc(file=sys.stdout)
-            d = QMessageBox(QMessageBox.Warning, _('Error'),
-                            _('Cannot create window for wallet') + ':\n' + str(e))
-            d.exec_()
+            QMessageBox.warning(None, _('Error'),
+                                _('Cannot create window for wallet') + ':\n' + str(e))
             if app_is_starting:
                 wallet_dir = os.path.dirname(path)
                 path = os.path.join(wallet_dir, get_new_wallet_name(wallet_dir))
                 self.start_new_window(path, uri)
             return
         if uri:
-            w.pay_to_URI(uri)
-        w.bring_to_top()
-        w.setWindowState(w.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
+            window.pay_to_URI(uri)
+        window.bring_to_top()
+        window.setWindowState(window.windowState() & ~QtCore.Qt.WindowMinimized | QtCore.Qt.WindowActive)
 
-        # this will activate the window
-        w.activateWindow()
-        return w
+        window.activateWindow()
+        return window
 
     def _start_wizard_to_select_or_create_wallet(self, path) -> Optional[Abstract_Wallet]:
         wizard = InstallWizard(self.config, self.app, self.plugins)
@@ -274,9 +271,8 @@ class ElectrumGui(PrintError):
             return e.wallet
         except (WalletFileException, BitcoinException) as e:
             traceback.print_exc(file=sys.stderr)
-            d = QMessageBox(QMessageBox.Warning, _('Error'),
-                            _('Cannot load wallet') + ' (2):\n' + str(e))
-            d.exec_()
+            QMessageBox.warning(None, _('Error'),
+                                _('Cannot load wallet') + ' (2):\n' + str(e))
             return
         finally:
             wizard.terminate()
