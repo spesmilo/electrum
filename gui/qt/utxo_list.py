@@ -36,6 +36,11 @@ class UTXOList(MyTreeWidget):
         # force attributes to always be defined, even if None, at construction.
         self.wallet = self.parent.wallet if hasattr(self.parent, 'wallet') else None
         self.utxos = list()
+        # cache some values to avoid constructing Qt objects for every pass through self.on_update (this is important for large wallets)
+        self.monospaceFont = QFont(MONOSPACE_FONT)
+        self.lightBlue = QColor('lightblue') if not ColorScheme.dark_scheme else QColor('blue')
+        self.blue = ColorScheme.BLUE.as_color(True)
+        self.cyanBlue = QColor('#3399ff')
 
     def get_name(self, x):
         return x.get('prevout_hash') + ":%d"%x.get('prevout_n')
@@ -63,26 +68,27 @@ class UTXOList(MyTreeWidget):
             name = self.get_name(x)
             name_short = self.get_name_short(x)
             label = self.wallet.get_label(x['prevout_hash'])
-            amount = self.parent.format_amount(x['value'])
+            amount = self.parent.format_amount(x['value'], is_diff=False, whitespaces=True)
             utxo_item = SortableTreeWidgetItem([address_text, label, amount,
                                                 str(height), name_short])
             utxo_item.DataRole = Qt.UserRole+100 # set this here to avoid sorting based on Qt.UserRole+1
-            utxo_item.setFont(0, QFont(MONOSPACE_FONT))
-            utxo_item.setFont(4, QFont(MONOSPACE_FONT))
+            utxo_item.setFont(0, self.monospaceFont)
+            utxo_item.setFont(2, self.monospaceFont)
+            utxo_item.setFont(4, self.monospaceFont)
             utxo_item.setData(0, Qt.UserRole, name)
             a_frozen = self.wallet.is_frozen(address)
             c_frozen = x['is_frozen_coin']
             if a_frozen and not c_frozen:
                 # address is frozen, coin is not frozen
                 # emulate the "Look" off the address_list .py's frozen entry
-                utxo_item.setBackground(0, QColor('lightblue'))
+                utxo_item.setBackground(0, self.lightBlue)
             elif c_frozen and not a_frozen:
                 # coin is frozen, address is not frozen
-                utxo_item.setBackground(0, ColorScheme.BLUE.as_color(True))
+                utxo_item.setBackground(0, self.blue)
             elif c_frozen and a_frozen:
                 # both coin and address are frozen so color-code it to indicate that.
-                utxo_item.setBackground(0, QColor('lightblue'))
-                utxo_item.setForeground(0, QColor('#3399ff'))
+                utxo_item.setBackground(0, self.lightBlue)
+                utxo_item.setForeground(0, self.cyanBlue)
             # save the address-level-frozen and coin-level-frozen flags to the data item for retrieval later in create_menu() below.
             utxo_item.setData(0, Qt.UserRole+1, "{}{}".format(("a" if a_frozen else ""), ("c" if c_frozen else "")))
             self.addChild(utxo_item)
