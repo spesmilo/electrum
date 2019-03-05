@@ -165,13 +165,6 @@ class UpdateChecker(QWidget, PrintError):
             return None
         return version.PACKAGE_VERSION
 
-    @staticmethod
-    def _ver2int(vtup):
-        ''' param vtup is a tuple of ints: (major, minor, revision) as would be
-        returned by version.parse_package_version. Returns version encoded
-        in an int suitable for numerical comparisons (>, <, >=, ==, etc). '''
-        return ((vtup[0]&0xff) << 16) | ((vtup[1]&0xff) << 8) | ((vtup[2]&0xff) << 0)
-
     @classmethod
     def _my_version(cls):
         if getattr(cls, '_my_version_parsed', None) is None:
@@ -187,16 +180,20 @@ class UpdateChecker(QWidget, PrintError):
             raise
 
     @classmethod
-    def is_matching_variant(cls, version_msg):
+    def is_matching_variant(cls, version_msg, *, return_parsed=False):
         parsed_version = cls._parse_version(version_msg)
         me = cls._my_version()
-        return me[3] == parsed_version[3]
+        ret = me[-1] == parsed_version[-1]  # last element of tuple is always a string, the 'variant' (may be '' for EC Regular)
+        if return_parsed:
+            return ret, parsed_version
+        return ret
 
     @classmethod
     def is_newer(cls, version_msg):
-        if cls.is_matching_variant(version_msg): # make sure it's the same variant as us eg SLP, CS, '' regular, etc..
-            v_me = cls._ver2int(cls._my_version())
-            v_server = cls._ver2int(cls._parse_version(version_msg))
+        yes, parsed = cls.is_matching_variant(version_msg, return_parsed=True)
+        if yes: # make sure it's the same variant as us eg SLP, CS, '' regular, etc..
+            v_me = cls._my_version()[:-1]
+            v_server = parsed[:-1]
             return v_server > v_me
         return False
 
