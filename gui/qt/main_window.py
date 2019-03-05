@@ -908,7 +908,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         msg = _('Bitcoin Cash address where the payment should be received. Note that each payment request uses a different Bitcoin Cash address.')
         self.receive_address_label = HelpLabel(_('Receiving address'), msg)
         self.receive_address_e.textChanged.connect(self.update_receive_qr)
-        self.receive_address_e.setFocusPolicy(Qt.NoFocus)
         self.cashaddr_toggled_signal.connect(self.update_receive_address_widget)
         grid.addWidget(self.receive_address_label, 0, 0)
         grid.addWidget(self.receive_address_e, 0, 1, 1, -1)
@@ -943,7 +942,6 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, PrintError):
         grid.addWidget(self.expires_combo, 3, 1)
         self.expires_label = QLineEdit('')
         self.expires_label.setReadOnly(1)
-        self.expires_label.setFocusPolicy(Qt.NoFocus)
         self.expires_label.hide()
         grid.addWidget(self.expires_label, 3, 1)
 
