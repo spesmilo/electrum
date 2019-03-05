@@ -3883,7 +3883,7 @@ class TxUpdateMgr(QObject, PrintError):
     @rate_limited(15.0)
     def process_notifs(self):
         parent = self.parent()
-        if parent and parent.network and parent.network.is_connected() and not parent.cleaned_up:
+        if parent and parent.network and not parent.cleaned_up:
             n_ok = 0
             txns = self.notifs_get_and_clear()
             if txns:
