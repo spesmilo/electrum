@@ -521,16 +521,16 @@ class ChannelDB(PrintError):
         old_policy.timestamp                   = new_policy.timestamp
 
     @sql
-    def get_policy_for_node(self, node) -> Optional['Policy']:
+    def get_policy_for_node(self, channel_info, node) -> Optional['Policy']:
         """
         raises when initiator/non-initiator both unequal node
         """
-        if node.hex() not in (self.node1_id, self.node2_id):
+        if node.hex() not in (channel_info.node1_id, channel_info.node2_id):
             raise Exception("the given node is not a party in this channel")
-        n1 = self.DBSession.query(Policy).filter_by(short_channel_id = self.short_channel_id, start_node = self.node1_id).one_or_none()
+        n1 = self.DBSession.query(Policy).filter_by(short_channel_id = channel_info.short_channel_id, start_node = channel_info.node1_id).one_or_none()
         if n1:
             return n1
-        n2 = self.DBSession.query(Policy).filter_by(short_channel_id = self.short_channel_id, start_node = self.node2_id).one_or_none()
+        n2 = self.DBSession.query(Policy).filter_by(short_channel_id = channel_info.short_channel_id, start_node = channel_info.node2_id).one_or_none()
         return n2
 
     @sql

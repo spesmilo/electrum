@@ -635,7 +635,7 @@ class LNWorker(PrintError):
             cltv_expiry_delta = 1  # lnd won't even try with zero
             missing_info = True
             if channel_info:
-                policy = channel_info.get_policy_for_node(chan.node_id)
+                policy = self.channel_db.get_policy_for_node(channel_info, chan.node_id)
                 if policy:
                     fee_base_msat = policy.fee_base_msat
                     fee_proportional_millionths = policy.fee_proportional_millionths
@@ -774,7 +774,7 @@ class LNWorker(PrintError):
                     await self.add_peer(peer.host, peer.port, peer.pubkey)
                     return
             # try random address for node_id
-            node_info = await self.channel_db._nodes_get(chan.node_id)
+            node_info = self.channel_db.nodes_get(chan.node_id)
             if not node_info: return
             addresses = self.channel_db.get_node_addresses(node_info)
             if not addresses: return
