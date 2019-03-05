@@ -11,3 +11,4 @@ aiohttp_socks
 certifi
 bitstring
 pycryptodomex>=3.7
+sqlalchemy>=1.3.0b3
