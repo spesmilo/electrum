@@ -10,6 +10,7 @@ from .TxParser import TxParser
 
 from electrum.util import print_error
 from electrum.ecc import ECPubkey, msg_magic
+from electrum.i18n import _
 
 class CardConnector:
     
@@ -20,9 +21,10 @@ class CardConnector:
     # define the apdus used in this script
     BYTE_AID= [0x53,0x61,0x74,0x6f,0x43,0x68,0x69,0x70] #SatoChip
     
-    def __init__(self, parser):
+    def __init__(self, client):
         # request any card type
-        self.parser=parser
+        self.client=client
+        self.parser=client.parser
         self.cardtype = AnyCardType()
         try: 
             # request card insertion
@@ -50,14 +52,17 @@ class CardConnector:
         try:
             (response, sw1, sw2) = self.cardservice.connection.transmit(apdu)
             if (sw1==0x9C) and (sw2==0x06):
-                if self.pin is not None:
-                    (response, sw1, sw2)= self.card_verify_PIN(self.pin_nbr, self.pin) # to do: if pin is none
-                else:
-                    print_error("[CardConnector] card_transmit(): self.pin is none...")
+                if self.pin is None:
+                    print_error("[CardConnector] card_transmit(): prompt for pin..")
+                    msg = _("Enter the PIN for your Satochip:")
+                    is_pin, pin, pin2 = self.client.PIN_dialog(msg)
+                    self.pin_nbr=0
+                    self.pin= list(pin)
+                (response, sw1, sw2)= self.card_verify_PIN(self.pin_nbr, self.pin) 
                 (response, sw1, sw2)= self.cardservice.connection.transmit(apdu)
             return (response, sw1, sw2)
         except CardConnectionException: 
-            # may be the carde has been removed
+            # may be the card has been removed
             try:
                 self.cardrequest = CardRequest(timeout=10, cardType=self.cardtype)
                 self.cardservice = self.cardrequest.waitforcard()
@@ -209,6 +214,10 @@ class CardConnector:
         le= len(path)
         apdu=[cla, ins, p1, p2, le]
         apdu+= path
+        
+        if self.parser.authentikey is None:
+            self.card_bip32_get_authentikey()
+        
         # send apdu
         while (True):
             (response, sw1, sw2) = self.card_transmit(apdu)

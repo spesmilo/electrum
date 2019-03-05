@@ -61,7 +61,7 @@ class SatochipClient():
         self.device = plugin.device
         self.handler = handler
         self.parser= CardDataParser()
-        self.cc= CardConnector(self.parser)
+        self.cc= CardConnector(self)
         
         # debug 
         try:
