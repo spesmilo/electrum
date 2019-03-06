@@ -50,42 +50,35 @@ class HTLCManager:
 
     def send_ctx(self):
         next_ctn = self.log[REMOTE]['ctn'] + 1
-
         for locked_in in self.log[REMOTE]['locked_in'].values():
             if locked_in[REMOTE] is None:
-                print("setting locked_in remote")
                 locked_in[REMOTE] = next_ctn
-
         self.expect_sig[SENT] = False
-
-        #return Sig(self.pending_htlcs(REMOTE), next_ctn)
 
     def recv_ctx(self):
         next_ctn = self.log[LOCAL]['ctn'] + 1
-
         for locked_in in self.log[LOCAL]['locked_in'].values():
             if locked_in[LOCAL] is None:
                 locked_in[LOCAL] = next_ctn
-
         self.expect_sig[RECEIVED] = False
 
     def send_rev(self):
         self.log[LOCAL]['ctn'] += 1
-        for htlc_id, ctnheights in self.log[LOCAL]['settles'].items():
-            if ctnheights[REMOTE] is None:
-                ctnheights[REMOTE] = self.log[REMOTE]['ctn'] + 1
+        for htlc_id, ctns in self.log[LOCAL]['settles'].items():
+            if ctns[REMOTE] is None:
+                ctns[REMOTE] = self.log[REMOTE]['ctn'] + 1
 
     def recv_rev(self):
         self.log[REMOTE]['ctn'] += 1
         did_set_htlc_height = False
-        for htlc_id, ctnheights in self.log[LOCAL]['locked_in'].items():
-            if ctnheights[LOCAL] is None:
+        for htlc_id, ctns in self.log[LOCAL]['locked_in'].items():
+            if ctns[LOCAL] is None:
                 did_set_htlc_height = True
-                assert ctnheights[REMOTE] == self.log[REMOTE]['ctn']
-                ctnheights[LOCAL] = self.log[LOCAL]['ctn'] + 1
-        for htlc_id, ctnheights in self.log[REMOTE]['settles'].items():
-            if ctnheights[LOCAL] is None:
-                ctnheights[LOCAL] = self.log[LOCAL]['ctn'] + 1
+                assert ctns[REMOTE] == self.log[REMOTE]['ctn']
+                ctns[LOCAL] = self.log[LOCAL]['ctn'] + 1
+        for htlc_id, ctns in self.log[REMOTE]['settles'].items():
+            if ctns[LOCAL] is None:
+                ctns[LOCAL] = self.log[LOCAL]['ctn'] + 1
         return did_set_htlc_height
 
     def htlcs_by_direction(self, subject, direction, ctn=None):
@@ -103,11 +96,11 @@ class HTLCManager:
             party = LOCAL
         else:
             party = REMOTE
-        for htlc_id, ctnheights in self.log[party]['locked_in'].items():
-            htlc_height = ctnheights[subject]
+        for htlc_id, ctns in self.log[party]['locked_in'].items():
+            htlc_height = ctns[subject]
             if htlc_height is None:
                 expect_sig = self.expect_sig[RECEIVED if party != LOCAL else SENT]
-                include = not expect_sig and ctnheights[-subject] <= ctn
+                include = not expect_sig and ctns[-subject] <= ctn
             else:
                 include = htlc_height <= ctn
             if include:
@@ -148,8 +141,8 @@ class HTLCManager:
         if ctn is None:
             ctn = self.log[subject]['ctn']
         d = []
-        for htlc_id, ctnheights in self.log[subject]['settles'].items():
-            if ctnheights[subject] <= ctn:
+        for htlc_id, ctns in self.log[subject]['settles'].items():
+            if ctns[subject] <= ctn:
                 d.append(self.log[subject]['adds'][htlc_id])
         return d
 
@@ -164,13 +157,13 @@ class HTLCManager:
 
     def received_in_ctn(self, ctn):
         return [self.log[REMOTE]['adds'][htlc_id]
-                for htlc_id, ctnheights in self.log[REMOTE]['settles'].items()
-                if ctnheights[LOCAL] == ctn]
+                for htlc_id, ctns in self.log[REMOTE]['settles'].items()
+                if ctns[LOCAL] == ctn]
 
     def sent_in_ctn(self, ctn):
         return [self.log[LOCAL]['adds'][htlc_id]
-                for htlc_id, ctnheights in self.log[LOCAL]['settles'].items()
-                if ctnheights[LOCAL] == ctn]
+                for htlc_id, ctns in self.log[LOCAL]['settles'].items()
+                if ctns[LOCAL] == ctn]
 
     def send_fail(self, htlc_id):
         self.log[REMOTE]['fails'][htlc_id] = self.log[REMOTE]['ctn'] + 1
