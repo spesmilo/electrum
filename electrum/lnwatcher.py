@@ -65,7 +65,7 @@ class SweepStore(SqlDB):
 
     @sql
     def get_sweep_tx(self, funding_outpoint, prev_txid):
-        return [Transaction(r.tx) for r in self.DBSession.query(SweepTx).filter(SweepTx.funding_outpoint==funding_outpoint, SweepTx.prev_txid==prev_txid).all()]
+        return [Transaction(bh2u(r.tx)) for r in self.DBSession.query(SweepTx).filter(SweepTx.funding_outpoint==funding_outpoint, SweepTx.prev_txid==prev_txid).all()]
 
     @sql
     def list_sweep_tx(self):
@@ -73,7 +73,7 @@ class SweepStore(SqlDB):
 
     @sql
     def add_sweep_tx(self, funding_outpoint, prev_txid, tx):
-        self.DBSession.add(SweepTx(funding_outpoint=funding_outpoint, prev_txid=prev_txid, tx=str(tx), txid=tx.txid()))
+        self.DBSession.add(SweepTx(funding_outpoint=funding_outpoint, prev_txid=prev_txid, tx=bfh(str(tx)), txid=tx.txid()))
         self.DBSession.commit()
 
     @sql

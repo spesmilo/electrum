@@ -219,7 +219,6 @@ class ChannelDB(SqlDB):
     def __init__(self, network: 'Network'):
         path = os.path.join(get_headers_dir(network.config), 'channel_db')
         super().__init__(network, path, Base)
-        print(Base)
         self.num_nodes = 0
         self.num_channels = 0
         self._channel_updates_for_private_channels = {}  # type: Dict[Tuple[bytes, bytes], dict]
