@@ -47,7 +47,10 @@ class Round(PrintErrorThread):
         self.utxo = utxo
         self.change_addresses = {}
         self.signatures = dict()
-        self.inbox = {self.messages.phases[phase]:{} for phase in self.messages.phases}
+        self.inbox = {
+            enum_val : dict() # this dict will end up being player_key -> message
+            for phase, enum_val in self.messages.phases.items()
+        }
         self.debug = False
         self.transaction = None
         self.tx = None
@@ -551,7 +554,7 @@ class Round(PrintErrorThread):
                                     for player, vk in self.players.items()
                                     if vk != cheater}
                     self.number_of_players = len(self.players)
-                    self.inbox = {msg:{} for phase,msg in self.messages.phases.items()}
+                    self.inbox = { enum_val : dict() for phase, enum_val in self.messages.phases.items() }
                     self.broadcast_new_key()
 
     @profiler
@@ -696,21 +699,25 @@ class Round(PrintErrorThread):
             else:
                 assert tot is not None
                 totals.add(tot)
-        if len(offenders) == 0:
-            self.log_message("finds sufficient funds")
+
+        def compute_shuffle_amount():
             assert totals
             self.shuffle_amount = min(totals) - self.fee
             self.log_message("adjusts shuffle amount to {} BCH".format(self.shuffle_amount / 1e8))
             assert self.shuffle_amount >= self.scale
             # recompute did_use_change here.
             self.did_use_change = self.coin_value - self.shuffle_amount - self.fee >= self.coin_utils.dust_threshold()
+
+        if len(offenders) == 0:
+            self.log_message("finds sufficient funds")
+            compute_shuffle_amount()
             return True
         else:
             self.phase = "Blame"
             old_players = self.players.copy()
-            self.players = {player:vk
-                            for player,vk in self.players.items()
-                            if vk not in offenders}
+            self.players = { player : vk
+                             for player, vk in self.players.items()
+                             if vk not in offenders}
             # invert the player -> vk map
             offender_names = { v: k for k,v in old_players.items() }
             for offender in offenders:
@@ -721,8 +728,9 @@ class Round(PrintErrorThread):
                 self.send_message()
                 self.logchan.send('Blame: insufficient funds of player ' +
                                   str(offender_names.get(offender)))
-            if len(self.players) > 1:
+            if len(self.players) >= 3:
                 self.number_of_players = len(self.players)
+                compute_shuffle_amount()
             else:
                 self.logchan.send('Error: not enough players with sufficent funds')
                 self.done = True
