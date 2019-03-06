@@ -516,7 +516,6 @@ class Hardware_KeyStore(KeyStore, Xpub):
     #   - wallet_type
 
     type = 'hardware'
-    max_change_outputs = 1
 
     def __init__(self, d):
         Xpub.__init__(self)

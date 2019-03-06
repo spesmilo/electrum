@@ -557,7 +557,15 @@ class ElectrumWindow(App):
                 wizard = Factory.InstallWizard(self.electrum_config, self.plugins)
                 wizard.path = path
                 wizard.bind(on_wizard_complete=self.on_wizard_complete)
-                wizard.run('new')
+                storage = WalletStorage(path, manual_upgrades=True)
+                if not storage.file_exists():
+                    wizard.run('new')
+                elif storage.is_encrypted():
+                    raise Exception("Kivy GUI does not support encrypted wallet files.")
+                elif storage.requires_upgrade():
+                    wizard.upgrade_storage(storage)
+                else:
+                    raise Exception("unexpected storage file situation")
             if not ask_if_wizard:
                 launch_wizard()
             else:

@@ -39,7 +39,7 @@ from .bitcoin import (TYPE_ADDRESS, TYPE_PUBKEY, TYPE_SCRIPT, hash_160,
                       hash160_to_p2sh, hash160_to_p2pkh, hash_to_segwit_addr,
                       hash_encode, var_int, TOTAL_COIN_SUPPLY_LIMIT_IN_BTC, COIN,
                       push_script, int_to_hex, push_script, b58_address_to_hash160,
-                      opcodes, add_number_to_script)
+                      opcodes, add_number_to_script, base_decode)
 from .crypto import sha256d
 from .keystore import xpubkey_to_address, xpubkey_to_pubkey
 
@@ -1185,19 +1185,26 @@ class Transaction:
         return out
 
 
-def tx_from_str(txt):
-    "json or raw hexadecimal"
-    import json
+def tx_from_str(txt: str) -> str:
+    """Sanitizes tx-describing input (json or raw hex or base43) into
+    raw hex transaction."""
+    assert isinstance(txt, str), f"txt must be str, not {type(txt)}"
     txt = txt.strip()
     if not txt:
         raise ValueError("empty string")
+    # try hex
     try:
         bfh(txt)
-        is_hex = True
-    except:
-        is_hex = False
-    if is_hex:
         return txt
+    except:
+        pass
+    # try base43
+    try:
+        return base_decode(txt, length=None, base=43).hex()
+    except:
+        pass
+    # try json
+    import json
     tx_dict = json.loads(str(txt))
     assert "hex" in tx_dict.keys()
     return tx_dict["hex"]

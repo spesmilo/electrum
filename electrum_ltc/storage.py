@@ -219,6 +219,8 @@ class WalletStorage(PrintError):
         self.db.set_modified(True)
 
     def requires_upgrade(self):
+        if not self.is_past_initial_decryption():
+            raise Exception("storage not yet decrypted!")
         return self.db.requires_upgrade()
 
     def upgrade(self):

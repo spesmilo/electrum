@@ -737,6 +737,19 @@ class Commands:
             self.wallet.remove_transaction(tx_hash)
         self.wallet.storage.write()
 
+    @command('wn')
+    def get_tx_status(self, txid):
+        """Returns some information regarding the tx. For now, only confirmations.
+        The transaction must be related to the wallet.
+        """
+        if not is_hash256_str(txid):
+            raise Exception(f"{repr(txid)} is not a txid")
+        if not self.wallet.db.get_transaction(txid):
+            raise Exception("Transaction not in wallet.")
+        return {
+            "confirmations": self.wallet.get_tx_height(txid).conf,
+        }
+
     @command('')
     def help(self):
         # for the python console

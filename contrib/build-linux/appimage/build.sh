@@ -42,21 +42,22 @@ tar xf "$CACHEDIR/Python-$PYTHON_VERSION.tar.xz" -C "$BUILDDIR"
 (
     cd "$BUILDDIR/Python-$PYTHON_VERSION"
     export SOURCE_DATE_EPOCH=1530212462
-    ./configure \
+    TZ=UTC faketime -f '2019-01-01 01:01:01' ./configure \
       --cache-file="$CACHEDIR/python.config.cache" \
       --prefix="$APPDIR/usr" \
       --enable-ipv6 \
       --enable-shared \
       --with-threads \
       -q
-    make -s
+    TZ=UTC faketime -f '2019-01-01 01:01:01' make -s
     make -s install > /dev/null
 )
 
 
 info "building libsecp256k1."
 (
-    git clone https://github.com/bitcoin-core/secp256k1 "$CACHEDIR"/secp256k1 || (cd "$CACHEDIR"/secp256k1 && git pull)
+    git clone https://github.com/bitcoin-core/secp256k1 "$CACHEDIR"/secp256k1 \
+        || (cd "$CACHEDIR"/secp256k1 && git reset --hard && git pull)
     cd "$CACHEDIR"/secp256k1
     git reset --hard "$LIBSECP_VERSION"
     git clean -f -x -q
@@ -151,13 +152,14 @@ info "finalizing AppDir."
 
 
 info "stripping binaries from debug symbols."
+# "-R .note.gnu.build-id" also strips the build id
 strip_binaries()
 {
   chmod u+w -R "$APPDIR"
   {
     printf '%s\0' "$APPDIR/usr/bin/python3.6"
     find "$APPDIR" -type f -regex '.*\.so\(\.[0-9.]+\)?$' -print0
-  } | xargs -0 --no-run-if-empty --verbose -n1 strip
+  } | xargs -0 --no-run-if-empty --verbose -n1 strip -R .note.gnu.build-id
 }
 strip_binaries
 
@@ -181,6 +183,15 @@ rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5Quick*
 rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5Location*
 rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5Test*
 rm -rf "$APPDIR"/usr/lib/python3.6/site-packages/PyQt5/Qt/lib/libQt5Xml*
+
+# these are deleted as they were not deterministic; and are not needed anyway
+find "$APPDIR" -path '*/__pycache__*' -delete
+rm "$APPDIR"/usr/lib/libsecp256k1.a
+rm "$APPDIR"/usr/lib/python3.6/site-packages/pyblake2-*.dist-info/RECORD
+rm "$APPDIR"/usr/lib/python3.6/site-packages/hidapi-*.dist-info/RECORD
+
+
+find -exec touch -d '2000-11-11T11:11:11+00:00' {} +
 
 
 info "creating the AppImage."
