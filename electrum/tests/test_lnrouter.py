@@ -3,7 +3,7 @@ import tempfile
 import shutil
 import asyncio
 
-from electrum.util import bh2u, bfh
+from electrum.util import bh2u, bfh, create_and_start_event_loop
 from electrum.lnonion import (OnionHopsDataSingle, new_onion_packet, OnionPerHop,
                               process_onion_packet, _decode_onion_error, decode_onion_error,
                               OnionFailureCode)
@@ -34,10 +34,19 @@ class Test_LNRouter(TestCaseForTestnet):
         cls.electrum_path = tempfile.mkdtemp()
         cls.config = SimpleConfig({'electrum_path': cls.electrum_path})
 
+    def setUp(self):
+        super().setUp()
+        self.asyncio_loop, self._stop_loop, self._loop_thread = create_and_start_event_loop()
+
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
         shutil.rmtree(cls.electrum_path)
+
+    def tearDown(self):
+        super().tearDown()
+        self.asyncio_loop.call_soon_threadsafe(self._stop_loop.set_result, 1)
+        self._loop_thread.join(timeout=1)
 
     def test_find_path_for_payment(self):
         class fake_network:
