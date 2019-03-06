@@ -25,7 +25,7 @@ from .keystore import BIP32_KeyStore
 from .bitcoin import COIN
 from .transaction import Transaction
 from .crypto import sha256
-from .bip32 import bip32_root
+from .bip32 import BIP32Node
 from .util import bh2u, bfh, PrintError, InvoiceError, resolve_dns_srv, is_ip_address, log_exceptions
 from .util import timestamp_to_datetime
 from .lntransport import LNTransport, LNResponderTransport
@@ -217,7 +217,8 @@ class LNWorker(PrintError):
             # TODO derive this deterministically from wallet.keystore at keystore generation time
             # probably along a hardened path ( lnd-equivalent would be m/1017'/coinType'/ )
             seed = os.urandom(32)
-            xprv, xpub = bip32_root(seed, xtype='standard')
+            node = BIP32Node.from_rootseed(seed, xtype='standard')
+            xprv = node.to_xprv()
             self.storage.put('lightning_privkey2', xprv)
         return keystore.from_xprv(xprv)
 

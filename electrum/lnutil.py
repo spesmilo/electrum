@@ -237,7 +237,7 @@ def make_htlc_tx_output(amount_msat, local_feerate, revocationpubkey, local_dela
         + bfh(push_script(bh2u(revocationpubkey))) \
         + bytes([opcodes.OP_ELSE]) \
         + bitcoin.add_number_to_script(to_self_delay) \
-        + bytes([opcodes.OP_CSV, opcodes.OP_DROP]) \
+        + bytes([opcodes.OP_CHECKSEQUENCEVERIFY, opcodes.OP_DROP]) \
         + bfh(push_script(bh2u(local_delayedpubkey))) \
         + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
 
@@ -319,7 +319,7 @@ def make_received_htlc(revocation_pubkey: bytes, remote_htlcpubkey: bytes,
         + bitcoin.add_number_to_script(2) \
         + bytes([opcodes.OP_CHECKMULTISIG, opcodes.OP_ELSE, opcodes.OP_DROP]) \
         + bitcoin.add_number_to_script(cltv_expiry) \
-        + bytes([opcodes.OP_CLTV, opcodes.OP_DROP, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF, opcodes.OP_ENDIF])
+        + bytes([opcodes.OP_CHECKLOCKTIMEVERIFY, opcodes.OP_DROP, opcodes.OP_CHECKSIG, opcodes.OP_ENDIF, opcodes.OP_ENDIF])
 
 def make_htlc_output_witness_script(is_received_htlc: bool, remote_revocation_pubkey: bytes, remote_htlc_pubkey: bytes,
                                     local_htlc_pubkey: bytes, payment_hash: bytes, cltv_expiry: Optional[int]) -> bytes:
@@ -473,7 +473,7 @@ def make_commitment(ctn, local_funding_pubkey, remote_funding_pubkey,
 def make_commitment_output_to_local_witness_script(
         revocation_pubkey: bytes, to_self_delay: int, delayed_pubkey: bytes) -> bytes:
     local_script = bytes([opcodes.OP_IF]) + bfh(push_script(bh2u(revocation_pubkey))) + bytes([opcodes.OP_ELSE]) + bitcoin.add_number_to_script(to_self_delay) \
-                   + bytes([opcodes.OP_CSV, opcodes.OP_DROP]) + bfh(push_script(bh2u(delayed_pubkey))) + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
+                   + bytes([opcodes.OP_CHECKSEQUENCEVERIFY, opcodes.OP_DROP]) + bfh(push_script(bh2u(delayed_pubkey))) + bytes([opcodes.OP_ENDIF, opcodes.OP_CHECKSIG])
     return local_script
 
 def make_commitment_output_to_local_address(

@@ -211,7 +211,7 @@ class LNWatcher(AddressSynchronizer):
         # FIXME: instead of stopping recursion at n == 2,
         # we should detect which outputs are HTLCs
         prev_txid, index = outpoint.split(':')
-        txid = self.spent_outpoints[prev_txid].get(int(index))
+        txid = self.db.get_spent_outpoint(prev_txid, int(index))
         result = {outpoint:txid}
         if txid is None:
             self.channel_status[outpoint] = 'open'
@@ -224,7 +224,7 @@ class LNWatcher(AddressSynchronizer):
         else:
             self.channel_status[outpoint] = 'closed (deep)'
 
-        tx = self.transactions[txid]
+        tx = self.db.get_transaction(txid)
         for i, o in enumerate(tx.outputs()):
             if o.address not in self.get_addresses():
                 self.add_address(o.address)

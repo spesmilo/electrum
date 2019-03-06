@@ -99,9 +99,8 @@ def create_channel_state(funding_txid, funding_index, funding_sat, local_feerate
     }
 
 def bip32(sequence):
-    xprv, xpub = bip32_utils.bip32_root(b"9dk", 'standard')
-    xprv, xpub = bip32_utils.bip32_private_derivation(xprv, "m/", sequence)
-    xtype, depth, fingerprint, child_number, c, k = bip32_utils.deserialize_xprv(xprv)
+    node = bip32_utils.BIP32Node.from_rootseed(b"9dk", xtype='standard').subkey_at_private_derivation(sequence)
+    k = node.eckey.get_secret_bytes()
     assert len(k) == 32
     assert type(k) is bytes
     return k
