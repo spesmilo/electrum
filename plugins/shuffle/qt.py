@@ -1726,7 +1726,6 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
         simple = self._isSimple()
         self.simpleChk.setChecked(simple)
         mysettings = BackgroundShufflingThread.latest_shuffle_settings
-        tit = self.poolsGB.title().rsplit(' ', 1)[0]
         # handle if we detected a ban
         if self.sdict.get('banned'):
             banScore = self.sdict.get('banScore') or 0
@@ -1736,7 +1735,6 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
             self.banLabel.setHidden(True)
         pools = self.sdict.get('poolsList', list()).copy()
         poolSize = str(self.sdict.get('poolSize', ''))
-        self.poolsGB.setTitle(tit + " ({})".format(len(pools)))
         self.tree.clear()
         try:
             pools.sort(reverse=True, key=lambda x:(0 if x['full'] else 1, x['amount'], x['members'], -x.get('version',0)))
@@ -1764,6 +1762,9 @@ class PoolsWindow(QWidget, PrintError, NetworkCheckerDelegateMixin):
                 if not is_my_settings:
                     grayify(twi)
                 self.tree.addTopLevelItem(twi)
+
+        tit = self.poolsGB.title().rsplit(' ', 1)[0]
+        self.poolsGB.setTitle(tit + " ({})".format(self.tree.topLevelItemCount()))
 
         def sizeColumnsToFit():
             for i in range(self.tree.columnCount()):
